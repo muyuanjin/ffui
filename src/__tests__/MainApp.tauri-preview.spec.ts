@@ -39,6 +39,7 @@ vi.mock("@/lib/backend", () => {
 
   return {
     hasTauri: () => true,
+    buildPreviewUrl: (path: string | null) => path,
     fetchCpuUsage: vi.fn(async () => ({} as any)),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchGpuUsage: vi.fn(async () => ({} as any)),

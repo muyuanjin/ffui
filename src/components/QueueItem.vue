@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
+import { buildPreviewUrl } from "@/lib/backend";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -96,11 +97,9 @@ const savedLabel = computed(() => {
   return t("queue.savedShort", { percent });
 });
 
-const combinedLogs = computed(() => {
-  const logs = props.job.logs;
-  if (!logs || logs.length === 0) return "";
-  return logs.join("\n");
-});
+const commandLine = computed(() => props.job.ffmpegCommand ?? "");
+
+const previewUrl = computed(() => buildPreviewUrl(props.job.previewPath ?? null));
 
 const mediaSummary = computed(() => {
   const info = props.job.mediaInfo;
@@ -141,6 +140,17 @@ const mediaSummary = computed(() => {
   >
     <div class="flex items-center justify-between mb-2">
       <div class="flex items-center gap-3">
+        <div
+          class="h-14 w-24 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0"
+          data-testid="queue-item-thumbnail"
+        >
+          <img
+            v-if="previewUrl"
+            :src="previewUrl"
+            alt=""
+            class="h-full w-full object-cover"
+          />
+        </div>
         <span
           class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-[10px] font-semibold"
           :class="{
@@ -245,10 +255,10 @@ const mediaSummary = computed(() => {
         {{ mediaSummary }}
       </span>
     </div>
-    <div v-if="combinedLogs" class="mt-2">
+    <div v-if="commandLine" class="mt-2">
       <pre
-        class="max-h-40 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"
-      >{{ combinedLogs }}</pre>
+        class="max-h-24 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"
+      >{{ commandLine }}</pre>
     </div>
   </Card>
 </template>

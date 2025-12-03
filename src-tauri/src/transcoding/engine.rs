@@ -1,7 +1,7 @@
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet, VecDeque};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::hash::{Hash, Hasher};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -202,7 +202,11 @@ impl TranscodingEngine {
 
         let output_path = if matches!(job_type, JobType::Video) {
             let path = PathBuf::from(&filename);
-            Some(build_video_output_path(&path).to_string_lossy().into_owned())
+            Some(
+                build_video_output_path(&path)
+                    .to_string_lossy()
+                    .into_owned(),
+            )
         } else {
             None
         };
@@ -241,6 +245,7 @@ impl TranscodingEngine {
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
+                batch_id: None,
             };
             state.queue.push_back(id.clone());
             state.jobs.insert(id.clone(), job.clone());
@@ -340,6 +345,17 @@ impl TranscodingEngine {
             (state.settings.clone(), state.presets.clone())
         };
 
+        let started_at_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        let mut hasher = DefaultHasher::new();
+        root_path.hash(&mut hasher);
+        started_at_ms.hash(&mut hasher);
+        let batch_hash = hasher.finish();
+        let batch_id = format!("auto-compress-{batch_hash:016x}");
+
         let mut jobs = Vec::new();
         let mut total_files_scanned = 0u64;
         let mut total_candidates = 0u64;
@@ -367,7 +383,8 @@ impl TranscodingEngine {
 
                 if is_image_file(&path) {
                     total_candidates += 1;
-                    let job = self.handle_image_file(&path, &config, &settings_snapshot)?;
+                    let job =
+                        self.handle_image_file(&path, &config, &settings_snapshot, &batch_id)?;
                     if matches!(job.status, JobStatus::Completed) {
                         total_processed += 1;
                     }
@@ -378,7 +395,13 @@ impl TranscodingEngine {
                         .iter()
                         .find(|p| p.id == config.video_preset_id)
                         .cloned();
-                    let job = self.handle_video_file(&path, &config, &settings_snapshot, preset)?;
+                    let job = self.handle_video_file(
+                        &path,
+                        &config,
+                        &settings_snapshot,
+                        preset,
+                        &batch_id,
+                    )?;
                     if matches!(job.status, JobStatus::Completed) {
                         total_processed += 1;
                     }
@@ -387,12 +410,20 @@ impl TranscodingEngine {
             }
         }
 
+        let completed_at_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
         Ok(AutoCompressResult {
             root_path,
             jobs,
             total_files_scanned,
             total_candidates,
             total_processed,
+            batch_id,
+            started_at_ms,
+            completed_at_ms,
         })
     }
 
@@ -591,9 +622,7 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         }
     }
 
-    if media_info.width.is_none()
-        || media_info.height.is_none()
-        || media_info.frame_rate.is_none()
+    if media_info.width.is_none() || media_info.height.is_none() || media_info.frame_rate.is_none()
     {
         if let Ok((width, height, frame_rate)) =
             detect_video_dimensions_and_frame_rate(&input_path, &settings_snapshot)
@@ -610,14 +639,18 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         }
     }
 
+    let output_path = build_video_output_path(&input_path);
+    let tmp_output = build_video_tmp_output_path(&input_path);
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
     // in later if ffprobe is missing or fails on the current file.
     let mut total_duration = media_info.duration_seconds;
-
-    let output_path = build_video_output_path(&input_path);
-    let tmp_output = build_video_tmp_output_path(&input_path);
-    let preview_path = generate_preview_for_video(&input_path, &ffmpeg_path);
+    let preview_path = generate_preview_for_video(
+        &input_path,
+        &ffmpeg_path,
+        total_duration,
+        settings_snapshot.preview_capture_percent,
+    );
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -633,6 +666,12 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
                 .insert(job_filename, media_info.clone());
         }
     }
+
+    // Broadcast an updated queue snapshot with media metadata and preview path
+    // before starting the heavy ffmpeg transcode so the UI can show thumbnails
+    // and basic info as soon as a job enters Processing.
+    notify_queue_listeners(inner);
+
     let args = build_ffmpeg_args(&preset, &input_path, &tmp_output);
 
     // Record the exact ffmpeg command we are about to run so that users can
@@ -679,8 +718,7 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
                         // Also update the job's cached media info so future
                         // queue_state snapshots and the inspection UI can see
                         // an accurate duration value.
-                        let mut state =
-                            inner.state.lock().expect("engine state poisoned");
+                        let mut state = inner.state.lock().expect("engine state poisoned");
                         if let Some(job) = state.jobs.get_mut(job_id) {
                             if let Some(info) = job.media_info.as_mut() {
                                 info.duration_seconds = Some(d);
@@ -874,12 +912,28 @@ fn update_job_progress(
                 }
                 job.logs.push(line.to_string());
                 recompute_log_tail(job);
+
+                // Even when ffmpeg does not emit the traditional "time=... speed=..."
+                // progress lines (for example due to loglevel changes or custom
+                // builds), the UI still needs to see streaming log output, the
+                // resolved ffmpeg command, and any media metadata / preview paths.
+                //
+                // To avoid the "no progress / no logs until cancel or completion"
+                // regression, emit a queue snapshot whenever we append a log line
+                // while the job is actively processing. This trades a modest
+                // increase in event frequency for correct, real-time feedback.
+                if job.status == JobStatus::Processing {
+                    should_notify = true;
+                }
             }
         }
     }
 
     // Emit queue snapshots only when progress actually moves forward so the
-    // event stream stays efficient while remaining responsive.
+    // event stream stays efficient while remaining responsive. Log-only
+    // updates for processing jobs are also allowed to trigger snapshots so
+    // the frontend can show live ffmpeg output even if no percentage can be
+    // derived from the current stderr line.
     if should_notify {
         notify_queue_listeners(inner);
     }
@@ -999,6 +1053,7 @@ impl TranscodingEngine {
         path: &Path,
         config: &SmartScanConfig,
         settings: &AppSettings,
+        batch_id: &str,
     ) -> Result<TranscodeJob> {
         let metadata = fs::metadata(path)
             .with_context(|| format!("failed to stat image file {}", path.display()))?;
@@ -1044,6 +1099,7 @@ impl TranscodingEngine {
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            batch_id: Some(batch_id.to_string()),
         };
 
         let ext = path
@@ -1155,6 +1211,7 @@ impl TranscodingEngine {
         config: &SmartScanConfig,
         settings: &AppSettings,
         preset: Option<FFmpegPreset>,
+        batch_id: &str,
     ) -> Result<TranscodeJob> {
         let metadata = fs::metadata(path)
             .with_context(|| format!("failed to stat video file {}", path.display()))?;
@@ -1198,6 +1255,7 @@ impl TranscodingEngine {
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            batch_id: Some(batch_id.to_string()),
         };
 
         if original_size_mb < config.min_video_size_mb as f64 {
@@ -1210,9 +1268,9 @@ impl TranscodingEngine {
         let codec = detect_video_codec(path, settings).ok();
         if let Some(ref name) = codec {
             job.original_codec = Some(name.clone());
-             if let Some(info) = job.media_info.as_mut() {
-                 info.video_codec = Some(name.clone());
-             }
+            if let Some(info) = job.media_info.as_mut() {
+                info.video_codec = Some(name.clone());
+            }
             let lower = name.to_ascii_lowercase();
             if matches!(lower.as_str(), "hevc" | "hevc_nvenc" | "h265" | "av1") {
                 job.status = JobStatus::Skipped;
@@ -1439,7 +1497,36 @@ fn build_preview_output_path(input: &Path) -> PathBuf {
     preview_root_dir().join(format!("{hash:016x}.jpg"))
 }
 
-fn generate_preview_for_video(input: &Path, ffmpeg_path: &str) -> Option<PathBuf> {
+fn compute_preview_seek_seconds(total_duration: Option<f64>, capture_percent: u8) -> f64 {
+    const DEFAULT_SEEK_SECONDS: f64 = 3.0;
+
+    let duration = match total_duration {
+        Some(d) if d.is_finite() && d > 0.0 => d,
+        _ => return DEFAULT_SEEK_SECONDS,
+    };
+
+    // Clamp the configured percentage into a sane range so bogus configs
+    // cannot cause us to seek past the end or before the first second.
+    let percent = (capture_percent as f64).clamp(0.0, 100.0);
+    let raw = duration * percent / 100.0;
+
+    // For very short clips, prefer a simple midpoint to avoid degenerate
+    // ranges where `duration - 1` becomes <= 1.
+    if duration <= 2.0 {
+        return (duration / 2.0).max(0.0);
+    }
+
+    let min = 1.0;
+    let max = (duration - 1.0).max(min);
+    raw.clamp(min, max)
+}
+
+fn generate_preview_for_video(
+    input: &Path,
+    ffmpeg_path: &str,
+    total_duration: Option<f64>,
+    capture_percent: u8,
+) -> Option<PathBuf> {
     let preview_path = build_preview_output_path(input);
 
     if preview_path.exists() {
@@ -1450,12 +1537,15 @@ fn generate_preview_for_video(input: &Path, ffmpeg_path: &str) -> Option<PathBuf
         let _ = fs::create_dir_all(parent);
     }
 
+    let seek_seconds = compute_preview_seek_seconds(total_duration, capture_percent);
+    let ss_arg = format!("{seek_seconds:.3}");
+
     let mut cmd = Command::new(ffmpeg_path);
     configure_background_command(&mut cmd);
     let status = cmd
         .arg("-y")
         .arg("-ss")
-        .arg("3")
+        .arg(&ss_arg)
         .arg("-i")
         .arg(input.as_os_str())
         .arg("-frames:v")
@@ -1852,6 +1942,55 @@ mod tests {
     }
 
     #[test]
+    fn compute_preview_seek_seconds_uses_capture_percent_with_clamping() {
+        // Normal case: 25% of a 200s clip -> 50s.
+        let seek = compute_preview_seek_seconds(Some(200.0), 25);
+        assert!(
+            (seek - 50.0).abs() < 0.001,
+            "expected seek around 50s for 25% of 200s, got {seek}"
+        );
+
+        // Very low percent clamps to at least 1s.
+        let seek_low = compute_preview_seek_seconds(Some(200.0), 0);
+        assert!(
+            (seek_low - 1.0).abs() < 0.001,
+            "seek should clamp to >= 1s when percent is 0, got {seek_low}"
+        );
+
+        // Very high percent clamps to at most duration - 1s.
+        let seek_high = compute_preview_seek_seconds(Some(200.0), 100);
+        assert!(
+            (seek_high - 199.0).abs() < 0.001,
+            "seek should clamp to <= duration-1s, expected ~199, got {seek_high}"
+        );
+    }
+
+    #[test]
+    fn compute_preview_seek_seconds_falls_back_when_duration_unavailable() {
+        let seek_none = compute_preview_seek_seconds(None, 25);
+        assert!(
+            (seek_none - 3.0).abs() < 0.001,
+            "missing duration should fall back to default 3s, got {seek_none}"
+        );
+
+        let seek_zero = compute_preview_seek_seconds(Some(0.0), 25);
+        assert!(
+            (seek_zero - 3.0).abs() < 0.001,
+            "zero duration should fall back to default 3s, got {seek_zero}"
+        );
+    }
+
+    #[test]
+    fn compute_preview_seek_seconds_handles_very_short_clips() {
+        // For very short clips we use a simple midpoint rather than 1..D-1.
+        let seek_short = compute_preview_seek_seconds(Some(1.0), 25);
+        assert!(
+            (seek_short - 0.5).abs() < 0.001,
+            "very short clips should use a midpoint (~0.5s for 1s clip), got {seek_short}"
+        );
+    }
+
+    #[test]
     fn parse_ffmpeg_time_to_seconds_handles_hms_with_fraction() {
         let v = parse_ffmpeg_time_to_seconds("00:01:29.95");
         assert!((v - 89.95).abs() < 0.001);
@@ -1859,10 +1998,9 @@ mod tests {
 
     #[test]
     fn parse_ffmpeg_duration_from_metadata_line_extracts_duration() {
-        let line =
-            "  Duration: 00:01:29.95, start: 0.000000, bitrate: 20814 kb/s";
-        let seconds = parse_ffmpeg_duration_from_metadata_line(line)
-            .expect("duration should be parsed");
+        let line = "  Duration: 00:01:29.95, start: 0.000000, bitrate: 20814 kb/s";
+        let seconds =
+            parse_ffmpeg_duration_from_metadata_line(line).expect("duration should be parsed");
         assert!((seconds - 89.95).abs() < 0.001);
 
         let unrelated = "Some other log line without duration";
@@ -1872,8 +2010,7 @@ mod tests {
     #[test]
     fn parse_ffmpeg_progress_line_extracts_elapsed_and_speed() {
         let line = "frame=  899 fps=174 q=29.0 size=   12800KiB time=00:00:32.51 bitrate=3224.5kbits/s speed=6.29x elapsed=0:00:05.17";
-        let (elapsed, speed) =
-            parse_ffmpeg_progress_line(line).expect("progress should be parsed");
+        let (elapsed, speed) = parse_ffmpeg_progress_line(line).expect("progress should be parsed");
         assert!((elapsed - 32.51).abs() < 0.001);
         assert!((speed.unwrap() - 6.29).abs() < 0.001);
     }
@@ -1896,13 +2033,254 @@ mod tests {
     }
 
     #[test]
+    fn update_job_progress_clamps_and_is_monotonic() {
+        let settings = AppSettings::default();
+        let inner = Inner::new(Vec::new(), settings);
+        let job_id = "job-progress-monotonic".to_string();
+
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            state.jobs.insert(
+                job_id.clone(),
+                TranscodeJob {
+                    id: job_id.clone(),
+                    filename: "C:/videos/monotonic.mp4".to_string(),
+                    job_type: JobType::Video,
+                    source: JobSource::Manual,
+                    original_size_mb: 100.0,
+                    original_codec: Some("h264".to_string()),
+                    preset_id: "preset-1".to_string(),
+                    status: JobStatus::Processing,
+                    progress: 0.0,
+                    start_time: Some(0),
+                    end_time: None,
+                    output_size_mb: None,
+                    logs: Vec::new(),
+                    skip_reason: None,
+                    input_path: None,
+                    output_path: None,
+                    ffmpeg_command: None,
+                    media_info: None,
+                    preview_path: None,
+                    log_tail: None,
+                    failure_reason: None,
+                    batch_id: None,
+                },
+            );
+        }
+
+        // Negative percentages clamp to 0 and do not move progress.
+        update_job_progress(&inner, &job_id, Some(-10.0), None, None);
+
+        {
+            let state = inner.state.lock().expect("engine state poisoned");
+            let job = state
+                .jobs
+                .get(&job_id)
+                .expect("job must be present after first update");
+            assert_eq!(job.progress, 0.0);
+        }
+
+        // Normal in-range percentage moves progress forward.
+        update_job_progress(&inner, &job_id, Some(42.5), None, None);
+
+        {
+            let state = inner.state.lock().expect("engine state poisoned");
+            let job = state
+                .jobs
+                .get(&job_id)
+                .expect("job must be present after second update");
+            assert!(
+                (job.progress - 42.5).abs() < f64::EPSILON,
+                "progress should track the clamped percentage"
+            );
+        }
+
+        // Values above 100 clamp to 100.
+        update_job_progress(&inner, &job_id, Some(150.0), None, None);
+
+        {
+            let state = inner.state.lock().expect("engine state poisoned");
+            let job = state
+                .jobs
+                .get(&job_id)
+                .expect("job must be present after third update");
+            assert_eq!(job.progress, 100.0);
+        }
+
+        // Regressing percentages are ignored to keep progress monotonic.
+        update_job_progress(&inner, &job_id, Some(80.0), None, None);
+
+        {
+            let state = inner.state.lock().expect("engine state poisoned");
+            let job = state
+                .jobs
+                .get(&job_id)
+                .expect("job must be present after final update");
+            assert_eq!(
+                job.progress, 100.0,
+                "progress must remain monotonic and never decrease"
+            );
+        }
+    }
+
+    #[test]
+    fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
+        let dir = env::temp_dir();
+        let path = dir.join("transcoding_test_log_stream.mp4");
+
+        {
+            let mut file = File::create(&path).expect("create temp video file for log-stream test");
+            let data = vec![0u8; 1024 * 1024];
+            file.write_all(&data)
+                .expect("write data to temp video file for log-stream test");
+        }
+
+        let engine = make_engine_with_preset();
+
+        let snapshots: TestArc<TestMutex<Vec<QueueState>>> =
+            TestArc::new(TestMutex::new(Vec::new()));
+        let snapshots_clone = TestArc::clone(&snapshots);
+
+        engine.register_queue_listener(move |state: QueueState| {
+            snapshots_clone
+                .lock()
+                .expect("snapshots lock poisoned")
+                .push(state);
+        });
+
+        let job = engine.enqueue_transcode_job(
+            path.to_string_lossy().into_owned(),
+            JobType::Video,
+            JobSource::Manual,
+            0.0,
+            None,
+            "preset-1".into(),
+        );
+
+        // Clear any initial snapshots from enqueue so we can focus on the
+        // behaviour of update_job_progress itself.
+        {
+            let mut states = snapshots.lock().expect("snapshots lock poisoned");
+            states.clear();
+        }
+
+        // Simulate the worker having moved the job into Processing state, as
+        // spawn_worker would normally do before calling process_transcode_job.
+        {
+            let inner = &engine.inner;
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            let stored = state
+                .jobs
+                .get_mut(&job.id)
+                .expect("job should be present in engine state");
+            stored.status = JobStatus::Processing;
+        }
+
+        // Invoke update_job_progress with only a log line and no percentage.
+        // This previously failed to emit any queue snapshots, causing the UI
+        // to see no live logs or ffmpeg command until some later state change
+        // such as cancellation or completion.
+        update_job_progress(
+            &engine.inner,
+            &job.id,
+            None,
+            Some("ffmpeg test progress line"),
+            None,
+        );
+
+        let states = snapshots.lock().expect("snapshots lock poisoned");
+        assert!(
+            !states.is_empty(),
+            "log-only progress updates for processing jobs must emit at least one queue snapshot"
+        );
+        let snapshot_job = states
+            .iter()
+            .flat_map(|s| s.jobs.iter())
+            .find(|j| j.id == job.id)
+            .expect("snapshot should contain the updated job");
+        assert!(
+            snapshot_job
+                .logs
+                .iter()
+                .any(|l| l.contains("ffmpeg test progress line")),
+            "snapshot logs should include the newly appended log line"
+        );
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn process_transcode_job_marks_failure_when_preset_missing() {
+        let settings = AppSettings::default();
+        let inner = Inner::new(Vec::new(), settings);
+        let job_id = "job-missing-preset".to_string();
+
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            state.jobs.insert(
+                job_id.clone(),
+                TranscodeJob {
+                    id: job_id.clone(),
+                    filename: "C:/videos/sample.mp4".to_string(),
+                    job_type: JobType::Video,
+                    source: JobSource::Manual,
+                    original_size_mb: 100.0,
+                    original_codec: Some("h264".to_string()),
+                    preset_id: "non-existent-preset".to_string(),
+                    status: JobStatus::Processing,
+                    progress: 0.0,
+                    start_time: Some(0),
+                    end_time: None,
+                    output_size_mb: None,
+                    logs: Vec::new(),
+                    skip_reason: None,
+                    input_path: None,
+                    output_path: None,
+                    ffmpeg_command: None,
+                    media_info: None,
+                    preview_path: None,
+                    log_tail: None,
+                    failure_reason: None,
+                    batch_id: None,
+                },
+            );
+        }
+
+        let result = process_transcode_job(&inner, &job_id);
+        assert!(
+            result.is_ok(),
+            "processing a job with a missing preset should not bubble an error"
+        );
+
+        let state = inner.state.lock().expect("engine state poisoned");
+        let job = state
+            .jobs
+            .get(&job_id)
+            .expect("job must remain present after processing");
+        assert_eq!(job.status, JobStatus::Failed);
+        assert_eq!(job.progress, 100.0);
+
+        let failure = job.failure_reason.as_ref().expect("failure_reason present");
+        assert!(
+            failure.contains("No preset found for preset id 'non-existent-preset'"),
+            "failure_reason should mention the missing preset id, got: {failure}"
+        );
+        assert!(
+            job.logs
+                .iter()
+                .any(|line| line.contains("No preset found for preset id 'non-existent-preset'")),
+            "logs should contain the missing preset message"
+        );
+    }
+
+    #[test]
     fn queue_listener_observes_enqueue_and_cancel() {
         let dir = env::temp_dir();
         let path = dir.join("transcoding_test_listener.mp4");
 
         {
-            let mut file =
-                File::create(&path).expect("create temp video file for listener test");
+            let mut file = File::create(&path).expect("create temp video file for listener test");
             let data = vec![0u8; 1024 * 1024];
             file.write_all(&data)
                 .expect("write data to temp video file for listener test");
@@ -1933,9 +2311,7 @@ mod tests {
         {
             let states = snapshots.lock().expect("snapshots lock poisoned");
             assert!(
-                states
-                    .iter()
-                    .any(|s| s.jobs.iter().any(|j| j.id == job.id)),
+                states.iter().any(|s| s.jobs.iter().any(|j| j.id == job.id)),
                 "listener should receive a snapshot containing the enqueued job"
             );
         }

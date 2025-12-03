@@ -139,6 +139,14 @@
     height: 100%;
   }
 
+  /* After Vue mounts, #app should behave as a normal full-screen container,
+     not keep the boot-shell's flex centering (which would clip the main UI
+     when content gets taller, e.g. 软件设置外部工具状态很多时). */
+  #app {
+    min-height: 100%;
+    display: block;
+  }
+
   /* Allow text selection where it makes sense */
   input,
   textarea,
@@ -170,6 +178,19 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+
+  /* Reka ScrollArea injects a style tag that fully hides scrollbars on its
+     viewport; for the main内容区我们需要系统滚动条可见，否则设置页内容多时会给人
+     “被撑爆、标题栏消失”的错觉。这里强制恢复默认滚动条展示。 */
+  [data-reka-scroll-area-viewport] {
+    scrollbar-width: auto !important;
+    -ms-overflow-style: auto !important;
+    -webkit-overflow-scrolling: auto !important;
+  }
+
+  [data-reka-scroll-area-viewport]::-webkit-scrollbar {
+    display: block !important;
   }
 
   /* Scrollbar styling to better match the dark theme */

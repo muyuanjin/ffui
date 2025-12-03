@@ -173,6 +173,9 @@ pub struct TranscodeJob {
     /// Short, structured reason string describing why a job failed. This is
     /// separate from raw logs so the UI can surface a concise headline.
     pub failure_reason: Option<String>,
+    /// Optional stable identifier for a Smart Scan batch this job belongs to.
+    /// Manual / ad-hoc jobs do not carry a batch id.
+    pub batch_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,6 +239,7 @@ mod tests {
             preview_path: Some("C:/app-data/previews/abc123.jpg".to_string()),
             log_tail: Some("last few lines".to_string()),
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
+            batch_id: Some("auto-compress-batch-1".to_string()),
         };
 
         let value = serde_json::to_value(&job).expect("serialize TranscodeJob");
@@ -285,39 +289,24 @@ mod tests {
                 .unwrap(),
             120.5
         );
-        assert_eq!(
-            media.get("width").and_then(Value::as_u64).unwrap(),
-            1920u64
-        );
+        assert_eq!(media.get("width").and_then(Value::as_u64).unwrap(), 1920u64);
         assert_eq!(
             media.get("height").and_then(Value::as_u64).unwrap(),
             1080u64
         );
         assert_eq!(
-            media
-                .get("frameRate")
-                .and_then(Value::as_f64)
-                .unwrap(),
+            media.get("frameRate").and_then(Value::as_f64).unwrap(),
             29.97
         );
         assert_eq!(
-            media
-                .get("videoCodec")
-                .and_then(Value::as_str)
-                .unwrap(),
+            media.get("videoCodec").and_then(Value::as_str).unwrap(),
             "h264"
         );
         assert_eq!(
-            media
-                .get("audioCodec")
-                .and_then(Value::as_str)
-                .unwrap(),
+            media.get("audioCodec").and_then(Value::as_str).unwrap(),
             "aac"
         );
-        assert_eq!(
-            media.get("sizeMB").and_then(Value::as_f64).unwrap(),
-            700.0
-        );
+        assert_eq!(media.get("sizeMB").and_then(Value::as_f64).unwrap(), 700.0);
 
         assert_eq!(
             value
@@ -339,6 +328,13 @@ mod tests {
                 .and_then(Value::as_str)
                 .expect("failureReason present"),
             "ffmpeg exited with non-zero status (exit code 1)"
+        );
+        assert_eq!(
+            value
+                .get("batchId")
+                .and_then(Value::as_str)
+                .expect("batchId present"),
+            "auto-compress-batch-1"
         );
 
         // Legacy JSON using *Mb fields must still deserialize correctly.
@@ -400,6 +396,68 @@ mod tests {
         assert_eq!(decoded.usage_count, 2);
         assert_eq!(decoded.total_time_seconds, 20.0);
     }
+
+    #[test]
+    fn auto_compress_result_uses_camel_case_batch_fields() {
+        let job = TranscodeJob {
+            id: "1".to_string(),
+            filename: "video.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::SmartScan,
+            original_size_mb: 10.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Completed,
+            progress: 100.0,
+            start_time: Some(1),
+            end_time: Some(2),
+            output_size_mb: Some(5.0),
+            logs: Vec::new(),
+            skip_reason: None,
+            input_path: Some("C:/videos/input.mp4".to_string()),
+            output_path: Some("C:/videos/output.mp4".to_string()),
+            ffmpeg_command: None,
+            media_info: None,
+            preview_path: None,
+            log_tail: None,
+            failure_reason: None,
+            batch_id: Some("auto-compress-batch-1".to_string()),
+        };
+
+        let result = AutoCompressResult {
+            root_path: "C:/videos".to_string(),
+            jobs: vec![job],
+            total_files_scanned: 1,
+            total_candidates: 1,
+            total_processed: 1,
+            batch_id: "auto-compress-batch-1".to_string(),
+            started_at_ms: 100,
+            completed_at_ms: 200,
+        };
+
+        let value = serde_json::to_value(&result).expect("serialize AutoCompressResult");
+        assert_eq!(
+            value
+                .get("batchId")
+                .and_then(Value::as_str)
+                .expect("batchId present"),
+            "auto-compress-batch-1"
+        );
+        assert_eq!(
+            value
+                .get("startedAtMs")
+                .and_then(Value::as_u64)
+                .expect("startedAtMs present"),
+            100
+        );
+        assert_eq!(
+            value
+                .get("completedAtMs")
+                .and_then(Value::as_u64)
+                .expect("completedAtMs present"),
+            200
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -416,4 +474,11 @@ pub struct AutoCompressResult {
     pub total_files_scanned: u64,
     pub total_candidates: u64,
     pub total_processed: u64,
+    /// Stable identifier for this Smart Scan batch so the frontend can group
+    /// child jobs into a composite task.
+    pub batch_id: String,
+    /// Milliseconds since UNIX epoch when this batch scan started.
+    pub started_at_ms: u64,
+    /// Milliseconds since UNIX epoch when this batch scan completed.
+    pub completed_at_ms: u64,
 }

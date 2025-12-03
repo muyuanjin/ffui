@@ -11,10 +11,16 @@ const zhCN = {
       settings: "软件设置",
     },
     presetsHint: "在这里管理、编辑和删除你的转码参数预设。",
+    queueHint: "管理转码任务队列，查看进度、预览和日志。",
+    mediaHint: "查看媒体元数据和详细分析（开发中）。",
+    monitorHint: "查看 CPU / GPU 等性能指标。",
+    settingsHint: "配置外部工具路径、自动下载与预览设置。",
     emptyQueue: {
       title: "当前没有任务",
-      subtitle: "点击手动添加文件，或者使用智能扫描",
+      subtitle: "点击左侧的“添加转码任务”，或者使用左下角的智能扫描入口。",
     },
+    queueDefaultPresetLabel: "默认参数预设",
+    queueDefaultPresetPlaceholder: "选择用于添加任务的预设",
     newPreset: "新建预设",
     lang: {
       label: "语言",
@@ -22,8 +28,8 @@ const zhCN = {
       en: "English",
     },
     actions: {
-      addJob: "添加任务",
-      smartScan: "智能扫描",
+      addJob: "添加转码任务",
+      smartScan: "添加压缩任务",
       deletePreset: "删除",
       deletePresetConfirmTitle: "删除预设",
       deletePresetConfirmMessage: "确定要删除这个预设吗？",
@@ -123,6 +129,8 @@ const zhCN = {
     title: "任务详情",
     description: "查看该转码任务的媒体信息、路径、命令和日志。",
     noPreview: "暂无预览缩略图",
+    presetLabel: "预设",
+    unknownPreset: "未知预设（{id}）",
     sizeLabel: "输入体积",
     outputSizeLabel: "输出体积",
     durationLabel: "处理耗时",
@@ -138,6 +146,7 @@ const zhCN = {
     copyCommand: "复制命令",
     commandFallback: "该任务没有可用的完整命令行。",
     logsTitle: "日志",
+    copyLogs: "复制日志",
     showFullLog: "查看完整日志",
     showTail: "只看结尾",
     failureReasonPrefix: "失败原因：",
@@ -157,7 +166,7 @@ const zhCN = {
     savedShort: "节省 {percent}%",
     source: {
       manual: "手动添加",
-      smartScan: "智能扫描",
+      smartScan: "智能压缩",
     },
     error: {
       loadFailed: "队列状态刷新失败，请检查后端是否运行以及外部工具配置。",
@@ -165,7 +174,7 @@ const zhCN = {
       cancelRejected: "后台拒绝取消该任务，可能已经完成或处于不可取消状态。",
       cancelFailed: "取消任务时出现错误，请稍后重试或检查设置。",
       autoCompressFailed:
-        "智能扫描调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在“软件设置”中启用自动下载。",
+        "智能压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在“软件设置”中启用自动下载。",
     },
   },
   presets: {
