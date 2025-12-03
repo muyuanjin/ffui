@@ -1,0 +1,195 @@
+const en = {
+  app: {
+    title: "FFmpeg Transcoder",
+    loading: "Starting transcoding console…",
+    controlPanel: "Control Panel",
+    tabs: {
+      queue: "Transcode Queue",
+      presets: "Parameter Presets",
+      media: "Media Info",
+      monitor: "Performance Monitor",
+      settings: "Software Settings",
+    },
+    presetsHint: "Manage, edit, and delete your transcoding presets here.",
+    emptyQueue: {
+      title: "No active jobs",
+      subtitle: "Click to add files manually or use Smart Scan",
+    },
+    newPreset: "New Preset",
+    lang: {
+      label: "Language",
+      zh: "中文",
+      en: "English",
+    },
+    actions: {
+      addJob: "Add job",
+      smartScan: "Smart Scan",
+      deletePreset: "Delete",
+      deletePresetConfirmTitle: "Delete preset",
+      deletePresetConfirmMessage: "Are you sure you want to delete this preset?",
+      cancel: "Cancel",
+      confirm: "Confirm",
+      close: "Close",
+    },
+  },
+  common: {
+    back: "Back",
+    next: "Next",
+    stepOf: "Step {step} of {total}",
+  },
+  presetEditor: {
+    titleNew: "New Parameter Configuration",
+    titleEdit: "Edit Configuration",
+    untitled: "Untitled Preset",
+    name: "Preset Name",
+    namePlaceholder: "e.g., Archive HQ, Web 1080p",
+    description: "Description",
+    descriptionPlaceholder: "What is this preset used for?",
+    recipes: {
+      title: "Quick Recipes",
+      hqArchive: "HQ Archive (CPU)",
+      fastTranscode: "Fast Transcode (NVIDIA)",
+      modernAv1: "Modern AV1",
+      streamCopy: "Stream Copy / Remux",
+    },
+    video: {
+      encoder: "Video Encoder",
+      encoderPlaceholder: "Choose encoder",
+      copyWarning: "Filters (Scale/Crop) will be disabled in Copy mode.",
+      crfLabel: "Constant Rate Factor (CRF)",
+      cqLabel: "Constant Quality (CQ)",
+      presetLabel: "Preset (Speed vs Efficiency)",
+    },
+    audio: {
+      title: "Audio",
+      copyTitle: "Copy (Passthrough)",
+      copyDesc: "No quality loss, fastest.",
+      aacTitle: "AAC (Convert)",
+      aacDesc: "Compatible, compressed.",
+      bitrateLabel: "Bitrate (kbps)",
+      bitrate128: "128k (Standard)",
+      bitrate192: "192k (High Quality)",
+      bitrate320: "320k (Transparent)",
+    },
+    filters: {
+      title: "Filters",
+      scaleLabel: "Scale (Resize)",
+      scalePlaceholder: "e.g. -2:720 (Keep aspect, 720p height)",
+      scaleHelp:
+        "Use -1 or -2 for auto-calculation. -2 ensures even numbers (required for some codecs).",
+    },
+    actions: {
+      update: "Update Preset",
+      save: "Save Configuration",
+      edit: "Edit",
+    },
+    tips: {
+      crf_x264:
+        "Constant Rate Factor (0-51). Lower is better quality. Recommended: 18-22 for archive, 23-24 for balance.",
+      cq_nvenc:
+        "Constant Quality (0-51). NOT comparable to CRF. Recommended: 26-28 for good visual quality.",
+      crf_av1: "AV1 CRF (0-63). Recommended: 32-34 to roughly match x264 CRF 23.",
+      preset_x264:
+        "'medium' is a good default. 'slow' yields smaller files at the same visual quality.",
+      preset_nvenc: "'p7' has the highest quality, 'p1' is the fastest.",
+      preset_av1: "Higher preset numbers are FASTER. Recommended: 4-6 for a good balance.",
+    },
+    advanced: {
+      title: "Advanced (Raw ffmpeg command)",
+      description:
+        "Optionally define a full ffmpeg command template. Use INPUT and OUTPUT as placeholders.",
+      enabledLabel: "Use custom command instead of generated options",
+      templateLabel: "ffmpeg command template",
+      templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
+      previewTitle: "Command preview",
+      copyButton: "Copy",
+      copiedToast: "Command copied",
+    },
+  },
+  smartScan: {
+    title: "Smart Auto-Compression",
+    subtitle: "Recursively scan and compress media.",
+    notice:
+      "Files matching specific criteria (already efficient codec, small size, or low compression gain) will be automatically Skipped.",
+    videoStrategy: "Video Strategy",
+    targetPreset: "Target Preset",
+    minVideoSize: "Skip if smaller than (MB)",
+    imageStrategy: "Image Strategy",
+    targetFormat: "Target Format",
+    minImageSize: "Skip if smaller than (KB)",
+    minSavingRatioLabel: "Minimum Saving Ratio to Keep Result",
+    minSavingRatioHelp:
+      "If compressed file is larger than {ratio}% of original, it will be discarded (Not worth it).",
+    scanButton: "Scan & Compress",
+  },
+  taskDetail: {
+    title: "Task details",
+    description: "Inspect media, paths, command, and logs for this transcoding job.",
+    noPreview: "No preview thumbnail available",
+    sizeLabel: "Input size",
+    outputSizeLabel: "Output size",
+    durationLabel: "Processing time",
+    pathsTitle: "Paths",
+    inputPath: "Input",
+    outputPath: "Output",
+    mediaInfoTitle: "Media info",
+    codecLabel: "Codec",
+    resolutionLabel: "Resolution",
+    frameRateLabel: "Frame rate",
+    mediaInfoFallback: "No media metadata available for this job.",
+    commandTitle: "ffmpeg command",
+    copyCommand: "Copy command",
+    commandFallback: "Command line is not available for this job.",
+    logsTitle: "Logs",
+    showFullLog: "Show full log",
+    showTail: "Show tail only",
+    failureReasonPrefix: "Failure reason:",
+  },
+  queue: {
+    typeVideo: "VIDEO",
+    typeImage: "IMAGE",
+    skippedPrefix: "Skipped:",
+    status: {
+      completed: "completed",
+      processing: "processing",
+      waiting: "waiting",
+      skipped: "skipped",
+      failed: "failed",
+      cancelled: "cancelled",
+    },
+    savedShort: "saved {percent}%",
+    source: {
+      manual: "Manual",
+      smartScan: "Smart Scan",
+    },
+    error: {
+      loadFailed:
+        "Failed to refresh queue state. Make sure the backend is running and external tools are configured.",
+      enqueueFailed:
+        "Failed to enqueue job. Please check external tool availability or auto-download settings.",
+      cancelRejected:
+        "The backend refused to cancel this job. It may have already finished or is not cancellable.",
+      cancelFailed:
+        "Error while cancelling job. Please retry later or verify external tool settings.",
+      autoCompressFailed:
+        "Smart Scan failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
+    },
+  },
+  presets: {
+    usedTimes: "Used {count} times",
+    totalIn: "Total input: {gb} GB",
+    videoLabel: "Video",
+    audioLabel: "Audio",
+    audioCopy: "Copy",
+    audioAac: "AAC {kbps}k",
+    avgRatio: "Avg compression: {percent}%",
+    avgSpeed: "Avg speed: {mbps} MB/s",
+  },
+  stats: {
+    empty: "Run some jobs first; stats will show up here.",
+    compressionTitle: "Average Compression Ratio (%)",
+    speedTitle: "Processing Speed (MB/s)",
+  },
+} as const;
+
+export default en;

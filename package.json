@@ -1,0 +1,46 @@
+{
+  "name": "transcoding",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:unit": "vitest",
+    "tauri": "tauri",
+    "tauri:dev": "npm run build && tauri dev",
+    "build:exe": "npm run tauri -- build --no-bundle"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/plugin-dialog": "^2.4.2",
+    "@tauri-apps/plugin-opener": "^2",
+    "@vueuse/core": "^14.1.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^0.555.0",
+    "reka-ui": "^2.6.1",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "vue": "^3.5.13",
+    "vue-i18n": "^11.2.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "@tailwindcss/vite": "^4.1.17",
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.22",
+    "jsdom": "^27.2.0",
+    "postcss": "^8.5.6",
+    "shadcn-vue": "^2.4.0",
+    "tailwindcss": "^4.1.17",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.3",
+    "vitest": "^4.0.15",
+    "vue-tsc": "^2.1.10"
+  }
+}
