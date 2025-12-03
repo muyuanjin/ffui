@@ -12,8 +12,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 
 use crate::transcoding::domain::{
-    AutoCompressResult, JobSource, JobStatus, JobType, MediaInfo, QueueState, SmartScanConfig,
-    TranscodeJob,
+    AutoCompressProgress, AutoCompressResult, JobSource, JobStatus, JobType, MediaInfo,
+    QueueState, SmartScanConfig, TranscodeJob,
 };
 use crate::transcoding::monitor::{
     sample_cpu_usage, sample_gpu_usage, CpuUsageSnapshot, GpuUsageSnapshot,
@@ -38,6 +38,8 @@ fn configure_background_command(_cmd: &mut Command) {}
 use super::domain::FFmpegPreset;
 
 type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
+type SmartScanProgressListener =
+    Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
 
 struct EngineState {
     presets: Vec<FFmpegPreset>,
@@ -70,6 +72,7 @@ struct Inner {
     cv: Condvar,
     next_job_id: AtomicU64,
     queue_listeners: Mutex<Vec<QueueListener>>,
+    smart_scan_listeners: Mutex<Vec<SmartScanProgressListener>>,
 }
 
 impl Inner {
@@ -79,6 +82,7 @@ impl Inner {
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
             queue_listeners: Mutex::new(Vec::new()),
+            smart_scan_listeners: Mutex::new(Vec::new()),
         }
     }
 }
@@ -103,6 +107,16 @@ fn notify_queue_listeners(inner: &Inner) {
         .expect("queue listeners lock poisoned");
     for listener in listeners.iter() {
         listener(snapshot.clone());
+    }
+}
+
+fn notify_smart_scan_listeners(inner: &Inner, progress: AutoCompressProgress) {
+    let listeners = inner
+        .smart_scan_listeners
+        .lock()
+        .expect("smart scan listeners lock poisoned");
+    for listener in listeners.iter() {
+        listener(progress.clone());
     }
 }
 
@@ -135,6 +149,18 @@ impl TranscodingEngine {
             .queue_listeners
             .lock()
             .expect("queue listeners lock poisoned");
+        listeners.push(Arc::new(listener));
+    }
+
+    pub fn register_smart_scan_listener<F>(&self, listener: F)
+    where
+        F: Fn(AutoCompressProgress) + Send + Sync + 'static,
+    {
+        let mut listeners = self
+            .inner
+            .smart_scan_listeners
+            .lock()
+            .expect("smart scan listeners lock poisoned");
         listeners.push(Arc::new(listener));
     }
 
@@ -333,6 +359,8 @@ impl TranscodingEngine {
         root_path: String,
         config: SmartScanConfig,
     ) -> Result<AutoCompressResult> {
+        const PROGRESS_EVERY: u64 = 32;
+
         let root = PathBuf::from(&root_path);
         if !root.exists() {
             return Err(anyhow::anyhow!("Root path does not exist: {root_path}"));
@@ -362,6 +390,19 @@ impl TranscodingEngine {
         let mut total_processed = 0u64;
 
         let mut stack = vec![root];
+
+        // Emit an initial progress snapshot so the frontend can show that the
+        // scan has started even before any files are discovered.
+        notify_smart_scan_listeners(
+            &self.inner,
+            AutoCompressProgress {
+                root_path: root_path.clone(),
+                total_files_scanned,
+                total_candidates,
+                total_processed,
+                batch_id: batch_id.clone(),
+            },
+        );
 
         while let Some(dir) = stack.pop() {
             let entries = match fs::read_dir(&dir) {
@@ -407,6 +448,19 @@ impl TranscodingEngine {
                     }
                     jobs.push(job);
                 }
+
+                if total_files_scanned % PROGRESS_EVERY == 0 {
+                    notify_smart_scan_listeners(
+                        &self.inner,
+                        AutoCompressProgress {
+                            root_path: root_path.clone(),
+                            total_files_scanned,
+                            total_candidates,
+                            total_processed,
+                            batch_id: batch_id.clone(),
+                        },
+                    );
+                }
             }
         }
 
@@ -414,6 +468,19 @@ impl TranscodingEngine {
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
+
+        // Emit a final snapshot so the frontend can reconcile progress with the
+        // completed aggregate result.
+        notify_smart_scan_listeners(
+            &self.inner,
+            AutoCompressProgress {
+                root_path: root_path.clone(),
+                total_files_scanned,
+                total_candidates,
+                total_processed,
+                batch_id: batch_id.clone(),
+            },
+        );
 
         Ok(AutoCompressResult {
             root_path,
@@ -470,56 +537,100 @@ fn current_time_millis() -> u64 {
 
 impl TranscodingEngine {
     fn spawn_worker(inner: Arc<Inner>) {
-        // Simple single-worker queue: jobs are processed one at a time in the
-        // order they were enqueued. This keeps behavior predictable while still
-        // enabling true background processing and cancellation.
-        thread::spawn(move || loop {
-            let job_id = {
-                let mut state = inner.state.lock().expect("engine state poisoned");
-                while state.queue.is_empty() {
-                    state = inner.cv.wait(state).expect("engine state poisoned");
-                }
-                let job_id = match state.queue.pop_front() {
-                    Some(id) => id,
-                    None => continue,
-                };
-                state.active_job = Some(job_id.clone());
-                // Mark the job as processing if it still exists.
-                if let Some(job) = state.jobs.get_mut(&job_id) {
-                    job.status = JobStatus::Processing;
-                    if job.start_time.is_none() {
-                        job.start_time = Some(current_time_millis());
-                    }
-                    job.progress = 0.0;
-                }
-                job_id
-            };
+        // Determine a bounded worker count based on available logical cores
+        // and, when configured, the user-specified concurrency limit. This
+        // keeps behaviour predictable while still letting power users cap
+        // resource usage explicitly from the settings panel.
+        let logical_cores = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(1)
+            .max(1);
 
-            // Notify listeners that a job has moved into processing state.
-            notify_queue_listeners(&inner);
+        let configured_max = {
+            let state = inner.state.lock().expect("engine state poisoned");
+            state.settings.max_parallel_jobs.unwrap_or(0)
+        };
 
-            if let Err(err) = process_transcode_job(&inner, &job_id) {
-                let mut state = inner.state.lock().expect("engine state poisoned");
-                if let Some(job) = state.jobs.get_mut(&job_id) {
-                    job.status = JobStatus::Failed;
-                    job.progress = 100.0;
-                    job.end_time = Some(current_time_millis());
-                    let reason = format!("Transcode failed: {err:#}");
-                    job.failure_reason = Some(reason.clone());
-                    job.logs.push(reason);
-                    recompute_log_tail(job);
-                }
+        let auto_workers = if logical_cores >= 4 {
+            std::cmp::max(2, logical_cores / 2)
+        } else {
+            1
+        };
+
+        let worker_count = if configured_max == 0 {
+            auto_workers
+        } else {
+            let max = configured_max as usize;
+            // Clamp into [1, logical_cores] so we never oversubscribe the CPU.
+            max.clamp(1, logical_cores)
+        };
+
+        for index in 0..worker_count {
+            let inner_clone = inner.clone();
+            thread::Builder::new()
+                .name(format!("transcoding-worker-{index}"))
+                .spawn(move || worker_loop(inner_clone))
+                .expect("failed to spawn transcoding worker thread");
+        }
+    }
+}
+
+/// Pop the next job id from the queue and mark it as processing under the
+/// engine state lock. This helper is used both by the real worker threads and
+/// by tests that need to reason about multi-worker scheduling behaviour.
+fn next_job_for_worker_locked(state: &mut EngineState) -> Option<String> {
+    let job_id = state.queue.pop_front()?;
+    state.active_job = Some(job_id.clone());
+
+    if let Some(job) = state.jobs.get_mut(&job_id) {
+        job.status = JobStatus::Processing;
+        if job.start_time.is_none() {
+            job.start_time = Some(current_time_millis());
+        }
+        job.progress = 0.0;
+    }
+
+    Some(job_id)
+}
+
+fn worker_loop(inner: Arc<Inner>) {
+    loop {
+        let job_id = {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            while state.queue.is_empty() {
+                state = inner.cv.wait(state).expect("engine state poisoned");
             }
 
-            {
-                let mut state = inner.state.lock().expect("engine state poisoned");
-                state.active_job = None;
-                state.cancelled_jobs.remove(&job_id);
+            match next_job_for_worker_locked(&mut state) {
+                Some(id) => id,
+                None => continue,
             }
+        };
 
-            // Broadcast final state for the completed / failed / skipped job.
-            notify_queue_listeners(&inner);
-        });
+        // Notify listeners that a job has moved into processing state.
+        notify_queue_listeners(&inner);
+
+        if let Err(err) = process_transcode_job(&inner, &job_id) {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(&job_id) {
+                job.status = JobStatus::Failed;
+                job.progress = 100.0;
+                job.end_time = Some(current_time_millis());
+                let reason = format!("Transcode failed: {err:#}");
+                job.failure_reason = Some(reason.clone());
+                job.logs.push(reason);
+                recompute_log_tail(job);
+            }
+        }
+
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            state.active_job = None;
+            state.cancelled_jobs.remove(&job_id);
+        }
+
+        // Broadcast final state for the completed / failed / skipped job.
+        notify_queue_listeners(&inner);
     }
 }
 
@@ -744,19 +855,65 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             }
 
             if let Some((elapsed, speed)) = parse_ffmpeg_progress_line(&line) {
-                let percent = total_duration
-                    .map(|total| {
-                        if total > 0.0 {
-                            ((elapsed / total) * 100.0).min(100.0)
-                        } else {
-                            0.0
+                // If ffmpeg reports an elapsed time that is slightly longer than
+                // our current duration estimate, treat this as the new effective
+                // duration. This keeps the progress bar moving smoothly instead
+                // of stalling near the end when ffprobe underestimates length.
+                if let Some(total) = total_duration {
+                    if elapsed.is_finite() && total.is_finite() && elapsed > total * 1.01 {
+                        total_duration = Some(elapsed);
+
+                        // Also update the job's cached media info so future
+                        // queue_state snapshots and the inspection UI can see
+                        // the refined duration value.
+                        let mut state =
+                            inner.state.lock().expect("engine state poisoned");
+                        if let Some(job) = state.jobs.get_mut(job_id) {
+                            if let Some(info) = job.media_info.as_mut() {
+                                info.duration_seconds = Some(elapsed);
+                            } else {
+                                job.media_info = Some(MediaInfo {
+                                    duration_seconds: Some(elapsed),
+                                    width: None,
+                                    height: None,
+                                    frame_rate: None,
+                                    video_codec: None,
+                                    audio_codec: None,
+                                    size_mb: None,
+                                });
+                            }
+                            let key = job.filename.clone();
+                            if let Some(info) = job.media_info.clone() {
+                                state.media_info_cache.insert(key, info);
+                            }
                         }
-                    })
-                    .unwrap_or(0.0);
+                        drop(state);
+                    }
+                }
+
+                let mut percent = compute_progress_percent(total_duration, elapsed);
+                if percent >= 100.0 {
+                    // Keep a tiny numerical headroom so that the last step to
+                    // an exact 100% always comes from the terminal state
+                    // transition (Completed / Failed / Skipped) or an explicit
+                    // progress=end marker from ffmpeg, never from an in-flight
+                    // stderr sample.
+                    percent = 99.9;
+                }
+
                 update_job_progress(inner, job_id, Some(percent), Some(&line), speed);
             } else {
                 // Non-progress lines are still useful as logs for debugging.
                 update_job_progress(inner, job_id, None, Some(&line), None);
+            }
+
+            // When `-progress pipe:2` is enabled, ffmpeg emits structured
+            // key=value pairs including a `progress=...` marker. Surfacing a
+            // final 100% update as soon as we see `progress=end` makes the UI
+            // feel truly real-time, while still keeping "100%" reserved for
+            // the moment ffmpeg itself declares that all work is done.
+            if is_ffmpeg_progress_end(&line) {
+                update_job_progress(inner, job_id, Some(100.0), Some(&line), None);
             }
         }
     }
@@ -939,6 +1096,31 @@ fn update_job_progress(
     }
 }
 
+// Compute a progress percentage for a running job based on the elapsed time
+// and, when available, the total duration. For known durations this is a
+// direct elapsed/total ratio expressed as a percentage. The caller is
+// responsible for keeping a small numerical headroom so that the final step
+// to an exact 100% is driven by the terminal state (Completed / Failed /
+// Skipped) or an explicit `progress=end` marker from ffmpeg, not by an
+// in-flight stderr sample. When the total duration is genuinely unknown we
+// return 0.0 instead of inventing a fake curve so that the UI never shows a
+// synthetic percentage.
+fn compute_progress_percent(total_duration: Option<f64>, elapsed_seconds: f64) -> f64 {
+    match total_duration {
+        Some(total) if total.is_finite() && total > 0.0 => {
+            let elapsed = if elapsed_seconds.is_finite() && elapsed_seconds > 0.0 {
+                elapsed_seconds
+            } else {
+                0.0
+            };
+            let ratio = elapsed / total;
+            let value = (ratio * 100.0).clamp(0.0, 100.0);
+            if value.is_finite() { value } else { 0.0 }
+        }
+        _ => 0.0,
+    }
+}
+
 fn detect_duration_seconds(path: &Path, settings: &AppSettings) -> Result<f64> {
     let (ffprobe_path, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
     let mut cmd = Command::new(&ffprobe_path);
@@ -977,6 +1159,18 @@ fn parse_ffmpeg_progress_line(line: &str) -> Option<(f64, Option<f64>)> {
     for token in line.split_whitespace() {
         if let Some(rest) = token.strip_prefix("time=") {
             elapsed = Some(parse_ffmpeg_time_to_seconds(rest));
+        } else if let Some(rest) = token.strip_prefix("out_time=") {
+            // Structured progress from `-progress pipe:2`, for example
+            // `out_time=00:01:23.45`.
+            elapsed = Some(parse_ffmpeg_time_to_seconds(rest));
+        } else if let Some(rest) = token.strip_prefix("out_time_ms=") {
+            // Timestamps from `-progress` named `out_time_ms` are actually
+            // expressed in microseconds (see FFmpeg ticket #7345). Convert
+            // them to seconds so they remain consistent with `out_time` and
+            // ffprobe's `duration` field.
+            if let Ok(us) = rest.parse::<f64>() {
+                elapsed = Some(us / 1_000_000.0);
+            }
         } else if let Some(rest) = token.strip_prefix("speed=") {
             let value = rest.trim_end_matches('x');
             if let Ok(v) = value.parse::<f64>() {
@@ -986,6 +1180,17 @@ fn parse_ffmpeg_progress_line(line: &str) -> Option<(f64, Option<f64>)> {
     }
 
     elapsed.map(|e| (e, speed))
+}
+
+fn is_ffmpeg_progress_end(line: &str) -> bool {
+    for token in line.split_whitespace() {
+        if let Some(rest) = token.strip_prefix("progress=") {
+            if rest.eq_ignore_ascii_case("end") {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn parse_ffmpeg_time_to_seconds(s: &str) -> f64 {
@@ -1592,8 +1797,59 @@ fn log_external_command(inner: &Inner, job_id: &str, program: &str, args: &[Stri
         let cmd = format_command_for_log(program, args);
         job.ffmpeg_command = Some(cmd.clone());
         job.logs.push(format!("command: {cmd}"));
+
+        // If the advanced ffmpeg template or args force a very restrictive log
+        // level (for example `-v error` or `-loglevel quiet`), ffmpeg will not
+        // emit the usual `time=...` progress lines. In that configuration the
+        // backend cannot compute real percentages and the UI will only ever
+        // see 0% and the final 100%. Detect this early and surface a clear
+        // hint in the job logs so users understand why the bar appears stuck.
+        let mut suppressed = false;
+        let mut iter = args.iter().peekable();
+        while let Some(arg) = iter.next() {
+            if arg == "-v" {
+                if let Some(level) = iter.peek() {
+                    let level = level.to_ascii_lowercase();
+                    if level == "error"
+                        || level == "fatal"
+                        || level == "panic"
+                        || level == "quiet"
+                    {
+                        suppressed = true;
+                        break;
+                    }
+                }
+            } else if let Some(rest) = arg.strip_prefix("-loglevel") {
+                let level = rest.trim_start_matches('=').to_ascii_lowercase();
+                if level == "error" || level == "fatal" || level == "panic" || level == "quiet" {
+                    suppressed = true;
+                    break;
+                }
+            }
+        }
+
+        if suppressed {
+            job.logs.push(
+                "warning: ffmpeg log level is set to 'error/quiet'; live progress cannot be \
+computed from stderr, so the queue may only show 0% and 100%"
+                    .to_string(),
+            );
+        }
         recompute_log_tail(job);
     }
+}
+
+fn ensure_progress_args(args: &mut Vec<String>) {
+    // Ensure ffmpeg emits machine-readable progress lines so the backend can
+    // compute real-time percentages even when the human stats line only uses
+    // carriage returns.
+    if args.iter().any(|arg| arg == "-progress") {
+        return;
+    }
+
+    // Use `pipe:2` so structured progress goes to stderr alongside regular logs.
+    args.insert(0, "pipe:2".to_string());
+    args.insert(0, "-progress".to_string());
 }
 
 fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<String> {
@@ -1607,14 +1863,15 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
         if let Some(template) = &preset.ffmpeg_template {
             let with_input = template.replace("INPUT", input.to_string_lossy().as_ref());
             let with_output = with_input.replace("OUTPUT", output.to_string_lossy().as_ref());
-            return with_output
-                .split_whitespace()
-                .map(|s| s.to_string())
-                .collect();
+            let mut args: Vec<String> =
+                with_output.split_whitespace().map(|s| s.to_string()).collect();
+            ensure_progress_args(&mut args);
+            return args;
         }
     }
 
     let mut args: Vec<String> = Vec::new();
+    ensure_progress_args(&mut args);
 
     // Input
     args.push("-i".to_string());
@@ -1645,8 +1902,32 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
                     args.push("-cq".to_string());
                     args.push(preset.video.quality_value.to_string());
                 }
-                super::domain::RateControlMode::Cbr => {}
-                super::domain::RateControlMode::Vbr => {}
+                super::domain::RateControlMode::Cbr | super::domain::RateControlMode::Vbr => {
+                    if let Some(bitrate) = preset.video.bitrate_kbps {
+                        if bitrate > 0 {
+                            args.push("-b:v".to_string());
+                            args.push(format!("{bitrate}k"));
+                        }
+                    }
+                    if let Some(maxrate) = preset.video.max_bitrate_kbps {
+                        if maxrate > 0 {
+                            args.push("-maxrate".to_string());
+                            args.push(format!("{maxrate}k"));
+                        }
+                    }
+                    if let Some(bufsize) = preset.video.buffer_size_kbits {
+                        if bufsize > 0 {
+                            args.push("-bufsize".to_string());
+                            args.push(format!("{bufsize}k"));
+                        }
+                    }
+                    if let Some(pass) = preset.video.pass {
+                        if pass == 1 || pass == 2 {
+                            args.push("-pass".to_string());
+                            args.push(pass.to_string());
+                        }
+                    }
+                }
             }
 
             if !preset.video.preset.is_empty() {
@@ -1719,6 +2000,7 @@ mod tests {
         AudioCodecType, AudioConfig, EncoderType, FilterConfig, PresetStats, RateControlMode,
         VideoConfig,
     };
+    use crate::transcoding::ImageTargetFormat;
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
@@ -1736,6 +2018,10 @@ mod tests {
                 preset: "medium".to_string(),
                 tune: None,
                 profile: None,
+                bitrate_kbps: None,
+                max_bitrate_kbps: None,
+                buffer_size_kbits: None,
+                pass: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -1762,6 +2048,198 @@ mod tests {
         let settings = AppSettings::default();
         let inner = Arc::new(Inner::new(presets, settings));
         TranscodingEngine { inner }
+    }
+
+    #[test]
+    fn multi_worker_selection_respects_fifo_and_processing_limit() {
+        let engine = make_engine_with_preset();
+
+        // Enqueue several synthetic jobs to populate the in-memory queue.
+        let mut job_ids_in_order = Vec::new();
+        for i in 0..6 {
+            let job = engine.enqueue_transcode_job(
+                format!("C:/videos/input-{i}.mp4"),
+                JobType::Video,
+                JobSource::Manual,
+                100.0,
+                Some("h264".into()),
+                "preset-1".into(),
+            );
+            job_ids_in_order.push(job.id.clone());
+        }
+
+        let workers = 3usize;
+        let mut selected = Vec::new();
+
+        {
+            let mut state = engine
+                .inner
+                .state
+                .lock()
+                .expect("engine state poisoned");
+
+            for _ in 0..workers {
+                if let Some(id) = next_job_for_worker_locked(&mut state) {
+                    selected.push(id);
+                }
+            }
+
+            // No matter how many jobs are waiting, at most `workers` jobs may
+            // be marked Processing at the same time.
+            let processing_count = state
+                .jobs
+                .values()
+                .filter(|j| j.status == JobStatus::Processing)
+                .count();
+            assert!(
+                processing_count <= workers,
+                "processing job count {processing_count} must not exceed worker slots {workers}"
+            );
+        }
+
+        // The jobs taken by the simulated workers must correspond to the
+        // earliest enqueued jobs in FIFO order.
+        let expected: Vec<String> = job_ids_in_order
+            .iter()
+            .take(selected.len())
+            .cloned()
+            .collect();
+        assert_eq!(
+            selected, expected,
+            "workers must always take jobs from the front of the queue in FIFO order"
+        );
+    }
+
+    #[test]
+    fn cancelling_processing_job_in_multi_worker_pool_only_affects_target_job() {
+        let engine = make_engine_with_preset();
+
+        // Enqueue a few jobs and mark two of them as processing, as if two
+        // worker threads had claimed work from the queue.
+        let mut job_ids_in_order = Vec::new();
+        for i in 0..4 {
+            let job = engine.enqueue_transcode_job(
+                format!("C:/videos/cancel-{i}.mp4"),
+                JobType::Video,
+                JobSource::Manual,
+                100.0,
+                Some("h264".into()),
+                "preset-1".into(),
+            );
+            job_ids_in_order.push(job.id.clone());
+        }
+
+        let workers = 2usize;
+        let mut processing_ids = Vec::new();
+        {
+            let mut state = engine
+                .inner
+                .state
+                .lock()
+                .expect("engine state poisoned");
+            for _ in 0..workers {
+                if let Some(id) = next_job_for_worker_locked(&mut state) {
+                    processing_ids.push(id);
+                }
+            }
+        }
+
+        assert_eq!(
+            processing_ids.len(),
+            workers,
+            "expected to simulate {workers} processing jobs"
+        );
+
+        let target = processing_ids[0].clone();
+        let other = processing_ids[1].clone();
+
+        // Request cancellation of one processing job.
+        let cancelled = engine.cancel_job(&target);
+        assert!(
+            cancelled,
+            "cancel_job must succeed for a job in Processing status"
+        );
+
+        {
+            let state = engine
+                .inner
+                .state
+                .lock()
+                .expect("engine state poisoned");
+            assert!(
+                state.cancelled_jobs.contains(&target),
+                "cancelled_jobs set must contain the target job id"
+            );
+            assert!(
+                !state.cancelled_jobs.contains(&other),
+                "cancelled_jobs set must not contain other processing jobs"
+            );
+        }
+
+        // Simulate the cooperative cancellation path that process_transcode_job
+        // would take once it observes the cancelled flag.
+        mark_job_cancelled(&engine.inner, &target)
+            .expect("mark_job_cancelled must succeed for target job");
+
+        let state = engine
+            .inner
+            .state
+            .lock()
+            .expect("engine state poisoned");
+
+        let target_job = state
+            .jobs
+            .get(&target)
+            .expect("cancelled job must remain in jobs map");
+        assert_eq!(
+            target_job.status,
+            JobStatus::Cancelled,
+            "target job must transition to Cancelled status after cooperative cancellation"
+        );
+
+        let other_job = state
+            .jobs
+            .get(&other)
+            .expect("other processing job must remain in jobs map");
+        assert_eq!(
+            other_job.status,
+            JobStatus::Processing,
+            "other processing jobs must remain Processing when only one job is cancelled"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_injects_progress_flags_for_standard_preset() {
+        let preset = make_test_preset();
+        let input = PathBuf::from("C:/Videos/input file.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+        let args = build_ffmpeg_args(&preset, &input, &output);
+        let joined = args.join(" ");
+
+        assert!(
+            joined.contains("-progress") && joined.contains("pipe:2"),
+            "ffmpeg args must include -progress pipe:2 for structured progress, got: {joined}"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_respects_existing_progress_flag_in_template() {
+        let mut preset = make_test_preset();
+        preset.advanced_enabled = Some(true);
+        preset.ffmpeg_template = Some(
+            "-progress pipe:2 -i INPUT -c:v libx264 -crf 23 OUTPUT".to_string(),
+        );
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+        let args = build_ffmpeg_args(&preset, &input, &output);
+
+        let progress_flags = args.iter().filter(|a| a.as_str() == "-progress").count();
+        assert_eq!(
+            progress_flags, 1,
+            "build_ffmpeg_args must not inject a duplicate -progress flag when template already specifies one"
+        );
     }
 
     #[test]
@@ -1942,6 +2420,100 @@ mod tests {
     }
 
     #[test]
+    fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
+        let dir = env::temp_dir().join("transcoding_smart_scan_progress");
+        let _ = fs::create_dir_all(&dir);
+
+        let image1 = dir.join("small1.jpg");
+        let image2 = dir.join("small2.png");
+        let video1 = dir.join("small1.mp4");
+
+        for path in [&image1, &image2, &video1] {
+            let mut file = File::create(&path)
+                .unwrap_or_else(|_| panic!("create test file {}", path.display()));
+            let data = vec![0u8; 4 * 1024];
+            file.write_all(&data)
+                .unwrap_or_else(|_| panic!("write data for {}", path.display()));
+        }
+
+        let engine = make_engine_with_preset();
+
+        let snapshots: TestArc<TestMutex<Vec<AutoCompressProgress>>> =
+            TestArc::new(TestMutex::new(Vec::new()));
+        let snapshots_clone = TestArc::clone(&snapshots);
+
+        engine.register_smart_scan_listener(move |progress: AutoCompressProgress| {
+            snapshots_clone
+                .lock()
+                .expect("snapshots lock poisoned")
+                .push(progress);
+        });
+
+        let config = SmartScanConfig {
+            min_image_size_kb: 10_000,
+            min_video_size_mb: 10_000,
+            min_saving_ratio: 0.95,
+            image_target_format: ImageTargetFormat::Avif,
+            video_preset_id: "preset-1".to_string(),
+        };
+
+        let root_path = dir.to_string_lossy().into_owned();
+        let result = engine
+            .run_auto_compress(root_path.clone(), config)
+            .expect("run_auto_compress should succeed for synthetic tree");
+
+        let snapshots_lock = snapshots.lock().expect("snapshots lock poisoned");
+        assert!(
+            !snapshots_lock.is_empty(),
+            "Smart Scan must emit at least one progress snapshot during run_auto_compress"
+        );
+
+        let mut last_scanned = 0u64;
+        let mut last_candidates = 0u64;
+        let mut last_processed = 0u64;
+
+        for snap in snapshots_lock.iter() {
+            assert_eq!(
+                snap.root_path, root_path,
+                "all progress snapshots must use the same rootPath as the final result"
+            );
+            assert!(
+                snap.total_files_scanned >= last_scanned,
+                "total_files_scanned must be monotonic (prev={last_scanned}, current={})",
+                snap.total_files_scanned
+            );
+            assert!(
+                snap.total_candidates >= last_candidates,
+                "total_candidates must be monotonic (prev={last_candidates}, current={})",
+                snap.total_candidates
+            );
+            assert!(
+                snap.total_processed >= last_processed,
+                "total_processed must be monotonic (prev={last_processed}, current={})",
+                snap.total_processed
+            );
+            last_scanned = snap.total_files_scanned;
+            last_candidates = snap.total_candidates;
+            last_processed = snap.total_processed;
+        }
+
+        assert_eq!(
+            last_scanned, result.total_files_scanned,
+            "final progress snapshot total_files_scanned must match AutoCompressResult"
+        );
+        assert_eq!(
+            last_candidates, result.total_candidates,
+            "final progress snapshot total_candidates must match AutoCompressResult"
+        );
+        assert_eq!(
+            last_processed, result.total_processed,
+            "final progress snapshot total_processed must match AutoCompressResult"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn compute_preview_seek_seconds_uses_capture_percent_with_clamping() {
         // Normal case: 25% of a 200s clip -> 50s.
         let seek = compute_preview_seek_seconds(Some(200.0), 25);
@@ -2016,6 +2588,49 @@ mod tests {
     }
 
     #[test]
+    fn parse_ffmpeg_progress_line_handles_out_time_and_out_time_ms() {
+        // Simulate a minimal `-progress pipe:2` style block.
+        let lines = [
+            "frame=10",
+            "out_time_ms=820000",
+            "out_time=00:00:00.820000",
+        ];
+
+        let mut last: Option<(f64, Option<f64>)> = None;
+        for line in &lines {
+            if let Some(sample) = parse_ffmpeg_progress_line(line) {
+                last = Some(sample);
+            }
+        }
+
+        let (elapsed, speed) = last.expect("structured progress should be parsed");
+        assert!(
+            (elapsed - 0.82).abs() < 0.001,
+            "elapsed seconds should be derived from out_time, got {elapsed}"
+        );
+        assert!(
+            speed.is_none(),
+            "structured progress lines without an inline speed token should leave speed unset"
+        );
+
+        // Also accept a bare out_time_ms line when out_time is missing.
+        let (elapsed_ms, _) =
+            parse_ffmpeg_progress_line("out_time_ms=1234567").expect("ms-only progress should parse");
+        assert!(
+            (elapsed_ms - 1.234_567).abs() < 0.001,
+            "out_time_ms (microseconds) should be converted to seconds, got {elapsed_ms}"
+        );
+    }
+
+    #[test]
+    fn is_ffmpeg_progress_end_detects_end_marker() {
+        assert!(!is_ffmpeg_progress_end("progress=continue"));
+        assert!(is_ffmpeg_progress_end("progress=end"));
+        assert!(is_ffmpeg_progress_end("   progress=END   "));
+        assert!(!is_ffmpeg_progress_end("some other line without progress token"));
+    }
+
+    #[test]
     fn parse_ffprobe_frame_rate_handles_fraction_and_integer() {
         let frac = parse_ffprobe_frame_rate("30000/1001")
             .expect("30000/1001 should parse as a valid frame rate");
@@ -2030,6 +2645,38 @@ mod tests {
         assert!(parse_ffprobe_frame_rate("").is_none());
         assert!(parse_ffprobe_frame_rate("0/0").is_none());
         assert!(parse_ffprobe_frame_rate("not-a-number").is_none());
+    }
+
+    #[test]
+    fn compute_progress_percent_for_known_duration_uses_elapsed_ratio() {
+        let total = Some(100.0);
+        let samples = [(0.0, 0.0), (1.0, 1.0), (25.0, 25.0), (50.0, 50.0), (75.0, 75.0), (100.0, 100.0)];
+        for &(elapsed, expected) in &samples {
+            let p = compute_progress_percent(total, elapsed);
+            assert!(
+                (p - expected).abs() < 0.001,
+                "expected progress ~= {expected} for elapsed {elapsed}, got {p}"
+            );
+        }
+
+        // Elapsed time beyond the nominal duration should not exceed 100%.
+        let p_over = compute_progress_percent(total, 150.0);
+        assert!(
+            (p_over - 100.0).abs() < 0.001,
+            "elapsed beyond duration should clamp to 100, got {p_over}"
+        );
+    }
+
+    #[test]
+    fn compute_progress_percent_for_unknown_duration_returns_zero() {
+        let samples = [0.0, 1.0, 5.0, 10.0, 30.0, 60.0, 120.0];
+        for &t in &samples {
+            let p = compute_progress_percent(None, t);
+            assert!(
+                (p - 0.0).abs() < f64::EPSILON,
+                "unknown duration should not invent a fake percentage, expected 0, got {p}"
+            );
+        }
     }
 
     #[test]

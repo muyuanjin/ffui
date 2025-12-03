@@ -6,6 +6,7 @@ import type { Window as TauriWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type {
   AppSettings,
+  AutoCompressProgress,
   CpuUsageSnapshot,
   ExternalToolStatus,
   FFmpegPreset,
@@ -32,6 +33,7 @@ import {
   DialogScrollContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { highlightFfmpegCommand, escapeHtml, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import { useI18n } from "vue-i18n";
 import type { AppLocale } from "./i18n";
 import { DEFAULT_LOCALE, loadLocale } from "./i18n";
@@ -56,6 +58,9 @@ import {
 // Heavy UI subtrees are loaded lazily so the initial bundle stays smaller.
 const QueueItem = defineAsyncComponent(() => import("./components/QueueItem.vue"));
 const ParameterWizard = defineAsyncComponent(() => import("./components/ParameterWizard.vue"));
+const UltimateParameterPanel = defineAsyncComponent(
+  () => import("./components/UltimateParameterPanel.vue"),
+);
 const SmartScanWizard = defineAsyncComponent(() => import("./components/SmartScanWizard.vue"));
 
 const MAX_CONCURRENT_JOBS = 2;
@@ -134,8 +139,44 @@ const smartScanBatchMeta = ref<
   >
 >({});
 
+const applySmartScanBatchMetaSnapshot = (snapshot: {
+  batchId: string;
+  rootPath: string;
+  totalFilesScanned: number;
+  totalCandidates: number;
+  totalProcessed: number;
+  startedAtMs?: number;
+  completedAtMs?: number;
+}) => {
+  const prev = smartScanBatchMeta.value[snapshot.batchId];
+
+  const next = {
+    rootPath: snapshot.rootPath || prev?.rootPath || "",
+    totalFilesScanned: Math.max(
+      prev?.totalFilesScanned ?? 0,
+      snapshot.totalFilesScanned,
+    ),
+    totalCandidates: Math.max(
+      prev?.totalCandidates ?? 0,
+      snapshot.totalCandidates,
+    ),
+    totalProcessed: Math.max(
+      prev?.totalProcessed ?? 0,
+      snapshot.totalProcessed,
+    ),
+    startedAtMs: prev?.startedAtMs ?? snapshot.startedAtMs,
+    completedAtMs: snapshot.completedAtMs ?? prev?.completedAtMs,
+  };
+
+  smartScanBatchMeta.value = {
+    ...smartScanBatchMeta.value,
+    [snapshot.batchId]: next,
+  };
+};
+
 const expandedBatchIds = ref<Set<string>>(new Set());
 const showWizard = ref(false);
+const showParameterPanel = ref(false);
 const editingPreset = ref<FFmpegPreset | null>(null);
 const showSmartScan = ref(false);
 const smartConfig = ref<SmartScanConfig>({ ...DEFAULT_SMART_SCAN_CONFIG });
@@ -158,6 +199,7 @@ const jobDetailFallbackPreviewUrl = ref<string | null>(null);
 
 let dragDropUnlisten: UnlistenFn | null = null;
 let queueUnlisten: UnlistenFn | null = null;
+let smartScanProgressUnlisten: UnlistenFn | null = null;
 
 const { t, locale } = useI18n();
 
@@ -440,12 +482,48 @@ const jobDetailLogText = computed(() => {
   return tail || full;
 });
 
-type CommandTokenKind = "program" | "option" | "path" | "encoder" | "other" | "whitespace";
+const showTemplateCommand = ref(true);
 
-interface CommandToken {
-  text: string;
-  kind: CommandTokenKind;
-}
+const jobDetailRawCommand = computed(() => {
+  const job = selectedJobForDetail.value;
+  return job?.ffmpegCommand ?? "";
+});
+
+const jobDetailTemplateCommand = computed(() => {
+  const raw = jobDetailRawCommand.value;
+  if (!raw) return "";
+  const result = normalizeFfmpegTemplate(raw);
+  return result.template;
+});
+
+const jobDetailEffectiveCommand = computed(() => {
+  const raw = jobDetailRawCommand.value;
+  const templ = jobDetailTemplateCommand.value;
+  if (showTemplateCommand.value) {
+    return templ || raw;
+  }
+  return raw;
+});
+
+const jobDetailHasDistinctTemplate = computed(() => {
+  const raw = jobDetailRawCommand.value;
+  const templ = jobDetailTemplateCommand.value;
+  return !!raw && !!templ && templ !== raw;
+});
+
+const commandViewToggleLabel = computed(() => {
+  if (!jobDetailHasDistinctTemplate.value) return "";
+  return showTemplateCommand.value ? "显示完整命令" : "显示模板视图";
+});
+
+const toggleCommandView = () => {
+  if (!jobDetailHasDistinctTemplate.value) return;
+  showTemplateCommand.value = !showTemplateCommand.value;
+};
+
+const highlightedCommandHtml = computed(() => {
+  return highlightFfmpegCommand(jobDetailEffectiveCommand.value);
+});
 
 type LogLineKind = "version" | "stream" | "progress" | "error" | "other";
 
@@ -453,103 +531,6 @@ interface LogLineEntry {
   text: string;
   kind: LogLineKind;
 }
-
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
-const classifyCommandToken = (segment: string, index: number): CommandTokenKind => {
-  if (!segment.trim()) return "whitespace";
-
-  const unquoted = segment.replace(/^"+|"+$/g, "");
-  const lower = unquoted.toLowerCase();
-
-  if (index === 0 && (lower === "ffmpeg" || lower === "ffprobe")) {
-    return "program";
-  }
-
-  if (unquoted.startsWith("-")) {
-    return "option";
-  }
-
-  if (/libx264|libx265|hevc_nvenc|h264_nvenc|libsvtav1|av1/i.test(lower)) {
-    return "encoder";
-  }
-
-  if (/[\\/]/.test(unquoted) || /\.(mp4|mkv|mov|avi|webm|m4v)$/i.test(unquoted)) {
-    return "path";
-  }
-
-  return "other";
-};
-
-const tokenizeFfmpegCommand = (command: string | undefined | null): CommandToken[] => {
-  const raw = command ?? "";
-  if (!raw) return [];
-
-  const tokens: CommandToken[] = [];
-  const regex = /(".*?"|\S+)/g;
-  let lastIndex = 0;
-  let logicalIndex = 0;
-
-  let match: RegExpExecArray | null;
-  // Walk through the command, preserving all whitespace segments so that
-  // joining token.text later reconstructs the exact original string.
-  while ((match = regex.exec(raw)) !== null) {
-    const start = match.index;
-    if (start > lastIndex) {
-      tokens.push({ text: raw.slice(lastIndex, start), kind: "whitespace" });
-    }
-    const segment = match[0];
-    tokens.push({
-      text: segment,
-      kind: classifyCommandToken(segment, logicalIndex),
-    });
-    lastIndex = start + segment.length;
-    logicalIndex += 1;
-  }
-
-  if (lastIndex < raw.length) {
-    tokens.push({ text: raw.slice(lastIndex), kind: "whitespace" });
-  }
-
-  return tokens;
-};
-
-const commandTokenClass = (kind: CommandTokenKind): string => {
-  switch (kind) {
-    case "program":
-      return "text-emerald-400";
-    case "option":
-      return "text-blue-400";
-    case "path":
-      return "text-amber-400";
-    case "encoder":
-      return "text-purple-300";
-    default:
-      return "";
-  }
-};
-
-const highlightedCommandHtml = computed(() => {
-  const job = selectedJobForDetail.value;
-  const raw = job?.ffmpegCommand ?? "";
-  if (!raw) return "";
-
-  const tokens = tokenizeFfmpegCommand(raw);
-  return tokens
-    .map((token) => {
-      const cls = commandTokenClass(token.kind);
-      const escaped = escapeHtml(token.text);
-      if (!cls) return escaped;
-      return `<span class="${cls}">${escaped}</span>`;
-    })
-    .join("");
-});
 
 const classifyLogLine = (line: string): LogLineKind => {
   const lower = line.toLowerCase();
@@ -789,6 +770,7 @@ const handleSavePreset = async (preset: FFmpegPreset) => {
 
   presets.value = nextPresets;
   showWizard.value = false;
+  showParameterPanel.value = false;
   editingPreset.value = null;
   activeTab.value = "presets";
 };
@@ -796,10 +778,24 @@ const handleSavePreset = async (preset: FFmpegPreset) => {
 const openNewPresetWizard = () => {
   editingPreset.value = null;
   showWizard.value = true;
+  showParameterPanel.value = false;
 };
 
 const openEditPresetWizard = (preset: FFmpegPreset) => {
   editingPreset.value = preset;
+  showWizard.value = false;
+  showParameterPanel.value = true;
+};
+
+const openPresetPanelFromWizard = (preset: FFmpegPreset) => {
+  editingPreset.value = preset;
+  showWizard.value = false;
+  showParameterPanel.value = true;
+};
+
+const openPresetWizardFromPanel = (preset: FFmpegPreset) => {
+  editingPreset.value = preset;
+  showParameterPanel.value = false;
   showWizard.value = true;
 };
 
@@ -1180,17 +1176,15 @@ const runSmartScan = async (config: SmartScanConfig) => {
         batchId: job.batchId ?? batchId,
       }));
 
-      smartScanBatchMeta.value = {
-        ...smartScanBatchMeta.value,
-        [batchId]: {
-          rootPath: result.rootPath,
-          totalFilesScanned: result.totalFilesScanned,
-          totalCandidates: result.totalCandidates,
-          totalProcessed: result.totalProcessed,
-          startedAtMs: result.startedAtMs,
-          completedAtMs: result.completedAtMs,
-        },
-      };
+      applySmartScanBatchMetaSnapshot({
+        batchId,
+        rootPath: result.rootPath,
+        totalFilesScanned: result.totalFilesScanned,
+        totalCandidates: result.totalCandidates,
+        totalProcessed: result.totalProcessed,
+        startedAtMs: result.startedAtMs,
+        completedAtMs: result.completedAtMs,
+      });
 
       smartScanJobs.value = [...normalizedJobs, ...smartScanJobs.value];
       const existingBackendJobs = jobs.value.filter((job) => job.source === "manual");
@@ -1209,7 +1203,7 @@ const runSmartScan = async (config: SmartScanConfig) => {
   runSmartScanMock(config);
 };
 
-const startSmartScan = () => {
+const startSmartScan = async () => {
   activeTab.value = "queue";
 
   // In pure web mode we keep the existing behaviour.
@@ -1225,16 +1219,33 @@ const startSmartScan = () => {
     return;
   }
 
-  const input = folderInputRef.value;
-  if (!input) {
-    console.error("Folder input element not found for Smart Scan");
-    showSmartScan.value = true;
-    return;
-  }
+  // 在 Tauri 环境下，使用原生目录选择对话框获取根路径，避免 WebView 把
+  // `webkitdirectory` 看成“向站点上传整个文件夹”而弹出隐私提示。
+  try {
+    const selected = await openDialog({
+      multiple: false,
+      directory: true,
+    });
 
-  pendingSmartScanAfterFolder.value = true;
-  input.value = "";
-  input.click();
+    if (!selected) {
+      // 用户取消选择时保持静默，不弹错误。
+      return;
+    }
+
+    const root = Array.isArray(selected) ? selected[0] : selected;
+    if (!root || typeof root !== "string") {
+      console.error("Dialog returned an invalid root path for Smart Scan", selected);
+      showSmartScan.value = true;
+      return;
+    }
+
+    lastDroppedRoot.value = root;
+    showSmartScan.value = true;
+  } catch (error) {
+    console.error("Failed to open directory dialog for Smart Scan", error);
+    // 回退到直接打开向导，由用户手动输入或改用拖拽。
+    showSmartScan.value = true;
+  }
 };
 
 const handlePathsDroppedOntoQueue = async (paths: string[]) => {
@@ -1493,6 +1504,30 @@ onMounted(() => {
     }
   })();
 
+  // In Tauri mode, listen for Smart Scan progress snapshots so the queue can
+  // show coarse-grained scanning progress while `run_auto_compress` is still
+  // running on the backend.
+  void (async () => {
+    try {
+      smartScanProgressUnlisten = await listen<AutoCompressProgress>(
+        "auto-compress://progress",
+        (event) => {
+          const payload = event.payload as AutoCompressProgress | null;
+          if (!payload || !payload.batchId) return;
+          applySmartScanBatchMetaSnapshot({
+            batchId: payload.batchId,
+            rootPath: payload.rootPath,
+            totalFilesScanned: payload.totalFilesScanned,
+            totalCandidates: payload.totalCandidates,
+            totalProcessed: payload.totalProcessed,
+          });
+        },
+      );
+    } catch (error) {
+      console.error("Failed to register Smart Scan progress listener", error);
+    }
+  })();
+
   // In Tauri mode, also listen for OS-level drag & drop events so dragging files
   // from Explorer/Finder shows the overlay and triggers Smart Scan. On Tauri 2
   // this uses the higher-level onDragDropEvent helper instead of legacy
@@ -1598,6 +1633,11 @@ onUnmounted(() => {
   if (queueUnlisten) {
     queueUnlisten();
     queueUnlisten = null;
+  }
+
+  if (smartScanProgressUnlisten) {
+    smartScanProgressUnlisten();
+    smartScanProgressUnlisten = null;
   }
 
   if (dragDropUnlisten) {
@@ -2308,6 +2348,23 @@ onUnmounted(() => {
                         </span>
                       </div>
                     </div>
+                    <div class="space-y-1">
+                      <label class="block text-[11px] text-muted-foreground">
+                        最大并行转码任务数
+                      </label>
+                      <div class="flex items-center gap-2">
+                        <Input
+                          v-model.number="appSettings.maxParallelJobs"
+                          type="number"
+                          min="0"
+                          max="32"
+                          class="h-8 w-24 text-xs"
+                        />
+                        <span class="text-[11px] text-muted-foreground">
+                          0 表示自动（约为 CPU 逻辑核数的一半），&gt; 0 时将上限固定为该值。
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   <div class="flex justify-end">
@@ -2336,7 +2393,21 @@ onUnmounted(() => {
       v-if="showWizard"
       :initial-preset="editingPreset"
       @save="handleSavePreset"
+      @switch-to-panel="openPresetPanelFromWizard"
       @cancel="() => { showWizard = false; editingPreset = null; }"
+    />
+
+    <UltimateParameterPanel
+      v-if="showParameterPanel && editingPreset"
+      :initial-preset="editingPreset"
+      @save="handleSavePreset"
+      @switch-to-wizard="openPresetWizardFromPanel"
+      @cancel="
+        () => {
+          showParameterPanel = false;
+          editingPreset = null;
+        }
+      "
     />
 
     <SmartScanWizard
@@ -2571,19 +2642,41 @@ onUnmounted(() => {
                 class="space-y-2 rounded-md border border-border bg-background px-3 py-3"
               >
                 <div class="flex items-center justify-between gap-2">
-                  <h3 class="text-xs font-semibold">
-                    {{ t("taskDetail.commandTitle") }}
-                  </h3>
-                  <Button
-                    v-if="selectedJobForDetail.ffmpegCommand"
-                    variant="outline"
-                    size="xs"
-                    class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
-                    data-testid="task-detail-copy-command"
-                    @click="copyToClipboard(selectedJobForDetail.ffmpegCommand)"
-                  >
-                    {{ t("taskDetail.copyCommand") }}
-                  </Button>
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-xs font-semibold">
+                      {{ t("taskDetail.commandTitle") }}
+                    </h3>
+                    <button
+                      v-if="jobDetailHasDistinctTemplate"
+                      type="button"
+                      class="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      @click="toggleCommandView"
+                    >
+                      {{ commandViewToggleLabel }}
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <Button
+                      v-if="selectedJobForDetail.ffmpegCommand"
+                      variant="outline"
+                      size="xs"
+                      class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                      data-testid="task-detail-copy-command"
+                      @click="copyToClipboard(jobDetailRawCommand)"
+                    >
+                      {{ t("taskDetail.copyCommand") }}
+                    </Button>
+                    <Button
+                      v-if="jobDetailHasDistinctTemplate && selectedJobForDetail.ffmpegCommand"
+                      variant="outline"
+                      size="xs"
+                      class="h-6 px-2 text-[10px] bg-secondary/40 text-foreground hover:bg-secondary"
+                      data-testid="task-detail-copy-template-command"
+                      @click="copyToClipboard(jobDetailTemplateCommand)"
+                    >
+                      复制模板
+                    </Button>
+                  </div>
                 </div>
                 <pre
                   v-if="selectedJobForDetail.ffmpegCommand"

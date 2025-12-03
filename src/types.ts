@@ -9,6 +9,17 @@ export interface VideoConfig {
   preset: string;
   tune?: string;
   profile?: string;
+  /** Target video bitrate in kbps when using CBR/VBR/two-pass modes. */
+  bitrateKbps?: number;
+  /** Optional max video bitrate in kbps for capped VBR workflows. */
+  maxBitrateKbps?: number;
+  /** Optional buffer size in kbits used for VBV (`-bufsize`). */
+  bufferSizeKbits?: number;
+  /**
+   * Two-pass encoding flag: 1 or 2 when using `-pass`, undefined for single-pass.
+   * The UI should ensure this only appears together with bitrate-based modes.
+   */
+  pass?: 1 | 2;
 }
 
 export interface AudioConfig {
@@ -118,6 +129,8 @@ export interface AppSettings {
   smartScanDefaults: SmartScanConfig;
   /** Global preview capture position as a percentage of video duration (0-100). */
   previewCapturePercent: number;
+  /** Optional upper bound for concurrent ffmpeg jobs; 0 or undefined means auto. */
+  maxParallelJobs?: number;
 }
 
 export type ExternalToolKind = "ffmpeg" | "ffprobe" | "avifenc";
@@ -153,6 +166,14 @@ export interface AutoCompressResult {
   batchId: string;
   startedAtMs: number;
   completedAtMs: number;
+}
+
+export interface AutoCompressProgress {
+  rootPath: string;
+  totalFilesScanned: number;
+  totalCandidates: number;
+  totalProcessed: number;
+  batchId: string;
 }
 
 export interface QueueState {

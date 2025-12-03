@@ -207,6 +207,52 @@ describe("backend contract", () => {
     expect(result).toEqual(backendList);
   });
 
+  it("savePresetOnBackend preserves extended video rate-control fields for VBR presets", async () => {
+    const preset: FFmpegPreset = {
+      id: "vbr-1",
+      name: "VBR Test",
+      description: "Preset with VBR + two-pass fields",
+      video: {
+        encoder: "libx264",
+        rateControl: "vbr",
+        qualityValue: 23,
+        preset: "slow",
+        bitrateKbps: 3000,
+        maxBitrateKbps: 4500,
+        bufferSizeKbits: 6000,
+        pass: 2,
+      },
+      audio: {
+        codec: "copy",
+      },
+      filters: {},
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+    };
+
+    const backendList: FFmpegPreset[] = [preset];
+    invokeMock.mockResolvedValueOnce(backendList);
+
+    const result = await savePresetOnBackend(preset);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("save_preset");
+
+    const sentPreset = (payload as any).preset as FFmpegPreset;
+    expect(sentPreset.video.rateControl).toBe("vbr");
+    expect(sentPreset.video.bitrateKbps).toBe(3000);
+    expect(sentPreset.video.maxBitrateKbps).toBe(4500);
+    expect(sentPreset.video.bufferSizeKbits).toBe(6000);
+    expect(sentPreset.video.pass).toBe(2);
+
+    expect(result).toEqual(backendList);
+  });
+
   it("deletePresetOnBackend sends delete_preset with the presetId and returns the updated list", async () => {
     const remaining: FFmpegPreset[] = [
       {

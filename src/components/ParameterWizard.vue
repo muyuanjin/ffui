@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
+import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 
 const props = defineProps<{
   initialPreset?: FFmpegPreset | null;
@@ -17,6 +18,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "save", value: FFmpegPreset): void;
   (e: "cancel"): void;
+  // When editing an existing preset, allow switching to the full parameter panel
+  // while preserving the current wizard state.
+  (e: "switchToPanel", value: FFmpegPreset): void;
 }>();
 
 const { t } = useI18n();
@@ -48,6 +52,8 @@ const filters = reactive<FilterConfig>({
 
 const advancedEnabled = ref<boolean>(props.initialPreset?.advancedEnabled ?? false);
 const ffmpegTemplate = ref<string>(props.initialPreset?.ffmpegTemplate ?? "");
+const parseHint = ref<string | null>(null);
+const parseHintVariant = ref<"neutral" | "ok" | "warning">("neutral");
 
 const handleEncoderChange = (newEncoder: EncoderType) => {
   let defaults: Partial<VideoConfig> = {};
@@ -94,7 +100,7 @@ const handleEncoderChange = (newEncoder: EncoderType) => {
   });
 };
 
-const handleSave = () => {
+const buildPresetFromState = (): FFmpegPreset => {
   // 防止把 x264 的 tune 选项带到 NVENC/AV1 预设里，从而生成非法 ffmpeg 参数。
   const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
   if (normalizedVideo.encoder !== "libx264") {
@@ -119,7 +125,15 @@ const handleSave = () => {
       },
   };
 
-  emit("save", newPreset);
+  return newPreset;
+};
+
+const handleSave = () => {
+  emit("save", buildPresetFromState());
+};
+
+const handleSwitchToPanel = () => {
+  emit("switchToPanel", buildPresetFromState());
 };
 
 const isCopyEncoder = computed(() => video.encoder === "copy");
@@ -150,9 +164,25 @@ const generatedCommand = computed(() => {
     args.push("-c:v", "copy");
   } else {
     args.push("-c:v", v.encoder);
+
+    // 速率控制：质量优先（CRF/CQ）与码率优先（CBR/VBR + two-pass）互斥。
     if (v.rateControl === "crf" || v.rateControl === "cq") {
       args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
+    } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
+      if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
+        args.push("-b:v", `${v.bitrateKbps}k`);
+      }
+      if (typeof v.maxBitrateKbps === "number" && v.maxBitrateKbps > 0) {
+        args.push("-maxrate", `${v.maxBitrateKbps}k`);
+      }
+      if (typeof v.bufferSizeKbits === "number" && v.bufferSizeKbits > 0) {
+        args.push("-bufsize", `${v.bufferSizeKbits}k`);
+      }
+      if (v.pass === 1 || v.pass === 2) {
+        args.push("-pass", String(v.pass));
+      }
     }
+
     if (v.preset) {
       args.push("-preset", v.preset);
     }
@@ -202,12 +232,59 @@ const commandPreview = computed(() => {
   return generatedCommand.value;
 });
 
+const highlightedCommandHtml = computed(() => highlightFfmpegCommand(commandPreview.value));
+
+const parseHintClass = computed(() => {
+  if (!parseHint.value) {
+    return "text-[10px] text-muted-foreground";
+  }
+  if (parseHintVariant.value === "ok") {
+    return "text-[10px] text-emerald-400";
+  }
+  if (parseHintVariant.value === "warning") {
+    return "text-[10px] text-amber-400";
+  }
+  return "text-[10px] text-muted-foreground";
+});
+
 const handleCopyPreview = async () => {
   try {
     await navigator.clipboard?.writeText(commandPreview.value);
     // silent success; in future can wire to toast using t("presetEditor.advanced.copiedToast")
   } catch {
     // ignore clipboard failures
+  }
+};
+
+const handleParseTemplateFromCommand = () => {
+  const source = ffmpegTemplate.value.trim() || generatedCommand.value;
+  if (!source) {
+    parseHint.value =
+      (t("presetEditor.advanced.parseEmpty") as string) ||
+      "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。";
+    parseHintVariant.value = "warning";
+    return;
+  }
+
+  const result = normalizeFfmpegTemplate(source);
+  ffmpegTemplate.value = result.template;
+  advancedEnabled.value = true;
+
+  if (result.inputReplaced && result.outputReplaced) {
+    parseHint.value =
+      (t("presetEditor.advanced.parseOk") as string) ||
+      "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。";
+    parseHintVariant.value = "ok";
+  } else if (result.inputReplaced || result.outputReplaced) {
+    parseHint.value =
+      (t("presetEditor.advanced.parsePartial") as string) ||
+      "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。";
+    parseHintVariant.value = "warning";
+  } else {
+    parseHint.value =
+      (t("presetEditor.advanced.parseFailed") as string) ||
+      "未能自动识别输入/输出路径，请确保包含 -i <输入> 和输出文件路径，或直接手动将对应部分替换为 INPUT / OUTPUT。";
+    parseHintVariant.value = "warning";
   }
 };
 </script>
@@ -223,17 +300,28 @@ const handleCopyPreview = async () => {
             {{ initialPreset ? t("presetEditor.titleEdit") : t("presetEditor.titleNew") }}
           </h2>
           <p class="text-muted-foreground text-sm">
-            {{ t("common.stepOf", { step, total: 3 }) }}
+            {{ t("common.stepOf", { step, total: 5 }) }}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          class="text-muted-foreground hover:text-foreground"
-          @click="emit('cancel')"
-        >
-          ✕
-        </Button>
+        <div class="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-8 px-3 text-[11px]"
+            data-testid="preset-open-panel"
+            @click="handleSwitchToPanel"
+          >
+            {{ t("presetEditor.actions.openPanel", '完整参数面板') }}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="text-muted-foreground hover:text-foreground"
+            @click="emit('cancel')"
+          >
+            ✕
+          </Button>
+        </div>
       </div>
 
       <div class="p-6 overflow-y-auto flex-1 space-y-6">
@@ -463,7 +551,42 @@ const handleCopyPreview = async () => {
           </div>
         </template>
 
-        <template v-else>
+        <template v-else-if="step === 3">
+          <!-- Step 3 – 分辨率与基础滤镜 -->
+          <div class="space-y-6">
+            <div
+              v-if="!isCopyEncoder"
+              class="bg-muted/40 p-4 rounded-md border border-border/60"
+            >
+              <h3 class="font-semibold mb-4 border-b border-border/60 pb-2">
+                {{ t("presetEditor.filters.title") }}
+              </h3>
+              <div class="space-y-4">
+                <div>
+                  <Label class="block text-sm mb-1">
+                    {{ t("presetEditor.filters.scaleLabel") }}
+                  </Label>
+                  <Input
+                    :placeholder="t('presetEditor.filters.scalePlaceholder')"
+                    :model-value="filters.scale ?? ''"
+                    @update:model-value="
+                      (value) => {
+                        const v = String(value ?? '');
+                        filters.scale = v || undefined;
+                      }
+                    "
+                  />
+                  <p class="text-xs text-muted-foreground mt-1">
+                    {{ t("presetEditor.filters.scaleHelp") }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template v-else-if="step === 4">
+          <!-- Step 4 – 音频与字幕（当前仅实现音频策略，字幕后续扩展） -->
           <div class="space-y-6">
             <div class="bg-muted/40 p-4 rounded-md border border-border/60">
               <h3 class="font-semibold mb-4 border-b border-border/60 pb-2">
@@ -526,35 +649,51 @@ const handleCopyPreview = async () => {
                       </SelectItem>
                     </SelectContent>
                   </Select>
+                  <p class="mt-1 text-[11px] text-muted-foreground">
+                    {{ t("presetEditor.audio.bitrateHelp") }}
+                  </p>
                 </div>
               </div>
             </div>
+          </div>
+        </template>
 
-            <div
-              v-if="!isCopyEncoder"
-              class="bg-muted/40 p-4 rounded-md border border-border/60"
-            >
-              <h3 class="font-semibold mb-4 border-b border-border/60 pb-2">
-                {{ t("presetEditor.filters.title") }}
+        <template v-else>
+          <!-- Step 5 – Summary + 预览（含高级模板模式） -->
+          <div class="space-y-6">
+            <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+              <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
+                {{ t("presetEditor.summary.title", '预设概览') }}
               </h3>
-              <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-3 text-xs">
                 <div>
-                  <Label class="block text-sm mb-1">
-                    {{ t("presetEditor.filters.scaleLabel") }}
-                  </Label>
-                  <Input
-                    :placeholder="t('presetEditor.filters.scalePlaceholder')"
-                    :model-value="filters.scale ?? ''"
-                    @update:model-value="
-                      (value) => {
-                        const v = String(value ?? '');
-                        filters.scale = v || undefined;
-                      }
-                    "
-                  />
-                  <p class="text-xs text-muted-foreground mt-1">
-                    {{ t("presetEditor.filters.scaleHelp") }}
-                  </p>
+                  <div class="text-[10px] text-muted-foreground uppercase mb-1">
+                    {{ t("presets.videoLabel", '视频') }}
+                  </div>
+                  <div class="font-mono text-foreground">
+                    {{ video.encoder }} · {{ video.rateControl.toUpperCase() }} {{ video.qualityValue }}
+                  </div>
+                </div>
+                <div>
+                  <div class="text-[10px] text-muted-foreground uppercase mb-1">
+                    {{ t("presets.audioLabel", '音频') }}
+                  </div>
+                  <div class="font-mono text-foreground">
+                    <span v-if="audio.codec === 'copy'">
+                      {{ t("presets.audioCopy", 'copy') }}
+                    </span>
+                    <span v-else>
+                      AAC {{ audio.bitrate ?? 0 }}k
+                    </span>
+                  </div>
+                </div>
+                <div v-if="filters.scale">
+                  <div class="text-[10px] text-muted-foreground uppercase mb-1">
+                    {{ t("presetEditor.filters.title", '滤镜') }}
+                  </div>
+                  <div class="font-mono text-foreground">
+                    scale={{ filters.scale }}
+                  </div>
                 </div>
               </div>
             </div>
@@ -591,25 +730,38 @@ const handleCopyPreview = async () => {
               </div>
 
               <div class="space-y-1">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between gap-2">
                   <span class="text-xs text-muted-foreground">
                     {{ t("presetEditor.advanced.previewTitle") }}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    class="h-6 w-14 text-[10px] text-muted-foreground hover:text-foreground"
-                    @click="handleCopyPreview"
-                  >
-                    {{ t("presetEditor.advanced.copyButton") }}
-                  </Button>
+                  <div class="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                      @click="handleParseTemplateFromCommand"
+                    >
+                      {{ t("presetEditor.advanced.parseButton", "智能解析命令") }}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+                      @click="handleCopyPreview"
+                    >
+                      {{ t("presetEditor.advanced.copyButton") }}
+                    </Button>
+                  </div>
                 </div>
                 <pre
                   class="mt-1 rounded-md bg-background/80 border border-border/60 px-2 py-2 text-[11px] font-mono text-muted-foreground overflow-x-auto select-text"
-                >
-{{ commandPreview }}</pre>
-                <p class="text-[10px] text-muted-foreground mt-1">
-                  INPUT / OUTPUT 会在实际执行时被具体路径替换（当前应用仅用于配置与预览）。
+                  v-html="highlightedCommandHtml"
+                />
+                <p :class="parseHintClass" class="mt-1">
+                  {{
+                    parseHint ||
+                      "INPUT / OUTPUT 会在实际执行时被具体路径替换；如果从完整命令粘贴，请优先在此处解析并替换占位符。"
+                  }}
                 </p>
               </div>
             </div>
@@ -629,7 +781,7 @@ const handleCopyPreview = async () => {
         <div v-else />
 
         <Button
-          v-if="step < 3"
+          v-if="step < 5"
           class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
           @click="step += 1"
         >

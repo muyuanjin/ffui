@@ -7,6 +7,7 @@ import type {
   QueueState,
   AppSettings,
   AutoCompressResult,
+  AutoCompressProgress,
   FFmpegPreset,
 } from "@/types";
 import MainApp from "@/MainApp.vue";
@@ -70,6 +71,8 @@ const i18n = createI18n({
 });
 
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
+let smartScanProgressHandler: ((event: { payload: unknown }) => void) | null =
+  null;
 
 beforeEach(() => {
   (window as any).__TAURI_IPC__ = {};
@@ -78,11 +81,14 @@ beforeEach(() => {
   listenMock.mockReset();
   queueJobs = [];
   queueStateHandler = null;
+  smartScanProgressHandler = null;
 
   listenMock.mockImplementation(
     async (event: string, handler: (event: { payload: unknown }) => void) => {
       if (event === "transcoding://queue-state") {
         queueStateHandler = handler;
+      } else if (event === "auto-compress://progress") {
+        smartScanProgressHandler = handler;
       }
       return () => {};
     },
@@ -90,6 +96,77 @@ beforeEach(() => {
 });
 
 describe("MainApp Tauri manual job flow via dialog", () => {
+  it("uses a directory dialog to choose Smart Scan root in Tauri mode", async () => {
+    const selectedRoot = "C:/videos/batch";
+
+    dialogOpenMock.mockResolvedValueOnce(selectedRoot);
+
+    invokeMock.mockImplementation((cmd: string): Promise<unknown> => {
+      switch (cmd) {
+        case "get_queue_state": {
+          const state: QueueState = { jobs: queueJobs };
+          return Promise.resolve(state);
+        }
+          case "get_app_settings": {
+            const settings: AppSettings = {
+              tools: {
+                ffmpegPath: undefined,
+                ffprobePath: undefined,
+                avifencPath: undefined,
+                autoDownload: false,
+                autoUpdate: false,
+              },
+              smartScanDefaults: {
+                minImageSizeKB: 50,
+                minVideoSizeMB: 50,
+                minSavingRatio: 0.95,
+                imageTargetFormat: "avif",
+                videoPresetId: "",
+              },
+              previewCapturePercent: 25,
+            };
+            return Promise.resolve(settings);
+          }
+          case "get_cpu_usage":
+            return Promise.resolve({ overall: 0, perCore: [] });
+          case "get_gpu_usage":
+            return Promise.resolve({ available: false });
+          case "get_external_tool_statuses":
+            return Promise.resolve([]);
+          default:
+            return Promise.resolve(null);
+        }
+      },
+    );
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    expect(vm.lastDroppedRoot).toBe(null);
+    expect(vm.showSmartScan).toBe(false);
+
+    await vm.startSmartScan();
+    await nextTick();
+
+    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
+    const [options] = dialogOpenMock.mock.calls[0];
+    expect(options).toMatchObject({
+      multiple: false,
+      directory: true,
+    });
+
+    expect(vm.lastDroppedRoot).toBe(selectedRoot);
+    expect(vm.showSmartScan).toBe(true);
+    expect(vm.activeTab).toBe("queue");
+
+    wrapper.unmount();
+  });
+
   it("uses dialog.open and enqueueTranscodeJob to add a manual job", async () => {
     const selectedPath = "C:/videos/sample.mp4";
 
@@ -597,6 +674,74 @@ describe("MainApp Tauri manual job flow via dialog", () => {
     const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
     expect(jobsAfter.length).toBe(1);
     expect(jobsAfter[0].progress).toBe(65);
+
+    wrapper.unmount();
+  });
+
+  it("subscribes to Smart Scan progress events and updates batch metadata", async () => {
+    invokeMock.mockImplementation(
+      (cmd: string, _payload?: Record<string, unknown>): Promise<unknown> => {
+        switch (cmd) {
+          case "get_queue_state": {
+            const state: QueueState = { jobs: [] };
+            return Promise.resolve(state);
+          }
+          case "get_app_settings": {
+            const settings: AppSettings = {
+              tools: {
+                ffmpegPath: undefined,
+                ffprobePath: undefined,
+                avifencPath: undefined,
+                autoDownload: false,
+                autoUpdate: false,
+              },
+              smartScanDefaults: {
+                minImageSizeKB: 50,
+                minVideoSizeMB: 50,
+                minSavingRatio: 0.95,
+                imageTargetFormat: "avif",
+                videoPresetId: "",
+              },
+              previewCapturePercent: 25,
+            };
+            return Promise.resolve(settings);
+          }
+          default:
+            return Promise.resolve(null);
+        }
+      },
+    );
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    // Ensure listeners are registered.
+    await nextTick();
+
+    expect(typeof smartScanProgressHandler).toBe("function");
+
+    const progress: AutoCompressProgress = {
+      rootPath: "C:/videos/batch",
+      totalFilesScanned: 10,
+      totalCandidates: 4,
+      totalProcessed: 2,
+      batchId: "auto-compress-test-batch",
+    };
+
+    smartScanProgressHandler?.({ payload: progress });
+    await nextTick();
+
+    const meta = vm.smartScanBatchMeta["auto-compress-test-batch"];
+    expect(meta).toBeTruthy();
+    expect(meta.rootPath).toBe("C:/videos/batch");
+    expect(meta.totalFilesScanned).toBe(10);
+    expect(meta.totalCandidates).toBe(4);
+    expect(meta.totalProcessed).toBe(2);
 
     wrapper.unmount();
   });

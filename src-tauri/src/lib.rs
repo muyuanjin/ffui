@@ -4,7 +4,9 @@ use std::{thread, time::Duration};
 
 use tauri::{Emitter, Manager, State};
 
-use crate::transcoding::{AppSettings, AutoCompressResult, ExternalToolStatus, TranscodingEngine};
+use crate::transcoding::{
+    AppSettings, AutoCompressProgress, AutoCompressResult, ExternalToolStatus, TranscodingEngine,
+};
 use crate::transcoding::{JobSource, JobType, QueueState, SmartScanConfig, TranscodeJob};
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
@@ -477,6 +479,20 @@ pub fn run() {
                     if let Err(err) = event_handle.emit("transcoding://queue-state", state.clone())
                     {
                         eprintln!("failed to emit queue-state event: {err}");
+                    }
+                });
+            }
+
+            // Stream Smart Scan progress snapshots so the frontend can show
+            // coarse-grained scanning progress for large directory trees.
+            {
+                let engine = app.state::<TranscodingEngine>();
+                let event_handle = handle.clone();
+                engine.register_smart_scan_listener(move |progress: AutoCompressProgress| {
+                    if let Err(err) =
+                        event_handle.emit("auto-compress://progress", progress.clone())
+                    {
+                        eprintln!("failed to emit auto-compress progress event: {err}");
                     }
                 });
             }
