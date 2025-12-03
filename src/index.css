@@ -1,0 +1,197 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  /* Base radius and color tokens for light theme */
+  --radius: 0.625rem;
+  --background: #f9fafb;
+  --foreground: #020617;
+  --card: #ffffff;
+  --card-foreground: #020617;
+  --popover: #ffffff;
+  --popover-foreground: #020617;
+  --primary: #1d4ed8;
+  --primary-foreground: #eff6ff;
+  --secondary: #e5e7eb;
+  --secondary-foreground: #020617;
+  --muted: #e5e7eb;
+  --muted-foreground: #6b7280;
+  --accent: #e5e7eb;
+  --accent-foreground: #020617;
+  --destructive: #ef4444;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #3b82f6;
+  --chart-1: #38bdf8;
+  --chart-2: #22c55e;
+  --chart-3: #a855f7;
+  --chart-4: #f97316;
+  --chart-5: #eab308;
+  --sidebar: #020617;
+  --sidebar-foreground: #e5e7eb;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #e5e7eb;
+  --sidebar-accent: #1f2937;
+  --sidebar-accent-foreground: #e5e7eb;
+  --sidebar-border: #020617;
+  --sidebar-ring: #4f46e5;
+}
+
+.dark {
+  /* Dark theme: lighter and more neutral; clearer separation between surfaces */
+  /* Main content background */
+  --background: #111827; /* gray-900-ish */
+  --foreground: #e5e7eb;
+  /* Cards and top content header */
+  --card: #1f2937; /* slate-800-ish */
+  --card-foreground: #e5e7eb;
+  --popover: #1f2937;
+  --popover-foreground: #e5e7eb;
+  --primary: #38bdf8; /* cyan-400 样式，比深紫更轻一点 */
+  --primary-foreground: #020617;
+  --secondary: #0b1120;
+  --secondary-foreground: #e5e7eb;
+  /* Subtle blocks / panels */
+  --muted: #0b1120;
+  --muted-foreground: #64748b;
+  --accent: #0b1120;
+  --accent-foreground: #e5e7eb;
+  --destructive: #ef4444;
+  --border: rgba(148, 163, 184, 0.5);
+  /* Input borders should be clearly visible on dark background */
+  --input: rgba(148, 163, 184, 0.7);
+  --ring: #38bdf8;
+  --chart-1: #38bdf8;
+  --chart-2: #22c55e;
+  --chart-3: #a855f7;
+  --chart-4: #f97316;
+  --chart-5: #eab308;
+  /* Sidebar / navigation strip */
+  --sidebar: #020617; /* 最暗：左侧导航栏 */
+  --sidebar-foreground: #e5e7eb;
+  --sidebar-primary: #38bdf8;
+  --sidebar-primary-foreground: #020617;
+  /* Active / hover nav buttons */
+  --sidebar-accent: #1f2937; /* 明显比 sidebar 更亮，接近卡片色 */
+  --sidebar-accent-foreground: #e5e7eb;
+  --sidebar-border: #020617;
+  --sidebar-ring: #38bdf8;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased overflow-hidden;
+    margin: 0;
+    /* Default: disable text selection for chrome / controls, unless explicitly re-enabled */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  /* Allow text selection where it makes sense */
+  input,
+  textarea,
+  pre,
+  .select-text {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    user-select: text;
+  }
+
+  /* Make custom Tauri titlebar regions draggable */
+  [data-tauri-drag-region] {
+    -webkit-app-region: drag;
+    app-region: drag;
+  }
+
+  /* Interactive elements must not be draggable */
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [data-tauri-drag-region="false"] {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+
+  /* Tailwind v4 button cursor fix from shadcn-vue docs */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* Scrollbar styling to better match the dark theme */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.7) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background-color: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.7);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.9);
+  }
+}
