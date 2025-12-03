@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from "vue";
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Window as TauriWindow } from "@tauri-apps/api/window";
@@ -20,6 +19,7 @@ import { DEFAULT_SMART_SCAN_CONFIG, EXTENSIONS } from "./constants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -39,12 +39,16 @@ import {
   fetchCpuUsage,
   fetchExternalToolStatuses,
   fetchGpuUsage,
+  buildPreviewUrl,
   hasTauri,
   loadAppSettings,
+  loadPresets,
   loadQueueState,
   loadPreviewDataUrl,
   runAutoCompress,
   saveAppSettings,
+  savePresetOnBackend,
+  deletePresetOnBackend,
   enqueueTranscodeJob,
   cancelTranscodeJob,
 } from "@/lib/backend";
@@ -81,8 +85,56 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
 
 const activeTab = ref<"queue" | "presets" | "media" | "monitor" | "settings">("queue");
 const presets = ref<FFmpegPreset[]>([...INITIAL_PRESETS]);
+const presetsLoadedFromBackend = ref(false);
 const jobs = ref<TranscodeJob[]>([]);
 const smartScanJobs = ref<TranscodeJob[]>([]);
+const manualJobPresetId = ref<string | null>(null);
+
+const manualJobPreset = computed<FFmpegPreset | null>(() => {
+  const list = presets.value;
+  if (!list || list.length === 0) return null;
+  const id = manualJobPresetId.value;
+  if (!id) return list[0];
+  return list.find((p) => p.id === id) ?? list[0];
+});
+
+type CompositeSmartScanTask = {
+  batchId: string;
+  rootPath: string;
+  jobs: TranscodeJob[];
+  totalFilesScanned: number;
+  totalCandidates: number;
+  totalProcessed: number;
+  startedAtMs?: number;
+  completedAtMs?: number;
+  overallProgress: number;
+  currentJob: TranscodeJob | null;
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  totalCount: number;
+};
+
+type QueueListItem =
+  | { kind: "batch"; batch: CompositeSmartScanTask }
+  | { kind: "job"; job: TranscodeJob };
+
+const smartScanBatchMeta = ref<
+  Record<
+    string,
+    {
+      rootPath: string;
+      totalFilesScanned: number;
+      totalCandidates: number;
+      totalProcessed: number;
+      startedAtMs?: number;
+      completedAtMs?: number;
+    }
+  >
+>({});
+
+const expandedBatchIds = ref<Set<string>>(new Set());
 const showWizard = ref(false);
 const editingPreset = ref<FFmpegPreset | null>(null);
 const showSmartScan = ref(false);
@@ -132,6 +184,15 @@ const currentTitle = computed(() => {
   return t("app.tabs.queue");
 });
 
+const currentSubtitle = computed(() => {
+  if (activeTab.value === "queue") return t("app.queueHint");
+  if (activeTab.value === "presets") return t("app.presetsHint");
+  if (activeTab.value === "media") return t("app.mediaHint");
+  if (activeTab.value === "monitor") return t("app.monitorHint");
+  if (activeTab.value === "settings") return t("app.settingsHint");
+  return "";
+});
+
 const detailStatusLabel = computed(() => {
   const job = selectedJobForDetail.value;
   if (!job) return "";
@@ -168,6 +229,164 @@ const detailSourceLabel = computed(() => {
   return t("queue.source.manual") as string;
 });
 
+const detailPreset = computed<FFmpegPreset | null>(() => {
+  const job = selectedJobForDetail.value;
+  if (!job) return null;
+  const id = job.presetId;
+  if (!id) return null;
+  return presets.value.find((p) => p.id === id) ?? null;
+});
+
+const detailPresetLabel = computed(() => {
+  const job = selectedJobForDetail.value;
+  if (!job) return "";
+  const preset = detailPreset.value;
+  if (preset) return preset.name;
+
+  if (job.presetId) {
+    const raw = t("taskDetail.unknownPreset", { id: job.presetId }) as string;
+    if (raw && raw !== "taskDetail.unknownPreset") {
+      return raw;
+    }
+    return `Unknown preset (${job.presetId})`;
+  }
+
+  return "";
+});
+
+const compositeSmartScanTasks = computed<CompositeSmartScanTask[]>(() => {
+  const byBatch: Record<string, { jobs: TranscodeJob[] }> = {};
+
+  for (const job of jobs.value) {
+    const batchId = job.batchId;
+    if (!batchId) continue;
+    if (!byBatch[batchId]) {
+      byBatch[batchId] = { jobs: [] };
+    }
+    byBatch[batchId].jobs.push(job);
+  }
+
+  return Object.entries(byBatch).map(([batchId, entry]) => {
+    const batchJobs = entry.jobs;
+    const meta = smartScanBatchMeta.value[batchId];
+    const totalCount = batchJobs.length;
+
+    let completedCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+    let cancelledCount = 0;
+    let progressSum = 0;
+    let currentJob: TranscodeJob | null = null;
+
+    for (const job of batchJobs) {
+      switch (job.status) {
+        case "completed":
+          completedCount += 1;
+          progressSum += 1;
+          break;
+        case "skipped":
+          skippedCount += 1;
+          progressSum += 1;
+          break;
+        case "failed":
+          failedCount += 1;
+          progressSum += 1;
+          break;
+        case "cancelled":
+          cancelledCount += 1;
+          progressSum += 1;
+          break;
+        case "processing":
+          progressSum += (job.progress ?? 0) / 100;
+          if (
+            !currentJob ||
+            (job.startTime ?? 0) > (currentJob.startTime ?? 0)
+          ) {
+            currentJob = job;
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    const overallProgress =
+      totalCount > 0 ? (progressSum / totalCount) * 100 : 0;
+
+    const rootPathFromMeta = meta?.rootPath;
+    let rootPath = rootPathFromMeta ?? "";
+    if (!rootPath) {
+      const first = batchJobs[0];
+      const raw = first?.inputPath || first?.filename || "";
+      if (raw) {
+        const normalized = raw.replace(/\\/g, "/");
+        const lastSlash = normalized.lastIndexOf("/");
+        rootPath = lastSlash >= 0 ? normalized.slice(0, lastSlash) : normalized;
+      }
+    }
+
+    return {
+      batchId,
+      rootPath,
+      jobs: batchJobs,
+      totalFilesScanned: meta?.totalFilesScanned ?? totalCount,
+      totalCandidates: meta?.totalCandidates ?? totalCount,
+      totalProcessed: meta?.totalProcessed ?? completedCount,
+      startedAtMs: meta?.startedAtMs,
+      completedAtMs: meta?.completedAtMs,
+      overallProgress,
+      currentJob,
+      completedCount,
+      skippedCount,
+      failedCount,
+      cancelledCount,
+      totalCount,
+    };
+  });
+});
+
+const compositeTasksById = computed(() => {
+  const map = new Map<string, CompositeSmartScanTask>();
+  for (const task of compositeSmartScanTasks.value) {
+    map.set(task.batchId, task);
+  }
+  return map;
+});
+
+const visibleQueueItems = computed<QueueListItem[]>(() => {
+  const items: QueueListItem[] = [];
+  const seenBatches = new Set<string>();
+  const byId = compositeTasksById.value;
+
+  for (const job of jobs.value) {
+    const batchId = job.batchId;
+    if (batchId && byId.has(batchId)) {
+      if (seenBatches.has(batchId)) {
+        continue;
+      }
+      const batch = byId.get(batchId)!;
+      items.push({ kind: "batch", batch });
+      seenBatches.add(batchId);
+    } else if (!batchId) {
+      items.push({ kind: "job", job });
+    }
+  }
+
+  return items;
+});
+
+const isBatchExpanded = (batchId: string) => expandedBatchIds.value.has(batchId);
+
+const toggleBatchExpanded = (batchId: string) => {
+  const next = new Set(expandedBatchIds.value);
+  if (next.has(batchId)) {
+    next.delete(batchId);
+  } else {
+    next.add(batchId);
+  }
+  expandedBatchIds.value = next;
+};
+
 const jobDetailTitle = computed(() => {
   const job = selectedJobForDetail.value;
   if (!job) return "";
@@ -194,20 +413,21 @@ const jobDetailPreviewUrl = computed(() => {
     return jobDetailFallbackPreviewUrl.value;
   }
 
+  return buildPreviewUrl(path ?? null);
+});
+
+const expandedPreviewOpen = ref(false);
+
+const expandedPreviewUrl = computed(() => {
+  const job = selectedJobForDetail.value;
+  const path = job?.inputPath;
   if (!path) return null;
-  if (typeof window === "undefined") return path;
-  // Only call into Tauri's convertFileSrc when running inside a real Tauri
-  // webview. This keeps tests and pure web environments safe while allowing
-  // the desktop app to load local preview files correctly.
-  if (hasTauri() && typeof convertFileSrc === "function") {
-    try {
-      return convertFileSrc(path);
-    } catch (error) {
-      console.error("Failed to convert preview path", error);
-      return path;
-    }
-  }
-  return path;
+
+  // In pure web environments we cannot safely load local filesystem paths, so
+  // keep the dialog in a text-only fallback state.
+  if (!hasTauri()) return null;
+
+  return buildPreviewUrl(path);
 });
 
 const jobDetailLogText = computed(() => {
@@ -218,6 +438,165 @@ const jobDetailLogText = computed(() => {
   // Prefer the backend-provided tail (already size-limited); fall back to the
   // concatenated in-memory logs if no tail is available.
   return tail || full;
+});
+
+type CommandTokenKind = "program" | "option" | "path" | "encoder" | "other" | "whitespace";
+
+interface CommandToken {
+  text: string;
+  kind: CommandTokenKind;
+}
+
+type LogLineKind = "version" | "stream" | "progress" | "error" | "other";
+
+interface LogLineEntry {
+  text: string;
+  kind: LogLineKind;
+}
+
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const classifyCommandToken = (segment: string, index: number): CommandTokenKind => {
+  if (!segment.trim()) return "whitespace";
+
+  const unquoted = segment.replace(/^"+|"+$/g, "");
+  const lower = unquoted.toLowerCase();
+
+  if (index === 0 && (lower === "ffmpeg" || lower === "ffprobe")) {
+    return "program";
+  }
+
+  if (unquoted.startsWith("-")) {
+    return "option";
+  }
+
+  if (/libx264|libx265|hevc_nvenc|h264_nvenc|libsvtav1|av1/i.test(lower)) {
+    return "encoder";
+  }
+
+  if (/[\\/]/.test(unquoted) || /\.(mp4|mkv|mov|avi|webm|m4v)$/i.test(unquoted)) {
+    return "path";
+  }
+
+  return "other";
+};
+
+const tokenizeFfmpegCommand = (command: string | undefined | null): CommandToken[] => {
+  const raw = command ?? "";
+  if (!raw) return [];
+
+  const tokens: CommandToken[] = [];
+  const regex = /(".*?"|\S+)/g;
+  let lastIndex = 0;
+  let logicalIndex = 0;
+
+  let match: RegExpExecArray | null;
+  // Walk through the command, preserving all whitespace segments so that
+  // joining token.text later reconstructs the exact original string.
+  while ((match = regex.exec(raw)) !== null) {
+    const start = match.index;
+    if (start > lastIndex) {
+      tokens.push({ text: raw.slice(lastIndex, start), kind: "whitespace" });
+    }
+    const segment = match[0];
+    tokens.push({
+      text: segment,
+      kind: classifyCommandToken(segment, logicalIndex),
+    });
+    lastIndex = start + segment.length;
+    logicalIndex += 1;
+  }
+
+  if (lastIndex < raw.length) {
+    tokens.push({ text: raw.slice(lastIndex), kind: "whitespace" });
+  }
+
+  return tokens;
+};
+
+const commandTokenClass = (kind: CommandTokenKind): string => {
+  switch (kind) {
+    case "program":
+      return "text-emerald-400";
+    case "option":
+      return "text-blue-400";
+    case "path":
+      return "text-amber-400";
+    case "encoder":
+      return "text-purple-300";
+    default:
+      return "";
+  }
+};
+
+const highlightedCommandHtml = computed(() => {
+  const job = selectedJobForDetail.value;
+  const raw = job?.ffmpegCommand ?? "";
+  if (!raw) return "";
+
+  const tokens = tokenizeFfmpegCommand(raw);
+  return tokens
+    .map((token) => {
+      const cls = commandTokenClass(token.kind);
+      const escaped = escapeHtml(token.text);
+      if (!cls) return escaped;
+      return `<span class="${cls}">${escaped}</span>`;
+    })
+    .join("");
+});
+
+const classifyLogLine = (line: string): LogLineKind => {
+  const lower = line.toLowerCase();
+  if (lower.includes("ffmpeg version")) return "version";
+  if (lower.trimStart().startsWith("stream #") || lower.includes("video:") || lower.includes("audio:")) {
+    return "stream";
+  }
+  if (lower.trimStart().startsWith("frame=") || (lower.includes("time=") && lower.includes("speed="))) {
+    return "progress";
+  }
+  if (lower.includes("error") || lower.includes("failed") || lower.includes("exited with")) {
+    return "error";
+  }
+  return "other";
+};
+
+const logLineClass = (kind: LogLineKind): string => {
+  switch (kind) {
+    case "version":
+    case "stream":
+      return "leading-relaxed text-[11px] text-muted-foreground";
+    case "progress":
+      return "leading-relaxed text-[11px] text-foreground";
+    case "error":
+      return "leading-relaxed text-[11px] text-destructive font-medium";
+    default:
+      return "leading-relaxed text-[11px] text-foreground";
+  }
+};
+
+const highlightedLogHtml = computed(() => {
+  const raw = jobDetailLogText.value;
+  if (!raw) return "";
+
+  const lines = raw.split(/\r?\n/);
+  const entries: LogLineEntry[] = lines.map((line) => ({
+    text: line,
+    kind: classifyLogLine(line),
+  }));
+
+  return entries
+    .map((entry) => {
+      const cls = logLineClass(entry.kind);
+      const escaped = escapeHtml(entry.text);
+      return `<div class="${cls}">${escaped}</div>`;
+    })
+    .join("\n");
 });
 
 const handlePreviewImageError = () => {
@@ -278,6 +657,16 @@ const closeJobDetail = () => {
   selectedJobForDetail.value = null;
 };
 
+const openExpandedPreview = () => {
+  const job = selectedJobForDetail.value;
+  if (!job?.inputPath) return;
+  expandedPreviewOpen.value = true;
+};
+
+const closeExpandedPreview = () => {
+  expandedPreviewOpen.value = false;
+};
+
 const copyToClipboard = async (value: string | undefined | null) => {
   if (!value) return;
   if (typeof navigator === "undefined" || typeof document === "undefined") return;
@@ -326,8 +715,23 @@ watch(
     // Reset any previously loaded fallback preview when the user switches to
     // a different job so that we recompute the correct URL.
     jobDetailFallbackPreviewUrl.value = null;
+    expandedPreviewOpen.value = false;
   },
   { flush: "pre" },
+);
+
+watch(
+  presets,
+  (list) => {
+    if (!list || list.length === 0) {
+      manualJobPresetId.value = null;
+      return;
+    }
+    if (!manualJobPresetId.value || !list.some((p) => p.id === manualJobPresetId.value)) {
+      manualJobPresetId.value = list[0].id;
+    }
+  },
+  { immediate: true },
 );
 
 const recomputeJobsFromBackend = (backendJobs: TranscodeJob[]) => {
@@ -363,12 +767,27 @@ const refreshQueueFromBackend = async () => {
   }
 };
 
-const handleSavePreset = (preset: FFmpegPreset) => {
-  if (editingPreset.value) {
-    presets.value = presets.value.map((p) => (p.id === preset.id ? preset : p));
+const handleSavePreset = async (preset: FFmpegPreset) => {
+  let nextPresets: FFmpegPreset[];
+
+  if (hasTauri()) {
+    try {
+      // Persist to the Tauri backend so the transcoding engine can resolve
+      // this preset id when processing queued jobs.
+      nextPresets = await savePresetOnBackend(preset);
+    } catch (error) {
+      console.error("Failed to save preset on backend, falling back to local state", error);
+      nextPresets = editingPreset.value
+        ? presets.value.map((p) => (p.id === preset.id ? preset : p))
+        : [...presets.value, preset];
+    }
   } else {
-    presets.value = [...presets.value, preset];
+    nextPresets = editingPreset.value
+      ? presets.value.map((p) => (p.id === preset.id ? preset : p))
+      : [...presets.value, preset];
   }
+
+  presets.value = nextPresets;
   showWizard.value = false;
   editingPreset.value = null;
   activeTab.value = "presets";
@@ -388,11 +807,26 @@ const requestDeletePreset = (preset: FFmpegPreset) => {
   presetPendingDelete.value = preset;
 };
 
-const confirmDeletePreset = () => {
+const confirmDeletePreset = async () => {
   const target = presetPendingDelete.value;
   if (!target) return;
 
-  presets.value = presets.value.filter((p) => p.id !== target.id);
+  let nextPresets: FFmpegPreset[];
+
+  if (hasTauri()) {
+    try {
+      // Keep backend presets in sync so Smart Scan and queued jobs never see
+      // a stale preset id that no longer exists.
+      nextPresets = await deletePresetOnBackend(target.id);
+    } catch (error) {
+      console.error("Failed to delete preset on backend, falling back to local state", error);
+      nextPresets = presets.value.filter((p) => p.id !== target.id);
+    }
+  } else {
+    nextPresets = presets.value.filter((p) => p.id !== target.id);
+  }
+
+  presets.value = nextPresets;
 
   // 如果当前智能扫描默认预设被删掉，回退到第一个或清空
   if (smartConfig.value.videoPresetId === target.id) {
@@ -426,8 +860,8 @@ const handleSaveSettings = async () => {
 };
 
 const addManualJobMock = () => {
-  const randomPreset = presets.value[0];
-  if (!randomPreset) {
+  const presetForJob = manualJobPreset.value ?? presets.value[0];
+  if (!presetForJob) {
     return;
   }
   const size = Math.floor(Math.random() * 500) + 50;
@@ -438,7 +872,7 @@ const addManualJobMock = () => {
     source: "manual",
     originalSizeMB: size,
     originalCodec: "h264",
-    presetId: randomPreset.id,
+    presetId: presetForJob.id,
     status: "waiting",
     progress: 0,
     logs: [],
@@ -448,7 +882,7 @@ const addManualJobMock = () => {
 };
 
 const enqueueManualJobFromPath = async (path: string) => {
-  const preset = presets.value[0];
+  const preset = manualJobPreset.value ?? presets.value[0];
   if (!preset) {
     console.error("No preset available for manual job");
     queueError.value =
@@ -511,7 +945,7 @@ const addManualJob = async () => {
       console.error("Dialog returned an invalid path for manual job", selected);
       queueError.value =
         (t("queue.error.enqueueFailed") as string) ||
-        "无法将任务加入队列：系统对话框未返回有效路径，请重试或改用拖拽/智能扫描。";
+        "无法将任务加入队列：系统对话框未返回有效路径，请重试或改用拖拽或左侧的“添加压缩任务（智能扫描）”。";
       return;
     }
 
@@ -549,7 +983,7 @@ const handleFileInputChange = async (event: Event) => {
     );
     queueError.value =
       (t("queue.error.enqueueFailed") as string) ||
-      "无法将任务加入队列：当前环境未提供本地文件路径，请改用拖拽或左侧的“智能扫描”入口。";
+      "无法将任务加入队列：当前环境未提供本地文件路径，请改用拖拽或左侧的“添加压缩任务（智能扫描）”入口。";
     if (input) {
       input.value = "";
     }
@@ -602,7 +1036,8 @@ const handleCancelJob = async (jobId: string) => {
 
   if (!hasTauri()) {
     jobs.value = jobs.value.map((job) =>
-      job.id === jobId && (job.status === "waiting" || job.status === "processing")
+      job.id === jobId &&
+      (job.status === "waiting" || job.status === "processing")
         ? {
             ...job,
             status: "cancelled" as JobStatus,
@@ -622,11 +1057,23 @@ const handleCancelJob = async (jobId: string) => {
       return;
     }
 
-    jobs.value = jobs.value.map((job) =>
-      job.id === jobId && (job.status === "waiting" || job.status === "queued")
-        ? { ...job, status: "cancelled" as JobStatus }
-        : job,
-    );
+    jobs.value = jobs.value.map((job) => {
+      if (job.id !== jobId) return job;
+      if (job.status === "waiting" || job.status === "queued") {
+        return { ...job, status: "cancelled" as JobStatus };
+      }
+      if (job.status === "processing") {
+        return {
+          ...job,
+          status: "cancelled" as JobStatus,
+          logs: [
+            ...job.logs,
+            "Cancellation requested from UI; waiting for backend to stop ffmpeg",
+          ],
+        };
+      }
+      return job;
+    });
     queueError.value = null;
   } catch (error) {
     console.error("Failed to cancel job", error);
@@ -643,6 +1090,7 @@ const runSmartScanMock = (config: SmartScanConfig) => {
 
   const found: TranscodeJob[] = [];
   const count = 5 + Math.floor(Math.random() * 5);
+  const batchId = `mock-batch-${Date.now().toString(36)}`;
 
   for (let i = 0; i < count; i += 1) {
     const isVideo = Math.random() > 0.4;
@@ -693,8 +1141,21 @@ const runSmartScanMock = (config: SmartScanConfig) => {
       progress: 0,
       logs: [],
       skipReason,
+      batchId,
     });
   }
+
+  smartScanBatchMeta.value = {
+    ...smartScanBatchMeta.value,
+    [batchId]: {
+      rootPath: "",
+      totalFilesScanned: found.length,
+      totalCandidates: found.length,
+      totalProcessed: found.filter((j) => j.status === "completed").length,
+      startedAtMs: Date.now(),
+      completedAtMs: Date.now(),
+    },
+  };
 
   jobs.value = [...found, ...jobs.value];
 };
@@ -713,7 +1174,25 @@ const runSmartScan = async (config: SmartScanConfig) => {
   if (root) {
     try {
       const result = await runAutoCompress(root, config);
-      smartScanJobs.value = [...result.jobs, ...smartScanJobs.value];
+      const batchId = result.batchId;
+      const normalizedJobs = (result.jobs ?? []).map((job) => ({
+        ...job,
+        batchId: job.batchId ?? batchId,
+      }));
+
+      smartScanBatchMeta.value = {
+        ...smartScanBatchMeta.value,
+        [batchId]: {
+          rootPath: result.rootPath,
+          totalFilesScanned: result.totalFilesScanned,
+          totalCandidates: result.totalCandidates,
+          totalProcessed: result.totalProcessed,
+          startedAtMs: result.startedAtMs,
+          completedAtMs: result.completedAtMs,
+        },
+      };
+
+      smartScanJobs.value = [...normalizedJobs, ...smartScanJobs.value];
       const existingBackendJobs = jobs.value.filter((job) => job.source === "manual");
       recomputeJobsFromBackend(existingBackendJobs);
       queueError.value = null;
@@ -722,7 +1201,7 @@ const runSmartScan = async (config: SmartScanConfig) => {
       console.error("auto-compress failed with dropped root", error);
       queueError.value =
         (t("queue.error.autoCompressFailed") as string) ||
-        "智能扫描调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在“软件设置”中启用自动下载。";
+        "智能压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在“软件设置”中启用自动下载。";
     }
   }
 
@@ -863,6 +1342,21 @@ const closeWindow = () => {
   void appWindow.value.close();
 };
 
+const ensurePresetsLoaded = async () => {
+  if (!hasTauri()) return;
+  if (presetsLoadedFromBackend.value) return;
+
+  try {
+    const loaded = await loadPresets();
+    if (Array.isArray(loaded) && loaded.length > 0) {
+      presets.value = loaded;
+    }
+    presetsLoadedFromBackend.value = true;
+  } catch (error) {
+    console.error("Failed to load presets from backend", error);
+  }
+};
+
 const ensureAppSettingsLoaded = async () => {
   if (!hasTauri()) return;
   if (appSettings.value) return;
@@ -972,6 +1466,9 @@ onMounted(() => {
     }, 500);
     return;
   }
+
+  // 在 Tauri 模式下，尽早从后端拉取实际预设集合，保证参数预设和后台转码引擎使用同一份列表。
+  void ensurePresetsLoaded();
 
   // In Tauri mode, prefer a push-based queue stream over polling.
   void (async () => {
@@ -1130,7 +1627,7 @@ onUnmounted(() => {
         <h2 class="text-2xl font-semibold text-white">Drop files to enqueue</h2>
         <p class="mt-1 text-sm text-blue-200">Release to create manual jobs in the queue</p>
         <p class="mt-2 text-xs text-blue-100 max-w-xl mx-auto">
-          提示：也可以使用左侧的“智能扫描”按钮，对整个目录做批量分析和压缩。
+          提示：也可以使用左侧的“添加压缩任务（智能扫描）”按钮，对整个目录做批量分析和压缩。
         </p>
       </div>
     </div>
@@ -1212,10 +1709,10 @@ onUnmounted(() => {
       </div>
     </header>
 
-    <div class="flex flex-1 flex-row">
+    <div class="flex flex-1 min-h-0 flex-row overflow-hidden">
 
       <aside class="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
-        <div class="px-5 py-4 border-b border-sidebar-border flex items-center gap-3">
+        <div class="shrink-0 px-5 py-4 border-b border-sidebar-border flex items-center gap-3">
           <div
             class="h-8 w-8 rounded-md border border-sidebar-ring bg-sidebar-accent flex items-center justify-center text-[10px] font-semibold tracking-[0.15em] text-sidebar-primary uppercase"
           >
@@ -1223,7 +1720,7 @@ onUnmounted(() => {
           </div>
           <div class="space-y-0.5">
             <h1 class="font-semibold text-sm text-sidebar-foreground leading-none">
-              {{ t("app.title") }}
+              {{ t("app.controlPanel") }}
             </h1>
             <Badge
               variant="outline"
@@ -1301,7 +1798,7 @@ onUnmounted(() => {
           </Button>
         </nav>
 
-        <div class="px-4 py-4 border-t border-sidebar-border space-y-3">
+        <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
           <Button
             variant="default"
             size="lg"
@@ -1321,9 +1818,9 @@ onUnmounted(() => {
         </div>
       </aside>
 
-      <main class="flex-1 flex flex-col bg-background">
+      <main class="flex-1 flex min-h-0 flex-col bg-background">
       <header
-        class="px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex items-center justify-between gap-2"
+        class="shrink-0 px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex items-center justify-between gap-2"
       >
         <div class="flex flex-col gap-1">
           <div class="flex items-center gap-3 min-h-8">
@@ -1337,15 +1834,39 @@ onUnmounted(() => {
               {{ jobs.filter((j) => j.status === "completed").length }} / {{ jobs.length }}
             </span>
           </div>
-          <p v-if="activeTab === 'presets'" class="text-xs text-muted-foreground">
-            {{ t("app.presetsHint") }}
+          <p class="text-xs text-muted-foreground min-h-[1.25rem]">
+            {{ currentSubtitle }}
           </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-3">
+          <div
+            v-if="presets.length > 0"
+            class="hidden sm:flex items-center gap-2 text-xs text-muted-foreground"
+          >
+            <span>
+              {{ t("app.queueDefaultPresetLabel") }}
+            </span>
+            <Select v-model="manualJobPresetId">
+              <SelectTrigger
+                class="h-7 px-3 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[160px]"
+              >
+                <SelectValue :placeholder="t('app.queueDefaultPresetPlaceholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem
+                  v-for="preset in presets"
+                  :key="preset.id"
+                  :value="preset.id"
+                >
+                  {{ preset.name }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Button
-            v-if="activeTab === 'presets'"
             size="sm"
             class="text-sm font-medium flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 transition-all"
+            :class="activeTab === 'presets' ? '' : 'opacity-0 pointer-events-none'"
             @click="openNewPresetWizard"
           >
             <span>＋</span>
@@ -1354,8 +1875,7 @@ onUnmounted(() => {
         </div>
       </header>
 
-      <div class="flex-1 px-6 py-4 overflow-hidden">
-        <ScrollArea class="h-full">
+      <div class="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           <div class="pb-8">
             <section v-if="activeTab === 'queue'" class="space-y-4 max-w-4xl mx-auto">
               <div
@@ -1385,15 +1905,117 @@ onUnmounted(() => {
                 </p>
               </div>
               <div v-else>
-                <QueueItem
-                  v-for="job in jobs"
-                  :key="job.id"
-                  :job="job"
-                  :preset="presets.find((p) => p.id === job.presetId) ?? presets[0]"
-                  :can-cancel="hasTauri() && ['waiting', 'queued', 'processing'].includes(job.status)"
-                  @cancel="handleCancelJob"
-                  @inspect="openJobDetail"
-                />
+                <div
+                  v-for="item in visibleQueueItems"
+                  :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
+                  class="mb-3"
+                >
+                  <Card
+                    v-if="item.kind === 'batch'"
+                    data-testid="smart-scan-batch-card"
+                    class="border-border/70 bg-card/90 shadow-sm hover:border-primary/40 transition-colors"
+                  >
+                    <CardHeader
+                      class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer"
+                      @click="toggleBatchExpanded(item.batch.batchId)"
+                    >
+                      <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                          <Badge
+                            variant="outline"
+                            class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300"
+                          >
+                            {{ t("queue.source.smartScan") }}
+                          </Badge>
+                          <span class="text-xs text-muted-foreground">
+                            {{ item.batch.totalProcessed }} / {{ item.batch.totalCandidates }}
+                          </span>
+                        </div>
+                        <CardTitle class="text-sm font-semibold truncate max-w-lg">
+                          {{ item.batch.rootPath || t("smartScan.title") }}
+                        </CardTitle>
+                        <CardDescription class="text-xs text-muted-foreground">
+                          <span v-if="item.batch.currentJob">
+                            {{ item.batch.currentJob.filename }}
+                          </span>
+                          <span v-else>
+                            {{ t("smartScan.subtitle") }}
+                          </span>
+                        </CardDescription>
+                      </div>
+                      <div class="flex flex-col items-end gap-1">
+                        <span class="text-xs font-mono text-muted-foreground">
+                          {{ Math.round(item.batch.overallProgress) }}%
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          class="h-6 w-6 rounded-full border-border/60 bg-muted/40 text-xs"
+                          @click.stop="toggleBatchExpanded(item.batch.batchId)"
+                        >
+                          <span v-if="isBatchExpanded(item.batch.batchId)">−</span>
+                          <span v-else>＋</span>
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent class="pt-0 pb-3 space-y-2">
+                      <Progress :model-value="item.batch.overallProgress" />
+                      <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+                        <span>
+                          {{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}:
+                          {{
+                            item.batch.jobs.filter((j) => j.type === "video").length
+                          }}
+                          /
+                          {{
+                            item.batch.jobs.filter((j) => j.type === "image").length
+                          }}
+                        </span>
+                        <span>
+                          {{ t("queue.status.completed") }}:
+                          {{ item.batch.completedCount }}
+                        </span>
+                        <span v-if="item.batch.skippedCount > 0">
+                          {{ t("queue.status.skipped") }}:
+                          {{ item.batch.skippedCount }}
+                        </span>
+                        <span v-if="item.batch.failedCount > 0">
+                          {{ t("queue.status.failed") }}:
+                          {{ item.batch.failedCount }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="isBatchExpanded(item.batch.batchId)"
+                        data-testid="smart-scan-batch-children"
+                        class="mt-2 space-y-2"
+                      >
+                        <QueueItem
+                          v-for="child in item.batch.jobs"
+                          :key="child.id"
+                          :job="child"
+                          :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
+                          :can-cancel="
+                            hasTauri() &&
+                            ['waiting', 'queued', 'processing'].includes(child.status)
+                          "
+                          @cancel="handleCancelJob"
+                          @inspect="openJobDetail"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <QueueItem
+                    v-else
+                    :job="item.job"
+                    :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+                    :can-cancel="
+                      hasTauri() &&
+                      ['waiting', 'queued', 'processing'].includes(item.job.status)
+                    "
+                    @cancel="handleCancelJob"
+                    @inspect="openJobDetail"
+                  />
+                </div>
               </div>
             </section>
 
@@ -1668,6 +2290,26 @@ onUnmounted(() => {
                     </div>
                   </div>
 
+                  <div class="grid gap-3 text-xs">
+                    <div class="space-y-1">
+                      <label class="block text-[11px] text-muted-foreground">
+                        预览截帧位置（%）
+                      </label>
+                      <div class="flex items-center gap-2">
+                        <Input
+                          v-model.number="appSettings.previewCapturePercent"
+                          type="number"
+                          min="0"
+                          max="100"
+                          class="h-8 w-24 text-xs"
+                        />
+                        <span class="text-[11px] text-muted-foreground">
+                          相对于视频总时长的百分比，默认 25。
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   <div class="flex justify-end">
                     <Button
                       size="sm"
@@ -1685,7 +2327,6 @@ onUnmounted(() => {
               </div>
             </section>
           </div>
-        </ScrollArea>
       </div>
       </main>
 
@@ -1726,64 +2367,103 @@ onUnmounted(() => {
               class="space-y-4"
             >
               <div
-                class="flex flex-col gap-4 rounded-md border border-border bg-background px-3 py-3 md:flex-row"
+                class="relative overflow-hidden rounded-md border border-border bg-background"
+                data-testid="task-detail-header"
               >
-                <div class="w-full md:w-60">
-                  <div
-                    class="aspect-video w-full rounded-md border border-border bg-muted flex items-center justify-center overflow-hidden"
+                <div
+                  v-if="jobDetailPreviewUrl"
+                  class="pointer-events-none absolute inset-0"
+                  data-testid="task-detail-header-bg"
+                >
+                  <img
+                    :src="jobDetailPreviewUrl"
+                    alt=""
+                    class="h-full w-full object-cover blur-sm scale-105"
+                    @error="handlePreviewImageError"
+                  />
+                  <div class="absolute inset-0 bg-background/70" />
+                </div>
+
+                <div
+                  class="relative flex flex-col gap-4 px-3 py-3 md:flex-row"
+                >
+                  <button
+                    type="button"
+                    class="group w-full md:w-60 aspect-video rounded-md border border-border bg-muted flex items-center justify-center overflow-hidden cursor-zoom-in"
+                    data-testid="task-detail-preview"
+                    @click.stop="openExpandedPreview"
                   >
                     <img
                       v-if="jobDetailPreviewUrl"
                       :src="jobDetailPreviewUrl"
                       alt=""
-                      class="h-full w-full object-cover"
+                      class="h-full w-full object-cover transition-transform group-hover:scale-105"
                       @error="handlePreviewImageError"
                     />
-                    <span v-else class="text-[11px] text-muted-foreground">
+                    <span
+                      v-else
+                      class="text-[11px] text-muted-foreground"
+                    >
                       {{ t("taskDetail.noPreview") }}
                     </span>
-                  </div>
-                </div>
-                <div class="flex-1 space-y-2">
-                  <div
-                    data-testid="task-detail-title"
-                    class="text-sm font-semibold text-foreground break-all"
-                  >
-                    {{ jobDetailTitle }}
-                  </div>
-                  <div class="flex flex-wrap items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      class="text-[10px] uppercase"
-                      :class="detailStatusBadgeClass"
-                    >
-                      {{ detailStatusLabel }}
-                    </Badge>
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ detailSourceLabel }}
-                    </span>
-                  </div>
-                  <div class="space-y-1 text-[11px]">
+                  </button>
+
+                  <div class="flex-1 space-y-2">
                     <div
-                      v-if="selectedJobForDetail.originalSizeMB"
-                      class="text-foreground"
+                      data-testid="task-detail-title"
+                      class="text-sm font-semibold text-foreground break-all"
                     >
-                      {{ t("taskDetail.sizeLabel") }}:
-                      {{ selectedJobForDetail.originalSizeMB.toFixed(2) }} MB
+                      {{ jobDetailTitle }}
                     </div>
-                    <div
-                      v-if="selectedJobForDetail.outputSizeMB"
-                      class="text-foreground"
-                    >
-                      {{ t("taskDetail.outputSizeLabel") }}:
-                      {{ selectedJobForDetail.outputSizeMB.toFixed(2) }} MB
+                    <div class="flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant="outline"
+                        class="text-[10px] uppercase"
+                        :class="detailStatusBadgeClass"
+                      >
+                        {{ detailStatusLabel }}
+                      </Badge>
+                      <span class="text-[11px] text-muted-foreground">
+                        {{ detailSourceLabel }}
+                      </span>
                     </div>
-                    <div
-                      v-if="jobDetailDurationSeconds"
-                      class="text-foreground"
-                    >
-                      {{ t("taskDetail.durationLabel") }}:
-                      {{ jobDetailDurationSeconds && jobDetailDurationSeconds.toFixed(1) }} s
+                    <div class="space-y-1 text-[11px]">
+                      <div
+                        v-if="detailPresetLabel"
+                        class="text-foreground"
+                      >
+                        {{ t("taskDetail.presetLabel") }}:
+                        <span class="font-medium">
+                          {{ detailPresetLabel }}
+                        </span>
+                        <span
+                          v-if="detailPreset && detailPreset.description"
+                          class="ml-1 text-muted-foreground"
+                        >
+                          — {{ detailPreset.description }}
+                        </span>
+                      </div>
+                      <div
+                        v-if="selectedJobForDetail.originalSizeMB"
+                        class="text-foreground"
+                      >
+                        {{ t("taskDetail.sizeLabel") }}:
+                        {{ selectedJobForDetail.originalSizeMB.toFixed(2) }} MB
+                      </div>
+                      <div
+                        v-if="selectedJobForDetail.outputSizeMB"
+                        class="text-foreground"
+                      >
+                        {{ t("taskDetail.outputSizeLabel") }}:
+                        {{ selectedJobForDetail.outputSizeMB.toFixed(2) }} MB
+                      </div>
+                      <div
+                        v-if="jobDetailDurationSeconds"
+                        class="text-foreground"
+                      >
+                        {{ t("taskDetail.durationLabel") }}:
+                        {{ jobDetailDurationSeconds && jobDetailDurationSeconds.toFixed(1) }} s
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1899,6 +2579,7 @@ onUnmounted(() => {
                     variant="outline"
                     size="xs"
                     class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                    data-testid="task-detail-copy-command"
                     @click="copyToClipboard(selectedJobForDetail.ffmpegCommand)"
                   >
                     {{ t("taskDetail.copyCommand") }}
@@ -1907,9 +2588,9 @@ onUnmounted(() => {
                 <pre
                   v-if="selectedJobForDetail.ffmpegCommand"
                   class="max-h-32 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
-                >
-{{ selectedJobForDetail.ffmpegCommand }}
-                </pre>
+                  data-testid="task-detail-command"
+                  v-html="highlightedCommandHtml"
+                />
                 <p v-else class="text-[11px] text-muted-foreground">
                   {{ t("taskDetail.commandFallback") }}
                 </p>
@@ -1919,12 +2600,25 @@ onUnmounted(() => {
                 v-if="jobDetailLogText"
                 class="space-y-2 rounded-md border border-border bg-background px-3 py-3"
               >
-                <h3 class="text-xs font-semibold">
-                  {{ t("taskDetail.logsTitle") }}
-                </h3>
-                <pre
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-xs font-semibold">
+                    {{ t("taskDetail.logsTitle") }}
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                    data-testid="task-detail-copy-logs"
+                    @click="copyToClipboard(jobDetailLogText)"
+                  >
+                    {{ t("taskDetail.copyLogs") }}
+                  </Button>
+                </div>
+                <div
                   class="max-h-56 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
-                >{{ jobDetailLogText }}</pre>
+                  data-testid="task-detail-logs"
+                  v-html="highlightedLogHtml"
+                />
                 <p
                   v-if="selectedJobForDetail.status === 'failed' && selectedJobForDetail.failureReason"
                   class="text-[11px] text-destructive font-medium"
@@ -1937,6 +2631,38 @@ onUnmounted(() => {
           </ScrollArea>
         </div>
       </DialogScrollContent>
+    </Dialog>
+
+    <Dialog
+      :open="expandedPreviewOpen"
+      @update:open="(open) => { expandedPreviewOpen = open; if (!open) closeExpandedPreview(); }"
+    >
+      <DialogContent class="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle class="text-base">
+            {{ jobDetailTitle || t("taskDetail.title") }}
+          </DialogTitle>
+          <DialogDescription class="mt-1 text-[11px] text-muted-foreground">
+            {{ t("taskDetail.description") }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="mt-2">
+          <video
+            v-if="expandedPreviewUrl"
+            data-testid="task-detail-expanded-video"
+            :src="expandedPreviewUrl"
+            controls
+            class="w-full max-h-[70vh] rounded-md bg-black"
+          />
+          <p
+            v-else
+            class="text-[11px] text-muted-foreground"
+            data-testid="task-detail-expanded-fallback"
+          >
+            {{ t("taskDetail.noPreview") }}
+          </p>
+        </div>
+      </DialogContent>
     </Dialog>
 
     <Dialog :open="!!presetPendingDelete" @update:open="presetPendingDelete = null">

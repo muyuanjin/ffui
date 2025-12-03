@@ -53,13 +53,39 @@ const handleEncoderChange = (newEncoder: EncoderType) => {
   let defaults: Partial<VideoConfig> = {};
 
   if (newEncoder === "libx264") {
-    defaults = { rateControl: "crf", qualityValue: 23, preset: "medium" };
+    defaults = {
+      rateControl: "crf",
+      qualityValue: 23,
+      preset: "medium",
+      tune: "film",
+      profile: undefined,
+    };
   } else if (newEncoder === "hevc_nvenc") {
-    defaults = { rateControl: "cq", qualityValue: 28, preset: "p5" };
+    // NVENC 不支持 x264 的 -tune film 等参数，切换编码器时清理 tune / profile。
+    defaults = {
+      rateControl: "cq",
+      qualityValue: 28,
+      preset: "p5",
+      tune: undefined,
+      profile: undefined,
+    };
   } else if (newEncoder === "libsvtav1") {
-    defaults = { rateControl: "crf", qualityValue: 34, preset: "5" };
+    defaults = {
+      rateControl: "crf",
+      qualityValue: 34,
+      preset: "5",
+      tune: undefined,
+      profile: undefined,
+    };
   } else if (newEncoder === "copy") {
     Object.assign(audio, { codec: "copy" });
+    defaults = {
+      rateControl: "cbr",
+      qualityValue: 0,
+      preset: "",
+      tune: undefined,
+      profile: undefined,
+    };
   }
 
   Object.assign(video, {
@@ -69,11 +95,17 @@ const handleEncoderChange = (newEncoder: EncoderType) => {
 };
 
 const handleSave = () => {
+  // 防止把 x264 的 tune 选项带到 NVENC/AV1 预设里，从而生成非法 ffmpeg 参数。
+  const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
+  if (normalizedVideo.encoder !== "libx264") {
+    delete (normalizedVideo as any).tune;
+  }
+
   const newPreset: FFmpegPreset = {
     id: props.initialPreset?.id ?? Date.now().toString(),
     name: name.value || (t("presetEditor.untitled") as string),
     description: description.value,
-    video: { ...video } as VideoConfig,
+    video: normalizedVideo,
     audio: { ...audio } as AudioConfig,
     filters: { ...filters } as FilterConfig,
     advancedEnabled: advancedEnabled.value && ffmpegTemplate.value.trim().length > 0,
@@ -247,6 +279,7 @@ const handleCopyPreview = async () => {
                         qualityValue: 18,
                         preset: 'slow',
                         tune: 'film',
+                        profile: undefined,
                       } as VideoConfig);
                       step = 2;
                     }
@@ -266,6 +299,8 @@ const handleCopyPreview = async () => {
                         rateControl: 'cq',
                         qualityValue: 28,
                         preset: 'p5',
+                        tune: undefined,
+                        profile: undefined,
                       } as VideoConfig);
                       step = 2;
                     }
@@ -285,6 +320,8 @@ const handleCopyPreview = async () => {
                         rateControl: 'crf',
                         qualityValue: 34,
                         preset: '6',
+                        tune: undefined,
+                        profile: undefined,
                       } as VideoConfig);
                       step = 2;
                     }
@@ -304,6 +341,8 @@ const handleCopyPreview = async () => {
                         rateControl: 'cbr',
                         qualityValue: 0,
                         preset: 'copy',
+                        tune: undefined,
+                        profile: undefined,
                       } as VideoConfig);
                       audio.codec = 'copy';
                       step = 2;

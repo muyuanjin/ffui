@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { TranscodeJob } from "../types";
+import type { TranscodeJob, FFmpegPreset } from "../types";
 
 const invokeMock = vi.fn<
   (cmd: string, payload: Record<string, unknown>) => Promise<unknown>
@@ -13,7 +13,13 @@ vi.mock("@tauri-apps/api/core", () => {
   };
 });
 
-import { enqueueTranscodeJob, loadPreviewDataUrl } from "./backend";
+import {
+  enqueueTranscodeJob,
+  loadPreviewDataUrl,
+  loadPresets,
+  savePresetOnBackend,
+  deletePresetOnBackend,
+} from "./backend";
 
 describe("backend contract", () => {
   beforeEach(() => {
@@ -100,5 +106,142 @@ describe("backend contract", () => {
     });
 
     expect(result).toBe(fakeUrl);
+  });
+
+  it("loadPresets calls get_presets and returns the backend list unchanged", async () => {
+    const presets: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: {
+          encoder: "libx264",
+          rateControl: "crf",
+          qualityValue: 23,
+          preset: "medium",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {
+          scale: "-2:1080",
+        },
+        stats: {
+          usageCount: 5,
+          totalInputSizeMB: 2500,
+          totalOutputSizeMB: 800,
+          totalTimeSeconds: 420,
+        },
+      },
+    ];
+
+    invokeMock.mockResolvedValueOnce(presets);
+
+    const result = await loadPresets();
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("get_presets");
+    expect(result).toEqual(presets);
+  });
+
+  it("savePresetOnBackend sends save_preset with the preset payload and returns the updated list", async () => {
+    const preset: FFmpegPreset = {
+      id: "custom-1",
+      name: "Custom Preset",
+      description: "User defined preset",
+      video: {
+        encoder: "libx264",
+        rateControl: "crf",
+        qualityValue: 20,
+        preset: "slow",
+      },
+      audio: {
+        codec: "aac",
+        bitrate: 192,
+      },
+      filters: {},
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+    };
+
+    const backendList: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: {
+          encoder: "libx264",
+          rateControl: "crf",
+          qualityValue: 23,
+          preset: "medium",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {
+          scale: "-2:1080",
+        },
+        stats: {
+          usageCount: 5,
+          totalInputSizeMB: 2500,
+          totalOutputSizeMB: 800,
+          totalTimeSeconds: 420,
+        },
+      },
+      preset,
+    ];
+
+    invokeMock.mockResolvedValueOnce(backendList);
+
+    const result = await savePresetOnBackend(preset);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("save_preset");
+    expect(payload).toMatchObject({ preset });
+    expect(result).toEqual(backendList);
+  });
+
+  it("deletePresetOnBackend sends delete_preset with the presetId and returns the updated list", async () => {
+    const remaining: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: {
+          encoder: "libx264",
+          rateControl: "crf",
+          qualityValue: 23,
+          preset: "medium",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {
+          scale: "-2:1080",
+        },
+        stats: {
+          usageCount: 5,
+          totalInputSizeMB: 2500,
+          totalOutputSizeMB: 800,
+          totalTimeSeconds: 420,
+        },
+      },
+    ];
+
+    invokeMock.mockResolvedValueOnce(remaining);
+
+    const result = await deletePresetOnBackend("custom-1");
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("delete_preset");
+    expect(payload).toMatchObject({ presetId: "custom-1" });
+    expect(result).toEqual(remaining);
   });
 });

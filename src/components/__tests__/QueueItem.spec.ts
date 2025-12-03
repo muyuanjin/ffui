@@ -94,9 +94,11 @@ describe("QueueItem", () => {
     expect(text.toLowerCase()).not.toContain("nan");
   });
 
-  it("renders full logs block with command and error lines for failed jobs", () => {
+  it("renders only the ffmpeg command snippet instead of full logs for failed jobs", () => {
     const job = makeJob({
       status: "failed",
+      ffmpegCommand:
+        'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy "C:/videos/sample.compressed.mp4"',
       logs: [
         "command: ffmpeg -i \"C:/videos/sample.mp4\" -c:v libx264 -crf 23 -preset medium -c:a copy \"C:/videos/sample.compressed.mp4\"",
         "ffmpeg exited with non-zero status (exit code -22)",
@@ -117,8 +119,9 @@ describe("QueueItem", () => {
     const pre = wrapper.find("pre");
     expect(pre.exists()).toBe(true);
     const content = pre.text();
-    expect(content).toContain("command: ffmpeg");
-    expect(content).toContain("ffmpeg exited with non-zero status");
+    // Queue rows should only surface the compact ffmpeg command summary, not the full logs.
+    expect(content).toContain("ffmpeg -i");
+    expect(content).not.toContain("ffmpeg exited with non-zero status");
   });
 
   it("emits inspect event with the job payload when card is clicked", () => {
@@ -167,5 +170,51 @@ describe("QueueItem", () => {
     const text = wrapper.text();
     expect(text).toContain("1920×1080");
     expect(text.toLowerCase()).toContain("h264");
+  });
+
+  it("renders a thumbnail image when previewPath is present (pure web mode)", () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/abc123.jpg",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.element).toBeTruthy();
+    expect(img.attributes("src")).toBe(job.previewPath);
+  });
+
+  it("renders a stable thumbnail placeholder when previewPath is missing", () => {
+    const job = makeJob({
+      previewPath: undefined,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    expect(thumb.element).toBeTruthy();
+    const imgs = thumb.findAll("img");
+    // When there is no previewPath, we render a stable placeholder container
+    // without an <img> element.
+    expect(imgs.length).toBe(0);
   });
 });

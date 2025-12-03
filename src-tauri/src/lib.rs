@@ -474,8 +474,7 @@ pub fn run() {
                 let engine = app.state::<TranscodingEngine>();
                 let event_handle = handle.clone();
                 engine.register_queue_listener(move |state: QueueState| {
-                    if let Err(err) =
-                        event_handle.emit("transcoding://queue-state", state.clone())
+                    if let Err(err) = event_handle.emit("transcoding://queue-state", state.clone())
                     {
                         eprintln!("failed to emit queue-state event: {err}");
                     }

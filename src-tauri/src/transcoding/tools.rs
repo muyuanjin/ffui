@@ -3,6 +3,7 @@ use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -228,14 +229,34 @@ fn detect_local_tool_version(path: &str, _kind: ExternalToolKind) -> Option<Stri
 fn latest_remote_version(kind: ExternalToolKind) -> Option<String> {
     match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
-            get_ffbinaries_latest().ok().map(|meta| meta.version)
+            // Cache the remote version for the lifetime of the process so we
+            // avoid hitting the network on every job. In constrained network
+            // environments this prevents "transcode hangs at start" behaviour
+            // when auto-update is enabled.
+            static FFBINARIES_VERSION: OnceLock<Option<String>> = OnceLock::new();
+            FFBINARIES_VERSION
+                .get_or_init(|| get_ffbinaries_latest().ok().map(|meta| meta.version))
+                .clone()
         }
         ExternalToolKind::Avifenc => None,
     }
 }
 
 fn get_ffbinaries_latest() -> Result<FfBinariesLatest> {
-    let resp = reqwest::blocking::get("https://ffbinaries.com/api/v1/version/latest")
+    use reqwest::blocking::Client;
+    use std::time::Duration;
+
+    // Use a short, global timeout for metadata fetches so that environments
+    // where ffbinaries.com is slow or unreachable do not block transcoding
+    // jobs for an unbounded amount of time when auto-update is enabled.
+    let client = Client::builder()
+        .timeout(Duration::from_secs(3))
+        .build()
+        .context("failed to build HTTP client for ffbinaries")?;
+
+    let resp = client
+        .get("https://ffbinaries.com/api/v1/version/latest")
+        .send()
         .context("failed to download ffmpeg metadata from ffbinaries")?;
     let latest: FfBinariesLatest = resp
         .json()

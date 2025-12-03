@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 import type {
   AppSettings,
@@ -116,4 +116,31 @@ export const loadPreviewDataUrl = async (previewPath: string): Promise<string> =
     previewPath,
     preview_path: previewPath,
   });
+};
+
+/**
+ * Build a safe local preview URL for images or videos backed by a filesystem
+ * path. In Tauri we prefer `convertFileSrc` so the webview can load the file
+ * via the asset protocol; in pure web / test environments we fall back to the
+ * raw path string.
+ */
+export const buildPreviewUrl = (path: string | null | undefined): string | null => {
+  if (!path) return null;
+
+  if (typeof window === "undefined") {
+    // SSR / tests without a DOM: just return the raw path so callers can still
+    // render something or assert against the value.
+    return path;
+  }
+
+  if (!hasTauri() || typeof convertFileSrc !== "function") {
+    return path;
+  }
+
+  try {
+    return convertFileSrc(path);
+  } catch (error) {
+    console.error("Failed to convert local preview path with convertFileSrc", error);
+    return path;
+  }
 };

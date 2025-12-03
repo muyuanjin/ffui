@@ -93,6 +93,8 @@ export interface TranscodeJob {
   logTail?: string;
   /** Short structured description of why the job failed. */
   failureReason?: string;
+   /** Optional stable id for the Smart Scan batch this job belongs to. */
+   batchId?: string;
 }
 
 export interface SmartScanConfig {
@@ -114,6 +116,8 @@ export interface ExternalToolSettings {
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
+  /** Global preview capture position as a percentage of video duration (0-100). */
+  previewCapturePercent: number;
 }
 
 export type ExternalToolKind = "ffmpeg" | "ffprobe" | "avifenc";
@@ -146,6 +150,9 @@ export interface AutoCompressResult {
   totalFilesScanned: number;
   totalCandidates: number;
   totalProcessed: number;
+  batchId: string;
+  startedAtMs: number;
+  completedAtMs: number;
 }
 
 export interface QueueState {

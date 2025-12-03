@@ -61,11 +61,17 @@ pub struct ExternalToolSettings {
     pub auto_update: bool,
 }
 
+fn default_preview_capture_percent() -> u8 {
+    25
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub tools: ExternalToolSettings,
     pub smart_scan_defaults: SmartScanConfig,
+    #[serde(default = "default_preview_capture_percent")]
+    pub preview_capture_percent: u8,
 }
 
 impl Default for AppSettings {
@@ -79,6 +85,7 @@ impl Default for AppSettings {
                 image_target_format: ImageTargetFormat::Avif,
                 video_preset_id: String::new(),
             },
+            preview_capture_percent: default_preview_capture_percent(),
         }
     }
 }
@@ -201,6 +208,7 @@ pub fn save_settings(settings: &AppSettings) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::{json, Value};
     use std::fs;
 
     #[test]
@@ -240,5 +248,54 @@ mod tests {
         );
 
         let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn app_settings_default_uses_preview_capture_percent_25() {
+        let settings = AppSettings::default();
+        assert_eq!(
+            settings.preview_capture_percent, 25,
+            "default preview_capture_percent must be 25"
+        );
+    }
+
+    #[test]
+    fn app_settings_serializes_preview_capture_percent_as_camel_case() {
+        let settings = AppSettings::default();
+        let value = serde_json::to_value(&settings).expect("serialize AppSettings");
+
+        let percent = value
+            .get("previewCapturePercent")
+            .and_then(Value::as_u64)
+            .expect("previewCapturePercent field present as u64");
+        assert_eq!(percent, 25);
+    }
+
+    #[test]
+    fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
+        // Simulate legacy JSON without the new previewCapturePercent field.
+        let legacy = json!({
+            "tools": {
+                "ffmpegPath": null,
+                "ffprobePath": null,
+                "avifencPath": null,
+                "autoDownload": false,
+                "autoUpdate": false
+            },
+            "smartScanDefaults": {
+                "minImageSizeKB": 50,
+                "minVideoSizeMB": 50,
+                "minSavingRatio": 0.95,
+                "imageTargetFormat": "avif",
+                "videoPresetId": ""
+            }
+        });
+
+        let decoded: AppSettings = serde_json::from_value(legacy)
+            .expect("deserialize AppSettings without previewCapturePercent");
+        assert_eq!(
+            decoded.preview_capture_percent, 25,
+            "missing previewCapturePercent must default to 25 for backwards compatibility"
+        );
     }
 }
