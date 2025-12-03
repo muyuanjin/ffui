@@ -4,6 +4,7 @@ import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import type { TranscodeJob } from "@/types";
 import MainApp from "@/MainApp.vue";
+import { normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 
 vi.mock("@tauri-apps/api/window", () => {
   return {
@@ -344,7 +345,10 @@ describe("MainApp task detail surface", () => {
       "[data-testid='task-detail-command']",
     ) as HTMLElement | null;
     expect(commandEl).not.toBeNull();
-    expect(commandEl?.textContent).toBe(job.ffmpegCommand);
+    const expectedTemplate = normalizeFfmpegTemplate(
+      job.ffmpegCommand as string,
+    ).template;
+    expect(commandEl?.textContent).toBe(expectedTemplate);
 
     const logsEl = document.querySelector(
       "[data-testid='task-detail-logs']",
@@ -369,6 +373,13 @@ describe("MainApp task detail surface", () => {
     copyCommandButton?.click();
     await nextTick();
 
+    const copyTemplateButton = document.querySelector(
+      "[data-testid='task-detail-copy-template-command']",
+    ) as HTMLButtonElement | null;
+    expect(copyTemplateButton).not.toBeNull();
+    copyTemplateButton?.click();
+    await nextTick();
+
     const copyLogsButton = document.querySelector(
       "[data-testid='task-detail-copy-logs']",
     ) as HTMLButtonElement | null;
@@ -378,6 +389,7 @@ describe("MainApp task detail surface", () => {
 
     const calls = (writeTextMock as any).mock.calls.map((args: unknown[]) => args[0]);
     expect(calls).toContain(job.ffmpegCommand);
+    expect(calls).toContain(expectedTemplate);
     expect(calls).toContain(logsText);
 
     (navigator as any).clipboard = originalClipboard;

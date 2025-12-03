@@ -40,6 +40,14 @@ pub struct VideoConfig {
     pub preset: String,
     pub tune: Option<String>,
     pub profile: Option<String>,
+    /// Optional target video bitrate in kbps used for CBR/VBR/two-pass flows.
+    pub bitrate_kbps: Option<i32>,
+    /// Optional max video bitrate in kbps for capped VBR.
+    pub max_bitrate_kbps: Option<i32>,
+    /// Optional buffer size in kbits, mapped to `-bufsize`.
+    pub buffer_size_kbits: Option<i32>,
+    /// Two-pass encoding flag (1 or 2) when using `-pass`; None for single-pass.
+    pub pass: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -458,6 +466,55 @@ mod tests {
             200
         );
     }
+
+    #[test]
+    fn auto_compress_progress_uses_camel_case_fields() {
+        let progress = AutoCompressProgress {
+            root_path: "C:/videos".to_string(),
+            total_files_scanned: 10,
+            total_candidates: 4,
+            total_processed: 2,
+            batch_id: "auto-compress-batch-1".to_string(),
+        };
+
+        let value =
+            serde_json::to_value(&progress).expect("serialize AutoCompressProgress");
+        assert_eq!(
+            value
+                .get("rootPath")
+                .and_then(Value::as_str)
+                .expect("rootPath present"),
+            "C:/videos"
+        );
+        assert_eq!(
+            value
+                .get("totalFilesScanned")
+                .and_then(Value::as_u64)
+                .expect("totalFilesScanned present"),
+            10
+        );
+        assert_eq!(
+            value
+                .get("totalCandidates")
+                .and_then(Value::as_u64)
+                .expect("totalCandidates present"),
+            4
+        );
+        assert_eq!(
+            value
+                .get("totalProcessed")
+                .and_then(Value::as_u64)
+                .expect("totalProcessed present"),
+            2
+        );
+        assert_eq!(
+            value
+                .get("batchId")
+                .and_then(Value::as_str)
+                .expect("batchId present"),
+            "auto-compress-batch-1"
+        );
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -481,4 +538,14 @@ pub struct AutoCompressResult {
     pub started_at_ms: u64,
     /// Milliseconds since UNIX epoch when this batch scan completed.
     pub completed_at_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutoCompressProgress {
+    pub root_path: String,
+    pub total_files_scanned: u64,
+    pub total_candidates: u64,
+    pub total_processed: u64,
+    pub batch_id: String,
 }

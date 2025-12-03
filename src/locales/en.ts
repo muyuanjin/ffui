@@ -65,6 +65,21 @@ const en = {
       crfLabel: "Constant Rate Factor (CRF)",
       cqLabel: "Constant Quality (CQ)",
       presetLabel: "Preset (Speed vs Efficiency)",
+      rateControlModeLabel: "Rate control mode",
+      rateControlHelp:
+        "CRF/CQ: quality-first (lower value = better quality, larger files). CBR/VBR: bitrate/size-first (requires a target bitrate). Two-pass makes quality more consistent at the same size but roughly doubles encode time.",
+      bitrateKbpsLabel: "Target bitrate (kbps)",
+      bitrateHelp:
+        "Target average bitrate in kbps. Higher = more stable quality and larger files; lower = more artifacts. Rough guide: 720p ≈ 2–4Mbps, 1080p ≈ 4–8Mbps.",
+      maxBitrateKbpsLabel: "Max peak bitrate (kbps)",
+      maxBitrateKbpsHelp:
+        "Caps bitrate spikes. Typically set somewhat above target bitrate (e.g. 4000k + maxrate 6000k). If set too low, complex scenes may look noticeably worse.",
+      passLabel: "Two-pass encoding",
+      passSingle: "Single pass",
+      passFirst: "Pass 1 (analysis)",
+      passSecond: "Pass 2 (encode)",
+      passHelp:
+        "Two-pass runs a fast analysis pass and then the real encode: more consistent quality at the same size, but total time is roughly 2× a single pass. Only meaningful for CBR/VBR.",
     },
     audio: {
       title: "Audio",
@@ -76,29 +91,37 @@ const en = {
       bitrate128: "128k (Standard)",
       bitrate192: "192k (High Quality)",
       bitrate320: "320k (Transparent)",
+      bitrateHelp:
+        "Higher bitrate = cleaner audio and fewer high-frequency artifacts. 128k is typical for video, 192k is a good default, 320k is effectively transparent for most listeners.",
     },
     filters: {
       title: "Filters",
       scaleLabel: "Scale (Resize)",
       scalePlaceholder: "e.g. -2:720 (Keep aspect, 720p height)",
       scaleHelp:
-        "Use -1 or -2 for auto-calculation. -2 ensures even numbers (required for some codecs).",
+        "Use -1 or -2 for auto-calculation. -2 ensures even numbers (required for some codecs). Higher resolutions look sharper but increase file size; 720p/1080p are common trade-offs.",
     },
     actions: {
       update: "Update Preset",
       save: "Save Configuration",
       edit: "Edit",
+      openPanel: "Open full parameter panel",
+      backToWizard: "Back to wizard view",
     },
     tips: {
       crf_x264:
-        "Constant Rate Factor (0-51). Lower is better quality. Recommended: 18-22 for archive, 23-24 for balance.",
+        "Constant Rate Factor (0-51). Lower = better quality and larger files; higher = smaller files and more artifacts. Recommended: 18-22 for archive, 23-24 for balance; above ~28 quality drops noticeably.",
       cq_nvenc:
-        "Constant Quality (0-51). NOT comparable to CRF. Recommended: 26-28 for good visual quality.",
-      crf_av1: "AV1 CRF (0-63). Recommended: 32-34 to roughly match x264 CRF 23.",
+        "Constant Quality (0-51). NOT directly comparable to CRF. Lower = better quality and higher bitrate. Recommended: 26-28 for everyday use; above ~32 will look visibly softer.",
+      crf_av1:
+        "AV1 CRF (0-63). Lower = better quality. Recommended: 32-34 as a general-purpose range, roughly similar to x264 CRF 23; above ~40 compression artifacts become obvious.",
       preset_x264:
         "'medium' is a good default. 'slow' yields smaller files at the same visual quality.",
       preset_nvenc: "'p7' has the highest quality, 'p1' is the fastest.",
       preset_av1: "Higher preset numbers are FASTER. Recommended: 4-6 for a good balance.",
+    },
+    summary: {
+      title: "Preset summary",
     },
     advanced: {
       title: "Advanced (Raw ffmpeg command)",
@@ -110,6 +133,28 @@ const en = {
       previewTitle: "Command preview",
       copyButton: "Copy",
       copiedToast: "Command copied",
+    },
+    panel: {
+      title: "Preset parameter panel",
+      subtitle: "Tweak FFmpeg parameters by section, with a live command preview on the right.",
+      globalTab: "Global & logs",
+      inputTab: "Input & timeline",
+      mappingTab: "Mapping & metadata",
+      videoTab: "Video encoding",
+      audioTab: "Audio & subtitles",
+      filtersTab: "Filter chain",
+      containerTab: "Container & segmenting",
+      hardwareTab: "Hardware & bitstream",
+      globalHelp:
+        "Global flags such as -loglevel/-report/-stats currently use ffmpeg defaults; future versions will surface common switches here.",
+      inputHelp:
+        "Input/timeline options like -ss/-to/-t/-accurate_seek will become first-class fields later. This version keeps ffmpeg defaults.",
+      mappingHelp:
+        "Mapping/metadata options (-map/-map_metadata/-disposition, etc.) are auto-managed for now and will be editable here in future versions.",
+      containerHelp:
+        "Container/segment options (-f/-movflags/-segment_*/-hls_*, etc.) are currently inferred from file extension; key toggles will be added here.",
+      hardwareHelp:
+        "Hardware acceleration and bitstream filters (-hwaccel/-bsf, etc.) are currently implied by the chosen encoder; future iterations will expose them as explicit options.",
     },
   },
   smartScan: {

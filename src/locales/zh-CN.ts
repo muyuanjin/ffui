@@ -65,6 +65,21 @@ const zhCN = {
       crfLabel: "恒定质量因子 (CRF)",
       cqLabel: "恒定质量 (CQ)",
       presetLabel: "预设（速度 / 压缩率）",
+      rateControlModeLabel: "速率控制模式",
+      rateControlHelp:
+        "CRF/CQ：质量优先（数值越小画质越好、文件越大）；CBR/VBR：码率/体积优先（需要设置目标码率），两遍编码在同样体积下画质更稳定但耗时接近翻倍。",
+      bitrateKbpsLabel: "目标码率 (kbps)",
+      bitrateHelp:
+        "目标平均码率，单位 kbps。数值越大画质越稳、文件越大；数值越小越容易出现块状和色带。粗略参考：720p≈2–4Mbps，1080p≈4–8Mbps。",
+      maxBitrateKbpsLabel: "峰值码率上限 (kbps)",
+      maxBitrateKbpsHelp:
+        "限制码率尖峰，通常略高于目标码率（例如 4000k + maxrate 6000k）。设得过低会让复杂场景被“压糊”。",
+      passLabel: "两遍编码 (pass)",
+      passSingle: "单遍编码",
+      passFirst: "Pass 1（分析）",
+      passSecond: "Pass 2（输出）",
+      passHelp:
+        "两遍编码会先分析再正式输出：在相同体积下画质更稳定，但总耗时大约是单遍编码的 2 倍，仅对 CBR/VBR 有意义。",
     },
     audio: {
       title: "音频",
@@ -76,27 +91,36 @@ const zhCN = {
       bitrate128: "128k（标准）",
       bitrate192: "192k（高质量）",
       bitrate320: "320k（接近无损）",
+      bitrateHelp:
+        "数值越大声音越干净、越不容易出现高频“金属味”；128k 适合一般视频，192k 建议作为默认，320k 基本接近无损。",
     },
     filters: {
       title: "滤镜",
       scaleLabel: "缩放 (Scale)",
       scalePlaceholder: "例如：-2:720（保持比例，高度 720p）",
-      scaleHelp: "使用 -1 或 -2 自动计算，-2 会保证是偶数（部分编码器必须）。",
+      scaleHelp:
+        "使用 -1 或 -2 自动计算，-2 会保证是偶数（部分编码器必须）。分辨率越高越清晰但文件越大，720p/1080p 是常见折中。",
     },
     actions: {
       update: "更新预设",
       save: "保存预设",
       edit: "编辑",
+      openPanel: "打开完整参数面板",
+      backToWizard: "返回向导视图",
     },
     tips: {
       crf_x264:
-        "恒定质量因子（0–51），数值越小画质越好。建议：18–22 用于归档，23–24 兼顾画质和体积。",
+        "恒定质量因子（0–51），数值越小画质越好、文件越大；数值越大画质越差但更省空间。建议：18–22 用于归档，23–24 兼顾画质和体积，>28 画质会明显变差。",
       cq_nvenc:
-        "恒定质量（0–51），数值无法和 CRF 直接对比。建议：26–28，视觉观感较好。",
-      crf_av1: "AV1 CRF（0–63），建议 32–34，大致相当于 x264 CRF 23 的画质。",
+        "恒定质量（0–51），数值越小画质越好、码率越高；数值无法和 CRF 直接对比。建议：26–28 作为日常使用，>32 会明显变糊。",
+      crf_av1:
+        "AV1 CRF（0–63），数值越小越好。建议 32–34 作为通用画质，大致相当于 x264 CRF 23；>40 时压缩痕迹会比较明显。",
       preset_x264: "“medium” 是推荐默认，“slow” 在相同画质下文件更小。",
       preset_nvenc: "“p7” 质量最好，“p1” 速度最快。",
       preset_av1: "预设数字越高编码越快。建议 4–6 作为速度与压缩率的折中。",
+    },
+    summary: {
+      title: "预设概览",
     },
     advanced: {
       title: "高级（原始 ffmpeg 命令）",
@@ -107,6 +131,28 @@ const zhCN = {
       previewTitle: "命令预览",
       copyButton: "复制",
       copiedToast: "命令已复制",
+    },
+    panel: {
+      title: "预设参数面板",
+      subtitle: "按分区完整调整 FFmpeg 参数，右侧实时预览最终命令。",
+      globalTab: "全局与日志",
+      inputTab: "输入与时间轴",
+      mappingTab: "映射与元数据",
+      videoTab: "视频编码",
+      audioTab: "音频与字幕",
+      filtersTab: "滤镜链",
+      containerTab: "容器与分片",
+      hardwareTab: "硬件与比特流",
+      globalHelp:
+        "全局参数（-loglevel/-report/-stats 等）当前使用 ffmpeg 默认值，后续会在这里暴露常用开关。",
+      inputHelp:
+        "输入与时间轴（-ss/-to/-t/-accurate_seek 等）后续会作为一等公民参数加入，此版本暂保留默认行为。",
+      mappingHelp:
+        "映射与元数据（-map/-map_metadata/-disposition 等）暂保持自动映射，未来会在此处提供更精细控制。",
+      containerHelp:
+        "容器与分片（-f/-movflags/-segment_*/-hls_* 等）当前按输出扩展名推断，后续会暴露关键参数。",
+      hardwareHelp:
+        "硬件加速与比特流过滤（-hwaccel/-bsf 等）暂由预设编码器隐式控制，未来会在此处提供可视化选项。",
     },
   },
   smartScan: {

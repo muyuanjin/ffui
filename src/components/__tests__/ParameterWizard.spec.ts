@@ -42,12 +42,14 @@ describe("ParameterWizard", () => {
     expect(fastNvencButton).toBeTruthy();
     await fastNvencButton!.trigger("click");
 
-    // Recipe 会把 step 设置为 2，这里点击一次 Next 进入第 3 步，之后即可保存。
-    const nextButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("common.next"));
-    expect(nextButton).toBeTruthy();
-    await nextButton!.trigger("click");
+    // Recipe 会把 step 设置为 2，这里依次点击 Next 直到最后一步再保存。
+    for (let i = 0; i < 3; i += 1) {
+      const nextButton = wrapper
+        .findAll("button")
+        .find((btn) => btn.text().includes("common.next"));
+      expect(nextButton).toBeTruthy();
+      await nextButton!.trigger("click");
+    }
 
     // Final step: click the save button which triggers handleSave.
     const saveButton = wrapper
@@ -62,5 +64,29 @@ describe("ParameterWizard", () => {
     expect(preset.video.encoder).toBe("hevc_nvenc");
     // 关键断言：保存到后端的 NVENC 预设里不应该再包含 x264 的 tune film。
     expect("tune" in preset.video).toBe(false);
+  });
+
+  it("can switch from new preset wizard directly into the full parameter panel", async () => {
+    const switched: FFmpegPreset[] = [];
+
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: null,
+        onSwitchToPanel: (preset: FFmpegPreset) => switched.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const switchButton = wrapper.find("[data-testid='preset-open-panel']");
+    expect(switchButton).toBeTruthy();
+    await switchButton.trigger("click");
+
+    expect(switched.length).toBe(1);
+    const preset = switched[0];
+    // 新建预设时也应该生成一个有效的 id 与名称占位。
+    expect(preset.id).toBeTypeOf("string");
+    expect(preset.name.length).toBeGreaterThan(0);
   });
 });

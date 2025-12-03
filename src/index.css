@@ -181,15 +181,15 @@
   }
 
   /* Reka ScrollArea injects a style tag that fully hides scrollbars on its
-     viewport; for the main内容区我们需要系统滚动条可见，否则设置页内容多时会给人
-     “被撑爆、标题栏消失”的错觉。这里强制恢复默认滚动条展示。 */
-  [data-reka-scroll-area-viewport] {
+     viewport. 在少数需要“系统原生滚动条”的场景下，请在外层加上
+     `.reka-native-scrollbars` 类名进行按需覆盖，而不是全局改写。 */
+  .reka-native-scrollbars [data-reka-scroll-area-viewport] {
     scrollbar-width: auto !important;
     -ms-overflow-style: auto !important;
     -webkit-overflow-scrolling: auto !important;
   }
 
-  [data-reka-scroll-area-viewport]::-webkit-scrollbar {
+  .reka-native-scrollbars [data-reka-scroll-area-viewport]::-webkit-scrollbar {
     display: block !important;
   }
 

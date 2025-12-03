@@ -72,6 +72,10 @@ pub struct AppSettings {
     pub smart_scan_defaults: SmartScanConfig,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
+    /// Optional upper bound for concurrent transcoding jobs. When None or 0,
+    /// the engine derives a conservative default based on available cores.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_parallel_jobs: Option<u8>,
 }
 
 impl Default for AppSettings {
@@ -86,6 +90,7 @@ impl Default for AppSettings {
                 video_preset_id: String::new(),
             },
             preview_capture_percent: default_preview_capture_percent(),
+            max_parallel_jobs: None,
         }
     }
 }
@@ -106,6 +111,10 @@ fn default_presets() -> Vec<FFmpegPreset> {
                 preset: "medium".to_string(),
                 tune: None,
                 profile: None,
+                bitrate_kbps: None,
+                max_bitrate_kbps: None,
+                buffer_size_kbits: None,
+                pass: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -136,6 +145,10 @@ fn default_presets() -> Vec<FFmpegPreset> {
                 preset: "slow".to_string(),
                 tune: None,
                 profile: None,
+                bitrate_kbps: None,
+                max_bitrate_kbps: None,
+                buffer_size_kbits: None,
+                pass: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -257,6 +270,10 @@ mod tests {
             settings.preview_capture_percent, 25,
             "default preview_capture_percent must be 25"
         );
+        assert!(
+            settings.max_parallel_jobs.is_none(),
+            "default max_parallel_jobs must be None so the engine can auto-derive concurrency"
+        );
     }
 
     #[test]
@@ -269,6 +286,13 @@ mod tests {
             .and_then(Value::as_u64)
             .expect("previewCapturePercent field present as u64");
         assert_eq!(percent, 25);
+
+        // When max_parallel_jobs is None it should be omitted from JSON so
+        // existing settings files remain minimal.
+        assert!(
+            value.get("maxParallelJobs").is_none(),
+            "maxParallelJobs should be absent when unset"
+        );
     }
 
     #[test]
@@ -288,7 +312,8 @@ mod tests {
                 "minSavingRatio": 0.95,
                 "imageTargetFormat": "avif",
                 "videoPresetId": ""
-            }
+            },
+            "maxParallelJobs": 3
         });
 
         let decoded: AppSettings = serde_json::from_value(legacy)
@@ -296,6 +321,11 @@ mod tests {
         assert_eq!(
             decoded.preview_capture_percent, 25,
             "missing previewCapturePercent must default to 25 for backwards compatibility"
+        );
+        assert_eq!(
+            decoded.max_parallel_jobs,
+            Some(3),
+            "maxParallelJobs must deserialize from camelCase JSON field"
         );
     }
 }
