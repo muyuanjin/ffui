@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
@@ -115,6 +116,9 @@ const buildPresetFromState = (): FFmpegPreset => {
     id: props.initialPreset?.id ?? Date.now().toString(),
     name: name.value || (t("presetEditor.untitled") as string),
     description: description.value,
+    global: props.initialPreset?.global ?? {
+      hideBanner: true,
+    },
     video: normalizedVideo,
     audio: { ...audio } as AudioConfig,
     filters: { ...filters } as FilterConfig,
@@ -588,6 +592,43 @@ const handleParseTemplateFromCommand = () => {
                     {{ t("presetEditor.audio.bitrateHelp") }}
                   </p>
                 </div>
+
+                <div v-if="audio.codec === 'aac'" class="space-y-2">
+                  <Label class="block text-xs">
+                    {{ t("presetEditor.audio.loudnessProfileLabel", "响度均衡策略") }}
+                  </Label>
+                  <div class="grid grid-cols-3 gap-2">
+                    <Button
+                      :variant="!audio.loudnessProfile || audio.loudnessProfile === 'none' ? 'default' : 'outline'"
+                      class="h-8 px-2 text-[11px]"
+                      @click="audio.loudnessProfile = 'none'"
+                    >
+                      {{ t("presetEditor.audio.loudnessNone", "不过滤（保持源响度）") }}
+                    </Button>
+                    <Button
+                      :variant="audio.loudnessProfile === 'cnBroadcast' ? 'default' : 'outline'"
+                      class="h-8 px-2 text-[11px]"
+                      @click="audio.loudnessProfile = 'cnBroadcast'"
+                    >
+                      {{ t("presetEditor.audio.loudnessCnBroadcast", '国内广电响度') }}
+                    </Button>
+                    <Button
+                      :variant="audio.loudnessProfile === 'ebuR128' ? 'default' : 'outline'"
+                      class="h-8 px-2 text-[11px]"
+                      @click="audio.loudnessProfile = 'ebuR128'"
+                    >
+                      {{ t("presetEditor.audio.loudnessEbuR128", 'EBU/国际响度') }}
+                    </Button>
+                  </div>
+                  <p class="mt-1 text-[11px] text-muted-foreground">
+                    {{
+                      t(
+                        "presetEditor.audio.loudnessHelp",
+                        "推荐使用响度均衡：国内广电约 I=-24 LUFS，国际规范约 I=-23 LUFS，动态范围通常 1–10 LU，真峰值建议控制在 -2/-1 dBTP 附近；数值越接近 0 主观越响，长片节目一般不建议高于约 -16 LUFS。",
+                      )
+                    }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -643,14 +684,10 @@ const handleParseTemplateFromCommand = () => {
                     {{ t("presetEditor.advanced.description") }}
                   </p>
                 </div>
-                <label class="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    v-model="advancedEnabled"
-                    type="checkbox"
-                    class="h-3 w-3 rounded border-border bg-background"
-                  />
+                <Label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
+                  <Checkbox v-model:checked="advancedEnabled" />
                   <span>{{ t("presetEditor.advanced.enabledLabel") }}</span>
-                </label>
+                </Label>
               </div>
 
               <div class="space-y-1">

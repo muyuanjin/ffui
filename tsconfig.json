@@ -20,6 +20,9 @@
       "@/*": ["src/*"]
     },
 
+    /* Node typings for contract tests that use node:fs/path/url */
+    "types": ["node"],
+
     /* Linting */
     "strict": true,
     "noUnusedLocals": true,

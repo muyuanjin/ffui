@@ -181,4 +181,31 @@ describe("QueueIconItem", () => {
     const aboveEl = aboveContainer.element as HTMLDivElement;
     expect(aboveEl.style.width).toBe("100%");
   });
+
+  it("treats cancelled jobs as fully progressed for icon cards to match aggregated header progress", () => {
+    const cancelledJob = makeJob({
+      status: "cancelled",
+      // Backend keeps cancelled progress at 0, but aggregated queue progress
+      // treats Cancelled as 100% so the header/taskbar can reach completion.
+      progress: 0,
+      previewPath: "C:/app-data/previews/icon-cancelled.jpg",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job: cancelledJob,
+        size: "medium",
+        progressStyle: "card-fill",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const container = wrapper.get(
+      "[data-testid='queue-icon-item-progress-card-fill']",
+    );
+    const el = container.element as HTMLDivElement;
+    expect(el.style.width).toBe("100%");
+  });
 });

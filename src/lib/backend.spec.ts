@@ -24,6 +24,7 @@ import {
   loadPresets,
   savePresetOnBackend,
   deletePresetOnBackend,
+  inspectMedia,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -374,5 +375,20 @@ describe("backend contract", () => {
     expect(cmd).toBe("delete_preset");
     expect(payload).toMatchObject({ presetId: "custom-1" });
     expect(result).toEqual(remaining);
+  });
+
+  it("inspectMedia sends inspect_media with the path payload and returns raw ffprobe JSON", async () => {
+    const path = "C:/videos/sample.mp4";
+    const fakeJson = '{"format":{"duration":"120.5"},"streams":[]}';
+
+    invokeMock.mockResolvedValueOnce(fakeJson);
+
+    const result = await inspectMedia(path);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("inspect_media");
+    expect(payload).toMatchObject({ path });
+    expect(result).toBe(fakeJson);
   });
 });

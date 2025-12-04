@@ -47,8 +47,8 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ---
 - DATE: 2025-12-02
-- CONTEXT: 在 `transcoding` 项目中多次出现“添加任务/拖拽后崩溃”这类低级回归，修复时没有配套前端/后端/接口测试，导致相同类型问题反复出现，用户明确要求把测试纪律写入 AGENTS。
-- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或 transcoding 逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `npm test`（或等价前端测试命令）和 `cargo test`，如果某一侧当前无法覆盖，需在答复中说明原因和人工验证步骤。
+- CONTEXT: 在 FFUI 项目中多次出现“添加任务/拖拽后崩溃”这类低级回归，修复时没有配套前端/后端/接口测试，导致相同类型问题反复出现，用户明确要求把测试纪律写入 AGENTS。
+- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `npm test`（或等价前端测试命令）和 `cargo test`，如果某一侧当前无法覆盖，需在答复中说明原因和人工验证步骤。
 - ANTI-PATTERN: 不允许“只修代码不写测试”，也不允许在测试失败或尚未运行时就宣布本次问题已解决；更不允许把针对同一接口或字段的不一致问题留到以后再修。
 
 ## Commit & Pull Request Guidelines
@@ -70,7 +70,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 ---
 - DATE: 2025-12-02
 - CONTEXT: 在本项目里多次擅自把 `src-tauri/tauri.conf.json` 的窗口 `visible` 从 true 改为 false，导致主窗口长时间不出现（几十秒黑着），用户多次强烈抱怨。
-- RULE: 在 `transcoding` 项目中，除非 proposal/设计里明确说明并已经实现可靠的 Rust 端 show-on-ready 流程（包括超时兜底），否则一律保持 Tauri 主窗口 `visible: true`，不要再通过修改 visible 来“优化首屏”。
+- RULE: 在 FFUI 项目中，除非 proposal/设计里明确说明并已经实现可靠的 Rust 端 show-on-ready 流程（包括超时兜底），否则一律保持 Tauri 主窗口 `visible: true`，不要再通过修改 visible 来“优化首屏”。
 - ANTI-PATTERN: 不要因为想减少空白窗口时间，就直接把 `visible` 改为 false 再靠前端或侥幸来 show；这种做法极易导致启动阶段长时间无窗口可见，是严重 UX 问题。
 
 ## Tauri Drag & Drop Guardrails

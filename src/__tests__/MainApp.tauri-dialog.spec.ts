@@ -85,7 +85,7 @@ beforeEach(() => {
 
   listenMock.mockImplementation(
     async (event: string, handler: (event: { payload: unknown }) => void) => {
-      if (event === "transcoding://queue-state") {
+      if (event === "ffui://queue-state") {
         queueStateHandler = handler;
       } else if (event === "auto-compress://progress") {
         smartScanProgressHandler = handler;

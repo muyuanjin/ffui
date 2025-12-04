@@ -1,4 +1,4 @@
-use crate::transcoding::{JobStatus, QueueState, TaskbarProgressMode, TranscodeJob};
+use crate::ffui_core::{JobStatus, QueueState, TaskbarProgressMode, TranscodeJob};
 
 fn normalized_job_progress(job: &TranscodeJob) -> f64 {
     match job.status {
@@ -236,7 +236,7 @@ pub fn acknowledge_taskbar_completion(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcoding::{JobSource, JobType, TranscodeJob};
+    use crate::ffui_core::{JobSource, JobType, TranscodeJob};
 
     fn make_job(id: &str, status: JobStatus, progress: f64) -> TranscodeJob {
         TranscodeJob {

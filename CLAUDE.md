@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目结构
 
 ```
-transcoding/
+ffui/
 ├── src/                    # Vue 前端源代码
 │   ├── components/        # Vue 组件
 │   │   ├── ui/           # UI 组件库 (shadcn-vue)
@@ -33,7 +33,7 @@ transcoding/
 │   └── i18n.ts          # 国际化配置
 ├── src-tauri/           # Rust 后端 (Tauri)
 │   ├── src/
-│   │   ├── transcoding/ # 转码核心模块
+│   │   ├── ffui_core/ # 转码核心模块
 │   │   │   ├── mod.rs   # 模块导出
 │   │   │   ├── domain.rs # 数据模型定义
 │   │   │   ├── settings.rs # 应用设置
@@ -100,7 +100,7 @@ npm run tauri dev
 ## 架构说明
 
 ### 数据模型
-- **Rust 端**: `src-tauri/src/transcoding/domain.rs` 定义了核心数据结构
+- **Rust 端**: `src-tauri/src/ffui_core/domain.rs` 定义了核心数据结构
 - **TypeScript 端**: `src/types.ts` 定义了前端类型
 - 两端类型通过 `serde` 序列化/反序列化保持同步
 
@@ -148,11 +148,11 @@ npm run tauri dev
 ## 配置说明
 
 ### Tauri 配置 (`src-tauri/tauri.conf.json`)
-- 应用名称: `transcoding`
+- 应用名称: `FFUI`
 - 窗口尺寸: 1280x720
 - 无边框窗口: true
 - 背景色: `#020617` (深色主题)
-- 开发服务器端口: 5183
+- 开发服务器端口: 5188
 
 ### 前端配置
 - **Vite**: 开发服务器配置在 `vite.config.ts`
@@ -171,8 +171,8 @@ npm run tauri dev
 # 运行所有测试
 cd src-tauri && cargo test
 
-# 运行特定模块测试
-cd src-tauri && cargo test transcoding
+# 运行特定 crate 测试（示例）
+cd src-tauri && cargo test ffui_lib
 ```
 
 ### 前端测试
@@ -198,7 +198,7 @@ npm run tauri build
 ## 故障排除
 
 ### 常见问题
-1. **Tauri 开发服务器无法启动**: 检查端口 5183 是否被占用
+1. **Tauri 开发服务器无法启动**: 检查端口 5188 是否被占用
 2. **Rust 编译错误**: 确保所有依赖项版本兼容
 3. **前端热重载不工作**: 检查 Vite 配置和文件监视设置
 4. **转码工具未找到**: 确保 FFmpeg 等外部工具已安装并添加到 PATH

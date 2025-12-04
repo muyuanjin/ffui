@@ -1,0 +1,37 @@
+<svg width="128" height="128" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- 1. 定义蒙版 -->
+    <defs>
+        <mask id="film-strip-mask-precision">
+            <!-- 白色底板：显示内容 -->
+            <rect width="100%" height="100%" fill="white"/>
+            <!-- 黑色方块：挖空部分
+                 优化点：
+                 X = 90 (在F竖线内绝对水平居中)
+                 Y = 75起始，间距30 (在F高度内绝对垂直居中)
+            -->
+            <g fill="black">
+                <rect x="82" y="75" width="10" height="20" rx="2"/>
+                <rect x="82" y="105" width="10" height="20" rx="2"/>
+                <rect x="82" y="135" width="10" height="20" rx="2"/>
+                <rect x="82" y="165" width="10" height="20" rx="2"/>
+            </g>
+        </mask>
+    </defs>
+    <!-- 2. 蓝色背景容器 -->
+    <rect width="256" height="256" rx="50" fill="#2563eb"/>
+    <!-- 3. F 图标主体 (应用蒙版) -->
+    <path fill="white" mask="url(#film-strip-mask-precision)" d="
+        M 80 60
+        H 180 A 10 10 0 0 1 190 70
+        V 90 A 10 10 0 0 1 180 100
+        H 120
+        V 120
+        H 160 A 10 10 0 0 1 170 130
+        V 150 A 10 10 0 0 1 160 160
+        H 120
+        V 190 A 10 10 0 0 1 110 200
+        H 80 A 10 10 0 0 1 70 190
+        V 70 A 10 10 0 0 1 80 60
+        Z"
+    />
+</svg>

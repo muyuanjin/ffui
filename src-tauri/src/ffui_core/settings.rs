@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
-use crate::transcoding::domain::{
+use crate::ffui_core::domain::{
     AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, ImageTargetFormat,
     PresetStats, RateControlMode, SmartScanConfig, VideoConfig,
 };
@@ -123,6 +123,10 @@ pub enum TaskbarProgressMode {
     ByEstimatedTime,
 }
 
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -130,6 +134,11 @@ pub struct AppSettings {
     pub smart_scan_defaults: SmartScanConfig,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
+    /// When true, enable developer-focused features such as opening the
+    /// webview devtools from the UI. This flag is persisted so power users
+    /// don't need to re-enable it on every launch.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub developer_mode_enabled: bool,
     /// Optional default preset id for manual queue jobs. When None or empty,
     /// the first available preset will be used.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -162,6 +171,7 @@ impl Default for AppSettings {
                 video_preset_id: String::new(),
             },
             preview_capture_percent: default_preview_capture_percent(),
+            developer_mode_enabled: false,
             default_queue_preset_id: None,
             max_parallel_jobs: None,
             progress_update_interval_ms: None,
@@ -179,6 +189,9 @@ fn default_presets() -> Vec<FFmpegPreset> {
             id: "p1".to_string(),
             name: "Universal 1080p".to_string(),
             description: "x264 Medium CRF 23. Standard for web.".to_string(),
+            global: None,
+            input: None,
+            mapping: None,
             video: VideoConfig {
                 encoder: EncoderType::Libx264,
                 rate_control: RateControlMode::Crf,
@@ -190,16 +203,33 @@ fn default_presets() -> Vec<FFmpegPreset> {
                 max_bitrate_kbps: None,
                 buffer_size_kbits: None,
                 pass: None,
+                level: None,
+                gop_size: None,
+                bf: None,
+                pix_fmt: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
                 bitrate: None,
+                sample_rate_hz: None,
+                channels: None,
+                channel_layout: None,
+                loudness_profile: None,
+                target_lufs: None,
+                loudness_range: None,
+                true_peak_db: None,
             },
             filters: FilterConfig {
                 scale: Some("-2:1080".to_string()),
                 crop: None,
                 fps: None,
+                vf_chain: None,
+                af_chain: None,
+                filter_complex: None,
             },
+            subtitles: None,
+            container: None,
+            hardware: None,
             stats: PresetStats {
                 usage_count: 5,
                 total_input_size_mb: 2500.0,
@@ -213,6 +243,9 @@ fn default_presets() -> Vec<FFmpegPreset> {
             id: "p2".to_string(),
             name: "Archive Master".to_string(),
             description: "x264 Slow CRF 18. Near lossless.".to_string(),
+            global: None,
+            input: None,
+            mapping: None,
             video: VideoConfig {
                 encoder: EncoderType::Libx264,
                 rate_control: RateControlMode::Crf,
@@ -224,16 +257,33 @@ fn default_presets() -> Vec<FFmpegPreset> {
                 max_bitrate_kbps: None,
                 buffer_size_kbits: None,
                 pass: None,
+                level: None,
+                gop_size: None,
+                bf: None,
+                pix_fmt: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
                 bitrate: None,
+                sample_rate_hz: None,
+                channels: None,
+                channel_layout: None,
+                loudness_profile: None,
+                target_lufs: None,
+                loudness_range: None,
+                true_peak_db: None,
             },
             filters: FilterConfig {
                 scale: None,
                 crop: None,
                 fps: None,
+                vf_chain: None,
+                af_chain: None,
+                filter_complex: None,
             },
+            subtitles: None,
+            container: None,
+            hardware: None,
             stats: PresetStats {
                 usage_count: 2,
                 total_input_size_mb: 5000.0,
@@ -346,6 +396,10 @@ mod tests {
             "default preview_capture_percent must be 25"
         );
         assert!(
+            !settings.developer_mode_enabled,
+            "developer_mode_enabled must default to false so devtools stay disabled unless explicitly enabled"
+        );
+        assert!(
             settings.max_parallel_jobs.is_none(),
             "default max_parallel_jobs must be None so the engine can auto-derive concurrency"
         );
@@ -390,6 +444,12 @@ mod tests {
         assert!(
             value.get("progressUpdateIntervalMs").is_none(),
             "progressUpdateIntervalMs should be absent when unset"
+        );
+        // When developer_mode_enabled is false it should be omitted from JSON
+        // so existing installations don't gain extra noise in settings.json.
+        assert!(
+            value.get("developerModeEnabled").is_none(),
+            "developerModeEnabled should be absent when false"
         );
 
         let mode = value
@@ -439,6 +499,10 @@ mod tests {
         assert_eq!(
             decoded.preview_capture_percent, 25,
             "missing previewCapturePercent must default to 25 for backwards compatibility"
+        );
+        assert!(
+            !decoded.developer_mode_enabled,
+            "legacy settings without developerModeEnabled must decode with developer_mode_enabled = false"
         );
         assert_eq!(
             decoded.max_parallel_jobs,
@@ -512,5 +576,25 @@ mod tests {
             .expect("decoded.tools.downloaded.ffmpeg present");
         assert_eq!(decoded_meta.version.as_deref(), Some("6.1"));
         assert_eq!(decoded_meta.tag.as_deref(), Some("b6.1"));
+    }
+
+    #[test]
+    fn app_settings_serializes_developer_mode_enabled_when_true() {
+        let mut settings = AppSettings::default();
+        settings.developer_mode_enabled = true;
+
+        let json = serde_json::to_value(&settings).expect("serialize AppSettings with dev mode");
+        let dev_mode = json
+            .get("developerModeEnabled")
+            .and_then(Value::as_bool)
+            .expect("developerModeEnabled present when true");
+        assert!(dev_mode, "developerModeEnabled must serialize as true when enabled");
+
+        let decoded: AppSettings =
+            serde_json::from_value(json).expect("round-trip deserialize AppSettings with dev mode");
+        assert!(
+            decoded.developer_mode_enabled,
+            "developer_mode_enabled must remain true after round-trip serialization"
+        );
     }
 }

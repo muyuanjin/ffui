@@ -995,6 +995,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "ffui"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "nvml-wrapper",
+ "once_cell",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-opener",
+ "thiserror 1.0.69",
+ "windows 0.58.0",
+ "zip",
+]
+
+[[package]]
 name = "field-offset"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4554,27 +4575,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a04e24fab5c89c6a36eb8558c9656f30d81de51dfa4d3b45f26b21d61fa0a6c"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "transcoding"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "nvml-wrapper",
- "once_cell",
- "reqwest",
- "serde",
- "serde_json",
- "sysinfo",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-opener",
- "thiserror 1.0.69",
- "windows 0.58.0",
- "zip",
 ]
 
 [[package]]

@@ -4,6 +4,16 @@ import { createI18n } from "vue-i18n";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import type { FFmpegPreset } from "@/types";
 
+// reka-ui 的 Slider 依赖 ResizeObserver，这里在测试环境中提供一个最小 mock。
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+(globalThis as any).ResizeObserver =
+  (globalThis as any).ResizeObserver || ResizeObserverMock;
+
 const i18n = createI18n({
   legacy: false,
   locale: "en",
@@ -89,5 +99,70 @@ describe("UltimateParameterPanel", () => {
     expect(text).not.toContain("-crf ");
     expect(text).not.toContain("-cq ");
   });
-});
 
+  it("includes global, timeline, mapping, container and hardware flags when present", () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      global: {
+        overwriteBehavior: "overwrite",
+        logLevel: "error",
+        hideBanner: true,
+        enableReport: true,
+      },
+      input: {
+        seekMode: "input",
+        seekPosition: "00:00:10",
+        durationMode: "duration",
+        duration: "5",
+        accurateSeek: true,
+      },
+      mapping: {
+        maps: ["0:v:0", "0:a:0"],
+        metadata: ["title=Test"],
+        dispositions: ["0:v:0 default"],
+      },
+      subtitles: {
+        strategy: "drop",
+      },
+      container: {
+        format: "mp4",
+        movflags: ["faststart", "frag_keyframe"],
+      },
+      hardware: {
+        hwaccel: "cuda",
+        hwaccelDevice: "cuda:0",
+        hwaccelOutputFormat: "cuda",
+        bitstreamFilters: ["h264_mp4toannexb"],
+      },
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const text = wrapper.text();
+
+    expect(text).toContain("-y");
+    expect(text).toContain("-loglevel error");
+    expect(text).toContain("-hide_banner");
+    expect(text).toContain("-report");
+    expect(text).toContain("-ss 00:00:10");
+    expect(text).toContain("-t 5");
+    expect(text).toContain("-map 0:v:0");
+    expect(text).toContain("-map 0:a:0");
+    expect(text).toContain("-metadata title=Test");
+    expect(text).toContain("-disposition 0:v:0 default");
+    expect(text).toContain("-sn");
+    expect(text).toContain("-f mp4");
+    expect(text).toContain("-movflags faststart+frag_keyframe");
+    expect(text).toContain("-hwaccel cuda");
+    expect(text).toContain("-hwaccel_device cuda:0");
+    expect(text).toContain("-hwaccel_output_format cuda");
+    expect(text).toContain("-bsf h264_mp4toannexb");
+  });
+});
