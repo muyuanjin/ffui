@@ -15,6 +15,11 @@ vi.mock("@tauri-apps/api/core", () => {
 
 import {
   enqueueTranscodeJob,
+  cancelTranscodeJob,
+  waitTranscodeJob,
+  resumeTranscodeJob,
+  restartTranscodeJob,
+  reorderQueue,
   loadPreviewDataUrl,
   loadPresets,
   savePresetOnBackend,
@@ -251,6 +256,86 @@ describe("backend contract", () => {
     expect(sentPreset.video.pass).toBe(2);
 
     expect(result).toEqual(backendList);
+  });
+
+  it("cancelTranscodeJob sends cancel_transcode_job with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+
+    const jobId = "42";
+    const result = await cancelTranscodeJob(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("cancel_transcode_job");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("waitTranscodeJob sends wait_transcode_job with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobId = "job-wait";
+
+    const result = await waitTranscodeJob(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("wait_transcode_job");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("resumeTranscodeJob sends resume_transcode_job with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobId = "job-resume";
+
+    const result = await resumeTranscodeJob(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("resume_transcode_job");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("restartTranscodeJob sends restart_transcode_job with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobId = "job-restart";
+
+    const result = await restartTranscodeJob(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("restart_transcode_job");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("reorderQueue sends reorder_queue with orderedIds and ordered_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const ids = ["a", "b", "c"];
+
+    const result = await reorderQueue(ids);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("reorder_queue");
+    expect(payload).toMatchObject({
+      orderedIds: ids,
+      ordered_ids: ids,
+    });
+    expect(result).toBe(true);
   });
 
   it("deletePresetOnBackend sends delete_preset with the presetId and returns the updated list", async () => {

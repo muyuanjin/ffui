@@ -7,5 +7,5 @@ mod tools;
 pub use domain::*;
 pub use engine::TranscodingEngine;
 pub use monitor::{CpuUsageSnapshot, GpuUsageSnapshot};
-pub use settings::AppSettings;
+pub use settings::{AppSettings, TaskbarProgressMode};
 pub use tools::ExternalToolStatus;

@@ -14,7 +14,7 @@ const en = {
     queueHint: "Manage the transcoding queue, progress, and logs.",
     mediaHint: "Inspect media metadata and analysis (work in progress).",
     monitorHint: "Inspect CPU/GPU and other performance metrics.",
-    settingsHint: "Configure external tool paths, auto-download, and preview settings.",
+    settingsHint: "Configure external tool paths, auto-download, preview, and queue behaviour.",
     emptyQueue: {
       title: "No active jobs",
       subtitle: "Click Add transcode job or use the Smart Scan entry in the lower-left corner.",
@@ -26,6 +26,15 @@ const en = {
       label: "Language",
       zh: "中文",
       en: "English",
+    },
+    globalProgressLabel: "Overall queue progress",
+    taskbarProgressModeLabel: "Taskbar progress mode",
+    taskbarProgressModeHelp:
+      "Controls how multiple jobs are combined into a single Windows taskbar progress bar.",
+    taskbarProgressModes: {
+      bySize: "Weight by input size (MB)",
+      byDuration: "Weight by media duration",
+      byEstimatedTime: "Weight by estimated processing time (recommended)",
     },
     actions: {
       addJob: "Add transcode job",
@@ -117,7 +126,8 @@ const en = {
         "AV1 CRF (0-63). Lower = better quality. Recommended: 32-34 as a general-purpose range, roughly similar to x264 CRF 23; above ~40 compression artifacts become obvious.",
       preset_x264:
         "'medium' is a good default. 'slow' yields smaller files at the same visual quality.",
-      preset_nvenc: "'p7' has the highest quality, 'p1' is the fastest.",
+      preset_nvenc:
+        "Presets closer to 'p7' give better quality but encode slower; 'p5'/'p4' are common quality-speed trade-offs, while 'p1' is fastest but least efficient.",
       preset_av1: "Higher preset numbers are FASTER. Recommended: 4-6 for a good balance.",
     },
     summary: {
@@ -135,7 +145,7 @@ const en = {
       copiedToast: "Command copied",
     },
     panel: {
-      title: "Preset parameter panel",
+      title: "Preset details",
       subtitle: "Tweak FFmpeg parameters by section, with a live command preview on the right.",
       globalTab: "Global & logs",
       inputTab: "Input & timeline",
@@ -203,9 +213,31 @@ const en = {
     typeVideo: "VIDEO",
     typeImage: "IMAGE",
     skippedPrefix: "Skipped:",
+    viewModeLabel: "Queue view",
+    viewModes: {
+      compact: "Compact list",
+      detail: "Detailed list",
+      // The following modes will be progressively enabled in follow-up changes.
+      iconSmall: "Small icon grid",
+      iconMedium: "Medium icon grid",
+      iconLarge: "Large icon grid",
+      dynamicCard: "Dynamic cards",
+    },
+    modeLabel: "Queue mode",
+    modes: {
+      display: "Display only",
+      queue: "Queue mode",
+    },
+    progressStyleLabel: "Progress style",
+    progressStyles: {
+      bar: "Classic progress bar",
+      cardFill: "Card background fill",
+      rippleCard: "Ripple card",
+    },
     status: {
       completed: "completed",
       processing: "processing",
+      paused: "paused",
       waiting: "waiting",
       skipped: "skipped",
       failed: "failed",
@@ -215,6 +247,44 @@ const en = {
     source: {
       manual: "Manual",
       smartScan: "Smart Scan",
+    },
+    filters: {
+      label: "Filters",
+      typeLabel: "Type",
+      typeManual: "Manual transcode",
+      typeSmartScan: "Compression (Smart Scan)",
+      textPlaceholder: "Filter by file name or path (supports regex)",
+      reset: "Reset filters",
+      invalidRegex: "Invalid regular expression; keeping the previous valid filter.",
+    },
+    selection: {
+      selectAll: "Select all",
+      invert: "Invert selection",
+      clear: "Clear selection",
+    },
+    sort: {
+      label: "Sort",
+      fields: {
+        addedTime: "Added time",
+        finishedTime: "Finished time",
+        filename: "File name",
+        status: "Status",
+        progress: "Progress",
+      },
+      asc: "Ascending",
+      desc: "Descending",
+    },
+    actions: {
+      wait: "Wait",
+      resume: "Resume",
+      restart: "Restart",
+      bulkCancel: "Stop selected",
+      bulkWait: "Wait selected",
+      bulkResume: "Resume selected",
+      bulkRestart: "Restart selected",
+      bulkMoveToTop: "Move to top",
+      bulkMoveToBottom: "Move to bottom",
+      bulkDelete: "Remove from list",
     },
     error: {
       loadFailed:
@@ -227,6 +297,22 @@ const en = {
         "Error while cancelling job. Please retry later or verify external tool settings.",
       autoCompressFailed:
         "Smart Scan failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
+      waitRejected:
+        "The backend refused to put this job into wait state. It may have already finished or is not running.",
+      waitFailed:
+        "Error while applying the wait operation. Please retry later or verify external tool settings.",
+      resumeRejected:
+        "The backend refused to resume this job. Its state may have changed.",
+      resumeFailed:
+        "Error while resuming the job. Please retry later or verify external tool settings.",
+      restartRejected:
+        "The backend refused to restart this job. Its state may have changed.",
+      restartFailed:
+        "Error while restarting the job. Please retry later or verify external tool settings.",
+      reorderRejected:
+        "The backend refused to reorder the waiting queue. The queue may have changed.",
+      reorderFailed:
+        "Error while reordering the waiting queue. Please retry later or verify external tool settings.",
     },
   },
   presets: {

@@ -9,7 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import {
+  highlightFfmpegCommand,
+  normalizeFfmpegTemplate,
+  getFfmpegCommandPreview,
+} from "@/lib/ffmpegCommand";
 
 const props = defineProps<{
   initialPreset?: FFmpegPreset | null;
@@ -145,91 +149,14 @@ const rateControlLabel = computed(() => {
   return t("presetEditor.video.crfLabel");
 });
 
-const generatedCommand = computed(() => {
-  // basic illustrative ffmpeg command; backend still simulates jobs
-  const inputPlaceholder = "INPUT";
-  const outputPlaceholder = "OUTPUT";
-
-  const v = video as VideoConfig;
-  const a = audio as AudioConfig;
-  const f = filters as FilterConfig;
-
-  const args: string[] = [];
-
-  // input
-  args.push("-i", inputPlaceholder);
-
-  // video
-  if (v.encoder === "copy") {
-    args.push("-c:v", "copy");
-  } else {
-    args.push("-c:v", v.encoder);
-
-    // 速率控制：质量优先（CRF/CQ）与码率优先（CBR/VBR + two-pass）互斥。
-    if (v.rateControl === "crf" || v.rateControl === "cq") {
-      args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
-    } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
-      if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
-        args.push("-b:v", `${v.bitrateKbps}k`);
-      }
-      if (typeof v.maxBitrateKbps === "number" && v.maxBitrateKbps > 0) {
-        args.push("-maxrate", `${v.maxBitrateKbps}k`);
-      }
-      if (typeof v.bufferSizeKbits === "number" && v.bufferSizeKbits > 0) {
-        args.push("-bufsize", `${v.bufferSizeKbits}k`);
-      }
-      if (v.pass === 1 || v.pass === 2) {
-        args.push("-pass", String(v.pass));
-      }
-    }
-
-    if (v.preset) {
-      args.push("-preset", v.preset);
-    }
-    if (v.tune) {
-      args.push("-tune", v.tune);
-    }
-    if (v.profile) {
-      args.push("-profile:v", v.profile);
-    }
-  }
-
-  // audio
-  if (a.codec === "copy") {
-    args.push("-c:a", "copy");
-  } else if (a.codec === "aac") {
-    args.push("-c:a", "aac");
-    if (a.bitrate) {
-      args.push("-b:a", `${a.bitrate}k`);
-    }
-  }
-
-  // filters
-  const vfParts: string[] = [];
-  if (f.scale) {
-    vfParts.push(`scale=${f.scale}`);
-  }
-  if (f.crop) {
-    vfParts.push(`crop=${f.crop}`);
-  }
-  if (f.fps && f.fps > 0) {
-    vfParts.push(`fps=${f.fps}`);
-  }
-  if (vfParts.length > 0) {
-    args.push("-vf", vfParts.join(","));
-  }
-
-  // output
-  args.push(outputPlaceholder);
-
-  return ["ffmpeg", ...args].join(" ");
-});
-
 const commandPreview = computed(() => {
-  if (advancedEnabled.value && ffmpegTemplate.value.trim().length > 0) {
-    return ffmpegTemplate.value.trim();
-  }
-  return generatedCommand.value;
+  return getFfmpegCommandPreview({
+    video: video as VideoConfig,
+    audio: audio as AudioConfig,
+    filters: filters as FilterConfig,
+    advancedEnabled: advancedEnabled.value,
+    ffmpegTemplate: ffmpegTemplate.value,
+  });
 });
 
 const highlightedCommandHtml = computed(() => highlightFfmpegCommand(commandPreview.value));
@@ -257,7 +184,15 @@ const handleCopyPreview = async () => {
 };
 
 const handleParseTemplateFromCommand = () => {
-  const source = ffmpegTemplate.value.trim() || generatedCommand.value;
+  const source =
+    ffmpegTemplate.value.trim() ||
+    getFfmpegCommandPreview({
+      video: video as VideoConfig,
+      audio: audio as AudioConfig,
+      filters: filters as FilterConfig,
+      advancedEnabled: false,
+      ffmpegTemplate: "",
+    });
   if (!source) {
     parseHint.value =
       (t("presetEditor.advanced.parseEmpty") as string) ||
@@ -754,7 +689,7 @@ const handleParseTemplateFromCommand = () => {
                   </div>
                 </div>
                 <pre
-                  class="mt-1 rounded-md bg-background/80 border border-border/60 px-2 py-2 text-[11px] font-mono text-muted-foreground overflow-x-auto select-text"
+                  class="mt-1 rounded-md bg-background/80 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
                   v-html="highlightedCommandHtml"
                 />
                 <p :class="parseHintClass" class="mt-1">

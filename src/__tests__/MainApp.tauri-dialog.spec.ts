@@ -124,6 +124,9 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              progressUpdateIntervalMs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -196,6 +199,9 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              progressUpdateIntervalMs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -331,6 +337,9 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              progressUpdateIntervalMs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -461,6 +470,8 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -591,6 +602,134 @@ describe("MainApp Tauri manual job flow via dialog", () => {
     wrapper.unmount();
   });
 
+  it("restores and persists the queue default preset via AppSettings in Tauri mode", async () => {
+    const backendPresets: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: {
+          encoder: "libx264",
+          rateControl: "crf",
+          qualityValue: 23,
+          preset: "medium",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {
+          scale: "-2:1080",
+        },
+        stats: {
+          usageCount: 5,
+          totalInputSizeMB: 2500,
+          totalOutputSizeMB: 800,
+          totalTimeSeconds: 420,
+        },
+      },
+      {
+        id: "p2",
+        name: "Archive Master",
+        description: "x264 Slow CRF 18. Near lossless.",
+        video: {
+          encoder: "libx264",
+          rateControl: "crf",
+          qualityValue: 18,
+          preset: "slow",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {},
+        stats: {
+          usageCount: 2,
+          totalInputSizeMB: 5000,
+          totalOutputSizeMB: 3500,
+          totalTimeSeconds: 1200,
+        },
+      },
+    ];
+
+    const initialSettings: AppSettings = {
+      tools: {
+        ffmpegPath: undefined,
+        ffprobePath: undefined,
+        avifencPath: undefined,
+        autoDownload: true,
+        autoUpdate: false,
+      },
+      smartScanDefaults: {
+        minImageSizeKB: 50,
+        minVideoSizeMB: 50,
+        minSavingRatio: 0.95,
+        imageTargetFormat: "avif",
+        videoPresetId: "p2",
+              },
+              previewCapturePercent: 25,
+              defaultQueuePresetId: "p2",
+              maxParallelJobs: 0,
+              progressUpdateIntervalMs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
+            };
+
+    const savedSettings: AppSettings[] = [];
+
+    invokeMock.mockImplementation(
+      (cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+        switch (cmd) {
+          case "get_queue_state": {
+            const state: QueueState = { jobs: [] };
+            return Promise.resolve(state);
+          }
+          case "get_presets":
+            return Promise.resolve(backendPresets);
+          case "get_app_settings":
+            return Promise.resolve(initialSettings);
+          case "save_app_settings": {
+            const next = payload?.settings as AppSettings;
+            savedSettings.push(next);
+            return Promise.resolve(next);
+          }
+          case "get_cpu_usage":
+            return Promise.resolve({ overall: 0, perCore: [] });
+          case "get_gpu_usage":
+            return Promise.resolve({ available: false });
+          case "get_external_tool_statuses":
+            return Promise.resolve([]);
+          default:
+            return Promise.resolve(null);
+        }
+      },
+    );
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    // Allow onMounted hooks and async watchers to hydrate presets and settings.
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
+
+    // The queue header default preset should honour AppSettings.defaultQueuePresetId.
+    expect(vm.manualJobPresetId).toBe("p2");
+
+    // Switching the default preset should trigger a settings save with the new id.
+    vm.manualJobPresetId = "p1";
+    await nextTick();
+    await nextTick();
+
+    expect(savedSettings.length).toBeGreaterThan(0);
+    const last = savedSettings[savedSettings.length - 1];
+    expect(last.defaultQueuePresetId).toBe("p1");
+
+    wrapper.unmount();
+  });
+
   it("subscribes to queue-state stream and updates progress from events", async () => {
     const jobId = "job-stream-1";
 
@@ -633,6 +772,8 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -678,6 +819,92 @@ describe("MainApp Tauri manual job flow via dialog", () => {
     wrapper.unmount();
   });
 
+  it("performs a safety refresh when processing jobs stay at 0% for a while", async () => {
+    vi.useFakeTimers();
+
+    const jobId = "job-stuck-0";
+
+    queueJobs = [
+      {
+        id: jobId,
+        filename: "C:/videos/stuck.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 100,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "processing",
+        progress: 0,
+        logs: [],
+      },
+    ];
+
+    let getQueueStateCalls = 0;
+
+    invokeMock.mockImplementation(
+      (cmd: string, _payload?: Record<string, unknown>): Promise<unknown> => {
+        switch (cmd) {
+          case "get_queue_state": {
+            getQueueStateCalls += 1;
+            const state: QueueState = { jobs: queueJobs };
+            return Promise.resolve(state);
+          }
+          case "get_app_settings": {
+            const settings: AppSettings = {
+              tools: {
+                ffmpegPath: undefined,
+                ffprobePath: undefined,
+                avifencPath: undefined,
+                autoDownload: false,
+                autoUpdate: false,
+              },
+              smartScanDefaults: {
+                minImageSizeKB: 50,
+                minVideoSizeMB: 50,
+                minSavingRatio: 0.95,
+                imageTargetFormat: "avif",
+                videoPresetId: "",
+              },
+              previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
+            };
+            return Promise.resolve(settings);
+          }
+          default:
+            return Promise.resolve(null);
+        }
+      },
+    );
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    // Hydrate initial jobs and record baseline get_queue_state call count.
+    await nextTick();
+    if (typeof vm.refreshQueueFromBackend === "function") {
+      await vm.refreshQueueFromBackend();
+    }
+    await nextTick();
+
+    const initialCalls = getQueueStateCalls;
+    expect(initialCalls).toBeGreaterThan(0);
+
+    // Advance timers long enough to trigger the safety polling logic:
+    // queue timer interval is 3000ms and the guard threshold is 5000ms.
+    await vi.advanceTimersByTimeAsync(9000);
+
+    expect(getQueueStateCalls).toBeGreaterThan(initialCalls);
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
   it("subscribes to Smart Scan progress events and updates batch metadata", async () => {
     invokeMock.mockImplementation(
       (cmd: string, _payload?: Record<string, unknown>): Promise<unknown> => {
@@ -703,6 +930,8 @@ describe("MainApp Tauri manual job flow via dialog", () => {
                 videoPresetId: "",
               },
               previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
             };
             return Promise.resolve(settings);
           }
@@ -742,6 +971,130 @@ describe("MainApp Tauri manual job flow via dialog", () => {
     expect(meta.totalFilesScanned).toBe(10);
     expect(meta.totalCandidates).toBe(4);
     expect(meta.totalProcessed).toBe(2);
+
+    wrapper.unmount();
+  });
+
+  it("creates Smart Scan batch cards from Tauri batch metadata and queue events", async () => {
+    const batchId = "auto-compress-test-batch";
+    const rootPath = "C:/videos/batch";
+
+    invokeMock.mockImplementation(
+      (cmd: string, _payload?: Record<string, unknown>): Promise<unknown> => {
+        switch (cmd) {
+          case "get_queue_state": {
+            const state: QueueState = { jobs: [] };
+            return Promise.resolve(state);
+          }
+          case "get_app_settings": {
+            const settings: AppSettings = {
+              tools: {
+                ffmpegPath: undefined,
+                ffprobePath: undefined,
+                avifencPath: undefined,
+                autoDownload: false,
+                autoUpdate: false,
+              },
+              smartScanDefaults: {
+                minImageSizeKB: 50,
+                minVideoSizeMB: 50,
+                minSavingRatio: 0.95,
+                imageTargetFormat: "avif",
+                videoPresetId: "",
+              },
+              previewCapturePercent: 25,
+              maxParallelJobs: undefined,
+              taskbarProgressMode: "byEstimatedTime",
+            };
+            return Promise.resolve(settings);
+          }
+          case "get_cpu_usage":
+            return Promise.resolve({ overall: 0, perCore: [] });
+          case "get_gpu_usage":
+            return Promise.resolve({ available: false });
+          case "get_external_tool_statuses":
+            return Promise.resolve([]);
+          case "run_auto_compress": {
+            const result: AutoCompressResult = {
+              rootPath,
+              jobs: [],
+              totalFilesScanned: 0,
+              totalCandidates: 0,
+              totalProcessed: 0,
+              batchId,
+              startedAtMs: Date.now(),
+              completedAtMs: 0,
+            };
+            return Promise.resolve(result);
+          }
+          default:
+            return Promise.resolve(null);
+        }
+      },
+    );
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    // Pretend the user has already chosen or dropped a Smart Scan root path.
+    vm.lastDroppedRoot = rootPath;
+
+    const config = {
+      minImageSizeKB: 10,
+      minVideoSizeMB: 10,
+      minSavingRatio: 0.8,
+      imageTargetFormat: "avif" as const,
+      videoPresetId: "",
+    };
+
+    await vm.runSmartScan(config);
+    await nextTick();
+
+    // Batch metadata from run_auto_compress should be recorded immediately.
+    expect(vm.smartScanBatchMeta[batchId]).toBeTruthy();
+
+    // Even before any queue jobs arrive, a composite Smart Scan card should
+    // be visible thanks to meta-only batches.
+    let batchCards = wrapper.findAll("[data-testid='smart-scan-batch-card']");
+    expect(batchCards.length).toBe(1);
+
+    // Now simulate backend queue and progress events wiring the batch to a child job.
+    const job: TranscodeJob = {
+      id: "job-1",
+      filename: "C:/videos/input1.mp4",
+      type: "video",
+      source: "smart_scan",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: [],
+      batchId,
+    } as any;
+
+    queueStateHandler?.({ payload: { jobs: [job] } });
+
+    const progress: AutoCompressProgress = {
+      rootPath,
+      totalFilesScanned: 1,
+      totalCandidates: 1,
+      totalProcessed: 1,
+      batchId,
+    };
+    smartScanProgressHandler?.({ payload: progress });
+    await nextTick();
+
+    batchCards = wrapper.findAll("[data-testid='smart-scan-batch-card']");
+    expect(batchCards.length).toBe(1);
+
+    const text = batchCards[0].text();
+    expect(text).toContain("1 / 1");
 
     wrapper.unmount();
   });

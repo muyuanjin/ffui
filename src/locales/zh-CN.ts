@@ -14,7 +14,7 @@ const zhCN = {
     queueHint: "管理转码任务队列，查看进度、预览和日志。",
     mediaHint: "查看媒体元数据和详细分析（开发中）。",
     monitorHint: "查看 CPU / GPU 等性能指标。",
-    settingsHint: "配置外部工具路径、自动下载与预览设置。",
+    settingsHint: "配置外部工具路径、自动下载、预览以及队列相关行为。",
     emptyQueue: {
       title: "当前没有任务",
       subtitle: "点击左侧的“添加转码任务”，或者使用左下角的智能扫描入口。",
@@ -26,6 +26,15 @@ const zhCN = {
       label: "语言",
       zh: "中文",
       en: "English",
+    },
+    globalProgressLabel: "整体队列进度",
+    taskbarProgressModeLabel: "任务栏进度计算方式",
+    taskbarProgressModeHelp:
+      "决定多个任务如何汇总成一个 Windows 任务栏进度条，用于避免“进度倒退”这类现象。",
+    taskbarProgressModes: {
+      bySize: "按输入体积加权（MB）",
+      byDuration: "按媒体时长加权",
+      byEstimatedTime: "按预估耗时加权（推荐）",
     },
     actions: {
       addJob: "添加转码任务",
@@ -116,7 +125,8 @@ const zhCN = {
       crf_av1:
         "AV1 CRF（0–63），数值越小越好。建议 32–34 作为通用画质，大致相当于 x264 CRF 23；>40 时压缩痕迹会比较明显。",
       preset_x264: "“medium” 是推荐默认，“slow” 在相同画质下文件更小。",
-      preset_nvenc: "“p7” 质量最好，“p1” 速度最快。",
+      preset_nvenc:
+        "预设数字越接近 p7 画质越好但编码更慢，p5/p4 通常是画质与速度的平衡，“p1” 虽然最快但压缩效率最低、画质最差。",
       preset_av1: "预设数字越高编码越快。建议 4–6 作为速度与压缩率的折中。",
     },
     summary: {
@@ -133,7 +143,7 @@ const zhCN = {
       copiedToast: "命令已复制",
     },
     panel: {
-      title: "预设参数面板",
+      title: "参数详情",
       subtitle: "按分区完整调整 FFmpeg 参数，右侧实时预览最终命令。",
       globalTab: "全局与日志",
       inputTab: "输入与时间轴",
@@ -201,9 +211,31 @@ const zhCN = {
     typeVideo: "视频",
     typeImage: "图片",
     skippedPrefix: "已跳过：",
+    viewModeLabel: "队列视图",
+    viewModes: {
+      // 所有视图名称统一保持四个字，便于在下拉和按钮中对齐。
+      compact: "紧凑列表",
+      detail: "详情列表",
+      iconSmall: "小图网格",
+      iconMedium: "中图网格",
+      iconLarge: "大图网格",
+      dynamicCard: "动态卡片",
+    },
+    modeLabel: "队列模式",
+    modes: {
+      display: "仅展示排序",
+      queue: "排队执行顺序",
+    },
+    progressStyleLabel: "进度样式",
+    progressStyles: {
+      bar: "标准进度",
+      cardFill: "背景填充",
+      rippleCard: "水波卡片",
+    },
     status: {
       completed: "已完成",
       processing: "处理中",
+      paused: "已暂停",
       waiting: "等待中",
       skipped: "已跳过",
       failed: "失败",
@@ -214,6 +246,44 @@ const zhCN = {
       manual: "手动添加",
       smartScan: "智能压缩",
     },
+    filters: {
+      label: "筛选",
+      typeLabel: "类型",
+      typeManual: "普通转码",
+      typeSmartScan: "压缩任务",
+      textPlaceholder: "按文件名或路径筛选（支持正则）",
+      reset: "重置筛选",
+      invalidRegex: "无效的正则表达式，已保留上一次有效筛选。",
+    },
+    selection: {
+      selectAll: "全选",
+      invert: "反选",
+      clear: "清除选择",
+    },
+    sort: {
+      label: "排序",
+      fields: {
+        addedTime: "按添加时间",
+        finishedTime: "按完成时间",
+        filename: "按文件名",
+        status: "按状态",
+        progress: "按进度",
+      },
+      asc: "升序",
+      desc: "降序",
+    },
+    actions: {
+      wait: "等待",
+      resume: "继续",
+      restart: "重新开始",
+      bulkCancel: "批量停止",
+      bulkWait: "批量等待",
+      bulkResume: "批量继续",
+      bulkRestart: "批量重新开始",
+      bulkMoveToTop: "移到队首",
+      bulkMoveToBottom: "移到队尾",
+      bulkDelete: "从列表中删除",
+    },
     error: {
       loadFailed: "队列状态刷新失败，请检查后端是否运行以及外部工具配置。",
       enqueueFailed: "无法将任务加入队列，请检查外部工具是否可用或自动下载设置。",
@@ -221,6 +291,14 @@ const zhCN = {
       cancelFailed: "取消任务时出现错误，请稍后重试或检查设置。",
       autoCompressFailed:
         "智能压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在“软件设置”中启用自动下载。",
+      waitRejected: "后台拒绝对该任务执行“等待”，可能已完成或不在运行中。",
+      waitFailed: "执行“等待”操作时出现错误，请稍后重试或检查设置。",
+      resumeRejected: "后台拒绝继续该任务，可能状态已发生变化。",
+      resumeFailed: "继续任务时出现错误，请稍后重试或检查设置。",
+      restartRejected: "后台拒绝重新开始该任务，可能状态已发生变化。",
+      restartFailed: "重新开始任务时出现错误，请稍后重试或检查设置。",
+      reorderRejected: "后台拒绝调整等待队列顺序，可能当前队列已发生变化。",
+      reorderFailed: "调整等待队列顺序时出现错误，请稍后重试或检查设置。",
     },
   },
   presets: {

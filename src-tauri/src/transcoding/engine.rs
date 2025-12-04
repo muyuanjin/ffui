@@ -13,15 +13,22 @@ use anyhow::{Context, Result};
 
 use crate::transcoding::domain::{
     AutoCompressProgress, AutoCompressResult, JobSource, JobStatus, JobType, MediaInfo,
-    QueueState, SmartScanConfig, TranscodeJob,
+    QueueState, SmartScanConfig, TranscodeJob, WaitMetadata,
 };
 use crate::transcoding::monitor::{
     sample_cpu_usage, sample_gpu_usage, CpuUsageSnapshot, GpuUsageSnapshot,
 };
-use crate::transcoding::settings::{self, AppSettings};
-use crate::transcoding::tools::{
-    ensure_tool_available, tool_status, ExternalToolKind, ExternalToolStatus,
+use crate::transcoding::settings::{
+    self, AppSettings, DownloadedToolInfo, DownloadedToolState, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS,
 };
+use crate::transcoding::tools::{
+    ensure_tool_available, last_tool_download_metadata, tool_status, ExternalToolKind,
+    ExternalToolStatus,
+};
+
+// Emit Smart Scan progress snapshots at a coarse granularity so large
+// directory trees do not overwhelm the event stream.
+const SMART_SCAN_PROGRESS_EVERY: u64 = 32;
 
 // Ensure external tools (ffmpeg, ffprobe, avifenc) do not pop up a visible
 // console window when spawned from the GUI on Windows. No-op elsewhere.
@@ -38,8 +45,30 @@ fn configure_background_command(_cmd: &mut Command) {}
 use super::domain::FFmpegPreset;
 
 type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
-type SmartScanProgressListener =
-    Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
+type SmartScanProgressListener = Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SmartScanBatchStatus {
+    Scanning,
+    Running,
+    Completed,
+    #[allow(dead_code)]
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+struct SmartScanBatch {
+    batch_id: String,
+    root_path: String,
+    status: SmartScanBatchStatus,
+    total_files_scanned: u64,
+    total_candidates: u64,
+    total_processed: u64,
+    child_job_ids: Vec<String>,
+    #[allow(dead_code)]
+    started_at_ms: u64,
+    completed_at_ms: Option<u64>,
+}
 
 struct EngineState {
     presets: Vec<FFmpegPreset>,
@@ -48,9 +77,22 @@ struct EngineState {
     queue: VecDeque<String>,
     active_job: Option<String>,
     cancelled_jobs: HashSet<String>,
+    // Jobs that have been asked to enter a "wait" state from the frontend.
+    // The worker loop observes this and cooperatively pauses the job.
+    wait_requests: HashSet<String>,
+    // Jobs that should be restarted from 0% after their current run
+    // terminates (for example via cooperative cancellation).
+    restart_requests: HashSet<String>,
     // Per-input media metadata cache keyed by absolute input path. This avoids
     // repeated ffprobe calls when the same file is reused across jobs.
     media_info_cache: HashMap<String, MediaInfo>,
+    // Smart Scan batches tracked by stable batch id so the frontend can build
+    // composite cards from queue + progress events alone.
+    smart_scan_batches: HashMap<String, SmartScanBatch>,
+    // Known Smart Scan output paths (both from current and previous runs).
+    // These are used to avoid overwriting existing outputs and to skip
+    // re-enqueuing Smart Scan outputs as new candidates.
+    known_smart_scan_outputs: HashSet<String>,
 }
 
 impl EngineState {
@@ -62,7 +104,11 @@ impl EngineState {
             queue: VecDeque::new(),
             active_job: None,
             cancelled_jobs: HashSet::new(),
+            wait_requests: HashSet::new(),
+            restart_requests: HashSet::new(),
             media_info_cache: HashMap::new(),
+            smart_scan_batches: HashMap::new(),
+            known_smart_scan_outputs: HashSet::new(),
         }
     }
 }
@@ -93,10 +139,26 @@ pub struct TranscodingEngine {
 }
 
 fn snapshot_queue_state(inner: &Inner) -> QueueState {
+    use std::collections::HashMap;
+
     let state = inner.state.lock().expect("engine state poisoned");
-    QueueState {
-        jobs: state.jobs.values().cloned().collect(),
+
+    // Build a stable mapping from job id -> queue index so snapshots can
+    // surface a `queueOrder` field for waiting jobs without mutating the
+    // underlying engine state.
+    let mut order_by_id: HashMap<String, u64> = HashMap::new();
+    for (index, id) in state.queue.iter().enumerate() {
+        order_by_id.insert(id.clone(), index as u64);
     }
+
+    let mut jobs: Vec<TranscodeJob> = Vec::with_capacity(state.jobs.len());
+    for (id, job) in state.jobs.iter() {
+        let mut clone = job.clone();
+        clone.queue_order = order_by_id.get(id).copied();
+        jobs.push(clone);
+    }
+
+    QueueState { jobs }
 }
 
 fn notify_queue_listeners(inner: &Inner) {
@@ -118,6 +180,53 @@ fn notify_smart_scan_listeners(inner: &Inner, progress: AutoCompressProgress) {
     for listener in listeners.iter() {
         listener(progress.clone());
     }
+}
+
+fn update_smart_scan_batch_with_inner<F>(inner: &Inner, batch_id: &str, force_notify: bool, f: F)
+where
+    F: FnOnce(&mut SmartScanBatch),
+{
+    let progress = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let batch = match state.smart_scan_batches.get_mut(batch_id) {
+            Some(b) => b,
+            None => return,
+        };
+
+        f(batch);
+
+        if force_notify
+            || batch
+                .total_files_scanned
+                .is_multiple_of(SMART_SCAN_PROGRESS_EVERY)
+        {
+            Some(AutoCompressProgress {
+                root_path: batch.root_path.clone(),
+                total_files_scanned: batch.total_files_scanned,
+                total_candidates: batch.total_candidates,
+                total_processed: batch.total_processed,
+                batch_id: batch.batch_id.clone(),
+            })
+        } else {
+            None
+        }
+    };
+
+    if let Some(progress) = progress {
+        notify_smart_scan_listeners(inner, progress);
+    }
+}
+
+fn register_known_smart_scan_output_with_inner(inner: &Inner, path: &Path) {
+    let key = path.to_string_lossy().into_owned();
+    let mut state = inner.state.lock().expect("engine state poisoned");
+    state.known_smart_scan_outputs.insert(key);
+}
+
+fn is_known_smart_scan_output_with_inner(inner: &Inner, path: &Path) -> bool {
+    let key = path.to_string_lossy().into_owned();
+    let state = inner.state.lock().expect("engine state poisoned");
+    state.known_smart_scan_outputs.contains(&key)
 }
 
 impl TranscodingEngine {
@@ -203,6 +312,10 @@ impl TranscodingEngine {
         Ok(new_settings)
     }
 
+    fn record_tool_download(&self, kind: ExternalToolKind, binary_path: &str) {
+        record_tool_download_with_inner(&self.inner, kind, binary_path);
+    }
+
     pub fn enqueue_transcode_job(
         &self,
         filename: String,
@@ -241,11 +354,17 @@ impl TranscodingEngine {
 
         let job = {
             let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let estimated_seconds = state
+                .presets
+                .iter()
+                .find(|p| p.id == preset_id)
+                .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
             let job = TranscodeJob {
                 id: id.clone(),
                 filename,
                 job_type,
                 source,
+                queue_order: None,
                 original_size_mb: computed_original_size_mb,
                 original_codec: codec_for_job,
                 preset_id,
@@ -268,10 +387,12 @@ impl TranscodingEngine {
                     audio_codec: None,
                     size_mb: Some(computed_original_size_mb),
                 }),
+                estimated_seconds,
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
                 batch_id: None,
+                 wait_metadata: None,
             };
             state.queue.push_back(id.clone());
             state.jobs.insert(id.clone(), job.clone());
@@ -324,6 +445,177 @@ impl TranscodingEngine {
         result
     }
 
+    /// Request that a running job transition into a "wait" state, releasing
+    /// its worker slot while preserving progress. The actual state change is
+    /// performed cooperatively inside the worker loop.
+    pub fn wait_job(&self, job_id: &str) -> bool {
+        let mut should_notify = false;
+
+        let result = {
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let status = match state.jobs.get(job_id) {
+                Some(job) => job.status.clone(),
+                None => return false,
+            };
+
+            match status {
+                JobStatus::Processing => {
+                    state.wait_requests.insert(job_id.to_string());
+                    should_notify = true;
+                    true
+                }
+                _ => false,
+            }
+        };
+
+        if should_notify {
+            self.notify_listeners();
+        }
+
+        result
+    }
+
+    /// Resume a previously paused (waited) job by placing it back into the
+    /// waiting queue. The job keeps its existing progress and wait metadata.
+    pub fn resume_job(&self, job_id: &str) -> bool {
+        let mut should_notify = false;
+
+        let result = {
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let job = match state.jobs.get_mut(job_id) {
+                Some(job) => job,
+                None => return false,
+            };
+
+            match job.status {
+                JobStatus::Paused => {
+                    job.status = JobStatus::Waiting;
+                    if !state.queue.iter().any(|id| id == job_id) {
+                        state.queue.push_back(job_id.to_string());
+                    }
+                    should_notify = true;
+                    true
+                }
+                _ => false,
+            }
+        };
+
+        if should_notify {
+            self.inner.cv.notify_one();
+            self.notify_listeners();
+        }
+
+        result
+    }
+
+    /// Restart a job from 0% progress. For jobs that are currently processing
+    /// this schedules a cooperative cancellation followed by a fresh enqueue
+    /// in `mark_job_cancelled`. For non-processing jobs the state is reset
+    /// immediately and the job is reinserted into the waiting queue.
+    pub fn restart_job(&self, job_id: &str) -> bool {
+        let mut should_notify = false;
+
+        let result = {
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let job = match state.jobs.get_mut(job_id) {
+                Some(job) => job,
+                None => return false,
+            };
+
+            match job.status {
+                JobStatus::Completed | JobStatus::Skipped => false,
+                JobStatus::Processing => {
+                    state.restart_requests.insert(job_id.to_string());
+                    state.cancelled_jobs.insert(job_id.to_string());
+                    should_notify = true;
+                    true
+                }
+                _ => {
+                    // Reset immediately for non-processing jobs.
+                    job.status = JobStatus::Waiting;
+                    job.progress = 0.0;
+                    job.end_time = None;
+                    job.failure_reason = None;
+                    job.skip_reason = None;
+                    job.wait_metadata = None;
+                    job.logs
+                        .push("Restart requested from UI; job will re-run from 0%".to_string());
+                    recompute_log_tail(job);
+
+                    if !state.queue.iter().any(|id| id == job_id) {
+                        state.queue.push_back(job_id.to_string());
+                    }
+
+                    should_notify = true;
+                    // Any old restart or cancel flags become irrelevant.
+                    state.restart_requests.remove(job_id);
+                    state.cancelled_jobs.remove(job_id);
+                    true
+                }
+            }
+        };
+
+        if should_notify {
+            self.inner.cv.notify_one();
+            self.notify_listeners();
+        }
+
+        result
+    }
+
+    /// Reorder the waiting queue according to the provided ordered job ids.
+    /// Job ids not present in `ordered_ids` keep their relative order at the
+    /// tail of the queue so the operation is resilient to partial payloads.
+    pub fn reorder_waiting_jobs(&self, ordered_ids: Vec<String>) -> bool {
+        let mut should_notify = false;
+
+        {
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            if state.queue.is_empty() || ordered_ids.is_empty() {
+                return false;
+            }
+
+            let ordered_set: HashSet<String> = ordered_ids.iter().cloned().collect();
+
+            // Preserve any ids that are currently in the queue but not covered
+            // by the payload so we never "lose" jobs due to a truncated list.
+            let mut remaining: VecDeque<String> = state
+                .queue
+                .iter()
+                .filter(|id| !ordered_set.contains(*id))
+                .cloned()
+                .collect();
+
+            let mut next_queue: VecDeque<String> = VecDeque::new();
+
+            for id in ordered_ids {
+                if state.jobs.contains_key(&id) && state.queue.contains(&id) {
+                    if !next_queue.contains(&id) {
+                        next_queue.push_back(id.clone());
+                    }
+                }
+            }
+
+            // Append any remaining jobs that were not explicitly reordered.
+            while let Some(id) = remaining.pop_front() {
+                if !next_queue.contains(&id) {
+                    next_queue.push_back(id);
+                }
+            }
+
+            if next_queue != state.queue {
+                state.queue = next_queue;
+                should_notify = true;
+            }
+        }
+
+        if should_notify {
+            self.notify_listeners();
+        }
+
+        should_notify
+    }
+
     pub fn cpu_usage(&self) -> CpuUsageSnapshot {
         sample_cpu_usage()
     }
@@ -359,51 +651,99 @@ impl TranscodingEngine {
         root_path: String,
         config: SmartScanConfig,
     ) -> Result<AutoCompressResult> {
-        const PROGRESS_EVERY: u64 = 32;
-
         let root = PathBuf::from(&root_path);
         if !root.exists() {
             return Err(anyhow::anyhow!("Root path does not exist: {root_path}"));
         }
 
-        let (settings_snapshot, presets) = {
+        let (settings_snapshot, presets, batch_id, started_at_ms) = {
             let mut state = self.inner.state.lock().expect("engine state poisoned");
             state.settings.smart_scan_defaults = config.clone();
             settings::save_settings(&state.settings)?;
-            (state.settings.clone(), state.presets.clone())
+            let settings_snapshot = state.settings.clone();
+            let presets = state.presets.clone();
+
+            let started_at_ms = current_time_millis();
+
+            let mut hasher = DefaultHasher::new();
+            root_path.hash(&mut hasher);
+            started_at_ms.hash(&mut hasher);
+            let batch_hash = hasher.finish();
+            let batch_id = format!("auto-compress-{batch_hash:016x}");
+
+            let batch = SmartScanBatch {
+                batch_id: batch_id.clone(),
+                root_path: root_path.clone(),
+                status: SmartScanBatchStatus::Scanning,
+                total_files_scanned: 0,
+                total_candidates: 0,
+                total_processed: 0,
+                child_job_ids: Vec::new(),
+                started_at_ms,
+                completed_at_ms: None,
+            };
+
+            state.smart_scan_batches.insert(batch_id.clone(), batch);
+
+            (settings_snapshot, presets, batch_id, started_at_ms)
         };
 
-        let started_at_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-
-        let mut hasher = DefaultHasher::new();
-        root_path.hash(&mut hasher);
-        started_at_ms.hash(&mut hasher);
-        let batch_hash = hasher.finish();
-        let batch_id = format!("auto-compress-{batch_hash:016x}");
-
-        let mut jobs = Vec::new();
-        let mut total_files_scanned = 0u64;
-        let mut total_candidates = 0u64;
-        let mut total_processed = 0u64;
-
-        let mut stack = vec![root];
-
         // Emit an initial progress snapshot so the frontend can show that the
-        // scan has started even before any files are discovered.
+        // batch has started even before any files are discovered.
         notify_smart_scan_listeners(
             &self.inner,
             AutoCompressProgress {
                 root_path: root_path.clone(),
-                total_files_scanned,
-                total_candidates,
-                total_processed,
+                total_files_scanned: 0,
+                total_candidates: 0,
+                total_processed: 0,
                 batch_id: batch_id.clone(),
             },
         );
 
+        // Kick off the actual Smart Scan work on a background thread so the
+        // Tauri command can return immediately with lightweight batch metadata.
+        let engine = self.clone();
+        let config_clone = config.clone();
+        let batch_id_for_thread = batch_id.clone();
+        thread::Builder::new()
+            .name(format!("smart-scan-{batch_id_for_thread}"))
+            .spawn(move || {
+                engine.run_auto_compress_background(
+                    root,
+                    config_clone,
+                    settings_snapshot,
+                    presets,
+                    batch_id_for_thread,
+                );
+            })
+            .expect("failed to spawn Smart Scan background worker");
+
+        Ok(AutoCompressResult {
+            root_path,
+            jobs: Vec::new(),
+            total_files_scanned: 0,
+            total_candidates: 0,
+            total_processed: 0,
+            batch_id,
+            started_at_ms,
+            completed_at_ms: 0,
+        })
+    }
+
+    fn run_auto_compress_background(
+        &self,
+        root: PathBuf,
+        config: SmartScanConfig,
+        settings_snapshot: AppSettings,
+        presets: Vec<FFmpegPreset>,
+        batch_id: String,
+    ) {
+        // 第一阶段：在任何压缩工作开始之前，对目录结构做一次完整快照。
+        // 这样本轮 Smart Scan 过程中生成的输出文件（例如 *.compressed.mp4）
+        // 就不会再次被扫描并加入同一批任务，避免“自己压出来的结果又被当成新任务”。
+        let mut all_files: Vec<PathBuf> = Vec::new();
+        let mut stack = vec![root.clone()];
         while let Some(dir) = stack.pop() {
             let entries = match fs::read_dir(&dir) {
                 Ok(e) => e,
@@ -417,80 +757,259 @@ impl TranscodingEngine {
                 let path = entry.path();
                 if path.is_dir() {
                     stack.push(path);
-                    continue;
-                }
-
-                total_files_scanned += 1;
-
-                if is_image_file(&path) {
-                    total_candidates += 1;
-                    let job =
-                        self.handle_image_file(&path, &config, &settings_snapshot, &batch_id)?;
-                    if matches!(job.status, JobStatus::Completed) {
-                        total_processed += 1;
-                    }
-                    jobs.push(job);
-                } else if is_video_file(&path) {
-                    total_candidates += 1;
-                    let preset = presets
-                        .iter()
-                        .find(|p| p.id == config.video_preset_id)
-                        .cloned();
-                    let job = self.handle_video_file(
-                        &path,
-                        &config,
-                        &settings_snapshot,
-                        preset,
-                        &batch_id,
-                    )?;
-                    if matches!(job.status, JobStatus::Completed) {
-                        total_processed += 1;
-                    }
-                    jobs.push(job);
-                }
-
-                if total_files_scanned % PROGRESS_EVERY == 0 {
-                    notify_smart_scan_listeners(
-                        &self.inner,
-                        AutoCompressProgress {
-                            root_path: root_path.clone(),
-                            total_files_scanned,
-                            total_candidates,
-                            total_processed,
-                            batch_id: batch_id.clone(),
-                        },
-                    );
+                } else {
+                    all_files.push(path);
                 }
             }
         }
 
-        let completed_at_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        // 在正式处理候选输入之前，先将当前目录树中所有“看起来像 Smart Scan 输出”的
+        // 文件注册到已知输出集合中，这样后续批次可以可靠地跳过这些路径。
+        for path in &all_files {
+            if is_smart_scan_style_output(path) {
+                register_known_smart_scan_output_with_inner(&self.inner, path);
+            }
+        }
 
-        // Emit a final snapshot so the frontend can reconcile progress with the
-        // completed aggregate result.
-        notify_smart_scan_listeners(
-            &self.inner,
-            AutoCompressProgress {
-                root_path: root_path.clone(),
-                total_files_scanned,
-                total_candidates,
-                total_processed,
-                batch_id: batch_id.clone(),
-            },
-        );
+        // 第二阶段：遍历第一阶段拍下来的文件列表，依次应用 Smart Scan 规则。
+        // 本轮新生成的输出文件不在 all_files 中，因此不会被重新加入同一批任务。
+        for path in all_files {
+            // 所有文件都计入扫描计数，但已知 Smart Scan 输出不会再次作为候选输入。
+            update_smart_scan_batch_with_inner(&self.inner, &batch_id, false, |batch| {
+                batch.total_files_scanned = batch.total_files_scanned.saturating_add(1);
+            });
 
-        Ok(AutoCompressResult {
-            root_path,
+            if is_known_smart_scan_output_with_inner(&self.inner, &path)
+                || is_smart_scan_style_output(&path)
+            {
+                // 已知输出：仅计入扫描，不作为候选。
+                continue;
+            }
+
+            if is_image_file(&path) {
+                // 图像仍由后台线程同步处理，但整个流程在 Smart Scan 专用线程中，
+                // 不再阻塞 Tauri 命令线程。
+                match self.handle_image_file(&path, &config, &settings_snapshot, &batch_id) {
+                    Ok(job) => {
+                        // 将图像任务注册到队列状态中，使其成为队列事件的一部分。
+                        {
+                            let mut state = self.inner.state.lock().expect("engine state poisoned");
+                            state.jobs.insert(job.id.clone(), job.clone());
+                        }
+
+                        let is_terminal = matches!(
+                            job.status,
+                            JobStatus::Completed | JobStatus::Skipped | JobStatus::Failed
+                        );
+
+                        // 每个图像候选都立即视为“已处理”：压缩逻辑在当前线程同步完成。
+                        update_smart_scan_batch_with_inner(&self.inner, &batch_id, true, |batch| {
+                            batch.total_candidates = batch.total_candidates.saturating_add(1);
+                            batch.child_job_ids.push(job.id.clone());
+                            if is_terminal {
+                                batch.total_processed = batch.total_processed.saturating_add(1);
+                            }
+                        });
+
+                        // 图像输出成功生成时，记录为已知输出，避免后续批次重新压缩。
+                        if let Some(ref output_path) = job.output_path {
+                            let output = PathBuf::from(output_path);
+                            if matches!(job.status, JobStatus::Completed) {
+                                register_known_smart_scan_output_with_inner(&self.inner, &output);
+                            }
+                        }
+
+                        // 通知前端队列状态发生了变化。
+                        self.notify_listeners();
+                    }
+                    Err(err) => {
+                        eprintln!(
+                            "auto-compress: failed to handle image file {}: {err:#}",
+                            path.display()
+                        );
+                    }
+                }
+            } else if is_video_file(&path) {
+                let preset = presets
+                    .iter()
+                    .find(|p| p.id == config.video_preset_id)
+                    .cloned();
+
+                if let Some(preset) = preset {
+                    let job = self.enqueue_smart_scan_video_job(
+                        &path,
+                        &config,
+                        &settings_snapshot,
+                        &preset,
+                        &batch_id,
+                    );
+
+                    update_smart_scan_batch_with_inner(&self.inner, &batch_id, true, |batch| {
+                        batch.total_candidates = batch.total_candidates.saturating_add(1);
+                        batch.child_job_ids.push(job.id.clone());
+
+                        let is_terminal = matches!(
+                            job.status,
+                            JobStatus::Completed
+                                | JobStatus::Skipped
+                                | JobStatus::Failed
+                                | JobStatus::Cancelled
+                        );
+                        if is_terminal {
+                            batch.total_processed = batch.total_processed.saturating_add(1);
+                        } else if matches!(batch.status, SmartScanBatchStatus::Scanning) {
+                            // 当存在至少一个真实入队的候选时，将批次标记为 Running。
+                            batch.status = SmartScanBatchStatus::Running;
+                        }
+                    });
+                } else {
+                    // 当没有匹配的预设时，仍然增加 candidates 计数，并立刻将该“任务”视为已处理。
+                    update_smart_scan_batch_with_inner(&self.inner, &batch_id, true, |batch| {
+                        batch.total_candidates = batch.total_candidates.saturating_add(1);
+                        batch.total_processed = batch.total_processed.saturating_add(1);
+                    });
+                }
+            }
+        }
+
+        // 扫描阶段结束后，如果没有任何候选，则批次立即视为完成。
+        update_smart_scan_batch_with_inner(&self.inner, &batch_id, true, |batch| {
+            if batch.total_candidates == 0 {
+                batch.status = SmartScanBatchStatus::Completed;
+                batch.completed_at_ms = Some(current_time_millis());
+            } else if matches!(batch.status, SmartScanBatchStatus::Scanning) {
+                batch.status = SmartScanBatchStatus::Running;
+            }
+        });
+    }
+
+    fn enqueue_smart_scan_video_job(
+        &self,
+        path: &Path,
+        config: &SmartScanConfig,
+        settings: &AppSettings,
+        preset: &FFmpegPreset,
+        batch_id: &str,
+    ) -> TranscodeJob {
+        let original_size_bytes = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let original_size_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
+
+        let filename = path.to_string_lossy().into_owned();
+        let input_path = filename.clone();
+
+        let id = self.next_job_id();
+        let now_ms = current_time_millis();
+
+        let mut job = TranscodeJob {
+            id: id.clone(),
+            filename,
+            job_type: JobType::Video,
+            source: JobSource::SmartScan,
+            queue_order: None,
+            original_size_mb,
+            original_codec: None,
+            preset_id: preset.id.clone(),
+            status: JobStatus::Waiting,
+            progress: 0.0,
+            start_time: Some(now_ms),
+            end_time: None,
+            output_size_mb: None,
+            logs: Vec::new(),
+            skip_reason: None,
+            input_path: Some(input_path.clone()),
+            output_path: None,
+            ffmpeg_command: None,
+            media_info: Some(MediaInfo {
+                duration_seconds: None,
+                width: None,
+                height: None,
+                frame_rate: None,
+                video_codec: None,
+                audio_codec: None,
+                size_mb: Some(original_size_mb),
+            }),
+            estimated_seconds: None,
+            preview_path: None,
+            log_tail: None,
+            failure_reason: None,
+            batch_id: Some(batch_id.to_string()),
+            wait_metadata: None,
+        };
+
+        // 根据体积与编解码预先过滤掉明显不值得压缩的文件。
+        if original_size_mb < config.min_video_size_mb as f64 {
+            job.status = JobStatus::Skipped;
+            job.progress = 100.0;
+            job.end_time = Some(now_ms);
+            job.skip_reason = Some(format!("Size < {}MB", config.min_video_size_mb));
+
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            state.jobs.insert(id, job.clone());
+            drop(state);
+
+            self.notify_listeners();
+            return job;
+        }
+
+        if let Ok(codec) = detect_video_codec(path, settings) {
+            job.original_codec = Some(codec.clone());
+            if let Some(info) = job.media_info.as_mut() {
+                info.video_codec = Some(codec.clone());
+            }
+            let lower = codec.to_ascii_lowercase();
+            if matches!(lower.as_str(), "hevc" | "hevc_nvenc" | "h265" | "av1") {
+                job.status = JobStatus::Skipped;
+                job.progress = 100.0;
+                job.end_time = Some(now_ms);
+                job.skip_reason = Some(format!("Codec is already {codec}"));
+
+                let mut state = self.inner.state.lock().expect("engine state poisoned");
+                state.jobs.insert(id, job.clone());
+                drop(state);
+
+                self.notify_listeners();
+                return job;
+            }
+        }
+
+        // 为 Smart Scan 视频任务选择一个不会覆盖现有文件的输出路径，并记录到已知输出集合中。
+        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let output_path = reserve_unique_smart_scan_video_output_path(&mut state, path);
+
+        job.output_path = Some(output_path.to_string_lossy().into_owned());
+        job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);
+
+        state.queue.push_back(id.clone());
+        state.jobs.insert(id.clone(), job.clone());
+        drop(state);
+
+        self.inner.cv.notify_one();
+        self.notify_listeners();
+
+        job
+    }
+
+    #[allow(dead_code)]
+    pub fn smart_scan_batch_summary(&self, batch_id: &str) -> Option<AutoCompressResult> {
+        let state = self.inner.state.lock().expect("engine state poisoned");
+        let batch = state.smart_scan_batches.get(batch_id)?.clone();
+
+        let mut jobs = Vec::new();
+        for job in state.jobs.values() {
+            if job.batch_id.as_deref() == Some(batch_id) {
+                jobs.push(job.clone());
+            }
+        }
+
+        Some(AutoCompressResult {
+            root_path: batch.root_path,
             jobs,
-            total_files_scanned,
-            total_candidates,
-            total_processed,
-            batch_id,
-            started_at_ms,
-            completed_at_ms,
+            total_files_scanned: batch.total_files_scanned,
+            total_candidates: batch.total_candidates,
+            total_processed: batch.total_processed,
+            batch_id: batch.batch_id,
+            started_at_ms: batch.started_at_ms,
+            completed_at_ms: batch.completed_at_ms.unwrap_or(batch.started_at_ms),
         })
     }
 
@@ -500,8 +1019,12 @@ impl TranscodingEngine {
             state.settings.clone()
         };
 
-        let (ffprobe_path, _) =
+        let (ffprobe_path, _source, did_download) =
             ensure_tool_available(ExternalToolKind::Ffprobe, &settings_snapshot.tools)?;
+
+        if did_download {
+            self.record_tool_download(ExternalToolKind::Ffprobe, &ffprobe_path);
+        }
 
         let mut cmd = Command::new(&ffprobe_path);
         configure_background_command(&mut cmd);
@@ -533,6 +1056,95 @@ fn current_time_millis() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64
+}
+
+fn record_tool_download_with_inner(inner: &Inner, kind: ExternalToolKind, binary_path: &str) {
+    if let Some((url, version, tag)) = last_tool_download_metadata(kind) {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let settings_ref = &mut state.settings;
+        let tools = &mut settings_ref.tools;
+
+        let downloaded = tools
+            .downloaded
+            .get_or_insert_with(DownloadedToolState::default);
+
+        let info = DownloadedToolInfo {
+            version: version.clone(),
+            tag: tag.clone(),
+            source_url: Some(url.clone()),
+            downloaded_at: Some(current_time_millis()),
+        };
+
+        match kind {
+            ExternalToolKind::Ffmpeg => {
+                downloaded.ffmpeg = Some(info);
+                // Prefer the auto-downloaded binary for future invocations.
+                tools.ffmpeg_path = Some(binary_path.to_string());
+            }
+            ExternalToolKind::Ffprobe => {
+                downloaded.ffprobe = Some(info);
+                tools.ffprobe_path = Some(binary_path.to_string());
+            }
+            ExternalToolKind::Avifenc => {
+                downloaded.avifenc = Some(info);
+                tools.avifenc_path = Some(binary_path.to_string());
+            }
+        }
+
+        if let Err(err) = settings::save_settings(settings_ref) {
+            eprintln!(
+                "failed to persist external tool download metadata to settings.json: {err:#}"
+            );
+        }
+    }
+}
+
+fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
+    let batch_id_opt = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let job = match state.jobs.get(job_id) {
+            Some(job) => job.clone(),
+            None => return,
+        };
+
+        let batch_id = match job.batch_id.clone() {
+            Some(id) => id,
+            None => return,
+        };
+
+        let batch = match state.smart_scan_batches.get_mut(&batch_id) {
+            Some(b) => b,
+            None => return,
+        };
+
+        // 仅在作业进入终态时增加 processed 计数。
+        if !matches!(
+            job.status,
+            JobStatus::Completed | JobStatus::Skipped | JobStatus::Failed | JobStatus::Cancelled
+        ) {
+            return;
+        }
+
+        batch.total_processed = batch.total_processed.saturating_add(1);
+        if batch.total_processed >= batch.total_candidates
+            && !matches!(
+                batch.status,
+                SmartScanBatchStatus::Completed | SmartScanBatchStatus::Failed
+            )
+        {
+            batch.status = SmartScanBatchStatus::Completed;
+            if batch.completed_at_ms.is_none() {
+                batch.completed_at_ms = Some(current_time_millis());
+            }
+        }
+
+        Some(batch_id)
+    };
+
+    if let Some(batch_id) = batch_id_opt {
+        // 进度与状态已在上方锁内更新，这里仅负责广播最新快照。
+        update_smart_scan_batch_with_inner(inner, &batch_id, true, |_batch| {});
+    }
 }
 
 impl TranscodingEngine {
@@ -611,16 +1223,19 @@ fn worker_loop(inner: Arc<Inner>) {
         notify_queue_listeners(&inner);
 
         if let Err(err) = process_transcode_job(&inner, &job_id) {
-            let mut state = inner.state.lock().expect("engine state poisoned");
-            if let Some(job) = state.jobs.get_mut(&job_id) {
-                job.status = JobStatus::Failed;
-                job.progress = 100.0;
-                job.end_time = Some(current_time_millis());
-                let reason = format!("Transcode failed: {err:#}");
-                job.failure_reason = Some(reason.clone());
-                job.logs.push(reason);
-                recompute_log_tail(job);
+            {
+                let mut state = inner.state.lock().expect("engine state poisoned");
+                if let Some(job) = state.jobs.get_mut(&job_id) {
+                    job.status = JobStatus::Failed;
+                    job.progress = 100.0;
+                    job.end_time = Some(current_time_millis());
+                    let reason = format!("Transcode failed: {err:#}");
+                    job.failure_reason = Some(reason.clone());
+                    job.logs.push(reason);
+                    recompute_log_tail(job);
+                }
             }
+            mark_smart_scan_child_processed(&inner, &job_id);
         }
 
         {
@@ -673,37 +1288,61 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
 
     if job_type != JobType::Video {
         // For now, only video jobs are processed by the background worker.
-        let mut state = inner.state.lock().expect("engine state poisoned");
-        if let Some(job) = state.jobs.get_mut(job_id) {
-            job.status = JobStatus::Skipped;
-            job.progress = 100.0;
-            job.end_time = Some(current_time_millis());
-            job.skip_reason =
-                Some("Only video jobs are processed by the ffmpeg worker".to_string());
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                job.status = JobStatus::Skipped;
+                job.progress = 100.0;
+                job.end_time = Some(current_time_millis());
+                job.skip_reason =
+                    Some("Only video jobs are processed by the ffmpeg worker".to_string());
+            }
         }
+        mark_smart_scan_child_processed(inner, job_id);
         return Ok(());
     }
 
     let preset = match preset {
         Some(p) => p,
         None => {
-            let mut state = inner.state.lock().expect("engine state poisoned");
-            if let Some(job) = state.jobs.get_mut(job_id) {
-                job.status = JobStatus::Failed;
-                job.progress = 100.0;
-                job.end_time = Some(current_time_millis());
-                let reason = format!("No preset found for preset id '{preset_id}'");
-                job.failure_reason = Some(reason.clone());
-                job.logs.push(reason);
-                recompute_log_tail(job);
+            {
+                let mut state = inner.state.lock().expect("engine state poisoned");
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Failed;
+                    job.progress = 100.0;
+                    job.end_time = Some(current_time_millis());
+                    let reason = format!("No preset found for preset id '{preset_id}'");
+                    job.failure_reason = Some(reason.clone());
+                    job.logs.push(reason);
+                    recompute_log_tail(job);
+                }
             }
+            mark_smart_scan_child_processed(inner, job_id);
             return Ok(());
         }
     };
 
     // Ensure ffmpeg is available, honoring auto-download / update settings.
-    let (ffmpeg_path, _) =
+    // `ffmpeg_source` is used to decide whether it is safe to enable newer
+    // CLI flags such as `-stats_period` which are guaranteed to exist on the
+    // auto-downloaded static builds we ship, but may not be present on very
+    // old custom ffmpeg binaries provided by the user.
+    let (ffmpeg_path, ffmpeg_source, did_download) =
         ensure_tool_available(ExternalToolKind::Ffmpeg, &settings_snapshot.tools)?;
+
+    if did_download {
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                job.logs.push(format!(
+                    "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+                ));
+                recompute_log_tail(job);
+            }
+        }
+        // Persist metadata for the newly downloaded ffmpeg binary.
+        record_tool_download_with_inner(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
+    }
 
     // Build or reuse cached media metadata for the input so the UI can show
     // duration/codec/size without repeated ffprobe calls for the same file.
@@ -750,7 +1389,21 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         }
     }
 
-    let output_path = build_video_output_path(&input_path);
+    let output_path = {
+        // Prefer a job-specific output path when provided (for example from
+        // Smart Scan), falling back to the deterministic helper for older
+        // manual jobs.
+        let state = inner.state.lock().expect("engine state poisoned");
+        if let Some(job) = state.jobs.get(job_id) {
+            if let Some(ref out) = job.output_path {
+                PathBuf::from(out)
+            } else {
+                build_video_output_path(&input_path)
+            }
+        } else {
+            build_video_output_path(&input_path)
+        }
+    };
     let tmp_output = build_video_tmp_output_path(&input_path);
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
@@ -792,6 +1445,20 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
+    // Increase structured progress update frequency for the bundled ffmpeg
+    // binary so `job.progress` has a higher reporting rate without inventing
+    // synthetic percentages. Old custom ffmpeg builds may not support this
+    // flag, so we only apply it for the known static download source.
+    if ffmpeg_source == "download" {
+        let interval_ms = settings_snapshot
+            .progress_update_interval_ms
+            .unwrap_or(DEFAULT_PROGRESS_UPDATE_INTERVAL_MS);
+        // Clamp into a sensible range [50ms, 2000ms] to avoid extreme values.
+        let clamped_ms = interval_ms.clamp(50, 2000) as f64;
+        let stats_period_secs = clamped_ms / 1000.0;
+        cmd.arg("-stats_period")
+            .arg(format!("{stats_period_secs:.3}"));
+    }
     let mut child = cmd
         .args(&args)
         .stderr(Stdio::piped())
@@ -808,6 +1475,24 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
                 Ok(l) => l,
                 Err(_) => break,
             };
+
+            // Cooperative wait/cancel handling: if the frontend has requested
+            // a wait or cancel for this job, terminate the ffmpeg child
+            // process and transition the job into the appropriate state.
+            if is_job_wait_requested(inner, job_id) {
+                let _ = child.kill();
+                let _ = child.wait();
+                mark_job_waiting(inner, job_id, &tmp_output, &output_path, total_duration)?;
+                return Ok(());
+            }
+
+            if is_job_cancelled(inner, job_id) {
+                let _ = child.kill();
+                let _ = child.wait();
+                mark_job_cancelled(inner, job_id)?;
+                let _ = fs::remove_file(&tmp_output);
+                return Ok(());
+            }
 
             if is_job_cancelled(inner, job_id) {
                 let _ = child.kill();
@@ -866,8 +1551,7 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
                         // Also update the job's cached media info so future
                         // queue_state snapshots and the inspection UI can see
                         // the refined duration value.
-                        let mut state =
-                            inner.state.lock().expect("engine state poisoned");
+                        let mut state = inner.state.lock().expect("engine state poisoned");
                         if let Some(job) = state.jobs.get_mut(job_id) {
                             if let Some(info) = job.media_info.as_mut() {
                                 info.duration_seconds = Some(elapsed);
@@ -927,21 +1611,24 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
     }
 
     if !status.success() {
-        let mut state = inner.state.lock().expect("engine state poisoned");
-        if let Some(job) = state.jobs.get_mut(job_id) {
-            job.status = JobStatus::Failed;
-            job.progress = 100.0;
-            job.end_time = Some(current_time_millis());
-            let code_desc = match status.code() {
-                Some(code) => format!("exit code {code}"),
-                None => "terminated by signal".to_string(),
-            };
-            let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
-            job.failure_reason = Some(reason.clone());
-            job.logs.push(reason);
-            recompute_log_tail(job);
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                job.status = JobStatus::Failed;
+                job.progress = 100.0;
+                job.end_time = Some(current_time_millis());
+                let code_desc = match status.code() {
+                    Some(code) => format!("exit code {code}"),
+                    None => "terminated by signal".to_string(),
+                };
+                let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
+                job.failure_reason = Some(reason.clone());
+                job.logs.push(reason);
+                recompute_log_tail(job);
+            }
         }
         let _ = fs::remove_file(&tmp_output);
+        mark_smart_scan_child_processed(inner, job_id);
         return Ok(());
     }
 
@@ -960,35 +1647,42 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         )
     })?;
 
-    let mut state = inner.state.lock().expect("engine state poisoned");
-    if let Some(job) = state.jobs.get_mut(job_id) {
-        job.status = JobStatus::Completed;
-        job.progress = 100.0;
-        job.end_time = Some(current_time_millis());
-        if original_size_bytes > 0 && new_size_bytes > 0 {
-            job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+    // 记录所有成功生成的视频输出路径，供 Smart Scan 在后续批次中进行去重与跳过。
+    register_known_smart_scan_output_with_inner(inner, &output_path);
+
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        if let Some(job) = state.jobs.get_mut(job_id) {
+            job.status = JobStatus::Completed;
+            job.progress = 100.0;
+            job.end_time = Some(current_time_millis());
+            if original_size_bytes > 0 && new_size_bytes > 0 {
+                job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+            }
+            job.logs.push(format!(
+                "Completed in {:.1}s, output size {:.2} MB",
+                elapsed,
+                job.output_size_mb.unwrap_or(0.0)
+            ));
+            recompute_log_tail(job);
         }
-        job.logs.push(format!(
-            "Completed in {:.1}s, output size {:.2} MB",
-            elapsed,
-            job.output_size_mb.unwrap_or(0.0)
-        ));
-        recompute_log_tail(job);
+
+        // Update preset statistics for completed jobs.
+        if original_size_bytes > 0 && new_size_bytes > 0 && elapsed > 0.0 {
+            let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
+            let output_mb = new_size_bytes as f64 / (1024.0 * 1024.0);
+            if let Some(preset) = state.presets.iter_mut().find(|p| p.id == preset_id) {
+                preset.stats.usage_count += 1;
+                preset.stats.total_input_size_mb += input_mb;
+                preset.stats.total_output_size_mb += output_mb;
+                preset.stats.total_time_seconds += elapsed;
+            }
+            // Persist updated presets.
+            let _ = settings::save_presets(&state.presets);
+        }
     }
 
-    // Update preset statistics for completed jobs.
-    if original_size_bytes > 0 && new_size_bytes > 0 && elapsed > 0.0 {
-        let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
-        let output_mb = new_size_bytes as f64 / (1024.0 * 1024.0);
-        if let Some(preset) = state.presets.iter_mut().find(|p| p.id == preset_id) {
-            preset.stats.usage_count += 1;
-            preset.stats.total_input_size_mb += input_mb;
-            preset.stats.total_output_size_mb += output_mb;
-            preset.stats.total_time_seconds += elapsed;
-        }
-        // Persist updated presets.
-        let _ = settings::save_presets(&state.presets);
-    }
+    mark_smart_scan_child_processed(inner, job_id);
 
     Ok(())
 }
@@ -998,20 +1692,112 @@ fn is_job_cancelled(inner: &Inner, job_id: &str) -> bool {
     state.cancelled_jobs.contains(job_id)
 }
 
-fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
+fn is_job_wait_requested(inner: &Inner, job_id: &str) -> bool {
+    let state = inner.state.lock().expect("engine state poisoned");
+    state.wait_requests.contains(job_id)
+}
+
+fn mark_job_waiting(
+    inner: &Inner,
+    job_id: &str,
+    tmp_output: &Path,
+    output_path: &Path,
+    total_duration: Option<f64>,
+) -> Result<()> {
+    let tmp_str = tmp_output.to_string_lossy().into_owned();
+    let output_str = output_path.to_string_lossy().into_owned();
+
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get_mut(job_id) {
-            job.status = JobStatus::Cancelled;
-            job.progress = 0.0;
-            job.end_time = Some(current_time_millis());
-            job.logs.push("Cancelled by user".to_string());
-            recompute_log_tail(job);
+            job.status = JobStatus::Paused;
+
+            let percent = if job.progress.is_finite() && job.progress >= 0.0 {
+                Some(job.progress)
+            } else {
+                None
+            };
+
+            let media_duration = job
+                .media_info
+                .as_ref()
+                .and_then(|m| m.duration_seconds)
+                .or(total_duration);
+
+            let processed_seconds = match (percent, media_duration) {
+                (Some(p), Some(total))
+                    if p.is_finite() && total.is_finite() && p > 0.0 && total > 0.0 =>
+                {
+                    Some((p / 100.0) * total)
+                }
+                _ => None,
+            };
+
+            job.wait_metadata = Some(WaitMetadata {
+                last_progress_percent: percent,
+                processed_seconds,
+                tmp_output_path: Some(tmp_str.clone()),
+            });
+
+            if job.output_path.is_none() {
+                job.output_path = Some(output_str.clone());
+            }
+
+            // Jobs in a paused/waiting-with-progress state are intentionally
+            // kept out of the scheduling queue until an explicit resume
+            // command re-enqueues them.
+            state.queue.retain(|id| id != job_id);
+
+            state.wait_requests.remove(job_id);
+            state.cancelled_jobs.remove(job_id);
         }
+    }
+
+    notify_queue_listeners(inner);
+    mark_smart_scan_child_processed(inner, job_id);
+    Ok(())
+}
+
+fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let restart_after_cancel = state.restart_requests.remove(job_id);
+
+        if let Some(job) = state.jobs.get_mut(job_id) {
+            if restart_after_cancel {
+                // Reset the job back to Waiting with 0% progress and enqueue
+                // it for a fresh run from the beginning.
+                job.status = JobStatus::Waiting;
+                job.progress = 0.0;
+                job.end_time = None;
+                job.failure_reason = None;
+                job.skip_reason = None;
+                job.wait_metadata = None;
+                job.logs
+                    .push("Restart requested from UI; job will re-run from 0%".to_string());
+                recompute_log_tail(job);
+
+                if !state.queue.iter().any(|id| id == job_id) {
+                    state.queue.push_back(job_id.to_string());
+                }
+            } else {
+                job.status = JobStatus::Cancelled;
+                job.progress = 0.0;
+                job.end_time = Some(current_time_millis());
+                job.logs.push("Cancelled by user".to_string());
+                recompute_log_tail(job);
+            }
+        }
+
         state.cancelled_jobs.remove(job_id);
     }
-    // Notify listeners that the job has transitioned to Cancelled.
+
+    // Notify listeners that the job has transitioned to Cancelled or has been
+    // reset for a fresh restart.
     notify_queue_listeners(inner);
+    // Wake at least one worker in case a restart enqueued a new job.
+    inner.cv.notify_one();
+    mark_smart_scan_child_processed(inner, job_id);
     Ok(())
 }
 
@@ -1050,37 +1836,38 @@ fn update_job_progress(
             if let Some(p) = percent {
                 // Clamp progress into [0, 100] and ensure it never regresses so
                 // the UI sees a monotonic percentage.
-                let clamped = if p < 0.0 {
-                    0.0
-                } else if p > 100.0 {
-                    100.0
-                } else {
-                    p
-                };
+                let clamped = p.clamp(0.0, 100.0);
                 if clamped > job.progress {
                     job.progress = clamped;
                     should_notify = true;
                 }
             }
             if let Some(line) = log_line {
-                // Keep only a small rolling window of logs to avoid unbounded growth.
-                if job.logs.len() > 200 {
-                    job.logs.drain(0..job.logs.len() - 200);
-                }
-                job.logs.push(line.to_string());
-                recompute_log_tail(job);
+                // Ignore empty/whitespace-only lines that come from ffmpeg's
+                // structured `-progress` output separators. These previously
+                // polluted the job logs with大量空白行, making the task detail
+                // view hard to read without improving diagnostics, while also
+                // generating noisy queue snapshots with no useful content.
+                if !line.trim().is_empty() {
+                    // Keep only a small rolling window of logs to avoid unbounded growth.
+                    if job.logs.len() > 200 {
+                        job.logs.drain(0..job.logs.len() - 200);
+                    }
+                    job.logs.push(line.to_string());
+                    recompute_log_tail(job);
 
-                // Even when ffmpeg does not emit the traditional "time=... speed=..."
-                // progress lines (for example due to loglevel changes or custom
-                // builds), the UI still needs to see streaming log output, the
-                // resolved ffmpeg command, and any media metadata / preview paths.
-                //
-                // To avoid the "no progress / no logs until cancel or completion"
-                // regression, emit a queue snapshot whenever we append a log line
-                // while the job is actively processing. This trades a modest
-                // increase in event frequency for correct, real-time feedback.
-                if job.status == JobStatus::Processing {
-                    should_notify = true;
+                    // Even when ffmpeg does not emit the traditional "time=... speed=..."
+                    // progress lines (for example due to loglevel changes or custom
+                    // builds), the UI still needs to see streaming log output, the
+                    // resolved ffmpeg command, and any media metadata / preview paths.
+                    //
+                    // To avoid the "no progress / no logs until cancel or completion"
+                    // regression, emit a queue snapshot whenever we append a log line
+                    // while the job is actively processing. This trades a modest
+                    // increase in event frequency for correct, real-time feedback.
+                    if job.status == JobStatus::Processing {
+                        should_notify = true;
+                    }
                 }
             }
         }
@@ -1115,14 +1902,18 @@ fn compute_progress_percent(total_duration: Option<f64>, elapsed_seconds: f64) -
             };
             let ratio = elapsed / total;
             let value = (ratio * 100.0).clamp(0.0, 100.0);
-            if value.is_finite() { value } else { 0.0 }
+            if value.is_finite() {
+                value
+            } else {
+                0.0
+            }
         }
         _ => 0.0,
     }
 }
 
 fn detect_duration_seconds(path: &Path, settings: &AppSettings) -> Result<f64> {
-    let (ffprobe_path, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
+    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
     let mut cmd = Command::new(&ffprobe_path);
     configure_background_command(&mut cmd);
     let output = cmd
@@ -1237,6 +2028,35 @@ fn is_image_file(path: &Path) -> bool {
     )
 }
 
+fn build_image_avif_paths(path: &Path) -> (PathBuf, PathBuf) {
+    // 最终 AVIF 目标始终使用 .avif 扩展名，以便系统和工具能够正确识别格式。
+    let avif_target = path.with_extension("avif");
+    // 临时文件使用 *.tmp.avif，保证 ffmpeg 等工具可根据最后一个扩展名推断为 AVIF。
+    let tmp_output = path.with_extension("tmp.avif");
+    (avif_target, tmp_output)
+}
+
+fn is_smart_scan_style_output(path: &Path) -> bool {
+    let file_name = match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => name.to_ascii_lowercase(),
+        None => return false,
+    };
+
+    // 所有 .avif 文件都视为潜在 Smart Scan 输出；在实际逻辑中我们已经避免对
+    // 这些文件再次发起压缩任务。
+    if file_name.ends_with(".avif") {
+        return true;
+    }
+
+    // 形如 foo.compressed.mp4 或 foo.compressed (1).mp4 等命名，统一视为
+    // Smart Scan 风格输出。
+    if file_name.contains(".compressed") {
+        return true;
+    }
+
+    false
+}
+
 fn is_video_file(path: &Path) -> bool {
     let ext = match path
         .extension()
@@ -1276,6 +2096,7 @@ impl TranscodingEngine {
             filename,
             job_type: JobType::Image,
             source: JobSource::SmartScan,
+            queue_order: None,
             original_size_mb,
             original_codec: path
                 .extension()
@@ -1301,10 +2122,12 @@ impl TranscodingEngine {
                 audio_codec: None,
                 size_mb: Some(original_size_mb),
             }),
+            estimated_seconds: None,
             preview_path: None,
             log_tail: None,
             failure_reason: None,
             batch_id: Some(batch_id.to_string()),
+            wait_metadata: None,
         };
 
         let ext = path
@@ -1328,42 +2151,151 @@ impl TranscodingEngine {
         }
 
         // Example.png -> Example.avif in same directory.
-        let avif_target = path.with_extension("avif");
+        let (avif_target, tmp_output) = build_image_avif_paths(path);
         if avif_target.exists() {
+            // Treat existing AVIF as a known Smart Scan output so future
+            // batches can reliably skip it as a candidate.
+            register_known_smart_scan_output_with_inner(&self.inner, &avif_target);
+
+            // Prefer the existing AVIF sibling as the preview surface so the UI
+            // can show the final compressed result instead of the original PNG.
+            job.preview_path = Some(avif_target.to_string_lossy().into_owned());
             job.status = JobStatus::Skipped;
             job.progress = 100.0;
             job.skip_reason = Some("Existing .avif sibling".to_string());
             return Ok(job);
         }
 
-        let (avifenc_path, _) = ensure_tool_available(ExternalToolKind::Avifenc, &settings.tools)?;
+        // 首选 avifenc；如果不可用或编码失败，再回退到 ffmpeg 做 AVIF 编码。
+        let (tried_avifenc, last_error): (bool, Option<anyhow::Error>) = match ensure_tool_available(
+            ExternalToolKind::Avifenc,
+            &settings.tools,
+        ) {
+            Ok((avifenc_path, _source, did_download)) => {
+                if did_download {
+                    job.logs.push(format!(
+                            "auto-download: avifenc was downloaded automatically according to current settings (path: {avifenc_path})"
+                        ));
+                    // Persist avifenc download metadata so future runs can reuse it.
+                    self.record_tool_download(ExternalToolKind::Avifenc, &avifenc_path);
+                }
 
-        let tmp_output = avif_target.with_extension("avif.tmp");
+                let start_ms = current_time_millis();
+                job.start_time = Some(start_ms);
 
-        let start_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        job.start_time = Some(start_ms);
+                let mut cmd = Command::new(&avifenc_path);
+                configure_background_command(&mut cmd);
+                let output = cmd
+                    .arg("--lossless")
+                    .arg(path.as_os_str())
+                    .arg(&tmp_output)
+                    .output()
+                    .with_context(|| format!("failed to run avifenc on {}", path.display()));
 
-        let mut cmd = Command::new(&avifenc_path);
+                let last_error = match output {
+                    Ok(output) if output.status.success() => {
+                        let tmp_meta = fs::metadata(&tmp_output).with_context(|| {
+                            format!("failed to stat temp output {}", tmp_output.display())
+                        })?;
+                        let new_size_bytes = tmp_meta.len();
+                        let ratio = new_size_bytes as f64 / original_size_bytes as f64;
+
+                        if ratio > config.min_saving_ratio {
+                            let _ = fs::remove_file(&tmp_output);
+                            job.status = JobStatus::Skipped;
+                            job.progress = 100.0;
+                            job.end_time = Some(current_time_millis());
+                            job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
+                            return Ok(job);
+                        }
+
+                        fs::rename(&tmp_output, &avif_target).with_context(|| {
+                            format!(
+                                "failed to rename {} -> {}",
+                                tmp_output.display(),
+                                avif_target.display()
+                            )
+                        })?;
+
+                        register_known_smart_scan_output_with_inner(&self.inner, &avif_target);
+
+                        job.status = JobStatus::Completed;
+                        job.progress = 100.0;
+                        job.end_time = Some(current_time_millis());
+                        job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+                        job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+                        job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+
+                        return Ok(job);
+                    }
+                    Ok(output) => {
+                        // avifenc 本身返回非 0，记录错误并尝试回退到 ffmpeg。
+                        job.logs
+                            .push(String::from_utf8_lossy(&output.stderr).to_string());
+                        let _ = fs::remove_file(&tmp_output);
+                        Some(anyhow::anyhow!(
+                            "avifenc exited with non-zero status: {}",
+                            output.status
+                        ))
+                    }
+                    Err(err) => {
+                        let _ = fs::remove_file(&tmp_output);
+                        Some(err)
+                    }
+                };
+
+                (true, last_error)
+            }
+            Err(err) => (false, Some(err)),
+        };
+
+        // 如果 avifenc 不可用或失败，尝试用 ffmpeg 做 AVIF 编码兜底。
+        job.logs.push(match (&last_error, tried_avifenc) {
+            (Some(err), true) => {
+                format!("avifenc encode failed, falling back to ffmpeg-based AVIF encode: {err:#}")
+            }
+            (Some(err), false) => format!(
+                "avifenc is not available ({err:#}); falling back to ffmpeg-based AVIF encode"
+            ),
+            (None, _) => "avifenc not used; falling back to ffmpeg-based AVIF encode".to_string(),
+        });
+
+        let (ffmpeg_path, _source, did_download_ffmpeg) =
+            ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
+
+        if did_download_ffmpeg {
+            job.logs.push(format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ));
+            self.record_tool_download(ExternalToolKind::Ffmpeg, &ffmpeg_path);
+        }
+
+        if job.start_time.is_none() {
+            job.start_time = Some(current_time_millis());
+        }
+
+        let mut cmd = Command::new(&ffmpeg_path);
         configure_background_command(&mut cmd);
         let output = cmd
-            .arg("--lossless")
+            .arg("-y")
+            .arg("-i")
             .arg(path.as_os_str())
+            .arg("-frames:v")
+            .arg("1")
+            .arg("-c:v")
+            .arg("libaom-av1")
+            .arg("-still-picture")
+            .arg("1")
+            .arg("-pix_fmt")
+            .arg("yuv444p10le")
             .arg(&tmp_output)
             .output()
-            .with_context(|| format!("failed to run avifenc on {}", path.display()))?;
+            .with_context(|| format!("failed to run ffmpeg for AVIF on {}", path.display()))?;
 
         if !output.status.success() {
             job.status = JobStatus::Failed;
             job.progress = 100.0;
-            job.end_time = Some(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64,
-            );
+            job.end_time = Some(current_time_millis());
             job.logs
                 .push(String::from_utf8_lossy(&output.stderr).to_string());
             let _ = fs::remove_file(&tmp_output);
@@ -1379,12 +2311,7 @@ impl TranscodingEngine {
             let _ = fs::remove_file(&tmp_output);
             job.status = JobStatus::Skipped;
             job.progress = 100.0;
-            job.end_time = Some(
-                SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64,
-            );
+            job.end_time = Some(current_time_millis());
             job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
             return Ok(job);
         }
@@ -1397,19 +2324,17 @@ impl TranscodingEngine {
             )
         })?;
 
+        register_known_smart_scan_output_with_inner(&self.inner, &avif_target);
+
         job.status = JobStatus::Completed;
         job.progress = 100.0;
-        job.end_time = Some(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        );
+        job.end_time = Some(current_time_millis());
         job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
 
         Ok(job)
     }
 
+    #[allow(dead_code)]
     fn handle_video_file(
         &self,
         path: &Path,
@@ -1435,6 +2360,7 @@ impl TranscodingEngine {
             filename,
             job_type: JobType::Video,
             source: JobSource::SmartScan,
+            queue_order: None,
             original_size_mb,
             original_codec: None,
             preset_id: config.video_preset_id.clone(),
@@ -1457,10 +2383,12 @@ impl TranscodingEngine {
                 audio_codec: None,
                 size_mb: Some(original_size_mb),
             }),
+            estimated_seconds: None,
             preview_path: None,
             log_tail: None,
             failure_reason: None,
             batch_id: Some(batch_id.to_string()),
+            wait_metadata: None,
         };
 
         if original_size_mb < config.min_video_size_mb as f64 {
@@ -1495,12 +2423,25 @@ impl TranscodingEngine {
             }
         };
 
-        let (ffmpeg_path, _) = ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
+        // Pre-compute an approximate processing time for this job so the
+        // taskbar can weight mixed workloads (e.g. small but very slow
+        // presets) more accurately than a pure size-based heuristic.
+        job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, &preset);
+
+        let (ffmpeg_path, _source, did_download) =
+            ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
 
         let output_path = build_video_output_path(path);
         let tmp_output = build_video_tmp_output_path(path);
 
         let args = build_ffmpeg_args(&preset, path, &tmp_output);
+
+        if did_download {
+            job.logs.push(format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ));
+            self.record_tool_download(ExternalToolKind::Ffmpeg, &ffmpeg_path);
+        }
 
         let start_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -1572,7 +2513,7 @@ impl TranscodingEngine {
 }
 
 fn detect_video_codec(path: &Path, settings: &AppSettings) -> Result<String> {
-    let (ffprobe_path, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
+    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
     let mut cmd = Command::new(&ffprobe_path);
     configure_background_command(&mut cmd);
     let output = cmd
@@ -1625,7 +2566,7 @@ fn detect_video_dimensions_and_frame_rate(
     path: &Path,
     settings: &AppSettings,
 ) -> Result<(Option<u32>, Option<u32>, Option<f64>)> {
-    let (ffprobe_path, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
+    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
     let mut cmd = Command::new(&ffprobe_path);
     configure_background_command(&mut cmd);
     let output = cmd
@@ -1668,6 +2609,32 @@ fn build_video_output_path(input: &Path) -> PathBuf {
         .unwrap_or("output");
     let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
     parent.join(format!("{stem}.compressed.{ext}"))
+}
+
+fn reserve_unique_smart_scan_video_output_path(state: &mut EngineState, input: &Path) -> PathBuf {
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+
+    let mut index: u32 = 0;
+    loop {
+        let candidate = if index == 0 {
+            parent.join(format!("{stem}.compressed.{ext}"))
+        } else {
+            parent.join(format!("{stem}.compressed ({index}).{ext}"))
+        };
+
+        let candidate_str = candidate.to_string_lossy().into_owned();
+        if !candidate.exists() && !state.known_smart_scan_outputs.contains(&candidate_str) {
+            state.known_smart_scan_outputs.insert(candidate_str.clone());
+            break candidate;
+        }
+
+        index += 1;
+    }
 }
 
 // Temporary output path for video transcodes. We keep the final container
@@ -1810,10 +2777,7 @@ fn log_external_command(inner: &Inner, job_id: &str, program: &str, args: &[Stri
             if arg == "-v" {
                 if let Some(level) = iter.peek() {
                     let level = level.to_ascii_lowercase();
-                    if level == "error"
-                        || level == "fatal"
-                        || level == "panic"
-                        || level == "quiet"
+                    if level == "error" || level == "fatal" || level == "panic" || level == "quiet"
                     {
                         suppressed = true;
                         break;
@@ -1834,8 +2798,73 @@ fn log_external_command(inner: &Inner, job_id: &str, program: &str, args: &[Stri
 computed from stderr, so the queue may only show 0% and 100%"
                     .to_string(),
             );
+            recompute_log_tail(job);
         }
-        recompute_log_tail(job);
+    }
+}
+
+/// Roughly estimate how long a job with the given input size would take when
+/// encoded with the provided preset. This is intentionally conservative and
+/// only needs to be accurate enough for relative weighting of jobs when
+/// aggregating queue progress for the Windows taskbar.
+fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPreset) -> Option<f64> {
+    if size_mb <= 0.0 {
+        return None;
+    }
+
+    let stats = &preset.stats;
+    if stats.total_input_size_mb <= 0.0 || stats.total_time_seconds <= 0.0 {
+        return None;
+    }
+
+    // Baseline: average seconds-per-megabyte observed for this preset.
+    let mut seconds_per_mb = stats.total_time_seconds / stats.total_input_size_mb;
+    if !seconds_per_mb.is_finite() || seconds_per_mb <= 0.0 {
+        return None;
+    }
+
+    // Adjust for encoder and preset "speed" where we have simple signals so
+    // that obviously heavy configurations (e.g. libsvtav1, veryslow) are
+    // weighted higher than fast ones.
+    use crate::transcoding::domain::EncoderType;
+
+    let mut factor = 1.0f64;
+
+    match preset.video.encoder {
+        EncoderType::LibSvtAv1 => {
+            // Modern AV1 encoders tend to be considerably slower.
+            factor *= 1.5;
+        }
+        EncoderType::HevcNvenc => {
+            // Hardware HEVC is usually fast; keep this close to 1.0 so size
+            // remains the dominant factor.
+            factor *= 0.9;
+        }
+        _ => {}
+    }
+
+    let preset_name = preset.video.preset.to_ascii_lowercase();
+    if preset_name.contains("veryslow") {
+        factor *= 1.6;
+    } else if preset_name.contains("slow") {
+        factor *= 1.3;
+    } else if preset_name.contains("fast") {
+        factor *= 0.8;
+    }
+
+    if let Some(pass) = preset.video.pass {
+        if pass >= 2 {
+            // Two-pass encoding roughly doubles total processing time.
+            factor *= 2.0;
+        }
+    }
+
+    seconds_per_mb *= factor;
+    let estimate = size_mb * seconds_per_mb;
+    if !estimate.is_finite() || estimate <= 0.0 {
+        None
+    } else {
+        Some(estimate)
     }
 }
 
@@ -1863,8 +2892,10 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
         if let Some(template) = &preset.ffmpeg_template {
             let with_input = template.replace("INPUT", input.to_string_lossy().as_ref());
             let with_output = with_input.replace("OUTPUT", output.to_string_lossy().as_ref());
-            let mut args: Vec<String> =
-                with_output.split_whitespace().map(|s| s.to_string()).collect();
+            let mut args: Vec<String> = with_output
+                .split_whitespace()
+                .map(|s| s.to_string())
+                .collect();
             ensure_progress_args(&mut args);
             return args;
         }
@@ -2072,11 +3103,7 @@ mod tests {
         let mut selected = Vec::new();
 
         {
-            let mut state = engine
-                .inner
-                .state
-                .lock()
-                .expect("engine state poisoned");
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
 
             for _ in 0..workers {
                 if let Some(id) = next_job_for_worker_locked(&mut state) {
@@ -2132,11 +3159,7 @@ mod tests {
         let workers = 2usize;
         let mut processing_ids = Vec::new();
         {
-            let mut state = engine
-                .inner
-                .state
-                .lock()
-                .expect("engine state poisoned");
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
             for _ in 0..workers {
                 if let Some(id) = next_job_for_worker_locked(&mut state) {
                     processing_ids.push(id);
@@ -2161,11 +3184,7 @@ mod tests {
         );
 
         {
-            let state = engine
-                .inner
-                .state
-                .lock()
-                .expect("engine state poisoned");
+            let state = engine.inner.state.lock().expect("engine state poisoned");
             assert!(
                 state.cancelled_jobs.contains(&target),
                 "cancelled_jobs set must contain the target job id"
@@ -2181,11 +3200,7 @@ mod tests {
         mark_job_cancelled(&engine.inner, &target)
             .expect("mark_job_cancelled must succeed for target job");
 
-        let state = engine
-            .inner
-            .state
-            .lock()
-            .expect("engine state poisoned");
+        let state = engine.inner.state.lock().expect("engine state poisoned");
 
         let target_job = state
             .jobs
@@ -2209,6 +3224,222 @@ mod tests {
     }
 
     #[test]
+    fn wait_and_resume_preserve_progress_and_queue_membership() {
+        let engine = make_engine_with_preset();
+
+        let job = engine.enqueue_transcode_job(
+            "C:/videos/wait-resume.mp4".to_string(),
+            JobType::Video,
+            JobSource::Manual,
+            100.0,
+            Some("h264".into()),
+            "preset-1".into(),
+        );
+
+        // Simulate the worker having taken this job from the queue and made
+        // some progress.
+        {
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            // Pop the job from the queue as next_job_for_worker_locked would.
+            assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+            if let Some(j) = state.jobs.get_mut(&job.id) {
+                j.status = JobStatus::Processing;
+                j.progress = 40.0;
+                j.media_info = Some(MediaInfo {
+                    duration_seconds: Some(100.0),
+                    width: None,
+                    height: None,
+                    frame_rate: None,
+                    video_codec: None,
+                    audio_codec: None,
+                    size_mb: None,
+                });
+            }
+        }
+
+        // Request a wait operation from the frontend.
+        let accepted = engine.wait_job(&job.id);
+        assert!(accepted, "wait_job must accept a Processing job");
+
+        // Cooperatively apply the wait in the worker loop.
+        let tmp = PathBuf::from("C:/videos/wait-resume.compressed.tmp.mp4");
+        let out = PathBuf::from("C:/videos/wait-resume.compressed.mp4");
+        mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0))
+            .expect("mark_job_waiting must succeed");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let stored = state
+                .jobs
+                .get(&job.id)
+                .expect("job must remain present after wait");
+            assert_eq!(
+                stored.status,
+                JobStatus::Paused,
+                "wait should transition job into Paused state"
+            );
+            assert!(
+                (stored.progress - 40.0).abs() < f64::EPSILON,
+                "wait should not reset overall progress"
+            );
+            assert!(
+                !state.queue.contains(&job.id),
+                "paused job should not be in the active scheduling queue until resumed"
+            );
+            let meta = stored.wait_metadata.as_ref().expect("wait_metadata present");
+            assert_eq!(
+                meta.last_progress_percent,
+                Some(40.0),
+                "wait_metadata.last_progress_percent should capture last progress"
+            );
+            assert!(
+                meta.processed_seconds.unwrap_or(0.0) > 0.0,
+                "wait_metadata.processed_seconds should be derived from progress and duration"
+            );
+            assert_eq!(
+                meta.tmp_output_path.as_deref(),
+                Some(tmp.to_string_lossy().as_ref()),
+                "wait_metadata.tmp_output_path should point to the temp output path"
+            );
+        }
+
+        // Resume the job and ensure it re-enters the waiting queue without
+        // losing progress or wait metadata.
+        let resumed = engine.resume_job(&job.id);
+        assert!(resumed, "resume_job must accept a Paused job");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let stored = state
+                .jobs
+                .get(&job.id)
+                .expect("job must remain present after resume");
+            assert_eq!(
+                stored.status,
+                JobStatus::Waiting,
+                "resume should transition job back to Waiting state"
+            );
+            assert!(
+                (stored.progress - 40.0).abs() < f64::EPSILON,
+                "resume should keep existing overall progress"
+            );
+            assert!(
+                state.queue.contains(&job.id),
+                "resumed job must re-enter the waiting queue"
+            );
+            assert!(
+                stored.wait_metadata.is_some(),
+                "wait_metadata should remain available after resume"
+            );
+        }
+
+        // Finally, restart the job and verify progress is reset to 0% and
+        // wait metadata cleared while the job remains enqueued.
+        let restarted = engine.restart_job(&job.id);
+        assert!(
+            restarted,
+            "restart_job must accept a non-terminal, non-processing job"
+        );
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let stored = state
+                .jobs
+                .get(&job.id)
+                .expect("job must remain present after restart");
+            assert_eq!(
+                stored.status,
+                JobStatus::Waiting,
+                "restart must reset job back to Waiting state"
+            );
+            assert!(
+                (stored.progress - 0.0).abs() < f64::EPSILON,
+                "restart must reset progress back to 0%"
+            );
+            assert!(
+                stored.wait_metadata.is_none(),
+                "restart must clear wait_metadata so the new run starts fresh"
+            );
+            assert!(
+                state.queue.contains(&job.id),
+                "restarted job must be present in the waiting queue"
+            );
+        }
+    }
+
+    #[test]
+    fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
+        let engine = make_engine_with_preset();
+
+        let job = engine.enqueue_transcode_job(
+            "C:/videos/restart-processing.mp4".to_string(),
+            JobType::Video,
+            JobSource::Manual,
+            100.0,
+            Some("h264".into()),
+            "preset-1".into(),
+        );
+
+        // Simulate the worker having taken this job from the queue.
+        {
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+            if let Some(j) = state.jobs.get_mut(&job.id) {
+                j.status = JobStatus::Processing;
+                j.progress = 25.0;
+            }
+        }
+
+        let restarted = engine.restart_job(&job.id);
+        assert!(restarted, "restart_job must accept a Processing job");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            assert!(
+                state.cancelled_jobs.contains(&job.id),
+                "restart_job must mark the job as cancelled for cooperative cancellation"
+            );
+            assert!(
+                state.restart_requests.contains(&job.id),
+                "restart_job must remember that the job should be restarted after cancellation"
+            );
+        }
+
+        // Simulate the cooperative cancellation path.
+        mark_job_cancelled(&engine.inner, &job.id)
+            .expect("mark_job_cancelled must succeed for restart scenario");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let stored = state
+                .jobs
+                .get(&job.id)
+                .expect("job must remain present after cooperative restart");
+            assert_eq!(
+                stored.status,
+                JobStatus::Waiting,
+                "after cooperative restart the job must be back in Waiting state"
+            );
+            assert!(
+                (stored.progress - 0.0).abs() < f64::EPSILON,
+                "after cooperative restart progress must be reset to 0%"
+            );
+            assert!(
+                state.queue.contains(&job.id),
+                "after cooperative restart the job must be re-enqueued for a fresh run"
+            );
+            assert!(
+                !state.cancelled_jobs.contains(&job.id),
+                "cancelled_jobs set must be cleared after restart"
+            );
+            assert!(
+                !state.restart_requests.contains(&job.id),
+                "restart_requests set must be cleared after restart"
+            );
+        }
+    }
+
+    #[test]
     fn build_ffmpeg_args_injects_progress_flags_for_standard_preset() {
         let preset = make_test_preset();
         let input = PathBuf::from("C:/Videos/input file.mp4");
@@ -2227,9 +3458,8 @@ mod tests {
     fn build_ffmpeg_args_respects_existing_progress_flag_in_template() {
         let mut preset = make_test_preset();
         preset.advanced_enabled = Some(true);
-        preset.ffmpeg_template = Some(
-            "-progress pipe:2 -i INPUT -c:v libx264 -crf 23 OUTPUT".to_string(),
-        );
+        preset.ffmpeg_template =
+            Some("-progress pipe:2 -i INPUT -c:v libx264 -crf 23 OUTPUT".to_string());
 
         let input = PathBuf::from("C:/Videos/input.mp4");
         let output = PathBuf::from("C:/Videos/output.tmp.mp4");
@@ -2420,6 +3650,87 @@ mod tests {
     }
 
     #[test]
+    fn image_avif_paths_use_tmp_avif_extension() {
+        let path = PathBuf::from("C:/images/sample.png");
+        let (avif_target, tmp_output) = build_image_avif_paths(&path);
+
+        let target_str = avif_target.to_string_lossy();
+        let tmp_str = tmp_output.to_string_lossy();
+
+        assert!(
+            target_str.ends_with(".avif"),
+            "final AVIF target must end with .avif, got {target_str}"
+        );
+        assert!(
+            tmp_str.ends_with(".tmp.avif"),
+            "temporary AVIF output must end with .tmp.avif so tools can infer AVIF container from extension, got {tmp_str}"
+        );
+    }
+
+    #[test]
+    fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
+        let dir = env::temp_dir().join("transcoding_image_preview_existing_avif");
+        let _ = fs::create_dir_all(&dir);
+
+        let png = dir.join("sample.png");
+        let avif = dir.join("sample.avif");
+
+        // Create a small PNG and a sibling AVIF file.
+        {
+            let mut f =
+                File::create(&png).unwrap_or_else(|_| panic!("create png {}", png.display()));
+            f.write_all(&vec![0u8; 4 * 1024])
+                .unwrap_or_else(|_| panic!("write png {}", png.display()));
+        }
+        {
+            let mut f =
+                File::create(&avif).unwrap_or_else(|_| panic!("create avif {}", avif.display()));
+            f.write_all(b"avif-data")
+                .unwrap_or_else(|_| panic!("write avif {}", avif.display()));
+        }
+
+        let engine = make_engine_with_preset();
+
+        let settings = {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            state.settings.clone()
+        };
+
+        let config = SmartScanConfig {
+            min_image_size_kb: 1,      // treat the tiny PNG as a valid candidate
+            min_video_size_mb: 10_000, // unused here
+            min_saving_ratio: 0.95,
+            image_target_format: ImageTargetFormat::Avif,
+            video_preset_id: "preset-1".to_string(),
+        };
+
+        let job = engine
+            .handle_image_file(&png, &config, &settings, "batch-image-preview")
+            .expect("handle_image_file should succeed with existing AVIF sibling");
+
+        assert_eq!(
+            job.status,
+            JobStatus::Skipped,
+            "existing AVIF sibling should cause image job to be skipped"
+        );
+        assert_eq!(
+            job.skip_reason.as_deref(),
+            Some("Existing .avif sibling"),
+            "skip reason should explain that an AVIF sibling already exists"
+        );
+
+        let preview = job.preview_path.as_deref().unwrap_or_default();
+        assert!(
+            preview.ends_with(".avif"),
+            "preview_path should point to the existing AVIF sibling, got {preview}"
+        );
+
+        let _ = fs::remove_file(&png);
+        let _ = fs::remove_file(&avif);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
         let dir = env::temp_dir().join("transcoding_smart_scan_progress");
         let _ = fs::create_dir_all(&dir);
@@ -2429,7 +3740,7 @@ mod tests {
         let video1 = dir.join("small1.mp4");
 
         for path in [&image1, &image2, &video1] {
-            let mut file = File::create(&path)
+            let mut file = File::create(path)
                 .unwrap_or_else(|_| panic!("create test file {}", path.display()));
             let data = vec![0u8; 4 * 1024];
             file.write_all(&data)
@@ -2458,9 +3769,31 @@ mod tests {
         };
 
         let root_path = dir.to_string_lossy().into_owned();
-        let result = engine
+        let descriptor = engine
             .run_auto_compress(root_path.clone(), config)
             .expect("run_auto_compress should succeed for synthetic tree");
+
+        let batch_id = descriptor.batch_id.clone();
+
+        // 等待后台 Smart Scan 批次完成，最多轮询约 5 秒。
+        let summary = {
+            let mut attempts = 0;
+            loop {
+                if let Some(summary) = engine.smart_scan_batch_summary(&batch_id) {
+                    if summary.total_files_scanned >= 3
+                        && summary.total_candidates >= 3
+                        && summary.total_processed >= 3
+                    {
+                        break summary;
+                    }
+                }
+                attempts += 1;
+                if attempts > 100 {
+                    panic!("Smart Scan batch did not reach expected summary within timeout");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        };
 
         let snapshots_lock = snapshots.lock().expect("snapshots lock poisoned");
         assert!(
@@ -2498,16 +3831,197 @@ mod tests {
         }
 
         assert_eq!(
-            last_scanned, result.total_files_scanned,
-            "final progress snapshot total_files_scanned must match AutoCompressResult"
+            last_scanned, summary.total_files_scanned,
+            "final progress snapshot total_files_scanned must match Smart Scan batch summary"
         );
         assert_eq!(
-            last_candidates, result.total_candidates,
-            "final progress snapshot total_candidates must match AutoCompressResult"
+            last_candidates, summary.total_candidates,
+            "final progress snapshot total_candidates must match Smart Scan batch summary"
         );
         assert_eq!(
-            last_processed, result.total_processed,
-            "final progress snapshot total_processed must match AutoCompressResult"
+            last_processed, summary.total_processed,
+            "final progress snapshot total_processed must match Smart Scan batch summary"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
+        let dir = env::temp_dir().join("transcoding_smart_scan_lock_free");
+        let _ = fs::create_dir_all(&dir);
+
+        let video = dir.join("sample_lock_free.mp4");
+        {
+            let mut file = File::create(&video)
+                .unwrap_or_else(|_| panic!("create lock-free test file {}", video.display()));
+            let data = vec![0u8; 4 * 1024];
+            file.write_all(&data).unwrap_or_else(|_| {
+                panic!("write data for lock-free test file {}", video.display())
+            });
+        }
+
+        let engine = make_engine_with_preset();
+        let engine_clone = engine.clone();
+
+        let snapshots: TestArc<TestMutex<Vec<AutoCompressProgress>>> =
+            TestArc::new(TestMutex::new(Vec::new()));
+        let snapshots_clone = TestArc::clone(&snapshots);
+
+        // If run_auto_compress ever holds the engine state lock while notifying
+        // listeners, calling queue_state() from inside the listener would
+        // deadlock. This test ensures the implementation remains lock-free for
+        // progress notifications.
+        engine.register_smart_scan_listener(move |progress: AutoCompressProgress| {
+            let _ = engine_clone.queue_state();
+            snapshots_clone
+                .lock()
+                .expect("snapshots lock poisoned")
+                .push(progress);
+        });
+
+        let config = SmartScanConfig {
+            min_image_size_kb: 10_000,
+            min_video_size_mb: 10_000,
+            min_saving_ratio: 0.95,
+            image_target_format: ImageTargetFormat::Avif,
+            video_preset_id: "preset-1".to_string(),
+        };
+
+        let root_path = dir.to_string_lossy().into_owned();
+        let descriptor = engine
+            .run_auto_compress(root_path.clone(), config)
+            .expect("run_auto_compress should succeed for lock-free listener test");
+
+        let batch_id = descriptor.batch_id.clone();
+
+        // 等待批次完成以便能够读取稳定的汇总信息。
+        let summary = {
+            let mut attempts = 0;
+            loop {
+                if let Some(summary) = engine.smart_scan_batch_summary(&batch_id) {
+                    if summary.total_files_scanned >= 1 {
+                        break summary;
+                    }
+                }
+                attempts += 1;
+                if attempts > 100 {
+                    panic!("Smart Scan batch did not finish within timeout in lock-free test");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        };
+
+        let snapshots_lock = snapshots.lock().expect("snapshots lock poisoned");
+        assert!(
+            !snapshots_lock.is_empty(),
+            "Smart Scan progress listener should have been invoked at least once"
+        );
+
+        assert_eq!(
+            summary.total_files_scanned, 1,
+            "lock-free test tree contains exactly one file"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn smart_scan_video_output_naming_avoids_overwrites() {
+        let dir = env::temp_dir().join("transcoding_smart_scan_safe_outputs");
+        let _ = fs::create_dir_all(&dir);
+
+        let input = dir.join("sample.mp4");
+        {
+            let mut file =
+                File::create(&input).expect("create input video file for safe output test");
+            file.write_all(&[0u8; 1024])
+                .expect("write input data for safe output test");
+        }
+
+        let existing1 = dir.join("sample.compressed.mp4");
+        let existing2 = dir.join("sample.compressed (1).mp4");
+
+        for path in [&existing1, &existing2] {
+            let mut file = File::create(path)
+                .unwrap_or_else(|_| panic!("create existing output {}", path.display()));
+            file.write_all(b"existing-output")
+                .unwrap_or_else(|_| panic!("write existing output {}", path.display()));
+        }
+
+        let presets = vec![make_test_preset()];
+        let settings = AppSettings::default();
+        let mut state = EngineState::new(presets, settings);
+
+        // Simulate outputs from a previous Smart Scan run.
+        state
+            .known_smart_scan_outputs
+            .insert(existing1.to_string_lossy().into_owned());
+        state
+            .known_smart_scan_outputs
+            .insert(existing2.to_string_lossy().into_owned());
+
+        let first = reserve_unique_smart_scan_video_output_path(&mut state, &input);
+        assert_ne!(
+            first, existing1,
+            "first Smart Scan output path must not overwrite pre-existing sample.compressed.mp4"
+        );
+        assert_ne!(
+            first, existing2,
+            "first Smart Scan output path must not overwrite pre-existing sample.compressed (1).mp4"
+        );
+
+        let second = reserve_unique_smart_scan_video_output_path(&mut state, &input);
+        assert_ne!(
+            second, first,
+            "subsequent Smart Scan output path must differ from previously reserved path"
+        );
+        assert_ne!(
+            second, existing1,
+            "second Smart Scan output path must not overwrite pre-existing outputs"
+        );
+        assert_ne!(
+            second, existing2,
+            "second Smart Scan output path must not overwrite pre-existing outputs"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn smart_scan_does_not_reenqueue_known_outputs_as_candidates() {
+        let dir = env::temp_dir().join("transcoding_smart_scan_dedup");
+        let _ = fs::create_dir_all(&dir);
+
+        let input = dir.join("video.mp4");
+        let output = dir.join("video.compressed.mp4");
+
+        for path in [&input, &output] {
+            let mut file = File::create(path)
+                .unwrap_or_else(|_| panic!("create test file {}", path.display()));
+            file.write_all(&[0u8; 1024])
+                .unwrap_or_else(|_| panic!("write data for {}", path.display()));
+        }
+
+        let engine = make_engine_with_preset();
+
+        // Simulate that `output` is a known Smart Scan output from a previous run.
+        register_known_smart_scan_output_with_inner(&engine.inner, &output);
+
+        // A known output path should always be treated as "skip as candidate".
+        let output_is_known = is_known_smart_scan_output_with_inner(&engine.inner, &output)
+            || is_smart_scan_style_output(&output);
+        assert!(
+            output_is_known,
+            "Smart Scan must treat video.compressed.mp4 as a known output when evaluating candidates"
+        );
+
+        // The original input path must remain eligible as a candidate.
+        let input_is_known = is_known_smart_scan_output_with_inner(&engine.inner, &input)
+            || is_smart_scan_style_output(&input);
+        assert!(
+            !input_is_known,
+            "original input video.mp4 must not be treated as a known output and must remain eligible"
         );
 
         let _ = fs::remove_dir_all(&dir);
@@ -2590,11 +4104,7 @@ mod tests {
     #[test]
     fn parse_ffmpeg_progress_line_handles_out_time_and_out_time_ms() {
         // Simulate a minimal `-progress pipe:2` style block.
-        let lines = [
-            "frame=10",
-            "out_time_ms=820000",
-            "out_time=00:00:00.820000",
-        ];
+        let lines = ["frame=10", "out_time_ms=820000", "out_time=00:00:00.820000"];
 
         let mut last: Option<(f64, Option<f64>)> = None;
         for line in &lines {
@@ -2614,8 +4124,8 @@ mod tests {
         );
 
         // Also accept a bare out_time_ms line when out_time is missing.
-        let (elapsed_ms, _) =
-            parse_ffmpeg_progress_line("out_time_ms=1234567").expect("ms-only progress should parse");
+        let (elapsed_ms, _) = parse_ffmpeg_progress_line("out_time_ms=1234567")
+            .expect("ms-only progress should parse");
         assert!(
             (elapsed_ms - 1.234_567).abs() < 0.001,
             "out_time_ms (microseconds) should be converted to seconds, got {elapsed_ms}"
@@ -2627,7 +4137,9 @@ mod tests {
         assert!(!is_ffmpeg_progress_end("progress=continue"));
         assert!(is_ffmpeg_progress_end("progress=end"));
         assert!(is_ffmpeg_progress_end("   progress=END   "));
-        assert!(!is_ffmpeg_progress_end("some other line without progress token"));
+        assert!(!is_ffmpeg_progress_end(
+            "some other line without progress token"
+        ));
     }
 
     #[test]
@@ -2650,7 +4162,14 @@ mod tests {
     #[test]
     fn compute_progress_percent_for_known_duration_uses_elapsed_ratio() {
         let total = Some(100.0);
-        let samples = [(0.0, 0.0), (1.0, 1.0), (25.0, 25.0), (50.0, 50.0), (75.0, 75.0), (100.0, 100.0)];
+        let samples = [
+            (0.0, 0.0),
+            (1.0, 1.0),
+            (25.0, 25.0),
+            (50.0, 50.0),
+            (75.0, 75.0),
+            (100.0, 100.0),
+        ];
         for &(elapsed, expected) in &samples {
             let p = compute_progress_percent(total, elapsed);
             assert!(
@@ -2694,6 +4213,7 @@ mod tests {
                     filename: "C:/videos/monotonic.mp4".to_string(),
                     job_type: JobType::Video,
                     source: JobSource::Manual,
+                    queue_order: None,
                     original_size_mb: 100.0,
                     original_codec: Some("h264".to_string()),
                     preset_id: "preset-1".to_string(),
@@ -2708,10 +4228,12 @@ mod tests {
                     output_path: None,
                     ffmpeg_command: None,
                     media_info: None,
+                    estimated_seconds: None,
                     preview_path: None,
                     log_tail: None,
                     failure_reason: None,
                     batch_id: None,
+                    wait_metadata: None,
                 },
             );
         }
@@ -2858,6 +4380,83 @@ mod tests {
     }
 
     #[test]
+    fn update_job_progress_ignores_whitespace_only_log_lines() {
+        let settings = AppSettings::default();
+        let inner = Inner::new(Vec::new(), settings);
+        let job_id = "job-whitespace-logs".to_string();
+
+        {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            state.jobs.insert(
+                job_id.clone(),
+                TranscodeJob {
+                    id: job_id.clone(),
+                    filename: "dummy.mp4".to_string(),
+                    job_type: JobType::Video,
+                    source: JobSource::Manual,
+                    queue_order: None,
+                    original_size_mb: 100.0,
+                    original_codec: Some("h264".to_string()),
+                    preset_id: "preset-1".to_string(),
+                    status: JobStatus::Processing,
+                    progress: 0.0,
+                    start_time: Some(0),
+                    end_time: None,
+                    output_size_mb: None,
+                    logs: Vec::new(),
+                    skip_reason: None,
+                    input_path: None,
+                    output_path: None,
+                    ffmpeg_command: None,
+                    media_info: None,
+                    estimated_seconds: None,
+                    preview_path: None,
+                    log_tail: None,
+                    failure_reason: None,
+                    batch_id: None,
+                    wait_metadata: None,
+                },
+            );
+        }
+
+        // First append a meaningful log line.
+        update_job_progress(
+            &inner,
+            &job_id,
+            None,
+            Some("ffmpeg test progress line"),
+            None,
+        );
+
+        // Then feed in whitespace-only lines that should be ignored.
+        update_job_progress(&inner, &job_id, None, Some("   "), None);
+        update_job_progress(&inner, &job_id, None, Some("\t\t"), None);
+        update_job_progress(&inner, &job_id, None, Some(""), None);
+
+        let state = inner.state.lock().expect("engine state poisoned");
+        let job = state
+            .jobs
+            .get(&job_id)
+            .expect("job must be present after whitespace log updates");
+
+        assert_eq!(
+            job.logs.len(),
+            1,
+            "whitespace-only log lines should not be stored in job.logs",
+        );
+        assert!(
+            job.logs[0].contains("ffmpeg test progress line"),
+            "the original non-empty log line must be preserved",
+        );
+
+        let tail = job.log_tail.as_deref().unwrap_or("");
+        assert!(
+            tail.contains("ffmpeg test progress line"),
+            "log_tail should still reflect the meaningful log content",
+        );
+    }
+
+    #[test]
     fn process_transcode_job_marks_failure_when_preset_missing() {
         let settings = AppSettings::default();
         let inner = Inner::new(Vec::new(), settings);
@@ -2872,6 +4471,7 @@ mod tests {
                     filename: "C:/videos/sample.mp4".to_string(),
                     job_type: JobType::Video,
                     source: JobSource::Manual,
+                    queue_order: None,
                     original_size_mb: 100.0,
                     original_codec: Some("h264".to_string()),
                     preset_id: "non-existent-preset".to_string(),
@@ -2886,10 +4486,12 @@ mod tests {
                     output_path: None,
                     ffmpeg_command: None,
                     media_info: None,
+                    estimated_seconds: None,
                     preview_path: None,
                     log_tail: None,
                     failure_reason: None,
                     batch_id: None,
+                    wait_metadata: None,
                 },
             );
         }
@@ -2978,5 +4580,91 @@ mod tests {
         }
 
         let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn queue_state_exposes_stable_queue_order_for_waiting_jobs() {
+        let engine = make_engine_with_preset();
+
+        let first = engine.enqueue_transcode_job(
+            "C:/videos/order-1.mp4".to_string(),
+            JobType::Video,
+            JobSource::Manual,
+            100.0,
+            Some("h264".into()),
+            "preset-1".into(),
+        );
+        let second = engine.enqueue_transcode_job(
+            "C:/videos/order-2.mp4".to_string(),
+            JobType::Video,
+            JobSource::Manual,
+            100.0,
+            Some("h264".into()),
+            "preset-1".into(),
+        );
+
+        // Both jobs are in the waiting queue; queue_state should assign them
+        // deterministic queueOrder values based on the in-memory queue.
+        let state = engine.queue_state();
+        let mut by_id = std::collections::HashMap::new();
+        for job in state.jobs {
+            by_id.insert(job.id.clone(), job);
+        }
+
+        let j1 = by_id.get(&first.id).expect("first job present in queue_state");
+        let j2 = by_id
+            .get(&second.id)
+            .expect("second job present in queue_state");
+
+        assert_eq!(
+            j1.queue_order,
+            Some(0),
+            "first enqueued job should have queueOrder 0"
+        );
+        assert_eq!(
+            j2.queue_order,
+            Some(1),
+            "second enqueued job should have queueOrder 1"
+        );
+
+        // Simulate a worker taking the first job; it should no longer appear
+        // in the scheduling queue, and subsequent snapshots should clear its
+        // queueOrder while leaving the second job untouched.
+        {
+            let mut state_inner = engine
+                .inner
+                .state
+                .lock()
+                .expect("engine state poisoned for queueOrder test");
+            let popped = state_inner.queue.pop_front();
+            assert_eq!(
+                popped,
+                Some(first.id.clone()),
+                "front of queue must be the first enqueued job"
+            );
+        }
+
+        let state_after = engine.queue_state();
+        let mut by_id_after = std::collections::HashMap::new();
+        for job in state_after.jobs {
+            by_id_after.insert(job.id.clone(), job);
+        }
+
+        let j1_after = by_id_after
+            .get(&first.id)
+            .expect("first job still present after dequeue");
+        let j2_after = by_id_after
+            .get(&second.id)
+            .expect("second job still present after dequeue");
+
+        assert!(
+            j1_after.queue_order.is_none(),
+            "job no longer in the waiting queue should not carry a queueOrder"
+        );
+        assert_eq!(
+            j2_after.queue_order,
+            Some(0),
+            "remaining waiting job should shift to queueOrder 0"
+        );
     }
 }

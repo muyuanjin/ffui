@@ -1,9 +1,11 @@
+mod taskbar_progress;
 mod transcoding;
 
 use std::{thread, time::Duration};
 
-use tauri::{Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::taskbar_progress::update_taskbar_progress;
 use crate::transcoding::{
     AppSettings, AutoCompressProgress, AutoCompressResult, ExternalToolStatus, TranscodingEngine,
 };
@@ -175,7 +177,7 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
                 std::env::current_exe().map_err(|e| ShimSpawnError::Other(anyhow::anyhow!(e)))?;
             let exe_str = exe_path.as_os_str().to_string_lossy().into_owned();
 
-            let cmdline = format!("\"{}\" --from-elevated", exe_str);
+            let cmdline = format!("\"{exe_str}\" --from-elevated");
             let mut cmdline_w: Vec<u16> =
                 cmdline.encode_utf16().chain(std::iter::once(0)).collect();
             let exe_w: Vec<u16> = exe_str.encode_utf16().chain(std::iter::once(0)).collect();
@@ -310,6 +312,26 @@ fn cancel_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> boo
 }
 
 #[tauri::command]
+fn wait_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+    engine.wait_job(&job_id)
+}
+
+#[tauri::command]
+fn resume_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+    engine.resume_job(&job_id)
+}
+
+#[tauri::command]
+fn restart_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+    engine.restart_job(&job_id)
+}
+
+#[tauri::command]
+fn reorder_queue(engine: State<TranscodingEngine>, ordered_ids: Vec<String>) -> bool {
+    engine.reorder_waiting_jobs(ordered_ids)
+}
+
+#[tauri::command]
 fn get_cpu_usage(engine: State<TranscodingEngine>) -> transcoding::CpuUsageSnapshot {
     engine.cpu_usage()
 }
@@ -322,6 +344,30 @@ fn get_gpu_usage(engine: State<TranscodingEngine>) -> transcoding::GpuUsageSnaps
 #[tauri::command]
 fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
+}
+
+/// Explicitly clear a completed taskbar progress bar once the user has
+/// acknowledged it by focusing/clicking the main window. On non-Windows
+/// platforms this is a no-op, but we still expose the command so the
+/// frontend can call it unconditionally.
+#[tauri::command]
+fn ack_taskbar_progress(app: AppHandle, engine: State<TranscodingEngine>) {
+    let state = engine.queue_state();
+
+    #[cfg(windows)]
+    {
+        let settings = engine.settings();
+        crate::taskbar_progress::acknowledge_taskbar_completion(
+            &app,
+            &state,
+            settings.taskbar_progress_mode,
+        );
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = (app, state);
+    }
 }
 
 #[tauri::command]
@@ -407,6 +453,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            ack_taskbar_progress,
             get_queue_state,
             get_presets,
             save_preset,
@@ -415,6 +462,10 @@ pub fn run() {
             save_app_settings,
             enqueue_transcode_job,
             cancel_transcode_job,
+            wait_transcode_job,
+            resume_transcode_job,
+            restart_transcode_job,
+            reorder_queue,
             get_cpu_usage,
             get_gpu_usage,
             get_external_tool_statuses,
@@ -473,12 +524,27 @@ pub fn run() {
             // Stream queue state changes from the Rust engine to the frontend via
             // a long-lived Tauri event so the UI does not need to poll.
             {
-                let engine = app.state::<TranscodingEngine>();
                 let event_handle = handle.clone();
+                let taskbar_handle = handle.clone();
+                let engine = handle.state::<TranscodingEngine>();
                 engine.register_queue_listener(move |state: QueueState| {
                     if let Err(err) = event_handle.emit("transcoding://queue-state", state.clone())
                     {
                         eprintln!("failed to emit queue-state event: {err}");
+                    }
+
+                    // Update the Windows taskbar progress bar (no-op on
+                    // non-Windows platforms) based on the aggregated queue
+                    // progress for this snapshot.
+                    #[cfg(windows)]
+                    {
+                        let engine = taskbar_handle.state::<TranscodingEngine>();
+                        let settings = engine.settings();
+                        update_taskbar_progress(
+                            &taskbar_handle,
+                            &state,
+                            settings.taskbar_progress_mode,
+                        );
                     }
                 });
             }
@@ -537,6 +603,33 @@ mod tests {
         assert!(
             url.starts_with("data:image/jpeg;base64,"),
             "preview data url must start with JPEG data URL prefix, got: {url}"
+        );
+    }
+
+    #[test]
+    fn tauri_csp_allows_asset_protocol_for_images_and_media() {
+        // Load the Tauri configuration used by this binary and assert that the
+        // CSP explicitly allows the asset protocol for both <img> and <video>
+        // tags so convertFileSrc URLs work after packaging.
+        let raw = include_str!("../tauri.conf.json");
+        let value: serde_json::Value =
+            serde_json::from_str(raw).expect("tauri.conf.json must be valid JSON");
+
+        let csp = value["app"]["security"]["csp"]
+            .as_str()
+            .expect("app.security.csp must be a string");
+
+        assert!(
+            csp.contains("img-src")
+                && csp.contains("asset: http://asset.localhost")
+                && csp.contains("asset: https://asset.localhost"),
+            "CSP must allow asset protocol (http/https) for images, got: {csp}"
+        );
+        assert!(
+            csp.contains("media-src")
+                && csp.contains("asset: http://asset.localhost")
+                && csp.contains("asset: https://asset.localhost"),
+            "CSP must allow asset protocol (http/https) for media (video/audio), got: {csp}"
         );
     }
 }
