@@ -30,6 +30,7 @@ vi.mock("@/lib/backend", () => {
     acknowledgeTaskbarProgress,
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
+    inspectMedia: vi.fn(async () => "{}"),
     fetchCpuUsage: vi.fn(async () => ({ overall: 0, perCore: [] })),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchGpuUsage: vi.fn(async () => ({ available: false })),

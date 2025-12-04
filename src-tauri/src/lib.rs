@@ -1,15 +1,15 @@
 mod taskbar_progress;
-mod transcoding;
+mod ffui_core;
 
 use std::{thread, time::Duration};
 
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::taskbar_progress::update_taskbar_progress;
-use crate::transcoding::{
+use crate::ffui_core::{
     AppSettings, AutoCompressProgress, AutoCompressResult, ExternalToolStatus, TranscodingEngine,
 };
-use crate::transcoding::{JobSource, JobType, QueueState, SmartScanConfig, TranscodeJob};
+use crate::ffui_core::{JobSource, JobType, QueueState, SmartScanConfig, TranscodeJob};
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
@@ -33,7 +33,7 @@ mod elevation_shim {
     use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
 
     #[allow(dead_code)]
-    const SKIP_FLAG_ENV: &str = "TRANSCODING_SKIP_ELEVATION_SHIM";
+    const SKIP_FLAG_ENV: &str = "FFUI_SKIP_ELEVATION_SHIM";
 
     #[allow(dead_code)]
     /// 代表降权重启过程中可能出现的错误。
@@ -51,7 +51,11 @@ mod elevation_shim {
 
     #[allow(dead_code)]
     pub fn mark_skip_for_children() {
-        std::env::set_var(SKIP_FLAG_ENV, "1");
+        // Newer Rust toolchains may treat environment mutation APIs as unsafe
+        // operations; wrap them explicitly so tests compile under both models.
+        unsafe {
+            std::env::set_var(SKIP_FLAG_ENV, "1");
+        }
     }
 
     #[allow(dead_code)]
@@ -87,7 +91,7 @@ mod elevation_shim {
     pub fn relaunch_unelevated_if_needed() -> bool {
         // 默认启用 shim：管理员权限启动时，优先尝试拉起一个“继承 Explorer token 的”
         // 普通权限 UI 实例，确保桌面拖拽始终走非管理员窗口。通过
-        // TRANSCODING_SKIP_ELEVATION_SHIM 环境变量避免子进程递归重启。
+        // FFUI_SKIP_ELEVATION_SHIM 环境变量避免子进程递归重启。
         if should_skip_shim() || !is_process_elevated() {
             return false;
         }
@@ -101,7 +105,7 @@ mod elevation_shim {
                     "failed to spawn unelevated UI process: \
 CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
 当前可执行文件被系统标记为需要管理员权限，无法自动拉起非管理员窗口。\
-请以普通权限运行应用以启用桌面拖拽，或者在环境中设置 TRANSCODING_SKIP_ELEVATION_SHIM=1 来关闭降权逻辑。"
+请以普通权限运行应用以启用桌面拖拽，或者在环境中设置 FFUI_SKIP_ELEVATION_SHIM=1 来关闭降权逻辑。"
                 );
                 false
             }
@@ -189,7 +193,7 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
             let mut pi: PROCESS_INFORMATION = zeroed();
 
             // 标记当前进程的环境，这样后续创建的子进程（包括下面这个）都会继承
-            // `TRANSCODING_SKIP_ELEVATION_SHIM`，从而避免子进程再次进到 shim 里递归重启。
+            // `FFUI_SKIP_ELEVATION_SHIM`，从而避免子进程再次进到 shim 里递归重启。
             mark_skip_for_children();
 
             let create_result: Result<(), WinError> = CreateProcessW(
@@ -232,7 +236,9 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
         #[test]
         fn mark_skip_for_children_sets_and_detects_flag() {
             // 确保起始环境里没有跳过标记。
-            std::env::remove_var(SKIP_FLAG_ENV);
+            unsafe {
+                std::env::remove_var(SKIP_FLAG_ENV);
+            }
             assert!(!should_skip_shim());
 
             // 调用 mark_skip_for_children 后，should_skip_shim 必须返回 true。
@@ -240,7 +246,9 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
             assert!(should_skip_shim());
 
             // 清理环境，避免污染其他测试。
-            std::env::remove_var(SKIP_FLAG_ENV);
+            unsafe {
+                std::env::remove_var(SKIP_FLAG_ENV);
+            }
         }
     }
 }
@@ -253,15 +261,15 @@ fn get_queue_state(engine: State<TranscodingEngine>) -> QueueState {
 }
 
 #[tauri::command]
-fn get_presets(engine: State<TranscodingEngine>) -> Vec<transcoding::FFmpegPreset> {
+fn get_presets(engine: State<TranscodingEngine>) -> Vec<ffui_core::FFmpegPreset> {
     engine.presets()
 }
 
 #[tauri::command]
 fn save_preset(
     engine: State<TranscodingEngine>,
-    preset: transcoding::FFmpegPreset,
-) -> Result<Vec<transcoding::FFmpegPreset>, String> {
+    preset: ffui_core::FFmpegPreset,
+) -> Result<Vec<ffui_core::FFmpegPreset>, String> {
     engine.save_preset(preset).map_err(|e| e.to_string())
 }
 
@@ -269,7 +277,7 @@ fn save_preset(
 fn delete_preset(
     engine: State<TranscodingEngine>,
     preset_id: String,
-) -> Result<Vec<transcoding::FFmpegPreset>, String> {
+) -> Result<Vec<ffui_core::FFmpegPreset>, String> {
     engine.delete_preset(&preset_id).map_err(|e| e.to_string())
 }
 
@@ -332,18 +340,29 @@ fn reorder_queue(engine: State<TranscodingEngine>, ordered_ids: Vec<String>) -> 
 }
 
 #[tauri::command]
-fn get_cpu_usage(engine: State<TranscodingEngine>) -> transcoding::CpuUsageSnapshot {
+fn get_cpu_usage(engine: State<TranscodingEngine>) -> ffui_core::CpuUsageSnapshot {
     engine.cpu_usage()
 }
 
 #[tauri::command]
-fn get_gpu_usage(engine: State<TranscodingEngine>) -> transcoding::GpuUsageSnapshot {
+fn get_gpu_usage(engine: State<TranscodingEngine>) -> ffui_core::GpuUsageSnapshot {
     engine.gpu_usage()
 }
 
 #[tauri::command]
 fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
+}
+
+/// Open the webview developer tools for the calling window.
+///
+/// In debug builds this forwards to `WebviewWindow::open_devtools`. In
+/// release builds without the `devtools` feature, this is a no-op so that
+/// the command remains safe to call but does not accidentally enable
+/// devtools in production.
+#[tauri::command]
+fn open_devtools(window: tauri::WebviewWindow) {
+    window.open_devtools();
 }
 
 /// Explicitly clear a completed taskbar progress bar once the user has
@@ -454,6 +473,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             ack_taskbar_progress,
+            open_devtools,
             get_queue_state,
             get_presets,
             save_preset,
@@ -528,8 +548,7 @@ pub fn run() {
                 let taskbar_handle = handle.clone();
                 let engine = handle.state::<TranscodingEngine>();
                 engine.register_queue_listener(move |state: QueueState| {
-                    if let Err(err) = event_handle.emit("transcoding://queue-state", state.clone())
-                    {
+                    if let Err(err) = event_handle.emit("ffui://queue-state", state.clone()) {
                         eprintln!("failed to emit queue-state event: {err}");
                     }
 
@@ -593,7 +612,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let path = tmp_dir.join(format!("transcoding_test_preview_{timestamp}.jpg"));
+        let path = tmp_dir.join(format!("ffui_test_preview_{timestamp}.jpg"));
 
         fs::write(&path, b"dummy-preview-bytes").expect("failed to write preview test file");
 

@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
@@ -84,7 +85,12 @@ const statusTextClass = computed(() => {
 
 const { t } = useI18n();
 
-const localizedStatus = computed(() => t(`queue.status.${props.job.status}`));
+// 将内部 queued 统一映射为 waiting，避免在文案中暴露裸 key。
+const displayStatusKey = computed(() =>
+  props.job.status === "queued" ? "waiting" : props.job.status,
+);
+
+const localizedStatus = computed(() => t(`queue.status.${displayStatusKey.value}`));
 
 const typeLabel = computed(() =>
   props.job.type === "image" ? t("queue.typeImage") : t("queue.typeVideo"),
@@ -165,10 +171,30 @@ const effectiveProgressStyle = computed<QueueProgressStyle>(
 
 // 只保留“真实进度 + 缓动”：后端 progress 是唯一真值，这里只是做一次平滑过渡，
 // 不再使用 estimatedSeconds 或任何“高级拟合算法”。缓动时长根据后台汇报间隔
-// 动态调整，而不是写死常数。
-const clampedProgress = computed(() =>
-  Math.max(0, Math.min(100, props.job.progress ?? 0)),
-);
+// 动态调整，而不是写死常数。同时，为了和标题栏/任务栏聚合进度保持一致，
+// 在显示层面上将 Completed/Failed/Skipped/Cancelled 统一视为 100%，
+// Waiting/Queued 视为 0%，Processing/Paused 按实际百分比映射。
+const clampedProgress = computed(() => {
+  const status = props.job.status;
+
+  if (
+    status === "completed" ||
+    status === "failed" ||
+    status === "skipped" ||
+    status === "cancelled"
+  ) {
+    return 100;
+  }
+
+  if (status === "processing" || status === "paused") {
+    const raw =
+      typeof props.job.progress === "number" ? props.job.progress : 0;
+    return Math.max(0, Math.min(100, raw));
+  }
+
+  // waiting / queued
+  return 0;
+});
 
 const displayedProgress = ref(clampedProgress.value);
 const displayedClampedProgress = computed(() =>
@@ -225,8 +251,9 @@ const progressAnimationTick = () => {
   const elapsed = now - progressAnimStartTime;
   const t = Math.min(1, durationMs > 0 ? elapsed / durationMs : 1);
 
-  // 简单的 ease-out-cubic 缓动，只负责把显示值推到真实值，不做任何额外“预测”
-  const eased = 1 - Math.pow(1 - t, 3);
+  // 使用线性插值代替 ease-out-cubic，减少每次采样尾段“减速”的顿挫感，
+  // 让进度条在同样时间内以恒定速度贴近后端真实进度。
+  const eased = t;
   const next =
     progressAnimStartValue +
     (progressAnimTargetValue - progressAnimStartValue) * eased;
@@ -443,6 +470,9 @@ onUnmounted(() => {
     class="relative mb-3 border-border/60 bg-card/80 transition-colors cursor-pointer overflow-hidden"
     :class="[
       isSkipped ? 'opacity-60 bg-muted/60' : 'hover:border-primary/40',
+      isSelectable && isSelected
+        ? 'border-primary/70 ring-1 ring-primary/60 bg-primary/5'
+        : '',
       isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
     @click="emit('inspect', job)"
@@ -496,17 +526,14 @@ onUnmounted(() => {
 
     <div class="relative flex items-center justify-between mb-2">
       <div class="flex items-center gap-3">
-        <button
+        <Checkbox
           v-if="isSelectable"
-          type="button"
-          class="h-5 w-5 rounded border border-border flex items-center justify-center text-[10px] mr-1 bg-background hover:bg-muted"
-          :class="{
-            'bg-primary text-primary-foreground border-primary/60': isSelected,
-          }"
-          @click.stop="emit('toggle-select', job.id)"
-        >
-          <span v-if="isSelected">✓</span>
-        </button>
+          :checked="isSelected"
+          data-testid="queue-item-select-toggle"
+          class="mr-1 h-4 w-4 rounded-full border-border data-[state=checked]:border-primary/60"
+          @click.stop
+          @update:checked="() => emit('toggle-select', job.id)"
+        />
         <div
           class="h-14 w-24 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0"
           data-testid="queue-item-thumbnail"
@@ -607,6 +634,7 @@ onUnmounted(() => {
             variant="outline"
             size="sm"
             class="h-6 px-2 text-[10px]"
+            data-testid="queue-item-wait-button"
             @click.stop="emit('wait', job.id)"
           >
             {{ t("queue.actions.wait") }}
@@ -616,6 +644,7 @@ onUnmounted(() => {
             variant="outline"
             size="sm"
             class="h-6 px-2 text-[10px]"
+            data-testid="queue-item-resume-button"
             @click.stop="emit('resume', job.id)"
           >
             {{ t("queue.actions.resume") }}
@@ -625,6 +654,7 @@ onUnmounted(() => {
             variant="outline"
             size="sm"
             class="h-6 px-2 text-[10px]"
+            data-testid="queue-item-restart-button"
             @click.stop="emit('restart', job.id)"
           >
             {{ t("queue.actions.restart") }}
@@ -659,14 +689,16 @@ onUnmounted(() => {
     <div v-if="!isCompact && rawCommand" class="mt-2 space-y-1">
       <div class="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{{ t("taskDetail.commandTitle", "命令") }}</span>
-        <button
+        <Button
           v-if="hasDistinctTemplate"
           type="button"
-          class="text-[10px] underline underline-offset-2 hover:text-foreground"
+          variant="link"
+          size="xs"
+          class="text-[10px] px-0"
           @click.stop="toggleCommandView"
         >
           {{ commandViewToggleLabel }}
-        </button>
+        </Button>
       </div>
       <pre
         class="max-h-24 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"

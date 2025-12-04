@@ -9,7 +9,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
-use crate::transcoding::settings::ExternalToolSettings;
+use crate::ffui_core::settings::ExternalToolSettings;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
@@ -533,7 +533,7 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
 
     let mut builder = Client::builder()
         .timeout(Duration::from_secs(5))
-        .user_agent("transcoding-app/ffmpeg-static-updater");
+        .user_agent("ffui/ffmpeg-static-updater");
 
     if let Some(proxy_url) = proxy_from_env() {
         if let Ok(proxy) = Proxy::all(&proxy_url) {
@@ -1129,7 +1129,7 @@ mod tests {
         // When no download has been triggered, the runtime fields should be
         // well-formed and defaulted so the frontend can rely on them without
         // extra null checks.
-        let settings = crate::transcoding::settings::ExternalToolSettings {
+        let settings = crate::ffui_core::settings::ExternalToolSettings {
             ffmpeg_path: None,
             ffprobe_path: None,
             avifenc_path: None,

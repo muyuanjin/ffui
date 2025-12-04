@@ -64,6 +64,10 @@ export const acknowledgeTaskbarProgress = async (): Promise<void> => {
   await invoke<void>("ack_taskbar_progress");
 };
 
+export const openDevtools = async (): Promise<void> => {
+  await invoke<void>("open_devtools");
+};
+
 export const loadPresets = async (): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("get_presets");
 };
@@ -148,6 +152,12 @@ export const loadPreviewDataUrl = async (previewPath: string): Promise<string> =
     // Accept both camelCase and snake_case to stay resilient to Rust-side renames.
     previewPath,
     preview_path: previewPath,
+  });
+};
+
+export const inspectMedia = async (path: string): Promise<string> => {
+  return invoke<string>("inspect_media", {
+    path,
   });
 };
 

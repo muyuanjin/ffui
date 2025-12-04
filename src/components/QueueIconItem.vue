@@ -29,9 +29,27 @@ const effectiveProgressStyle = computed<QueueProgressStyle>(
   () => props.progressStyle ?? "bar",
 );
 
-const clampedProgress = computed(() =>
-  Math.max(0, Math.min(100, props.job.progress ?? 0)),
-);
+const clampedProgress = computed(() => {
+  const status = props.job.status;
+
+  if (
+    status === "completed" ||
+    status === "failed" ||
+    status === "skipped" ||
+    status === "cancelled"
+  ) {
+    return 100;
+  }
+
+  if (status === "processing" || status === "paused") {
+    const raw =
+      typeof props.job.progress === "number" ? props.job.progress : 0;
+    return Math.max(0, Math.min(100, raw));
+  }
+
+  // waiting / queued
+  return 0;
+});
 
 const showBarProgress = computed(
   () =>
@@ -54,8 +72,13 @@ const showRippleCardProgress = computed(
     effectiveProgressStyle.value === "ripple-card",
 );
 
-const statusLabel = computed(() =>
-  t(`queue.status.${props.job.status}`) as string,
+// 与列表视图保持一致：内部 queued 状态在文案层统一视为 waiting。
+const displayStatusKey = computed(() =>
+  props.job.status === "queued" ? "waiting" : props.job.status,
+);
+
+const statusLabel = computed(
+  () => t(`queue.status.${displayStatusKey.value}`) as string,
 );
 
 const statusBadgeClass = computed(() => {

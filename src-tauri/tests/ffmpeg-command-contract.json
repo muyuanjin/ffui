@@ -1,0 +1,292 @@
+{
+  "cases": [
+    {
+      "id": "x264-crf-archive",
+      "preset": {
+        "id": "contract-x264-crf-archive",
+        "name": "Contract x264 CRF Archive",
+        "description": "x264 slow CRF 18 near-lossless archive preset used for TS/Rust command contract tests.",
+        "global": {
+          "overwriteBehavior": "overwrite",
+          "logLevel": "error",
+          "hideBanner": true,
+          "enableReport": false
+        },
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "libx264",
+          "rateControl": "crf",
+          "qualityValue": 18,
+          "preset": "slow",
+          "tune": "film",
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": "4.1",
+          "gopSize": 250,
+          "bf": 3,
+          "pixFmt": "yuv420p"
+        },
+        "audio": {
+          "codec": "copy",
+          "bitrate": null,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": "-2:1080",
+          "crop": null,
+          "fps": null,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": null,
+        "container": {
+          "format": "mp4",
+          "movflags": ["faststart"]
+        },
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel error -hide_banner -i INPUT -map 0 -c:v libx264 -crf 18 -preset slow -tune film -level 4.1 -g 250 -bf 3 -pix_fmt yuv420p -c:a copy -vf scale=-2:1080 -f mp4 -movflags faststart OUTPUT"
+    },
+    {
+      "id": "nvenc-cq-fast",
+      "preset": {
+        "id": "contract-nvenc-cq-fast",
+        "name": "Contract NVENC CQ Fast",
+        "description": "HEVC NVENC CQ 28 fast transcode preset used for TS/Rust command contract tests.",
+        "global": {
+          "overwriteBehavior": "overwrite",
+          "logLevel": "info",
+          "hideBanner": true,
+          "enableReport": false
+        },
+        "input": {
+          "seekMode": "input",
+          "seekPosition": "00:00:10",
+          "durationMode": "duration",
+          "duration": "5",
+          "accurateSeek": true
+        },
+        "mapping": {
+          "maps": ["0:v:0", "0:a:0"],
+          "metadata": ["title=NVENC CQ Fast"],
+          "dispositions": ["0:v:0 default"]
+        },
+        "video": {
+          "encoder": "hevc_nvenc",
+          "rateControl": "cq",
+          "qualityValue": 28,
+          "preset": "p5",
+          "tune": null,
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": 120,
+          "bf": 3,
+          "pixFmt": "yuv420p"
+        },
+        "audio": {
+          "codec": "copy",
+          "bitrate": null,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": "1280:-2",
+          "crop": null,
+          "fps": 60,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": {
+          "strategy": "drop",
+          "burnInFilter": null
+        },
+        "container": {
+          "format": "mp4",
+          "movflags": ["faststart", "frag_keyframe"]
+        },
+        "hardware": {
+          "hwaccel": "cuda",
+          "hwaccelDevice": "cuda:0",
+          "hwaccelOutputFormat": "cuda",
+          "bitstreamFilters": ["h264_mp4toannexb"]
+        },
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -ss 00:00:10 -accurate_seek -i INPUT -t 5 -map 0:v:0 -map 0:a:0 -disposition 0:v:0 default -metadata title=NVENC CQ Fast -c:v hevc_nvenc -cq 28 -preset p5 -g 120 -bf 3 -pix_fmt yuv420p -c:a copy -vf scale=1280:-2,fps=60 -sn -f mp4 -movflags faststart+frag_keyframe -hwaccel cuda -hwaccel_device cuda:0 -hwaccel_output_format cuda -bsf h264_mp4toannexb OUTPUT"
+    },
+    {
+      "id": "av1-crf-high-compression",
+      "preset": {
+        "id": "contract-av1-crf-high",
+        "name": "Contract AV1 CRF High Compression",
+        "description": "libsvtav1 CRF 34 high compression preset used for TS/Rust command contract tests.",
+        "global": {
+          "overwriteBehavior": "overwrite",
+          "logLevel": "warning",
+          "hideBanner": true,
+          "enableReport": false
+        },
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "libsvtav1",
+          "rateControl": "crf",
+          "qualityValue": 34,
+          "preset": "6",
+          "tune": null,
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": 240,
+          "bf": 3,
+          "pixFmt": "yuv420p10le"
+        },
+        "audio": {
+          "codec": "aac",
+          "bitrate": 160,
+          "sampleRateHz": 48000,
+          "channels": 2,
+          "channelLayout": "stereo",
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": "-2:1080",
+          "crop": null,
+          "fps": 30,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": {
+          "strategy": "keep",
+          "burnInFilter": null
+        },
+        "container": {
+          "format": "mkv",
+          "movflags": null
+        },
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel warning -hide_banner -i INPUT -map 0 -c:v libsvtav1 -crf 34 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le -c:a aac -b:a 160k -ar 48000 -ac 2 -channel_layout stereo -vf scale=-2:1080,fps=30 -f mkv OUTPUT"
+    },
+    {
+      "id": "stream-copy-remux",
+      "preset": {
+        "id": "contract-stream-copy-remux",
+        "name": "Contract Stream Copy Remux",
+        "description": "Pure stream copy remux preset used for TS/Rust command contract tests.",
+        "global": {
+          "overwriteBehavior": "overwrite",
+          "logLevel": "info",
+          "hideBanner": true,
+          "enableReport": false
+        },
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "copy",
+          "rateControl": "cbr",
+          "qualityValue": 0,
+          "preset": "copy",
+          "tune": null,
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": null,
+          "bf": null,
+          "pixFmt": null
+        },
+        "audio": {
+          "codec": "copy",
+          "bitrate": null,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": null,
+          "crop": null,
+          "fps": null,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": {
+          "strategy": "keep",
+          "burnInFilter": null
+        },
+        "container": {
+          "format": "mkv",
+          "movflags": null
+        },
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -i INPUT -map 0 -c:v copy -c:a copy -f mkv OUTPUT"
+    }
+  ]
+}

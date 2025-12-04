@@ -555,4 +555,167 @@ describe("QueueItem", () => {
     expect(aboveInner).toBeTruthy();
     expect((aboveInner!.element as HTMLDivElement).style.width).toBe("100%");
   });
+
+  it("treats cancelled jobs as fully progressed for visual card fill (aligns with header aggregate progress)", async () => {
+    const processingJob = makeJob({
+      status: "processing",
+      progress: 40,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job: processingJob,
+        preset: basePreset,
+        canCancel: true,
+        progressStyle: "card-fill",
+        // 使用较短的刷新间隔关闭缓动动画，方便在测试中直接读取最终填充宽度。
+        progressUpdateIntervalMs: 50,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const expectFillWidth = (expected: string) => {
+      const container = wrapper.get(
+        "[data-testid='queue-item-progress-card-fill']",
+      );
+      const divs = container.findAll("div");
+      const inner = divs.find(
+        (el) => (el.element as HTMLDivElement).style.width !== "",
+      );
+      expect(inner).toBeTruthy();
+      expect((inner!.element as HTMLDivElement).style.width).toBe(expected);
+    };
+
+    // 进行中的任务按真实进度渲染。
+    expectFillWidth("40%");
+
+    // 后端在取消任务时会将 progress 重置为 0，但聚合进度（标题栏/任务栏）
+    // 会将 Cancelled 视为“已完成的工作”。前端卡片在显示层面也应视为 100%。
+    const cancelledJob: TranscodeJob = {
+      ...processingJob,
+      status: "cancelled",
+      progress: 0,
+    };
+
+    await wrapper.setProps({ job: cancelledJob });
+    await nextTick();
+
+    expectFillWidth("100%");
+  });
+
+  it("shows wait/resume/restart buttons based on status and emits corresponding events", async () => {
+    // Wait is only available for processing jobs when canWait is true.
+    const processingJob = makeJob({
+      id: "job-processing",
+      status: "processing",
+      progress: 40,
+    });
+
+    const waitWrapper = mount(QueueItem, {
+      props: {
+        job: processingJob,
+        preset: basePreset,
+        canCancel: true,
+        canWait: true,
+        canResume: true,
+        canRestart: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const waitButton = waitWrapper.get(
+      "[data-testid='queue-item-wait-button']",
+    );
+    await waitButton.trigger("click");
+    expect(waitWrapper.emitted("wait")?.[0]?.[0]).toBe("job-processing");
+
+    // Resume is only available for paused jobs when canResume is true.
+    const pausedJob = makeJob({
+      id: "job-paused",
+      status: "paused",
+      progress: 40,
+    });
+
+    const resumeWrapper = mount(QueueItem, {
+      props: {
+        job: pausedJob,
+        preset: basePreset,
+        canCancel: true,
+        canWait: true,
+        canResume: true,
+        canRestart: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const resumeButton = resumeWrapper.get(
+      "[data-testid='queue-item-resume-button']",
+    );
+    await resumeButton.trigger("click");
+    expect(resumeWrapper.emitted("resume")?.[0]?.[0]).toBe("job-paused");
+
+    // Restart is available for non-terminal jobs when canRestart is true.
+    const waitingJob = makeJob({
+      id: "job-waiting",
+      status: "waiting",
+      progress: 0,
+    });
+
+    const restartWrapper = mount(QueueItem, {
+      props: {
+        job: waitingJob,
+        preset: basePreset,
+        canCancel: true,
+        canWait: true,
+        canResume: true,
+        canRestart: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const restartButton = restartWrapper.get(
+      "[data-testid='queue-item-restart-button']",
+    );
+    await restartButton.trigger("click");
+    expect(restartWrapper.emitted("restart")?.[0]?.[0]).toBe("job-waiting");
+  });
+
+  it("renders a selection toggle when canSelect is true and emits toggle-select with job id", async () => {
+    const job = makeJob({
+      id: "job-selectable",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+        canSelect: true,
+        selected: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const toggle = wrapper.get("[data-testid='queue-item-select-toggle']");
+    // Initial state: not selected.
+    expect(toggle.attributes("data-state")).not.toBe("checked");
+
+    await toggle.trigger("click");
+    expect(wrapper.emitted("toggle-select")?.[0]?.[0]).toBe("job-selectable");
+
+    // When selected is true, the toggle should move into the checked state.
+    await wrapper.setProps({ selected: true });
+    await nextTick();
+    expect(toggle.attributes("data-state")).toBe("checked");
+  });
 });

@@ -3,7 +3,6 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 
-// @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
@@ -23,7 +22,7 @@ export default defineConfig(async () => ({
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     // use a non-reserved port; 1420/1421 are blocked on this system
-    port: 5183,
+    port: 5188,
     strictPort: true,
     host: host || false,
     hmr: host

@@ -4,9 +4,9 @@ import type { QueueMode, QueueProgressStyle, QueueViewMode } from "@/types";
 /**
  * Storage keys for queue view preferences.
  */
-export const QUEUE_VIEW_MODE_STORAGE_KEY = "transcoding.queueViewMode";
-export const QUEUE_PROGRESS_STYLE_STORAGE_KEY = "transcoding.queueProgressStyle";
-export const QUEUE_MODE_STORAGE_KEY = "transcoding.queueMode";
+export const QUEUE_VIEW_MODE_STORAGE_KEY = "ffui.queueViewMode";
+export const QUEUE_PROGRESS_STYLE_STORAGE_KEY = "ffui.queueProgressStyle";
+export const QUEUE_MODE_STORAGE_KEY = "ffui.queueMode";
 
 const DEFAULT_VIEW_MODE: QueueViewMode = "detail";
 const DEFAULT_PROGRESS_STYLE: QueueProgressStyle = "bar";

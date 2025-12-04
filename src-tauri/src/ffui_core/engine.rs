@@ -11,17 +11,17 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 
-use crate::transcoding::domain::{
-    AutoCompressProgress, AutoCompressResult, JobSource, JobStatus, JobType, MediaInfo,
-    QueueState, SmartScanConfig, TranscodeJob, WaitMetadata,
+use crate::ffui_core::domain::{
+    AutoCompressProgress, AutoCompressResult, JobSource, JobStatus, JobType, MediaInfo, QueueState,
+    SmartScanConfig, TranscodeJob, WaitMetadata,
 };
-use crate::transcoding::monitor::{
+use crate::ffui_core::monitor::{
     sample_cpu_usage, sample_gpu_usage, CpuUsageSnapshot, GpuUsageSnapshot,
 };
-use crate::transcoding::settings::{
+use crate::ffui_core::settings::{
     self, AppSettings, DownloadedToolInfo, DownloadedToolState, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS,
 };
-use crate::transcoding::tools::{
+use crate::ffui_core::tools::{
     ensure_tool_available, last_tool_download_metadata, tool_status, ExternalToolKind,
     ExternalToolStatus,
 };
@@ -163,6 +163,7 @@ fn snapshot_queue_state(inner: &Inner) -> QueueState {
 
 fn notify_queue_listeners(inner: &Inner) {
     let snapshot = snapshot_queue_state(inner);
+    persist_queue_state(&snapshot);
     let listeners = inner
         .queue_listeners
         .lock()
@@ -170,6 +171,171 @@ fn notify_queue_listeners(inner: &Inner) {
     for listener in listeners.iter() {
         listener(snapshot.clone());
     }
+}
+
+fn queue_state_sidecar_path() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let stem = exe.file_stem()?.to_str()?;
+    Some(dir.join(format!("{stem}.queue-state.json")))
+}
+
+fn load_persisted_queue_state() -> Option<QueueState> {
+    let path = queue_state_sidecar_path()?;
+    if !path.exists() {
+        return None;
+    }
+
+    let file = match fs::File::open(&path) {
+        Ok(f) => f,
+        Err(err) => {
+            eprintln!(
+                "failed to open persisted queue state {}: {err:#}",
+                path.display()
+            );
+            return None;
+        }
+    };
+    let reader = BufReader::new(file);
+    match serde_json::from_reader::<_, QueueState>(reader) {
+        Ok(state) => Some(state),
+        Err(err) => {
+            eprintln!(
+                "failed to parse persisted queue state from {}: {err:#}",
+                path.display()
+            );
+            None
+        }
+    }
+}
+
+fn persist_queue_state(snapshot: &QueueState) {
+    let path = match queue_state_sidecar_path() {
+        Some(p) => p,
+        None => return,
+    };
+
+    if let Some(parent) = path.parent() {
+        if let Err(err) = fs::create_dir_all(parent) {
+            eprintln!(
+                "failed to create directory for queue state {}: {err:#}",
+                parent.display()
+            );
+            return;
+        }
+    }
+
+    let tmp_path = path.with_extension("tmp");
+    match fs::File::create(&tmp_path) {
+        Ok(file) => {
+            if let Err(err) = serde_json::to_writer_pretty(&file, snapshot) {
+                eprintln!(
+                    "failed to write queue state to {}: {err:#}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
+            }
+            if let Err(err) = fs::rename(&tmp_path, &path) {
+                eprintln!(
+                    "failed to atomically rename {} -> {}: {err:#}",
+                    tmp_path.display(),
+                    path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+            }
+        }
+        Err(err) => {
+            eprintln!(
+                "failed to create temp queue state file {}: {err:#}",
+                tmp_path.display()
+            );
+        }
+    }
+}
+
+fn restore_jobs_from_persisted_queue(inner: &Inner) {
+    let snapshot = match load_persisted_queue_state() {
+        Some(s) => s,
+        None => return,
+    };
+
+    restore_jobs_from_snapshot(inner, snapshot);
+}
+
+fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
+    {
+        let state = inner.state.lock().expect("engine state poisoned");
+        if !state.jobs.is_empty() || !state.queue.is_empty() {
+            // Do not clobber any in-memory jobs that were already enqueued by
+            // this process; recovery is only applied on a fresh engine.
+            return;
+        }
+    }
+
+    let mut waiting: Vec<(u64, String)> = Vec::new();
+
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+
+        for mut job in snapshot.jobs {
+            let id = job.id.clone();
+
+            // Jobs that were previously in Processing are treated as Paused so
+            // they do not auto-resume on startup but remain recoverable.
+            if job.status == JobStatus::Processing {
+                job.status = JobStatus::Paused;
+                job.logs.push(
+                    "Recovered after unexpected shutdown; job did not finish in previous run."
+                        .to_string(),
+                );
+            }
+
+            let persisted_order = job.queue_order;
+            job.queue_order = None;
+
+            // Best-effort crash recovery metadata for video jobs that had
+            // already made some progress. When a temp output exists but no
+            // WaitMetadata was recorded (for example due to a power loss),
+            // attach the path so a later resume can attempt concat-based
+            // continuation instead of always restarting from 0%.
+            if matches!(job.job_type, JobType::Video)
+                && matches!(
+                    job.status,
+                    JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
+                )
+                && job.wait_metadata.is_none()
+            {
+                let tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
+                if tmp_output.exists() {
+                    job.wait_metadata = Some(WaitMetadata {
+                        last_progress_percent: Some(job.progress),
+                        processed_seconds: None,
+                        tmp_output_path: Some(tmp_output.to_string_lossy().into_owned()),
+                    });
+                }
+            }
+
+            if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
+                let order = persisted_order.unwrap_or(u64::MAX);
+                waiting.push((order, id.clone()));
+            }
+
+            state.jobs.insert(id, job);
+        }
+
+        waiting.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
+
+        for (_order, id) in waiting.drain(..) {
+            if !state.queue.contains(&id) {
+                state.queue.push_back(id);
+            }
+        }
+    }
+
+    // Emit a snapshot so the frontend sees the recovered queue without having
+    // to poll immediately after startup.
+    notify_queue_listeners(inner);
 }
 
 fn notify_smart_scan_listeners(inner: &Inner, progress: AutoCompressProgress) {
@@ -234,6 +400,7 @@ impl TranscodingEngine {
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
         let inner = Arc::new(Inner::new(presets, settings));
+        restore_jobs_from_persisted_queue(&inner);
         Self::spawn_worker(inner.clone());
         Ok(Self { inner })
     }
@@ -392,7 +559,7 @@ impl TranscodingEngine {
                 log_tail: None,
                 failure_reason: None,
                 batch_id: None,
-                 wait_metadata: None,
+                wait_metadata: None,
             };
             state.queue.push_back(id.clone());
             state.jobs.insert(id.clone(), job.clone());
@@ -659,7 +826,9 @@ impl TranscodingEngine {
         let (settings_snapshot, presets, batch_id, started_at_ms) = {
             let mut state = self.inner.state.lock().expect("engine state poisoned");
             state.settings.smart_scan_defaults = config.clone();
-            settings::save_settings(&state.settings)?;
+            if let Err(err) = settings::save_settings(&state.settings) {
+                eprintln!("failed to persist Smart Scan defaults to settings.json: {err:#}");
+            }
             let settings_snapshot = state.settings.clone();
             let presets = state.presets.clone();
 
@@ -1034,6 +1203,7 @@ impl TranscodingEngine {
             .arg("-print_format")
             .arg("json")
             .arg("-show_format")
+            .arg("-show_entries")
             .arg("format_tags=title,artist,album,encoder")
             .arg("-show_streams")
             .arg(&path)
@@ -1180,7 +1350,7 @@ impl TranscodingEngine {
         for index in 0..worker_count {
             let inner_clone = inner.clone();
             thread::Builder::new()
-                .name(format!("transcoding-worker-{index}"))
+                .name(format!("ffui-transcode-worker-{index}"))
                 .spawn(move || worker_loop(inner_clone))
                 .expect("failed to spawn transcoding worker thread");
         }
@@ -1199,7 +1369,13 @@ fn next_job_for_worker_locked(state: &mut EngineState) -> Option<String> {
         if job.start_time.is_none() {
             job.start_time = Some(current_time_millis());
         }
-        job.progress = 0.0;
+        // For fresh jobs we start from 0%, but for resumed jobs that already
+        // have meaningful progress and wait metadata we keep the existing
+        // percentage so the UI does not jump backwards when continuing from
+        // a partial output segment.
+        if job.progress <= 0.0 || job.wait_metadata.is_none() || !job.progress.is_finite() {
+            job.progress = 0.0;
+        }
     }
 
     Some(job_id)
@@ -1259,6 +1435,7 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         preset_id,
         cached_media_info,
         job_filename,
+        job_wait_metadata,
     ) = {
         let state = inner.state.lock().expect("engine state poisoned");
         let job = match state.jobs.get(job_id) {
@@ -1283,6 +1460,7 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             job.preset_id.clone(),
             cached_media_info,
             job.filename.clone(),
+            job.wait_metadata.clone(),
         )
     };
 
@@ -1404,7 +1582,43 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             build_video_output_path(&input_path)
         }
     };
-    let tmp_output = build_video_tmp_output_path(&input_path);
+    let base_tmp_output = build_video_tmp_output_path(&input_path);
+    // Determine whether this run should resume from a previous partial output
+    // segment. When we have both a known temp output path and a meaningful
+    // processed duration, we treat the job as resumable; otherwise we fall
+    // back to a fresh transcode from 0%.
+    let mut resume_from_seconds: Option<f64> = None;
+    let mut existing_segment: Option<PathBuf> = None;
+
+    if let Some(meta) = job_wait_metadata {
+        if let Some(tmp) = meta.tmp_output_path.as_ref() {
+            let path = PathBuf::from(tmp);
+            if path.exists() {
+                if let Some(processed) = meta.processed_seconds {
+                    if processed.is_finite() && processed > 0.0 {
+                        resume_from_seconds = Some(processed);
+                        existing_segment = Some(path);
+                    }
+                } else if let (Some(pct), Some(total)) =
+                    (meta.last_progress_percent, media_info.duration_seconds)
+                {
+                    if pct.is_finite() && pct > 0.0 && total.is_finite() && total > 0.0 {
+                        let processed = (pct / 100.0) * total;
+                        if processed > 0.0 {
+                            resume_from_seconds = Some(processed);
+                            existing_segment = Some(path);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let tmp_output = if existing_segment.is_some() {
+        build_video_resume_tmp_output_path(&input_path)
+    } else {
+        base_tmp_output.clone()
+    };
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
     // in later if ffprobe is missing or fails on the current file.
@@ -1425,6 +1639,23 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             if let Some(preview) = &preview_path {
                 job.preview_path = Some(preview.to_string_lossy().into_owned());
             }
+            if matches!(job.job_type, JobType::Video) {
+                let tmp_str = tmp_output.to_string_lossy().into_owned();
+                match job.wait_metadata.as_mut() {
+                    Some(meta) => {
+                        if meta.tmp_output_path.is_none() {
+                            meta.tmp_output_path = Some(tmp_str.clone());
+                        }
+                    }
+                    None => {
+                        job.wait_metadata = Some(WaitMetadata {
+                            last_progress_percent: None,
+                            processed_seconds: None,
+                            tmp_output_path: Some(tmp_str.clone()),
+                        });
+                    }
+                }
+            }
             state
                 .media_info_cache
                 .insert(job_filename, media_info.clone());
@@ -1436,7 +1667,51 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
     // and basic info as soon as a job enters Processing.
     notify_queue_listeners(inner);
 
-    let args = build_ffmpeg_args(&preset, &input_path, &tmp_output);
+    // For resumed jobs, derive an effective preset that seeks into the input
+    // at the last known processed position using an input-side `-ss` so the
+    // new segment continues where the previous temp output stopped. When the
+    // preset already defines a custom output-side seek we fall back to a
+    // fresh run to avoid surprising overrides.
+    let mut effective_preset = preset.clone();
+    if let Some(offset) = resume_from_seconds {
+        let mut clone = preset.clone();
+        match clone.input {
+            Some(ref mut timeline) => {
+                use super::domain::SeekMode;
+                match timeline.seek_mode {
+                    None | Some(SeekMode::Input) => {
+                        timeline.seek_mode = Some(SeekMode::Input);
+                        timeline.seek_position = Some(format!("{offset:.3}"));
+                        if timeline.accurate_seek.is_none() {
+                            timeline.accurate_seek = Some(true);
+                        }
+                        effective_preset = clone;
+                    }
+                    Some(SeekMode::Output) => {
+                        // Preserve caller-provided output-side seeking; disable
+                        // automatic resume for such advanced timelines.
+                        resume_from_seconds = None;
+                        existing_segment = None;
+                        effective_preset = preset.clone();
+                    }
+                }
+            }
+            None => {
+                use super::domain::{InputTimelineConfig, SeekMode};
+                let timeline = InputTimelineConfig {
+                    seek_mode: Some(SeekMode::Input),
+                    seek_position: Some(format!("{offset:.3}")),
+                    duration_mode: None,
+                    duration: None,
+                    accurate_seek: Some(true),
+                };
+                clone.input = Some(timeline);
+                effective_preset = clone;
+            }
+        }
+    }
+
+    let args = build_ffmpeg_args(&effective_preset, &input_path, &tmp_output);
 
     // Record the exact ffmpeg command we are about to run so that users can
     // see and reproduce it from the queue UI if anything goes wrong.
@@ -1575,7 +1850,13 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
                     }
                 }
 
-                let mut percent = compute_progress_percent(total_duration, elapsed);
+                let effective_elapsed = if let Some(base) = resume_from_seconds {
+                    base + elapsed
+                } else {
+                    elapsed
+                };
+
+                let mut percent = compute_progress_percent(total_duration, effective_elapsed);
                 if percent >= 100.0 {
                     // Keep a tiny numerical headroom so that the last step to
                     // an exact 100% always comes from the terminal state
@@ -1637,15 +1918,66 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         .unwrap_or(Duration::from_secs(0))
         .as_secs_f64();
 
-    let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
+    let final_output_size_bytes: u64;
 
-    fs::rename(&tmp_output, &output_path).with_context(|| {
-        format!(
-            "failed to rename {} -> {}",
-            tmp_output.display(),
-            output_path.display()
-        )
-    })?;
+    if let Some(existing) = existing_segment {
+        // Resumed job: concat the previous partial segment with the new
+        // segment produced in this run into a temporary target, then atomically
+        // move it into place. This avoids corrupting the previous partial when
+        // concat fails.
+        let ext = output_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("mp4");
+        let concat_tmp = output_path.with_extension(format!("concat.tmp.{ext}"));
+
+        if let Err(err) = concat_video_segments(&ffmpeg_path, &existing, &tmp_output, &concat_tmp) {
+            {
+                let mut state = inner.state.lock().expect("engine state poisoned");
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Failed;
+                    job.progress = 100.0;
+                    job.end_time = Some(current_time_millis());
+                    let reason =
+                        format!("ffmpeg concat failed when resuming from partial output: {err:#}");
+                    job.failure_reason = Some(reason.clone());
+                    job.logs.push(reason);
+                    recompute_log_tail(job);
+                }
+            }
+            let _ = fs::remove_file(&tmp_output);
+            mark_smart_scan_child_processed(inner, job_id);
+            return Ok(());
+        }
+
+        if let Err(err) = fs::rename(&concat_tmp, &output_path) {
+            let _ = fs::remove_file(&concat_tmp);
+            return Err(err).with_context(|| {
+                format!(
+                    "failed to finalize resumed output {} -> {}",
+                    concat_tmp.display(),
+                    output_path.display()
+                )
+            });
+        }
+
+        let _ = fs::remove_file(&existing);
+        let _ = fs::remove_file(&tmp_output);
+
+        final_output_size_bytes = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
+    } else {
+        let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
+
+        fs::rename(&tmp_output, &output_path).with_context(|| {
+            format!(
+                "failed to rename {} -> {}",
+                tmp_output.display(),
+                output_path.display()
+            )
+        })?;
+
+        final_output_size_bytes = new_size_bytes;
+    }
 
     // 记录所有成功生成的视频输出路径，供 Smart Scan 在后续批次中进行去重与跳过。
     register_known_smart_scan_output_with_inner(inner, &output_path);
@@ -1656,9 +1988,10 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
             job.status = JobStatus::Completed;
             job.progress = 100.0;
             job.end_time = Some(current_time_millis());
-            if original_size_bytes > 0 && new_size_bytes > 0 {
-                job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+            if original_size_bytes > 0 && final_output_size_bytes > 0 {
+                job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
             }
+            job.wait_metadata = None;
             job.logs.push(format!(
                 "Completed in {:.1}s, output size {:.2} MB",
                 elapsed,
@@ -1668,9 +2001,9 @@ fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
         }
 
         // Update preset statistics for completed jobs.
-        if original_size_bytes > 0 && new_size_bytes > 0 && elapsed > 0.0 {
+        if original_size_bytes > 0 && final_output_size_bytes > 0 && elapsed > 0.0 {
             let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
-            let output_mb = new_size_bytes as f64 / (1024.0 * 1024.0);
+            let output_mb = final_output_size_bytes as f64 / (1024.0 * 1024.0);
             if let Some(preset) = state.presets.iter_mut().find(|p| p.id == preset_id) {
                 preset.stats.usage_count += 1;
                 preset.stats.total_input_size_mb += input_mb;
@@ -1839,6 +2172,19 @@ fn update_job_progress(
                 let clamped = p.clamp(0.0, 100.0);
                 if clamped > job.progress {
                     job.progress = clamped;
+                    if job.status == JobStatus::Processing {
+                        if let Some(meta) = job.wait_metadata.as_mut() {
+                            meta.last_progress_percent = Some(job.progress);
+                            if let Some(total) =
+                                job.media_info.as_ref().and_then(|m| m.duration_seconds)
+                            {
+                                if total.is_finite() && total > 0.0 && job.progress.is_finite() {
+                                    let frac = (job.progress / 100.0).clamp(0.0, 1.0);
+                                    meta.processed_seconds = Some(total * frac);
+                                }
+                            }
+                        }
+                    }
                     should_notify = true;
                 }
             }
@@ -2652,6 +2998,61 @@ fn build_video_tmp_output_path(input: &Path) -> PathBuf {
     parent.join(format!("{stem}.compressed.tmp.{ext}"))
 }
 
+fn build_video_resume_tmp_output_path(input: &Path) -> PathBuf {
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    parent.join(format!("{stem}.compressed.resume.tmp.{ext}"))
+}
+
+fn concat_video_segments(
+    ffmpeg_path: &str,
+    first: &Path,
+    second: &Path,
+    target: &Path,
+) -> Result<()> {
+    let mut cmd = Command::new(ffmpeg_path);
+    configure_background_command(&mut cmd);
+    let status = cmd
+        .arg("-y")
+        .arg("-i")
+        .arg(first.as_os_str())
+        .arg("-i")
+        .arg(second.as_os_str())
+        .arg("-filter_complex")
+        .arg("[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]")
+        .arg("-map")
+        .arg("[v]")
+        .arg("-map")
+        .arg("[a]")
+        .arg("-c:v")
+        .arg("copy")
+        .arg("-c:a")
+        .arg("copy")
+        .arg(target.as_os_str())
+        .status()
+        .with_context(|| {
+            format!(
+                "failed to run ffmpeg concat for {} and {}",
+                first.display(),
+                second.display()
+            )
+        })?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "ffmpeg concat failed with status {status} for {} and {}",
+            first.display(),
+            second.display()
+        ));
+    }
+
+    Ok(())
+}
+
 fn preview_root_dir() -> PathBuf {
     let exe = std::env::current_exe().ok();
     let dir = exe
@@ -2826,7 +3227,7 @@ fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPreset) -> Optio
     // Adjust for encoder and preset "speed" where we have simple signals so
     // that obviously heavy configurations (e.g. libsvtav1, veryslow) are
     // weighted higher than fast ones.
-    use crate::transcoding::domain::EncoderType;
+    use crate::ffui_core::domain::EncoderType;
 
     let mut factor = 1.0f64;
 
@@ -2897,16 +3298,134 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
                 .map(|s| s.to_string())
                 .collect();
             ensure_progress_args(&mut args);
+            if !args.iter().any(|a| a == "-nostdin") {
+                args.push("-nostdin".to_string());
+            }
             return args;
         }
     }
 
     let mut args: Vec<String> = Vec::new();
     ensure_progress_args(&mut args);
+    if !args.iter().any(|a| a == "-nostdin") {
+        args.push("-nostdin".to_string());
+    }
+
+    // Global options.
+    if let Some(global) = &preset.global {
+        if let Some(behavior) = &global.overwrite_behavior {
+            match behavior {
+                super::domain::OverwriteBehavior::Overwrite => {
+                    args.push("-y".to_string());
+                }
+                super::domain::OverwriteBehavior::NoOverwrite => {
+                    args.push("-n".to_string());
+                }
+                super::domain::OverwriteBehavior::Ask => {
+                    // Use ffmpeg default behaviour; emit no flag.
+                }
+            }
+        }
+        if let Some(level) = &global.log_level {
+            if !level.is_empty() {
+                args.push("-loglevel".to_string());
+                args.push(level.clone());
+            }
+        }
+        if global.hide_banner.unwrap_or(false) {
+            args.push("-hide_banner".to_string());
+        }
+        if global.enable_report.unwrap_or(false) {
+            args.push("-report".to_string());
+        }
+    }
+
+    // Input-level options that appear before the first `-i`.
+    if let Some(timeline) = &preset.input {
+        if let Some(super::domain::SeekMode::Input) = timeline.seek_mode {
+            if let Some(pos) = &timeline.seek_position {
+                if !pos.is_empty() {
+                    args.push("-ss".to_string());
+                    args.push(pos.clone());
+                }
+            }
+            if timeline.accurate_seek.unwrap_or(false) {
+                args.push("-accurate_seek".to_string());
+            }
+        }
+    }
 
     // Input
     args.push("-i".to_string());
     args.push(input.to_string_lossy().into_owned());
+
+    // Input/timeline options that appear after the first `-i`.
+    if let Some(timeline) = &preset.input {
+        if let Some(super::domain::SeekMode::Output) = timeline.seek_mode {
+            if let Some(pos) = &timeline.seek_position {
+                if !pos.is_empty() {
+                    args.push("-ss".to_string());
+                    args.push(pos.clone());
+                }
+            }
+        }
+        if let Some(duration) = &timeline.duration {
+            if !duration.is_empty() {
+                match timeline.duration_mode {
+                    Some(super::domain::DurationMode::Duration) => {
+                        args.push("-t".to_string());
+                        args.push(duration.clone());
+                    }
+                    Some(super::domain::DurationMode::To) => {
+                        args.push("-to".to_string());
+                        args.push(duration.clone());
+                    }
+                    None => {}
+                }
+            }
+        }
+        if timeline.accurate_seek.unwrap_or(false)
+            && !matches!(timeline.seek_mode, Some(super::domain::SeekMode::Input))
+        {
+            args.push("-accurate_seek".to_string());
+        }
+    }
+
+    // Stream mapping & metadata.
+    if let Some(mapping) = &preset.mapping {
+        if let Some(maps) = &mapping.maps {
+            for m in maps {
+                if !m.is_empty() {
+                    args.push("-map".to_string());
+                    args.push(m.clone());
+                }
+            }
+        }
+        if let Some(dispositions) = &mapping.dispositions {
+            for d in dispositions {
+                if !d.is_empty() {
+                    args.push("-disposition".to_string());
+                    args.push(d.clone());
+                }
+            }
+        }
+        if let Some(metadata) = &mapping.metadata {
+            for kv in metadata {
+                if !kv.is_empty() {
+                    args.push("-metadata".to_string());
+                    args.push(kv.clone());
+                }
+            }
+        }
+    }
+    // When there is no explicit mapping configuration, default to keeping all
+    // primary streams from the first input (video/audio/subtitles/chapters/
+    // attachments) instead of ffmpeg's implicit “pick one best stream per
+    // type” behaviour.
+    if !args.iter().any(|a| a == "-map") {
+        args.push("-map".to_string());
+        args.push("0".to_string());
+    }
 
     // Video
     match preset.video.encoder {
@@ -2977,6 +3496,28 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
                     args.push(profile.clone());
                 }
             }
+            if let Some(level) = &preset.video.level {
+                if !level.is_empty() {
+                    args.push("-level".to_string());
+                    args.push(level.clone());
+                }
+            }
+            if let Some(gop) = preset.video.gop_size {
+                if gop > 0 {
+                    args.push("-g".to_string());
+                    args.push(gop.to_string());
+                }
+            }
+            if let Some(bf) = preset.video.bf {
+                args.push("-bf".to_string());
+                args.push(bf.to_string());
+            }
+            if let Some(pix_fmt) = &preset.video.pix_fmt {
+                if !pix_fmt.is_empty() {
+                    args.push("-pix_fmt".to_string());
+                    args.push(pix_fmt.clone());
+                }
+            }
         }
     }
 
@@ -2993,29 +3534,198 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
                 args.push("-b:a".to_string());
                 args.push(format!("{bitrate}k"));
             }
+            if let Some(sample_rate) = preset.audio.sample_rate_hz {
+                args.push("-ar".to_string());
+                args.push(sample_rate.to_string());
+            }
+            if let Some(channels) = preset.audio.channels {
+                args.push("-ac".to_string());
+                args.push(channels.to_string());
+            }
+            if let Some(layout) = &preset.audio.channel_layout {
+                if !layout.is_empty() {
+                    args.push("-channel_layout".to_string());
+                    args.push(layout.clone());
+                }
+            }
         }
     }
 
-    // Filters
+    let can_apply_video_filters = !matches!(preset.video.encoder, super::domain::EncoderType::Copy);
+    let can_apply_audio_filters =
+        !matches!(preset.audio.codec, super::domain::AudioCodecType::Copy);
+
+    // Filters + optional subtitle burn-in.
     let mut vf_parts: Vec<String> = Vec::new();
-    if let Some(scale) = &preset.filters.scale {
-        if !scale.is_empty() {
-            vf_parts.push(format!("scale={scale}"));
+    if can_apply_video_filters {
+        if let Some(scale) = &preset.filters.scale {
+            if !scale.is_empty() {
+                vf_parts.push(format!("scale={scale}"));
+            }
+        }
+        if let Some(crop) = &preset.filters.crop {
+            if !crop.is_empty() {
+                vf_parts.push(format!("crop={crop}"));
+            }
+        }
+        if let Some(fps) = preset.filters.fps {
+            if fps > 0 {
+                vf_parts.push(format!("fps={fps}"));
+            }
+        }
+        if let Some(subtitles) = &preset.subtitles {
+            if let Some(super::domain::SubtitleStrategy::BurnIn) = subtitles.strategy {
+                if let Some(filter) = &subtitles.burn_in_filter {
+                    if !filter.is_empty() {
+                        vf_parts.push(filter.clone());
+                    }
+                }
+            }
         }
     }
-    if let Some(crop) = &preset.filters.crop {
-        if !crop.is_empty() {
-            vf_parts.push(format!("crop={crop}"));
+    let vf_chain = preset
+        .filters
+        .vf_chain
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    if can_apply_video_filters && (!vf_parts.is_empty() || vf_chain.is_some()) {
+        let mut combined = String::new();
+        if !vf_parts.is_empty() {
+            combined.push_str(&vf_parts.join(","));
         }
-    }
-    if let Some(fps) = preset.filters.fps {
-        if fps > 0 {
-            vf_parts.push(format!("fps={fps}"));
+        if let Some(chain) = vf_chain.map(|s| s.to_string()) {
+            if !combined.is_empty() {
+                combined.push(',');
+            }
+            combined.push_str(&chain);
         }
-    }
-    if !vf_parts.is_empty() {
         args.push("-vf".to_string());
-        args.push(vf_parts.join(","));
+        args.push(combined);
+    }
+
+    if can_apply_audio_filters {
+        let mut af_parts: Vec<String> = Vec::new();
+
+        // Structured loudness normalization via loudnorm, mirroring the
+        // frontend behaviour. We interpret a small set of profile names to
+        // avoid hard-coding locale-specific strings in Rust:
+        //
+        // - "cnBroadcast": I ≈ -24 LUFS, LRA ≈ 7 LU, TP ≈ -2 dBTP
+        // - "ebuR128":    I ≈ -23 LUFS, LRA ≈ 7 LU, TP ≈ -1 dBTP
+        //
+        // Callers may optionally override these values via target_lufs,
+        // loudness_range and true_peak_db; we clamp obviously unsafe choices.
+        if let Some(ref profile) = preset.audio.loudness_profile {
+            if profile != "none" {
+                let default_i = preset
+                    .audio
+                    .target_lufs
+                    .unwrap_or(if profile == "cnBroadcast" { -24.0 } else { -23.0 });
+                let default_lra = preset.audio.loudness_range.unwrap_or(7.0);
+                let default_tp =
+                    preset.audio.true_peak_db.unwrap_or(if profile == "cnBroadcast" {
+                        -2.0
+                    } else {
+                        -1.0
+                    });
+
+                // Clamp into conservative bounds.
+                let safe_i = default_i.clamp(-36.0, -10.0);
+                let safe_lra = default_lra.clamp(1.0, 20.0);
+                let safe_tp = default_tp.min(-0.1);
+
+                let loudnorm_expr = format!(
+                    "loudnorm=I={}:LRA={}:TP={}:print_format=summary",
+                    safe_i, safe_lra, safe_tp
+                );
+                af_parts.push(loudnorm_expr);
+            }
+        }
+
+        if let Some(af_chain) = &preset.filters.af_chain {
+            let trimmed = af_chain.trim();
+            if !trimmed.is_empty() {
+                af_parts.push(trimmed.to_string());
+            }
+        }
+
+        if !af_parts.is_empty() {
+            args.push("-af".to_string());
+            args.push(af_parts.join(","));
+        }
+    }
+    if can_apply_video_filters {
+        if let Some(filter_complex) = &preset.filters.filter_complex {
+            let trimmed = filter_complex.trim();
+            if !trimmed.is_empty() {
+                args.push("-filter_complex".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+    }
+
+    // Subtitle strategy: keep/drop. Burn-in is handled via the vf chain above.
+    if let Some(subtitles) = &preset.subtitles {
+        if let Some(super::domain::SubtitleStrategy::Drop) = subtitles.strategy {
+            args.push("-sn".to_string());
+        }
+    }
+
+    // Container / muxer options.
+    if let Some(container) = &preset.container {
+        if let Some(format) = &container.format {
+            if !format.is_empty() {
+                args.push("-f".to_string());
+                args.push(format.clone());
+            }
+        }
+        if let Some(flags) = &container.movflags {
+            let joined: String = flags
+                .iter()
+                .map(|f| f.trim())
+                .filter(|f| !f.is_empty())
+                .collect::<Vec<_>>()
+                .join("+");
+            if !joined.is_empty() {
+                args.push("-movflags".to_string());
+                args.push(joined);
+            }
+        }
+    }
+
+    // Hardware and bitstream filter options.
+    if let Some(hw) = &preset.hardware {
+        if let Some(accel) = &hw.hwaccel {
+            let trimmed = accel.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(device) = &hw.hwaccel_device {
+            let trimmed = device.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel_device".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(fmt) = &hw.hwaccel_output_format {
+            let trimmed = fmt.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel_output_format".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(bsfs) = &hw.bitstream_filters {
+            for bsf in bsfs {
+                let trimmed = bsf.trim();
+                if !trimmed.is_empty() {
+                    args.push("-bsf".to_string());
+                    args.push(trimmed.to_string());
+                }
+            }
+        }
     }
 
     // Output
@@ -3027,14 +3737,16 @@ fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::transcoding::domain::{
-        AudioCodecType, AudioConfig, EncoderType, FilterConfig, PresetStats, RateControlMode,
-        VideoConfig,
+    use crate::ffui_core::domain::{
+        AudioCodecType, AudioConfig, ContainerConfig, DurationMode, EncoderType, FilterConfig,
+        GlobalConfig, HardwareConfig, InputTimelineConfig, MappingConfig, OverwriteBehavior,
+        PresetStats, RateControlMode, SeekMode, SubtitleStrategy, SubtitlesConfig, VideoConfig,
     };
-    use crate::transcoding::ImageTargetFormat;
+    use crate::ffui_core::ImageTargetFormat;
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::process::{Command, Stdio};
     use std::sync::{Arc as TestArc, Mutex as TestMutex};
 
     fn make_test_preset() -> FFmpegPreset {
@@ -3042,6 +3754,9 @@ mod tests {
             id: "preset-1".to_string(),
             name: "Test Preset".to_string(),
             description: "Preset used for unit tests".to_string(),
+            global: None,
+            input: None,
+            mapping: None,
             video: VideoConfig {
                 encoder: EncoderType::Libx264,
                 rate_control: RateControlMode::Crf,
@@ -3053,16 +3768,33 @@ mod tests {
                 max_bitrate_kbps: None,
                 buffer_size_kbits: None,
                 pass: None,
+                level: None,
+                gop_size: None,
+                bf: None,
+                pix_fmt: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
                 bitrate: None,
+                sample_rate_hz: None,
+                channels: None,
+                channel_layout: None,
+                loudness_profile: None,
+                target_lufs: None,
+                loudness_range: None,
+                true_peak_db: None,
             },
             filters: FilterConfig {
                 scale: None,
                 crop: None,
                 fps: None,
+                vf_chain: None,
+                af_chain: None,
+                filter_complex: None,
             },
+            subtitles: None,
+            container: None,
+            hardware: None,
             stats: PresetStats {
                 usage_count: 0,
                 total_input_size_mb: 0.0,
@@ -3079,6 +3811,77 @@ mod tests {
         let settings = AppSettings::default();
         let inner = Arc::new(Inner::new(presets, settings));
         TranscodingEngine { inner }
+    }
+
+    /// Best-effort check whether `ffmpeg` is available on PATH.
+    fn ffmpeg_available() -> bool {
+        Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+
+    /// Generate a tiny synthetic MP4 file for integration tests using ffmpeg's
+    /// built-in testsrc filter. Returns true on success.
+    fn generate_test_input_video(path: &std::path::Path) -> bool {
+        let status = Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=320x180:rate=30",
+                "-t",
+                "0.5",
+                "-pix_fmt",
+                "yuv420p",
+                path.to_string_lossy().as_ref(),
+            ])
+            .status();
+        matches!(status, Ok(s) if s.success())
+    }
+
+    #[test]
+    fn inspect_media_produces_json_for_generated_clip() {
+        if !ffmpeg_available() {
+            eprintln!("Skipping inspect_media test: ffmpeg is not available on PATH");
+            return;
+        }
+
+        let dir = env::temp_dir().join("ffui_inspect_media_test");
+        let _ = fs::create_dir_all(&dir);
+        let input = dir.join("inspect_media_sample.mp4");
+
+        if !generate_test_input_video(&input) {
+            eprintln!(
+                "Skipping inspect_media test: failed to generate synthetic test video at {}",
+                input.display()
+            );
+            let _ = fs::remove_dir_all(&dir);
+            return;
+        }
+
+        let engine = make_engine_with_preset();
+        let json = engine
+            .inspect_media(input.to_string_lossy().into_owned())
+            .expect("inspect_media should succeed for generated test clip");
+
+        assert!(
+            json.contains("\"format\""),
+            "ffprobe JSON output should contain a top-level \"format\" object"
+        );
+        assert!(
+            json.contains("\"streams\""),
+            "ffprobe JSON output should contain a top-level \"streams\" array"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -3224,6 +4027,190 @@ mod tests {
     }
 
     #[test]
+    fn multi_worker_wait_resume_respects_queue_order() {
+        let engine = make_engine_with_preset();
+
+        // Enqueue three jobs in a known order.
+        let mut job_ids = Vec::new();
+        for i in 0..3 {
+            let job = engine.enqueue_transcode_job(
+                format!("C:/videos/multi-wait-{i}.mp4"),
+                JobType::Video,
+                JobSource::Manual,
+                100.0,
+                Some("h264".into()),
+                "preset-1".into(),
+            );
+            job_ids.push(job.id.clone());
+        }
+
+        // Simulate two workers taking the first two jobs.
+        {
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            let first = next_job_for_worker_locked(&mut state).expect("first job");
+            let second = next_job_for_worker_locked(&mut state).expect("second job");
+            assert_eq!(first, job_ids[0]);
+            assert_eq!(second, job_ids[1]);
+
+            // Give the first job some progress and media info so wait metadata
+            // can derive a processed duration.
+            if let Some(job) = state.jobs.get_mut(&job_ids[0]) {
+                job.progress = 40.0;
+                job.media_info = Some(MediaInfo {
+                    duration_seconds: Some(100.0),
+                    width: None,
+                    height: None,
+                    frame_rate: None,
+                    video_codec: None,
+                    audio_codec: None,
+                    size_mb: None,
+                });
+            }
+        }
+
+        // Request a wait operation for the first processing job.
+        let accepted = engine.wait_job(&job_ids[0]);
+        assert!(accepted, "wait_job must accept a Processing job");
+
+        // Apply the wait cooperatively as the worker loop would.
+        let tmp = PathBuf::from("C:/videos/multi-worker-wait.compressed.tmp.mp4");
+        let out = PathBuf::from("C:/videos/multi-worker-wait.compressed.mp4");
+        mark_job_waiting(&engine.inner, &job_ids[0], &tmp, &out, Some(100.0))
+            .expect("mark_job_waiting must succeed");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            assert!(
+                !state.queue.contains(&job_ids[0]),
+                "paused job should not remain in the active scheduling queue"
+            );
+        }
+
+        // Resume the paused job; it should re-enter the waiting queue at the tail.
+        let resumed = engine.resume_job(&job_ids[0]);
+        assert!(resumed, "resume_job must accept a Paused job");
+
+        {
+            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let queue_ids: Vec<String> = state.queue.iter().cloned().collect();
+            assert_eq!(
+                queue_ids,
+                vec![job_ids[2].clone(), job_ids[0].clone()],
+                "after resume, queue should contain the original third job followed by the resumed job"
+            );
+        }
+    }
+
+    #[test]
+    fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
+        let engine = make_engine_with_preset();
+
+        // Create a synthetic processing job with progress and a temp output.
+        let temp_dir = env::temp_dir();
+        let input_path = temp_dir.join("ffui_crash_recover_input.mp4");
+        // A small placeholder file is enough; we never feed it to ffmpeg in this test.
+        fs::write(&input_path, &[0u8; 1024]).expect("write crash-recovery input file");
+
+        let tmp_output = build_video_tmp_output_path(&input_path);
+        fs::create_dir_all(
+            tmp_output
+                .parent()
+                .unwrap_or_else(|| std::path::Path::new(".")),
+        )
+        .expect("create tmp output parent");
+        fs::write(&tmp_output, &[0u8; 2048]).expect("write crash-recovery tmp output");
+
+        let job_id = "crash-recover-job".to_string();
+
+        {
+            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            state.queue.push_back(job_id.clone());
+            state.jobs.insert(
+                job_id.clone(),
+                TranscodeJob {
+                    id: job_id.clone(),
+                    filename: input_path.to_string_lossy().into_owned(),
+                    job_type: JobType::Video,
+                    source: JobSource::Manual,
+                    queue_order: None,
+                    original_size_mb: 10.0,
+                    original_codec: Some("h264".to_string()),
+                    preset_id: "preset-1".to_string(),
+                    status: JobStatus::Processing,
+                    progress: 30.0,
+                    start_time: Some(current_time_millis()),
+                    end_time: None,
+                    output_size_mb: None,
+                    logs: Vec::new(),
+                    skip_reason: None,
+                    input_path: Some(input_path.to_string_lossy().into_owned()),
+                    output_path: None,
+                    ffmpeg_command: None,
+                    media_info: Some(MediaInfo {
+                        duration_seconds: Some(120.0),
+                        width: None,
+                        height: None,
+                        frame_rate: None,
+                        video_codec: None,
+                        audio_codec: None,
+                        size_mb: None,
+                    }),
+                    estimated_seconds: None,
+                    preview_path: None,
+                    log_tail: None,
+                    failure_reason: None,
+                    batch_id: None,
+                    wait_metadata: None,
+                },
+            );
+        }
+
+        let snapshot = snapshot_queue_state(&engine.inner);
+
+        // Simulate a fresh engine instance starting up and restoring from the
+        // previously captured in-memory snapshot.
+        let restored = make_engine_with_preset();
+        restore_jobs_from_snapshot(&restored.inner, snapshot);
+
+        let state = restored
+            .inner
+            .state
+            .lock()
+            .expect("restored engine state poisoned");
+        let restored_job = state
+            .jobs
+            .get(&job_id)
+            .expect("restored job must be present after crash recovery");
+
+        assert_eq!(
+            restored_job.status,
+            JobStatus::Paused,
+            "processing job should be restored as Paused after crash"
+        );
+        assert!(
+            restored_job.progress >= 30.0,
+            "restored job should keep at least its previous progress, got {}",
+            restored_job.progress
+        );
+        let meta = restored_job
+            .wait_metadata
+            .as_ref()
+            .expect("restored job should carry wait_metadata");
+        assert_eq!(
+            meta.tmp_output_path.as_deref(),
+            Some(tmp_output.to_string_lossy().as_ref()),
+            "wait_metadata.tmp_output_path should reference the existing temp output"
+        );
+
+        // The restored queue should not automatically re-enqueue the paused job;
+        // it must wait for an explicit resume from the user.
+        assert!(
+            !state.queue.contains(&job_id),
+            "paused job should not be scheduled automatically after crash recovery"
+        );
+    }
+
+    #[test]
     fn wait_and_resume_preserve_progress_and_queue_membership() {
         let engine = make_engine_with_preset();
 
@@ -3286,7 +4273,10 @@ mod tests {
                 !state.queue.contains(&job.id),
                 "paused job should not be in the active scheduling queue until resumed"
             );
-            let meta = stored.wait_metadata.as_ref().expect("wait_metadata present");
+            let meta = stored
+                .wait_metadata
+                .as_ref()
+                .expect("wait_metadata present");
             assert_eq!(
                 meta.last_progress_percent,
                 Some(40.0),
@@ -3473,9 +4463,595 @@ mod tests {
     }
 
     #[test]
+    fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
+        let mut preset = make_test_preset();
+        preset.global = Some(GlobalConfig {
+            overwrite_behavior: Some(OverwriteBehavior::Overwrite),
+            log_level: Some("error".to_string()),
+            hide_banner: Some(true),
+            enable_report: Some(true),
+        });
+        preset.input = Some(InputTimelineConfig {
+            seek_mode: Some(SeekMode::Input),
+            seek_position: Some("00:00:10".to_string()),
+            duration_mode: Some(DurationMode::Duration),
+            duration: Some("5".to_string()),
+            accurate_seek: Some(true),
+        });
+        preset.mapping = Some(MappingConfig {
+            maps: Some(vec!["0:v:0".to_string(), "0:a:0".to_string()]),
+            metadata: Some(vec!["title=Test".to_string()]),
+            dispositions: Some(vec!["0:v:0 default".to_string()]),
+        });
+        preset.subtitles = Some(SubtitlesConfig {
+            strategy: Some(SubtitleStrategy::Drop),
+            burn_in_filter: None,
+        });
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".to_string()),
+            movflags: Some(vec!["faststart".to_string(), "frag_keyframe".to_string()]),
+        });
+        preset.hardware = Some(HardwareConfig {
+            hwaccel: Some("cuda".to_string()),
+            hwaccel_device: Some("cuda:0".to_string()),
+            hwaccel_output_format: Some("cuda".to_string()),
+            bitstream_filters: Some(vec!["h264_mp4toannexb".to_string()]),
+        });
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+        let args = build_ffmpeg_args(&preset, &input, &output);
+        let joined = args.join(" ");
+
+        assert!(
+            joined.contains("-y"),
+            "structured preset with overwrite_behavior=Overwrite must emit -y, got: {joined}"
+        );
+        assert!(
+            joined.contains("-loglevel error"),
+            "structured preset with log_level must emit -loglevel flag, got: {joined}"
+        );
+        assert!(
+            joined.contains("-hide_banner"),
+            "structured preset with hide_banner=true must emit -hide_banner, got: {joined}"
+        );
+        assert!(
+            joined.contains("-report"),
+            "structured preset with enable_report=true must emit -report, got: {joined}"
+        );
+        assert!(
+            joined.contains("-ss 00:00:10"),
+            "structured preset with seek_position must emit -ss, got: {joined}"
+        );
+        assert!(
+            joined.contains("-t 5"),
+            "structured preset with duration_mode=Duration must emit -t, got: {joined}"
+        );
+        assert!(
+            joined.contains("-map 0:v:0") && joined.contains("-map 0:a:0"),
+            "structured preset with maps must emit -map directives, got: {joined}"
+        );
+        assert!(
+            joined.contains("-metadata title=Test"),
+            "structured preset with metadata must emit -metadata pairs, got: {joined}"
+        );
+        assert!(
+            joined.contains("-disposition 0:v:0 default"),
+            "structured preset with dispositions must emit -disposition, got: {joined}"
+        );
+        assert!(
+            joined.contains("-sn"),
+            "structured preset with SubtitleStrategy::Drop must emit -sn, got: {joined}"
+        );
+        assert!(
+            joined.contains("-f mp4"),
+            "structured preset with container.format must emit -f, got: {joined}"
+        );
+        assert!(
+            joined.contains("-movflags faststart+frag_keyframe"),
+            "structured preset with movflags must combine them with '+', got: {joined}"
+        );
+        assert!(
+            joined.contains("-hwaccel cuda")
+                && joined.contains("-hwaccel_device cuda:0")
+                && joined.contains("-hwaccel_output_format cuda"),
+            "structured preset with hardware settings must emit hwaccel flags, got: {joined}"
+        );
+        assert!(
+            joined.contains("-bsf h264_mp4toannexb"),
+            "structured preset with bitstreamFilters must emit -bsf flags, got: {joined}"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
+        let mut preset = make_test_preset();
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+        let encoders = [
+            EncoderType::Libx264,
+            EncoderType::HevcNvenc,
+            EncoderType::LibSvtAv1,
+        ];
+        let modes = [
+            RateControlMode::Crf,
+            RateControlMode::Cq,
+            RateControlMode::Cbr,
+            RateControlMode::Vbr,
+        ];
+
+        for encoder in encoders {
+            for mode in &modes {
+                preset.video.encoder = encoder.clone();
+                preset.video.rate_control = mode.clone();
+                preset.video.quality_value = 25;
+                preset.video.bitrate_kbps = Some(3000);
+                preset.video.max_bitrate_kbps = Some(4000);
+                preset.video.buffer_size_kbits = Some(6000);
+                preset.video.pass = Some(2);
+
+                let args = build_ffmpeg_args(&preset, &input, &output);
+                let joined = args.join(" ");
+
+                let has_crf = joined.contains(" -crf ");
+                let has_cq = joined.contains(" -cq ");
+                let has_bitrate = joined.contains(" -b:v ");
+                let has_maxrate = joined.contains(" -maxrate ");
+                let has_bufsize = joined.contains(" -bufsize ");
+                let has_pass = joined.contains(" -pass ");
+
+                match mode {
+                    RateControlMode::Crf => {
+                        assert!(has_crf, "Crf mode must emit -crf, got: {joined}");
+                        assert!(
+                            !has_cq && !has_bitrate && !has_maxrate && !has_bufsize && !has_pass,
+                            "Crf mode must not emit CQ/bitrate/two-pass flags, got: {joined}"
+                        );
+                    }
+                    RateControlMode::Cq => {
+                        assert!(has_cq, "Cq mode must emit -cq, got: {joined}");
+                        assert!(
+                            !has_crf && !has_bitrate && !has_maxrate && !has_bufsize && !has_pass,
+                            "Cq mode must not emit CRF/bitrate/two-pass flags, got: {joined}"
+                        );
+                    }
+                    RateControlMode::Cbr | RateControlMode::Vbr => {
+                        assert!(
+                            !has_crf && !has_cq,
+                            "CBR/VBR modes must not emit CRF/CQ flags, got: {joined}"
+                        );
+                        assert!(
+                            has_bitrate || has_maxrate || has_bufsize || has_pass,
+                            "CBR/VBR modes must emit at least one bitrate-related flag, got: {joined}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
+        let mut preset = make_test_preset();
+        preset.audio.bitrate = Some(192);
+        preset.audio.sample_rate_hz = Some(44100);
+        preset.audio.channels = Some(2);
+        preset.audio.channel_layout = Some("stereo".to_string());
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+        // copy mode: only -c:a copy, no re-encode flags.
+        preset.audio.codec = AudioCodecType::Copy;
+        let copy_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+        assert!(
+            copy_args.contains("-c:a copy"),
+            "audio copy mode must emit -c:a copy, got: {copy_args}"
+        );
+        assert!(
+            !copy_args.contains(" -b:a ")
+                && !copy_args.contains(" -ar ")
+                && !copy_args.contains(" -ac ")
+                && !copy_args.contains(" -channel_layout "),
+            "audio copy mode must not emit re-encode flags, got: {copy_args}"
+        );
+
+        // aac mode: re-encode flags must be present.
+        preset.audio.codec = AudioCodecType::Aac;
+        let aac_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+        assert!(
+            aac_args.contains("-c:a aac"),
+            "audio aac mode must emit -c:a aac, got: {aac_args}"
+        );
+        assert!(
+            aac_args.contains("-b:a 192k")
+                && aac_args.contains("-ar 44100")
+                && aac_args.contains("-ac 2")
+                && aac_args.contains("-channel_layout stereo"),
+            "audio aac mode must emit bitrate/sample rate/channel/layout flags, got: {aac_args}"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
+        let mut preset = make_test_preset();
+        preset.filters.scale = Some("1280:-2".to_string());
+        preset.filters.fps = Some(30);
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+        // burn-in: vf chain contains burn-in filter, no -sn.
+        preset.subtitles = Some(SubtitlesConfig {
+            strategy: Some(SubtitleStrategy::BurnIn),
+            burn_in_filter: Some("subtitles=INPUT:si=0".to_string()),
+        });
+
+        let burn_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+        assert!(
+            burn_args.contains("-vf "),
+            "burn-in subtitles must emit -vf chain, got: {burn_args}"
+        );
+        assert!(
+            burn_args.contains("scale=1280:-2")
+                && burn_args.contains("fps=30")
+                && burn_args.contains("subtitles=INPUT:si=0"),
+            "burn-in subtitles must merge scale/fps/filter into vf chain, got: {burn_args}"
+        );
+        assert!(
+            !burn_args.contains(" -sn"),
+            "burn-in subtitles must not emit -sn, got: {burn_args}"
+        );
+
+        // drop: -sn present, vf chain has no burn-in expression.
+        preset.subtitles = Some(SubtitlesConfig {
+            strategy: Some(SubtitleStrategy::Drop),
+            burn_in_filter: None,
+        });
+
+        let drop_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+        assert!(
+            drop_args.contains(" -sn") || drop_args.ends_with("-sn"),
+            "drop subtitles strategy must emit -sn, got: {drop_args}"
+        );
+        assert!(
+            !drop_args.contains("subtitles=INPUT:si=0"),
+            "drop subtitles must not keep burn-in filter in vf chain, got: {drop_args}"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_skips_video_filters_when_encoder_is_copy() {
+        let mut preset = make_test_preset();
+        preset.video.encoder = EncoderType::Copy;
+        preset.filters.scale = Some("1280:-2".to_string());
+        preset.filters.crop = Some("iw:ih-100:0:100".to_string());
+        preset.filters.fps = Some(30);
+        preset.filters.vf_chain = Some("eq=contrast=1.1:brightness=0.05".to_string());
+        preset.filters.filter_complex =
+            Some("[0:v]scale=1280:-2[scaled]".to_string());
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+        let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+
+        assert!(
+            joined.contains("-c:v copy"),
+            "copy encoder must still emit -c:v copy flag, got: {joined}"
+        );
+        assert!(
+            !joined.contains(" -vf ")
+                && !joined.contains(" -filter_complex ")
+                && !joined.ends_with(" -vf")
+                && !joined.ends_with(" -filter_complex"),
+            "copy encoder must not emit -vf or -filter_complex even when filters are configured, got: {joined}"
+        );
+    }
+
+    #[test]
+    fn build_ffmpeg_args_skips_audio_filters_when_codec_is_copy() {
+        let mut preset = make_test_preset();
+        // Audio codec defaults to Copy in make_test_preset; ensure an af_chain is configured.
+        preset.filters.af_chain = Some("acompressor=threshold=-18dB".to_string());
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+        let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+
+        assert!(
+            joined.contains("-c:a copy"),
+            "audio copy mode must emit -c:a copy, got: {joined}"
+        );
+        assert!(
+            !joined.contains(" -af ")
+                && !joined.ends_with(" -af")
+                && !joined.contains("-af acompressor"),
+            "audio copy mode must not emit -af even when af_chain is configured, got: {joined}"
+        );
+    }
+
+    #[derive(serde::Deserialize)]
+    struct CommandContractCase {
+        id: String,
+        preset: FFmpegPreset,
+        #[serde(rename = "expectedCommand")]
+        expected_command: String,
+    }
+
+    #[derive(serde::Deserialize)]
+    struct CommandContractFixtures {
+        cases: Vec<CommandContractCase>,
+    }
+
+    #[test]
+    fn build_ffmpeg_args_matches_frontend_contract_fixtures() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = std::path::Path::new(manifest_dir)
+            .join("tests")
+            .join("ffmpeg-command-contract.json");
+        let raw = std::fs::read_to_string(&path).unwrap_or_else(|err| {
+            panic!(
+                "failed to read command contract fixtures at {}: {err}",
+                path.display()
+            )
+        });
+
+        let fixtures: CommandContractFixtures =
+            serde_json::from_str(&raw).expect("command contract fixtures JSON must be valid");
+
+        assert!(
+            !fixtures.cases.is_empty(),
+            "command contract fixtures must contain at least one case"
+        );
+
+        for case in fixtures.cases {
+            assert!(
+                !case.expected_command.is_empty(),
+                "fixture {} must provide a non-empty expectedCommand",
+                case.id
+            );
+
+            let input = std::path::Path::new("INPUT");
+            let output = std::path::Path::new("OUTPUT");
+            let args = build_ffmpeg_args(&case.preset, input, output);
+            let joined = format!("ffmpeg {}", args.join(" "));
+
+            assert_eq!(
+                joined, case.expected_command,
+                "Rust build_ffmpeg_args output must match frontend preview for case {}",
+                case.id
+            );
+        }
+    }
+
+    #[test]
+    fn ffmpeg_integration_runs_x264_crf_preset_without_errors() {
+        if !ffmpeg_available() {
+            eprintln!("skipping x264 integration test because ffmpeg is not available");
+            return;
+        }
+
+        let dir = env::temp_dir();
+        let input = dir.join("ffui_it_x264_in.mp4");
+        let output = dir.join("ffui_it_x264_out.mp4");
+
+        if !generate_test_input_video(&input) {
+            eprintln!("skipping x264 integration test because test input video generation failed");
+            return;
+        }
+
+        let mut preset = make_test_preset();
+        preset.global = Some(GlobalConfig {
+            overwrite_behavior: Some(OverwriteBehavior::Overwrite),
+            log_level: Some("error".to_string()),
+            hide_banner: Some(true),
+            enable_report: Some(false),
+        });
+        preset.filters.scale = Some("320:-2".to_string());
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".to_string()),
+            movflags: Some(vec!["faststart".to_string()]),
+        });
+
+        let args = build_ffmpeg_args(&preset, &input, &output);
+        let output_result = Command::new("ffmpeg")
+            .args(&args)
+            .output()
+            .expect("spawn ffmpeg for x264 integration test");
+
+        let stderr = String::from_utf8_lossy(&output_result.stderr);
+        assert!(
+            output_result.status.success(),
+            "ffmpeg x264 integration preset must succeed, status={:?}, stderr={}",
+            output_result.status.code(),
+            stderr
+        );
+        assert!(
+            !stderr.contains("Unrecognized option")
+                && !stderr.contains("Filtering and streamcopy cannot be used together"),
+            "ffmpeg stderr must not contain critical option/filtering errors, got: {stderr}"
+        );
+
+        let _ = fs::remove_file(&input);
+        let _ = fs::remove_file(&output);
+    }
+
+    #[test]
+    fn ffmpeg_integration_runs_av1_crf_preset_when_encoder_available() {
+        if !ffmpeg_available() {
+            eprintln!("skipping AV1 integration test because ffmpeg is not available");
+            return;
+        }
+
+        // Quick capability probe for libsvtav1; if the encoder is missing we
+        // treat this as an environment limitation and skip instead of failing.
+        let probe_status = Command::new("ffmpeg")
+            .args([
+                "-hide_banner",
+                "-loglevel",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc=size=160x90:rate=10",
+                "-t",
+                "0.25",
+                "-c:v",
+                "libsvtav1",
+                "-f",
+                "null",
+                "-",
+            ])
+            .status();
+        let can_use_av1 = matches!(probe_status, Ok(s) if s.success());
+        if !can_use_av1 {
+            eprintln!(
+                "skipping AV1 integration test because libsvtav1 encoder is not usable in this environment"
+            );
+            return;
+        }
+
+        let dir = env::temp_dir();
+        let input = dir.join("ffui_it_av1_in.mp4");
+        let output = dir.join("ffui_it_av1_out.mp4");
+
+        if !generate_test_input_video(&input) {
+            eprintln!("skipping AV1 integration test because test input video generation failed");
+            return;
+        }
+
+        let mut preset = make_test_preset();
+        preset.video.encoder = EncoderType::LibSvtAv1;
+        preset.video.rate_control = RateControlMode::Crf;
+        preset.video.quality_value = 34;
+        preset.video.preset = "6".to_string();
+        preset.video.pix_fmt = Some("yuv420p10le".to_string());
+        preset.global = Some(GlobalConfig {
+            overwrite_behavior: Some(OverwriteBehavior::Overwrite),
+            log_level: Some("warning".to_string()),
+            hide_banner: Some(true),
+            enable_report: Some(false),
+        });
+        preset.audio = AudioConfig {
+            codec: AudioCodecType::Aac,
+            bitrate: Some(128),
+            sample_rate_hz: Some(48000),
+            channels: Some(2),
+            channel_layout: Some("stereo".to_string()),
+            loudness_profile: None,
+            target_lufs: None,
+            loudness_range: None,
+            true_peak_db: None,
+        };
+        preset.filters.scale = Some("-2:720".to_string());
+        preset.filters.fps = Some(24);
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".to_string()),
+            movflags: None,
+        });
+
+        let args = build_ffmpeg_args(&preset, &input, &output);
+        let output_result = Command::new("ffmpeg")
+            .args(&args)
+            .output()
+            .expect("spawn ffmpeg for AV1 integration test");
+
+        let stderr = String::from_utf8_lossy(&output_result.stderr);
+        if !output_result.status.success()
+            && stderr.contains("Unknown encoder")
+            && stderr.contains("libsvtav1")
+        {
+            eprintln!(
+                "skipping AV1 integration assertion because libsvtav1 is not compiled in: {}",
+                stderr
+            );
+            let _ = fs::remove_file(&input);
+            let _ = fs::remove_file(&output);
+            return;
+        }
+
+        assert!(
+            output_result.status.success(),
+            "ffmpeg AV1 integration preset must succeed when libsvtav1 is available, status={:?}, stderr={}",
+            output_result.status.code(),
+            stderr
+        );
+        assert!(
+            !stderr.contains("Unrecognized option"),
+            "ffmpeg stderr must not contain critical option errors for AV1 preset, got: {stderr}"
+        );
+
+        let _ = fs::remove_file(&input);
+        let _ = fs::remove_file(&output);
+    }
+
+    #[test]
+    fn ffmpeg_integration_runs_stream_copy_preset_without_filtering_conflicts() {
+        if !ffmpeg_available() {
+            eprintln!("skipping stream copy integration test because ffmpeg is not available");
+            return;
+        }
+
+        let dir = env::temp_dir();
+        let input = dir.join("ffui_it_copy_in.mp4");
+        let output = dir.join("ffui_it_copy_out.mp4");
+
+        if !generate_test_input_video(&input) {
+            eprintln!(
+                "skipping stream copy integration test because test input video generation failed"
+            );
+            return;
+        }
+
+        let mut preset = make_test_preset();
+        // Configure copy mode for both audio and video, and deliberately set
+        // filter fields; build_ffmpeg_args must avoid emitting -vf/-filter_complex/-af
+        // so that ffmpeg does not complain about filtering + streamcopy.
+        preset.video.encoder = EncoderType::Copy;
+        preset.audio.codec = AudioCodecType::Copy;
+        preset.filters.scale = Some("320:-2".to_string());
+        preset.filters.fps = Some(30);
+        preset.filters.vf_chain = Some("eq=contrast=1.1".to_string());
+        preset.filters.filter_complex = Some("[0:v]scale=320:-2[scaled]".to_string());
+        preset.global = Some(GlobalConfig {
+            overwrite_behavior: Some(OverwriteBehavior::Overwrite),
+            log_level: Some("info".to_string()),
+            hide_banner: Some(true),
+            enable_report: Some(false),
+        });
+        preset.container = Some(ContainerConfig {
+            format: Some("mp4".to_string()),
+            movflags: None,
+        });
+
+        let args = build_ffmpeg_args(&preset, &input, &output);
+        let output_result = Command::new("ffmpeg")
+            .args(&args)
+            .output()
+            .expect("spawn ffmpeg for stream copy integration test");
+
+        let stderr = String::from_utf8_lossy(&output_result.stderr);
+        assert!(
+            output_result.status.success(),
+            "ffmpeg stream copy integration preset must succeed, status={:?}, stderr={}",
+            output_result.status.code(),
+            stderr
+        );
+        assert!(
+            !stderr.contains("Filtering and streamcopy cannot be used together"),
+            "ffmpeg stderr must not report filtering/streamcopy conflict, got: {stderr}"
+        );
+
+        let _ = fs::remove_file(&input);
+        let _ = fs::remove_file(&output);
+    }
+
+    #[test]
     fn enqueue_transcode_job_uses_actual_file_size_and_waiting_status() {
         let dir = env::temp_dir();
-        let path = dir.join("transcoding_test_video.mp4");
+        let path = dir.join("ffui_test_video.mp4");
 
         // Create a ~5 MB file to have a deterministic, non-zero size.
         {
@@ -3515,7 +5091,7 @@ mod tests {
     #[test]
     fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
         let dir = env::temp_dir();
-        let path = dir.join("transcoding_test_cancel.mp4");
+        let path = dir.join("ffui_test_cancel.mp4");
 
         {
             let mut file = File::create(&path).expect("create temp video file for cancel test");
@@ -3575,7 +5151,7 @@ mod tests {
     #[test]
     fn log_external_command_stores_full_command_in_job_logs() {
         let dir = env::temp_dir();
-        let path = dir.join("transcoding_test_log_command.mp4");
+        let path = dir.join("ffui_test_log_command.mp4");
 
         {
             let mut file = File::create(&path).expect("create temp video file for log test");
@@ -3669,7 +5245,7 @@ mod tests {
 
     #[test]
     fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
-        let dir = env::temp_dir().join("transcoding_image_preview_existing_avif");
+        let dir = env::temp_dir().join("ffui_image_preview_existing_avif");
         let _ = fs::create_dir_all(&dir);
 
         let png = dir.join("sample.png");
@@ -3732,7 +5308,7 @@ mod tests {
 
     #[test]
     fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
-        let dir = env::temp_dir().join("transcoding_smart_scan_progress");
+        let dir = env::temp_dir().join("ffui_smart_scan_progress");
         let _ = fs::create_dir_all(&dir);
 
         let image1 = dir.join("small1.jpg");
@@ -3848,7 +5424,7 @@ mod tests {
 
     #[test]
     fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
-        let dir = env::temp_dir().join("transcoding_smart_scan_lock_free");
+        let dir = env::temp_dir().join("ffui_smart_scan_lock_free");
         let _ = fs::create_dir_all(&dir);
 
         let video = dir.join("sample_lock_free.mp4");
@@ -3928,7 +5504,7 @@ mod tests {
 
     #[test]
     fn smart_scan_video_output_naming_avoids_overwrites() {
-        let dir = env::temp_dir().join("transcoding_smart_scan_safe_outputs");
+        let dir = env::temp_dir().join("ffui_smart_scan_safe_outputs");
         let _ = fs::create_dir_all(&dir);
 
         let input = dir.join("sample.mp4");
@@ -3990,7 +5566,7 @@ mod tests {
 
     #[test]
     fn smart_scan_does_not_reenqueue_known_outputs_as_candidates() {
-        let dir = env::temp_dir().join("transcoding_smart_scan_dedup");
+        let dir = env::temp_dir().join("ffui_smart_scan_dedup");
         let _ = fs::create_dir_all(&dir);
 
         let input = dir.join("video.mp4");
@@ -4296,7 +5872,7 @@ mod tests {
     #[test]
     fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
         let dir = env::temp_dir();
-        let path = dir.join("transcoding_test_log_stream.mp4");
+        let path = dir.join("ffui_test_log_stream.mp4");
 
         {
             let mut file = File::create(&path).expect("create temp video file for log-stream test");
@@ -4526,7 +6102,7 @@ mod tests {
     #[test]
     fn queue_listener_observes_enqueue_and_cancel() {
         let dir = env::temp_dir();
-        let path = dir.join("transcoding_test_listener.mp4");
+        let path = dir.join("ffui_test_listener.mp4");
 
         {
             let mut file = File::create(&path).expect("create temp video file for listener test");
@@ -4611,7 +6187,9 @@ mod tests {
             by_id.insert(job.id.clone(), job);
         }
 
-        let j1 = by_id.get(&first.id).expect("first job present in queue_state");
+        let j1 = by_id
+            .get(&first.id)
+            .expect("first job present in queue_state");
         let j2 = by_id
             .get(&second.id)
             .expect("second job present in queue_state");

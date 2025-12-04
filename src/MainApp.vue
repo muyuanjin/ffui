@@ -15,7 +15,6 @@ import type {
   FFmpegPreset,
   GpuUsageSnapshot,
   JobStatus,
-  JobType,
   QueueMode,
   QueueProgressStyle,
   QueueState,
@@ -311,23 +310,6 @@ type QueueSortField =
   | "modifiedTime";
 
 type QueueSortDirection = "asc" | "desc";
-
-const availableSortFields: QueueSortField[] = [
-  "filename",
-  "status",
-  "addedTime",
-  "finishedTime",
-  "duration",
-  "elapsed",
-  "progress",
-  "type",
-  "path",
-  "inputSize",
-  "outputSize",
-  "createdTime",
-  "modifiedTime",
-];
-
 const sortPrimary = ref<QueueSortField>("addedTime");
 const sortPrimaryDirection = ref<QueueSortDirection>("asc");
 const sortSecondary = ref<QueueSortField>("filename");
@@ -2107,11 +2089,6 @@ const hideJobsById = (ids: string[]) => {
   }
 };
 
-const handleDeleteJobFromView = (jobId: string) => {
-  if (!jobId) return;
-  hideJobsById([jobId]);
-};
-
 const handleWaitJob = async (jobId: string) => {
   if (!jobId) return;
 
@@ -2398,23 +2375,6 @@ const reorderWaitingQueue = async (orderedIds: string[]) => {
       (t("queue.error.reorderFailed") as string) ||
       "调整等待队列顺序时出现错误，请稍后重试或检查设置。";
   }
-};
-
-const moveWaitingJobToTop = async (jobId: string) => {
-  if (!jobId) return;
-  const ids = buildWaitingQueueIds();
-  if (!ids.includes(jobId)) return;
-  const next = [jobId, ...ids.filter((id) => id !== jobId)];
-  await reorderWaitingQueue(next);
-};
-
-const moveWaitingJobToBottom = async (jobId: string) => {
-  if (!jobId) return;
-  const ids = buildWaitingQueueIds();
-  if (!ids.includes(jobId)) return;
-  const next = ids.filter((id) => id !== jobId);
-  next.push(jobId);
-  await reorderWaitingQueue(next);
 };
 
 const handleCancelJob = async (jobId: string) => {

@@ -215,4 +215,21 @@
   *::-webkit-scrollbar-thumb:hover {
     background-color: rgba(148, 163, 184, 0.9);
   }
+
+  /* Highlight ffmpeg command segments that belong to the active parameter group
+     when navigating between tabs in the UltimateParameterPanel. */
+  pre[data-active-group] span[data-group] {
+    transition: background-color 0.12s ease-in-out;
+  }
+
+  pre[data-active-group="global"] span[data-group="global"],
+  pre[data-active-group="input"] span[data-group="input"],
+  pre[data-active-group="mapping"] span[data-group="mapping"],
+  pre[data-active-group="video"] span[data-group="video"],
+  pre[data-active-group="audio"] span[data-group="audio"],
+  pre[data-active-group="filters"] span[data-group="filters"],
+  pre[data-active-group="container"] span[data-group="container"],
+  pre[data-active-group="hardware"] span[data-group="hardware"] {
+    background-color: rgba(56, 189, 248, 0.16); /* cyan-400/16 */
+  }
 }
