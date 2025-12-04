@@ -58,12 +58,39 @@ export type JobStatus =
   | "waiting"
   | "queued"
   | "processing"
+  | "paused"
   | "completed"
   | "failed"
   | "skipped"
   | "cancelled";
 export type JobType = "video" | "image";
 export type JobSource = "manual" | "smart_scan";
+
+/**
+ * Queue view modes used by the queue UI. Additional modes (icon views,
+ * dynamic cards, etc.) can be added in future changes while keeping the
+ * enum stable for persisted preferences.
+ */
+export type QueueViewMode =
+  | "compact"
+  | "detail"
+  | "icon-small"
+  | "icon-medium"
+  | "icon-large"
+  | "dynamic-card";
+
+/**
+ * Queue interaction modes:
+ * - display: purely visual sorting/filtering, never changes execution order.
+ * - queue: visual order reflects execution order and allows priority changes.
+ */
+export type QueueMode = "display" | "queue";
+
+/**
+ * Visual styles for per-job progress. Not all styles need to be implemented
+ * at once; the enum is forward-compatible so persisted values stay valid.
+ */
+export type QueueProgressStyle = "bar" | "card-fill" | "ripple-card";
 
 export interface MediaInfo {
   durationSeconds?: number;
@@ -75,11 +102,26 @@ export interface MediaInfo {
   sizeMB?: number;
 }
 
+export interface WaitMetadata {
+  /** Last known overall progress percentage when the job was paused via wait. */
+  lastProgressPercent?: number;
+  /** Approximate number of seconds already processed when the job was paused. */
+  processedSeconds?: number;
+  /** Path to a partial or temporary output file captured during processing. */
+  tmpOutputPath?: string;
+}
+
 export interface TranscodeJob {
   id: string;
   filename: string;
   type: JobType;
   source: JobSource;
+  /**
+   * Stable execution priority within the waiting queue. Lower values are
+   * scheduled earlier. In display-only mode this is treated as metadata;
+   * in queue mode it is used to reflect backend execution order.
+   */
+  queueOrder?: number;
   originalSizeMB: number;
   originalCodec?: string;
   presetId: string;
@@ -98,14 +140,18 @@ export interface TranscodeJob {
   ffmpegCommand?: string;
   /** Compact media metadata for the job's input file. */
   mediaInfo?: MediaInfo;
+  /** Optional estimated processing time in seconds for this job, used for aggregated progress weighting. */
+  estimatedSeconds?: number;
   /** Optional thumbnail path for this job's input media. */
   previewPath?: string;
-  /** Tail string of logs for display in the detail view. */
+  /** Optional pre-truncated tail string of logs from the backend. The detail view prefers the full in-memory logs when available and falls back to this tail for legacy snapshots. */
   logTail?: string;
   /** Short structured description of why the job failed. */
   failureReason?: string;
-   /** Optional stable id for the Smart Scan batch this job belongs to. */
-   batchId?: string;
+  /** Optional stable id for the Smart Scan batch this job belongs to. */
+  batchId?: string;
+  /** Optional metadata captured when a job is paused via wait or restored after crash recovery. */
+  waitMetadata?: WaitMetadata;
 }
 
 export interface SmartScanConfig {
@@ -116,12 +162,33 @@ export interface SmartScanConfig {
   videoPresetId: string;
 }
 
+export interface DownloadedToolInfo {
+  /** Human-readable version string for the downloaded tool, e.g. "6.0". */
+  version?: string;
+  /** Optional tag or build identifier, e.g. "b6.0" for ffmpeg-static. */
+  tag?: string;
+  /** Source URL used to download this binary. */
+  sourceUrl?: string;
+  /** Unix epoch timestamp in milliseconds when the download completed. */
+  downloadedAt?: number;
+}
+
+export interface DownloadedToolState {
+  ffmpeg?: DownloadedToolInfo;
+  ffprobe?: DownloadedToolInfo;
+  avifenc?: DownloadedToolInfo;
+}
+
+export type TaskbarProgressMode = "bySize" | "byDuration" | "byEstimatedTime";
+
 export interface ExternalToolSettings {
   ffmpegPath?: string;
   ffprobePath?: string;
   avifencPath?: string;
   autoDownload: boolean;
   autoUpdate: boolean;
+  /** Optional metadata about binaries that were auto-downloaded by the app. */
+  downloaded?: DownloadedToolState;
 }
 
 export interface AppSettings {
@@ -129,8 +196,14 @@ export interface AppSettings {
   smartScanDefaults: SmartScanConfig;
   /** Global preview capture position as a percentage of video duration (0-100). */
   previewCapturePercent: number;
+  /** Optional default preset id used for manual queue jobs. */
+  defaultQueuePresetId?: string;
   /** Optional upper bound for concurrent ffmpeg jobs; 0 or undefined means auto. */
   maxParallelJobs?: number;
+  /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
+  progressUpdateIntervalMs?: number;
+  /** Aggregation mode for computing Windows taskbar progress from the queue. */
+  taskbarProgressMode?: TaskbarProgressMode;
 }
 
 export type ExternalToolKind = "ffmpeg" | "ffprobe" | "avifenc";
@@ -143,6 +216,14 @@ export interface ExternalToolStatus {
   updateAvailable: boolean;
   autoDownloadEnabled: boolean;
   autoUpdateEnabled: boolean;
+   /** True when the backend is currently auto-downloading this tool. */
+   downloadInProgress: boolean;
+   /** Optional percentage progress (0-100); when undefined, treat as indeterminate spinner. */
+   downloadProgress?: number;
+   /** Last error message emitted while trying to download or update this tool. */
+   lastDownloadError?: string;
+   /** Last informational message about download/update activity for this tool. */
+   lastDownloadMessage?: string;
 }
 
 export interface CpuUsageSnapshot {
@@ -178,4 +259,29 @@ export interface AutoCompressProgress {
 
 export interface QueueState {
   jobs: TranscodeJob[];
+}
+
+/**
+ * Frontend-side aggregation of a Smart Scan batch. A single batch can contain
+ * many TranscodeJob entries that share the same batchId; this type represents
+ * the composite view rendered in the queue (list/grid/icon views).
+ */
+export interface CompositeSmartScanTask {
+  batchId: string;
+  rootPath: string;
+  jobs: TranscodeJob[];
+  totalFilesScanned: number;
+  totalCandidates: number;
+  totalProcessed: number;
+  startedAtMs?: number;
+  completedAtMs?: number;
+  /** Aggregated overall progress for the batch in [0, 100]. */
+  overallProgress: number;
+  /** Latest active job in this batch, if any. */
+  currentJob: TranscodeJob | null;
+  completedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  cancelledCount: number;
+  totalCount: number;
 }

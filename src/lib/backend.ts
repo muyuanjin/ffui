@@ -59,6 +59,11 @@ export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]>
   return invoke<ExternalToolStatus[]>("get_external_tool_statuses");
 };
 
+export const acknowledgeTaskbarProgress = async (): Promise<void> => {
+  // Best-effort; errors are surfaced to the console by the caller.
+  await invoke<void>("ack_taskbar_progress");
+};
+
 export const loadPresets = async (): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("get_presets");
 };
@@ -107,6 +112,34 @@ export const cancelTranscodeJob = async (jobId: string): Promise<boolean> => {
   return invoke<boolean>("cancel_transcode_job", {
     jobId,
     job_id: jobId,
+  });
+};
+
+export const waitTranscodeJob = async (jobId: string): Promise<boolean> => {
+  return invoke<boolean>("wait_transcode_job", {
+    jobId,
+    job_id: jobId,
+  });
+};
+
+export const resumeTranscodeJob = async (jobId: string): Promise<boolean> => {
+  return invoke<boolean>("resume_transcode_job", {
+    jobId,
+    job_id: jobId,
+  });
+};
+
+export const restartTranscodeJob = async (jobId: string): Promise<boolean> => {
+  return invoke<boolean>("restart_transcode_job", {
+    jobId,
+    job_id: jobId,
+  });
+};
+
+export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
+  return invoke<boolean>("reorder_queue", {
+    orderedIds,
+    ordered_ids: orderedIds,
   });
 };
 

@@ -341,18 +341,20 @@ describe("MainApp task detail surface", () => {
 
     await nextTick();
 
-    const commandEl = document.querySelector(
+    const commandEls = document.querySelectorAll<HTMLElement>(
       "[data-testid='task-detail-command']",
-    ) as HTMLElement | null;
+    );
+    const commandEl = commandEls[commandEls.length - 1] ?? null;
     expect(commandEl).not.toBeNull();
     const expectedTemplate = normalizeFfmpegTemplate(
       job.ffmpegCommand as string,
     ).template;
     expect(commandEl?.textContent).toBe(expectedTemplate);
 
-    const logsEl = document.querySelector(
+    const logsEls = document.querySelectorAll<HTMLElement>(
       "[data-testid='task-detail-logs']",
-    ) as HTMLElement | null;
+    );
+    const logsEl = logsEls[logsEls.length - 1] ?? null;
     expect(logsEl).not.toBeNull();
     const logsText = logsEl?.textContent ?? "";
     expect(logsText).toContain(
@@ -366,23 +368,30 @@ describe("MainApp task detail surface", () => {
     const writeTextMock = vi.fn().mockResolvedValue(undefined);
     (navigator as any).clipboard = { writeText: writeTextMock };
 
-    const copyCommandButton = document.querySelector(
+    const copyCommandButtons = document.querySelectorAll<HTMLButtonElement>(
       "[data-testid='task-detail-copy-command']",
-    ) as HTMLButtonElement | null;
+    );
+    const copyCommandButton =
+      copyCommandButtons[copyCommandButtons.length - 1] ?? null;
     expect(copyCommandButton).not.toBeNull();
     copyCommandButton?.click();
     await nextTick();
 
-    const copyTemplateButton = document.querySelector(
-      "[data-testid='task-detail-copy-template-command']",
-    ) as HTMLButtonElement | null;
+    const copyTemplateButtons =
+      document.querySelectorAll<HTMLButtonElement>(
+        "[data-testid='task-detail-copy-template-command']",
+      );
+    const copyTemplateButton =
+      copyTemplateButtons[copyTemplateButtons.length - 1] ?? null;
     expect(copyTemplateButton).not.toBeNull();
     copyTemplateButton?.click();
     await nextTick();
 
-    const copyLogsButton = document.querySelector(
+    const copyLogsButtons = document.querySelectorAll<HTMLButtonElement>(
       "[data-testid='task-detail-copy-logs']",
-    ) as HTMLButtonElement | null;
+    );
+    const copyLogsButton =
+      copyLogsButtons[copyLogsButtons.length - 1] ?? null;
     expect(copyLogsButton).not.toBeNull();
     copyLogsButton?.click();
     await nextTick();
@@ -390,8 +399,236 @@ describe("MainApp task detail surface", () => {
     const calls = (writeTextMock as any).mock.calls.map((args: unknown[]) => args[0]);
     expect(calls).toContain(job.ffmpegCommand);
     expect(calls).toContain(expectedTemplate);
-    expect(calls).toContain(logsText);
+    expect(calls).toContain(job.logs.join("\n"));
 
     (navigator as any).clipboard = originalClipboard;
   });
+
+  it("renders logs without injecting extra blank rows or artificial line breaks", async () => {
+    const rawLog = [
+      "ffmpeg version n6.1.1 Copyright (c) 2000-2024 the FFmpeg developers",
+      "",
+      "frame=  10 fps=0.0 q=-1.0 size=       0kB time=00:00:00.33 bitrate=   0.0kbits/s speed=0.66x",
+      "",
+      "ffmpeg exited with non-zero status (exit code 1)",
+      "",
+    ].join("\n");
+
+    const job: TranscodeJob = {
+      id: "job-logs-spacing",
+      filename: "C:/videos/sample.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-logs-spacing",
+      status: "failed",
+      progress: 100,
+      startTime: Date.now() - 4000,
+      endTime: Date.now(),
+      logs: rawLog.split("\n"),
+      logTail: rawLog,
+      inputPath: "C:/videos/sample.mp4",
+      outputPath: "C:/videos/sample.compressed.mp4",
+      ffmpegCommand:
+        'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
+      failureReason: "ffmpeg exited with non-zero status (exit code 1)",
+    };
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const logsEl =
+      (Array.from(
+        document.querySelectorAll<HTMLElement>("[data-testid='task-detail-logs']"),
+      ).find((el) =>
+        (el.textContent ?? "").includes(
+          "frame=  10 fps=0.0 q=-1.0 size=       0kB time=00:00:00.33 bitrate=   0.0kbits/s speed=0.66x",
+        ),
+      ) as HTMLElement | null) ?? null;
+    expect(logsEl).not.toBeNull();
+
+    const logsHtml = logsEl!.innerHTML;
+    // jsdom serializes the injected HTML string; because we concatenate
+    // individual <div> blocks without newline separators, there should be no
+    // stray newline characters that would render as blank rows under
+    // `whitespace-pre-wrap`.
+    expect(logsHtml.includes("\n")).toBe(false);
+  });
+
+  it("collapses structured ffmpeg -progress blocks into a single visual row", async () => {
+    const rawLog = [
+      'command: ffmpeg -progress pipe:2 -i "input.mp4" -c:v hevc_nvenc -cq 28 -preset p5 -c:a copy "output.mp4"',
+      "ffmpeg version 6.1-full_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+      "frame=    0 fps=0.0 q=0.0 size=       0kB time=00:00:00.46 bitrate=   0.8kbits/s speed=25.8x",
+      "frame=0",
+      "fps=0.00",
+      "stream_0_0_q=0.0",
+      "bitrate=   0.8kbits/s",
+      "total_size=44",
+      "out_time_us=464399",
+      "out_time_ms=464399",
+      "out_time=00:00:00.464399",
+      "dup_frames=0",
+      "drop_frames=0",
+      "speed=25.8x",
+      "progress=continue",
+    ].join("\n");
+
+    const job: TranscodeJob = {
+      id: "job-structured-progress",
+      filename: "C:/videos/sample.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-structured-progress",
+      status: "processing",
+      progress: 50,
+      startTime: Date.now() - 4000,
+      logs: rawLog.split("\n"),
+      logTail: rawLog,
+      inputPath: "C:/videos/sample.mp4",
+      outputPath: "C:/videos/sample.compressed.mp4",
+      ffmpegCommand:
+        'ffmpeg -progress pipe:2 -i "C:/videos/sample.mp4" -c:v hevc_nvenc -cq 28 -preset p5 -c:a copy "C:/videos/sample.compressed.mp4"',
+    };
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const logsEl =
+      (Array.from(
+        document.querySelectorAll<HTMLElement>("[data-testid='task-detail-logs']"),
+      ).find((el) => (el.textContent ?? "").includes("out_time=00:00:00.464399")) as
+        | HTMLElement
+        | null) ?? null;
+    expect(logsEl).not.toBeNull();
+
+    const lineTexts = Array.from(logsEl!.querySelectorAll<HTMLDivElement>("div"))
+      .map((el) => (el.textContent ?? "").trim())
+      .filter((text) => text.length > 0);
+
+
+
+    // Structured key=value lines from `-progress pipe:2` should not each
+    // render as their own visual row.
+    const singles = [
+      "frame=0",
+      "fps=0.00",
+      "stream_0_0_q=0.0",
+      "bitrate=   0.8kbits/s",
+      "total_size=44",
+      "out_time_us=464399",
+      "out_time_ms=464399",
+      "dup_frames=0",
+      "drop_frames=0",
+      "speed=25.8x",
+      "progress=continue",
+    ];
+    for (const single of singles) {
+      expect(
+        lineTexts.includes(single),
+      ).toBe(false);
+    }
+
+    // Instead, they should be merged into a single synthetic progress row
+    // that still exposes all key fields for readability.
+    const merged = lineTexts.find(
+      (line) =>
+        line.includes("frame=0") &&
+        line.includes("fps=0.00") &&
+        line.includes("bitrate=0.8kbits/s") &&
+        line.includes("out_time=00:00:00.464399") &&
+        line.includes("speed=25.8x") &&
+        line.includes("progress=continue"),
+    );
+    expect(merged).toBeDefined();
+  });
+
+  it("prefers full logs over truncated logTail so the beginning of the log is preserved", async () => {
+    const lines = [
+      "ffmpeg version n6.1.1 Copyright (c) 2000-2024 the FFmpeg developers",
+      "frame=  10 fps=0.0 q=-1.0 size=       0kB time=00:00:00.33 bitrate=   0.0kbits/s speed=0.66x",
+      "ffmpeg exited with non-zero status (exit code 1)",
+    ];
+    const fullLog = lines.join("\n");
+    // Simulate a backend-provided tail that has already dropped the first line.
+    const truncatedTail = fullLog.slice(fullLog.indexOf("\n") + 1);
+
+    const job: TranscodeJob = {
+      id: "job-long-log-truncated-tail",
+      filename: "C:/videos/sample.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-long-log",
+      status: "failed",
+      progress: 100,
+      startTime: Date.now() - 4000,
+      endTime: Date.now(),
+      logs: fullLog.split("\n"),
+      logTail: truncatedTail,
+      inputPath: "C:/videos/sample.mp4",
+      outputPath: "C:/videos/sample.compressed.mp4",
+      ffmpegCommand:
+        'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
+      failureReason: "ffmpeg exited with non-zero status (exit code 1)",
+    };
+
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const logsEls = document.querySelectorAll<HTMLElement>(
+      "[data-testid='task-detail-logs']",
+    );
+    const logsEl = logsEls[logsEls.length - 1] ?? null;
+    expect(logsEl).not.toBeNull();
+
+    const logsText = logsEl!.textContent ?? "";
+    expect(logsText).toContain(
+      "ffmpeg version n6.1.1 Copyright (c) 2000-2024 the FFmpeg developers",
+    );
+  });
+
 });

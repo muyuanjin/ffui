@@ -20,7 +20,11 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import {
+  highlightFfmpegCommand,
+  normalizeFfmpegTemplate,
+  getFfmpegCommandPreview,
+} from "@/lib/ffmpegCommand";
 
 const props = defineProps<{
   /** Preset being edited in the full parameter panel. */
@@ -59,92 +63,14 @@ const rateControlLabel = computed(() => {
   return t("presetEditor.video.crfLabel");
 });
 
-const generatedCommand = computed(() => {
-  // 与向导保持一致：在结构化模式下根据当前字段拼接一个 ffmpeg 预览命令。
-  const inputPlaceholder = "INPUT";
-  const outputPlaceholder = "OUTPUT";
-
-  const v = video as VideoConfig;
-  const a = audio as AudioConfig;
-  const f = filters as FilterConfig;
-
-  const args: string[] = [];
-
-  // input
-  args.push("-i", inputPlaceholder);
-
-  // video
-  if (v.encoder === "copy") {
-    args.push("-c:v", "copy");
-  } else {
-    args.push("-c:v", v.encoder);
-
-    // 速率控制：质量优先（CRF/CQ）与码率优先（CBR/VBR + two-pass）互斥。
-    if (v.rateControl === "crf" || v.rateControl === "cq") {
-      args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
-    } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
-      if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
-        args.push("-b:v", `${v.bitrateKbps}k`);
-      }
-      if (typeof v.maxBitrateKbps === "number" && v.maxBitrateKbps > 0) {
-        args.push("-maxrate", `${v.maxBitrateKbps}k`);
-      }
-      if (typeof v.bufferSizeKbits === "number" && v.bufferSizeKbits > 0) {
-        args.push("-bufsize", `${v.bufferSizeKbits}k`);
-      }
-      if (v.pass === 1 || v.pass === 2) {
-        args.push("-pass", String(v.pass));
-      }
-    }
-
-    if (v.preset) {
-      args.push("-preset", v.preset);
-    }
-    if (v.tune) {
-      args.push("-tune", v.tune);
-    }
-    if (v.profile) {
-      args.push("-profile:v", v.profile);
-    }
-  }
-
-  // audio
-  if (a.codec === "copy") {
-    args.push("-c:a", "copy");
-  } else if (a.codec === "aac") {
-    args.push("-c:a", "aac");
-    if (a.bitrate) {
-      args.push("-b:a", `${a.bitrate}k`);
-    }
-  }
-
-  // filters
-  const vfParts: string[] = [];
-  if (f.scale) {
-    vfParts.push(`scale=${f.scale}`);
-  }
-  if (f.crop) {
-    vfParts.push(`crop=${f.crop}`);
-  }
-  if ((f as any).fps && (f as any).fps > 0) {
-    // FilterConfig 当前已经包含 fps，可直接复用。
-    vfParts.push(`fps=${(f as any).fps}`);
-  }
-  if (vfParts.length > 0) {
-    args.push("-vf", vfParts.join(","));
-  }
-
-  // output
-  args.push(outputPlaceholder);
-
-  return ["ffmpeg", ...args].join(" ");
-});
-
 const commandPreview = computed(() => {
-  if (advancedEnabled.value && ffmpegTemplate.value.trim().length > 0) {
-    return ffmpegTemplate.value.trim();
-  }
-  return generatedCommand.value;
+  return getFfmpegCommandPreview({
+    video: video as VideoConfig,
+    audio: audio as AudioConfig,
+    filters: filters as FilterConfig,
+    advancedEnabled: advancedEnabled.value,
+    ffmpegTemplate: ffmpegTemplate.value,
+  });
 });
 
 const highlightedCommandHtml = computed(() => highlightFfmpegCommand(commandPreview.value));
@@ -190,7 +116,15 @@ const handleSwitchToWizard = () => {
 };
 
 const handleParseTemplateFromCommand = () => {
-  const source = ffmpegTemplate.value.trim() || generatedCommand.value;
+  const source =
+    ffmpegTemplate.value.trim() ||
+    getFfmpegCommandPreview({
+      video: video as VideoConfig,
+      audio: audio as AudioConfig,
+      filters: filters as FilterConfig,
+      advancedEnabled: false,
+      ffmpegTemplate: "",
+    });
   if (!source) {
     parseHint.value =
       (t("presetEditor.advanced.parseEmpty") as string) ||
@@ -225,12 +159,12 @@ const handleParseTemplateFromCommand = () => {
 <template>
   <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
     <div
-      class="bg-background w-full max-w-5xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]"
+      class="bg-background w-full max-w-5xl rounded-xl shadow-2xl border border-border flex flex-col h-[min(640px,90vh)]"
     >
       <div class="p-6 border-b border-border flex justify-between items-center">
         <div>
           <h2 class="text-xl font-bold text-white">
-            {{ t("presetEditor.panel.title", "预设参数面板") }}
+            {{ t("presetEditor.panel.title", "参数详情") }}
           </h2>
           <p class="text-muted-foreground text-xs mt-1">
             {{
@@ -776,7 +710,7 @@ const handleParseTemplateFromCommand = () => {
               {{ t("presetEditor.advanced.previewTitle") }}
             </h3>
             <pre
-              class="flex-1 rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[11px] font-mono text-muted-foreground overflow-x-auto overflow-y-auto select-text"
+              class="flex-1 rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
               v-html="highlightedCommandHtml"
             />
             <p :class="parseHintClass">

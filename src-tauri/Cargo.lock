@@ -4563,6 +4563,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "nvml-wrapper",
+ "once_cell",
  "reqwest",
  "serde",
  "serde_json",

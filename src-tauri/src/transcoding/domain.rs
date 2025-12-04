@@ -93,12 +93,29 @@ pub struct FFmpegPreset {
     pub ffmpeg_template: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WaitMetadata {
+    /// Last known overall progress percentage when the job was paused via a
+    /// wait operation. This is expressed in the same 0-100 range as the
+    /// `progress` field exposed in queue snapshots.
+    pub last_progress_percent: Option<f64>,
+    /// Approximate number of seconds already processed when the job was
+    /// paused. When media duration is unknown this may be None.
+    pub processed_seconds: Option<f64>,
+    /// Path to a partial output segment or temporary output file, when
+    /// available. This is intended for future crash-recovery and resume
+    /// strategies; callers must tolerate it being absent.
+    pub tmp_output_path: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Waiting,
     Queued,
     Processing,
+    Paused,
     Completed,
     Failed,
     Skipped,
@@ -142,6 +159,11 @@ pub struct TranscodeJob {
     #[serde(rename = "type")]
     pub job_type: JobType,
     pub source: JobSource,
+    /// Stable execution priority within the waiting queue. Lower values are
+    /// scheduled earlier. The frontend uses this for queue-mode ordering while
+    /// treating it as metadata in display-only mode.
+    #[serde(rename = "queueOrder")]
+    pub queue_order: Option<u64>,
     // Align with TS field name `originalSizeMB` but accept legacy
     // `originalSizeMb` when deserializing.
     #[serde(rename = "originalSizeMB", alias = "originalSizeMb")]
@@ -172,6 +194,11 @@ pub struct TranscodeJob {
     pub ffmpeg_command: Option<String>,
     /// Compact media metadata derived from ffprobe or existing job fields.
     pub media_info: Option<MediaInfo>,
+    /// Optional estimated processing time in seconds for this job. This is
+    /// used for aggregated progress weighting (e.g. Windows taskbar) so
+    /// small but heavy presets can contribute more accurately than size
+    /// alone would suggest.
+    pub estimated_seconds: Option<f64>,
     /// Optional preview image path for this job, typically a JPEG/PNG frame
     /// extracted from the input video and stored near the app data folder.
     pub preview_path: Option<String>,
@@ -184,6 +211,11 @@ pub struct TranscodeJob {
     /// Optional stable identifier for a Smart Scan batch this job belongs to.
     /// Manual / ad-hoc jobs do not carry a batch id.
     pub batch_id: Option<String>,
+    /// Optional metadata captured when a job is paused via an explicit wait
+    /// operation or restored after an unexpected termination. This keeps the
+    /// core `TranscodeJob` shape stable while allowing future resume/crash-
+    /// recovery strategies to evolve.
+    pub wait_metadata: Option<WaitMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -220,6 +252,7 @@ mod tests {
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
             source: JobSource::Manual,
+            queue_order: None,
             original_size_mb: 123.0,
             original_codec: Some("h264".to_string()),
             preset_id: "preset-1".to_string(),
@@ -244,10 +277,12 @@ mod tests {
                 audio_codec: Some("aac".to_string()),
                 size_mb: Some(700.0),
             }),
+            estimated_seconds: Some(300.0),
             preview_path: Some("C:/app-data/previews/abc123.jpg".to_string()),
             log_tail: Some("last few lines".to_string()),
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
             batch_id: Some("auto-compress-batch-1".to_string()),
+            wait_metadata: None,
         };
 
         let value = serde_json::to_value(&job).expect("serialize TranscodeJob");
@@ -315,6 +350,14 @@ mod tests {
             "aac"
         );
         assert_eq!(media.get("sizeMB").and_then(Value::as_f64).unwrap(), 700.0);
+
+        assert_eq!(
+            value
+                .get("estimatedSeconds")
+                .and_then(Value::as_f64)
+                .expect("estimatedSeconds present"),
+            300.0
+        );
 
         assert_eq!(
             value
@@ -412,6 +455,7 @@ mod tests {
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
             source: JobSource::SmartScan,
+            queue_order: None,
             original_size_mb: 10.0,
             original_codec: Some("h264".to_string()),
             preset_id: "preset-1".to_string(),
@@ -426,10 +470,12 @@ mod tests {
             output_path: Some("C:/videos/output.mp4".to_string()),
             ffmpeg_command: None,
             media_info: None,
+            estimated_seconds: None,
             preview_path: None,
             log_tail: None,
             failure_reason: None,
             batch_id: Some("auto-compress-batch-1".to_string()),
+            wait_metadata: None,
         };
 
         let result = AutoCompressResult {
@@ -477,8 +523,7 @@ mod tests {
             batch_id: "auto-compress-batch-1".to_string(),
         };
 
-        let value =
-            serde_json::to_value(&progress).expect("serialize AutoCompressProgress");
+        let value = serde_json::to_value(&progress).expect("serialize AutoCompressProgress");
         assert_eq!(
             value
                 .get("rootPath")

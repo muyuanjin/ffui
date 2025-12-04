@@ -32,7 +32,7 @@ fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
 }
 
 fn write_json_file<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
-    let tmp_path = path.with_extension("json.tmp");
+    let tmp_path = path.with_extension("tmp");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory {}", parent.display()))?;
@@ -51,6 +51,39 @@ fn write_json_file<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> 
     Ok(())
 }
 
+/// Persistent metadata about an auto-downloaded external tool binary. This is
+/// stored in settings.json so the app can avoid repeated downloads and can
+/// surface which version was installed from which source URL.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DownloadedToolInfo {
+    /// Human-readable version string for the downloaded tool, e.g. "6.0".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Optional tag or build identifier, e.g. "b6.0" for ffmpeg-static.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    /// Source URL used to download this binary.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    /// Unix epoch timestamp in milliseconds when the download completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downloaded_at: Option<u64>,
+}
+
+/// Per-tool metadata for auto-downloaded binaries. All fields are optional so
+/// existing settings.json files remain valid and minimal.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DownloadedToolState {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ffmpeg: Option<DownloadedToolInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ffprobe: Option<DownloadedToolInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub avifenc: Option<DownloadedToolInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ExternalToolSettings {
@@ -59,10 +92,35 @@ pub struct ExternalToolSettings {
     pub avifenc_path: Option<String>,
     pub auto_download: bool,
     pub auto_update: bool,
+    /// Optional metadata about binaries that were auto-downloaded by the app.
+    /// When absent, the app infers availability only from the filesystem.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub downloaded: Option<DownloadedToolState>,
 }
 
 fn default_preview_capture_percent() -> u8 {
     25
+}
+
+/// Default interval (in milliseconds) between structured ffmpeg progress
+/// updates used when progressUpdateIntervalMs is not set in AppSettings.
+pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
+
+/// Aggregation modes for computing a single queue-level progress value that
+/// is surfaced to the Windows taskbar. This is configured via AppSettings and
+/// determines how individual jobs contribute to the overall progress bar.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+#[allow(clippy::enum_variant_names)]
+pub enum TaskbarProgressMode {
+    /// Weight jobs by their input size in megabytes. Simple and robust.
+    BySize,
+    /// Weight jobs by media duration in seconds when available.
+    ByDuration,
+    /// Weight jobs by an estimated processing time derived from historical
+    /// preset statistics, falling back to duration/size heuristics.
+    #[default]
+    ByEstimatedTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,10 +130,24 @@ pub struct AppSettings {
     pub smart_scan_defaults: SmartScanConfig,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
+    /// Optional default preset id for manual queue jobs. When None or empty,
+    /// the first available preset will be used.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_queue_preset_id: Option<String>,
     /// Optional upper bound for concurrent transcoding jobs. When None or 0,
     /// the engine derives a conservative default based on available cores.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_parallel_jobs: Option<u8>,
+    /// Optional interval in milliseconds between backend progress updates
+    /// for ffmpeg-based jobs when using the bundled static binary. When
+    /// unset, the engine uses a conservative default so existing installs
+    /// keep their previous behaviour.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_update_interval_ms: Option<u16>,
+    /// Aggregation mode for computing taskbar progress from the queue. When
+    /// omitted in existing settings.json files, this defaults to an
+    /// estimated-time based mode for better weighting of heavy presets.
+    pub taskbar_progress_mode: TaskbarProgressMode,
 }
 
 impl Default for AppSettings {
@@ -90,7 +162,10 @@ impl Default for AppSettings {
                 video_preset_id: String::new(),
             },
             preview_capture_percent: default_preview_capture_percent(),
+            default_queue_preset_id: None,
             max_parallel_jobs: None,
+            progress_update_interval_ms: None,
+            taskbar_progress_mode: TaskbarProgressMode::default(),
         }
     }
 }
@@ -274,6 +349,15 @@ mod tests {
             settings.max_parallel_jobs.is_none(),
             "default max_parallel_jobs must be None so the engine can auto-derive concurrency"
         );
+        assert!(
+            settings.progress_update_interval_ms.is_none(),
+            "default progress_update_interval_ms must be None so the engine can choose a stable default"
+        );
+        assert_eq!(
+            settings.taskbar_progress_mode,
+            TaskbarProgressMode::ByEstimatedTime,
+            "default taskbar_progress_mode should prefer estimated-time weighting"
+        );
     }
 
     #[test]
@@ -287,11 +371,45 @@ mod tests {
             .expect("previewCapturePercent field present as u64");
         assert_eq!(percent, 25);
 
+        // When default_queue_preset_id is None it should be omitted from JSON
+        // to keep settings.json minimal.
+        assert!(
+            value.get("defaultQueuePresetId").is_none(),
+            "defaultQueuePresetId should be absent when unset"
+        );
+
         // When max_parallel_jobs is None it should be omitted from JSON so
         // existing settings files remain minimal.
         assert!(
             value.get("maxParallelJobs").is_none(),
             "maxParallelJobs should be absent when unset"
+        );
+
+        // When progress_update_interval_ms is None it should be omitted from JSON
+        // so existing settings files remain minimal.
+        assert!(
+            value.get("progressUpdateIntervalMs").is_none(),
+            "progressUpdateIntervalMs should be absent when unset"
+        );
+
+        let mode = value
+            .get("taskbarProgressMode")
+            .and_then(Value::as_str)
+            .expect("taskbarProgressMode present as string");
+        assert_eq!(
+            mode, "byEstimatedTime",
+            "taskbarProgressMode must serialize as a camelCase string"
+        );
+
+        // When no tools have been auto-downloaded yet, the nested metadata
+        // object should be absent so existing settings.json files stay minimal.
+        let tools = value
+            .get("tools")
+            .and_then(Value::as_object)
+            .expect("tools field present as object");
+        assert!(
+            !tools.contains_key("downloaded"),
+            "tools.downloaded should be omitted when no download metadata is recorded"
         );
     }
 
@@ -327,5 +445,72 @@ mod tests {
             Some(3),
             "maxParallelJobs must deserialize from camelCase JSON field"
         );
+
+        assert_eq!(
+            decoded.taskbar_progress_mode,
+            TaskbarProgressMode::ByEstimatedTime,
+            "missing taskbarProgressMode must default to ByEstimatedTime for backwards compatibility"
+        );
+
+        // Legacy JSON without progressUpdateIntervalMs should transparently
+        // default to None so the engine can apply DEFAULT_PROGRESS_UPDATE_INTERVAL_MS.
+        assert!(
+            decoded.progress_update_interval_ms.is_none(),
+            "legacy settings without progressUpdateIntervalMs must decode with progress_update_interval_ms = None"
+        );
+
+        // Legacy JSON without tools.downloaded should transparently default to
+        // an empty metadata map.
+        assert!(
+            decoded.tools.downloaded.is_none(),
+            "legacy settings without tools.downloaded must decode with downloaded = None"
+        );
+    }
+
+    #[test]
+    fn app_settings_round_trips_downloaded_tool_metadata() {
+        let mut settings = AppSettings::default();
+        settings.tools.downloaded = Some(DownloadedToolState {
+            ffmpeg: Some(DownloadedToolInfo {
+                version: Some("6.1".to_string()),
+                tag: Some("b6.1".to_string()),
+                source_url: Some(
+                    "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1/ffmpeg-win32-x64"
+                        .to_string(),
+                ),
+                downloaded_at: Some(1_735_000_000_000),
+            }),
+            ffprobe: None,
+            avifenc: None,
+        });
+
+        let json = serde_json::to_value(&settings).expect("serialize AppSettings with metadata");
+        let tools = json
+            .get("tools")
+            .and_then(Value::as_object)
+            .expect("tools field present as object");
+        let downloaded = tools
+            .get("downloaded")
+            .and_then(Value::as_object)
+            .expect("tools.downloaded present when metadata is set");
+        let ffmpeg = downloaded
+            .get("ffmpeg")
+            .and_then(Value::as_object)
+            .expect("downloaded.ffmpeg present");
+
+        assert_eq!(ffmpeg.get("version").and_then(Value::as_str), Some("6.1"));
+        assert_eq!(ffmpeg.get("tag").and_then(Value::as_str), Some("b6.1"));
+
+        // JSON should deserialize back to the same structure so callers can
+        // rely on settings.json as the single source of truth.
+        let decoded: AppSettings =
+            serde_json::from_value(json).expect("round-trip deserialize AppSettings");
+        let decoded_meta = decoded
+            .tools
+            .downloaded
+            .and_then(|state| state.ffmpeg)
+            .expect("decoded.tools.downloaded.ffmpeg present");
+        assert_eq!(decoded_meta.version.as_deref(), Some("6.1"));
+        assert_eq!(decoded_meta.tag.as_deref(), Some("b6.1"));
     }
 }

@@ -1,3 +1,5 @@
+import type { AudioConfig, FilterConfig, FFmpegPreset, VideoConfig } from "@/types";
+
 export type CommandTokenKind =
   | "program"
   | "option"
@@ -189,6 +191,20 @@ export const normalizeFfmpegTemplate = (raw: string): TemplateParseResult => {
 
   const tokens = [...segments];
 
+  // Normalize the program token so templates stay stable even when the
+  // runtime path points to a local dev build such as
+  // `E:\RustWorkSpace\transcoding\src-tauri\target\debug\tools\ffmpeg.exe`.
+  if (tokens.length > 0) {
+    const first = tokens[0];
+    const unquoted = stripQuotes(first);
+    const lowerFirst = unquoted.toLowerCase();
+    if (/(?:^|[\\/])ffmpeg(?:\.exe)?$/.test(lowerFirst)) {
+      tokens[0] = "ffmpeg";
+    } else if (/(?:^|[\\/])ffprobe(?:\.exe)?$/.test(lowerFirst)) {
+      tokens[0] = "ffprobe";
+    }
+  }
+
   let inputIndex = -1;
   let outputIndex = -1;
 
@@ -246,3 +262,124 @@ export const normalizeFfmpegTemplate = (raw: string): TemplateParseResult => {
     outputReplaced: outputIndex >= 0,
   };
 };
+
+export interface FfmpegCommandPreviewInput {
+  video: VideoConfig;
+  audio: AudioConfig;
+  filters: FilterConfig;
+  /** When true and template is non-empty, use the raw template instead of structured flags. */
+  advancedEnabled?: boolean;
+  /** Optional full ffmpeg command template using INPUT/OUTPUT placeholders. */
+  ffmpegTemplate?: string;
+}
+
+/**
+ * Build a structured ffmpeg command preview from typed preset fields.
+ * This mirrors the logic used by the preset wizard and parameter panel.
+ */
+export const buildFfmpegCommandFromStructured = (
+  input: FfmpegCommandPreviewInput,
+): string => {
+  const inputPlaceholder = "INPUT";
+  const outputPlaceholder = "OUTPUT";
+
+  const v = input.video as VideoConfig;
+  const a = input.audio as AudioConfig;
+  const f = input.filters as FilterConfig;
+
+  const args: string[] = [];
+
+  // input
+  args.push("-i", inputPlaceholder);
+
+  // video
+  if (v.encoder === "copy") {
+    args.push("-c:v", "copy");
+  } else {
+    args.push("-c:v", v.encoder);
+
+    // 速率控制：质量优先（CRF/CQ）与码率优先（CBR/VBR + two-pass）互斥。
+    if (v.rateControl === "crf" || v.rateControl === "cq") {
+      args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
+    } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
+      if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
+        args.push("-b:v", `${v.bitrateKbps}k`);
+      }
+      if (typeof v.maxBitrateKbps === "number" && v.maxBitrateKbps > 0) {
+        args.push("-maxrate", `${v.maxBitrateKbps}k`);
+      }
+      if (typeof v.bufferSizeKbits === "number" && v.bufferSizeKbits > 0) {
+        args.push("-bufsize", `${v.bufferSizeKbits}k`);
+      }
+      if (v.pass === 1 || v.pass === 2) {
+        args.push("-pass", String(v.pass));
+      }
+    }
+
+    if (v.preset) {
+      args.push("-preset", v.preset);
+    }
+    if (v.tune) {
+      args.push("-tune", v.tune);
+    }
+    if (v.profile) {
+      args.push("-profile:v", v.profile);
+    }
+  }
+
+  // audio
+  if (a.codec === "copy") {
+    args.push("-c:a", "copy");
+  } else if (a.codec === "aac") {
+    args.push("-c:a", "aac");
+    if (a.bitrate) {
+      args.push("-b:a", `${a.bitrate}k`);
+    }
+  }
+
+  // filters
+  const vfParts: string[] = [];
+  if (f.scale) {
+    vfParts.push(`scale=${f.scale}`);
+  }
+  if (f.crop) {
+    vfParts.push(`crop=${f.crop}`);
+  }
+  if (typeof f.fps === "number" && f.fps > 0) {
+    vfParts.push(`fps=${f.fps}`);
+  }
+  if (vfParts.length > 0) {
+    args.push("-vf", vfParts.join(","));
+  }
+
+  // output
+  args.push(outputPlaceholder);
+
+  return ["ffmpeg", ...args].join(" ");
+};
+
+/**
+ * Compute the effective ffmpeg command preview for a given preset-like input,
+ * honoring advanced/template mode when enabled.
+ */
+export const getFfmpegCommandPreview = (
+  input: FfmpegCommandPreviewInput,
+): string => {
+  const template = (input.ffmpegTemplate ?? "").trim();
+  if (input.advancedEnabled && template.length > 0) {
+    return template;
+  }
+  return buildFfmpegCommandFromStructured(input);
+};
+
+/**
+ * Convenience helper for computing the command preview of a persisted preset.
+ */
+export const getPresetCommandPreview = (preset: FFmpegPreset): string =>
+  getFfmpegCommandPreview({
+    video: preset.video,
+    audio: preset.audio,
+    filters: preset.filters,
+    advancedEnabled: preset.advancedEnabled,
+    ffmpegTemplate: preset.ffmpegTemplate,
+  });
