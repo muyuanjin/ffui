@@ -183,7 +183,6 @@ const {
   bulkDelete,
 } = queue;
 
-
 const {
   appSettings,
   isSavingSettings,
@@ -286,8 +285,6 @@ const mainApp = {
   lastDroppedRoot,
   presets,
   presetsLoadedFromBackend,
-
-  // Shell / dialogs / smart scan / settings / queue / media / preview / dnd
   ...shell,
   ...dialogs,
   ...smartScan,
@@ -309,8 +306,6 @@ const mainApp = {
   copyToClipboard,
 };
 
-// Keep manualJobPresetId behaving like a simple field for tests while still
-// wiring it to the underlying ref used by composables.
 Object.defineProperty(mainApp, "manualJobPresetId", {
   get() {
     return manualJobPresetId.value;
@@ -320,7 +315,6 @@ Object.defineProperty(mainApp, "manualJobPresetId", {
   },
 });
 
-// Preserve the vm API used in existing tests (vm.jobs, vm.queueViewModeModel, vm.smartScanBatchMeta, etc.).
 defineExpose(mainApp);
 </script>
 
