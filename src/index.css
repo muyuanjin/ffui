@@ -137,14 +137,18 @@
   body,
   #app {
     height: 100%;
+    width: 100%;
   }
 
   /* After Vue mounts, #app should behave as a normal full-screen container,
      not keep the boot-shell's flex centering (which would clip the main UI
      when content gets taller, e.g. 软件设置外部工具状态很多时). */
   #app {
-    min-height: 100%;
+    height: 100%;
+    width: 100%;
     display: block;
+    padding: 0;
+    margin: 0;
   }
 
   /* Allow text selection where it makes sense */
