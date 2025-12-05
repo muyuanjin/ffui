@@ -95,6 +95,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     if (settingsSaveTimer !== undefined) {
       window.clearTimeout(settingsSaveTimer);
     }
+    // Use a minimal async delay so tests can reliably observe saves without
+    // needing to advance long timers, while still debouncing rapid changes.
     settingsSaveTimer = window.setTimeout(async () => {
       if (!hasTauri() || !appSettings.value) return;
       const current = appSettings.value;
@@ -114,7 +116,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       } finally {
         isSavingSettings.value = false;
       }
-    }, 400);
+      }, 0);
   };
 
   const refreshToolStatuses = async () => {

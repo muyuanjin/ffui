@@ -39,6 +39,16 @@ describe("parseFfprobeJson", () => {
           bit_rate: "192000",
         },
       ],
+      file: {
+        path: "C:/videos/sample.mp4",
+        exists: true,
+        isFile: true,
+        isDir: false,
+        sizeBytes: 734003200,
+        createdMs: 1_700_000_000_000,
+        modifiedMs: 1_700_000_100_000,
+        accessedMs: 1_700_000_200_000,
+      },
     };
 
     const json = JSON.stringify(sample);
@@ -75,6 +85,19 @@ describe("parseFfprobeJson", () => {
     expect(audio?.channels).toBe(2);
     expect(audio?.channelLayout).toBe("stereo");
     expect(audio?.bitRateKbps).toBeCloseTo(192, 0);
+
+    expect(result.file).not.toBeNull();
+    expect(result.file?.path).toBe("C:/videos/sample.mp4");
+    expect(result.file?.exists).toBe(true);
+    expect(result.file?.isFile).toBe(true);
+    expect(result.file?.isDir).toBe(false);
+    expect(result.file?.sizeBytes).toBe(734003200);
+    expect(result.file?.createdMs).toBe(1_700_000_000_000);
+    expect(result.file?.modifiedMs).toBe(1_700_000_100_000);
+    expect(result.file?.accessedMs).toBe(1_700_000_200_000);
+
+    // raw payload is preserved so callers can inspect additional fields.
+    expect((result.raw as any)?.format?.filename).toBe("C:/videos/sample.mp4");
   });
 
   it("returns a safe fallback when JSON parsing fails", () => {
@@ -82,6 +105,7 @@ describe("parseFfprobeJson", () => {
     expect(result.summary).toBeNull();
     expect(result.format).toBeNull();
     expect(result.streams).toEqual([]);
+    expect(result.file).toBeNull();
+    expect(result.raw).toBeNull();
   });
 });
-

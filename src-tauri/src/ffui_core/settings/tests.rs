@@ -1,0 +1,257 @@
+use super::*;
+use serde_json::{Value, json};
+use std::fs;
+
+#[test]
+fn load_presets_provides_defaults_when_file_missing_or_empty() {
+    // Reconstruct the sidecar path in the same way as executable_sidecar_path.
+    let exe = std::env::current_exe().expect("resolve current_exe for test");
+    let dir = exe.parent().expect("exe has parent directory");
+    let stem = exe
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .expect("exe has valid UTF-8 stem");
+    let path = dir.join(format!("{stem}.presets.json"));
+
+    // Ensure we start from a clean state with no presets.json.
+    let _ = fs::remove_file(&path);
+
+    let presets = load_presets().expect("load_presets should succeed without file");
+    assert!(
+        !presets.is_empty(),
+        "default_presets should be returned when presets file is missing"
+    );
+    assert!(
+        presets.iter().any(|p| p.id == "p1"),
+        "defaults must include Universal 1080p with id 'p1'"
+    );
+
+    // If an empty presets.json exists, we should still fall back to defaults.
+    fs::write(&path, "[]").expect("write empty presets file");
+    let presets2 = load_presets().expect("load_presets should succeed with empty file");
+    assert!(
+        !presets2.is_empty(),
+        "defaults should also be injected when presets.json contains an empty array"
+    );
+    assert!(
+        presets2.iter().any(|p| p.id == "p1"),
+        "defaults must still include id 'p1' when file is empty"
+    );
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn app_settings_default_uses_preview_capture_percent_25() {
+    let settings = AppSettings::default();
+    assert_eq!(
+        settings.preview_capture_percent, 25,
+        "default preview_capture_percent must be 25"
+    );
+    assert!(
+        !settings.developer_mode_enabled,
+        "developer_mode_enabled must default to false so devtools stay disabled unless explicitly enabled"
+    );
+    assert!(
+        settings.max_parallel_jobs.is_none(),
+        "default max_parallel_jobs must be None so the engine can auto-derive concurrency"
+    );
+    assert!(
+        settings.progress_update_interval_ms.is_none(),
+        "default progress_update_interval_ms must be None so the engine can choose a stable default"
+    );
+    assert_eq!(
+        settings.taskbar_progress_mode,
+        TaskbarProgressMode::ByEstimatedTime,
+        "default taskbar_progress_mode should prefer estimated-time weighting"
+    );
+}
+
+#[test]
+fn app_settings_serializes_preview_capture_percent_as_camel_case() {
+    let settings = AppSettings::default();
+    let value = serde_json::to_value(&settings).expect("serialize AppSettings");
+
+    let percent = value
+        .get("previewCapturePercent")
+        .and_then(Value::as_u64)
+        .expect("previewCapturePercent field present as u64");
+    assert_eq!(percent, 25);
+
+    // When default_queue_preset_id is None it should be omitted from JSON
+    // to keep settings.json minimal.
+    assert!(
+        value.get("defaultQueuePresetId").is_none(),
+        "defaultQueuePresetId should be absent when unset"
+    );
+
+    // When max_parallel_jobs is None it should be omitted from JSON so
+    // existing settings files remain minimal.
+    assert!(
+        value.get("maxParallelJobs").is_none(),
+        "maxParallelJobs should be absent when unset"
+    );
+
+    // When progress_update_interval_ms is None it should be omitted from JSON
+    // so existing settings files remain minimal.
+    assert!(
+        value.get("progressUpdateIntervalMs").is_none(),
+        "progressUpdateIntervalMs should be absent when unset"
+    );
+    // When developer_mode_enabled is false it should be omitted from JSON
+    // so existing installations don't gain extra noise in settings.json.
+    assert!(
+        value.get("developerModeEnabled").is_none(),
+        "developerModeEnabled should be absent when false"
+    );
+
+    let mode = value
+        .get("taskbarProgressMode")
+        .and_then(Value::as_str)
+        .expect("taskbarProgressMode present as string");
+    assert_eq!(
+        mode, "byEstimatedTime",
+        "taskbarProgressMode must serialize as a camelCase string"
+    );
+
+    // When no tools have been auto-downloaded yet, the nested metadata
+    // object should be absent so existing settings.json files stay minimal.
+    let tools = value
+        .get("tools")
+        .and_then(Value::as_object)
+        .expect("tools field present as object");
+    assert!(
+        !tools.contains_key("downloaded"),
+        "tools.downloaded should be omitted when no download metadata is recorded"
+    );
+}
+
+#[test]
+fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
+    // Simulate legacy JSON without the new previewCapturePercent field.
+    let legacy = json!({
+        "tools": {
+            "ffmpegPath": null,
+            "ffprobePath": null,
+            "avifencPath": null,
+            "autoDownload": false,
+            "autoUpdate": false
+        },
+        "smartScanDefaults": {
+            "minImageSizeKB": 50,
+            "minVideoSizeMB": 50,
+            "minSavingRatio": 0.95,
+            "imageTargetFormat": "avif",
+            "videoPresetId": ""
+        },
+        "maxParallelJobs": 3
+    });
+
+    let decoded: AppSettings = serde_json::from_value(legacy)
+        .expect("deserialize AppSettings without previewCapturePercent");
+    assert_eq!(
+        decoded.preview_capture_percent, 25,
+        "missing previewCapturePercent must default to 25 for backwards compatibility"
+    );
+    assert!(
+        !decoded.developer_mode_enabled,
+        "legacy settings without developerModeEnabled must decode with developer_mode_enabled = false"
+    );
+    assert_eq!(
+        decoded.max_parallel_jobs,
+        Some(3),
+        "maxParallelJobs must deserialize from camelCase JSON field"
+    );
+
+    assert_eq!(
+        decoded.taskbar_progress_mode,
+        TaskbarProgressMode::ByEstimatedTime,
+        "missing taskbarProgressMode must default to ByEstimatedTime for backwards compatibility"
+    );
+
+    // Legacy JSON without progressUpdateIntervalMs should transparently
+    // default to None so the engine can apply DEFAULT_PROGRESS_UPDATE_INTERVAL_MS.
+    assert!(
+        decoded.progress_update_interval_ms.is_none(),
+        "legacy settings without progressUpdateIntervalMs must decode with progress_update_interval_ms = None"
+    );
+
+    // Legacy JSON without tools.downloaded should transparently default to
+    // an empty metadata map.
+    assert!(
+        decoded.tools.downloaded.is_none(),
+        "legacy settings without tools.downloaded must decode with downloaded = None"
+    );
+}
+
+#[test]
+fn app_settings_round_trips_downloaded_tool_metadata() {
+    let mut settings = AppSettings::default();
+    settings.tools.downloaded = Some(DownloadedToolState {
+        ffmpeg: Some(DownloadedToolInfo {
+            version: Some("6.1".to_string()),
+            tag: Some("b6.1".to_string()),
+            source_url: Some(
+                "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1/ffmpeg-win32-x64"
+                    .to_string(),
+            ),
+            downloaded_at: Some(1_735_000_000_000),
+        }),
+        ffprobe: None,
+        avifenc: None,
+    });
+
+    let json = serde_json::to_value(&settings).expect("serialize AppSettings with metadata");
+    let tools = json
+        .get("tools")
+        .and_then(Value::as_object)
+        .expect("tools field present as object");
+    let downloaded = tools
+        .get("downloaded")
+        .and_then(Value::as_object)
+        .expect("tools.downloaded present when metadata is set");
+    let ffmpeg = downloaded
+        .get("ffmpeg")
+        .and_then(Value::as_object)
+        .expect("downloaded.ffmpeg present");
+
+    assert_eq!(ffmpeg.get("version").and_then(Value::as_str), Some("6.1"));
+    assert_eq!(ffmpeg.get("tag").and_then(Value::as_str), Some("b6.1"));
+
+    // JSON should deserialize back to the same structure so callers can
+    // rely on settings.json as the single source of truth.
+    let decoded: AppSettings =
+        serde_json::from_value(json).expect("round-trip deserialize AppSettings");
+    let decoded_meta = decoded
+        .tools
+        .downloaded
+        .and_then(|state| state.ffmpeg)
+        .expect("decoded.tools.downloaded.ffmpeg present");
+    assert_eq!(decoded_meta.version.as_deref(), Some("6.1"));
+    assert_eq!(decoded_meta.tag.as_deref(), Some("b6.1"));
+}
+
+#[test]
+fn app_settings_serializes_developer_mode_enabled_when_true() {
+    let settings = AppSettings {
+        developer_mode_enabled: true,
+        ..AppSettings::default()
+    };
+
+    let json = serde_json::to_value(&settings).expect("serialize AppSettings with dev mode");
+    let dev_mode = json
+        .get("developerModeEnabled")
+        .and_then(Value::as_bool)
+        .expect("developerModeEnabled present when true");
+    assert!(
+        dev_mode,
+        "developerModeEnabled must serialize as true when enabled"
+    );
+
+    let decoded: AppSettings =
+        serde_json::from_value(json).expect("round-trip deserialize AppSettings with dev mode");
+    assert!(
+        decoded.developer_mode_enabled,
+        "developer_mode_enabled must remain true after round-trip serialization"
+    );
+}

@@ -1,5 +1,7 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 import MainApp from "@/MainApp.vue";
 import zhCN from "@/locales/zh-CN";
@@ -55,5 +57,29 @@ describe("MainApp sidebar primary actions", () => {
     expect(addCompressionClass.length).toBeGreaterThan(0);
     // Distinct shadcn-vue variants should result in different class strings.
     expect(addTranscodeClass).not.toEqual(addCompressionClass);
+  });
+
+  it("shows a New Preset CTA on the presets tab and opens the preset wizard when clicked", async () => {
+    const wrapper = makeWrapper("zh-CN");
+    const vm: any = wrapper.vm;
+
+    // Switch to presets tab so the header CTA becomes visible.
+    vm.activeTab = "presets";
+    await nextTick();
+
+    const buttons = wrapper.findAll("button");
+    const newPresetButton = buttons.find((btn) =>
+      btn.text().includes("新建预设"),
+    );
+
+    expect(
+      newPresetButton,
+      "New Preset button should be visible on the presets tab",
+    ).toBeTruthy();
+
+    expect(vm.dialogManager?.wizardOpen?.value).toBe(false);
+    await newPresetButton!.trigger("click");
+    await nextTick();
+    expect(vm.dialogManager?.wizardOpen?.value).toBe(true);
   });
 });

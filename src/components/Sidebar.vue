@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 
-defineProps<{
+const { activeTab, jobs } = defineProps<{
   /** Current active tab */
   activeTab: "queue" | "presets" | "media" | "monitor" | "settings";
   /** List of all jobs (for processing indicator) */
@@ -28,21 +27,13 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
   <aside class="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
     <div class="shrink-0 px-5 py-4 border-b border-sidebar-border flex items-center gap-3">
       <div
-        class="h-8 w-8 rounded-md border border-sidebar-ring bg-sidebar-accent flex items-center justify-center text-[10px] font-semibold tracking-[0.15em] text-sidebar-primary uppercase"
+        class="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden"
       >
-        FF
+        <img src="/ffui.svg" alt="FFUI" class="h-10 w-10" />
       </div>
-      <div class="space-y-0.5">
-        <h1 class="font-semibold text-sm text-sidebar-foreground leading-none">
-          {{ t("app.controlPanel") }}
-        </h1>
-        <Badge
-          variant="outline"
-          class="text-[10px] px-1.5 py-0 border-sidebar-border text-sidebar-foreground/70 uppercase tracking-wide"
-        >
-          {{ t("app.controlPanel") }}
-        </Badge>
-      </div>
+      <h1 class="font-semibold text-lg text-sidebar-foreground leading-none">
+        {{ t("app.controlPanel") }}
+      </h1>
     </div>
 
     <nav class="flex-1 px-3 py-4 space-y-2">

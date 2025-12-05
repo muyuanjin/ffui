@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
-import { hasTauri } from "@/lib/backend";
+import { hasTauri, openDevtools } from "@/lib/backend";
 import type { AppSettings, ExternalToolKind, ExternalToolStatus } from "@/types";
 
 const props = defineProps<{
@@ -380,6 +380,37 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 </span>
                 <span v-else>修改会自动保存，无需手动点击按钮。</span>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card class="border-border/80 shadow-sm">
+            <CardHeader class="pb-3 flex items-center justify-between gap-2">
+              <div>
+                <CardTitle class="text-sm text-foreground">
+                  开发者工具
+                </CardTitle>
+                <CardDescription class="mt-1 text-[11px] text-muted-foreground">
+                  一键打开 Devtools，便于调试与问题排查。
+                </CardDescription>
+              </div>
+              <Button
+                data-testid="settings-open-devtools"
+                size="sm"
+                variant="outline"
+                class="h-7 px-3 text-[11px]"
+                :disabled="!hasTauri()"
+                @click="openDevtools"
+              >
+                {{ t("app.openDevtools") }}
+              </Button>
+            </CardHeader>
+            <CardContent class="space-y-2 text-xs">
+              <p v-if="!hasTauri()" class="text-[11px] text-muted-foreground">
+                {{ t("app.openDevtoolsUnavailable") }}
+              </p>
+              <p v-else class="text-[11px] text-muted-foreground">
+                Devtools 将在桌面应用窗口中弹出，无需额外开关。
+              </p>
             </CardContent>
           </Card>
         </div>

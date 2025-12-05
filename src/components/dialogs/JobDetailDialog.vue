@@ -1,22 +1,17 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { computed, ref, watch } from "vue";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
-import { highlightFfmpegCommand } from "@/lib/ffmpegCommand";
+import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import type { TranscodeJob, FFmpegPreset } from "@/types";
 
 const props = defineProps<{
-  /** Whether dialog is open */
   open: boolean;
-  /** The job to display */
   job: TranscodeJob | null;
-  /** The preset used for this job */
   preset: FFmpegPreset | null;
-  /** Highlighted log HTML */
   highlightedLogHtml: string;
 }>();
 
@@ -28,8 +23,54 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const activeTab = ref<"preview" | "info" | "command" | "log">("preview");
+// --- Preview handling ---
+const inlinePreviewUrl = ref<string | null>(null);
+const inlinePreviewFallbackLoaded = ref(false);
 
+watch(
+  () => props.job?.previewPath,
+  (path) => {
+    inlinePreviewFallbackLoaded.value = false;
+    if (!path) {
+      inlinePreviewUrl.value = null;
+      return;
+    }
+    inlinePreviewUrl.value = buildPreviewUrl(path);
+  },
+  { immediate: true },
+);
+
+const handleInlinePreviewError = async () => {
+  const path = props.job?.previewPath;
+  if (!path) return;
+  if (!hasTauri()) return;
+  if (inlinePreviewFallbackLoaded.value) return;
+
+  try {
+    inlinePreviewUrl.value = await loadPreviewDataUrl(path);
+    inlinePreviewFallbackLoaded.value = true;
+  } catch (error) {
+    console.error("JobDetailDialog: failed to load inline preview via data URL fallback", error);
+  }
+};
+
+const copyToClipboard = async (value: string | undefined | null) => {
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand("copy");
+    document.body.removeChild(textarea);
+  }
+};
+
+// --- Derived data ---
 const statusBadgeClass = computed(() => {
   if (!props.job) return "";
   const status = props.job.status;
@@ -43,187 +84,309 @@ const statusBadgeClass = computed(() => {
   return "bg-muted text-muted-foreground border-border";
 });
 
-const formatBytes = (bytes: number | null | undefined): string => {
-  if (bytes == null || bytes <= 0) return "-";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-};
+const jobFileName = computed(() => {
+  const path = props.job?.filename || "";
+  if (!path) return "";
+  const normalised = path.replace(/\\/g, "/");
+  const idx = normalised.lastIndexOf("/");
+  return idx >= 0 ? normalised.slice(idx + 1) : normalised;
+});
 
-const formatDuration = (seconds: number | null | undefined): string => {
-  if (seconds == null || seconds <= 0) return "-";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = Math.floor(seconds % 60);
-  if (h > 0) return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-};
+const jobDetailRawCommand = computed(() => props.job?.ffmpegCommand ?? "");
+const jobDetailTemplateCommand = computed(() => normalizeFfmpegTemplate(jobDetailRawCommand.value).template);
+const showTemplateCommand = ref(true);
+const jobDetailEffectiveCommand = computed(() => {
+  const raw = jobDetailRawCommand.value;
+  const templ = jobDetailTemplateCommand.value;
+  return showTemplateCommand.value ? templ || raw : raw;
+});
+const jobDetailHasDistinctTemplate = computed(() => {
+  const raw = jobDetailRawCommand.value;
+  const templ = jobDetailTemplateCommand.value;
+  return !!raw && !!templ && templ !== raw;
+});
+const commandViewToggleLabel = computed(() => {
+  if (!jobDetailHasDistinctTemplate.value) return "";
+  return showTemplateCommand.value ? "显示完整命令" : "显示模板视图";
+});
+const highlightedCommandHtml = computed(() => highlightFfmpegCommand(jobDetailEffectiveCommand.value));
 
-const copyToClipboard = async (value: string | undefined | null) => {
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    // Fallback
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  }
-};
+const jobDetailLogText = computed(() => {
+  const job = props.job;
+  if (!job) return "";
+  const full = job.logs?.length ? job.logs.join("\n") : "";
+  const tail = job.logTail ?? "";
+  return full || tail;
+});
+
+const unknownPresetLabel = computed(() => {
+  const id = props.job?.presetId;
+  if (!id) return "";
+  const translated = t("taskDetail.unknownPreset", { id }) as string;
+  if (translated && translated !== "taskDetail.unknownPreset") return translated;
+  return `Unknown preset (${id})`;
+});
 </script>
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col">
-      <DialogHeader>
-        <DialogTitle class="flex items-center gap-3">
-          <span class="truncate max-w-md">{{ job?.filename || t("jobDetail.title") }}</span>
-          <Badge v-if="job" variant="outline" :class="statusBadgeClass">
-            {{ t(`queue.status.${job.status}`) }}
-          </Badge>
-        </DialogTitle>
-        <DialogDescription class="text-xs text-muted-foreground truncate">
-          {{ job?.inputPath || "" }}
-        </DialogDescription>
-      </DialogHeader>
+    <DialogScrollContent class="sm:max-w-3xl overflow-hidden p-0">
+      <div class="flex max-h-[calc(100vh-4rem)] flex-col">
+        <DialogHeader class="border-b border-border px-6 py-4 bg-card">
+          <DialogTitle class="text-base">
+            {{ t("taskDetail.title") }}
+          </DialogTitle>
+          <DialogDescription class="mt-1 text-[11px] text-muted-foreground">
+            {{ t("taskDetail.description") }}
+          </DialogDescription>
+        </DialogHeader>
 
-      <Tabs v-model="activeTab" class="flex-1 flex flex-col min-h-0">
-        <TabsList class="grid w-full grid-cols-4">
-          <TabsTrigger value="preview">{{ t("jobDetail.tabs.preview") }}</TabsTrigger>
-          <TabsTrigger value="info">{{ t("jobDetail.tabs.info") }}</TabsTrigger>
-          <TabsTrigger value="command">{{ t("jobDetail.tabs.command") }}</TabsTrigger>
-          <TabsTrigger value="log">{{ t("jobDetail.tabs.log") }}</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="preview" class="flex-1 min-h-0">
-          <div class="h-full flex items-center justify-center bg-muted/30 rounded-lg">
-            <div v-if="job?.previewPath" class="relative group">
-              <img
-                v-if="job.type === 'image'"
-                :src="job.previewPath"
-                :alt="job.filename"
-                class="max-h-[400px] max-w-full object-contain rounded-lg cursor-pointer"
-                @click="emit('expandPreview')"
-              />
-              <video
-                v-else
-                :src="job.previewPath"
-                class="max-h-[400px] max-w-full object-contain rounded-lg cursor-pointer"
-                controls
-                @click.stop="emit('expandPreview')"
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                @click="emit('expandPreview')"
-              >
-                {{ t("jobDetail.expandPreview") }}
-              </Button>
-            </div>
-            <div v-else class="text-muted-foreground text-sm">
-              {{ t("jobDetail.noPreview") }}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="info" class="flex-1 min-h-0 overflow-auto">
-          <div class="space-y-4 text-sm">
-            <div class="grid grid-cols-2 gap-4">
-              <div class="space-y-2">
-                <h4 class="font-semibold text-foreground">{{ t("jobDetail.inputInfo") }}</h4>
-                <div class="space-y-1 text-xs text-muted-foreground">
-                  <p><span class="text-foreground/80">{{ t("jobDetail.path") }}:</span> {{ job?.inputPath || "-" }}</p>
-                  <p><span class="text-foreground/80">{{ t("jobDetail.size") }}:</span> {{ formatBytes((job?.originalSizeMB ?? 0) * 1024 * 1024) }}</p>
-                  <p v-if="job?.mediaInfo?.durationSeconds">
-                    <span class="text-foreground/80">{{ t("jobDetail.duration") }}:</span> {{ formatDuration(job.mediaInfo.durationSeconds) }}
-                  </p>
-                  <p v-if="job?.mediaInfo?.width && job?.mediaInfo?.height">
-                    <span class="text-foreground/80">{{ t("jobDetail.resolution") }}:</span> {{ job.mediaInfo.width }}x{{ job.mediaInfo.height }}
-                  </p>
-                  <p v-if="job?.mediaInfo?.videoCodec">
-                    <span class="text-foreground/80">{{ t("jobDetail.codec") }}:</span> {{ job.mediaInfo.videoCodec }}
-                  </p>
-                  <p v-if="job?.mediaInfo?.audioCodec">
-                    <span class="text-foreground/80">{{ t("jobDetail.audioCodec") }}:</span> {{ job.mediaInfo.audioCodec }}
-                  </p>
-                </div>
-              </div>
-              <div class="space-y-2">
-                <h4 class="font-semibold text-foreground">{{ t("jobDetail.outputInfo") }}</h4>
-                <div class="space-y-1 text-xs text-muted-foreground">
-                  <p><span class="text-foreground/80">{{ t("jobDetail.path") }}:</span> {{ job?.outputPath || "-" }}</p>
-                  <p><span class="text-foreground/80">{{ t("jobDetail.size") }}:</span> {{ formatBytes((job?.outputSizeMB ?? 0) * 1024 * 1024) }}</p>
-                  <p v-if="job?.originalSizeMB && job?.outputSizeMB && job.outputSizeMB > 0">
-                    <span class="text-foreground/80">{{ t("jobDetail.ratio") }}:</span>
-                    {{ ((1 - job.outputSizeMB / job.originalSizeMB) * 100).toFixed(1) }}%
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="preset" class="space-y-2">
-              <h4 class="font-semibold text-foreground">{{ t("jobDetail.presetInfo") }}</h4>
-              <div class="space-y-1 text-xs text-muted-foreground">
-                <p><span class="text-foreground/80">{{ t("jobDetail.presetName") }}:</span> {{ preset.name }}</p>
-                <p><span class="text-foreground/80">{{ t("jobDetail.encoder") }}:</span> {{ preset.video.encoder }}</p>
-                <p><span class="text-foreground/80">{{ t("jobDetail.rateControl") }}:</span> {{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}</p>
-              </div>
-            </div>
-
-            <div v-if="job?.skipReason" class="space-y-2">
-              <h4 class="font-semibold text-destructive">{{ t("jobDetail.error") }}</h4>
-              <pre class="text-xs text-destructive bg-destructive/10 rounded-md p-2 whitespace-pre-wrap">{{ job.skipReason }}</pre>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="command" class="flex-1 min-h-0 flex flex-col">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-muted-foreground">FFmpeg {{ t("jobDetail.command") }}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-7 text-xs"
-              @click="copyToClipboard(job?.ffmpegCommand)"
-            >
-              {{ t("jobDetail.copyCommand") }}
-            </Button>
-          </div>
-          <ScrollArea class="flex-1 rounded-md border border-border bg-muted/30">
-            <pre
-              class="p-3 text-xs font-mono whitespace-pre-wrap break-all select-text"
-              v-html="highlightFfmpegCommand(job?.ffmpegCommand || '')"
-            />
-          </ScrollArea>
-        </TabsContent>
-
-        <TabsContent value="log" class="flex-1 min-h-0 flex flex-col">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs text-muted-foreground">{{ t("jobDetail.logTitle") }}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-7 text-xs"
-              @click="copyToClipboard(job?.logs?.join('\n'))"
-            >
-              {{ t("jobDetail.copyLog") }}
-            </Button>
-          </div>
-          <ScrollArea class="flex-1 rounded-md border border-border bg-background/95">
+        <div class="flex-1 bg-muted/30 px-6 py-4 text-xs overflow-y-auto">
+          <div v-if="job" class="space-y-4">
+            <!-- Header -->
             <div
-              class="p-3 text-[11px] font-mono leading-relaxed whitespace-pre-wrap break-all select-text"
-              v-html="highlightedLogHtml"
-            />
-          </ScrollArea>
-        </TabsContent>
-      </Tabs>
-    </DialogContent>
+              class="relative overflow-hidden rounded-md border border-border bg-background"
+              data-testid="task-detail-header"
+            >
+              <div
+                v-if="inlinePreviewUrl"
+                class="pointer-events-none absolute inset-0"
+                data-testid="task-detail-header-bg"
+              >
+                <img
+                  :src="inlinePreviewUrl"
+                  alt=""
+                  class="h-full w-full object-cover blur-sm scale-105"
+                  @error="handleInlinePreviewError"
+                />
+                <div class="absolute inset-0 bg-background/70" />
+              </div>
+
+              <div class="relative flex flex-col gap-4 px-3 py-3 md:flex-row">
+                <button
+                  type="button"
+                  class="group w-full md:w-60 aspect-video rounded-md border border-border bg-muted flex items-center justify-center overflow-hidden cursor-zoom-in"
+                  data-testid="task-detail-preview"
+                  @click.stop="emit('expandPreview')"
+                >
+                  <img
+                    v-if="inlinePreviewUrl"
+                    :src="inlinePreviewUrl"
+                    alt=""
+                    class="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    @error="handleInlinePreviewError"
+                  />
+                  <span v-else class="text-[11px] text-muted-foreground">
+                    {{ t("taskDetail.noPreview") }}
+                  </span>
+                </button>
+
+                <div class="flex-1 space-y-2">
+                  <div
+                    data-testid="task-detail-title"
+                    class="text-sm font-semibold text-foreground break-all"
+                  >
+                    {{ jobFileName || t("jobDetail.title") }}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" class="text-[10px] uppercase" :class="statusBadgeClass">
+                      {{ t(`queue.status.${job.status}`) }}
+                    </Badge>
+                    <span class="text-[11px] text-muted-foreground">
+                      {{ job.source === "smart_scan" ? t("queue.source.smartScan") : t("queue.source.manual") }}
+                    </span>
+                  </div>
+                <div class="space-y-1 text-[11px]">
+                  <div v-if="preset?.name" class="text-foreground">
+                    {{ t("taskDetail.presetLabel") }}:
+                    <span class="font-medium">{{ preset.name }}</span>
+                    <span v-if="preset.description" class="ml-1 text-muted-foreground">— {{ preset.description }}</span>
+                  </div>
+                  <div v-else-if="job.presetId" class="text-foreground">
+                    {{ t("taskDetail.presetLabel") }}:
+                    <span class="font-medium">
+                      {{ unknownPresetLabel }}
+                    </span>
+                  </div>
+                    <div v-if="job.originalSizeMB" class="text-foreground">
+                      {{ t("taskDetail.sizeLabel") }}: {{ job.originalSizeMB.toFixed(2) }} MB
+                    </div>
+                    <div v-if="job.outputSizeMB" class="text-foreground">
+                      {{ t("taskDetail.outputSizeLabel") }}: {{ job.outputSizeMB.toFixed(2) }} MB
+                    </div>
+                    <div v-if="job.mediaInfo?.durationSeconds" class="text-foreground">
+                      {{ t("taskDetail.durationLabel") }}: {{ job.mediaInfo.durationSeconds.toFixed(1) }} s
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Paths & Media Info -->
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="space-y-2 rounded-md border border-border bg-background px-3 py-3">
+                <h3 class="text-xs font-semibold">
+                  {{ t("taskDetail.pathsTitle") }}
+                </h3>
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="shrink-0 text-[11px] text-muted-foreground">
+                      {{ t("taskDetail.inputPath") }}:
+                    </span>
+                    <span data-testid="task-detail-input-path" class="flex-1 break-all text-foreground select-text">
+                      {{ job.inputPath || job.filename }}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      class="h-6 w-6 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                      @click="copyToClipboard(job.inputPath || job.filename)"
+                    >
+                      ⧉
+                    </Button>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="shrink-0 text-[11px] text-muted-foreground">
+                      {{ t("taskDetail.outputPath") }}:
+                    </span>
+                    <span data-testid="task-detail-output-path" class="flex-1 break-all text-foreground select-text">
+                      {{ job.outputPath || "-" }}
+                    </span>
+                    <Button
+                      v-if="job.outputPath"
+                      variant="outline"
+                      size="icon-sm"
+                      class="h-6 w-6 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                      @click="copyToClipboard(job.outputPath)"
+                    >
+                      ⧉
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="space-y-2 rounded-md border border-border bg-background px-3 py-3">
+                <h3 class="text-xs font-semibold">
+                  {{ t("taskDetail.mediaInfoTitle") }}
+                </h3>
+                <div v-if="job.mediaInfo" class="grid grid-cols-2 gap-x-4 gap-y-1">
+                  <span class="text-[11px] text-muted-foreground">
+                    {{ t("taskDetail.codecLabel") }}
+                  </span>
+                  <span class="text-foreground">
+                    {{ job.mediaInfo?.videoCodec || job.originalCodec || "-" }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground">
+                    {{ t("taskDetail.resolutionLabel") }}
+                  </span>
+                  <span class="text-foreground">
+                    {{
+                      job.mediaInfo?.width && job.mediaInfo?.height
+                        ? `${job.mediaInfo.width}×${job.mediaInfo.height}`
+                        : "-"
+                    }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground">
+                    {{ t("taskDetail.frameRateLabel") }}
+                  </span>
+                  <span class="text-foreground">
+                    {{
+                      job.mediaInfo?.frameRate ? `${job.mediaInfo.frameRate.toFixed(2)} fps` : "-"
+                    }}
+                  </span>
+                </div>
+                <div v-else class="text-[11px] text-muted-foreground">
+                  {{ t("taskDetail.mediaInfoFallback") }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Command -->
+            <div class="space-y-2 rounded-md border border-border bg-background px-3 py-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-xs font-semibold">
+                    {{ t("taskDetail.commandTitle") }}
+                  </h3>
+                  <button
+                    v-if="jobDetailHasDistinctTemplate"
+                    type="button"
+                    class="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    @click="showTemplateCommand = !showTemplateCommand"
+                  >
+                    {{ commandViewToggleLabel }}
+                  </button>
+                </div>
+                <div class="flex items-center gap-1">
+                  <Button
+                    v-if="jobDetailRawCommand"
+                    variant="outline"
+                    size="xs"
+                    class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                    data-testid="task-detail-copy-command"
+                    @click="copyToClipboard(jobDetailRawCommand)"
+                  >
+                    {{ t("taskDetail.copyCommand") }}
+                  </Button>
+                  <Button
+                    v-if="jobDetailHasDistinctTemplate && jobDetailTemplateCommand"
+                    variant="outline"
+                    size="xs"
+                    class="h-6 px-2 text-[10px] bg-secondary/40 text-foreground hover:bg-secondary"
+                    data-testid="task-detail-copy-template-command"
+                    @click="copyToClipboard(jobDetailTemplateCommand)"
+                  >
+                    {{ t("taskDetail.copyTemplateCommand") }}
+                  </Button>
+                </div>
+              </div>
+              <div v-if="jobDetailEffectiveCommand" data-testid="task-detail-command">
+                <pre
+                  class="max-h-32 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
+                  v-html="highlightedCommandHtml"
+                />
+              </div>
+              <p v-else class="text-[11px] text-muted-foreground">
+                {{ t("taskDetail.commandFallback") }}
+              </p>
+            </div>
+
+            <!-- Logs -->
+            <div
+              v-if="jobDetailLogText"
+              class="space-y-2 rounded-md border border-border bg-background px-3 py-3"
+              data-testid="task-detail-log"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <h3 class="text-xs font-semibold">
+                  {{ t("taskDetail.logsTitle") }}
+                </h3>
+                <Button
+                  variant="outline"
+                  size="xs"
+                  class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
+                  data-testid="task-detail-copy-logs"
+                  @click="copyToClipboard(jobDetailLogText)"
+                >
+                  {{ t("taskDetail.copyLogs") }}
+                </Button>
+              </div>
+              <div
+                class="rounded-md bg-muted/40 border border-border/60"
+                data-testid="task-detail-log"
+              >
+                <pre
+                  class="max-h-64 overflow-y-auto px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
+                  v-html="highlightedLogHtml"
+                />
+              </div>
+              <p v-if="job.status === 'failed' && job.failureReason" class="text-[11px] text-destructive font-medium">
+                {{ t("taskDetail.failureReasonPrefix") }} {{ job.failureReason }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DialogScrollContent>
   </Dialog>
 </template>

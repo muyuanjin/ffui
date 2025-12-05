@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -48,6 +49,34 @@ describe("QueueIconItem", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
+  });
+
+  it("emits preview only (no inspect) when thumbnail image is clicked", async () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      status: "completed",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const img = wrapper.get("img");
+    await img.trigger("click");
+
+    const previewEvents = wrapper.emitted("preview");
+    const inspectEvents = wrapper.emitted("inspect");
+
+    expect(previewEvents).toBeTruthy();
+    expect(previewEvents?.[0]?.[0]).toEqual(job);
+    expect(inspectEvents).toBeFalsy();
   });
 
   it("renders a stable placeholder when previewPath is missing", () => {

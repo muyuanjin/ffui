@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -16,14 +17,11 @@ function getLength(possibleRef: any): number {
   return 0;
 }
 
-function getArray(possibleRef: any): any[] {
-  if (Array.isArray(possibleRef)) return possibleRef;
-  if (possibleRef && Array.isArray(possibleRef.value)) return possibleRef.value;
-  return [];
-}
+describe("MainApp non-Tauri Smart Scan behaviour (web preview)", () => {
+  it("runSmartScan is a no-op when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI__;
+    delete (window as any).__TAURI_IPC__;
 
-describe("MainApp non-Tauri Smart Scan fallback", () => {
-  it("runSmartScan populates jobs via mock when Tauri is unavailable and lastDroppedRoot is null", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -34,25 +32,20 @@ describe("MainApp non-Tauri Smart Scan fallback", () => {
 
     const initialJobsLen = getLength(vm.jobs);
 
-    const presets = getArray(vm.presets);
-    const presetId = presets[0]?.id ?? "p1";
-
     const config = {
       minImageSizeKB: 10,
       minVideoSizeMB: 10,
       minSavingRatio: 0.8,
       imageTargetFormat: "avif" as const,
-      videoPresetId: presetId,
+      videoPresetId: "p1",
     };
 
     await vm.runSmartScan(config);
     await nextTick();
 
     const updatedJobsLen = getLength(vm.jobs);
-    expect(updatedJobsLen).toBeGreaterThan(initialJobsLen);
+    expect(updatedJobsLen).toBe(initialJobsLen);
 
-    const jobsArray = getArray(vm.jobs);
-    const hasSmartScanJob = jobsArray.some((job: any) => job.source === "smart_scan");
-    expect(hasSmartScanJob).toBe(true);
+    wrapper.unmount();
   });
 });

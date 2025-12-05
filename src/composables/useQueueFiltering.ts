@@ -1,5 +1,8 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import type { TranscodeJob, CompositeSmartScanTask, JobStatus } from "@/types";
+import { compareJobsByField } from "./queue/filtering-utils";
+import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
+import { createSelectionHelpers } from "./queue/selection";
 
 // ----- Types -----
 
@@ -26,98 +29,6 @@ export type QueueSortDirection = "asc" | "desc";
 export type QueueListItem =
   | { kind: "batch"; batch: CompositeSmartScanTask }
   | { kind: "job"; job: TranscodeJob };
-
-// ----- Helper Functions -----
-
-/**
- * Compare two primitive values for sorting.
- */
-export const comparePrimitive = (
-  a: string | number | null | undefined,
-  b: string | number | null | undefined,
-): number => {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1;
-  if (b == null) return -1;
-
-  if (typeof a === "string" && typeof b === "string") {
-    const al = a.toLowerCase();
-    const bl = b.toLowerCase();
-    if (al < bl) return -1;
-    if (al > bl) return 1;
-    return 0;
-  }
-
-  const na = typeof a === "number" ? a : Number(a);
-  const nb = typeof b === "number" ? b : Number(b);
-  if (na < nb) return -1;
-  if (na > nb) return 1;
-  return 0;
-};
-
-/**
- * Get the sortable value for a job by field.
- */
-export const getJobSortValue = (job: TranscodeJob, field: QueueSortField) => {
-  switch (field) {
-    case "filename": {
-      const raw = job.inputPath || job.filename || "";
-      const normalized = raw.replace(/\\/g, "/");
-      const lastSlash = normalized.lastIndexOf("/");
-      const name = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
-      return name || null;
-    }
-    case "status":
-      return job.status;
-    case "addedTime":
-      // For now we treat startTime as the "added to queue" timestamp.
-      return job.startTime ?? null;
-    case "finishedTime":
-      return job.endTime ?? null;
-    case "duration":
-      return job.mediaInfo?.durationSeconds ?? null;
-    case "elapsed":
-      if (job.startTime && job.endTime && job.endTime > job.startTime) {
-        return job.endTime - job.startTime;
-      }
-      return null;
-    case "progress":
-      return typeof job.progress === "number" ? job.progress : null;
-    case "type":
-      return job.type;
-    case "path":
-      return job.inputPath || job.filename || null;
-    case "inputSize":
-      return job.originalSizeMB ?? null;
-    case "outputSize":
-      return job.outputSizeMB ?? null;
-    case "createdTime":
-    case "modifiedTime":
-      // Filesystem timestamps are not yet tracked; keep these as stable
-      // placeholders so sort configs remain forward-compatible.
-      return null;
-    default:
-      return null;
-  }
-};
-
-/**
- * Compare two jobs by a specific field and direction.
- */
-export const compareJobsByField = (
-  a: TranscodeJob,
-  b: TranscodeJob,
-  field: QueueSortField,
-  direction: QueueSortDirection,
-): number => {
-  const av = getJobSortValue(a, field);
-  const bv = getJobSortValue(b, field);
-  let result = comparePrimitive(av, bv);
-  if (direction === "desc") {
-    result = -result;
-  }
-  return result;
-};
 
 // ----- Composable -----
 
@@ -302,8 +213,8 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       }
     }
 
-    const text = filterText.value.trim();
-    if (!text) {
+    const rawText = filterText.value.trim();
+    if (!rawText) {
       return true;
     }
 
@@ -320,7 +231,38 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       return rx.test(haystack);
     }
 
-    return haystack.includes(text.toLowerCase());
+    // Plain-text mode with optional size tokens like "size>10mb".
+    const tokens = rawText
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    let sizeFilter: SizeFilter | null = null;
+    const plainTokens: string[] = [];
+
+    for (const token of tokens) {
+      const parsed = parseSizeFilterToken(token);
+      if (parsed) {
+        sizeFilter = parsed;
+      } else {
+        plainTokens.push(token);
+      }
+    }
+
+    // Text token matching: preserve previous behaviour by joining the
+    // remaining tokens back into a single substring.
+    if (plainTokens.length > 0) {
+      const needle = plainTokens.join(" ").toLowerCase();
+      if (!haystack.includes(needle)) {
+        return false;
+      }
+    }
+
+    if (!sizeFilter) {
+      return true;
+    }
+
+    return matchesSizeFilter(job, sizeFilter);
   };
 
   const batchMatchesFilters = (batch: CompositeSmartScanTask): boolean => {
@@ -435,42 +377,13 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       .sort((a, b) => compareJobsInWaitingGroup(a, b)),
   );
 
-  // ----- Selection Methods -----
-  const isJobSelected = (jobId: string): boolean => {
-    return selectedJobIds.value.has(jobId);
-  };
-
-  const toggleJobSelected = (jobId: string) => {
-    if (!jobId) return;
-    const next = new Set(selectedJobIds.value);
-    if (next.has(jobId)) {
-      next.delete(jobId);
-    } else {
-      next.add(jobId);
-    }
-    selectedJobIds.value = next;
-  };
-
-  const clearSelection = () => {
-    if (selectedJobIds.value.size === 0) return;
-    selectedJobIds.value = new Set();
-  };
-
-  const selectAllVisibleJobs = () => {
-    const ids = filteredJobs.value.map((job) => job.id);
-    selectedJobIds.value = new Set(ids);
-  };
-
-  const invertSelection = () => {
-    const visibleIds = new Set(filteredJobs.value.map((job) => job.id));
-    const next = new Set<string>();
-    for (const id of visibleIds) {
-      if (!selectedJobIds.value.has(id)) {
-        next.add(id);
-      }
-    }
-    selectedJobIds.value = next;
-  };
+  const {
+    isJobSelected,
+    toggleJobSelected,
+    clearSelection,
+    selectAllVisibleJobs,
+    invertSelection,
+  } = createSelectionHelpers(selectedJobIds, filteredJobs);
 
   // ----- Filter Toggle Methods -----
   const toggleStatusFilter = (status: QueueFilterStatus) => {

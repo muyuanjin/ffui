@@ -1,10 +1,10 @@
 import { computed, type Ref } from "vue";
-import { escapeHtml } from "@/lib/ffmpegCommand";
+import { escapeHtml, highlightFfmpegCommand } from "@/lib/ffmpegCommand";
 import type { TranscodeJob } from "@/types";
 
 // ----- Types -----
 
-export type LogLineKind = "version" | "stream" | "progress" | "error" | "other";
+export type LogLineKind = "version" | "stream" | "progress" | "error" | "command" | "other";
 
 export interface LogLineEntry {
   text: string;
@@ -54,6 +54,7 @@ const STRUCTURED_PROGRESS_KEYS = new Set([
  */
 export const classifyLogLine = (line: string): LogLineKind => {
   const lower = line.toLowerCase();
+  if (lower.trimStart().startsWith("command:")) return "command";
   if (lower.includes("ffmpeg version")) return "version";
   if (lower.trimStart().startsWith("stream #") || lower.includes("video:") || lower.includes("audio:")) {
     return "stream";
@@ -75,6 +76,8 @@ export const logLineClass = (kind: LogLineKind): string => {
     case "version":
     case "stream":
       return "leading-relaxed text-[11px] text-muted-foreground";
+    case "command":
+      return "leading-relaxed text-[11px] text-emerald-300";
     case "progress":
       return "leading-relaxed text-[11px] text-foreground";
     case "error":
@@ -138,6 +141,14 @@ export const renderHighlightedLogLine = (entry: LogLineEntry): string => {
   let contentHtml = "";
   if (entry.kind === "progress") {
     contentHtml = highlightFfmpegProgressLogLine(entry.text);
+  } else if (entry.kind === "command") {
+    // `command: ffmpeg ...` 日志：前缀保持原样，命令部分复用 ffmpegCommand 的高亮逻辑。
+    const idx = entry.text.toLowerCase().indexOf("command:");
+    const prefix = idx >= 0 ? entry.text.slice(0, idx + "command:".length) : "command:";
+    const rest =
+      idx >= 0 ? entry.text.slice(idx + "command:".length).trimStart() : entry.text;
+    const highlightedCmd = highlightFfmpegCommand(rest);
+    contentHtml = `${escapeHtml(prefix)} ${highlightedCmd}`;
   } else {
     contentHtml = escapeHtml(entry.text);
   }
@@ -227,8 +238,8 @@ export const flushStructuredProgressBlock = (
  * Parse raw log text and produce highlighted HTML output.
  * This collapses structured progress blocks into single lines for readability.
  */
-export const parseAndHighlightLog = (raw: string): string => {
-  if (!raw) return "";
+export const parseAndHighlightLog = (raw: string | undefined | null): string => {
+  if (typeof raw !== "string" || !raw) return "";
 
   // Normalize line endings so we can safely split into logical lines.
   const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -308,9 +319,11 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   const jobDetailLogText = computed<string>(() => {
     const job = selectedJob.value;
     if (!job) return "";
-    const logs = job.logs;
-    if (!logs || logs.length === 0) return "";
-    return logs.join("\n");
+    const full = job.logs?.length ? job.logs.join("\n") : "";
+    const tailRaw = job.logTail ?? "";
+    const tail = Array.isArray(tailRaw) ? tailRaw.join("\n") : tailRaw;
+    // 优先使用内存中的完整日志；若不可用则回退到后端提供的尾部日志，避免只看到截断末尾。
+    return full || tail;
   });
 
   const highlightedLogHtml = computed<string>(() => {

@@ -1,0 +1,453 @@
+use std::path::Path;
+
+use crate::ffui_core::domain::{
+    AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OverwriteBehavior, RateControlMode,
+    SeekMode, SubtitleStrategy,
+};
+
+/// Build a human-readable command line for logging, quoting arguments that
+/// contain spaces to make it easier to copy/paste for debugging.
+pub(crate) fn format_command_for_log(program: &str, args: &[String]) -> String {
+    fn quote_arg(arg: &str) -> String {
+        if arg.contains(' ') {
+            format!("\"{arg}\"")
+        } else {
+            arg.to_string()
+        }
+    }
+
+    let mut parts = Vec::with_capacity(args.len() + 1);
+    parts.push(quote_arg(program));
+    for arg in args {
+        parts.push(quote_arg(arg));
+    }
+    parts.join(" ")
+}
+
+pub(crate) fn ensure_progress_args(args: &mut Vec<String>) {
+    if args.iter().any(|arg| arg == "-progress") {
+        return;
+    }
+
+    args.insert(0, "pipe:2".to_string());
+    args.insert(0, "-progress".to_string());
+}
+
+pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<String> {
+    if preset.advanced_enabled.unwrap_or(false)
+        && preset
+            .ffmpeg_template
+            .as_ref()
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false)
+        && let Some(template) = &preset.ffmpeg_template
+    {
+        let with_input = template.replace("INPUT", input.to_string_lossy().as_ref());
+        let with_output = with_input.replace("OUTPUT", output.to_string_lossy().as_ref());
+        let mut args: Vec<String> = with_output
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+        ensure_progress_args(&mut args);
+        if !args.iter().any(|a| a == "-nostdin") {
+            args.push("-nostdin".to_string());
+        }
+        return args;
+    }
+
+    let mut args: Vec<String> = Vec::new();
+    ensure_progress_args(&mut args);
+    if !args.iter().any(|a| a == "-nostdin") {
+        args.push("-nostdin".to_string());
+    }
+
+    if let Some(global) = &preset.global {
+        if let Some(behavior) = &global.overwrite_behavior {
+            match behavior {
+                OverwriteBehavior::Overwrite => {
+                    args.push("-y".to_string());
+                }
+                OverwriteBehavior::NoOverwrite => {
+                    args.push("-n".to_string());
+                }
+                OverwriteBehavior::Ask => {
+                    // Use ffmpeg default behaviour; emit no flag.
+                }
+            }
+        }
+        if let Some(level) = &global.log_level
+            && !level.is_empty()
+        {
+            args.push("-loglevel".to_string());
+            args.push(level.clone());
+        }
+        if global.hide_banner.unwrap_or(false) {
+            args.push("-hide_banner".to_string());
+        }
+        if global.enable_report.unwrap_or(false) {
+            args.push("-report".to_string());
+        }
+    }
+
+    if let Some(timeline) = &preset.input
+        && let Some(SeekMode::Input) = timeline.seek_mode
+    {
+        if let Some(pos) = &timeline.seek_position
+            && !pos.is_empty()
+        {
+            args.push("-ss".to_string());
+            args.push(pos.clone());
+        }
+        if timeline.accurate_seek.unwrap_or(false) {
+            args.push("-accurate_seek".to_string());
+        }
+    }
+
+    args.push("-i".to_string());
+    args.push(input.to_string_lossy().into_owned());
+
+    if let Some(timeline) = &preset.input {
+        if let Some(SeekMode::Output) = timeline.seek_mode
+            && let Some(pos) = &timeline.seek_position
+            && !pos.is_empty()
+        {
+            args.push("-ss".to_string());
+            args.push(pos.clone());
+        }
+        if let Some(duration) = &timeline.duration
+            && !duration.is_empty()
+        {
+            match timeline.duration_mode {
+                Some(DurationMode::Duration) => {
+                    args.push("-t".to_string());
+                    args.push(duration.clone());
+                }
+                Some(DurationMode::To) => {
+                    args.push("-to".to_string());
+                    args.push(duration.clone());
+                }
+                None => {}
+            }
+        }
+        if timeline.accurate_seek.unwrap_or(false)
+            && !matches!(timeline.seek_mode, Some(SeekMode::Input))
+        {
+            args.push("-accurate_seek".to_string());
+        }
+    }
+
+    if let Some(mapping) = &preset.mapping {
+        if let Some(maps) = &mapping.maps {
+            for m in maps {
+                if !m.is_empty() {
+                    args.push("-map".to_string());
+                    args.push(m.clone());
+                }
+            }
+        }
+        if let Some(dispositions) = &mapping.dispositions {
+            for d in dispositions {
+                if !d.is_empty() {
+                    args.push("-disposition".to_string());
+                    args.push(d.clone());
+                }
+            }
+        }
+        if let Some(metadata) = &mapping.metadata {
+            for kv in metadata {
+                if !kv.is_empty() {
+                    args.push("-metadata".to_string());
+                    args.push(kv.clone());
+                }
+            }
+        }
+    }
+    if !args.iter().any(|a| a == "-map") {
+        args.push("-map".to_string());
+        args.push("0".to_string());
+    }
+
+    match preset.video.encoder {
+        EncoderType::Copy => {
+            args.push("-c:v".to_string());
+            args.push("copy".to_string());
+        }
+        ref enc => {
+            args.push("-c:v".to_string());
+            let enc_name = match enc {
+                EncoderType::Libx264 => "libx264",
+                EncoderType::HevcNvenc => "hevc_nvenc",
+                EncoderType::LibSvtAv1 => "libsvtav1",
+                EncoderType::Copy => "copy",
+            };
+            args.push(enc_name.to_string());
+
+            match preset.video.rate_control {
+                RateControlMode::Crf => {
+                    args.push("-crf".to_string());
+                    args.push(preset.video.quality_value.to_string());
+                }
+                RateControlMode::Cq => {
+                    args.push("-cq".to_string());
+                    args.push(preset.video.quality_value.to_string());
+                }
+                RateControlMode::Cbr | RateControlMode::Vbr => {
+                    if let Some(bitrate) = preset.video.bitrate_kbps
+                        && bitrate > 0
+                    {
+                        args.push("-b:v".to_string());
+                        args.push(format!("{bitrate}k"));
+                    }
+                    if let Some(maxrate) = preset.video.max_bitrate_kbps
+                        && maxrate > 0
+                    {
+                        args.push("-maxrate".to_string());
+                        args.push(format!("{maxrate}k"));
+                    }
+                    if let Some(bufsize) = preset.video.buffer_size_kbits
+                        && bufsize > 0
+                    {
+                        args.push("-bufsize".to_string());
+                        args.push(format!("{bufsize}k"));
+                    }
+                    if let Some(pass) = preset.video.pass
+                        && (pass == 1 || pass == 2)
+                    {
+                        args.push("-pass".to_string());
+                        args.push(pass.to_string());
+                    }
+                }
+            }
+
+            if !preset.video.preset.is_empty() {
+                args.push("-preset".to_string());
+                args.push(preset.video.preset.clone());
+            }
+            if let Some(tune) = &preset.video.tune
+                && !tune.is_empty()
+            {
+                args.push("-tune".to_string());
+                args.push(tune.clone());
+            }
+            if let Some(profile) = &preset.video.profile
+                && !profile.is_empty()
+            {
+                args.push("-profile:v".to_string());
+                args.push(profile.clone());
+            }
+            if let Some(level) = &preset.video.level
+                && !level.is_empty()
+            {
+                args.push("-level".to_string());
+                args.push(level.clone());
+            }
+            if let Some(gop) = preset.video.gop_size
+                && gop > 0
+            {
+                args.push("-g".to_string());
+                args.push(gop.to_string());
+            }
+            if let Some(bf) = preset.video.bf {
+                args.push("-bf".to_string());
+                args.push(bf.to_string());
+            }
+            if let Some(pix_fmt) = &preset.video.pix_fmt
+                && !pix_fmt.is_empty()
+            {
+                args.push("-pix_fmt".to_string());
+                args.push(pix_fmt.clone());
+            }
+        }
+    }
+
+    // Audio
+    match preset.audio.codec {
+        AudioCodecType::Copy => {
+            args.push("-c:a".to_string());
+            args.push("copy".to_string());
+        }
+        AudioCodecType::Aac => {
+            args.push("-c:a".to_string());
+            args.push("aac".to_string());
+            if let Some(bitrate) = preset.audio.bitrate {
+                args.push("-b:a".to_string());
+                args.push(format!("{bitrate}k"));
+            }
+            if let Some(sample_rate) = preset.audio.sample_rate_hz {
+                args.push("-ar".to_string());
+                args.push(sample_rate.to_string());
+            }
+            if let Some(channels) = preset.audio.channels {
+                args.push("-ac".to_string());
+                args.push(channels.to_string());
+            }
+            if let Some(layout) = &preset.audio.channel_layout
+                && !layout.is_empty()
+            {
+                args.push("-channel_layout".to_string());
+                args.push(layout.clone());
+            }
+        }
+    }
+
+    let can_apply_video_filters = !matches!(preset.video.encoder, EncoderType::Copy);
+    let can_apply_audio_filters = !matches!(preset.audio.codec, AudioCodecType::Copy);
+
+    let mut vf_parts: Vec<String> = Vec::new();
+    if can_apply_video_filters {
+        if let Some(scale) = &preset.filters.scale
+            && !scale.is_empty()
+        {
+            vf_parts.push(format!("scale={scale}"));
+        }
+        if let Some(crop) = &preset.filters.crop
+            && !crop.is_empty()
+        {
+            vf_parts.push(format!("crop={crop}"));
+        }
+        if let Some(fps) = preset.filters.fps
+            && fps > 0
+        {
+            vf_parts.push(format!("fps={fps}"));
+        }
+        if let Some(subtitles) = &preset.subtitles
+            && let Some(SubtitleStrategy::BurnIn) = subtitles.strategy
+            && let Some(filter) = &subtitles.burn_in_filter
+            && !filter.is_empty()
+        {
+            vf_parts.push(filter.clone());
+        }
+    }
+    let vf_chain = preset
+        .filters
+        .vf_chain
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    if can_apply_video_filters && (!vf_parts.is_empty() || vf_chain.is_some()) {
+        let mut combined = String::new();
+        if !vf_parts.is_empty() {
+            combined.push_str(&vf_parts.join(","));
+        }
+        if let Some(chain) = vf_chain.map(|s| s.to_string()) {
+            if !combined.is_empty() {
+                combined.push(',');
+            }
+            combined.push_str(&chain);
+        }
+        args.push("-vf".to_string());
+        args.push(combined);
+    }
+
+    if can_apply_audio_filters {
+        let mut af_parts: Vec<String> = Vec::new();
+
+        if let Some(ref profile) = preset.audio.loudness_profile
+            && profile != "none"
+        {
+            let default_i = preset
+                .audio
+                .target_lufs
+                .unwrap_or(if profile == "cnBroadcast" {
+                    -24.0
+                } else {
+                    -23.0
+                });
+            let default_lra = preset.audio.loudness_range.unwrap_or(7.0);
+            let default_tp = preset
+                .audio
+                .true_peak_db
+                .unwrap_or(if profile == "cnBroadcast" { -2.0 } else { -1.0 });
+
+            let safe_i = default_i.clamp(-36.0, -10.0);
+            let safe_lra = default_lra.clamp(1.0, 20.0);
+            let safe_tp = default_tp.min(-0.1);
+
+            let loudnorm_expr =
+                format!("loudnorm=I={safe_i}:LRA={safe_lra}:TP={safe_tp}:print_format=summary");
+            af_parts.push(loudnorm_expr);
+        }
+
+        if let Some(af_chain) = &preset.filters.af_chain {
+            let trimmed = af_chain.trim();
+            if !trimmed.is_empty() {
+                af_parts.push(trimmed.to_string());
+            }
+        }
+
+        if !af_parts.is_empty() {
+            args.push("-af".to_string());
+            args.push(af_parts.join(","));
+        }
+    }
+    if can_apply_video_filters && let Some(filter_complex) = &preset.filters.filter_complex {
+        let trimmed = filter_complex.trim();
+        if !trimmed.is_empty() {
+            args.push("-filter_complex".to_string());
+            args.push(trimmed.to_string());
+        }
+    }
+
+    if let Some(subtitles) = &preset.subtitles
+        && let Some(SubtitleStrategy::Drop) = subtitles.strategy
+    {
+        args.push("-sn".to_string());
+    }
+
+    if let Some(container) = &preset.container {
+        if let Some(format) = &container.format
+            && !format.is_empty()
+        {
+            args.push("-f".to_string());
+            args.push(format.clone());
+        }
+        if let Some(flags) = &container.movflags {
+            let joined: String = flags
+                .iter()
+                .map(|f| f.trim())
+                .filter(|f| !f.is_empty())
+                .collect::<Vec<_>>()
+                .join("+");
+            if !joined.is_empty() {
+                args.push("-movflags".to_string());
+                args.push(joined);
+            }
+        }
+    }
+
+    if let Some(hw) = &preset.hardware {
+        if let Some(accel) = &hw.hwaccel {
+            let trimmed = accel.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(device) = &hw.hwaccel_device {
+            let trimmed = device.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel_device".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(fmt) = &hw.hwaccel_output_format {
+            let trimmed = fmt.trim();
+            if !trimmed.is_empty() {
+                args.push("-hwaccel_output_format".to_string());
+                args.push(trimmed.to_string());
+            }
+        }
+        if let Some(bsfs) = &hw.bitstream_filters {
+            for bsf in bsfs {
+                let trimmed = bsf.trim();
+                if !trimmed.is_empty() {
+                    args.push("-bsf".to_string());
+                    args.push(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    args.push(output.to_string_lossy().into_owned());
+    args
+}

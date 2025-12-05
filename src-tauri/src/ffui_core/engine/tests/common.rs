@@ -1,0 +1,99 @@
+use super::*;
+
+pub(super) fn make_test_preset() -> FFmpegPreset {
+    FFmpegPreset {
+        id: "preset-1".to_string(),
+        name: "Test Preset".to_string(),
+        description: "Preset used for unit tests".to_string(),
+        global: None,
+        input: None,
+        mapping: None,
+        video: VideoConfig {
+            encoder: EncoderType::Libx264,
+            rate_control: RateControlMode::Crf,
+            quality_value: 23,
+            preset: "medium".to_string(),
+            tune: None,
+            profile: None,
+            bitrate_kbps: None,
+            max_bitrate_kbps: None,
+            buffer_size_kbits: None,
+            pass: None,
+            level: None,
+            gop_size: None,
+            bf: None,
+            pix_fmt: None,
+        },
+        audio: AudioConfig {
+            codec: AudioCodecType::Copy,
+            bitrate: None,
+            sample_rate_hz: None,
+            channels: None,
+            channel_layout: None,
+            loudness_profile: None,
+            target_lufs: None,
+            loudness_range: None,
+            true_peak_db: None,
+        },
+        filters: FilterConfig {
+            scale: None,
+            crop: None,
+            fps: None,
+            vf_chain: None,
+            af_chain: None,
+            filter_complex: None,
+        },
+        subtitles: None,
+        container: None,
+        hardware: None,
+        stats: PresetStats {
+            usage_count: 0,
+            total_input_size_mb: 0.0,
+            total_output_size_mb: 0.0,
+            total_time_seconds: 0.0,
+        },
+        advanced_enabled: Some(false),
+        ffmpeg_template: None,
+    }
+}
+
+pub(super) fn make_engine_with_preset() -> TranscodingEngine {
+    let presets = vec![make_test_preset()];
+    let settings = AppSettings::default();
+    let inner = Arc::new(Inner::new(presets, settings));
+    TranscodingEngine { inner }
+}
+
+/// Best-effort check whether `ffmpeg` is available on PATH.
+pub(super) fn ffmpeg_available() -> bool {
+    Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// Generate a tiny synthetic MP4 file for integration tests using ffmpeg's
+/// built-in testsrc filter. Returns true on success.
+pub(super) fn generate_test_input_video(path: &std::path::Path) -> bool {
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc=size=320x180:rate=30",
+            "-t",
+            "0.5",
+            "-pix_fmt",
+            "yuv420p",
+            path.to_string_lossy().as_ref(),
+        ])
+        .status();
+    matches!(status, Ok(s) if s.success())
+}

@@ -24,10 +24,24 @@ export interface MediaStreamSummary {
   tags?: Record<string, string>;
 }
 
+export interface MediaFileInfo {
+  path?: string;
+  exists?: boolean;
+  isFile?: boolean;
+  isDir?: boolean;
+  sizeBytes?: number;
+  createdMs?: number;
+  modifiedMs?: number;
+  accessedMs?: number;
+}
+
 export interface ParsedMediaAnalysis {
   summary: MediaInfo | null;
   format: MediaFormatSummary | null;
   streams: MediaStreamSummary[];
+  file: MediaFileInfo | null;
+  /** Raw parsed ffprobe JSON (including any additional sections or fields). */
+  raw: unknown;
 }
 
 const parseNumber = (value: unknown): number | undefined => {
@@ -95,11 +109,14 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
       summary: null,
       format: null,
       streams: [],
+      file: null,
+      raw: null,
     };
   }
 
   const formatRaw = root && typeof root === "object" ? root.format : null;
   const streamsRaw: any[] = Array.isArray(root?.streams) ? root.streams : [];
+  const fileRaw = root && typeof root === "object" ? root.file : null;
 
   const format: MediaFormatSummary | null =
     formatRaw && typeof formatRaw === "object"
@@ -224,11 +241,37 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
       tags: normalizeTags(s.tags),
     };
   });
+  const file: MediaFileInfo | null =
+    fileRaw && typeof fileRaw === "object"
+      ? {
+          path:
+            typeof fileRaw.path === "string" && fileRaw.path !== ""
+              ? (fileRaw.path as string)
+              : undefined,
+          exists:
+            typeof fileRaw.exists === "boolean"
+              ? (fileRaw.exists as boolean)
+              : undefined,
+          isFile:
+            typeof fileRaw.isFile === "boolean"
+              ? (fileRaw.isFile as boolean)
+              : undefined,
+          isDir:
+            typeof fileRaw.isDir === "boolean"
+              ? (fileRaw.isDir as boolean)
+              : undefined,
+          sizeBytes: parseInteger(fileRaw.sizeBytes),
+          createdMs: parseInteger(fileRaw.createdMs),
+          modifiedMs: parseInteger(fileRaw.modifiedMs),
+          accessedMs: parseInteger(fileRaw.accessedMs),
+        }
+      : null;
 
   return {
     summary,
     format,
     streams,
+    file,
+    raw: root,
   };
 };
-

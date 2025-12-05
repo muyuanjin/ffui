@@ -1,15 +1,13 @@
-mod taskbar_progress;
+mod commands;
 mod ffui_core;
+mod taskbar_progress;
 
 use std::{thread, time::Duration};
 
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{Emitter, Manager};
 
+use crate::ffui_core::{AutoCompressProgress, QueueState, TranscodingEngine};
 use crate::taskbar_progress::update_taskbar_progress;
-use crate::ffui_core::{
-    AppSettings, AutoCompressProgress, AutoCompressResult, ExternalToolStatus, TranscodingEngine,
-};
-use crate::ffui_core::{JobSource, JobType, QueueState, SmartScanConfig, TranscodeJob};
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
@@ -18,19 +16,19 @@ mod elevation_shim {
     use std::ffi::c_void;
     use std::mem::{size_of, zeroed};
 
-    use windows::core::{Error as WinError, PCWSTR, PWSTR};
     use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, HWND};
     use windows::Win32::Security::{
-        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+        GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
     };
     use windows::Win32::System::Threading::{
-        CreateProcessW, DeleteProcThreadAttributeList, GetCurrentProcess,
-        InitializeProcThreadAttributeList, OpenProcess, OpenProcessToken,
-        UpdateProcThreadAttribute, EXTENDED_STARTUPINFO_PRESENT, LPPROC_THREAD_ATTRIBUTE_LIST,
-        PROCESS_CREATE_PROCESS, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION,
-        PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, STARTUPINFOEXW,
+        CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT,
+        GetCurrentProcess, InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST,
+        OpenProcess, OpenProcessToken, PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
+        PROCESS_CREATE_PROCESS, PROCESS_CREATION_FLAGS, PROCESS_INFORMATION, STARTUPINFOEXW,
+        UpdateProcThreadAttribute,
     };
     use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
+    use windows::core::{Error as WinError, PCWSTR, PWSTR};
 
     #[allow(dead_code)]
     const SKIP_FLAG_ENV: &str = "FFUI_SKIP_ELEVATION_SHIM";
@@ -253,206 +251,6 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
     }
 }
 
-// Commands exposed to the frontend.
-
-#[tauri::command]
-fn get_queue_state(engine: State<TranscodingEngine>) -> QueueState {
-    engine.queue_state()
-}
-
-#[tauri::command]
-fn get_presets(engine: State<TranscodingEngine>) -> Vec<ffui_core::FFmpegPreset> {
-    engine.presets()
-}
-
-#[tauri::command]
-fn save_preset(
-    engine: State<TranscodingEngine>,
-    preset: ffui_core::FFmpegPreset,
-) -> Result<Vec<ffui_core::FFmpegPreset>, String> {
-    engine.save_preset(preset).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn delete_preset(
-    engine: State<TranscodingEngine>,
-    preset_id: String,
-) -> Result<Vec<ffui_core::FFmpegPreset>, String> {
-    engine.delete_preset(&preset_id).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_app_settings(engine: State<TranscodingEngine>) -> AppSettings {
-    engine.settings()
-}
-
-#[tauri::command]
-fn save_app_settings(
-    engine: State<TranscodingEngine>,
-    settings: AppSettings,
-) -> Result<AppSettings, String> {
-    engine.save_settings(settings).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn enqueue_transcode_job(
-    engine: State<TranscodingEngine>,
-    filename: String,
-    job_type: JobType,
-    source: JobSource,
-    original_size_mb: f64,
-    original_codec: Option<String>,
-    preset_id: String,
-) -> TranscodeJob {
-    engine.enqueue_transcode_job(
-        filename,
-        job_type,
-        source,
-        original_size_mb,
-        original_codec,
-        preset_id,
-    )
-}
-
-#[tauri::command]
-fn cancel_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
-    engine.cancel_job(&job_id)
-}
-
-#[tauri::command]
-fn wait_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
-    engine.wait_job(&job_id)
-}
-
-#[tauri::command]
-fn resume_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
-    engine.resume_job(&job_id)
-}
-
-#[tauri::command]
-fn restart_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
-    engine.restart_job(&job_id)
-}
-
-#[tauri::command]
-fn reorder_queue(engine: State<TranscodingEngine>, ordered_ids: Vec<String>) -> bool {
-    engine.reorder_waiting_jobs(ordered_ids)
-}
-
-#[tauri::command]
-fn get_cpu_usage(engine: State<TranscodingEngine>) -> ffui_core::CpuUsageSnapshot {
-    engine.cpu_usage()
-}
-
-#[tauri::command]
-fn get_gpu_usage(engine: State<TranscodingEngine>) -> ffui_core::GpuUsageSnapshot {
-    engine.gpu_usage()
-}
-
-#[tauri::command]
-fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
-    engine.external_tool_statuses()
-}
-
-/// Open the webview developer tools for the calling window.
-///
-/// In debug builds this forwards to `WebviewWindow::open_devtools`. In
-/// release builds without the `devtools` feature, this is a no-op so that
-/// the command remains safe to call but does not accidentally enable
-/// devtools in production.
-#[tauri::command]
-fn open_devtools(window: tauri::WebviewWindow) {
-    window.open_devtools();
-}
-
-/// Explicitly clear a completed taskbar progress bar once the user has
-/// acknowledged it by focusing/clicking the main window. On non-Windows
-/// platforms this is a no-op, but we still expose the command so the
-/// frontend can call it unconditionally.
-#[tauri::command]
-fn ack_taskbar_progress(app: AppHandle, engine: State<TranscodingEngine>) {
-    let state = engine.queue_state();
-
-    #[cfg(windows)]
-    {
-        let settings = engine.settings();
-        crate::taskbar_progress::acknowledge_taskbar_completion(
-            &app,
-            &state,
-            settings.taskbar_progress_mode,
-        );
-    }
-
-    #[cfg(not(windows))]
-    {
-        let _ = (app, state);
-    }
-}
-
-#[tauri::command]
-fn get_smart_scan_defaults(engine: State<TranscodingEngine>) -> SmartScanConfig {
-    engine.smart_scan_defaults()
-}
-
-#[tauri::command]
-fn save_smart_scan_defaults(
-    engine: State<TranscodingEngine>,
-    config: SmartScanConfig,
-) -> Result<SmartScanConfig, String> {
-    engine
-        .update_smart_scan_defaults(config)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn run_auto_compress(
-    engine: State<TranscodingEngine>,
-    root_path: String,
-    config: SmartScanConfig,
-) -> Result<AutoCompressResult, String> {
-    engine
-        .run_auto_compress(root_path, config)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn inspect_media(engine: State<TranscodingEngine>, path: String) -> Result<String, String> {
-    engine.inspect_media(path).map_err(|e| e.to_string())
-}
-
-/// Read a generated preview image from disk and return it as a data URL string
-/// that can be used directly as an `<img src>` value.
-///
-/// This provides a robust fallback when the asset protocol fails (for example
-/// due to platform quirks), while still constraining reads to the preview
-/// images produced by the transcoding engine.
-#[tauri::command]
-fn get_preview_data_url(preview_path: String) -> Result<String, String> {
-    use std::fs;
-    use std::path::Path;
-
-    let path = Path::new(&preview_path);
-
-    // Best-effort MIME detection based on file extension; we only generate
-    // JPEG today but keep this future-proof.
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
-    let mime = match ext.as_deref() {
-        Some("png") => "image/png",
-        Some("webp") => "image/webp",
-        _ => "image/jpeg",
-    };
-
-    let bytes = fs::read(path).map_err(|e| e.to_string())?;
-
-    use base64::{engine::general_purpose, Engine as _};
-    let encoded = general_purpose::STANDARD.encode(&bytes);
-
-    Ok(format!("data:{mime};base64,{encoded}"))
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Windows 下：始终启用降权重启 shim（与之前已验证可用的行为保持一致）。
@@ -472,28 +270,28 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            ack_taskbar_progress,
-            open_devtools,
-            get_queue_state,
-            get_presets,
-            save_preset,
-            delete_preset,
-            get_app_settings,
-            save_app_settings,
-            enqueue_transcode_job,
-            cancel_transcode_job,
-            wait_transcode_job,
-            resume_transcode_job,
-            restart_transcode_job,
-            reorder_queue,
-            get_cpu_usage,
-            get_gpu_usage,
-            get_external_tool_statuses,
-            get_smart_scan_defaults,
-            save_smart_scan_defaults,
-            run_auto_compress,
-            inspect_media,
-            get_preview_data_url
+            commands::queue::get_queue_state,
+            commands::queue::enqueue_transcode_job,
+            commands::queue::cancel_transcode_job,
+            commands::queue::wait_transcode_job,
+            commands::queue::resume_transcode_job,
+            commands::queue::restart_transcode_job,
+            commands::queue::reorder_queue,
+            commands::presets::get_presets,
+            commands::presets::save_preset,
+            commands::presets::delete_preset,
+            commands::settings::get_app_settings,
+            commands::settings::save_app_settings,
+            commands::settings::get_smart_scan_defaults,
+            commands::settings::save_smart_scan_defaults,
+            commands::settings::run_auto_compress,
+            commands::tools::get_cpu_usage,
+            commands::tools::get_gpu_usage,
+            commands::tools::get_external_tool_statuses,
+            commands::tools::open_devtools,
+            commands::tools::ack_taskbar_progress,
+            commands::tools::inspect_media,
+            commands::tools::get_preview_data_url
         ])
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
         // ensure the main window becomes visible after a short timeout so the app is not "dead".
@@ -502,38 +300,38 @@ pub fn run() {
             {
                 use windows::Win32::Foundation::HWND;
                 use windows::Win32::UI::WindowsAndMessaging::{
-                    ChangeWindowMessageFilterEx, CHANGEFILTERSTRUCT, MSGFLT_ALLOW,
+                    CHANGEFILTERSTRUCT, ChangeWindowMessageFilterEx, MSGFLT_ALLOW,
                     WINDOW_MESSAGE_FILTER_ACTION, WM_COPYDATA, WM_DROPFILES,
                 };
 
-                if let Some(window) = app.get_webview_window("main") {
-                    if let Ok(hwnd) = window.hwnd() {
-                        // 允许低完整性进程（如普通权限的 Explorer）把拖拽相关消息发给当前窗口，
-                        // 这样即使该窗口是管理员权限，也不会被 UIPI 拦截拖拽。
-                        //
-                        // 参考：
-                        // - https://helgeklein.com/blog/how-to-enable-drag-and-drop-for-an-elevated-mfc-application-on-vistawindows-7/
-                        // 需要放行的消息包括：
-                        //   WM_DROPFILES、WM_COPYDATA 和 0x0049（内部的 WM_COPYGLOBALDATA）。
-                        unsafe {
-                            let mut filter: CHANGEFILTERSTRUCT = CHANGEFILTERSTRUCT {
-                                cbSize: std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32,
-                                ExtStatus: Default::default(),
-                            };
+                if let Some(window) = app.get_webview_window("main")
+                    && let Ok(hwnd) = window.hwnd()
+                {
+                    // 允许低完整性进程（如普通权限的 Explorer）把拖拽相关消息发给当前窗口，
+                    // 这样即使该窗口是管理员权限，也不会被 UIPI 拦截拖拽。
+                    //
+                    // 参考：
+                    // - https://helgeklein.com/blog/how-to-enable-drag-and-drop-for-an-elevated-mfc-application-on-vistawindows-7/
+                    // 需要放行的消息包括：
+                    //   WM_DROPFILES、WM_COPYDATA 和 0x0049（内部的 WM_COPYGLOBALDATA）。
+                    unsafe {
+                        let mut filter: CHANGEFILTERSTRUCT = CHANGEFILTERSTRUCT {
+                            cbSize: std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32,
+                            ExtStatus: Default::default(),
+                        };
 
-                            let hwnd = HWND(hwnd.0);
-                            let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
+                        let hwnd = HWND(hwnd.0);
+                        let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
 
-                            for msg in messages {
-                                filter.cbSize = std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32;
-                                filter.ExtStatus = Default::default();
-                                let _ = ChangeWindowMessageFilterEx(
-                                    hwnd,
-                                    msg,
-                                    WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0),
-                                    Some(&mut filter),
-                                );
-                            }
+                        for msg in messages {
+                            filter.cbSize = std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32;
+                            filter.ExtStatus = Default::default();
+                            let _ = ChangeWindowMessageFilterEx(
+                                hwnd,
+                                msg,
+                                WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0),
+                                Some(&mut filter),
+                            );
                         }
                     }
                 }
@@ -598,7 +396,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::get_preview_data_url;
+    use crate::commands::tools::get_preview_data_url;
 
     #[test]
     fn get_preview_data_url_builds_data_url_prefix() {

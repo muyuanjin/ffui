@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -13,12 +14,6 @@ const i18n = createI18n({
     en: en as any,
   },
 });
-
-function getArray(possibleRef: any): any[] {
-  if (Array.isArray(possibleRef)) return possibleRef;
-  if (possibleRef && Array.isArray(possibleRef.value)) return possibleRef.value;
-  return [];
-}
 
 const queueItemStub = {
   props: ["job", "preset", "canCancel", "viewMode", "progressStyle"],
@@ -63,20 +58,56 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
 
     const vm: any = wrapper.vm;
 
-    const presets = getArray(vm.presets);
-    const presetId = presets[0]?.id ?? "p1";
+    // Seed a synthetic Smart Scan batch and corresponding jobs directly,
+    // since MainApp only drives real Smart Scan via the Tauri backend.
+    const batchId = "mock-batch-1";
+    if (typeof vm.applySmartScanBatchMetaSnapshot === "function") {
+      vm.applySmartScanBatchMetaSnapshot({
+        batchId,
+        rootPath: "C:/videos",
+        totalFilesScanned: 10,
+        totalCandidates: 3,
+        totalProcessed: 0,
+        startedAtMs: Date.now(),
+        completedAtMs: undefined,
+      });
+    }
 
-    const config = {
-      minImageSizeKB: 10,
-      minVideoSizeMB: 10,
-      minSavingRatio: 0.8,
-      imageTargetFormat: "avif" as const,
-      videoPresetId: presetId,
-    };
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-1",
+        filename: "C:/videos/input-1.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 100,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "processing",
+        progress: 10,
+        logs: [],
+        batchId,
+      },
+      {
+        id: "job-2",
+        filename: "C:/videos/input-2.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 80,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+        batchId,
+      },
+    ];
 
-    // runSmartScan uses the mock implementation in non-Tauri environments.
-    vm.runSmartScan(config);
-    await nextTick();
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = jobs;
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = jobs;
+    }
+
     await nextTick();
 
     const batchCards = wrapper.findAll('[data-testid="smart-scan-batch-card"]');
@@ -100,9 +131,10 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
     await childItems[0].trigger("click");
     await nextTick();
 
-    const selectedRef = vm.selectedJobForDetail;
     const selected =
-      selectedRef && "value" in selectedRef ? selectedRef.value : selectedRef;
+      vm.dialogManager && vm.dialogManager.selectedJob
+        ? vm.dialogManager.selectedJob.value
+        : null;
 
     expect(selected).toBeTruthy();
     expect(selected.source).toBe("smart_scan");

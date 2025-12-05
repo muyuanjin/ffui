@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
+import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
+import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -54,8 +55,6 @@ const emit = defineEmits<{
   (e: "preview", job: TranscodeJob): void;
   (e: "toggle-select", id: string): void;
 }>();
-
-const isSkipped = computed(() => props.job.status === "skipped");
 
 const rowVariant = computed<"detail" | "compact">(
   () => props.viewMode ?? "detail",
@@ -165,201 +164,17 @@ const savedLabel = computed(() => {
   return t("queue.savedShort", { percent });
 });
 
-const effectiveProgressStyle = computed<QueueProgressStyle>(
-  () => props.progressStyle ?? "bar",
-);
-
-// 只保留“真实进度 + 缓动”：后端 progress 是唯一真值，这里只是做一次平滑过渡，
-// 不再使用 estimatedSeconds 或任何“高级拟合算法”。缓动时长根据后台汇报间隔
-// 动态调整，而不是写死常数。同时，为了和标题栏/任务栏聚合进度保持一致，
-// 在显示层面上将 Completed/Failed/Skipped/Cancelled 统一视为 100%，
-// Waiting/Queued 视为 0%，Processing/Paused 按实际百分比映射。
-const clampedProgress = computed(() => {
-  const status = props.job.status;
-
-  if (
-    status === "completed" ||
-    status === "failed" ||
-    status === "skipped" ||
-    status === "cancelled"
-  ) {
-    return 100;
-  }
-
-  if (status === "processing" || status === "paused") {
-    const raw =
-      typeof props.job.progress === "number" ? props.job.progress : 0;
-    return Math.max(0, Math.min(100, raw));
-  }
-
-  // waiting / queued
-  return 0;
+const {
+  isSkipped,
+  displayedClampedProgress,
+  showBarProgress,
+  showCardFillProgress,
+  showRippleCardProgress,
+} = useSmoothProgress({
+  job: computed(() => props.job),
+  progressStyle: computed(() => props.progressStyle),
+  progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
 });
-
-const displayedProgress = ref(clampedProgress.value);
-const displayedClampedProgress = computed(() =>
-  Math.max(0, Math.min(100, displayedProgress.value)),
-);
-
-// 由父级传入的进度刷新间隔（毫秒）；当缺失时使用一个保守默认值。
-const DEFAULT_PROGRESS_INTERVAL_MS = 250;
-const effectiveProgressIntervalMs = computed(() => {
-  const raw = (props as any).progressUpdateIntervalMs as number | undefined;
-  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
-    return Math.min(Math.max(raw, 50), 2000);
-  }
-  return DEFAULT_PROGRESS_INTERVAL_MS;
-});
-
-// 根据后台汇报间隔推导出缓动时长：
-// - 汇报间隔非常短（<= 80ms）时：直接关闭缓动，用真实进度即可避免抖动；
-// - 中等间隔时：用一个略长于间隔的固定时长（约 160ms）做柔和过渡；
-// - 间隔较长时：缓动时长不超过 600ms，避免拖泥带水。
-const smoothDurationMs = computed(() => {
-  const interval = effectiveProgressIntervalMs.value;
-  if (interval <= 80) {
-    return 0; // 关闭缓动，直接贴真实进度，靠高汇报率本身保证顺滑。
-  }
-  if (interval <= 200) {
-    return 160;
-  }
-  return Math.min(interval, 600);
-});
-
-let progressAnimationFrame: number | null = null;
-let progressAnimStartTime = 0;
-let progressAnimStartValue = 0;
-let progressAnimTargetValue = 0;
-
-const cancelProgressAnimation = () => {
-  if (progressAnimationFrame != null) {
-    window.cancelAnimationFrame(progressAnimationFrame);
-    progressAnimationFrame = null;
-  }
-};
-
-const progressAnimationTick = () => {
-  progressAnimationFrame = null;
-
-  const now = performance.now();
-  const durationMs = smoothDurationMs.value;
-  if (durationMs <= 0) {
-    // 当前配置下不使用缓动，直接贴合目标值。
-    displayedProgress.value = Math.min(100, Math.max(0, progressAnimTargetValue));
-    return;
-  }
-  const elapsed = now - progressAnimStartTime;
-  const t = Math.min(1, durationMs > 0 ? elapsed / durationMs : 1);
-
-  // 使用线性插值代替 ease-out-cubic，减少每次采样尾段“减速”的顿挫感，
-  // 让进度条在同样时间内以恒定速度贴近后端真实进度。
-  const eased = t;
-  const next =
-    progressAnimStartValue +
-    (progressAnimTargetValue - progressAnimStartValue) * eased;
-
-  displayedProgress.value = Math.min(100, Math.max(0, next));
-
-  if (t < 1) {
-    progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
-  } else {
-    displayedProgress.value = progressAnimTargetValue;
-  }
-};
-
-// 后台一旦上报新进度，只在 processing 状态下做一次固定时长的平滑过渡；
-// 非 processing 状态下不在这里动，由状态监听器统一收尾，避免“完成时瞬移”。
-watch(
-  () => clampedProgress.value,
-  (next) => {
-    const target = next;
-
-    if (props.job.status !== "processing") {
-      return;
-    }
-
-    // 变化很小就直接对齐，避免无意义的抖动。
-    if (Math.abs(target - displayedProgress.value) < 0.1) {
-      displayedProgress.value = target;
-      return;
-    }
-
-    // 当缓动时长为 0（高汇报率模式）时，直接贴合真实值，不启动动画。
-    if (smoothDurationMs.value <= 0) {
-      displayedProgress.value = target;
-      return;
-    }
-
-    cancelProgressAnimation();
-    progressAnimStartTime = performance.now();
-    progressAnimStartValue = displayedProgress.value;
-    progressAnimTargetValue = target;
-    progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
-  },
-  { immediate: true },
-);
-
-watch(
-  () => props.job.status,
-  (status, prevStatus) => {
-    if (status === "processing") {
-      // 进入 processing 时先对齐一次真实值，后续由进度监听驱动缓动。
-      displayedProgress.value = clampedProgress.value;
-      return;
-    }
-
-    // 离开 processing 状态时，根据前一个状态决定是否做“收尾缓动”。
-    cancelProgressAnimation();
-
-    if (
-      prevStatus === "processing" &&
-      (status === "completed" ||
-        status === "failed" ||
-        status === "cancelled" ||
-        status === "skipped")
-    ) {
-      const target = clampedProgress.value;
-      const start = displayedProgress.value;
-
-      // 差值很小直接贴合，差值较大走一段与后台间隔同级的缓动，避免最后一步瞬移。
-      if (Math.abs(target - start) < 0.1) {
-        displayedProgress.value = target;
-      } else if (smoothDurationMs.value > 0) {
-        progressAnimStartTime = performance.now();
-        progressAnimStartValue = start;
-        progressAnimTargetValue = target;
-        progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
-      } else {
-        // 高汇报率且关闭缓动时，直接贴合终点，避免多余抖动。
-        displayedProgress.value = target;
-      }
-    } else {
-      // 其它从非 processing → 终态（例如直接跳过的任务），直接对齐真实值即可。
-      displayedProgress.value = clampedProgress.value;
-    }
-  },
-);
-
-const showBarProgress = computed(
-  () =>
-    !isSkipped.value &&
-    props.job.status !== "waiting" &&
-    effectiveProgressStyle.value === "bar",
-);
-
-const showCardFillProgress = computed(
-  () =>
-    !isSkipped.value &&
-    props.job.status !== "waiting" &&
-    effectiveProgressStyle.value === "card-fill",
-);
-
-const showRippleCardProgress = computed(
-  () =>
-    !isSkipped.value &&
-    props.job.status !== "waiting" &&
-    effectiveProgressStyle.value === "ripple-card",
-);
 
 const showTemplateCommand = ref(true);
 
@@ -459,10 +274,6 @@ const mediaSummary = computed(() => {
 
   return parts.join(" • ");
 });
-
-onUnmounted(() => {
-  cancelProgressAnimation();
-});
 </script>
 
 <template>
@@ -477,200 +288,43 @@ onUnmounted(() => {
     ]"
     @click="emit('inspect', job)"
   >
-    <!-- 卡片级进度视觉：card-fill / ripple-card 使用整个卡片作为进度容器 -->
-    <div
-      v-if="showCardFillProgress"
-      class="absolute inset-0 pointer-events-none"
-      data-testid="queue-item-progress-card-fill"
-    >
-      <!-- 轻微基底遮罩，保证文字在低进度时仍可读 -->
-      <div class="absolute inset-0 bg-card/40" />
-      <!-- 从左到右逐步“揭开”截图，使整张卡片背景成为进度条 -->
-      <div
-        class="absolute inset-y-0 left-0 overflow-hidden"
-        :style="{ width: `${displayedClampedProgress}%` }"
-      >
-        <img
-          v-if="previewUrl"
-          :src="previewUrl"
-          alt=""
-          class="h-full w-full object-cover opacity-95"
-          @error="handlePreviewError"
-        />
-        <div
-          v-else
-          class="h-full w-full bg-gradient-to-r from-card/40 via-card/20 to-card/0"
-        />
-      </div>
-    </div>
-    <div
-      v-else-if="showRippleCardProgress"
-      class="absolute inset-0 pointer-events-none"
-      data-testid="queue-item-progress-ripple-card"
-    >
-      <!-- 水波卡片使用纯色液体，不再叠加截图，避免内容被完全盖住 -->
-      <div
-        class="absolute inset-y-0 left-0"
-        :style="{ width: `${displayedClampedProgress}%` }"
-      >
-        <div
-          v-if="job.status === 'processing'"
-          class="h-full w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 opacity-80 animate-pulse"
-        />
-        <div
-          v-else
-          class="h-full w-full bg-primary/60"
-        />
-      </div>
-    </div>
+    <QueueItemProgressLayer
+      :show-card-fill-progress="showCardFillProgress"
+      :show-ripple-card-progress="showRippleCardProgress"
+      :preview-url="previewUrl"
+      :displayed-clamped-progress="displayedClampedProgress"
+      :status="job.status"
+      @preview-error="handlePreviewError"
+    />
 
-    <div class="relative flex items-center justify-between mb-2">
-      <div class="flex items-center gap-3">
-        <Checkbox
-          v-if="isSelectable"
-          :checked="isSelected"
-          data-testid="queue-item-select-toggle"
-          class="mr-1 h-4 w-4 rounded-full border-border data-[state=checked]:border-primary/60"
-          @click.stop
-          @update:checked="() => emit('toggle-select', job.id)"
-        />
-        <div
-          class="h-14 w-24 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0"
-          data-testid="queue-item-thumbnail"
-          @click.stop="emit('preview', job)"
-        >
-          <img
-            v-if="previewUrl"
-            :src="previewUrl"
-            alt=""
-            class="h-full w-full object-cover"
-            @error="handlePreviewError"
-          />
-        </div>
-        <span
-          class="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border text-[10px] font-semibold"
-          :class="{
-            'border-emerald-500/60 text-emerald-400 bg-emerald-500/10': job.status === 'completed',
-            'border-blue-500/60 text-blue-400 bg-blue-500/10': job.status === 'processing',
-            'border-amber-500/60 text-amber-400 bg-amber-500/10':
-              job.status === 'waiting' || job.status === 'paused',
-            'border-red-500/60 text-red-400 bg-red-500/10': job.status === 'failed',
-            'border-muted-foreground/40 text-muted-foreground bg-muted/40': job.status === 'skipped',
-          }"
-        >
-          <span v-if="job.status === 'completed'">✓</span>
-          <span v-else-if="job.status === 'failed'">!</span>
-          <span v-else-if="job.status === 'processing'">●</span>
-          <span v-else-if="job.status === 'waiting'">…</span>
-          <span v-else-if="job.status === 'paused'">Ⅱ</span>
-          <span v-else-if="job.status === 'skipped'">×</span>
-          <span v-else>•</span>
-        </span>
-
-        <div>
-          <div class="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              class="px-1.5 py-0.5 text-[10px] font-medium"
-              :class="job.type === 'image' ? 'border-purple-500/40 text-purple-300' : 'border-blue-500/40 text-blue-300'"
-            >
-              {{ typeLabel }}
-            </Badge>
-            <h4
-              class="font-medium truncate max-w-xs md:max-w-md"
-              :class="isSkipped ? 'text-muted-foreground' : 'text-foreground'"
-              :title="job.filename"
-            >
-              {{ displayFilename }}
-            </h4>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
-            <span
-              v-if="!isSkipped"
-              class="bg-muted px-1.5 py-0.5 rounded text-foreground"
-            >
-              {{ preset.name }}
-            </span>
-            <span>{{ displayOriginalSize }} MB</span>
-            <span
-              v-if="job.originalCodec"
-              class="uppercase text-muted-foreground border border-border px-1 rounded"
-            >
-              {{ job.originalCodec }}
-            </span>
-
-            <template v-if="job.status === 'completed' && job.outputSizeMB">
-              <span>→</span>
-              <span class="text-emerald-400 font-bold">
-                {{ displayOutputSize }} MB
-              </span>
-              <span>({{ savedLabel }})</span>
-            </template>
-
-            <span
-              v-if="isSkipped && job.skipReason"
-              class="text-amber-400 italic ml-2"
-            >
-              {{ t("queue.skippedPrefix") }} {{ job.skipReason }}
-            </span>
-            <span
-              v-if="job.source"
-              class="inline-flex items-center px-1.5 py-0.5 rounded border border-border/60 text-[10px] uppercase tracking-wide"
-            >
-              {{ sourceLabel }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div class="text-right flex flex-col items-end gap-1">
-        <span class="text-xs font-bold uppercase tracking-wide" :class="statusTextClass">
-          {{ localizedStatus }}
-        </span>
-        <div class="flex flex-wrap justify-end gap-1">
-          <Button
-            v-if="isWaitable"
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="queue-item-wait-button"
-            @click.stop="emit('wait', job.id)"
-          >
-            {{ t("queue.actions.wait") }}
-          </Button>
-          <Button
-            v-if="isResumable"
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="queue-item-resume-button"
-            @click.stop="emit('resume', job.id)"
-          >
-            {{ t("queue.actions.resume") }}
-          </Button>
-          <Button
-            v-if="isRestartable"
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="queue-item-restart-button"
-            @click.stop="emit('restart', job.id)"
-          >
-            {{ t("queue.actions.restart") }}
-          </Button>
-          <Button
-            v-if="isCancellable"
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            @click.stop="emit('cancel', job.id)"
-          >
-            {{ t("app.actions.cancel") }}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <QueueItemHeaderRow
+      :job="job"
+      :preset="preset"
+      :is-selectable="isSelectable"
+      :is-selected="isSelected"
+      :is-skipped="isSkipped"
+      :type-label="typeLabel"
+      :display-filename="displayFilename"
+      :display-original-size="displayOriginalSize"
+      :display-output-size="displayOutputSize"
+      :saved-label="savedLabel"
+      :source-label="sourceLabel"
+      :status-text-class="statusTextClass"
+      :localized-status="localizedStatus"
+      :is-waitable="isWaitable"
+      :is-resumable="isResumable"
+      :is-restartable="isRestartable"
+      :is-cancellable="isCancellable"
+      :preview-url="previewUrl"
+      :t="t"
+      @toggle-select="(id) => emit('toggle-select', id)"
+      @wait="(id) => emit('wait', id)"
+      @resume="(id) => emit('resume', id)"
+      @restart="(id) => emit('restart', id)"
+      @cancel="(id) => emit('cancel', id)"
+      @preview="(targetJob) => emit('preview', targetJob)"
+      @preview-error="handlePreviewError"
+    />
 
     <Progress
       v-if="showBarProgress"
