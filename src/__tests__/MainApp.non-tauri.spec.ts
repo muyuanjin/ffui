@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -10,8 +11,12 @@ const i18n = createI18n({
   messages: { en: {} },
 });
 
-describe("MainApp non-Tauri manual job flow", () => {
-  it("adds a mock job when addManualJob is called in non-Tauri mode", async () => {
+describe("MainApp non-Tauri manual job flow (web preview)", () => {
+  it("keeps jobs unchanged when addManualJob is called in pure web mode", async () => {
+    // Explicitly ensure we are in non-Tauri mode.
+    delete (window as any).__TAURI__;
+    delete (window as any).__TAURI_IPC__;
+
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -24,9 +29,9 @@ describe("MainApp non-Tauri manual job flow", () => {
       ? jobsRef.length
       : jobsRef?.value?.length ?? 0;
 
-    // Trigger the manual job flow. In jsdom there is no __TAURI__ global,
-    // so hasTauri() returns false and MainApp uses the mock queue path.
-    vm.addManualJob();
+    // Trigger the manual job flow. In pure web mode MainApp is expected to
+    // behave as a no-op (queue is managed only by the backend in Tauri).
+    await vm.addManualJob();
     await nextTick();
 
     const updatedJobsRef = vm.jobs;
@@ -34,6 +39,8 @@ describe("MainApp non-Tauri manual job flow", () => {
       ? updatedJobsRef.length
       : updatedJobsRef?.value?.length ?? 0;
 
-    expect(newLength).toBeGreaterThan(initialLength);
+    expect(newLength).toBe(initialLength);
+
+    wrapper.unmount();
   });
 });

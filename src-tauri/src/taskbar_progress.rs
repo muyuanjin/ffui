@@ -207,8 +207,8 @@ pub fn acknowledge_taskbar_completion(
     state: &QueueState,
     mode: TaskbarProgressMode,
 ) {
-    use tauri::window::{ProgressBarState, ProgressBarStatus};
     use tauri::Manager;
+    use tauri::window::{ProgressBarState, ProgressBarStatus};
 
     // Only clear when the logical taskbar progress is a completed bar.
     if let Some(progress) = compute_taskbar_progress(state, mode) {

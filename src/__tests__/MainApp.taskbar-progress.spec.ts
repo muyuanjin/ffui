@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -20,6 +21,12 @@ vi.mock("@tauri-apps/api/window", () => {
       listen: (...args: Parameters<typeof focusListenMock>) =>
         focusListenMock(...args),
     }),
+  };
+});
+
+vi.mock("@tauri-apps/api/event", () => {
+  return {
+    listen: vi.fn(async () => () => {}),
   };
 });
 

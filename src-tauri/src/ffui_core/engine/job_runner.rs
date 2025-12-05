@@ -1,0 +1,32 @@
+use std::collections::hash_map::DefaultHasher;
+use std::fs;
+use std::hash::{Hash, Hasher};
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use anyhow::{Context, Result};
+
+use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, TranscodeJob, WaitMetadata};
+use crate::ffui_core::settings::{
+    DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, DownloadedToolInfo, DownloadedToolState,
+};
+use crate::ffui_core::tools::{
+    ExternalToolKind, ensure_tool_available, last_tool_download_metadata,
+};
+
+use super::ffmpeg_args::*;
+use super::state::{
+    Inner, SmartScanBatchStatus, notify_queue_listeners,
+    register_known_smart_scan_output_with_inner, update_smart_scan_batch_with_inner,
+};
+
+// Implementation is split across smaller include files to keep each source file
+// under the 500-line limit while preserving the original module API.
+include!("job_runner_time_and_smart_scan.rs");
+include!("job_runner_process.rs");
+include!("job_runner_state.rs");
+include!("job_runner_progress.rs");
+include!("job_runner_paths_and_preview.rs");
+include!("job_runner_media_and_logging.rs");

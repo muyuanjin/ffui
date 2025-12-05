@@ -1,0 +1,335 @@
+<script setup lang="ts">
+import type { AudioConfig, SubtitlesConfig } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useI18n } from "vue-i18n";
+
+const props = defineProps<{
+  audio: AudioConfig;
+  subtitles: SubtitlesConfig;
+  isCopyEncoder: boolean;
+}>();
+
+const audio = props.audio as any;
+const subtitles = props.subtitles as any;
+
+const { t } = useI18n();
+</script>
+
+<template>
+  <div class="space-y-4">
+    <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+      <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
+        {{ t("presetEditor.audio.title") }}
+      </h3>
+      <div class="space-y-4">
+        <div class="flex gap-4">
+          <Button
+            :variant="audio.codec === 'copy' ? 'default' : 'outline'"
+            class="flex-1 flex flex-col items-start gap-1 h-auto"
+            @click="audio.codec = 'copy'"
+          >
+            <span class="block font-bold">
+              {{ t("presetEditor.audio.copyTitle") }}
+            </span>
+            <span class="text-xs text-muted-foreground">
+              {{ t("presetEditor.audio.copyDesc") }}
+            </span>
+          </Button>
+          <Button
+            :variant="audio.codec === 'aac' ? 'default' : 'outline'"
+            class="flex-1 flex flex-col items-start gap-1 h-auto"
+            :disabled="props.isCopyEncoder"
+            :aria-disabled="props.isCopyEncoder"
+            @click="audio.codec = 'aac'"
+          >
+            <span class="block font-bold">
+              {{ t("presetEditor.audio.aacTitle") }}
+            </span>
+            <span class="text-xs text-muted-foreground">
+              {{ t("presetEditor.audio.aacDesc") }}
+            </span>
+          </Button>
+        </div>
+
+        <div
+          v-if="audio.codec === 'aac'"
+          class="space-y-3"
+        >
+          <div>
+            <Label class="block text-xs mb-1">
+              {{ t("presetEditor.audio.bitrateLabel") }}
+            </Label>
+            <Select
+              :model-value="audio.bitrate != null ? String(audio.bitrate) : ''"
+              @update:model-value="
+                (value) => {
+                  const parsed = Number(value as string);
+                  audio.bitrate = Number.isNaN(parsed) ? undefined : parsed;
+                }
+              "
+            >
+              <SelectTrigger class="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="128">
+                  {{ t("presetEditor.audio.bitrate128") }}
+                </SelectItem>
+                <SelectItem value="192">
+                  {{ t("presetEditor.audio.bitrate192") }}
+                </SelectItem>
+                <SelectItem value="320">
+                  {{ t("presetEditor.audio.bitrate320") }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="mt-1 text-[11px] text-muted-foreground">
+              {{ t("presetEditor.audio.bitrateHelp") }}
+            </p>
+          </div>
+
+          <div class="space-y-2">
+            <Label class="block text-xs">
+              {{ t("presetEditor.audio.loudnessProfileLabel", "响度均衡策略") }}
+            </Label>
+            <div class="grid grid-cols-3 gap-2">
+              <Button
+                :variant="!audio.loudnessProfile || audio.loudnessProfile === 'none' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[11px]"
+                @click="audio.loudnessProfile = 'none'"
+              >
+                {{ t("presetEditor.audio.loudnessNone", "不过滤（保持源响度）") }}
+              </Button>
+              <Button
+                :variant="audio.loudnessProfile === 'cnBroadcast' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[11px]"
+                @click="audio.loudnessProfile = 'cnBroadcast'"
+              >
+                {{ t("presetEditor.audio.loudnessCnBroadcast", "国内广电响度") }}
+              </Button>
+              <Button
+                :variant="audio.loudnessProfile === 'ebuR128' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[11px]"
+                @click="audio.loudnessProfile = 'ebuR128'"
+              >
+                {{ t("presetEditor.audio.loudnessEbuR128", "EBU/国际响度") }}
+              </Button>
+            </div>
+            <p class="mt-1 text-[11px] text-muted-foreground">
+              {{
+                t(
+                  "presetEditor.audio.loudnessHelp",
+                  "推荐使用响度均衡：国内广电约 I=-24 LUFS，国际规范约 I=-23 LUFS，动态范围通常 1–10 LU，真峰值建议控制在 -2/-1 dBTP 附近；数值越接近 0 主观越响，长片节目一般不建议高于约 -16 LUFS。",
+                )
+              }}
+            </p>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.sampleRateLabel", "采样率 (Hz)") }}
+              </Label>
+              <Select
+                :model-value="audio.sampleRateHz ? String(audio.sampleRateHz) : ''"
+                @update:model-value="
+                  (value) => {
+                    const parsed = Number(value as string);
+                    audio.sampleRateHz = Number.isNaN(parsed) ? undefined : parsed;
+                  }
+                "
+              >
+                <SelectTrigger class="h-8 text-xs">
+                  <SelectValue
+                    :placeholder="t('presetEditor.audio.sampleRatePlaceholder', '保持原样')"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="44100">44100</SelectItem>
+                  <SelectItem value="48000">48000</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.channelsLabel", "声道数") }}
+              </Label>
+              <Select
+                :model-value="audio.channels ? String(audio.channels) : ''"
+                @update:model-value="
+                  (value) => {
+                    const parsed = Number(value as string);
+                    audio.channels = Number.isNaN(parsed) ? undefined : parsed;
+                  }
+                "
+              >
+                <SelectTrigger class="h-8 text-xs">
+                  <SelectValue
+                    :placeholder="t('presetEditor.audio.channelsPlaceholder', '保持原样')"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1</SelectItem>
+                  <SelectItem value="2">2</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.layoutLabel", "声道布局") }}
+              </Label>
+              <Input
+                :model-value="audio.channelLayout ?? ''"
+                :placeholder="t('presetEditor.audio.layoutPlaceholder', '例如 stereo, 5.1')"
+                class="h-8 text-xs"
+                @update:model-value="
+                  (value) => {
+                    const v = String(value ?? '');
+                    audio.channelLayout = v || undefined;
+                  }
+                "
+              />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.targetLufsLabel", "目标响度 (LUFS)") }}
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                class="h-8 text-xs"
+                :model-value="audio.targetLufs != null ? String(audio.targetLufs) : ''"
+                :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-24' : audio.loudnessProfile === 'ebuR128' ? '-23' : ''"
+                @update:model-value="
+                  (value) => {
+                    const n = Number(value ?? '');
+                    audio.targetLufs = Number.isFinite(n) ? n : undefined;
+                  }
+                "
+              />
+            </div>
+
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.loudnessRangeLabel", "动态范围 (LRA)") }}
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                class="h-8 text-xs"
+                :model-value="audio.loudnessRange != null ? String(audio.loudnessRange) : ''"
+                :placeholder="'7'"
+                @update:model-value="
+                  (value) => {
+                    const n = Number(value ?? '');
+                    audio.loudnessRange = Number.isFinite(n) ? n : undefined;
+                  }
+                "
+              />
+            </div>
+
+            <div class="space-y-1">
+              <Label class="block text-xs">
+                {{ t("presetEditor.audio.truePeakDbLabel", "真峰值上限 (dBTP)") }}
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                class="h-8 text-xs"
+                :model-value="audio.truePeakDb != null ? String(audio.truePeakDb) : ''"
+                :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-2' : audio.loudnessProfile === 'ebuR128' ? '-1' : ''"
+                @update:model-value="
+                  (value) => {
+                    const n = Number(value ?? '');
+                    audio.truePeakDb = Number.isFinite(n) ? n : undefined;
+                  }
+                "
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+      <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
+        {{ t("presetEditor.panel.subtitlesTitle", "字幕策略") }}
+      </h3>
+      <div class="space-y-3">
+        <div class="space-y-1">
+          <Label class="text-xs">
+            {{ t("presetEditor.panel.subtitlesStrategyLabel", "处理方式") }}
+          </Label>
+          <Select
+            :model-value="subtitles.strategy ?? 'keep'"
+            @update:model-value="(value) => { subtitles.strategy = value as any; }"
+          >
+            <SelectTrigger class="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="keep">
+                {{ t("presetEditor.panel.subtitlesKeep", "保留（默认）") }}
+              </SelectItem>
+              <SelectItem value="drop">
+                {{ t("presetEditor.panel.subtitlesDrop", "移除所有字幕 (-sn)") }}
+              </SelectItem>
+              <SelectItem value="burn_in">
+                {{ t("presetEditor.panel.subtitlesBurnIn", "烧录到画面（滤镜）") }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div
+          v-if="subtitles.strategy === 'burn_in'"
+          class="space-y-1"
+        >
+          <Label class="text-xs">
+            {{ t("presetEditor.panel.subtitlesBurnInFilterLabel", "烧录滤镜表达式") }}
+          </Label>
+          <Input
+            :model-value="subtitles.burnInFilter ?? ''"
+            :placeholder="
+              t(
+                'presetEditor.panel.subtitlesBurnInFilterPlaceholder',
+                '例如 subtitles=INPUT:si=0',
+              )
+            "
+            class="h-8 text-xs font-mono"
+            @update:model-value="
+              (value) => {
+                const v = String(value ?? '');
+                subtitles.burnInFilter = v || undefined;
+              }
+            "
+          />
+          <p class="text-[11px] text-muted-foreground">
+            {{
+              t(
+                "presetEditor.panel.subtitlesBurnInHelp",
+                "此字段会追加到视频滤镜链中；复杂多轨场景建议仍使用模板模式。",
+              )
+            }}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+

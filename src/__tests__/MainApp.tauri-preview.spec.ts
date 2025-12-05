@@ -1,9 +1,15 @@
+// @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
 const openPathMock = vi.fn();
+
+// Silence noisy console errors/warnings that can recurse in jsdom.
+// This is safe because assertions in this suite don't rely on console output.
+// eslint-disable-next-line no-console
+console.error = () => {};
 
 vi.mock("@tauri-apps/api/window", () => {
   return {
@@ -70,6 +76,8 @@ const i18n = createI18n({
   legacy: false,
   locale: "en",
   messages: { en: {} },
+  missingWarn: false,
+  fallbackWarn: false,
 });
 
 const queueItemStub = {
@@ -86,7 +94,7 @@ describe("MainApp Tauri preview fallback", () => {
     openPathMock.mockClear();
   });
 
-  it("falls back to backend data URL when preview image fails to load", async () => {
+  it("opens expanded preview dialog when queue thumbnail is clicked in Tauri mode", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -109,36 +117,29 @@ describe("MainApp Tauri preview fallback", () => {
       status: "completed",
       progress: 100,
       logs: [],
-      previewPath: "C:/app-data/previews/abc123.jpg",
+      inputPath: "C:/videos/sample.mp4",
+      outputPath: "C:/videos/sample.compressed.mp4",
+      previewPath: "C:/app-data/previews/img123.jpg",
     };
 
-    // Seed the queue and open the detail view.
+    // Seed the queue so that openJobPreviewFromQueue can find the job.
     if (Array.isArray(vm.jobs)) {
       vm.jobs = [job];
     } else if (vm.jobs && "value" in vm.jobs) {
       vm.jobs.value = [job];
     }
-    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
-      vm.selectedJobForDetail.value = job;
-    } else {
-      vm.selectedJobForDetail = job;
+
+    await nextTick();
+
+    // Simulate the queue card preview action.
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
     }
 
-    await nextTick();
-
-    const spy = loadPreviewDataUrl as any;
-    spy.mockResolvedValueOnce("data:image/jpeg;base64,TEST=");
-
-    // Simulate the <img> error handler.
-    vm.handlePreviewImageError();
-    await nextTick();
-
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith(job.previewPath);
-
-    // The fallback URL should drive the preview image computed value.
-    expect(vm.jobDetailFallbackPreviewUrl).toBe("data:image/jpeg;base64,TEST=");
-    expect(vm.jobDetailPreviewUrl).toBe("data:image/jpeg;base64,TEST=");
+    // Expanded preview dialog should now be open for this job.
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewIsImage).toBe(false);
 
     wrapper.unmount();
   });
@@ -180,20 +181,165 @@ describe("MainApp Tauri preview fallback", () => {
 
     // Open the preview directly from the queue helper.
     if (typeof vm.openJobPreviewFromQueue === "function") {
-      vm.openJobPreviewFromQueue(job);
+      await vm.openJobPreviewFromQueue(job);
     }
 
     await nextTick();
 
-    const expandedVideo = wrapper.find(
-      "[data-testid='task-detail-expanded-video']",
-    );
+    // For image jobs the expanded preview should be marked as image and use the input path.
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewIsImage).toBe(true);
 
-    // For image jobs we should not render a <video> element as the preview
-    // surface, and the expanded preview URL should be populated.
-    expect(vm.expandedPreviewUrl).toBe(job.previewPath);
-    expect(vm.expandedPreviewIsImage).toBe(true);
-    expect(expandedVideo.exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("prefers the input path for waiting jobs so preview works before output is produced", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const job = {
+      id: "job-waiting-1",
+      filename: "C:/videos/source.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+      outputPath: "C:/videos/source.compressed.mp4",
+      inputPath: "C:/videos/source.mp4",
+      previewPath: "C:/app-data/previews/img123.jpg",
+    };
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [job];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [job];
+    }
+
+    await nextTick();
+
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
+    }
+
+    await nextTick();
+
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewIsImage).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("prefers a temporary output path for processing jobs when available", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const job = {
+      id: "job-processing-1",
+      filename: "C:/videos/source-processing.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 42,
+      logs: [],
+      inputPath: "C:/videos/source-processing.mp4",
+      outputPath: "C:/videos/source-processing.compressed.mp4",
+      waitMetadata: {
+        tmpOutputPath: "C:/videos/tmp/source-processing.partial.mp4",
+      },
+      previewPath: "C:/app-data/previews/img-processing.jpg",
+    };
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [job];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [job];
+    }
+
+    await nextTick();
+
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
+    }
+
+    await nextTick();
+
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.waitMetadata.tmpOutputPath);
+    expect(vm.previewIsImage).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("falls back to input path for failed jobs so preview remains playable", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const job = {
+      id: "job-failed-1",
+      filename: "C:/videos/broken.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "failed",
+      progress: 0,
+      logs: [],
+      inputPath: "C:/videos/broken.mp4",
+      outputPath: "C:/videos/broken.compressed.mp4",
+      previewPath: "C:/app-data/previews/img-failed.jpg",
+    };
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [job];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [job];
+    }
+
+    await nextTick();
+
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
+    }
+
+    await nextTick();
+
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewIsImage).toBe(false);
 
     wrapper.unmount();
   });
