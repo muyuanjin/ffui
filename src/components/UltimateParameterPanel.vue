@@ -87,15 +87,10 @@ const handleSwitchToWizard = () => {
       <div class="p-6 border-b border-border flex justify-between items-center">
         <div>
           <h2 class="text-xl font-bold text-white">
-            {{ t("presetEditor.panel.title", "参数详情") }}
+            {{ t("presetEditor.panel.title") }}
           </h2>
           <p class="text-muted-foreground text-xs mt-1">
-            {{
-              t(
-                "presetEditor.panel.subtitle",
-                "按分区完整调整 FFmpeg 参数；右侧随时预览最终命令。",
-              )
-            }}
+            {{ t("presetEditor.panel.subtitle") }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -105,7 +100,7 @@ const handleSwitchToWizard = () => {
             class="h-8 px-3 text-[11px]"
             @click="handleSwitchToWizard"
           >
-            {{ t("presetEditor.actions.backToWizard", "返回向导视图") }}
+            {{ t("presetEditor.actions.backToWizard") }}
           </Button>
           <Button
             variant="ghost"
@@ -128,49 +123,49 @@ const handleSwitchToWizard = () => {
               value="global"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.globalTab", "全局与日志") }}
+              {{ t("presetEditor.panel.globalTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="input"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.inputTab", "输入与时间轴") }}
+              {{ t("presetEditor.panel.inputTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="mapping"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.mappingTab", "映射与元数据") }}
+              {{ t("presetEditor.panel.mappingTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="video"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.videoTab", "视频编码") }}
+              {{ t("presetEditor.panel.videoTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="audio"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.audioTab", "音频与字幕") }}
+              {{ t("presetEditor.panel.audioTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="filters"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.filtersTab", "滤镜链") }}
+              {{ t("presetEditor.panel.filtersTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="container"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.containerTab", "容器与分片") }}
+              {{ t("presetEditor.panel.containerTab") }}
             </TabsTrigger>
             <TabsTrigger
               value="hardware"
               class="justify-start w-full text-xs"
             >
-              {{ t("presetEditor.panel.hardwareTab", "硬件与比特流") }}
+              {{ t("presetEditor.panel.hardwareTab") }}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -252,10 +247,7 @@ const handleSwitchToWizard = () => {
               v-html="highlightedCommandHtml"
             />
             <p :class="parseHintClass">
-              {{
-                parseHint ||
-                  "INPUT / OUTPUT 占位符会在实际执行时被具体路径替换；参数面板中的更改会实时反映到预览。"
-              }}
+              {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
             </p>
             <div class="space-y-1 mt-2">
               <Label class="text-[11px]">
@@ -276,7 +268,7 @@ const handleSwitchToWizard = () => {
                 class="mt-1 h-6 px-0 justify-start text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
                 @click="handleParseTemplateFromCommand"
               >
-                {{ t("presetEditor.advanced.parseButton", "从完整命令智能提取 INPUT / OUTPUT 占位符") }}
+                {{ t("presetEditor.advanced.parseButton") }}
               </Button>
             </div>
           </div>
@@ -289,13 +281,13 @@ const handleSwitchToWizard = () => {
           class="px-4 py-2 text-muted-foreground hover:text-foreground font-medium"
           @click="emit('cancel')"
         >
-          {{ t("common.cancel", "取消") }}
+          {{ t("common.cancel") }}
         </Button>
         <Button
           class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
           @click="handleSave"
         >
-          {{ t("presetEditor.actions.update", "保存预设") }}
+          {{ t("presetEditor.actions.update") }}
         </Button>
       </div>
     </div>

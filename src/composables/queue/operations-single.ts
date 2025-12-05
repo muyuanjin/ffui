@@ -53,8 +53,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     const ok = await waitTranscodeJob(jobId);
     if (!ok) {
       deps.queueError.value =
-        deps.t?.("queue.error.waitRejected") ||
-        "后台拒绝对该任务执行「等待」操作，可能已完成或不在运行中。";
+        (deps.t?.("queue.error.waitRejected") as string) ?? "";
       return;
     }
 
@@ -76,8 +75,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
   } catch (error) {
     console.error("Failed to wait job", error);
     deps.queueError.value =
-      deps.t?.("queue.error.waitFailed") ||
-      "对任务执行「等待」操作时出现错误，请稍后重试或检查设置。";
+      (deps.t?.("queue.error.waitFailed") as string) ?? "";
   }
 }
 
@@ -105,8 +103,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
     const ok = await resumeTranscodeJob(jobId);
     if (!ok) {
       deps.queueError.value =
-        deps.t?.("queue.error.resumeRejected") ||
-        "后台拒绝继续该任务，可能状态已发生变化。";
+        (deps.t?.("queue.error.resumeRejected") as string) ?? "";
       return;
     }
 
@@ -128,8 +125,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
   } catch (error) {
     console.error("Failed to resume job", error);
     deps.queueError.value =
-      deps.t?.("queue.error.resumeFailed") ||
-      "继续任务时出现错误，请稍后重试或检查设置。";
+      (deps.t?.("queue.error.resumeFailed") as string) ?? "";
   }
 }
 
@@ -163,8 +159,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
     const ok = await restartTranscodeJob(jobId);
     if (!ok) {
       deps.queueError.value =
-        deps.t?.("queue.error.restartRejected") ||
-        "后台拒绝重新开始该任务，可能状态已发生变化。";
+        (deps.t?.("queue.error.restartRejected") as string) ?? "";
       return;
     }
 
@@ -189,8 +184,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
   } catch (error) {
     console.error("Failed to restart job", error);
     deps.queueError.value =
-      deps.t?.("queue.error.restartFailed") ||
-      "重新开始任务时出现错误，请稍后重试或检查设置。";
+      (deps.t?.("queue.error.restartFailed") as string) ?? "";
   }
 }
 
@@ -210,8 +204,7 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
     const ok = await cancelTranscodeJob(jobId);
     if (!ok) {
       deps.queueError.value =
-        deps.t?.("queue.error.cancelRejected") ||
-        "后台拒绝取消该任务，可能已经完成或处于不可取消状态。";
+        (deps.t?.("queue.error.cancelRejected") as string) ?? "";
       return;
     }
 
@@ -240,8 +233,7 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
   } catch (error) {
     console.error("Failed to cancel job", error);
     deps.queueError.value =
-      deps.t?.("queue.error.cancelFailed") ||
-      "取消任务时出现错误，可能与外部工具或后端状态有关。请稍后重试或检查设置。";
+      (deps.t?.("queue.error.cancelFailed") as string) ?? "";
   }
 }
 
@@ -282,8 +274,7 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
   if (!preset) {
     console.error("No preset available for manual job");
     deps.queueError.value =
-      deps.t?.("queue.error.enqueueFailed") ||
-      "无法将任务加入队列：当前没有可用的预设，请先在「预设管理」中创建至少一个预设。";
+      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
     return;
   }
 
@@ -309,7 +300,6 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
   } catch (error) {
     console.error("Failed to enqueue manual job from path", error);
     deps.queueError.value =
-      deps.t?.("queue.error.enqueueFailed") ||
-      "无法将任务加入队列，可能是外部工具未准备好或自动下载失败。请检查「软件设置」中的外部工具配置。";
+      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
   }
 }

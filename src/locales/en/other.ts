@@ -12,6 +12,7 @@ const other = {
       "Files matching specific criteria (already efficient codec, small size, or low compression gain) will be automatically Skipped.",
     videoStrategy: "Video Strategy",
     targetPreset: "Target Preset",
+    targetPresetPlaceholder: "Choose preset",
     minVideoSize: "Skip if smaller than (MB)",
     imageStrategy: "Image Strategy",
     targetFormat: "Target Format",
@@ -39,6 +40,10 @@ const other = {
     frameRateLabel: "Frame rate",
     mediaInfoFallback: "No media metadata available for this job.",
     commandTitle: "ffmpeg command",
+    commandToggle: {
+      showFull: "Show full command",
+      showTemplate: "Show template view",
+    },
     copyCommand: "Copy command",
     copyTemplateCommand: "Copy template command",
     commandFallback: "Command line is not available for this job.",
@@ -82,6 +87,12 @@ const other = {
     copyLog: "Copy logs",
     openInSystemPlayer: "Open in system player",
     copyPath: "Copy path",
+    previewDescription:
+      "Preview the current job output. If playback fails, you can still open the file in your system player.",
+    previewVideoError:
+      "Unable to load video preview. The file may be in use or corrupted; try opening it in your system player.",
+    previewImageError:
+      "Unable to load image preview. The file may be in use or corrupted; try opening it in your system player.",
   },
   presets: {
     usedTimes: "Used {count} times",

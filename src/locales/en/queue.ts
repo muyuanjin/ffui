@@ -31,6 +31,10 @@ const queue = {
     cardFill: "Card background fill",
     rippleCard: "Ripple card",
   },
+  groups: {
+    processing: "Processing",
+    waiting: "Waiting queue",
+  },
   status: {
     completed: "completed",
     processing: "processing",

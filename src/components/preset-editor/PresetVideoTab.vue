@@ -112,7 +112,7 @@ const { t } = useI18n();
       <div class="grid grid-cols-2 gap-4 items-start">
         <div class="space-y-1">
           <Label>
-            {{ t("presetEditor.video.rateControlModeLabel", "速率控制模式") }}
+            {{ t("presetEditor.video.rateControlModeLabel") }}
           </Label>
           <Select
             :model-value="video.rateControl"
@@ -154,18 +154,13 @@ const { t } = useI18n();
             </SelectContent>
           </Select>
           <p class="text-[10px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.video.rateControlHelp",
-                "CRF/CQ 更偏向画质，CBR/VBR 更偏向可控大小与码率；两者不可同时使用。",
-              )
-            }}
+            {{ t("presetEditor.video.rateControlHelp") }}
           </p>
         </div>
 
         <div class="space-y-1">
           <Label>
-            {{ t("presetEditor.video.bitrateKbpsLabel", "目标码率 (kbps)") }}
+            {{ t("presetEditor.video.bitrateKbpsLabel") }}
           </Label>
           <Input
             type="number"
@@ -180,12 +175,7 @@ const { t } = useI18n();
             "
           />
           <p class="text-[10px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.video.bitrateHelp",
-                "仅在 CBR/VBR 模式下生效；在 CRF/CQ 模式下会被忽略。",
-              )
-            }}
+            {{ t("presetEditor.video.bitrateHelp") }}
           </p>
         </div>
       </div>
@@ -196,7 +186,7 @@ const { t } = useI18n();
       >
         <div class="space-y-1">
           <Label>
-            {{ t("presetEditor.video.maxBitrateKbpsLabel", "峰值码率上限 (kbps)") }}
+            {{ t("presetEditor.video.maxBitrateKbpsLabel") }}
           </Label>
           <Input
             type="number"
@@ -211,17 +201,12 @@ const { t } = useI18n();
             "
           />
           <p class="text-[10px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.video.maxBitrateKbpsHelp",
-                "限制码率尖峰，通常略高于目标码率；设置过低会让复杂场景被压缩得很糊。",
-              )
-            }}
+            {{ t("presetEditor.video.maxBitrateKbpsHelp") }}
           </p>
         </div>
         <div class="space-y-1">
           <Label>
-            {{ t("presetEditor.video.passLabel", "两遍编码 pass") }}
+            {{ t("presetEditor.video.passLabel") }}
           </Label>
           <Select
             :model-value="video.pass ? String(video.pass) : 'single'"
@@ -241,23 +226,18 @@ const { t } = useI18n();
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="single">
-                {{ t("presetEditor.video.passSingle", "单遍编码") }}
+                {{ t("presetEditor.video.passSingle") }}
               </SelectItem>
               <SelectItem value="1">
-                {{ t("presetEditor.video.passFirst", "Pass 1") }}
+                {{ t("presetEditor.video.passFirst") }}
               </SelectItem>
               <SelectItem value="2">
-                {{ t("presetEditor.video.passSecond", "Pass 2") }}
+                {{ t("presetEditor.video.passSecond") }}
               </SelectItem>
             </SelectContent>
           </Select>
           <p class="text-[10px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.video.passHelp",
-                "两遍编码需要与目标码率同时使用；不支持与 CRF/CQ 组合。",
-              )
-            }}
+            {{ t("presetEditor.video.passHelp") }}
           </p>
         </div>
       </div>

@@ -12,6 +12,7 @@ const other = {
       "满足特定条件（已是高效编码、小文件或压缩收益太低）的文件会被自动跳过。",
     videoStrategy: "视频策略",
     targetPreset: "目标预设",
+    targetPresetPlaceholder: "选择预设",
     minVideoSize: "小于该大小时跳过 (MB)",
     imageStrategy: "图片策略",
     targetFormat: "目标格式",
@@ -39,6 +40,10 @@ const other = {
     frameRateLabel: "帧率",
     mediaInfoFallback: "当前任务没有可用的媒体元数据。",
     commandTitle: "ffmpeg 命令",
+    commandToggle: {
+      showFull: "显示完整命令",
+      showTemplate: "显示模板视图",
+    },
     copyCommand: "复制命令",
     copyTemplateCommand: "复制模板命令",
     commandFallback: "该任务没有可用的完整命令行。",
@@ -82,6 +87,9 @@ const other = {
     copyLog: "复制日志",
     openInSystemPlayer: "用系统播放器打开",
     copyPath: "复制路径",
+    previewDescription: "预览当前任务的输出结果；如无法播放，可以尝试使用系统播放器打开对应文件。",
+    previewVideoError: "无法加载视频预览，文件可能正在被占用或已损坏；可以尝试使用系统播放器打开。",
+    previewImageError: "无法加载图片预览，文件可能正在被占用或已损坏；可以尝试使用系统图片查看器打开。",
   },
   presets: {
     usedTimes: "已使用 {count} 次",

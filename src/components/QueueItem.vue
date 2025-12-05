@@ -209,7 +209,9 @@ const toggleCommandView = () => {
 
 const commandViewToggleLabel = computed(() => {
   if (!hasDistinctTemplate.value) return "";
-  return showTemplateCommand.value ? "显示完整命令" : "显示模板视图";
+  return showTemplateCommand.value
+    ? (t("taskDetail.commandToggle.showFull") as string)
+    : (t("taskDetail.commandToggle.showTemplate") as string);
 });
 
 const highlightedCommand = computed(() => highlightFfmpegCommand(effectiveCommand.value));
@@ -342,7 +344,7 @@ const mediaSummary = computed(() => {
     </div>
     <div v-if="!isCompact && rawCommand" class="mt-2 space-y-1">
       <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>{{ t("taskDetail.commandTitle", "命令") }}</span>
+        <span>{{ t("taskDetail.commandTitle") }}</span>
         <Button
           v-if="hasDistinctTemplate"
           type="button"

@@ -41,6 +41,8 @@ export interface UseMainAppQueueReturn
     | "filterRegexError"
     | "sortPrimary"
     | "sortPrimaryDirection"
+    | "sortSecondary"
+    | "sortSecondaryDirection"
     | "filteredJobs"
     | "hasActiveFilters"
     | "hasSelection"
@@ -447,6 +449,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     filterRegexError,
     sortPrimary,
     sortPrimaryDirection,
+    sortSecondary,
+    sortSecondaryDirection,
     hasActiveFilters,
     hasSelection,
     queueModeProcessingJobs,

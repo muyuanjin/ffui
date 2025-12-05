@@ -9,6 +9,7 @@
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::ffui_core::{CpuUsageSnapshot, ExternalToolStatus, GpuUsageSnapshot, TranscodingEngine};
+use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
 /// Get the current CPU usage snapshot.
 #[tauri::command]
@@ -100,4 +101,22 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     let encoded = general_purpose::STANDARD.encode(&bytes);
 
     Ok(format!("data:{mime};base64,{encoded}"))
+}
+
+/// Increment the number of active system metrics subscribers.
+#[tauri::command]
+pub fn metrics_subscribe(metrics: State<MetricsState>) {
+    metrics.subscribe();
+}
+
+/// Decrement the number of active system metrics subscribers.
+#[tauri::command]
+pub fn metrics_unsubscribe(metrics: State<MetricsState>) {
+    metrics.unsubscribe();
+}
+
+/// Return the bounded history of system metrics snapshots for initial charting.
+#[tauri::command]
+pub fn get_metrics_history(metrics: State<MetricsState>) -> Vec<MetricsSnapshot> {
+    metrics.history()
 }

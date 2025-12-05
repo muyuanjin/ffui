@@ -231,9 +231,7 @@ const handleParseTemplateFromCommand = () => {
       ffmpegTemplate: "",
     });
   if (!source) {
-    parseHint.value =
-      (t("presetEditor.advanced.parseEmpty") as string) ||
-      "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。";
+    parseHint.value = t("presetEditor.advanced.parseEmpty") as string;
     parseHintVariant.value = "warning";
     return;
   }
@@ -243,19 +241,13 @@ const handleParseTemplateFromCommand = () => {
   advancedEnabled.value = true;
 
   if (result.inputReplaced && result.outputReplaced) {
-    parseHint.value =
-      (t("presetEditor.advanced.parseOk") as string) ||
-      "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。";
+    parseHint.value = t("presetEditor.advanced.parseOk") as string;
     parseHintVariant.value = "ok";
   } else if (result.inputReplaced || result.outputReplaced) {
-    parseHint.value =
-      (t("presetEditor.advanced.parsePartial") as string) ||
-      "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。";
+    parseHint.value = t("presetEditor.advanced.parsePartial") as string;
     parseHintVariant.value = "warning";
   } else {
-    parseHint.value =
-      (t("presetEditor.advanced.parseFailed") as string) ||
-      "未能自动识别输入/输出路径，请确保包含 -i <输入> 和输出文件路径，或直接手动将对应部分替换为 INPUT / OUTPUT。";
+    parseHint.value = t("presetEditor.advanced.parseFailed") as string;
     parseHintVariant.value = "warning";
   }
 };
@@ -283,7 +275,7 @@ const handleParseTemplateFromCommand = () => {
             data-testid="preset-open-panel"
             @click="handleSwitchToPanel"
           >
-            {{ t("presetEditor.actions.openPanel", '完整参数面板') }}
+            {{ t("presetEditor.actions.openPanel") }}
           </Button>
           <Button
             variant="ghost"

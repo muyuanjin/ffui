@@ -1,8 +1,7 @@
-use std::fs;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::ffui_core::domain::{FFmpegPreset, JobStatus, MediaInfo, TranscodeJob};
+use crate::ffui_core::domain::{FFmpegPreset, JobStatus, TranscodeJob};
 
 use super::state::{Inner, SmartScanBatchStatus, notify_queue_listeners};
 

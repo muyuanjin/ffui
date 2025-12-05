@@ -80,7 +80,7 @@ const emit = defineEmits<{
 
         <div v-if="audio.codec === 'aac'" class="space-y-2">
           <Label class="block text-xs">
-            {{ t("presetEditor.audio.loudnessProfileLabel", "响度均衡策略") }}
+            {{ t("presetEditor.audio.loudnessProfileLabel") }}
           </Label>
           <div class="grid grid-cols-3 gap-2">
             <Button
@@ -88,30 +88,25 @@ const emit = defineEmits<{
               class="h-8 px-2 text-[11px]"
               @click="emit('update-audio', { loudnessProfile: 'none' })"
             >
-              {{ t("presetEditor.audio.loudnessNone", "不过滤（保持源响度）") }}
+              {{ t("presetEditor.audio.loudnessNone") }}
             </Button>
             <Button
               :variant="audio.loudnessProfile === 'cnBroadcast' ? 'default' : 'outline'"
               class="h-8 px-2 text-[11px]"
               @click="emit('update-audio', { loudnessProfile: 'cnBroadcast' })"
             >
-              {{ t("presetEditor.audio.loudnessCnBroadcast", '国内广电响度') }}
+              {{ t("presetEditor.audio.loudnessCnBroadcast") }}
             </Button>
             <Button
               :variant="audio.loudnessProfile === 'ebuR128' ? 'default' : 'outline'"
               class="h-8 px-2 text-[11px]"
               @click="emit('update-audio', { loudnessProfile: 'ebuR128' })"
             >
-              {{ t("presetEditor.audio.loudnessEbuR128", 'EBU/国际响度') }}
+              {{ t("presetEditor.audio.loudnessEbuR128") }}
             </Button>
           </div>
           <p class="mt-1 text-[11px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.audio.loudnessHelp",
-                "推荐使用响度均衡：国内广电约 I=-24 LUFS，国际规范约 I=-23 LUFS，动态范围通常 1–10 LU，真峰值建议控制在 -2/-1 dBTP 附近；数值越接近 0 主观越响，长片节目一般不建议高于约 -16 LUFS。",
-              )
-            }}
+            {{ t("presetEditor.audio.loudnessHelp") }}
           </p>
         </div>
       </div>

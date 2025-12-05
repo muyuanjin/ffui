@@ -78,7 +78,7 @@ const { t } = useI18n();
                 @update:model-value="(value) => (config.videoPresetId = value as string)"
               >
                 <SelectTrigger class="h-8 text-xs">
-                  <SelectValue placeholder="Choose preset" />
+                  <SelectValue :placeholder="t('smartScan.targetPresetPlaceholder') as string" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem
