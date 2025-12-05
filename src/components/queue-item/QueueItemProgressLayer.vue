@@ -1,5 +1,11 @@
 <script setup lang="ts">
-const props = defineProps<{
+const {
+  showCardFillProgress,
+  showRippleCardProgress,
+  previewUrl,
+  displayedClampedProgress,
+  status,
+} = defineProps<{
   showCardFillProgress: boolean;
   showRippleCardProgress: boolean;
   previewUrl: string | null;

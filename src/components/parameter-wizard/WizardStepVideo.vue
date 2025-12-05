@@ -15,9 +15,9 @@ const {
   video: VideoConfig;
   encoderOptions: { value: EncoderType; label: string }[];
   presetOptions: Record<string, string[]>;
-  rateControlLabel: string | unknown;
+  rateControlLabel: string;
   isCopyEncoder: boolean;
-  t: (key: string, params?: any) => string | unknown;
+  t: (key: string, params?: any) => string;
 }>();
 
 const emit = defineEmits<{

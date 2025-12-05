@@ -177,9 +177,6 @@ const {
   bulkRestart,
   bulkMoveToTop,
   bulkMoveToBottom,
-  bulkMoveSelectedJobsToTopInner,
-  bulkMoveSelectedJobsToBottomInner,
-  moveJobToTop,
   bulkDelete,
 } = queue;
 
