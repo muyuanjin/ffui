@@ -12,6 +12,7 @@ import type {
   SmartScanConfig,
   QueueState,
   TranscodeJob,
+  SystemMetricsSnapshot,
 } from "../types";
 
 export const hasTauri = () => {
@@ -53,6 +54,21 @@ export const fetchCpuUsage = async (): Promise<CpuUsageSnapshot> => {
 
 export const fetchGpuUsage = async (): Promise<GpuUsageSnapshot> => {
   return invoke<GpuUsageSnapshot>("get_gpu_usage");
+};
+
+export const metricsSubscribe = async (): Promise<void> => {
+  if (!hasTauri()) return;
+  await invoke<void>("metrics_subscribe");
+};
+
+export const metricsUnsubscribe = async (): Promise<void> => {
+  if (!hasTauri()) return;
+  await invoke<void>("metrics_unsubscribe");
+};
+
+export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> => {
+  if (!hasTauri()) return [];
+  return invoke<SystemMetricsSnapshot[]>("get_metrics_history");
 };
 
 export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]> => {

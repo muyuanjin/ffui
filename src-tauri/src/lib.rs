@@ -1,5 +1,6 @@
 mod commands;
 mod ffui_core;
+mod system_metrics;
 mod taskbar_progress;
 
 use std::{thread, time::Duration};
@@ -7,6 +8,7 @@ use std::{thread, time::Duration};
 use tauri::{Emitter, Manager};
 
 use crate::ffui_core::{AutoCompressProgress, QueueState, TranscodingEngine};
+use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
 use crate::taskbar_progress::update_taskbar_progress;
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
@@ -264,9 +266,11 @@ pub fn run() {
     }
 
     let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");
+    let metrics_state = MetricsState::default();
 
     tauri::Builder::default()
         .manage(engine)
+        .manage(metrics_state.clone())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -291,11 +295,14 @@ pub fn run() {
             commands::tools::open_devtools,
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
-            commands::tools::get_preview_data_url
+            commands::tools::get_preview_data_url,
+            commands::tools::metrics_subscribe,
+            commands::tools::metrics_unsubscribe,
+            commands::tools::get_metrics_history
         ])
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
         // ensure the main window becomes visible after a short timeout so the app is not "dead".
-        .setup(|app| {
+        .setup(move |app| {
             #[cfg(windows)]
             {
                 use windows::Win32::Foundation::HWND;
@@ -378,6 +385,15 @@ pub fn run() {
                         eprintln!("failed to emit auto-compress progress event: {err}");
                     }
                 });
+            }
+
+            // Start the system metrics sampler on Tauri's async runtime. The
+            // sampler keeps a bounded in-memory history and only performs
+            // high-frequency sampling while there is at least one subscriber
+            // on the frontend.
+            {
+                let app_handle = handle.clone();
+                spawn_metrics_sampler(app_handle, metrics_state.clone());
             }
 
             // Fallback: ensure the window becomes visible even if the frontend

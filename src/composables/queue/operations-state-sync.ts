@@ -65,7 +65,6 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
   } catch (error) {
     console.error("Failed to refresh queue state", error);
     deps.queueError.value =
-      deps.t?.("queue.error.loadFailed") ||
-      "队列状态刷新失败，可能是后端未运行或外部工具初始化失败。请检查「软件设置」中的路径与自动下载配置。";
+      (deps.t?.("queue.error.loadFailed") as string) ?? "";
   }
 }

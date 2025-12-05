@@ -1,70 +1,362 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import VChart from "vue-echarts";
+import "echarts";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
+import { useSystemMetrics } from "@/composables";
 
 defineProps<{
-  /** CPU usage snapshot from backend */
+  /** Legacy CPU usage snapshot from backend (basic polling). */
   cpuSnapshot: CpuUsageSnapshot | null;
-  /** GPU usage snapshot from backend */
+  /** GPU usage snapshot from backend (NVML-based). */
   gpuSnapshot: GpuUsageSnapshot | null;
 }>();
+
+const {
+  snapshots,
+  cpuTotalSeries,
+  perCoreSeries,
+  memorySeries,
+  diskSeries,
+  networkSeries,
+} = useSystemMetrics();
+
+const hasMetrics = computed(() => snapshots.value.length > 0);
+
+const cpuTotalOption = computed(() => {
+  const points = cpuTotalSeries.value;
+  return {
+    animation: false,
+    grid: { left: 40, right: 8, top: 16, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
+      boundaryGap: false,
+      axisLabel: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: 100,
+      axisLabel: { formatter: "{value}%" },
+    },
+    series: [
+      {
+        name: "CPU",
+        type: "line",
+        data: points.map((p) => p.value),
+        showSymbol: false,
+        smooth: true,
+        areaStyle: {},
+      },
+    ],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        return `${value.toFixed(1)}%`;
+      },
+    },
+  };
+});
+
+const cpuPerCoreOption = computed(() => {
+  const baseAxis = cpuTotalSeries.value;
+  const series = perCoreSeries.value.map((core) => ({
+    name: `C${core.coreIndex}`,
+    type: "line",
+    data: core.values.map((p) => p.value),
+    showSymbol: false,
+    smooth: false,
+    lineStyle: { width: 1 },
+  }));
+
+  return {
+    animation: false,
+    grid: { left: 40, right: 8, top: 32, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: baseAxis.map((p) => new Date(p.timestamp).toLocaleTimeString()),
+      boundaryGap: false,
+      axisLabel: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: 100,
+      axisLabel: { formatter: "{value}%" },
+    },
+    legend: {
+      type: "scroll",
+    },
+    series,
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        return `${value.toFixed(0)}%`;
+      },
+    },
+  };
+});
+
+const memoryOption = computed(() => {
+  const points = memorySeries.value;
+  return {
+    animation: false,
+    grid: { left: 40, right: 8, top: 16, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
+      boundaryGap: false,
+      axisLabel: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        formatter(val: number) {
+          return `${(val / (1024 * 1024 * 1024)).toFixed(0)}G`;
+        },
+      },
+    },
+    series: [
+      {
+        name: "Used",
+        type: "line",
+        data: points.map((p) => p.usedBytes),
+        showSymbol: false,
+        smooth: true,
+        areaStyle: {},
+      },
+    ],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+      },
+    },
+  };
+});
+
+const diskOption = computed(() => {
+  const points = diskSeries.value;
+  return {
+    animation: false,
+    grid: { left: 40, right: 8, top: 16, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
+      boundaryGap: false,
+      axisLabel: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        formatter(val: number) {
+          return `${(val / (1024 * 1024)).toFixed(0)} MB/s`;
+        },
+      },
+    },
+    series: [
+      {
+        name: "Read",
+        type: "line",
+        data: points.map((p) => p.readBps),
+        showSymbol: false,
+        smooth: true,
+      },
+      {
+        name: "Write",
+        type: "line",
+        data: points.map((p) => p.writeBps),
+        showSymbol: false,
+        smooth: true,
+      },
+    ],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        return `${(value / (1024 * 1024)).toFixed(2)} MB/s`;
+      },
+    },
+  };
+});
+
+const networkOption = computed(() => {
+  const allSeries = networkSeries.value;
+  if (allSeries.length === 0) {
+    return {
+      animation: false,
+      xAxis: { type: "category", data: [] },
+      yAxis: { type: "value" },
+      series: [],
+    };
+  }
+
+  const baseAxis = allSeries[0].values.map((p) =>
+    new Date(p.timestamp).toLocaleTimeString(),
+  );
+
+  const series = allSeries.flatMap((iface) => [
+    {
+      name: `${iface.name} RX`,
+      type: "line",
+      data: iface.values.map((p) => p.rxBps),
+      showSymbol: false,
+      smooth: true,
+    },
+    {
+      name: `${iface.name} TX`,
+      type: "line",
+      data: iface.values.map((p) => p.txBps),
+      showSymbol: false,
+      smooth: true,
+    },
+  ]);
+
+  return {
+    animation: false,
+    grid: { left: 40, right: 8, top: 32, bottom: 24 },
+    xAxis: {
+      type: "category",
+      data: baseAxis,
+      boundaryGap: false,
+      axisLabel: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      axisLabel: {
+        formatter(val: number) {
+          return `${(val / (1024 * 1024)).toFixed(0)} MB/s`;
+        },
+      },
+    },
+    legend: {
+      type: "scroll",
+    },
+    series,
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        return `${(value / (1024 * 1024)).toFixed(2)} MB/s`;
+      },
+    },
+  };
+});
 </script>
 
 <template>
-  <section class="max-w-4xl mx-auto py-12 text-sm text-muted-foreground">
-    <div class="grid gap-6 md:grid-cols-2">
+  <section class="max-w-6xl mx-auto py-6 text-sm text-muted-foreground">
+    <div
+      v-if="!hasMetrics"
+      class="flex flex-col items-center justify-center h-64 gap-2"
+    >
+      <p>正在等待系统性能数据...</p>
+      <p class="text-xs text-muted-foreground/80">
+        在 Tauri 环境中打开应用并保持“性能”视图可见即可开始采样；浏览器模式下会使用模拟数据。
+      </p>
+    </div>
+
+    <div
+      v-else
+      class="grid gap-4 lg:grid-cols-2"
+    >
       <Card>
         <CardHeader>
-          <CardTitle class="text-sm">CPU</CardTitle>
+          <CardTitle class="text-sm">CPU 总体</CardTitle>
         </CardHeader>
-        <CardContent class="text-xs space-y-2">
-          <p v-if="cpuSnapshot">
-            当前总使用率：
-            <span class="font-mono text-foreground">
-              {{ cpuSnapshot.overall.toFixed(1) }}%
-            </span>
-          </p>
-          <p v-else>等待从后端获取 CPU 使用率...</p>
-          <div
-            v-if="cpuSnapshot"
-            class="flex flex-wrap gap-1 mt-2"
-          >
-            <span
-              v-for="(core, idx) in cpuSnapshot.perCore"
-              :key="idx"
-              class="px-1.5 py-0.5 rounded bg-muted text-foreground/80 font-mono"
-            >
-              C{{ idx }}: {{ core.toFixed(0) }}%
-            </span>
-          </div>
+        <CardContent>
+          <VChart
+            class="w-full h-48"
+            :option="cpuTotalOption"
+            autoresize
+          />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
+          <CardTitle class="text-sm">
+            CPU 按核心
+            <span class="text-[11px] text-muted-foreground/80">
+              (前 {{ perCoreSeries.length }} 个核心)
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VChart
+            class="w-full h-48"
+            :option="cpuPerCoreOption"
+            autoresize
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-sm">内存</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VChart
+            class="w-full h-48"
+            :option="memoryOption"
+            autoresize
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle class="text-sm">磁盘 I/O</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VChart
+            class="w-full h-48"
+            :option="diskOption"
+            autoresize
+          />
+        </CardContent>
+      </Card>
+
+      <Card class="lg:col-span-2">
+        <CardHeader>
+          <CardTitle class="text-sm">网络 I/O</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VChart
+            class="w-full h-56"
+            :option="networkOption"
+            autoresize
+          />
+        </CardContent>
+      </Card>
+
+      <Card class="lg:col-span-2">
+        <CardHeader>
           <CardTitle class="text-sm">GPU (NVIDIA / NVML)</CardTitle>
         </CardHeader>
-        <CardContent class="text-xs space-y-2">
-          <div v-if="gpuSnapshot">
-            <p v-if="gpuSnapshot.available">
-              GPU 使用率：
-              <span class="font-mono text-foreground">
-                {{ gpuSnapshot.gpuPercent ?? 0 }}%
-              </span>
-            </p>
-            <p v-if="gpuSnapshot.available && gpuSnapshot.memoryPercent !== undefined">
-              显存使用率：
-              <span class="font-mono text-foreground">
-                {{ gpuSnapshot.memoryPercent }}%
-              </span>
-            </p>
-            <p v-if="!gpuSnapshot.available">
-              {{ gpuSnapshot.error ?? "未检测到 NVIDIA GPU，或 NVML 不可用。" }}
-            </p>
-          </div>
-          <p v-else>等待从后端获取 GPU 使用率...</p>
+        <CardContent class="text-xs space-y-1">
+          <p v-if="gpuSnapshot && gpuSnapshot.available">
+            GPU 使用率：
+            <span class="font-mono text-foreground">
+              {{ gpuSnapshot.gpuPercent ?? 0 }}%
+            </span>
+          </p>
+          <p v-if="gpuSnapshot && gpuSnapshot.available && gpuSnapshot.memoryPercent !== undefined">
+            显存使用率：
+            <span class="font-mono text-foreground">
+              {{ gpuSnapshot.memoryPercent }}%
+            </span>
+          </p>
+          <p v-if="gpuSnapshot && !gpuSnapshot.available">
+            {{ gpuSnapshot.error ?? "未检测到 NVIDIA GPU，或 NVML 不可用。" }}
+          </p>
+          <p v-if="!gpuSnapshot">
+            正在等待 GPU 使用率数据...
+          </p>
         </CardContent>
       </Card>
     </div>
   </section>
 </template>
+

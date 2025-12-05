@@ -348,9 +348,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         return;
       } catch (error) {
         console.error("auto-compress failed with dropped root", error);
-        queueError.value =
-          t?.("queue.error.autoCompressFailed") ||
-          "智能压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在「软件设置」中启用自动下载。";
+        queueError.value = (t?.("queue.error.autoCompressFailed") as string) ?? "";
       }
     }
 

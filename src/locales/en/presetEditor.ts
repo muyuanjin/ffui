@@ -115,6 +115,8 @@ const presetEditor = {
     templateLabel: "ffmpeg command template",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "Command preview",
+    templateHint:
+      "INPUT / OUTPUT placeholders are replaced with concrete paths at runtime; changes in the parameter panel are reflected here immediately.",
     parseButton: "Parse full command into INPUT/OUTPUT",
     parseEmpty: "Enter a full ffmpeg command above, then click Parse.",
     parseOk: "Detected input/output paths and replaced them with INPUT / OUTPUT placeholders.",

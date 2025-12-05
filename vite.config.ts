@@ -37,4 +37,10 @@ export default defineConfig(async () => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+
+  // Keep Vite build output warnings clean while allowing a larger main
+  // chunk for this desktop-focused app.
+  build: {
+    chunkSizeWarningLimit: 2048,
+  },
 }));

@@ -1,125 +1,16 @@
-import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
-import type { TranscodeJob, CompositeSmartScanTask, JobStatus } from "@/types";
+import { computed, ref, watch } from "vue";
+import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
 import { compareJobsByField } from "./queue/filtering-utils";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
-
-// ----- Types -----
-
-export type QueueFilterStatus = JobStatus;
-export type QueueFilterKind = "manual" | "smartScan";
-
-export type QueueSortField =
-  | "filename"
-  | "status"
-  | "addedTime"
-  | "finishedTime"
-  | "duration"
-  | "elapsed"
-  | "progress"
-  | "type"
-  | "path"
-  | "inputSize"
-  | "outputSize"
-  | "createdTime"
-  | "modifiedTime";
-
-export type QueueSortDirection = "asc" | "desc";
-
-export type QueueListItem =
-  | { kind: "batch"; batch: CompositeSmartScanTask }
-  | { kind: "job"; job: TranscodeJob };
-
-// ----- Composable -----
-
-export interface UseQueueFilteringOptions {
-  /** The full list of jobs from backend. */
-  jobs: Ref<TranscodeJob[]>;
-  /** Composite smart scan tasks for batch display. */
-  compositeSmartScanTasks: ComputedRef<CompositeSmartScanTask[]>;
-  /** Map of batch ID to composite task. */
-  compositeTasksById: ComputedRef<Map<string, CompositeSmartScanTask>>;
-  /** Optional i18n translation function for error messages. */
-  t?: (key: string) => string;
-}
-
-export interface UseQueueFilteringReturn {
-  // ----- State -----
-  /** IDs of selected jobs. */
-  selectedJobIds: Ref<Set<string>>;
-  /** IDs of hidden (soft-deleted) jobs. */
-  hiddenJobIds: Ref<Set<string>>;
-  /** Active status filters. */
-  activeStatusFilters: Ref<Set<QueueFilterStatus>>;
-  /** Active type filters. */
-  activeTypeFilters: Ref<Set<QueueFilterKind>>;
-  /** Text filter input. */
-  filterText: Ref<string>;
-  /** Whether regex mode is enabled. */
-  filterUseRegex: Ref<boolean>;
-  /** Regex validation error message. */
-  filterRegexError: Ref<string | null>;
-  /** Compiled filter regex. */
-  filterRegex: Ref<RegExp | null>;
-  /** Primary sort field. */
-  sortPrimary: Ref<QueueSortField>;
-  /** Primary sort direction. */
-  sortPrimaryDirection: Ref<QueueSortDirection>;
-  /** Secondary sort field. */
-  sortSecondary: Ref<QueueSortField>;
-  /** Secondary sort direction. */
-  sortSecondaryDirection: Ref<QueueSortDirection>;
-
-  // ----- Computed -----
-  /** Whether any filters are active. */
-  hasActiveFilters: ComputedRef<boolean>;
-  /** Whether any jobs are selected. */
-  hasSelection: ComputedRef<boolean>;
-  /** List of selected jobs. */
-  selectedJobs: ComputedRef<TranscodeJob[]>;
-  /** Filtered jobs list. */
-  filteredJobs: ComputedRef<TranscodeJob[]>;
-  /** Display mode sorted jobs. */
-  displayModeSortedJobs: ComputedRef<TranscodeJob[]>;
-  /** Manual queue jobs (no batch). */
-  manualQueueJobs: ComputedRef<TranscodeJob[]>;
-  /** Processing jobs for queue mode. */
-  queueModeProcessingJobs: ComputedRef<TranscodeJob[]>;
-  /** Waiting jobs for queue mode. */
-  queueModeWaitingJobs: ComputedRef<TranscodeJob[]>;
-
-  // ----- Methods -----
-  /** Check if a job matches current filters. */
-  jobMatchesFilters: (job: TranscodeJob) => boolean;
-  /** Check if a batch matches current filters. */
-  batchMatchesFilters: (batch: CompositeSmartScanTask) => boolean;
-  /** Check if a job is selected. */
-  isJobSelected: (jobId: string) => boolean;
-  /** Toggle job selection. */
-  toggleJobSelected: (jobId: string) => void;
-  /** Clear all selections. */
-  clearSelection: () => void;
-  /** Select all visible jobs. */
-  selectAllVisibleJobs: () => void;
-  /** Invert current selection. */
-  invertSelection: () => void;
-  /** Toggle a status filter. */
-  toggleStatusFilter: (status: QueueFilterStatus) => void;
-  /** Toggle a type filter. */
-  toggleTypeFilter: (kind: QueueFilterKind) => void;
-  /** Reset all filters. */
-  resetQueueFilters: () => void;
-  /** Toggle regex filter mode. */
-  toggleFilterRegexMode: () => void;
-  /** Hide jobs by IDs (soft delete). */
-  hideJobsById: (ids: string[]) => void;
-  /** Compare jobs by configured sort fields. */
-  compareJobsByConfiguredFields: (a: TranscodeJob, b: TranscodeJob) => number;
-  /** Compare jobs for display (with fallbacks). */
-  compareJobsForDisplay: (a: TranscodeJob, b: TranscodeJob) => number;
-  /** Compare jobs in waiting group (queue order first). */
-  compareJobsInWaitingGroup: (a: TranscodeJob, b: TranscodeJob) => number;
-}
+import type {
+  QueueFilterKind,
+  QueueFilterStatus,
+  QueueSortDirection,
+  QueueSortField,
+  UseQueueFilteringOptions,
+  UseQueueFilteringReturn,
+} from "./queue/useQueueFiltering.types";
 
 /**
  * Composable for queue filtering, sorting, and selection.
@@ -144,11 +35,47 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
   const sortSecondaryDirection = ref<QueueSortDirection>("asc");
 
   // ----- Regex Validation Watch -----
+  // Supports two modes:
+  // 1) Global regex mode (filterUseRegex === true): treat the entire input as a
+  //    single regex pattern.
+  // 2) Token mode (filterUseRegex === false): look for a token with the prefix
+  //    "regex:" and compile only the suffix as a regex. This is used by the
+  //    unified text filter syntax like: `building size>20mb regex:.*building.*`.
   watch(
     [filterText, filterUseRegex],
     ([pattern, useRegex]) => {
       const text = (pattern ?? "").trim();
-      if (!useRegex || !text) {
+      if (!text) {
+        filterRegex.value = null;
+        filterRegexError.value = null;
+        lastValidFilterRegex = null;
+        return;
+      }
+
+      let candidate: string | null = null;
+
+      if (useRegex) {
+        candidate = text;
+      } else {
+        const tokens = text
+          .split(/\s+/)
+          .map((t) => t.trim())
+          .filter((t) => t.length > 0);
+        const regexToken = tokens.find((token) =>
+          token.toLowerCase().startsWith("regex:"),
+        );
+        if (!regexToken) {
+          // No regex token in unified query mode; clear regex state.
+          filterRegex.value = null;
+          filterRegexError.value = null;
+          lastValidFilterRegex = null;
+          return;
+        }
+        candidate = regexToken.slice("regex:".length);
+      }
+
+      const candidateText = (candidate ?? "").trim();
+      if (!candidateText) {
         filterRegex.value = null;
         filterRegexError.value = null;
         lastValidFilterRegex = null;
@@ -156,14 +83,13 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       }
 
       try {
-        const rx = new RegExp(text, "i");
+        const rx = new RegExp(candidateText, "i");
         filterRegex.value = rx;
         filterRegexError.value = null;
         lastValidFilterRegex = rx;
       } catch {
         filterRegexError.value =
-          t?.("queue.filters.invalidRegex") ||
-          "无效的正则表达式，已保留上一次有效筛选。";
+          (t?.("queue.filters.invalidRegex") as string) ?? "";
         // Keep using the last valid regex (if any) so the UI remains stable.
         filterRegex.value = lastValidFilterRegex;
       }
@@ -221,6 +147,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     const haystack = (job.inputPath || job.filename || "").toLowerCase();
     if (!haystack) return false;
 
+    // Global regex mode: entire input is treated as a single regex pattern.
     if (filterUseRegex.value) {
       const rx = filterRegex.value;
       if (!rx) {
@@ -231,7 +158,10 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       return rx.test(haystack);
     }
 
-    // Plain-text mode with optional size tokens like "size>10mb".
+    // Unified text filter mode with support for:
+    // - plain text tokens (substring match)
+    // - size tokens like "size>10mb"
+    // - an optional regex token "regex:pattern"
     const tokens = rawText
       .split(/\s+/)
       .map((t) => t.trim())
@@ -241,6 +171,18 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     const plainTokens: string[] = [];
 
     for (const token of tokens) {
+      if (token === "/") {
+        // Treat a bare "/" token (for example from "a size>10 / regex:...")
+        // as a visual separator, not a filter term.
+        continue;
+      }
+
+      // Regex tokens are handled by the watcher and exposed via filterRegex,
+      // so we skip them in the plain-text set here.
+      if (token.toLowerCase().startsWith("regex:")) {
+        continue;
+      }
+
       const parsed = parseSizeFilterToken(token);
       if (parsed) {
         sizeFilter = parsed;
@@ -249,11 +191,21 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       }
     }
 
-    // Text token matching: preserve previous behaviour by joining the
-    // remaining tokens back into a single substring.
-    if (plainTokens.length > 0) {
-      const needle = plainTokens.join(" ").toLowerCase();
+    // Plain-text token matching: each token must be present in the haystack
+    // (logical AND across tokens).
+    for (const token of plainTokens) {
+      const needle = token.toLowerCase();
+      if (!needle) continue;
       if (!haystack.includes(needle)) {
+        return false;
+      }
+    }
+
+    // Regex token in unified mode: when present, it is AND-ed with the plain
+    // tokens and size filter.
+    if (filterRegex.value) {
+      const rx = filterRegex.value;
+      if (rx && !rx.test(haystack)) {
         return false;
       }
     }

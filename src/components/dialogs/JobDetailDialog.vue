@@ -107,7 +107,9 @@ const jobDetailHasDistinctTemplate = computed(() => {
 });
 const commandViewToggleLabel = computed(() => {
   if (!jobDetailHasDistinctTemplate.value) return "";
-  return showTemplateCommand.value ? "显示完整命令" : "显示模板视图";
+  return showTemplateCommand.value
+    ? (t("taskDetail.commandToggle.showFull") as string)
+    : (t("taskDetail.commandToggle.showTemplate") as string);
 });
 const highlightedCommandHtml = computed(() => highlightFfmpegCommand(jobDetailEffectiveCommand.value));
 
