@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -61,7 +62,6 @@ vi.mock("@/lib/backend", () => {
       videoPresetId: "",
     },
     previewCapturePercent: 25,
-    developerModeEnabled: false,
     defaultQueuePresetId: undefined,
     maxParallelJobs: undefined,
     progressUpdateIntervalMs: undefined,
@@ -104,13 +104,13 @@ const i18n = createI18n({
   messages: { en: {} },
 });
 
-describe("MainApp developer mode devtools toggle", () => {
+describe("MainApp devtools quick action", () => {
   beforeEach(() => {
     (window as any).__TAURI__ = {};
     openDevtoolsMock.mockClear();
   });
 
-  it("calls backend openDevtools only when developer mode is enabled and button is clicked", async () => {
+  it("calls backend openDevtools when the button is clicked (tauri)", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],

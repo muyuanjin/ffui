@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -10,7 +11,7 @@ const i18n = createI18n({
 });
 
 describe("MainApp drag & drop state", () => {
-  it("handleTauriFileDropHover toggles isDragging only when media files are present", () => {
+  it("handleDragOver and handleDragLeave toggle isDragging for DOM drag events", () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -19,20 +20,21 @@ describe("MainApp drag & drop state", () => {
 
     const vm: any = wrapper.vm;
 
-    // Non-media paths should not enable dragging overlay.
-    vm.handleTauriFileDropHover(["C:/temp/readme.txt", "C:/temp/data.json"]);
     expect(vm.isDragging).toBe(false);
 
-    // Media paths should enable dragging overlay.
-    vm.handleTauriFileDropHover([
-      "C:/videos/movie.mp4",
-      "C:/images/photo.jpg",
-      "C:/temp/readme.txt",
-    ]);
+    const dragEvent = {
+      preventDefault: () => {},
+      dataTransfer: null,
+    } as unknown as DragEvent;
+
+    vm.handleDragOver(dragEvent);
     expect(vm.isDragging).toBe(true);
+
+    vm.handleDragLeave();
+    expect(vm.isDragging).toBe(false);
   });
 
-  it("handleTauriFileDrop sets lastDroppedRoot and clears dragging state", () => {
+  it("handleDrop clears isDragging after a DOM drop event", () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -40,11 +42,16 @@ describe("MainApp drag & drop state", () => {
     });
 
     const vm: any = wrapper.vm;
-
     vm.isDragging = true;
-    vm.handleTauriFileDrop(["C/videos/test.mp4"]);
 
+    const dropEvent = {
+      preventDefault: () => {},
+      dataTransfer: {
+        files: [],
+      },
+    } as unknown as DragEvent;
+
+    vm.handleDrop(dropEvent);
     expect(vm.isDragging).toBe(false);
-    expect(vm.lastDroppedRoot).toBe("C/videos");
   });
 });

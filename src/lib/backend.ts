@@ -144,6 +144,8 @@ export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
   return invoke<boolean>("reorder_queue", {
     orderedIds,
     ordered_ids: orderedIds,
+    jobIds: orderedIds,
+    job_ids: orderedIds,
   });
 };
 

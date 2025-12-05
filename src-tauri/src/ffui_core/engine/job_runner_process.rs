@@ -1,0 +1,42 @@
+// ============================================================================
+// Core job processing
+// ============================================================================
+
+use crate::ffui_core::settings::AppSettings;
+use crate::ffui_core::domain::FFmpegPreset;
+
+/// Prepared snapshot and configuration for a single transcode job.
+///
+/// This structure collects all values that need to flow from the initial
+/// queue/state inspection phase into the long-running ffmpeg execution phase.
+struct PreparedTranscodeJob {
+    input_path: PathBuf,
+    settings_snapshot: AppSettings,
+    preset: FFmpegPreset,
+    original_size_bytes: u64,
+    preset_id: String,
+    output_path: PathBuf,
+    resume_from_seconds: Option<f64>,
+    existing_segment: Option<PathBuf>,
+    tmp_output: PathBuf,
+    total_duration: Option<f64>,
+    ffmpeg_path: String,
+    ffmpeg_source: String,
+}
+
+pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
+    // Phase 1: inspect queue state, resolve preset/paths, and persist media
+    // metadata plus preview paths back into the job. When the job does not
+    // require processing (non-video or missing preset) this returns Ok(None)
+    // after updating the job state accordingly.
+    let Some(prepared) = prepare_transcode_job(inner, job_id)? else {
+        return Ok(());
+    };
+
+    // Phase 2: run ffmpeg, stream progress/logs, handle cooperative
+    // wait/cancel, and finalize statistics/output files.
+    execute_transcode_job(inner, job_id, prepared)
+}
+
+include!("job_runner_process_prepare.rs");
+include!("job_runner_process_execute.rs");

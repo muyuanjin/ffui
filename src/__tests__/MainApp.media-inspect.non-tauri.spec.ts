@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -7,7 +8,7 @@ vi.mock("@/lib/backend", () => {
   return {
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null) => path,
-    inspectMedia: vi.fn(async () => "{}"),
+    inspectMedia: vi.fn(async () => '{"format":{"duration":"60"},"streams":[]}'),
     fetchCpuUsage: vi.fn(async () => ({} as any)),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchGpuUsage: vi.fn(async () => ({} as any)),
@@ -27,7 +28,7 @@ const i18n = createI18n({
 });
 
 describe("MainApp media inspect in non-Tauri (web) mode", () => {
-  it("handles DOM drop on media tab without calling inspectMedia and records basic info", () => {
+  it("handles DOM drop on media tab and records basic inspected media state", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -50,12 +51,15 @@ describe("MainApp media inspect in non-Tauri (web) mode", () => {
 
     vm.handleDrop(event);
 
-    const source = vm.mediaInspectSource;
-    expect(source && source.name).toBe("sample.mp4");
-    expect(source && source.path).toBe("C:/videos/sample.mp4");
+    // inspectMediaForPath is async; wait for the microtask queue to flush.
+    await Promise.resolve();
+
+    expect(vm.inspectedMediaPath).toBe("C:/videos/sample.mp4");
+    expect(vm.inspectedAnalysis && vm.inspectedAnalysis.summary).not.toBeNull();
 
     // 清空后应回到“未选择媒体”的空态。
-    vm.clearMediaInspection();
-    expect(vm.mediaInspectSource).toBeNull();
+    vm.clearInspectedMedia();
+    expect(vm.inspectedMediaPath).toBeNull();
+    expect(vm.inspectedAnalysis).toBeNull();
   });
 });

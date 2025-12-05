@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
@@ -42,18 +43,32 @@ describe("MainApp queue secondary header", () => {
 
     const vm: any = wrapper.vm;
     vm.activeTab = "queue";
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-1",
+        filename: "C:/videos/a.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+    ];
+    setJobs(vm, jobs);
     await nextTick();
 
     const main = wrapper.get("main");
-    const header = main.get("header");
     // .get 若找不到会直接抛错，这里无需额外调用 exists()
-    const secondary = header.get("[data-testid='queue-secondary-header']");
+    const secondary = main.get("[data-testid='queue-secondary-header']");
 
-    // 二级 header 只挂在顶部 header 中，而不是内容区域的卡片容器里。
-    const contentSecondary = main.find(
-      "[data-testid='queue-secondary-header']",
-    );
-    expect(contentSecondary.element).toBe(secondary.element);
+    // 二级 header 在队列内容顶部只渲染一次，而不是散落在每个任务卡片里。
+    const allSecondary = main.findAll("[data-testid='queue-secondary-header']");
+    expect(allSecondary.length).toBe(1);
+    expect(allSecondary[0].element).toBe(secondary.element);
 
     wrapper.unmount();
   });
@@ -70,26 +85,28 @@ describe("MainApp queue secondary header", () => {
 
     const vm: any = wrapper.vm;
     vm.activeTab = "queue";
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-1",
+        filename: "C:/videos/a.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+    ];
+    setJobs(vm, jobs);
     await nextTick();
 
     const secondary = wrapper.get("[data-testid='queue-secondary-header']");
+    // 排序区域始终可见，包含 Sort 标签与排序字段选择框。
     expect(secondary.text()).toContain("Sort");
-
-    // 初始收起：不渲染详细筛选面板。
-    expect(wrapper.find("[data-testid='queue-filter-panel']").exists()).toBe(
-      false,
-    );
-
-    if (typeof vm.toggleQueueFilterExpanded === "function") {
-      vm.toggleQueueFilterExpanded();
-      await nextTick();
-    }
-
-    expect(wrapper.find("[data-testid='queue-filter-panel']").exists()).toBe(
-      true,
-    );
-    // 排序行在展开筛选时仍然存在。
-    expect(secondary.text()).toContain("Sort");
+    expect(secondary.text()).toContain("Added time");
 
     wrapper.unmount();
   });

@@ -68,6 +68,13 @@ export type { UseDragAndDropOptions } from "./useDragAndDrop";
 export { useMonitoring } from "./useMonitoring";
 export type { UseMonitoringOptions } from "./useMonitoring";
 
+export { usePresetEditor } from "./usePresetEditor";
+export type {
+  PresetEditorState,
+  UsePresetEditorOptions,
+  UsePresetEditorReturn,
+} from "./usePresetEditor";
+
 // Re-export commonly used helper functions
 export {
   classifyLogLine,
@@ -83,7 +90,7 @@ export {
   comparePrimitive,
   getJobSortValue,
   compareJobsByField,
-} from "./useQueueFiltering";
+} from "./queue/filtering-utils";
 
 export {
   normalizedJobProgressForAggregate,

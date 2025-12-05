@@ -81,7 +81,11 @@ export function useDialogManager() {
 
   const closeJobDetail = () => {
     jobDetailOpen.value = false;
-    selectedJob.value = null;
+    // 只有当预览也关闭时才清空 selectedJob，避免在“任务详情 + 预览”并存时
+    // 关闭任一对话框导致另一个对话框变成“空详情”。
+    if (!previewOpen.value) {
+      selectedJob.value = null;
+    }
   };
 
   const closeBatchDetail = () => {
@@ -91,7 +95,11 @@ export function useDialogManager() {
 
   const closePreview = () => {
     previewOpen.value = false;
-    selectedJob.value = null;
+    // 同理：只有在任务详情已关闭时才清空 selectedJob，保证
+    // 从任务详情展开预览再关闭时，详情内容不会变成空白。
+    if (!jobDetailOpen.value) {
+      selectedJob.value = null;
+    }
   };
 
   const closeDeletePresetDialog = () => {
@@ -144,3 +152,5 @@ export function useDialogManager() {
     closeAllDialogs,
   };
 }
+
+export type UseDialogManagerReturn = ReturnType<typeof useDialogManager>;
