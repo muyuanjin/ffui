@@ -320,6 +320,7 @@ const en = {
       processing: "processing",
       paused: "paused",
       waiting: "waiting",
+      queued: "queued",
       skipped: "skipped",
       failed: "failed",
       cancelled: "cancelled",
