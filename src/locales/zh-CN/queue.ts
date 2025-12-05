@@ -16,10 +16,10 @@ const queue = {
   },
   modeLabel: "队列模式",
   modes: {
-    display: "仅改显示顺序",
-    queue: "按执行队列",
-    displayLabelShort: "仅改显示顺序",
-    queueLabelShort: "按执行队列",
+    display: "视图排序",
+    queue: "执行队列",
+    displayLabelShort: "视图排序",
+    queueLabelShort: "执行队列",
     displayHint:
       "仅改显示顺序：只改变界面上任务的展示顺序，不会影响后台实际执行顺序。拖拽、移到队首或队尾等调整优先级的操作在该模式下会被禁用。",
     queueHint:
@@ -30,6 +30,10 @@ const queue = {
     bar: "标准进度",
     cardFill: "背景填充",
     rippleCard: "水波卡片",
+  },
+  groups: {
+    processing: "正在处理",
+    waiting: "等待队列",
   },
   status: {
     completed: "已完成",

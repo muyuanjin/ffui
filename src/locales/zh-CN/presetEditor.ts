@@ -113,6 +113,8 @@ const presetEditor = {
     templateLabel: "ffmpeg 命令模版",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "命令预览",
+    templateHint:
+      "INPUT / OUTPUT 占位符会在实际执行时被具体路径替换；参数面板中的更改会实时反映到预览。",
     parseButton: "从完整命令智能提取 INPUT / OUTPUT 占位符",
     parseEmpty: "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。",
     parseOk: "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。",

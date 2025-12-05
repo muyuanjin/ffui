@@ -6,15 +6,13 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::thread;
 
-use crate::ffui_core::domain::{
-    FFmpegPreset, JobSource, JobStatus, JobType, MediaInfo, TranscodeJob,
-};
+use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
 
-use super::state::{EngineState, Inner, SmartScanBatchStatus, notify_queue_listeners};
+use super::state::{EngineState, Inner, notify_queue_listeners};
 
 use super::worker_utils::{
-    MAX_LOG_TAIL_BYTES, build_video_output_path, current_time_millis,
-    estimate_job_seconds_for_preset, mark_smart_scan_child_processed, recompute_log_tail,
+    build_video_output_path, current_time_millis, estimate_job_seconds_for_preset,
+    mark_smart_scan_child_processed, recompute_log_tail,
 };
 
 /// Spawn worker threads that process jobs from the queue.

@@ -98,9 +98,7 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
       console.error(
         "Selected file does not expose a native path in Tauri; cannot enqueue backend job from file input",
       );
-      queueError.value =
-        t?.("queue.error.enqueueFailed") ||
-        "无法将任务加入队列：当前环境未提供本地文件路径，请改用拖拽或左侧的「添加压缩任务（智能扫描）」入口。";
+      queueError.value = (t?.("queue.error.enqueueFailed") as string) ?? "";
       if (input) {
         input.value = "";
       }
@@ -181,18 +179,14 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
       const path = Array.isArray(selected) ? selected[0] : selected;
       if (!path || typeof path !== "string") {
         console.error("Dialog returned an invalid path for manual job", selected);
-        queueError.value =
-          t?.("queue.error.enqueueFailed") ||
-          "无法将任务加入队列：系统对话框未返回有效路径，请重试或改用拖拽或左侧的「添加压缩任务（智能扫描）」。";
+        queueError.value = (t?.("queue.error.enqueueFailed") as string) ?? "";
         return;
       }
 
       await enqueueManualJobFromPath(path);
     } catch (error) {
       console.error("Failed to open dialog for manual job", error);
-      queueError.value =
-        t?.("queue.error.enqueueFailed") ||
-        "无法调用系统文件选择对话框，请检查 Tauri 权限配置或稍后重试。";
+      queueError.value = (t?.("queue.error.enqueueFailed") as string) ?? "";
     }
   };
 

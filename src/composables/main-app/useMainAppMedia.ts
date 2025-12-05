@@ -3,6 +3,7 @@ import type { ParsedMediaAnalysis } from "@/lib/mediaInfo";
 import { parseFfprobeJson } from "@/lib/mediaInfo";
 import { EXTENSIONS } from "@/constants";
 import { buildPreviewUrl, hasTauri, inspectMedia } from "@/lib/backend";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { MainAppTab } from "./useMainAppShell";
 
 export interface UseMainAppMediaOptions {
@@ -80,9 +81,7 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
   const openMediaFileDialog = async () => {
     if (!hasTauri()) return;
     try {
-      const { open } = await import("@tauri-apps/plugin-dialog");
-
-      const selected = await open({
+      const selected = await openDialog({
         multiple: false,
         directory: false,
         filters: [
@@ -122,4 +121,3 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
 }
 
 export default useMainAppMedia;
-

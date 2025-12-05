@@ -207,7 +207,7 @@ const { t } = useI18n();
           <div class="grid grid-cols-3 gap-3">
             <div class="space-y-1">
               <Label class="block text-xs">
-                {{ t("presetEditor.audio.targetLufsLabel", "目标响度 (LUFS)") }}
+                {{ t("presetEditor.audio.targetLufsLabel") }}
               </Label>
               <Input
                 type="number"
@@ -226,7 +226,7 @@ const { t } = useI18n();
 
             <div class="space-y-1">
               <Label class="block text-xs">
-                {{ t("presetEditor.audio.loudnessRangeLabel", "动态范围 (LRA)") }}
+                {{ t("presetEditor.audio.loudnessRangeLabel") }}
               </Label>
               <Input
                 type="number"
@@ -245,7 +245,7 @@ const { t } = useI18n();
 
             <div class="space-y-1">
               <Label class="block text-xs">
-                {{ t("presetEditor.audio.truePeakDbLabel", "真峰值上限 (dBTP)") }}
+                {{ t("presetEditor.audio.truePeakDbLabel") }}
               </Label>
               <Input
                 type="number"
@@ -268,12 +268,12 @@ const { t } = useI18n();
 
     <div class="bg-muted/40 p-4 rounded-md border border-border/60">
       <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
-        {{ t("presetEditor.panel.subtitlesTitle", "字幕策略") }}
+        {{ t("presetEditor.panel.subtitlesTitle") }}
       </h3>
       <div class="space-y-3">
         <div class="space-y-1">
           <Label class="text-xs">
-            {{ t("presetEditor.panel.subtitlesStrategyLabel", "处理方式") }}
+            {{ t("presetEditor.panel.subtitlesStrategyLabel") }}
           </Label>
           <Select
             :model-value="subtitles.strategy ?? 'keep'"
@@ -284,13 +284,13 @@ const { t } = useI18n();
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="keep">
-                {{ t("presetEditor.panel.subtitlesKeep", "保留（默认）") }}
+                {{ t("presetEditor.panel.subtitlesKeep") }}
               </SelectItem>
               <SelectItem value="drop">
-                {{ t("presetEditor.panel.subtitlesDrop", "移除所有字幕 (-sn)") }}
+                {{ t("presetEditor.panel.subtitlesDrop") }}
               </SelectItem>
               <SelectItem value="burn_in">
-                {{ t("presetEditor.panel.subtitlesBurnIn", "烧录到画面（滤镜）") }}
+                {{ t("presetEditor.panel.subtitlesBurnIn") }}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -301,14 +301,13 @@ const { t } = useI18n();
           class="space-y-1"
         >
           <Label class="text-xs">
-            {{ t("presetEditor.panel.subtitlesBurnInFilterLabel", "烧录滤镜表达式") }}
+            {{ t("presetEditor.panel.subtitlesBurnInFilterLabel") }}
           </Label>
           <Input
             :model-value="subtitles.burnInFilter ?? ''"
             :placeholder="
               t(
                 'presetEditor.panel.subtitlesBurnInFilterPlaceholder',
-                '例如 subtitles=INPUT:si=0',
               )
             "
             class="h-8 text-xs font-mono"
@@ -320,16 +319,10 @@ const { t } = useI18n();
             "
           />
           <p class="text-[11px] text-muted-foreground">
-            {{
-              t(
-                "presetEditor.panel.subtitlesBurnInHelp",
-                "此字段会追加到视频滤镜链中；复杂多轨场景建议仍使用模板模式。",
-              )
-            }}
+            {{ t("presetEditor.panel.subtitlesBurnInHelp") }}
           </p>
         </div>
       </div>
     </div>
   </div>
 </template>
-

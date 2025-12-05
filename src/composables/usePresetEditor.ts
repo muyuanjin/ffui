@@ -113,9 +113,9 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
   const rateControlLabel = computed(() => {
     if (video.encoder === "hevc_nvenc") {
-      return t?.("presetEditor.video.cqLabel", "CQ") ?? "CQ";
+      return t?.("presetEditor.video.cqLabel") ?? "CQ";
     }
-    return t?.("presetEditor.video.crfLabel", "CRF") ?? "CRF";
+    return t?.("presetEditor.video.crfLabel") ?? "CRF";
   });
 
   const commandPreview = computed(() => {
@@ -160,7 +160,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
     return {
       id: initialPreset.id,
-      name: name.value || t?.("presetEditor.untitled", "Untitled Preset") || "Untitled Preset",
+      name: name.value || (t?.("presetEditor.untitled") as string) || "Untitled Preset",
       description: description.value,
       global: { ...(global as GlobalConfig) },
       input: { ...(input as InputTimelineConfig) },
@@ -190,8 +190,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
     if (!source) {
       parseHint.value =
-        t?.("presetEditor.advanced.parseEmpty", "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。") ||
-        "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。";
+        (t?.("presetEditor.advanced.parseEmpty") as string) ?? "";
       parseHintVariant.value = "warning";
       return;
     }
@@ -202,25 +201,15 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
     if (result.inputReplaced && result.outputReplaced) {
       parseHint.value =
-        t?.(
-          "presetEditor.advanced.parseOk",
-          "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。",
-        ) || "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。";
+        (t?.("presetEditor.advanced.parseOk") as string) ?? "";
       parseHintVariant.value = "ok";
     } else if (result.inputReplaced || result.outputReplaced) {
       parseHint.value =
-        t?.(
-          "presetEditor.advanced.parsePartial",
-          "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。",
-        ) || "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。";
+        (t?.("presetEditor.advanced.parsePartial") as string) ?? "";
       parseHintVariant.value = "warning";
     } else {
       parseHint.value =
-        t?.(
-          "presetEditor.advanced.parseFailed",
-          "未能自动识别输入/输出路径，请确保包含 -i <输入> 和输出文件路径，或直接手动将对应部分替换为 INPUT / OUTPUT。",
-        ) ||
-        "未能自动识别输入/输出路径，请确保包含 -i <输入> 和输出文件路径，或直接手动将对应部分替换为 INPUT / OUTPUT。";
+        (t?.("presetEditor.advanced.parseFailed") as string) ?? "";
       parseHintVariant.value = "warning";
     }
   };

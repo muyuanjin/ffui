@@ -39,12 +39,12 @@ const emit = defineEmits<{
   <div class="space-y-6">
     <div class="bg-muted/40 p-4 rounded-md border border-border/60">
       <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
-        {{ t("presetEditor.summary.title", '预设概览') }}
+        {{ t("presetEditor.summary.title") }}
       </h3>
       <div class="grid grid-cols-2 gap-3 text-xs">
         <div>
           <div class="text-[10px] text-muted-foreground uppercase mb-1">
-            {{ t("presets.videoLabel", '视频') }}
+            {{ t("presets.videoLabel") }}
           </div>
           <div class="font-mono text-foreground">
             {{ video.encoder }} · {{ video.rateControl.toUpperCase() }} {{ video.qualityValue }}
@@ -52,7 +52,7 @@ const emit = defineEmits<{
         </div>
         <div>
           <div class="text-[10px] text-muted-foreground uppercase mb-1">
-            {{ t("presets.audioLabel", '音频') }}
+            {{ t("presets.audioLabel") }}
           </div>
           <div class="font-mono text-foreground">
             <span v-if="audio.codec === 'copy'">
@@ -117,7 +117,7 @@ const emit = defineEmits<{
               class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
               @click="emit('parse-template')"
             >
-              {{ t("presetEditor.advanced.parseButton", "智能解析命令") }}
+              {{ t("presetEditor.advanced.parseButton") }}
             </Button>
             <Button
               variant="ghost"
@@ -134,10 +134,7 @@ const emit = defineEmits<{
           v-html="highlightedCommandHtml"
         />
         <p :class="parseHintClass" class="mt-1">
-          {{
-            parseHint ||
-              "INPUT / OUTPUT 会在实际执行时被具体路径替换；如果从完整命令粘贴，请优先在此处解析并替换占位符。"
-          }}
+          {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
         </p>
       </div>
     </div>

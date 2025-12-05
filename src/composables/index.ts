@@ -18,7 +18,7 @@ export type {
   QueueListItem,
   UseQueueFilteringOptions,
   UseQueueFilteringReturn,
-} from "./useQueueFiltering";
+} from "./queue/useQueueFiltering.types";
 
 export { useJobProgress } from "./useJobProgress";
 export type {
@@ -67,6 +67,17 @@ export type { UseDragAndDropOptions } from "./useDragAndDrop";
 
 export { useMonitoring } from "./useMonitoring";
 export type { UseMonitoringOptions } from "./useMonitoring";
+
+export { useSystemMetrics } from "./useSystemMetrics";
+export type {
+  UseSystemMetricsOptions,
+  UseSystemMetricsReturn,
+  CoreSeries,
+  DiskPoint,
+  MemoryPoint,
+  NetworkSeries,
+  TimePoint,
+} from "./useSystemMetrics";
 
 export { usePresetEditor } from "./usePresetEditor";
 export type {

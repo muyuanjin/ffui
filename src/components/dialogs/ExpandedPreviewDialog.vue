@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
@@ -54,6 +54,9 @@ const handleVideoLoadedMetadata = (event: Event) => {
         <DialogTitle class="text-base">
           {{ job?.filename || t("jobDetail.preview") }}
         </DialogTitle>
+        <DialogDescription class="text-[11px] text-muted-foreground">
+          {{ t("jobDetail.previewDescription") }}
+        </DialogDescription>
       </DialogHeader>
       <div class="mt-2 relative w-full max-h-[70vh] rounded-md bg-black flex items-center justify-center overflow-hidden">
         <template v-if="previewUrl">

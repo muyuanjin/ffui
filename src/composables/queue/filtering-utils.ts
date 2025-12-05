@@ -1,23 +1,8 @@
 import type { TranscodeJob } from "@/types";
-
-// ----- Types -----
-
-export type QueueSortField =
-  | "filename"
-  | "status"
-  | "addedTime"
-  | "finishedTime"
-  | "duration"
-  | "elapsed"
-  | "progress"
-  | "type"
-  | "path"
-  | "inputSize"
-  | "outputSize"
-  | "createdTime"
-  | "modifiedTime";
-
-export type QueueSortDirection = "asc" | "desc";
+import type {
+  QueueSortDirection,
+  QueueSortField,
+} from "./useQueueFiltering.types";
 
 // ----- Helper Functions -----
 

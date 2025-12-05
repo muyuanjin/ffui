@@ -19,8 +19,9 @@ import type { QueueFilterStatus, QueueFilterKind, QueueSortField, QueueSortDirec
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
-const QueueSmartScanIconBatchItem = defineAsyncComponent(() => import("@/components/QueueSmartScanIconBatchItem.vue"));
-import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
+const QueueSmartScanIconBatchItem = defineAsyncComponent(
+  () => import("@/components/QueueSmartScanIconBatchItem.vue"),
+);
 
 const props = defineProps<{
   // Queue items
@@ -115,9 +116,13 @@ const canCancelJob = (job: TranscodeJob): boolean => {
       <span>{{ queueError }}</span>
     </div>
 
-    <!-- Empty state -->
+    <!-- Empty state
+         Only show when the queue is truly empty (no jobs and no batches) and
+         no filters are active. When filters hide all jobs, keep the secondary
+         header visible so users can adjust filters instead of seeing an
+         "empty queue" screen. -->
     <div
-      v-if="queueJobsForDisplay.length === 0 && !hasSmartScanBatches"
+      v-if="queueJobsForDisplay.length === 0 && !hasSmartScanBatches && !hasActiveFilters"
       class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-sidebar-ring/70 hover:text-foreground transition-all"
       @click="emit('addJob')"
     >
@@ -138,36 +143,6 @@ const canCancelJob = (job: TranscodeJob): boolean => {
 
     <!-- Queue content -->
     <div v-else>
-      <QueueFiltersBar
-        :active-status-filters="activeStatusFilters"
-        :active-type-filters="activeTypeFilters"
-        :filter-text="filterText"
-        :filter-use-regex="filterUseRegex"
-        :filter-regex-error="filterRegexError"
-        :sort-primary="sortPrimary"
-        :sort-primary-direction="sortPrimaryDirection"
-        :has-selection="hasSelection"
-        :selected-count="selectedCount"
-        :queue-mode="queueMode"
-        @toggle-status-filter="(v) => emit('toggleStatusFilter', v)"
-        @toggle-type-filter="(v) => emit('toggleTypeFilter', v)"
-        @update:filterText="(v) => emit('update:filterText', v)"
-        @toggle-filter-regex-mode="emit('toggleFilterRegexMode')"
-        @reset-queue-filters="emit('resetQueueFilters')"
-        @update:sortPrimary="(v) => emit('update:sortPrimary', v)"
-        @update:sortPrimaryDirection="(v) => emit('update:sortPrimaryDirection', v)"
-        @select-all-visible-jobs="emit('selectAllVisibleJobs')"
-        @invert-selection="emit('invertSelection')"
-        @clear-selection="emit('clearSelection')"
-        @bulk-cancel="emit('bulkCancel')"
-        @bulk-wait="emit('bulkWait')"
-        @bulk-resume="emit('bulkResume')"
-        @bulk-restart="emit('bulkRestart')"
-        @bulk-move-to-top="emit('bulkMoveToTop')"
-        @bulk-move-to-bottom="emit('bulkMoveToBottom')"
-        @bulk-delete="emit('bulkDelete')"
-      />
-
       <!-- Icon view mode -->
       <div v-if="isIconViewMode">
         <div data-testid="queue-icon-grid" :class="iconGridClass">
@@ -197,8 +172,12 @@ const canCancelJob = (job: TranscodeJob): boolean => {
         <div v-if="queueMode === 'queue'" class="space-y-4">
           <div v-if="queueModeProcessingJobs.length > 0" class="space-y-2">
             <div class="flex items-center justify-between px-1">
-              <span class="text-xs font-semibold text-muted-foreground uppercase">Processing</span>
-              <span class="text-[11px] text-muted-foreground">{{ queueModeProcessingJobs.length }}</span>
+              <span class="text-xs font-semibold text-muted-foreground uppercase">
+                {{ t("queue.groups.processing") }}
+              </span>
+              <span class="text-[11px] text-muted-foreground">
+                {{ queueModeProcessingJobs.length }}
+              </span>
             </div>
             <div>
               <QueueItem
@@ -228,8 +207,12 @@ const canCancelJob = (job: TranscodeJob): boolean => {
 
           <div v-if="queueModeWaitingJobs.length > 0" class="space-y-2">
             <div class="flex items-center justify-between px-1">
-              <span class="text-xs font-semibold text-muted-foreground uppercase">Waiting</span>
-              <span class="text-[11px] text-muted-foreground">{{ queueModeWaitingJobs.length }}</span>
+              <span class="text-xs font-semibold text-muted-foreground uppercase">
+                {{ t("queue.groups.waiting") }}
+              </span>
+              <span class="text-[11px] text-muted-foreground">
+                {{ queueModeWaitingJobs.length }}
+              </span>
             </div>
             <div>
               <QueueItem

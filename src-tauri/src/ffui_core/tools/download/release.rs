@@ -1,5 +1,6 @@
 use anyhow::{Result, anyhow};
 
+#[cfg(not(test))]
 use crate::ffui_core::tools::download::net::proxy_from_env;
 use crate::ffui_core::tools::types::*;
 

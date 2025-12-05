@@ -21,7 +21,7 @@ use std::sync::{Arc as TestArc, Mutex as TestMutex};
 
 mod common;
 
-pub(super) use common::*;
+use common::*;
 
 mod enqueue_and_logging;
 mod ffmpeg_args_tests;

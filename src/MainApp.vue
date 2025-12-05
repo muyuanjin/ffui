@@ -10,6 +10,7 @@ import MonitorPanel from "@/components/panels/MonitorPanel.vue";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
 import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
+import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import MediaPanel from "@/components/panels/MediaPanel.vue";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
@@ -152,6 +153,8 @@ const {
   filterRegexError,
   sortPrimary,
   sortPrimaryDirection,
+  sortSecondary,
+  sortSecondaryDirection,
   hasActiveFilters,
   hasSelection,
   queueModeProcessingJobs,
@@ -366,6 +369,44 @@ defineExpose(mainApp);
         />
 
         <ScrollArea class="flex-1">
+          <QueueFiltersBar
+            v-if="activeTab === 'queue'"
+            :active-status-filters="activeStatusFilters"
+            :active-type-filters="activeTypeFilters"
+            :filter-text="filterText"
+            :filter-use-regex="filterUseRegex"
+            :filter-regex-error="filterRegexError"
+            :sort-primary="sortPrimary"
+            :sort-primary-direction="sortPrimaryDirection"
+            :sort-secondary="sortSecondary"
+            :sort-secondary-direction="sortSecondaryDirection"
+            :has-active-filters="hasActiveFilters"
+            :has-selection="hasSelection"
+            :selected-count="selectedJobIds.size"
+            :queue-mode="queueMode"
+            :visible-count="queueJobsForDisplay.length"
+            :total-count="jobs.length"
+            @toggle-status-filter="toggleStatusFilter"
+            @toggle-type-filter="toggleTypeFilter"
+            @update:filterText="(v) => (filterText = v)"
+            @toggle-filter-regex-mode="toggleFilterRegexMode"
+            @reset-queue-filters="resetQueueFilters"
+            @update:sortPrimary="(v) => (sortPrimary = v)"
+            @update:sortPrimaryDirection="(v) => (sortPrimaryDirection = v)"
+            @update:sortSecondary="(v) => (sortSecondary = v)"
+            @update:sortSecondaryDirection="(v) => (sortSecondaryDirection = v)"
+            @select-all-visible-jobs="selectAllVisibleJobs"
+            @invert-selection="invertSelection"
+            @clear-selection="clearSelection"
+            @bulk-cancel="bulkCancel"
+            @bulk-wait="bulkWait"
+            @bulk-resume="bulkResume"
+            @bulk-restart="bulkRestart"
+            @bulk-move-to-top="bulkMoveToTop"
+            @bulk-move-to-bottom="bulkMoveToBottom"
+            @bulk-delete="bulkDelete"
+          />
+
           <div class="p-4">
             <QueuePanel
               v-if="activeTab === 'queue'"
@@ -373,24 +414,7 @@ defineExpose(mainApp);
               @update:queue-view-mode="setQueueViewMode"
               @update:queue-mode="setQueueMode"
               @update:queue-progress-style="setQueueProgressStyle"
-              @update:filter-text="(v) => (filterText = v)"
-              @update:sort-primary="(v) => (sortPrimary = v)"
-              @update:sort-primary-direction="(v) => (sortPrimaryDirection = v)"
               @add-job="addManualJob"
-              @toggle-status-filter="toggleStatusFilter"
-              @toggle-type-filter="toggleTypeFilter"
-              @toggle-filter-regex-mode="toggleFilterRegexMode"
-              @reset-queue-filters="resetQueueFilters"
-              @select-all-visible-jobs="selectAllVisibleJobs"
-              @invert-selection="invertSelection"
-              @clear-selection="clearSelection"
-              @bulk-cancel="bulkCancel"
-              @bulk-wait="bulkWait"
-              @bulk-resume="bulkResume"
-              @bulk-restart="bulkRestart"
-              @bulk-move-to-top="bulkMoveToTop"
-              @bulk-move-to-bottom="bulkMoveToBottom"
-              @bulk-delete="bulkDelete"
               @cancel-job="handleCancelJob"
               @wait-job="handleWaitJob"
               @resume-job="handleResumeJob"

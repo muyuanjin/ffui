@@ -102,4 +102,61 @@ describe("MainApp queue filters", () => {
     const filtered = getFilteredJobs(vm);
     expect(filtered.map((j) => j.id)).toEqual(["job-big"]);
   });
+
+  it("supports unified text filters with regex: tokens combined with size and text", async () => {
+    const wrapper = mount(MainApp, {
+      global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
+    });
+
+    const vm: any = wrapper.vm;
+    vm.activeTab = "queue";
+    if ("queueModeModel" in vm) vm.queueModeModel = "display";
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-small-building",
+        filename: "C:/videos/building-small.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
+      {
+        id: "job-big-building",
+        filename: "C:/videos/great-building.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 500,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
+      {
+        id: "job-big-other",
+        filename: "C:/videos/other.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 500,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
+    ];
+
+    setJobs(vm, jobs);
+    if ("filterText" in vm)
+      vm.filterText = "building size>100 regex:.*building.*";
+    await nextTick();
+
+    const filtered = getFilteredJobs(vm);
+    expect(filtered.map((j) => j.id)).toEqual(["job-big-building"]);
+  });
 });
