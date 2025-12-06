@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
 import MainApp from "@/MainApp.vue";
 
@@ -36,7 +37,14 @@ vi.mock("@/lib/backend", () => ({
   cancelTranscodeJob: vi.fn(async () => true),
 }));
 
-const i18n = createI18n({ legacy: false, locale: "en", messages: { en: en as any } });
+const i18n = createI18n({
+  legacy: false,
+  locale: "en",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
 
 const setJobsOnVm = (vm: any, jobs: TranscodeJob[]) => {
   if (Array.isArray(vm.jobs)) {
@@ -49,6 +57,7 @@ const setJobsOnVm = (vm: any, jobs: TranscodeJob[]) => {
 describe("MainApp task detail surface - basics", () => {
   beforeEach(() => {
     (window as any).__TAURI_IPC__ = {};
+    (i18n.global.locale as any).value = "en";
   });
 
   it("renders rich details for a completed job", async () => {
@@ -196,5 +205,50 @@ describe("MainApp task detail surface - basics", () => {
     const text = document.body.textContent ?? "";
     expect(text).toContain("missing");
     expect(text.toLowerCase()).toContain("unknown preset");
+  });
+
+  it("updates command view toggle label in task detail when locale changes at runtime", async () => {
+    const job: TranscodeJob = {
+      id: "job-5",
+      filename: "C:/videos/locale-switch.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: Date.now() - 2000,
+      endTime: Date.now(),
+      logs: [],
+      ffmpegCommand:
+        'ffmpeg -i "C:/videos/locale-switch.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy "C:/videos/locale-switch.compressed.mp4"',
+    } as any;
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    vm.selectedJobForDetail = job;
+
+    await nextTick();
+
+    const getButtonsWithText = (substr: string) =>
+      Array.from(document.querySelectorAll("button")).filter((btn) =>
+        (btn.textContent || "").includes(substr),
+      );
+
+    // EN label should appear once initially.
+    let enButtons = getButtonsWithText("Show full command");
+    expect(enButtons.length).toBe(1);
+
+    // Switch locale to zh-CN and ensure label updates without duplication.
+    (i18n.global.locale as any).value = "zh-CN";
+    await nextTick();
+
+    const zhButtons = getButtonsWithText("显示完整命令");
+    enButtons = getButtonsWithText("Show full command");
+
+    expect(zhButtons.length).toBe(1);
+    expect(enButtons.length).toBe(0);
   });
 });
