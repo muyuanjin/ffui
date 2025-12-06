@@ -23,13 +23,13 @@ const { t } = useI18n();
 <template>
   <div class="bg-muted/40 p-4 rounded-md border border-border/60 space-y-4">
     <h3 class="font-semibold mb-2 border-b border-border/60 pb-2">
-      {{ t("presetEditor.panel.inputTitle", "输入与时间轴") }}
+      {{ t("presetEditor.panel.inputTitle") }}
     </h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div class="space-y-2">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.seekModeLabel", "起始时间 (-ss)") }}
+          {{ t("presetEditor.panel.seekModeLabel") }}
         </Label>
         <Select
           :model-value="inputTimeline.seekMode ?? 'output'"
@@ -40,10 +40,10 @@ const { t } = useI18n();
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="output">
-              {{ t("presetEditor.panel.seekModeOutput", "在 -i 之后（精确裁剪，稍慢）") }}
+              {{ t("presetEditor.panel.seekModeOutput") }}
             </SelectItem>
             <SelectItem value="input">
-              {{ t("presetEditor.panel.seekModeInput", "在 -i 之前（快速跳转，可能不精确）") }}
+              {{ t("presetEditor.panel.seekModeInput") }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -51,11 +51,11 @@ const { t } = useI18n();
 
       <div class="space-y-2">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.seekPositionLabel", "起始时间表达式") }}
+          {{ t("presetEditor.panel.seekPositionLabel") }}
         </Label>
         <Input
           :model-value="inputTimeline.seekPosition ?? ''"
-          :placeholder="t('presetEditor.panel.seekPositionPlaceholder', '例如 00:01:23.000 或 90')"
+          :placeholder="t('presetEditor.panel.seekPositionPlaceholder')"
           @update:model-value="
             (value) => {
               const v = String(value ?? '');
@@ -64,12 +64,7 @@ const { t } = useI18n();
           "
         />
         <p class="text-[11px] text-muted-foreground">
-          {{
-            t(
-              "presetEditor.panel.seekPositionHelp",
-              "格式支持 [[hh:]mm:]ss[.ms] 或纯秒数；仅在字段非空时才会生成 -ss。",
-            )
-          }}
+          {{ t("presetEditor.panel.seekPositionHelp") }}
         </p>
       </div>
     </div>
@@ -77,7 +72,7 @@ const { t } = useI18n();
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div class="space-y-2">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.durationModeLabel", "裁剪方式 (-t / -to)") }}
+          {{ t("presetEditor.panel.durationModeLabel") }}
         </Label>
         <Select
           :model-value="inputTimeline.durationMode ?? ''"
@@ -90,15 +85,15 @@ const { t } = useI18n();
         >
           <SelectTrigger class="h-8 text-xs">
             <SelectValue
-              :placeholder="t('presetEditor.panel.durationModePlaceholder', '不限制时长（默认）')"
+              :placeholder="t('presetEditor.panel.durationModePlaceholder')"
             />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="duration">
-              {{ t("presetEditor.panel.durationModeDuration", "指定输出时长 (-t)") }}
+              {{ t("presetEditor.panel.durationModeDuration") }}
             </SelectItem>
             <SelectItem value="to">
-              {{ t("presetEditor.panel.durationModeTo", "指定结束时间点 (-to)") }}
+              {{ t("presetEditor.panel.durationModeTo") }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -106,11 +101,11 @@ const { t } = useI18n();
 
       <div class="space-y-2">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.durationLabel", "时长/结束时间表达式") }}
+          {{ t("presetEditor.panel.durationLabel") }}
         </Label>
         <Input
           :model-value="inputTimeline.duration ?? ''"
-          :placeholder="t('presetEditor.panel.durationPlaceholder', '例如 00:00:30 或 30')"
+          :placeholder="t('presetEditor.panel.durationPlaceholder')"
           @update:model-value="
             (value) => {
               const v = String(value ?? '');
@@ -128,23 +123,12 @@ const { t } = useI18n();
         class="h-3 w-3 rounded border-border bg-background"
       />
       <span>
-        {{
-          t(
-            "presetEditor.panel.accurateSeekLabel",
-            "启用 -accurate_seek（更精确的寻址，可能稍慢）",
-          )
-        }}
+        {{ t("presetEditor.panel.accurateSeekLabel") }}
       </span>
     </label>
 
     <p class="text-[11px] text-muted-foreground">
-      {{
-        t(
-          "presetEditor.panel.inputHelp",
-          "起始时间与裁剪设置只在相应字段非空时生效；如不确定，可保留默认设置使用整段视频。",
-        )
-      }}
+      {{ t("presetEditor.panel.inputHelp") }}
     </p>
   </div>
 </template>
-
