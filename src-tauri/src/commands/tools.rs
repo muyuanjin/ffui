@@ -103,6 +103,38 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     Ok(format!("data:{mime};base64,{encoded}"))
 }
 
+/// Given an ordered list of candidate media paths, return the first one that
+/// currently exists as a regular file on disk.
+///
+/// The frontend uses this to make preview/video playback more robust when
+/// users delete or rename original/transcoded files after a job has finished:
+/// - Completed jobs normally prefer the final output path.
+/// - When the output file was deleted but the original input still exists,
+///   this helper automatically falls back to the input file.
+/// - For in‑flight jobs we can prefer temporary outputs when present.
+#[tauri::command]
+pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String> {
+    use std::path::Path;
+
+    for raw in candidate_paths {
+        // Skip empty entries defensively so callers can build lists with
+        // optional paths without extra filtering on the JS side.
+        if raw.is_empty() {
+            continue;
+        }
+
+        let path = Path::new(&raw);
+
+        // We only treat existing regular files as playable targets; this
+        // avoids accidentally returning directories or other special nodes.
+        if path.is_file() {
+            return Some(raw);
+        }
+    }
+
+    None
+}
+
 /// Increment the number of active system metrics subscribers.
 #[tauri::command]
 pub fn metrics_subscribe(metrics: State<MetricsState>) {
