@@ -140,7 +140,6 @@ const {
   setQueueProgressStyle,
   setQueueMode,
   queueViewModeModel,
-  queueModeModel,
   queueProgressStyleModel,
   queueRowVariant,
   isIconViewMode,
@@ -158,6 +157,7 @@ const {
   sortSecondaryDirection,
   hasActiveFilters,
   hasSelection,
+  hasPrimarySortTies,
   queueModeProcessingJobs,
   queueModeWaitingJobs,
   selectAllVisibleJobs,
@@ -354,10 +354,8 @@ defineExpose(mainApp);
           :completed-count="completedCount"
           :manual-job-preset-id="manualJobPresetId"
           :presets="presets"
-          :queue-mode-model="queueModeModel"
           :queue-view-mode-model="queueViewModeModel"
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
-          @update:queueModeModel="(v) => (queueModeModel = v as any)"
           @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
           @openPresetWizard="dialogManager.openWizard()"
         />
@@ -374,12 +372,14 @@ defineExpose(mainApp);
             :sort-primary-direction="sortPrimaryDirection"
             :sort-secondary="sortSecondary"
             :sort-secondary-direction="sortSecondaryDirection"
+            :has-primary-sort-ties="hasPrimarySortTies"
             :has-active-filters="hasActiveFilters"
             :has-selection="hasSelection"
             :selected-count="selectedJobIds.size"
             :queue-mode="queueMode"
             :visible-count="queueJobsForDisplay.length"
             :total-count="jobs.length"
+            @update:queueMode="(v) => setQueueMode(v as any)"
             @toggle-status-filter="toggleStatusFilter"
             @toggle-type-filter="toggleTypeFilter"
             @update:filterText="(v) => (filterText = v)"

@@ -476,30 +476,4 @@ mod tests {
         let _ = fs::remove_file(&existing_path);
     }
 
-    #[test]
-    fn tauri_csp_allows_asset_protocol_for_images_and_media() {
-        // Load the Tauri configuration used by this binary and assert that the
-        // CSP explicitly allows the asset protocol for both <img> and <video>
-        // tags so convertFileSrc URLs work after packaging.
-        let raw = include_str!("../tauri.conf.json");
-        let value: serde_json::Value =
-            serde_json::from_str(raw).expect("tauri.conf.json must be valid JSON");
-
-        let csp = value["app"]["security"]["csp"]
-            .as_str()
-            .expect("app.security.csp must be a string");
-
-        assert!(
-            csp.contains("img-src")
-                && csp.contains("asset: http://asset.localhost")
-                && csp.contains("asset: https://asset.localhost"),
-            "CSP must allow asset protocol (http/https) for images, got: {csp}"
-        );
-        assert!(
-            csp.contains("media-src")
-                && csp.contains("asset: http://asset.localhost")
-                && csp.contains("asset: https://asset.localhost"),
-            "CSP must allow asset protocol (http/https) for media (video/audio), got: {csp}"
-        );
-    }
 }

@@ -12,7 +12,6 @@ const {
   completedCount,
   manualJobPresetId,
   presets,
-  queueModeModel,
   queueViewModeModel,
 } = defineProps<{
   activeTab: string;
@@ -22,13 +21,11 @@ const {
   completedCount: number;
   manualJobPresetId: string | null;
   presets: FFmpegPreset[];
-  queueModeModel: string;
   queueViewModeModel: string;
 }>();
 
 const emit = defineEmits<{
   (e: "update:manualJobPresetId", value: string | null): void;
-  (e: "update:queueModeModel", value: string): void;
   (e: "update:queueViewModeModel", value: string): void;
   (e: "openPresetWizard"): void;
 }>();
@@ -71,16 +68,6 @@ const { t } = useI18n();
           </SelectContent>
         </Select>
       </div>
-
-      <Select :model-value="queueModeModel" @update:model-value="(v) => emit('update:queueModeModel', v as string)">
-        <SelectTrigger class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[120px]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="display">{{ t("queue.modes.display") }}</SelectItem>
-          <SelectItem value="queue">{{ t("queue.modes.queue") }}</SelectItem>
-        </SelectContent>
-      </Select>
 
       <Select :model-value="queueViewModeModel" @update:model-value="(v) => emit('update:queueViewModeModel', v as string)">
         <SelectTrigger class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]">
