@@ -17,16 +17,20 @@ const makeWrapper = (locale: "zh-CN" | "en") => {
     },
   });
 
-  return mount(MainApp, {
+  const wrapper = mount(MainApp, {
     global: {
       plugins: [i18n],
     },
   });
+
+  // Expose i18n instance for tests that need to toggle locale at runtime.
+  (wrapper as any).i18n = i18n;
+  return wrapper;
 };
 
 describe("MainApp sidebar primary actions", () => {
   it("uses updated zh-CN labels for Add transcode / Add compression actions", () => {
-    const wrapper = makeWrapper("zh-CN");
+    const wrapper: any = makeWrapper("zh-CN");
     const text = wrapper.text();
 
     expect(text).toContain("添加转码任务");
@@ -95,8 +99,8 @@ describe("MainApp sidebar primary actions", () => {
     expect(findButtonsByText("添加转码任务").length).toBe(1);
     expect(findButtonsByText("添加压缩任务").length).toBe(1);
 
-    const i18n: any = (wrapper.vm as any).$i18n;
-    i18n.locale.value = "en";
+    const i18n: any = wrapper.i18n;
+    i18n.global.locale.value = "en";
     await nextTick();
 
     // After switching to EN, zh-CN labels disappear and EN labels appear once.

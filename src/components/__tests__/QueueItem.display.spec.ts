@@ -20,8 +20,12 @@ vi.mock("@/lib/backend", () => {
   };
 });
 
-vi.mock("@/lib/ffmpegCommand", () => {
+vi.mock("@/lib/ffmpegCommand", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
+    "@/lib/ffmpegCommand",
+  );
   return {
+    ...actual,
     highlightFfmpegCommand: (command: string) => command,
     normalizeFfmpegTemplate: (command: string) => ({
       template: command ? `TEMPLATE:${command}` : "",
