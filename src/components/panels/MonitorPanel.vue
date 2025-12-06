@@ -9,9 +9,9 @@ import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
 
 defineProps<{
-  /** Legacy CPU usage snapshot from backend (basic polling). */
+  /** Legacy CPU usage snapshot from backend (basic polling). Kept for compatibility. */
   cpuSnapshot: CpuUsageSnapshot | null;
-  /** GPU usage snapshot from backend (NVML-based). */
+  /** Legacy GPU usage snapshot from backend (NVML-based). Kept for compatibility. */
   gpuSnapshot: GpuUsageSnapshot | null;
 }>();
 
@@ -25,6 +25,14 @@ const {
   diskSeries,
   networkSeries,
 } = useSystemMetrics();
+
+// Prefer GPU metrics from the streaming system-metrics pipeline so the
+// performance view no longer depends on polling commands.
+const latestGpu = computed<GpuUsageSnapshot | null>(() => {
+  const last = snapshots.value[snapshots.value.length - 1];
+  if (last && last.gpu) return last.gpu;
+  return null;
+});
 
 const hasMetrics = computed(() => snapshots.value.length > 0);
 
@@ -353,22 +361,28 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent class="text-xs space-y-1">
-          <p v-if="gpuSnapshot && gpuSnapshot.available">
+          <p v-if="latestGpu && latestGpu.available">
             {{ t("monitor.gpuUsage") }}
             <span class="font-mono text-foreground">
-              {{ gpuSnapshot.gpuPercent ?? 0 }}%
+              {{ latestGpu.gpuPercent ?? 0 }}%
             </span>
           </p>
-          <p v-if="gpuSnapshot && gpuSnapshot.available && gpuSnapshot.memoryPercent !== undefined">
+          <p
+            v-if="
+              latestGpu &&
+              latestGpu.available &&
+              latestGpu.memoryPercent !== undefined
+            "
+          >
             {{ t("monitor.gpuMemoryUsage") }}
             <span class="font-mono text-foreground">
-              {{ gpuSnapshot.memoryPercent }}%
+              {{ latestGpu.memoryPercent }}%
             </span>
           </p>
-          <p v-if="gpuSnapshot && !gpuSnapshot.available">
-            {{ gpuSnapshot.error ?? (t("monitor.gpuUnavailable") as string) }}
+          <p v-if="latestGpu && !latestGpu.available">
+            {{ latestGpu.error ?? (t("monitor.gpuUnavailable") as string) }}
           </p>
-          <p v-if="!gpuSnapshot">
+          <p v-if="!latestGpu">
             {{ t("monitor.gpuWaiting") }}
           </p>
         </CardContent>

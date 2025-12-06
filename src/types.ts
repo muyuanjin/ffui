@@ -363,6 +363,8 @@ export interface AppSettings {
   maxParallelJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
   progressUpdateIntervalMs?: number;
+  /** Optional interval in milliseconds between system metrics samples for the performance monitor. */
+  metricsIntervalMs?: number;
   /** Aggregation mode for computing Windows taskbar progress from the queue. */
   taskbarProgressMode?: TaskbarProgressMode;
 }
@@ -437,6 +439,8 @@ export interface SystemMetricsSnapshot {
   memory: MemoryMetrics;
   disk: DiskMetrics;
   network: NetworkMetrics;
+  /** Optional NVIDIA GPU usage snapshot sampled alongside system metrics. */
+  gpu?: GpuUsageSnapshot;
 }
 
 export interface AutoCompressResult {

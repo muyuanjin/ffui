@@ -49,6 +49,9 @@ const app = {
     progressUpdateIntervalLabel: "Progress update interval (ms)",
     progressUpdateIntervalHelp:
       "Controls how often the backend reports ffmpeg progress and how much buffering the UI uses. Smaller values are more real-time; larger values are smoother.",
+    metricsIntervalLabel: "Performance monitoring interval (ms)",
+    metricsIntervalHelp:
+      "Controls how frequently system performance metrics are sampled. Smaller values feel more continuous but cost more resources; larger values are cheaper but less real-time.",
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
@@ -56,7 +59,7 @@ const app = {
     devtoolsSectionDescription:
       "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
     devtoolsWindowHint:
-      "Devtools will open in the desktop app window; no extra switch is required.",
+      "Open Devtools.",
     loadingSettings: "Loading application settings from backend…",
   },
   emptyQueue: {

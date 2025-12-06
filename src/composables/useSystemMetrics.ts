@@ -139,6 +139,14 @@ export function useSystemMetrics(
             },
           ],
         },
+        gpu: {
+          available: true,
+          gpuPercent: Math.round(cpuBase),
+          memoryPercent: Math.round(
+            50 + 30 * Math.sin(t / 6),
+          ),
+          error: undefined,
+        },
       };
 
       pushSnapshot(snapshot);
