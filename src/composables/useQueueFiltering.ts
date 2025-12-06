@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
-import { compareJobsByField } from "./queue/filtering-utils";
+import { compareJobsByField, getJobSortValue } from "./queue/filtering-utils";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
 import type {
@@ -248,6 +248,33 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return jobs.value.filter((job) => jobMatchesFilters(job));
   });
 
+  const hasPrimarySortTies = computed(() => {
+    const list = filteredJobs.value;
+    if (list.length < 2) return false;
+
+    const field = sortPrimary.value;
+    const seen = new Set<string>();
+
+    for (const job of list) {
+      const raw = getJobSortValue(job, field);
+      let key: string;
+      if (raw == null) {
+        key = "null";
+      } else if (typeof raw === "string") {
+        key = `s:${raw.toLowerCase()}`;
+      } else {
+        key = `n:${raw}`;
+      }
+
+      if (seen.has(key)) {
+        return true;
+      }
+      seen.add(key);
+    }
+
+    return false;
+  });
+
   // ----- Sort Methods -----
   const compareJobsByConfiguredFields = (a: TranscodeJob, b: TranscodeJob): number => {
     let result = compareJobsByField(
@@ -417,6 +444,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     // Computed
     hasActiveFilters,
     hasSelection,
+    hasPrimarySortTies,
     selectedJobs,
     filteredJobs,
     displayModeSortedJobs,

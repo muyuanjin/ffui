@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "vue-i18n";
 import type { QueueFilterStatus, QueueFilterKind } from "@/composables";
+import { X, RotateCcw } from "lucide-vue-next";
 
 const props = defineProps<{
   activeStatusFilters: Set<QueueFilterStatus>;
@@ -21,116 +22,150 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// 状态筛选选项
+const statusOptions: QueueFilterStatus[] = [
+  'processing',
+  'waiting',
+  'queued',
+  'paused',
+  'completed',
+  'failed',
+  'cancelled',
+  'skipped',
+];
 </script>
 
 <template>
-  <div class="mt-2 space-y-3">
-    <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-      <span class="whitespace-nowrap">
+  <div class="px-3 py-2 space-y-2">
+    <!-- 类型筛选 -->
+    <div class="flex items-start gap-2">
+      <span class="text-xs text-muted-foreground mt-1 min-w-[48px]">
         {{ t("queue.filters.typeLabel") }}
       </span>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        class="h-7 px-2 text-[11px] rounded-full border-border/60 transition-colors"
-        :class="
-          props.activeTypeFilters.has('manual')
-            ? 'bg-primary text-primary-foreground border-primary/60 hover:bg-primary/90 hover:text-primary-foreground'
-            : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
-        "
-        @click="emit('toggle-type-filter', 'manual')"
-      >
-        {{ t("queue.filters.typeManual") }}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        class="h-7 px-2 text-[11px] rounded-full border-border/60 transition-colors"
-        :class="
-          props.activeTypeFilters.has('smartScan')
-            ? 'bg-primary text-primary-foreground border-primary/60 hover:bg-primary/90 hover:text-primary-foreground'
-            : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
-        "
-        @click="emit('toggle-type-filter', 'smartScan')"
-      >
-        {{ t("queue.filters.typeSmartScan") }}
-      </Button>
+      <div class="flex flex-wrap gap-1">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-6 px-2 text-xs rounded-md transition-all"
+          :class="
+            props.activeTypeFilters.has('manual')
+              ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30'
+              : 'bg-background/50 text-muted-foreground border-border/50 hover:bg-background/80'
+          "
+          @click="emit('toggle-type-filter', 'manual')"
+        >
+          {{ t("queue.filters.typeManual") }}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-6 px-2 text-xs rounded-md transition-all"
+          :class="
+            props.activeTypeFilters.has('smartScan')
+              ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30'
+              : 'bg-background/50 text-muted-foreground border-border/50 hover:bg-background/80'
+          "
+          @click="emit('toggle-type-filter', 'smartScan')"
+        >
+          {{ t("queue.filters.typeSmartScan") }}
+        </Button>
+      </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-      <span class="whitespace-nowrap">
+    <!-- 状态筛选 -->
+    <div class="flex items-start gap-2">
+      <span class="text-xs text-muted-foreground mt-1 min-w-[48px]">
         {{ t("queue.filters.statusLabel") }}
       </span>
-      <Button
-        v-for="statusKey in [
-          'processing',
-          'waiting',
-          'queued',
-          'paused',
-          'completed',
-          'failed',
-          'cancelled',
-          'skipped',
-        ]"
-        :key="statusKey"
-        type="button"
-        variant="outline"
-        size="xs"
-        class="h-7 px-2 text-[11px] rounded-full border-border/60 transition-colors"
-        :class="
-          props.activeStatusFilters.has(statusKey as any)
-            ? 'bg-primary text-primary-foreground border-primary/60 hover:bg-primary/90 hover:text-primary-foreground'
-            : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'
-        "
-        @click="emit('toggle-status-filter', statusKey as QueueFilterStatus)"
-      >
-        {{ t(`queue.status.${statusKey}`) }}
-      </Button>
+      <div class="flex flex-wrap gap-1">
+        <Button
+          v-for="statusKey in statusOptions"
+          :key="statusKey"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-6 px-2 text-xs rounded-md transition-all"
+          :class="
+            props.activeStatusFilters.has(statusKey)
+              ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30'
+              : 'bg-background/50 text-muted-foreground border-border/50 hover:bg-background/80'
+          "
+          @click="emit('toggle-status-filter', statusKey)"
+        >
+          {{ t(`queue.status.${statusKey}`) }}
+        </Button>
+      </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-      <span class="whitespace-nowrap">
+    <!-- 文本筛选 -->
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-muted-foreground min-w-[48px]">
         {{ t("queue.filters.textLabel") }}
       </span>
-      <Input
-        :model-value="props.filterText"
-        class="h-8 w-64 text-xs"
-        :placeholder="t('queue.filters.textPlaceholder')"
-        @update:model-value="(v) => emit('update:filterText', String(v))"
-      />
-      <Button
-        type="button"
-        variant="outline"
-        size="xs"
-        class="h-7 px-2 text-[10px]"
-        :class="
-          props.filterUseRegex
-            ? 'bg-primary text-primary-foreground border-primary/60 hover:bg-primary/90 hover:text-primary-foreground'
-            : ''
-        "
-        :title="t('queue.filters.textPlaceholder') as string"
-        @click="emit('toggle-filter-regex-mode')"
-      >
-        /regex/
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="xs"
-        class="h-7 px-2 text-[10px]"
-        @click="emit('reset-queue-filters')"
-      >
-        {{ t("queue.filters.reset") }}
-      </Button>
-      <p
-        v-if="props.filterRegexError"
-        class="text-[11px] text-destructive"
-      >
-        {{ props.filterRegexError }}
-      </p>
+      <div class="flex items-center gap-1 flex-1">
+        <Input
+          :model-value="props.filterText"
+          class="h-6 max-w-xs text-xs px-2"
+          :placeholder="t('queue.filters.textPlaceholder')"
+          @update:model-value="(v) => emit('update:filterText', String(v))"
+        />
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-6 px-2 text-xs font-mono"
+          :class="
+            props.filterUseRegex
+              ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30'
+              : 'bg-background/50 border-border/50 hover:bg-background/80'
+          "
+          :title="t('queue.filters.regexTooltip') || 'Use regular expression'"
+          @click="emit('toggle-filter-regex-mode')"
+        >
+          /.*?/
+        </Button>
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground"
+          @click="emit('reset-queue-filters')"
+          :title="t('queue.filters.reset')"
+        >
+          <RotateCcw class="h-3 w-3" />
+          <span class="hidden sm:inline">{{ t("queue.filters.reset") }}</span>
+        </Button>
+      </div>
     </div>
+
+    <!-- 错误消息 -->
+    <Transition name="fade">
+      <div v-if="props.filterRegexError" class="flex items-center gap-2">
+        <span class="text-xs text-muted-foreground min-w-[48px]"></span>
+        <p class="text-xs text-destructive flex items-center gap-1">
+          <X class="h-3 w-3" />
+          {{ props.filterRegexError }}
+        </p>
+      </div>
+    </Transition>
   </div>
 </template>
+
+<style scoped>
+/* 动画过渡 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.15s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
 
