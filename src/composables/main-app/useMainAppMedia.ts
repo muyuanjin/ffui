@@ -69,11 +69,10 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
         console.error("Failed to build preview URL for inspected media:", e);
         inspectedPreviewUrl.value = null;
       }
-    } catch (e) {
-      console.error("Failed to inspect media:", e);
-      mediaInspectError.value =
-        (t("media.inspectError") as string) || "无法分析媒体文件。";
-    } finally {
+  } catch (e) {
+    console.error("Failed to inspect media:", e);
+    mediaInspectError.value = t("media.inspectError") as string;
+  } finally {
       isInspectingMedia.value = false;
     }
   };

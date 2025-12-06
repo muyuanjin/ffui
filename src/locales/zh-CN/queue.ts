@@ -44,9 +44,6 @@ const queue = {
     skipped: "已跳过",
     failed: "失败",
     cancelled: "已取消",
-    "${displayStatusKey.value}": "状态",
-    "${job.status}": "状态",
-    "${statusKey}": "状态",
   },
   savedShort: "节省 {percent}%",
   source: {

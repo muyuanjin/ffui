@@ -11,6 +11,8 @@ export interface UseMainAppPreviewOptions {
     closePreview: () => void;
     openBatchDetail: (batch: CompositeSmartScanTask) => void;
   };
+  /** Optional i18n translation function for preview error messages. */
+  t?: (key: string) => string;
 }
 
 export interface UseMainAppPreviewReturn {
@@ -33,7 +35,7 @@ export interface UseMainAppPreviewReturn {
 export function useMainAppPreview(
   options: UseMainAppPreviewOptions,
 ): UseMainAppPreviewReturn {
-  const { presets, dialogManager } = options;
+  const { presets, dialogManager, t } = options;
 
   const previewUrl = ref<string | null>(null);
   const previewIsImage = ref(false);
@@ -70,7 +72,12 @@ export function useMainAppPreview(
           previewUrl.value = url;
         }
       } catch (e) {
-        previewError.value = String(e);
+        console.error("Failed to build preview URL for job:", e);
+        const key =
+          job.type === "image"
+            ? "jobDetail.previewImageError"
+            : "jobDetail.previewVideoError";
+        previewError.value = (t?.(key) as string) ?? "";
       }
     }
   };
@@ -82,13 +89,13 @@ export function useMainAppPreview(
   };
 
   const handleExpandedPreviewError = () => {
-    previewError.value =
-      "无法加载预览，视频文件可能正在被占用或已损坏。";
+    const key = "jobDetail.previewVideoError";
+    previewError.value = (t?.(key) as string) ?? "";
   };
 
   const handleExpandedImagePreviewError = () => {
-    previewError.value =
-      "无法加载图片预览，文件可能正在被占用或已损坏。";
+    const key = "jobDetail.previewImageError";
+    previewError.value = (t?.(key) as string) ?? "";
   };
 
   const openPreviewInSystemPlayer = async () => {
