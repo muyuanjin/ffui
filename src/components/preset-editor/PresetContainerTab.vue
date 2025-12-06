@@ -23,13 +23,13 @@ const { t } = useI18n();
 <template>
   <div class="bg-muted/40 p-4 rounded-md border border-border/60 space-y-4">
     <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
-      {{ t("presetEditor.panel.containerTitle", "容器与分片") }}
+      {{ t("presetEditor.panel.containerTitle") }}
     </h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div class="space-y-1">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.formatLabel", "输出格式 (-f)") }}
+          {{ t("presetEditor.panel.formatLabel") }}
         </Label>
         <Select
           :model-value="container.format ?? ''"
@@ -42,7 +42,7 @@ const { t } = useI18n();
         >
           <SelectTrigger class="h-8 text-xs">
             <SelectValue
-              :placeholder="t('presetEditor.panel.formatPlaceholder', '根据输出扩展名自动推断')"
+              :placeholder="t('presetEditor.panel.formatPlaceholder')"
             />
           </SelectTrigger>
           <SelectContent>
@@ -59,11 +59,11 @@ const { t } = useI18n();
 
       <div class="space-y-1">
         <Label class="text-xs">
-          {{ t("presetEditor.panel.movflagsLabel", "movflags（使用 + 组合）") }}
+          {{ t("presetEditor.panel.movflagsLabel") }}
         </Label>
         <Input
           :model-value="(container.movflags ?? []).join('+')"
-          :placeholder="t('presetEditor.panel.movflagsPlaceholder', '例如 faststart+frag_keyframe')"
+          :placeholder="t('presetEditor.panel.movflagsPlaceholder')"
           class="h-8 text-xs font-mono"
           @update:model-value="
             (value) => {
@@ -80,13 +80,7 @@ const { t } = useI18n();
     </div>
 
     <p class="text-[11px] text-muted-foreground">
-      {{
-        t(
-          "presetEditor.panel.containerHelp",
-          "常见场景可以仅依赖输出扩展名推断容器；需要启用 faststart/HLS/DASH 等高级特性时再在此处补充选项。",
-        )
-      }}
+      {{ t("presetEditor.panel.containerHelp") }}
     </p>
   </div>
 </template>
-
