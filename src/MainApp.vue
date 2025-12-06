@@ -194,7 +194,6 @@ const {
   headerProgressVisible,
   headerProgressFading,
 } = settings;
-
 const {
   inspectedMediaPath,
   inspectedPreviewUrl,
