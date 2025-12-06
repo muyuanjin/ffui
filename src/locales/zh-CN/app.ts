@@ -14,6 +14,46 @@ const app = {
   mediaHint: "查看单个媒体文件的元数据与详细分析。",
   monitorHint: "查看 CPU / GPU 等性能指标。",
   settingsHint: "配置外部工具路径、自动下载、预览以及队列相关行为。",
+  settings: {
+    externalToolsTitle: "外部工具",
+    externalToolsDescription:
+      "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动下载状态。",
+    refreshToolsStatus: "刷新状态",
+    toolStatus: {
+      ready: "已就绪",
+      missing: "未找到",
+    },
+    currentToolPathLabel: "当前使用路径",
+    toolNotFoundHelp: "未找到可执行文件，将在需要时尝试自动下载（如果已启用）。",
+    customToolPathLabel: "自定义路径（优先使用）",
+    customToolPathPlaceholder: "留空表示从 PATH 或自动下载目录查找",
+    downloadStatusLabel: "下载 / 更新状态",
+    downloadInProgress: "正在下载，请稍候...",
+    updateAvailableHint: "检测到可用更新，将在需要时尝试自动下载该工具。",
+    customToolPathFooter:
+      "当设置了自定义路径时优先使用自定义路径，否则从自动下载的 tools 目录或系统 PATH 查找。",
+    autoDownloadSectionTitle: "自动下载与全局参数",
+    autoDownloadSectionDescription:
+      "控制外部工具的自动下载/更新策略，以及预览截帧和并行任务上限。",
+    downloadStrategyLabel: "下载 / 更新策略",
+    allowAutoDownloadLabel: "允许自动下载（推荐）",
+    allowAutoUpdateLabel: "允许自动更新",
+    previewCaptureLabel: "预览截帧位置（%）",
+    previewCaptureHelp: "相对于视频总时长的百分比，默认 25。",
+    maxParallelJobsLabel: "最大并行转码任务数",
+    maxParallelJobsHelp:
+      "0 表示自动（约为 CPU 逻辑核数的一半），> 0 时将上限固定为该值。",
+    progressUpdateIntervalLabel: "进度刷新节奏（毫秒）",
+    progressUpdateIntervalHelp:
+      "控制后端 ffmpeg 汇报进度的间隔，同时影响前端缓冲时长。数值越小越实时，数值越大越平滑。",
+    savingSettings: "正在保存设置...",
+    autoSaveHint: "修改会自动保存，无需手动点击按钮。",
+    saveErrorGeneric: "保存设置失败，请稍后重试。",
+    devtoolsSectionTitle: "开发者工具",
+    devtoolsSectionDescription: "一键打开 Devtools，便于调试与问题排查。",
+    devtoolsWindowHint: "Devtools 将在桌面应用窗口中弹出，无需额外开关。",
+    loadingSettings: "正在从后端加载应用设置...",
+  },
   emptyQueue: {
     title: "当前没有任务",
     subtitle: "点击左侧的添加转码任务，或者使用左下角的智能扫描入口。",

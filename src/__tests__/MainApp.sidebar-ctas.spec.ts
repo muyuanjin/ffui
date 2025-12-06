@@ -20,17 +20,20 @@ const makeWrapper = (locale: "zh-CN" | "en") => {
   const wrapper = mount(MainApp, {
     global: {
       plugins: [i18n],
+      provide: {
+        i18n,
+      },
     },
   });
 
-  // Expose i18n instance for tests that need to toggle locale at runtime.
-  (wrapper as any).i18n = i18n;
-  return wrapper;
+  // Return both wrapper and the i18n instance so tests do not rely on
+  // instance-level $i18n, which is more brittle and harder to type.
+  return { wrapper, i18n };
 };
 
 describe("MainApp sidebar primary actions", () => {
   it("uses updated zh-CN labels for Add transcode / Add compression actions", () => {
-    const wrapper: any = makeWrapper("zh-CN");
+    const { wrapper } = makeWrapper("zh-CN");
     const text = wrapper.text();
 
     expect(text).toContain("添加转码任务");
@@ -38,7 +41,7 @@ describe("MainApp sidebar primary actions", () => {
   });
 
   it("uses updated EN labels and distinct button styles for the two CTAs", () => {
-    const wrapper = makeWrapper("en");
+    const { wrapper } = makeWrapper("en");
 
     const buttons = wrapper.findAll("button");
     const addTranscodeButton = buttons.find((btn) =>
@@ -64,7 +67,7 @@ describe("MainApp sidebar primary actions", () => {
   });
 
   it("shows a New Preset CTA on the presets tab and opens the preset wizard when clicked", async () => {
-    const wrapper = makeWrapper("zh-CN");
+    const { wrapper } = makeWrapper("zh-CN");
     const vm: any = wrapper.vm;
 
     // Switch to presets tab so the header CTA becomes visible.
@@ -88,7 +91,7 @@ describe("MainApp sidebar primary actions", () => {
   });
 
   it("updates sidebar CTA labels when locale changes at runtime without duplicating buttons", async () => {
-    const wrapper = makeWrapper("zh-CN");
+    const { wrapper, i18n } = makeWrapper("zh-CN");
 
     const findButtonsByText = (text: string) =>
       wrapper
@@ -99,8 +102,8 @@ describe("MainApp sidebar primary actions", () => {
     expect(findButtonsByText("添加转码任务").length).toBe(1);
     expect(findButtonsByText("添加压缩任务").length).toBe(1);
 
-    const i18n: any = wrapper.i18n;
-    i18n.global.locale.value = "en";
+    // Switch locale via the i18n instance used to mount the app.
+    (i18n.global.locale as any).value = "en";
     await nextTick();
 
     // After switching to EN, zh-CN labels disappear and EN labels appear once.

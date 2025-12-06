@@ -6,6 +6,7 @@ import { nextTick } from "vue";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
 
 const i18n = createI18n({
@@ -13,6 +14,7 @@ const i18n = createI18n({
   locale: "en",
   messages: {
     en: en as any,
+    "zh-CN": zhCN as any,
   },
 });
 

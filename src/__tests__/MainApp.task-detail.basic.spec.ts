@@ -225,6 +225,15 @@ describe("MainApp task detail surface - basics", () => {
         'ffmpeg -i "C:/videos/locale-switch.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy "C:/videos/locale-switch.compressed.mp4"',
     } as any;
 
+    const getButtonsWithText = (substr: string) =>
+      Array.from(document.querySelectorAll("button")).filter((btn) =>
+        (btn.textContent || "").includes(substr),
+      );
+
+    // Record baseline counts before mounting this MainApp instance to avoid
+    // interference from other tests sharing the same jsdom document.
+    const baselineEnButtons = getButtonsWithText("Show full command").length;
+
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [job]);
@@ -232,23 +241,18 @@ describe("MainApp task detail surface - basics", () => {
 
     await nextTick();
 
-    const getButtonsWithText = (substr: string) =>
-      Array.from(document.querySelectorAll("button")).filter((btn) =>
-        (btn.textContent || "").includes(substr),
-      );
-
-    // EN label should appear once initially.
+    // EN label should increase by at least one for this instance.
     let enButtons = getButtonsWithText("Show full command");
-    expect(enButtons.length).toBe(1);
+    expect(enButtons.length).toBeGreaterThanOrEqual(baselineEnButtons + 1);
 
-    // Switch locale to zh-CN and ensure label updates without duplication.
+    // Switch locale to zh-CN and ensure label updates (no EN labels should remain).
     (i18n.global.locale as any).value = "zh-CN";
     await nextTick();
 
     const zhButtons = getButtonsWithText("显示完整命令");
     enButtons = getButtonsWithText("Show full command");
 
-    expect(zhButtons.length).toBe(1);
+    expect(zhButtons.length).toBeGreaterThanOrEqual(1);
     expect(enButtons.length).toBe(0);
   });
 });

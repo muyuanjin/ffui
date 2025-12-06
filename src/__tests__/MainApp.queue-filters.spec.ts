@@ -6,9 +6,17 @@ import { nextTick } from "vue";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, JobStatus } from "@/types";
 
-const i18n = createI18n({ legacy: false, locale: "en", messages: { en: en as any } });
+const i18n = createI18n({
+  legacy: false,
+  locale: "en",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
 
 const queueItemStub = {
   props: ["job", "preset", "canCancel", "viewMode", "progressStyle"],

@@ -127,7 +127,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
         <div class="mt-2 space-y-1">
           <div class="flex items-center justify-between gap-2">
             <span class="text-[10px] text-muted-foreground uppercase tracking-wide">
-              {{ t("presets.commandPreviewLabel", "命令预览") }}
+              {{ t("presets.commandPreviewLabel") }}
             </span>
             <Button
               variant="ghost"
@@ -135,7 +135,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
               @click="copyToClipboard(getPresetCommandPreview(preset))"
             >
-              {{ t("presetEditor.advanced.copyButton", "复制命令") }}
+              {{ t("presetEditor.advanced.copyButton") }}
             </Button>
           </div>
           <pre

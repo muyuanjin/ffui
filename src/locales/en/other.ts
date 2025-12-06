@@ -110,6 +110,22 @@ const other = {
     compressionTitle: "Average Compression Ratio (%)",
     speedTitle: "Processing Speed (MB/s)",
   },
+  monitor: {
+    emptyTitle: "Waiting for system metrics...",
+    emptyDescription:
+      "Open the app in a Tauri environment and keep the Performance view visible to start sampling; in browser mode a simulated dataset is used.",
+    cpuOverall: "CPU overall",
+    cpuPerCore: "CPU by core",
+    cpuPerCoreSuffix: "(first {count} cores)",
+    memory: "Memory",
+    diskIo: "Disk I/O",
+    networkIo: "Network I/O",
+    gpuTitle: "GPU (NVIDIA / NVML)",
+    gpuUsage: "GPU usage:",
+    gpuMemoryUsage: "Memory usage:",
+    gpuUnavailable: "No NVIDIA GPU detected, or NVML is unavailable.",
+    gpuWaiting: "Waiting for GPU usage data...",
+  },
 } as const;
 
 export default other;

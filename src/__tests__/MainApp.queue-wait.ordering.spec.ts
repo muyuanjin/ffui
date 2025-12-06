@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 
@@ -30,7 +31,14 @@ vi.mock("@/lib/backend", async () => {
   return { ...actual, hasTauri: () => true };
 });
 
-const i18n = createI18n({ legacy: false, locale: "en", messages: { en: en as any } });
+const i18n = createI18n({
+  legacy: false,
+  locale: "en",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
 
 let queueJobs: TranscodeJob[] = [];
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
