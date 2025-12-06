@@ -46,12 +46,15 @@ const app = {
     progressUpdateIntervalLabel: "进度刷新节奏（毫秒）",
     progressUpdateIntervalHelp:
       "控制后端 ffmpeg 汇报进度的间隔，同时影响前端缓冲时长。数值越小越实时，数值越大越平滑。",
+    metricsIntervalLabel: "性能监控刷新节奏（毫秒）",
+    metricsIntervalHelp:
+      "控制系统性能监控采样频率。数值越小，监控越连贯，但开销略高；数值越大，刷新更平滑但不够实时。",
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",
     devtoolsSectionTitle: "开发者工具",
     devtoolsSectionDescription: "一键打开 Devtools，便于调试与问题排查。",
-    devtoolsWindowHint: "Devtools 将在桌面应用窗口中弹出，无需额外开关。",
+    devtoolsWindowHint: "打开Devtools。",
     loadingSettings: "正在从后端加载应用设置...",
   },
   emptyQueue: {

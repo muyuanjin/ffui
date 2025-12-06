@@ -56,6 +56,10 @@ pub fn default_preview_capture_percent() -> u8 {
 /// updates used when progressUpdateIntervalMs is not set in AppSettings.
 pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
 
+/// Default interval (in milliseconds) between system metrics samples when the
+/// metrics interval is not explicitly configured via AppSettings.
+pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
+
 /// Aggregation modes for computing a single queue-level progress value that
 /// is surfaced to the Windows taskbar. This is configured via AppSettings and
 /// determines how individual jobs contribute to the overall progress bar.
@@ -103,6 +107,10 @@ pub struct AppSettings {
     /// keep their previous behaviour.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_update_interval_ms: Option<u16>,
+    /// Optional interval in milliseconds between system metrics samples.
+    /// When unset, the backend falls back to DEFAULT_METRICS_INTERVAL_MS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metrics_interval_ms: Option<u16>,
     /// Aggregation mode for computing taskbar progress from the queue. When
     /// omitted in existing settings.json files, this defaults to an
     /// estimated-time based mode for better weighting of heavy presets.
@@ -125,6 +133,7 @@ impl Default for AppSettings {
             default_queue_preset_id: None,
             max_parallel_jobs: None,
             progress_update_interval_ms: None,
+            metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),
         }
     }

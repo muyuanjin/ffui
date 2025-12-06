@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 import TitleBar from "@/components/TitleBar.vue";
 import Sidebar from "@/components/Sidebar.vue";
-import MonitorPanel from "@/components/panels/MonitorPanel.vue";
+import MonitorPanelPro from "@/components/panels/MonitorPanelPro.vue";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
 import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
@@ -119,8 +119,7 @@ const subtitleForTab = {
 const currentTitle = computed(() => titleForTab[shell.activeTab.value]?.() ?? titleForTab.queue());
 const currentSubtitle = computed(() => subtitleForTab[shell.activeTab.value]?.() ?? "");
 
-const { activeTab, minimizeWindow, toggleMaximizeWindow, closeWindow, cpuSnapshot, gpuSnapshot } =
-  shell;
+const { activeTab, minimizeWindow, toggleMaximizeWindow, closeWindow } = shell;
 const { dialogManager, selectedJobForDetail } = dialogs;
 const {
   presetPendingDelete,
@@ -440,11 +439,7 @@ defineExpose(mainApp);
               @clear="clearInspectedMedia"
             />
 
-            <MonitorPanel
-              v-else-if="activeTab === 'monitor'"
-              :cpu-snapshot="cpuSnapshot ?? null"
-              :gpu-snapshot="gpuSnapshot ?? null"
-            />
+            <MonitorPanelPro v-else-if="activeTab === 'monitor'" />
 
             <SettingsPanel
               v-else-if="activeTab === 'settings'"

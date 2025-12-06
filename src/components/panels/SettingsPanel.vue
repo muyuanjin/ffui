@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
@@ -27,7 +27,7 @@ const { t } = useI18n();
 
 const getToolDisplayName = (kind: ExternalToolKind): string => {
   if (kind === "ffmpeg") return "FFmpeg";
-  if (kind === "ffprobe") return "ffprobe";
+  if (kind === "ffprobe") return "FFprobe";
   if (kind === "avifenc") return "avifenc";
   return kind;
 };
@@ -72,363 +72,343 @@ const updateToolsSetting = <K extends keyof AppSettings["tools"]>(key: K, value:
 
 const copyToClipboard = async (value: string | undefined | null) => {
   if (!value) return;
-  if (typeof navigator === "undefined" || typeof document === "undefined") return;
-
   try {
-    if ("clipboard" in navigator && (navigator as any).clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return;
-    }
-  } catch (error) {
-    console.error("navigator.clipboard.writeText failed", error);
-  }
-
-  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // Fallback method
     const textarea = document.createElement("textarea");
     textarea.value = value;
     textarea.style.position = "fixed";
     textarea.style.left = "-9999px";
-    textarea.style.top = "0";
     document.body.appendChild(textarea);
-    textarea.focus();
     textarea.select();
     document.execCommand("copy");
     document.body.removeChild(textarea);
-  } catch (error) {
-    console.error("Fallback copy to clipboard failed", error);
   }
 };
 </script>
 
 <template>
-  <section class="max-w-5xl mx-auto pt-4 pb-12 text-sm text-foreground">
-    <div class="space-y-8">
-      <div class="grid gap-6 md:grid-cols-2 items-start">
-        <Card class="border-border/80 shadow-sm">
-          <CardHeader class="pb-3 flex flex-row items-start justify-between gap-2">
-            <div>
-              <CardTitle class="text-sm text-foreground">
-                {{ t("app.settings.externalToolsTitle") }}
-              </CardTitle>
-              <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                {{ t("app.settings.externalToolsDescription") }}
-              </CardDescription>
-            </div>
+  <section class="max-w-7xl mx-auto px-3 py-2">
+    <!-- Compact grid layout for high information density -->
+    <div class="grid gap-2 xl:grid-cols-3 lg:grid-cols-2">
+
+      <!-- External Tools Section -->
+      <Card class="xl:col-span-2 border-border/50 bg-card/95 shadow-sm">
+        <CardHeader class="py-2 px-3 border-b border-border/30">
+          <div class="flex items-center justify-between">
+            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              {{ t("app.settings.externalToolsTitle") }}
+            </CardTitle>
             <Button
               v-if="hasTauri()"
               size="sm"
-              variant="outline"
-              class="h-7 px-3 text-[11px]"
+              variant="ghost"
+              class="h-6 px-2 text-[10px] hover:bg-accent/50"
               @click="emit('refreshToolStatuses')"
             >
+              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
               {{ t("app.settings.refreshToolsStatus") }}
             </Button>
-          </CardHeader>
-          <CardContent class="space-y-3 text-xs">
-            <div
-              v-for="tool in toolStatuses"
-              :key="tool.kind"
-              class="rounded-md border border-border/70 bg-muted/30 px-3 py-2 space-y-2"
-            >
-              <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div class="flex items-center gap-2 shrink-0">
-                  <span class="text-[11px] font-semibold text-foreground">
-                    {{ getToolDisplayName(tool.kind) }}
-                  </span>
-                  <span
-                    class="rounded-full px-2 py-0.5 text-[10px] border"
-                    :class="
-                      tool.resolvedPath
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/40'
-                        : 'bg-destructive/10 text-destructive border-destructive/40'
-                    "
-                  >
-                    {{
-                      tool.resolvedPath
-                        ? t("app.settings.toolStatus.ready")
-                        : t("app.settings.toolStatus.missing")
-                    }}
-                  </span>
-                </div>
+          </div>
+        </CardHeader>
+        <CardContent class="p-2 space-y-1">
+          <div
+            v-for="tool in toolStatuses"
+            :key="tool.kind"
+            class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
+          >
+            <!-- Tool header with status -->
+            <div class="flex items-center justify-between mb-1.5">
+              <div class="flex items-center gap-2">
+                <code class="text-[11px] font-mono font-semibold">{{ getToolDisplayName(tool.kind) }}</code>
                 <span
-                  v-if="tool.version"
-                  class="text-[10px] text-muted-foreground font-mono text-left sm:text-right sm:max-w-[240px] truncate"
-                  :title="tool.version"
+                  class="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-mono uppercase tracking-wider"
+                  :class="
+                    tool.resolvedPath
+                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                      : 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
+                  "
                 >
-                  {{ tool.version }}
+                  {{ tool.resolvedPath ? t("app.settings.toolStatus.ready") : t("app.settings.toolStatus.missing") }}
                 </span>
               </div>
-
-              <div class="space-y-1">
-                <label class="block text-[10px] text-muted-foreground">
-                  {{ t("app.settings.currentToolPathLabel") }}
-                </label>
-                <div
-                  v-if="tool.resolvedPath"
-                  class="flex items-center gap-2"
-                >
-                  <p
-                    class="flex-1 text-[11px] font-mono break-all text-foreground/90 select-text"
-                  >
-                    {{ tool.resolvedPath }}
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    class="h-6 w-6 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
-                    @click="copyToClipboard(tool.resolvedPath)"
-                  >
-                    ⧉
-                  </Button>
-                </div>
-                <p v-else class="text-[11px] text-destructive">
-                  {{ t("app.settings.toolNotFoundHelp") }}
-                </p>
-              </div>
-
-              <div v-if="appSettings" class="space-y-1">
-                <label class="block text-[10px] text-muted-foreground">
-                  {{ t("app.settings.customToolPathLabel") }}
-                </label>
-                <Input
-                  :model-value="getToolCustomPath(tool.kind)"
-                  class="h-8 text-xs"
-                  :placeholder="t('app.settings.customToolPathPlaceholder') as string"
-                  @update:model-value="(value) => setToolCustomPath(tool.kind, value)"
-                />
-              </div>
-
-              <div
-                v-if="
-                  tool.downloadInProgress ||
-                  tool.lastDownloadError ||
-                  tool.lastDownloadMessage
-                "
-                class="space-y-1"
-              >
-                <label class="block text-[10px] text-muted-foreground">
-                  {{ t("app.settings.downloadStatusLabel") }}
-                </label>
-                <div v-if="tool.downloadInProgress" class="space-y-1">
-                  <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      class="h-full rounded-full bg-primary transition-all"
-                      :class="tool.downloadProgress == null ? 'animate-pulse' : ''"
-                      :style="
-                        tool.downloadProgress != null
-                          ? { width: `${tool.downloadProgress}%` }
-                          : { width: '40%' }
-                      "
-                    />
-                  </div>
-                  <p class="text-[10px] text-muted-foreground">
-                    {{
-                      tool.lastDownloadMessage ||
-                      (t("app.settings.downloadInProgress") as string)
-                    }}
-                  </p>
-                </div>
-                <p
-                  v-else-if="tool.lastDownloadError"
-                  class="text-[10px] text-destructive"
-                >
-                  {{ tool.lastDownloadError }}
-                </p>
-                <p
-                  v-else-if="tool.lastDownloadMessage"
-                  class="text-[10px] text-muted-foreground"
-                >
-                  {{ tool.lastDownloadMessage }}
-                </p>
-              </div>
-
-              <p
-                v-if="tool.updateAvailable"
-                class="text-[10px] text-amber-400"
-              >
-                {{ t("app.settings.updateAvailableHint") }}
-              </p>
+              <span v-if="tool.version" class="text-[10px] text-muted-foreground font-mono opacity-70">
+                v{{ tool.version }}
+              </span>
             </div>
 
+            <!-- Tool path display -->
+            <div v-if="tool.resolvedPath" class="mb-1.5">
+              <div class="flex items-center gap-1 group">
+                <span class="text-[9px] text-muted-foreground uppercase tracking-wider">PATH:</span>
+                <code class="flex-1 text-[10px] font-mono text-muted-foreground truncate">
+                  {{ tool.resolvedPath }}
+                </code>
+                <button
+                  class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-accent rounded transition-all"
+                  @click="copyToClipboard(tool.resolvedPath)"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom path input -->
+            <div v-if="appSettings" class="flex items-center gap-1.5">
+              <span class="text-[9px] text-muted-foreground uppercase tracking-wider shrink-0">CUSTOM:</span>
+              <Input
+                :model-value="getToolCustomPath(tool.kind)"
+                :placeholder="t('app.settings.customToolPathPlaceholder')"
+                class="h-6 text-[10px] font-mono bg-background/50 border-border/30 px-2"
+                @update:model-value="(value) => setToolCustomPath(tool.kind, value)"
+              />
+            </div>
+
+            <!-- Download progress -->
+            <div v-if="tool.downloadInProgress" class="mt-1.5">
+              <div class="flex items-center justify-between text-[9px] mb-0.5">
+                <span class="text-muted-foreground uppercase tracking-wider">
+                  {{ t("app.settings.downloadInProgress") }}
+                </span>
+                <span v-if="tool.downloadProgress" class="font-mono text-primary">
+                  {{ tool.downloadProgress }}%
+                </span>
+              </div>
+              <div class="h-1 bg-muted/50 rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-300"
+                  :class="tool.downloadProgress == null ? 'animate-pulse w-1/3' : ''"
+                  :style="tool.downloadProgress != null ? { width: `${tool.downloadProgress}%` } : {}"
+                />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Core Settings Section -->
+      <Card class="border-border/50 bg-card/95 shadow-sm">
+        <CardHeader class="py-2 px-3 border-b border-border/30">
+          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+            {{ t("app.settings.autoDownloadSectionTitle") }}
+          </CardTitle>
+        </CardHeader>
+        <CardContent v-if="appSettings" class="p-2 space-y-2">
+          <!-- Auto download switches -->
+          <div class="grid grid-cols-2 gap-2">
+            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+              <input
+                :checked="appSettings.tools.autoDownload"
+                type="checkbox"
+                class="w-3 h-3 rounded border-border/50"
+                @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-[10px] select-none">{{ t("app.settings.allowAutoDownloadLabel") }}</span>
+            </label>
+            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+              <input
+                :checked="appSettings.tools.autoUpdate"
+                type="checkbox"
+                class="w-3 h-3 rounded border-border/50"
+                @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-[10px] select-none">{{ t("app.settings.allowAutoUpdateLabel") }}</span>
+            </label>
+          </div>
+
+          <!-- Numeric settings -->
+          <div class="space-y-1.5 pt-1">
+            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
+              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.previewCaptureLabel") }}</label>
+              <div class="flex items-center gap-1">
+                <Input
+                  :model-value="appSettings.previewCapturePercent"
+                  type="number"
+                  min="0"
+                  max="100"
+                  class="w-16 h-6 text-[10px] font-mono text-center"
+                  @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
+                />
+                <span class="text-[10px] text-muted-foreground">%</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
+              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.maxParallelJobsLabel") }}</label>
+              <Input
+                :model-value="appSettings.maxParallelJobs"
+                type="number"
+                min="0"
+                max="32"
+                class="w-16 h-6 text-[10px] font-mono text-center"
+                @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
+              />
+            </div>
+
+            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
+              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.progressUpdateIntervalLabel") }}</label>
+              <div class="flex items-center gap-1">
+                <Input
+                  :model-value="appSettings.progressUpdateIntervalMs"
+                  type="number"
+                  min="50"
+                  max="2000"
+                  step="50"
+                  class="w-20 h-6 text-[10px] font-mono text-center"
+                  @update:model-value="(v) => updateSetting('progressUpdateIntervalMs', Number(v))"
+                />
+                <span class="text-[10px] text-muted-foreground">ms</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
+              <label class="text-[10px] text-muted-foreground">
+                {{ t("app.settings.metricsIntervalLabel") }}
+              </label>
+              <div class="flex items-center gap-1">
+                <Input
+                  :model-value="appSettings.metricsIntervalMs"
+                  type="number"
+                  min="100"
+                  max="5000"
+                  step="100"
+                  class="w-20 h-6 text-[10px] font-mono text-center"
+                  @update:model-value="(v) => updateSetting('metricsIntervalMs', Number(v))"
+                />
+                <span class="text-[10px] text-muted-foreground">ms</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- Interface Settings -->
+      <Card class="border-border/50 bg-card/95 shadow-sm">
+        <CardHeader class="py-2 px-3 border-b border-border/30">
+          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+            {{ t("app.taskbarProgressModeLabel") }}
+          </CardTitle>
+        </CardHeader>
+        <CardContent v-if="appSettings" class="p-2">
+          <Select
+            :model-value="appSettings.taskbarProgressMode"
+            @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
+          >
+            <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="bySize" class="text-[10px]">
+                {{ t("app.taskbarProgressModes.bySize") }}
+              </SelectItem>
+              <SelectItem value="byDuration" class="text-[10px]">
+                {{ t("app.taskbarProgressModes.byDuration") }}
+              </SelectItem>
+              <SelectItem value="byEstimatedTime" class="text-[10px]">
+                {{ t("app.taskbarProgressModes.byEstimatedTime") }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
+            {{ t("app.taskbarProgressModeHelp") }}
+          </p>
+        </CardContent>
+      </Card>
+
+      <!-- Developer Tools -->
+      <Card class="border-border/50 bg-card/95 shadow-sm">
+        <CardHeader class="py-2 px-3 border-b border-border/30">
+          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+            {{ t("app.settings.devtoolsSectionTitle") }}
+          </CardTitle>
+        </CardHeader>
+        <CardContent class="p-2">
+          <div class="flex items-center justify-between">
             <p class="text-[10px] text-muted-foreground">
-              {{ t("app.settings.customToolPathFooter") }}
+              {{ hasTauri() ? t("app.settings.devtoolsWindowHint") : t("app.openDevtoolsUnavailable") }}
             </p>
-          </CardContent>
-        </Card>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px]"
+              :disabled="!hasTauri()"
+              @click="openDevtools"
+            >
+              {{ t("app.openDevtools") }}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div v-if="appSettings" class="space-y-4">
-          <Card class="border-border/80 shadow-sm">
-            <CardHeader class="pb-3">
-              <CardTitle class="text-sm text-foreground">
-                {{ t("app.settings.autoDownloadSectionTitle") }}
-              </CardTitle>
-              <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                {{ t("app.settings.autoDownloadSectionDescription") }}
-              </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4 text-xs">
-              <div class="space-y-2">
-                <h4 class="text-[11px] font-semibold text-foreground">
-                  {{ t("app.settings.downloadStrategyLabel") }}
-                </h4>
-                <div class="flex flex-wrap items-center gap-3">
-                  <label class="inline-flex items-center gap-1 cursor-pointer select-none">
-                    <input
-                      :checked="appSettings.tools.autoDownload"
-                      type="checkbox"
-                      class="h-3 w-3"
-                      @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ t("app.settings.allowAutoDownloadLabel") }}</span>
-                  </label>
-                  <label class="inline-flex items-center gap-1 cursor-pointer select-none">
-                    <input
-                      :checked="appSettings.tools.autoUpdate"
-                      type="checkbox"
-                      class="h-3 w-3"
-                      @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ t("app.settings.allowAutoUpdateLabel") }}</span>
-                  </label>
-                </div>
-              </div>
+      <!-- System Info Panel (optional - adds technical flair) -->
+      <Card class="border-border/50 bg-card/95 shadow-sm lg:col-span-2 xl:col-span-1">
+        <CardHeader class="py-2 px-3 border-b border-border/30">
+          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+            SYSTEM INFO
+          </CardTitle>
+        </CardHeader>
+        <CardContent class="p-2">
+          <div class="space-y-1 font-mono text-[9px] text-muted-foreground">
+            <div class="flex justify-between">
+              <span class="opacity-60">PLATFORM:</span>
+              <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="opacity-60">SETTINGS:</span>
+              <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
+            </div>
+            <div v-if="isSavingSettings || settingsSaveError" class="flex justify-between">
+              <span class="opacity-60">STATUS:</span>
+              <span :class="settingsSaveError ? 'text-red-500' : 'text-yellow-500'">
+                {{ isSavingSettings ? 'SAVING...' : 'ERROR' }}
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
 
-              <div class="grid gap-3">
-                <div class="space-y-1">
-                  <label class="block text-[11px] text-muted-foreground">
-                    {{ t("app.settings.previewCaptureLabel") }}
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <Input
-                      :model-value="appSettings.previewCapturePercent"
-                      type="number"
-                      min="0"
-                      max="100"
-                      class="h-8 w-24 text-xs"
-                      @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
-                    />
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ t("app.settings.previewCaptureHelp") }}
-                    </span>
-                  </div>
-                </div>
-                <div class="space-y-1">
-                  <label class="block text-[11px] text-muted-foreground">
-                    {{ t("app.settings.maxParallelJobsLabel") }}
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <Input
-                      :model-value="appSettings.maxParallelJobs"
-                      type="number"
-                      min="0"
-                      max="32"
-                      class="h-8 w-24 text-xs"
-                      @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
-                    />
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ t("app.settings.maxParallelJobsHelp") }}
-                    </span>
-                  </div>
-                </div>
-                <div class="space-y-1">
-                  <label class="block text-[11px] text-muted-foreground">
-                    {{ t("app.settings.progressUpdateIntervalLabel") }}
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <Input
-                      :model-value="appSettings.progressUpdateIntervalMs"
-                      type="number"
-                      min="50"
-                      max="2000"
-                      class="h-8 w-24 text-xs"
-                      @update:model-value="(v) => updateSetting('progressUpdateIntervalMs', Number(v))"
-                    />
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ t("app.settings.progressUpdateIntervalHelp") }}
-                    </span>
-                  </div>
-                </div>
-                <div class="space-y-1">
-                  <label class="block text-[11px] text-muted-foreground">
-                    {{ t("app.taskbarProgressModeLabel") }}
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <Select
-                      :model-value="appSettings.taskbarProgressMode"
-                      @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
-                    >
-                      <SelectTrigger class="h-8 min-w-[180px] text-xs">
-                        <SelectValue :placeholder="t('app.taskbarProgressModeLabel')" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="bySize">
-                          {{ t("app.taskbarProgressModes.bySize") }}
-                        </SelectItem>
-                        <SelectItem value="byDuration">
-                          {{ t("app.taskbarProgressModes.byDuration") }}
-                        </SelectItem>
-                        <SelectItem value="byEstimatedTime">
-                          {{ t("app.taskbarProgressModes.byEstimatedTime") }}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <span class="text-[11px] text-muted-foreground">
-                      {{ t("app.taskbarProgressModeHelp") }}
-                    </span>
-                  </div>
-                </div>
-              </div>
+    <!-- Status bar at bottom -->
+    <div v-if="appSettings" class="mt-3 px-2 py-1 bg-muted/30 rounded border border-border/30">
+      <p class="text-[9px] font-mono text-muted-foreground text-center">
+        <span v-if="isSavingSettings" class="text-yellow-500">● SAVING SETTINGS...</span>
+        <span v-else-if="settingsSaveError" class="text-red-500">● {{ settingsSaveError }}</span>
+        <span v-else class="text-emerald-500">● {{ t("app.settings.autoSaveHint") }}</span>
+      </p>
+    </div>
 
-              <div class="text-[10px] text-muted-foreground">
-                <span v-if="isSavingSettings">
-                  {{ t("app.settings.savingSettings") }}
-                </span>
-                <span v-else-if="settingsSaveError" class="text-destructive">
-                  {{ settingsSaveError }}
-                </span>
-                <span v-else>
-                  {{ t("app.settings.autoSaveHint") }}
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card class="border-border/80 shadow-sm">
-            <CardHeader class="pb-3 flex items-center justify-between gap-2">
-              <div>
-                <CardTitle class="text-sm text-foreground">
-                  {{ t("app.settings.devtoolsSectionTitle") }}
-                </CardTitle>
-                <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                  {{ t("app.settings.devtoolsSectionDescription") }}
-                </CardDescription>
-              </div>
-              <Button
-                data-testid="settings-open-devtools"
-                size="sm"
-                variant="outline"
-                class="h-7 px-3 text-[11px]"
-                :disabled="!hasTauri()"
-                @click="openDevtools"
-              >
-                {{ t("app.openDevtools") }}
-              </Button>
-            </CardHeader>
-            <CardContent class="space-y-2 text-xs">
-              <p v-if="!hasTauri()" class="text-[11px] text-muted-foreground">
-                {{ t("app.openDevtoolsUnavailable") }}
-              </p>
-              <p v-else class="text-[11px] text-muted-foreground">
-                {{ t("app.settings.devtoolsWindowHint") }}
-              </p>
-            </CardContent>
-          </Card>
+    <!-- Loading state -->
+    <div v-if="!appSettings" class="flex items-center justify-center py-12">
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center gap-2">
+          <div class="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+          <div class="w-2 h-2 bg-primary rounded-full animate-pulse animation-delay-200"></div>
+          <div class="w-2 h-2 bg-primary rounded-full animate-pulse animation-delay-400"></div>
         </div>
-
-        <div v-else class="text-xs text-muted-foreground">
+        <p class="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
           {{ t("app.settings.loadingSettings") }}
-        </div>
+        </p>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+
+.animation-delay-400 {
+  animation-delay: 400ms;
+}
+</style>
