@@ -1,7 +1,7 @@
-import { onMounted, onUnmounted, ref, watch, type Ref } from "vue";
+import { onMounted, onUnmounted, ref, type Ref } from "vue";
 import { getCurrentWindow, type Window as TauriWindow } from "@tauri-apps/api/window";
 import { acknowledgeTaskbarProgress, hasTauri } from "@/lib/backend";
-import { useMonitoring, useWindowControls } from "@/composables";
+import { useWindowControls } from "@/composables";
 
 export type MainAppTab = "queue" | "presets" | "media" | "monitor" | "settings";
 
@@ -10,8 +10,6 @@ export interface UseMainAppShellReturn {
   minimizeWindow: () => Promise<void>;
   toggleMaximizeWindow: () => Promise<void>;
   closeWindow: () => Promise<void>;
-  cpuSnapshot: ReturnType<typeof useMonitoring>["cpuSnapshot"];
-  gpuSnapshot: ReturnType<typeof useMonitoring>["gpuSnapshot"];
 }
 
 /**
@@ -26,26 +24,8 @@ export function useMainAppShell(): UseMainAppShellReturn {
 
   const { minimizeWindow, toggleMaximizeWindow, closeWindow } = useWindowControls();
 
-  const { cpuSnapshot, gpuSnapshot, startMonitoring, stopMonitoring } = useMonitoring({
-    intervalMs: 2000,
-    autoStart: false,
-  });
-
   const appWindow = ref<TauriWindow | null>(null);
   let focusUnlisten: (() => void) | null = null;
-
-  // Start/stop monitoring based on the active tab.
-  watch(
-    activeTab,
-    (next, prev) => {
-      if (next === "monitor" && prev !== "monitor") {
-        startMonitoring();
-      } else if (next !== "monitor" && prev === "monitor") {
-        stopMonitoring();
-      }
-    },
-    { flush: "post" },
-  );
 
   onMounted(async () => {
     if (!hasTauri()) return;
@@ -93,10 +73,7 @@ export function useMainAppShell(): UseMainAppShellReturn {
     minimizeWindow,
     toggleMaximizeWindow,
     closeWindow,
-    cpuSnapshot,
-    gpuSnapshot,
   };
 }
 
 export default useMainAppShell;
-
