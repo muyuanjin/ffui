@@ -74,6 +74,7 @@ export interface UseMainAppQueueReturn
   queueJobsForDisplay: ComputedRef<TranscodeJob[]>;
   visibleQueueItems: ComputedRef<QueueListItem[]>;
   iconViewItems: ComputedRef<QueueListItem[]>;
+  hasPrimarySortTies: ComputedRef<boolean>;
 
   refreshQueueFromBackend: () => Promise<void>;
   handleWaitJob: (jobId: string) => Promise<void>;
@@ -206,6 +207,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     sortSecondaryDirection,
     hasActiveFilters,
     hasSelection,
+    hasPrimarySortTies,
     selectedJobs,
     filteredJobs,
     displayModeSortedJobs,
@@ -243,6 +245,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   void isJobSelected;
   void compareJobsByConfiguredFields;
   void compareJobsForDisplay;
+  void hasPrimarySortTies;
 
   const {
     refreshQueueFromBackend,
@@ -427,15 +430,15 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   return {
-    queueViewMode,
-    queueProgressStyle,
-    queueMode,
-    setQueueViewMode,
-    setQueueProgressStyle,
-    setQueueMode,
-    queueViewModeModel,
-    queueModeModel,
-    queueProgressStyleModel,
+  queueViewMode,
+  queueProgressStyle,
+  queueMode,
+  setQueueViewMode,
+  setQueueProgressStyle,
+  setQueueMode,
+  queueViewModeModel,
+  queueModeModel,
+  queueProgressStyleModel,
     queueRowVariant,
     isIconViewMode,
     iconViewSize,
@@ -453,6 +456,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     sortSecondaryDirection,
     hasActiveFilters,
     hasSelection,
+    hasPrimarySortTies,
     queueModeProcessingJobs,
     queueModeWaitingJobs,
     selectAllVisibleJobs,

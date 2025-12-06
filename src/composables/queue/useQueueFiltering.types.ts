@@ -72,6 +72,8 @@ export interface UseQueueFilteringReturn {
   hasActiveFilters: ComputedRef<boolean>;
   /** Whether any jobs are selected. */
   hasSelection: ComputedRef<boolean>;
+  /** Whether the primary sort field currently has duplicate values among filtered jobs. */
+  hasPrimarySortTies: ComputedRef<boolean>;
   /** List of selected jobs. */
   selectedJobs: ComputedRef<TranscodeJob[]>;
   /** Filtered jobs list. */
@@ -117,4 +119,3 @@ export interface UseQueueFilteringReturn {
   /** Compare jobs in waiting group (queue order first). */
   compareJobsInWaitingGroup: (a: TranscodeJob, b: TranscodeJob) => number;
 }
-
