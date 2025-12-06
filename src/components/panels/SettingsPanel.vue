@@ -108,10 +108,10 @@ const copyToClipboard = async (value: string | undefined | null) => {
           <CardHeader class="pb-3 flex flex-row items-start justify-between gap-2">
             <div>
               <CardTitle class="text-sm text-foreground">
-                外部工具
+                {{ t("app.settings.externalToolsTitle") }}
               </CardTitle>
               <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动下载状态。
+                {{ t("app.settings.externalToolsDescription") }}
               </CardDescription>
             </div>
             <Button
@@ -121,7 +121,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               class="h-7 px-3 text-[11px]"
               @click="emit('refreshToolStatuses')"
             >
-              刷新状态
+              {{ t("app.settings.refreshToolsStatus") }}
             </Button>
           </CardHeader>
           <CardContent class="space-y-3 text-xs">
@@ -143,7 +143,11 @@ const copyToClipboard = async (value: string | undefined | null) => {
                         : 'bg-destructive/10 text-destructive border-destructive/40'
                     "
                   >
-                    {{ tool.resolvedPath ? "已就绪" : "未找到" }}
+                    {{
+                      tool.resolvedPath
+                        ? t("app.settings.toolStatus.ready")
+                        : t("app.settings.toolStatus.missing")
+                    }}
                   </span>
                 </div>
                 <span
@@ -157,7 +161,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
 
               <div class="space-y-1">
                 <label class="block text-[10px] text-muted-foreground">
-                  当前使用路径
+                  {{ t("app.settings.currentToolPathLabel") }}
                 </label>
                 <div
                   v-if="tool.resolvedPath"
@@ -178,18 +182,18 @@ const copyToClipboard = async (value: string | undefined | null) => {
                   </Button>
                 </div>
                 <p v-else class="text-[11px] text-destructive">
-                  未找到可执行文件，将在需要时尝试自动下载（如果已启用）。
+                  {{ t("app.settings.toolNotFoundHelp") }}
                 </p>
               </div>
 
               <div v-if="appSettings" class="space-y-1">
                 <label class="block text-[10px] text-muted-foreground">
-                  自定义路径（优先使用）
+                  {{ t("app.settings.customToolPathLabel") }}
                 </label>
                 <Input
                   :model-value="getToolCustomPath(tool.kind)"
                   class="h-8 text-xs"
-                  placeholder="留空表示从 PATH 或自动下载目录查找"
+                  :placeholder="t('app.settings.customToolPathPlaceholder') as string"
                   @update:model-value="(value) => setToolCustomPath(tool.kind, value)"
                 />
               </div>
@@ -203,7 +207,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 class="space-y-1"
               >
                 <label class="block text-[10px] text-muted-foreground">
-                  下载 / 更新状态
+                  {{ t("app.settings.downloadStatusLabel") }}
                 </label>
                 <div v-if="tool.downloadInProgress" class="space-y-1">
                   <div class="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -218,7 +222,10 @@ const copyToClipboard = async (value: string | undefined | null) => {
                     />
                   </div>
                   <p class="text-[10px] text-muted-foreground">
-                    {{ tool.lastDownloadMessage || "正在下载，请稍候..." }}
+                    {{
+                      tool.lastDownloadMessage ||
+                      (t("app.settings.downloadInProgress") as string)
+                    }}
                   </p>
                 </div>
                 <p
@@ -239,13 +246,12 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 v-if="tool.updateAvailable"
                 class="text-[10px] text-amber-400"
               >
-                检测到可用更新，将在需要时尝试自动下载该工具。
+                {{ t("app.settings.updateAvailableHint") }}
               </p>
             </div>
 
             <p class="text-[10px] text-muted-foreground">
-              当设置了自定义路径时优先使用自定义路径，否则从自动下载的
-              <code class="font-mono">tools</code> 目录或系统 PATH 查找。
+              {{ t("app.settings.customToolPathFooter") }}
             </p>
           </CardContent>
         </Card>
@@ -254,16 +260,16 @@ const copyToClipboard = async (value: string | undefined | null) => {
           <Card class="border-border/80 shadow-sm">
             <CardHeader class="pb-3">
               <CardTitle class="text-sm text-foreground">
-                自动下载与全局参数
+                {{ t("app.settings.autoDownloadSectionTitle") }}
               </CardTitle>
               <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                控制外部工具的自动下载/更新策略，以及预览截帧和并行任务上限。
+                {{ t("app.settings.autoDownloadSectionDescription") }}
               </CardDescription>
             </CardHeader>
             <CardContent class="space-y-4 text-xs">
               <div class="space-y-2">
                 <h4 class="text-[11px] font-semibold text-foreground">
-                  下载 / 更新策略
+                  {{ t("app.settings.downloadStrategyLabel") }}
                 </h4>
                 <div class="flex flex-wrap items-center gap-3">
                   <label class="inline-flex items-center gap-1 cursor-pointer select-none">
@@ -273,7 +279,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                       class="h-3 w-3"
                       @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
                     />
-                    <span>允许自动下载（推荐）</span>
+                    <span>{{ t("app.settings.allowAutoDownloadLabel") }}</span>
                   </label>
                   <label class="inline-flex items-center gap-1 cursor-pointer select-none">
                     <input
@@ -282,7 +288,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                       class="h-3 w-3"
                       @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
                     />
-                    <span>允许自动更新</span>
+                    <span>{{ t("app.settings.allowAutoUpdateLabel") }}</span>
                   </label>
                 </div>
               </div>
@@ -290,7 +296,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               <div class="grid gap-3">
                 <div class="space-y-1">
                   <label class="block text-[11px] text-muted-foreground">
-                    预览截帧位置（%）
+                    {{ t("app.settings.previewCaptureLabel") }}
                   </label>
                   <div class="flex items-center gap-2">
                     <Input
@@ -302,13 +308,13 @@ const copyToClipboard = async (value: string | undefined | null) => {
                       @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
                     />
                     <span class="text-[11px] text-muted-foreground">
-                      相对于视频总时长的百分比，默认 25。
+                      {{ t("app.settings.previewCaptureHelp") }}
                     </span>
                   </div>
                 </div>
                 <div class="space-y-1">
                   <label class="block text-[11px] text-muted-foreground">
-                    最大并行转码任务数
+                    {{ t("app.settings.maxParallelJobsLabel") }}
                   </label>
                   <div class="flex items-center gap-2">
                     <Input
@@ -320,13 +326,13 @@ const copyToClipboard = async (value: string | undefined | null) => {
                       @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
                     />
                     <span class="text-[11px] text-muted-foreground">
-                      0 表示自动（约为 CPU 逻辑核数的一半），&gt; 0 时将上限固定为该值。
+                      {{ t("app.settings.maxParallelJobsHelp") }}
                     </span>
                   </div>
                 </div>
                 <div class="space-y-1">
                   <label class="block text-[11px] text-muted-foreground">
-                    进度刷新节奏（毫秒）
+                    {{ t("app.settings.progressUpdateIntervalLabel") }}
                   </label>
                   <div class="flex items-center gap-2">
                     <Input
@@ -338,7 +344,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                       @update:model-value="(v) => updateSetting('progressUpdateIntervalMs', Number(v))"
                     />
                     <span class="text-[11px] text-muted-foreground">
-                      控制后端 ffmpeg 汇报进度的间隔，同时影响前端缓冲时长。数值越小越实时，数值越大越平滑。
+                      {{ t("app.settings.progressUpdateIntervalHelp") }}
                     </span>
                   </div>
                 </div>
@@ -374,11 +380,15 @@ const copyToClipboard = async (value: string | undefined | null) => {
               </div>
 
               <div class="text-[10px] text-muted-foreground">
-                <span v-if="isSavingSettings">正在保存设置...</span>
+                <span v-if="isSavingSettings">
+                  {{ t("app.settings.savingSettings") }}
+                </span>
                 <span v-else-if="settingsSaveError" class="text-destructive">
                   {{ settingsSaveError }}
                 </span>
-                <span v-else>修改会自动保存，无需手动点击按钮。</span>
+                <span v-else>
+                  {{ t("app.settings.autoSaveHint") }}
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -387,10 +397,10 @@ const copyToClipboard = async (value: string | undefined | null) => {
             <CardHeader class="pb-3 flex items-center justify-between gap-2">
               <div>
                 <CardTitle class="text-sm text-foreground">
-                  开发者工具
+                  {{ t("app.settings.devtoolsSectionTitle") }}
                 </CardTitle>
                 <CardDescription class="mt-1 text-[11px] text-muted-foreground">
-                  一键打开 Devtools，便于调试与问题排查。
+                  {{ t("app.settings.devtoolsSectionDescription") }}
                 </CardDescription>
               </div>
               <Button
@@ -409,14 +419,14 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 {{ t("app.openDevtoolsUnavailable") }}
               </p>
               <p v-else class="text-[11px] text-muted-foreground">
-                Devtools 将在桌面应用窗口中弹出，无需额外开关。
+                {{ t("app.settings.devtoolsWindowHint") }}
               </p>
             </CardContent>
           </Card>
         </div>
 
         <div v-else class="text-xs text-muted-foreground">
-          正在从后端加载应用设置...
+          {{ t("app.settings.loadingSettings") }}
         </div>
       </div>
     </div>

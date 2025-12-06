@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import VChart from "vue-echarts";
 import "echarts";
 
@@ -13,6 +14,8 @@ defineProps<{
   /** GPU usage snapshot from backend (NVML-based). */
   gpuSnapshot: GpuUsageSnapshot | null;
 }>();
+
+const { t } = useI18n();
 
 const {
   snapshots,
@@ -251,9 +254,9 @@ const networkOption = computed(() => {
       v-if="!hasMetrics"
       class="flex flex-col items-center justify-center h-64 gap-2"
     >
-      <p>正在等待系统性能数据...</p>
+      <p>{{ t("monitor.emptyTitle") }}</p>
       <p class="text-xs text-muted-foreground/80">
-        在 Tauri 环境中打开应用并保持“性能”视图可见即可开始采样；浏览器模式下会使用模拟数据。
+        {{ t("monitor.emptyDescription") }}
       </p>
     </div>
 
@@ -263,7 +266,9 @@ const networkOption = computed(() => {
     >
       <Card>
         <CardHeader>
-          <CardTitle class="text-sm">CPU 总体</CardTitle>
+          <CardTitle class="text-sm">
+            {{ t("monitor.cpuOverall") }}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <VChart
@@ -277,9 +282,13 @@ const networkOption = computed(() => {
       <Card>
         <CardHeader>
           <CardTitle class="text-sm">
-            CPU 按核心
+            {{ t("monitor.cpuPerCore") }}
             <span class="text-[11px] text-muted-foreground/80">
-              (前 {{ perCoreSeries.length }} 个核心)
+              {{
+                t("monitor.cpuPerCoreSuffix", {
+                  count: perCoreSeries.length,
+                })
+              }}
             </span>
           </CardTitle>
         </CardHeader>
@@ -294,7 +303,9 @@ const networkOption = computed(() => {
 
       <Card>
         <CardHeader>
-          <CardTitle class="text-sm">内存</CardTitle>
+          <CardTitle class="text-sm">
+            {{ t("monitor.memory") }}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <VChart
@@ -307,7 +318,9 @@ const networkOption = computed(() => {
 
       <Card>
         <CardHeader>
-          <CardTitle class="text-sm">磁盘 I/O</CardTitle>
+          <CardTitle class="text-sm">
+            {{ t("monitor.diskIo") }}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <VChart
@@ -320,7 +333,9 @@ const networkOption = computed(() => {
 
       <Card class="lg:col-span-2">
         <CardHeader>
-          <CardTitle class="text-sm">网络 I/O</CardTitle>
+          <CardTitle class="text-sm">
+            {{ t("monitor.networkIo") }}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <VChart
@@ -333,30 +348,31 @@ const networkOption = computed(() => {
 
       <Card class="lg:col-span-2">
         <CardHeader>
-          <CardTitle class="text-sm">GPU (NVIDIA / NVML)</CardTitle>
+          <CardTitle class="text-sm">
+            {{ t("monitor.gpuTitle") }}
+          </CardTitle>
         </CardHeader>
         <CardContent class="text-xs space-y-1">
           <p v-if="gpuSnapshot && gpuSnapshot.available">
-            GPU 使用率：
+            {{ t("monitor.gpuUsage") }}
             <span class="font-mono text-foreground">
               {{ gpuSnapshot.gpuPercent ?? 0 }}%
             </span>
           </p>
           <p v-if="gpuSnapshot && gpuSnapshot.available && gpuSnapshot.memoryPercent !== undefined">
-            显存使用率：
+            {{ t("monitor.gpuMemoryUsage") }}
             <span class="font-mono text-foreground">
               {{ gpuSnapshot.memoryPercent }}%
             </span>
           </p>
           <p v-if="gpuSnapshot && !gpuSnapshot.available">
-            {{ gpuSnapshot.error ?? "未检测到 NVIDIA GPU，或 NVML 不可用。" }}
+            {{ gpuSnapshot.error ?? (t("monitor.gpuUnavailable") as string) }}
           </p>
           <p v-if="!gpuSnapshot">
-            正在等待 GPU 使用率数据...
+            {{ t("monitor.gpuWaiting") }}
           </p>
         </CardContent>
       </Card>
     </div>
   </section>
 </template>
-

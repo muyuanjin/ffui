@@ -56,7 +56,7 @@ const emit = defineEmits<{
           </div>
           <div class="font-mono text-foreground">
             <span v-if="audio.codec === 'copy'">
-              {{ t("presets.audioCopy", 'copy') }}
+              {{ t("presets.audioCopy") }}
             </span>
             <span v-else>
               AAC {{ audio.bitrate ?? 0 }}k
@@ -65,7 +65,7 @@ const emit = defineEmits<{
         </div>
         <div v-if="filters.scale">
           <div class="text-[10px] text-muted-foreground uppercase mb-1">
-            {{ t("presetEditor.filters.title", '滤镜') }}
+            {{ t("presetEditor.filters.title") }}
           </div>
           <div class="font-mono text-foreground">
             scale={{ filters.scale }}

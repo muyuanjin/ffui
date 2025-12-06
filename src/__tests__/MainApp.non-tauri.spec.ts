@@ -4,11 +4,16 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
 });
 
 describe("MainApp non-Tauri manual job flow (web preview)", () => {

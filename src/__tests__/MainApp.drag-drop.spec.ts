@@ -3,11 +3,16 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import MainApp from "@/MainApp.vue";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
 });
 
 describe("MainApp drag & drop state", () => {
