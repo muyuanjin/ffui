@@ -82,4 +82,27 @@ describe("MainApp sidebar primary actions", () => {
     await nextTick();
     expect(vm.dialogManager?.wizardOpen?.value).toBe(true);
   });
+
+  it("updates sidebar CTA labels when locale changes at runtime without duplicating buttons", async () => {
+    const wrapper = makeWrapper("zh-CN");
+
+    const findButtonsByText = (text: string) =>
+      wrapper
+        .findAll("button")
+        .filter((btn) => btn.text().includes(text));
+
+    // Initial zh-CN labels appear exactly once.
+    expect(findButtonsByText("添加转码任务").length).toBe(1);
+    expect(findButtonsByText("添加压缩任务").length).toBe(1);
+
+    const i18n: any = (wrapper.vm as any).$i18n;
+    i18n.locale.value = "en";
+    await nextTick();
+
+    // After switching to EN, zh-CN labels disappear and EN labels appear once.
+    expect(findButtonsByText("添加转码任务").length).toBe(0);
+    expect(findButtonsByText("添加压缩任务").length).toBe(0);
+    expect(findButtonsByText("Add transcode job").length).toBe(1);
+    expect(findButtonsByText("Add compression task").length).toBe(1);
+  });
 });

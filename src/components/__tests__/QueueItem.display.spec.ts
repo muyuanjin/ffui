@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
@@ -18,6 +20,15 @@ vi.mock("@/lib/backend", () => {
   };
 });
 
+vi.mock("@/lib/ffmpegCommand", () => {
+  return {
+    highlightFfmpegCommand: (command: string) => command,
+    normalizeFfmpegTemplate: (command: string) => ({
+      template: command ? `TEMPLATE:${command}` : "",
+    }),
+  };
+});
+
 import { hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItem from "@/components/QueueItem.vue";
 
@@ -26,6 +37,7 @@ const i18n = createI18n({
   locale: "en",
   messages: {
     en: en as any,
+    "zh-CN": zhCN as any,
   },
 });
 
@@ -76,6 +88,7 @@ describe("QueueItem display basics", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
+    (i18n.global.locale as any).value = "en";
   });
 
   it("renders job sizes and savings without throwing", () => {
@@ -384,5 +397,44 @@ describe("QueueItem display basics", () => {
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const imgs = thumb.findAll("img");
     expect(imgs.length).toBe(0);
+  });
+
+  it("uses i18n labels for the command view toggle and updates on locale change", async () => {
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand:
+        'ffmpeg -i "INPUT" -c:v libx264 -crf 23 -preset medium -c:a copy "OUTPUT"',
+    });
+
+    // Start in zh-CN so we can assert Chinese labels first.
+    (i18n.global.locale as any).value = "zh-CN";
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // Toggle button should exist and use the zh-CN label.
+    const toggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("显示完整命令"));
+
+    expect(toggleButton, "command view toggle button should exist").toBeTruthy();
+
+    // Switch locale to EN at runtime.
+    (i18n.global.locale as any).value = "en";
+    await nextTick();
+
+    const enToggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Show full command"));
+
+    expect(enToggleButton, "command view toggle should reflect EN label").toBeTruthy();
   });
 });
