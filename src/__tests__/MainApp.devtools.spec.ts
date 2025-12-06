@@ -96,6 +96,9 @@ vi.mock("@/lib/backend", () => {
     enqueueTranscodeJob: vi.fn(async () => ({} as any)),
     cancelTranscodeJob: vi.fn(async () => true),
     openDevtools: (...args: any[]) => openDevtoolsMock(...args),
+    selectPlayableMediaPath: vi.fn(
+      async (candidates: string[]) => candidates[0] ?? null,
+    ),
   };
 });
 
