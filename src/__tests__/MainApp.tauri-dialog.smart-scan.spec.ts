@@ -16,7 +16,6 @@ import {
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { AutoCompressProgress, TranscodeJob } from "@/types";
-import { beforeEach } from "vitest";
 
 // SmartScanWizard 使用 reka-ui Slider，会依赖 ResizeObserver。
 // 在 jsdom 测试环境中手动提供一个最小的 polyfill，避免挂载时报错。
