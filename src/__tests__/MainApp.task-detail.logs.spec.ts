@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
@@ -35,7 +36,14 @@ vi.mock("@/lib/backend", () => ({
   cancelTranscodeJob: vi.fn(async () => true),
 }));
 
-const i18n = createI18n({ legacy: false, locale: "en", messages: { en: en as any } });
+const i18n = createI18n({
+  legacy: false,
+  locale: "en",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
 
 const setJobsOnVm = (vm: any, jobs: TranscodeJob[]) => {
   if (Array.isArray(vm.jobs)) {

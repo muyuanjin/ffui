@@ -14,6 +14,8 @@ export interface UseAppSettingsOptions {
   smartConfig?: Ref<SmartScanConfig>;
   /** Manual job preset ID ref (to restore from settings). */
   manualJobPresetId?: Ref<string | null>;
+  /** Optional i18n translation function for user-facing messages. */
+  t?: (key: string) => string;
 }
 
 export interface UseAppSettingsReturn {
@@ -48,7 +50,7 @@ export interface UseAppSettingsReturn {
  * Composable for app settings management.
  */
 export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSettingsReturn {
-  const { smartConfig, manualJobPresetId } = options;
+  const { smartConfig, manualJobPresetId, t } = options;
 
   // ----- State -----
   const appSettings = ref<AppSettings | null>(null);
@@ -112,7 +114,9 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         await refreshToolStatuses();
       } catch (error) {
         console.error("Failed to save settings", error);
-        settingsSaveError.value = "保存设置失败，请稍后重试。";
+        settingsSaveError.value =
+          (t?.("app.settings.saveErrorGeneric") as string) ??
+          "Failed to save settings. Please try again later.";
       } finally {
         isSavingSettings.value = false;
       }

@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
+import { useI18n } from "vue-i18n";
 import type { AppSettings, SmartScanConfig, TranscodeJob } from "@/types";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
@@ -36,6 +37,8 @@ export function useMainAppSettings(
 ): UseMainAppSettingsReturn {
   const { jobs, manualJobPresetId, smartConfig } = options;
 
+  const { t } = useI18n();
+
   const {
     appSettings,
     isSavingSettings,
@@ -48,6 +51,7 @@ export function useMainAppSettings(
   } = useAppSettings({
     smartConfig,
     manualJobPresetId,
+    t,
   });
 
   const {
@@ -122,4 +126,3 @@ export function useMainAppSettings(
 }
 
 export default useMainAppSettings;
-

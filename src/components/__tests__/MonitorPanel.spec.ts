@@ -3,6 +3,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { computed, ref } from "vue";
+import { createI18n } from "vue-i18n";
 
 import type { SystemMetricsSnapshot } from "@/types";
 
@@ -89,7 +90,19 @@ vi.mock("@/composables", () => ({
   }),
 }));
 
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
+
 import MonitorPanel from "../panels/MonitorPanel.vue";
+
+const i18n = createI18n({
+  legacy: false,
+  locale: "zh-CN",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
 
 const makeSnapshot = (timestamp: number, cores: number, interfaces: number): SystemMetricsSnapshot => ({
   timestamp,
@@ -130,6 +143,9 @@ describe("MonitorPanel", () => {
         cpuSnapshot: null,
         gpuSnapshot: null,
       },
+      global: {
+        plugins: [i18n],
+      },
     });
 
     expect(wrapper.text()).toContain("正在等待系统性能数据");
@@ -157,6 +173,9 @@ describe("MonitorPanel", () => {
           error: undefined,
         },
       },
+      global: {
+        plugins: [i18n],
+      },
     });
 
     // All chart containers should render using the stubbed component.
@@ -169,4 +188,3 @@ describe("MonitorPanel", () => {
     expect(wrapper.text()).toContain("网络 I/O");
   });
 });
-

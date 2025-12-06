@@ -5,6 +5,8 @@ import type {
   AutoCompressResult,
   TranscodeJob,
 } from "@/types";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 export const dialogOpenMock = vi.fn();
 export const invokeMock = vi.fn<
@@ -54,7 +56,10 @@ vi.mock("@/lib/backend", async () => {
 export const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
 });
 
 export function defaultAppSettings(overrides: Partial<AppSettings> = {}): AppSettings {

@@ -148,8 +148,7 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
     const ok = await reorderQueue(orderedIds);
     if (!ok) {
       deps.queueError.value =
-        deps.t?.("queue.error.reorderRejected") ||
-        "后台拒绝调整等待队列顺序，可能当前队列已发生变化。";
+        (deps.t?.("queue.error.reorderRejected") as string) ?? "";
       return;
     }
     deps.queueError.value = null;
@@ -157,8 +156,7 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
   } catch (error) {
     console.error("Failed to reorder waiting queue", error);
     deps.queueError.value =
-      deps.t?.("queue.error.reorderFailed") ||
-      "调整等待队列顺序时出现错误，请稍后重试或检查设置。";
+      (deps.t?.("queue.error.reorderFailed") as string) ?? "";
   }
 }
 

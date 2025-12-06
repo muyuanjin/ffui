@@ -53,11 +53,16 @@ vi.mock("@/lib/backend", () => {
 
 import MainApp from "@/MainApp.vue";
 import { enqueueTranscodeJob } from "@/lib/backend";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
 });
 
 describe("MainApp Tauri drag & drop integration", () => {

@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
+import en from "@/locales/en";
 import MainApp from "@/MainApp.vue";
 
 const openDevtoolsMock = vi.fn();
@@ -101,7 +102,9 @@ vi.mock("@/lib/backend", () => {
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+  },
 });
 
 describe("MainApp devtools quick action", () => {

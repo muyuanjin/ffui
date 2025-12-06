@@ -6,6 +6,8 @@ import { nextTick } from "vue";
 
 import MainApp from "@/MainApp.vue";
 import { acknowledgeTaskbarProgress } from "@/lib/backend";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
 
 const focusListenMock = vi.fn<
   (event: string, handler: () => void) => Promise<() => void>
@@ -86,7 +88,10 @@ vi.mock("@/lib/backend", () => {
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
 });
 
 describe("MainApp taskbar progress acknowledgement", () => {

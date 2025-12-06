@@ -107,6 +107,22 @@ const other = {
     compressionTitle: "平均压缩率（%）",
     speedTitle: "处理速度（MB/s）",
   },
+  monitor: {
+    emptyTitle: "正在等待系统性能数据...",
+    emptyDescription:
+      "在 Tauri 环境中打开应用并保持「性能」视图可见即可开始采样；浏览器模式下会使用模拟数据。",
+    cpuOverall: "CPU 总体",
+    cpuPerCore: "CPU 按核心",
+    cpuPerCoreSuffix: "(前 {count} 个核心)",
+    memory: "内存",
+    diskIo: "磁盘 I/O",
+    networkIo: "网络 I/O",
+    gpuTitle: "GPU（NVIDIA / NVML）",
+    gpuUsage: "GPU 使用率：",
+    gpuMemoryUsage: "显存使用率：",
+    gpuUnavailable: "未检测到 NVIDIA GPU，或 NVML 不可用。",
+    gpuWaiting: "正在等待 GPU 使用率数据...",
+  },
 } as const;
 
 export default other;
