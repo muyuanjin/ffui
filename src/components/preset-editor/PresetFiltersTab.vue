@@ -40,13 +40,13 @@ const { t } = useI18n();
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <Label class="block text-xs mb-1">
-            {{ t("presetEditor.filters.cropLabel", '裁剪 (crop)') }}
+      <div>
+        <Label class="block text-xs mb-1">
+          {{ t("presetEditor.filters.cropLabel") }}
           </Label>
           <Input
             :model-value="filters.crop ?? ''"
-            :placeholder="t('presetEditor.filters.cropPlaceholder', '例如 in_w:in_h-80')"
+            :placeholder="t('presetEditor.filters.cropPlaceholder')"
             class="text-xs font-mono"
             @update:model-value="
               (value) => {
@@ -58,11 +58,11 @@ const { t } = useI18n();
         </div>
         <div>
           <Label class="block text-xs mb-1">
-            {{ t("presetEditor.filters.fpsLabel", '输出帧率 (fps)') }}
+            {{ t("presetEditor.filters.fpsLabel") }}
           </Label>
           <Input
             :model-value="filters.fps != null ? String(filters.fps) : ''"
-            :placeholder="t('presetEditor.filters.fpsPlaceholder', '保持源帧率')"
+            :placeholder="t('presetEditor.filters.fpsPlaceholder')"
             class="text-xs"
             @update:model-value="
               (value) => {
@@ -77,15 +77,12 @@ const { t } = useI18n();
 
       <div class="space-y-2">
         <Label class="block text-xs">
-          {{ t("presetEditor.filters.vfChainLabel", '附加视频滤镜链 (-vf)') }}
+          {{ t("presetEditor.filters.vfChainLabel") }}
         </Label>
         <Textarea
           :model-value="filters.vfChain ?? ''"
           :placeholder="
-            t(
-              'presetEditor.filters.vfChainPlaceholder',
-              '例如 eq=contrast=1.1:brightness=0.05',
-            )
+            t('presetEditor.filters.vfChainPlaceholder')
           "
           class="min-h-[60px] text-[11px] font-mono"
           @update:model-value="
@@ -99,13 +96,11 @@ const { t } = useI18n();
 
       <div class="space-y-2">
         <Label class="block text-xs">
-          {{ t("presetEditor.filters.afChainLabel", '附加音频滤镜链 (-af)') }}
+          {{ t("presetEditor.filters.afChainLabel") }}
         </Label>
         <Textarea
           :model-value="filters.afChain ?? ''"
-          :placeholder="
-            t('presetEditor.filters.afChainPlaceholder', '例如 acompressor=threshold=-18dB')
-          "
+          :placeholder="t('presetEditor.filters.afChainPlaceholder')"
           class="min-h-[48px] text-[11px] font-mono"
           @update:model-value="
             (value) => {
@@ -118,15 +113,12 @@ const { t } = useI18n();
 
       <div class="space-y-2">
         <Label class="block text-xs">
-          {{ t("presetEditor.filters.filterComplexLabel", '复杂滤镜图 (-filter_complex)') }}
+          {{ t("presetEditor.filters.filterComplexLabel") }}
         </Label>
         <Textarea
           :model-value="filters.filterComplex ?? ''"
           :placeholder="
-            t(
-              'presetEditor.filters.filterComplexPlaceholder',
-              '例如 [0:v]scale=1280:-2[scaled];[scaled][1:v]overlay=10:10',
-            )
+            t('presetEditor.filters.filterComplexPlaceholder')
           "
           class="min-h-[72px] text-[11px] font-mono"
           @update:model-value="
@@ -140,4 +132,3 @@ const { t } = useI18n();
     </div>
   </div>
 </template>
-

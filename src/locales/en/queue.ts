@@ -44,9 +44,6 @@ const queue = {
     skipped: "skipped",
     failed: "failed",
     cancelled: "cancelled",
-    "${displayStatusKey.value}": "status",
-    "${job.status}": "status",
-    "${statusKey}": "status",
   },
   savedShort: "saved {percent}%",
   source: {

@@ -91,6 +91,7 @@ const media = useMainAppMedia({
 const preview = useMainAppPreview({
   presets,
   dialogManager: dialogs.dialogManager,
+  t,
 });
 
 const dnd = useMainAppDnDAndContextMenu({
