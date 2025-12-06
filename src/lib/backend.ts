@@ -180,6 +180,37 @@ export const inspectMedia = async (path: string): Promise<string> => {
 };
 
 /**
+ * Given an ordered list of candidate media paths (input/output/tmp), ask the
+ * backend to pick the first one that currently exists as a regular file.
+ *
+ * In Tauri mode this uses a dedicated command that checks filesystem state so
+ * preview playback can transparently fall back when users delete or replace
+ * original/output files. In pure web/test environments we simply return the
+ * first non-empty candidate to keep behaviour predictable and cheap.
+ */
+export const selectPlayableMediaPath = async (
+  candidatePaths: string[],
+): Promise<string | null> => {
+  const filtered = candidatePaths.filter((p) => !!p);
+  if (!filtered.length) return null;
+
+  if (!hasTauri()) {
+    return filtered[0] ?? null;
+  }
+
+  try {
+    return await invoke<string | null>("select_playable_media_path", {
+      // Accept both camelCase and snake_case to stay resilient to Rust-side renames.
+      candidatePaths: filtered,
+      candidate_paths: filtered,
+    });
+  } catch (error) {
+    console.error("selectPlayableMediaPath: falling back to first candidate after error", error);
+    return filtered[0] ?? null;
+  }
+};
+
+/**
  * Build a safe local preview URL for images or videos backed by a filesystem
  * path. In Tauri we prefer `convertFileSrc` so the webview can load the file
  * via the asset protocol; in pure web / test environments we fall back to the

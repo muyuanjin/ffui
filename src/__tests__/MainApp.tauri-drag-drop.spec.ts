@@ -48,6 +48,9 @@ vi.mock("@/lib/backend", () => {
     saveAppSettings: vi.fn(async (settings: any) => settings),
     enqueueTranscodeJob,
     cancelTranscodeJob: vi.fn(async () => true),
+    selectPlayableMediaPath: vi.fn(
+      async (candidates: string[]) => candidates[0] ?? null,
+    ),
   };
 });
 

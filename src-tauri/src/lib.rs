@@ -296,6 +296,7 @@ pub fn run() {
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
             commands::tools::get_preview_data_url,
+            commands::tools::select_playable_media_path,
             commands::tools::metrics_subscribe,
             commands::tools::metrics_unsubscribe,
             commands::tools::get_metrics_history
@@ -412,7 +413,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::tools::get_preview_data_url;
+    use crate::commands::tools::{get_preview_data_url, select_playable_media_path};
 
     #[test]
     fn get_preview_data_url_builds_data_url_prefix() {
@@ -437,6 +438,42 @@ mod tests {
             url.starts_with("data:image/jpeg;base64,"),
             "preview data url must start with JPEG data URL prefix, got: {url}"
         );
+    }
+
+    #[test]
+    fn select_playable_media_path_prefers_first_existing_candidate() {
+        use std::fs;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        // Create a temporary file on disk so we can exercise the helper against
+        // both missing and existing candidates without relying on any fixed
+        // paths on the user's system.
+        let tmp_dir = std::env::temp_dir();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let existing_path = tmp_dir.join(format!("ffui_test_playable_{timestamp}.mp4"));
+
+        fs::write(&existing_path, b"dummy-bytes").expect("failed to write preview candidate");
+
+        let missing_path = existing_path.with_extension("missing.mp4");
+
+        let candidates = vec![
+            missing_path.to_string_lossy().into_owned(),
+            existing_path.to_string_lossy().into_owned(),
+        ];
+
+        let selected = select_playable_media_path(candidates)
+            .expect("select_playable_media_path must return Some for existing file");
+
+        assert_eq!(
+            selected,
+            existing_path.to_string_lossy(),
+            "select_playable_media_path must skip missing files and return the first existing candidate"
+        );
+
+        let _ = fs::remove_file(&existing_path);
     }
 
     #[test]

@@ -49,6 +49,9 @@ vi.mock("@/lib/backend", () => {
     loadPresets: vi.fn(async () => []),
     enqueueTranscodeJob: vi.fn(async () => ({} as any)),
     cancelTranscodeJob: vi.fn(async () => true),
+    selectPlayableMediaPath: vi.fn(
+      async (candidates: string[]) => candidates[0] ?? null,
+    ),
   };
 });
 

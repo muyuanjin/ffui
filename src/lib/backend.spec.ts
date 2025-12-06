@@ -25,6 +25,7 @@ import {
   savePresetOnBackend,
   deletePresetOnBackend,
   inspectMedia,
+  selectPlayableMediaPath,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -112,6 +113,34 @@ describe("backend contract", () => {
     });
 
     expect(result).toBe(fakeUrl);
+  });
+
+  it("selectPlayableMediaPath delegates to select_playable_media_path with both name variants", async () => {
+    const candidates = [
+      "C:/videos/missing.compressed.mp4",
+      "C:/videos/source.mp4",
+    ];
+    const chosen = candidates[1];
+
+    // Simulate a Tauri-like environment so selectPlayableMediaPath goes
+    // through the invoke() branch instead of short-circuiting in web mode.
+    (globalThis as any).window = (globalThis as any).window ?? {};
+    (globalThis as any).window.__TAURI__ = {};
+
+    invokeMock.mockResolvedValueOnce(chosen);
+
+    const result = await selectPlayableMediaPath(candidates);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+
+    expect(cmd).toBe("select_playable_media_path");
+    expect(payload).toMatchObject({
+      candidatePaths: candidates,
+      candidate_paths: candidates,
+    });
+
+    expect(result).toBe(chosen);
   });
 
   it("loadPresets calls get_presets and returns the backend list unchanged", async () => {

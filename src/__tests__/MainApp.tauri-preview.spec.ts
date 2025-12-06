@@ -5,6 +5,9 @@ import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
 const openPathMock = vi.fn();
+const selectPlayableMediaPathMock = vi.fn(
+  async (candidates: string[]) => candidates[0] ?? null,
+);
 
 // Silence noisy console errors/warnings that can recurse in jsdom.
 // This is safe because assertions in this suite don't rely on console output.
@@ -66,6 +69,10 @@ vi.mock("@/lib/backend", () => {
     enqueueTranscodeJob: vi.fn(async () => ({} as any)),
     cancelTranscodeJob: vi.fn(async () => true),
     loadPreviewDataUrl,
+    // In tests we only ever call this with the candidate list, so we forward
+    // the first argument to the underlying mock with an explicit tuple type.
+    selectPlayableMediaPath: (candidates: string[]) =>
+      selectPlayableMediaPathMock(candidates),
   };
 });
 
@@ -97,6 +104,10 @@ describe("MainApp Tauri preview fallback", () => {
     (loadPreviewDataUrl as any).mockClear?.();
     (loadQueueState as any).mockClear?.();
     openPathMock.mockClear();
+    selectPlayableMediaPathMock.mockReset();
+    selectPlayableMediaPathMock.mockImplementation(
+      async (candidates: string[]) => candidates[0] ?? null,
+    );
   });
 
   it("opens expanded preview dialog when queue thumbnail is clicked in Tauri mode", async () => {
@@ -327,6 +338,62 @@ describe("MainApp Tauri preview fallback", () => {
       outputPath: "C:/videos/broken.compressed.mp4",
       previewPath: "C:/app-data/previews/img-failed.jpg",
     };
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [job];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [job];
+    }
+
+    await nextTick();
+
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
+    }
+
+    await nextTick();
+
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewIsImage).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("honours the backend-selected playable path when the final output was removed but the input still exists", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const job = {
+      id: "job-completed-missing-output",
+      filename: "C:/videos/source.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/videos/source.mp4",
+      outputPath: "C:/videos/source.compressed.mp4",
+      previewPath: "C:/app-data/previews/img123.jpg",
+    };
+
+    // Simulate the Tauri helper skipping the missing output file and
+    // returning the original input as the only existing playable candidate.
+    selectPlayableMediaPathMock.mockImplementationOnce(
+      async (candidates: string[]) =>
+        candidates.find((p) => p === job.inputPath) ?? candidates[0] ?? null,
+    );
 
     if (Array.isArray(vm.jobs)) {
       vm.jobs = [job];
