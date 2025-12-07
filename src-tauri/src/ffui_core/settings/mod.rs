@@ -3,7 +3,7 @@ pub(super) mod io;
 
 // Settings type definitions
 pub mod types;
-pub use types::{DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, DEFAULT_METRICS_INTERVAL_MS};
+pub use types::{DEFAULT_METRICS_INTERVAL_MS, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS};
 
 // FFmpeg preset management
 pub mod presets;

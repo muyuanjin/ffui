@@ -34,6 +34,8 @@ const props = defineProps<{
 
   // View settings
   queueViewMode: QueueViewMode;
+  /** Resolved ffmpeg executable path from backend/tool status (if known). */
+  ffmpegResolvedPath?: string | null;
   queueProgressStyle: QueueProgressStyle;
   queueMode: QueueMode;
   isIconViewMode: boolean;
@@ -53,6 +55,8 @@ const props = defineProps<{
   sortPrimaryDirection: QueueSortDirection;
   hasSelection: boolean;
   hasActiveFilters: boolean;
+   /** IDs of currently selected jobs for visual checkboxes. */
+  selectedJobIds: Set<string>;
   selectedCount: number;
 
   // Batch expansion
@@ -94,6 +98,8 @@ const emit = defineEmits<{
   toggleBatchExpanded: [batchId: string];
   openBatchDetail: [batch: CompositeSmartScanTask];
   isJobSelected: [jobId: string];
+  openJobContextMenu: [payload: { job: TranscodeJob; event: MouseEvent }];
+  openBulkContextMenu: [event: MouseEvent];
 }>();
 
 const { t } = useI18n();
@@ -106,7 +112,11 @@ const canCancelJob = (job: TranscodeJob): boolean => {
 </script>
 
 <template>
-  <section class="space-y-4 max-w-4xl mx-auto">
+  <section
+    class="space-y-4 max-w-4xl mx-auto"
+    data-testid="queue-panel"
+    @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
+  >
     <!-- Error banner -->
     <div
       v-if="queueError"
@@ -144,16 +154,20 @@ const canCancelJob = (job: TranscodeJob): boolean => {
     <!-- Queue content -->
     <div v-else>
       <!-- Icon view mode -->
-      <div v-if="isIconViewMode">
-        <div data-testid="queue-icon-grid" :class="iconGridClass">
-          <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
-            <QueueIconItem
-              v-if="item.kind === 'job'"
-              :job="item.job"
-              :size="iconViewSize"
-              :progress-style="queueProgressStyle"
+          <div v-if="isIconViewMode">
+            <div data-testid="queue-icon-grid" :class="iconGridClass">
+              <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
+                <QueueIconItem
+                  v-if="item.kind === 'job'"
+                  :job="item.job"
+                  :size="iconViewSize"
+                  :progress-style="queueProgressStyle"
+                  :can-select="true"
+                  :selected="selectedJobIds.has(item.job.id)"
+              @toggle-select="emit('toggleJobSelected', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
+              @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
             />
             <QueueSmartScanIconBatchItem
               v-else
@@ -185,12 +199,13 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                 :key="job.id"
                 :job="job"
                 :preset="presets.find((p) => p.id === job.presetId) ?? presets[0]"
+                :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                 :can-cancel="canCancelJob(job)"
                 :can-wait="hasTauri() && queueMode === 'queue'"
                 :can-resume="hasTauri() && queueMode === 'queue'"
                 :can-restart="hasTauri() && queueMode === 'queue'"
-                :can-select="queueMode === 'queue'"
-                :selected="false"
+                :can-select="true"
+                :selected="selectedJobIds.has(job.id)"
                 :view-mode="queueRowVariant"
                 :progress-style="queueProgressStyle"
                 :progress-update-interval-ms="progressUpdateIntervalMs"
@@ -201,6 +216,7 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                 @toggle-select="emit('toggleJobSelected', $event)"
                 @inspect="emit('inspectJob', $event)"
                 @preview="emit('previewJob', $event)"
+                @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
               />
             </div>
           </div>
@@ -220,12 +236,13 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                 :key="job.id"
                 :job="job"
                 :preset="presets.find((p) => p.id === job.presetId) ?? presets[0]"
+                :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                 :can-cancel="canCancelJob(job)"
                 :can-wait="hasTauri() && queueMode === 'queue'"
                 :can-resume="hasTauri() && queueMode === 'queue'"
                 :can-restart="hasTauri() && queueMode === 'queue'"
-                :can-select="queueMode === 'queue'"
-                :selected="false"
+                :can-select="true"
+                :selected="selectedJobIds.has(job.id)"
                 :view-mode="queueRowVariant"
                 :progress-style="queueProgressStyle"
                 :progress-update-interval-ms="progressUpdateIntervalMs"
@@ -236,6 +253,7 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                 @toggle-select="emit('toggleJobSelected', $event)"
                 @inspect="emit('inspectJob', $event)"
                 @preview="emit('previewJob', $event)"
+                @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
               />
             </div>
           </div>
@@ -299,6 +317,7 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                     :key="child.id"
                     :job="child"
                     :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
+                    :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                     :can-cancel="canCancelJob(child)"
                     :view-mode="queueRowVariant"
                     :progress-style="queueProgressStyle"
@@ -314,11 +333,16 @@ const canCancelJob = (job: TranscodeJob): boolean => {
               v-else-if="item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)"
               :job="item.job"
               :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="false"
+              :can-restart="hasTauri() && queueMode === 'queue'"
+              :can-select="true"
+              :selected="selectedJobIds.has(item.job.id)"
               :view-mode="queueRowVariant"
               :progress-style="queueProgressStyle"
               :progress-update-interval-ms="progressUpdateIntervalMs"
               @cancel="emit('cancelJob', $event)"
+              @restart="emit('restartJob', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
             />
@@ -371,9 +395,9 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                   </Button>
                 </div>
               </CardHeader>
-              <CardContent class="pt-0 pb-3 space-y-2">
-                <Progress :model-value="item.batch.overallProgress" />
-                <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+            <CardContent class="pt-0 pb-3 space-y-2">
+              <Progress :model-value="item.batch.overallProgress" />
+              <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
                   <span>{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}: {{ item.batch.jobs.filter((j) => j.type === "video").length }} / {{ item.batch.jobs.filter((j) => j.type === "image").length }}</span>
                   <span>{{ t("queue.status.completed") }}: {{ item.batch.completedCount }}</span>
                   <span v-if="item.batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ item.batch.skippedCount }}</span>
@@ -385,6 +409,7 @@ const canCancelJob = (job: TranscodeJob): boolean => {
                     :key="child.id"
                     :job="child"
                     :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
+                    :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                     :can-cancel="canCancelJob(child)"
                     :view-mode="queueRowVariant"
                     :progress-style="queueProgressStyle"
@@ -400,13 +425,18 @@ const canCancelJob = (job: TranscodeJob): boolean => {
               v-else
               :job="item.job"
               :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="canCancelJob(item.job)"
+              :can-select="true"
+              :selected="selectedJobIds.has(item.job.id)"
               :view-mode="queueRowVariant"
               :progress-style="queueProgressStyle"
               :progress-update-interval-ms="progressUpdateIntervalMs"
               @cancel="emit('cancelJob', $event)"
+              @toggle-select="emit('toggleJobSelected', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
+              @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
             />
           </div>
         </div>

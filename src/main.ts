@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import App from "./App.vue";
 import "./index.css";
 import { i18n } from "./i18n";
+import VueApexCharts from "vue3-apexcharts";
 
 // Force dark theme to match design
 document.documentElement.classList.add("dark");
@@ -16,6 +17,7 @@ if (typeof performance !== "undefined" && "mark" in performance) {
 
 const app = createApp(App);
 app.use(i18n);
+app.use(VueApexCharts);
 app.mount("#app");
 
 if (

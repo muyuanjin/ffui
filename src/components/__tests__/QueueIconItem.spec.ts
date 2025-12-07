@@ -51,6 +51,64 @@ describe("QueueIconItem", () => {
     (loadPreviewDataUrl as any).mockReset();
   });
 
+  it("toggles selection instead of opening details when card is clicked in selectable mode", async () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      status: "processing",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+        canSelect: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const card = wrapper.get("[data-testid='queue-icon-item']");
+    await card.trigger("click");
+
+    const selectEvents = wrapper.emitted("toggle-select");
+    const inspectEvents = wrapper.emitted("inspect");
+
+    expect(selectEvents).toBeTruthy();
+    expect(selectEvents?.[0]?.[0]).toBe(job.id);
+    expect(inspectEvents).toBeFalsy();
+  });
+
+  it("uses the dedicated detail button to emit inspect without toggling selection", async () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      status: "processing",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+        canSelect: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const detailButton = wrapper.get("[data-testid='queue-icon-item-detail-button']");
+    await detailButton.trigger("click");
+
+    const inspectEvents = wrapper.emitted("inspect");
+    const selectEvents = wrapper.emitted("toggle-select");
+
+    expect(inspectEvents).toBeTruthy();
+    expect(inspectEvents?.[0]?.[0]).toEqual(job);
+    expect(selectEvents).toBeFalsy();
+  });
+
   it("emits preview only (no inspect) when thumbnail image is clicked", async () => {
     const job = makeJob({
       previewPath: "C:/app-data/previews/icon.jpg",

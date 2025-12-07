@@ -8,12 +8,10 @@ use super::net::{
 };
 use super::release::{
     current_ffmpeg_release, default_avifenc_zip_url, default_ffmpeg_download_url,
-    default_ffprobe_download_url, latest_remote_version,
+    default_ffprobe_download_url,
 };
 use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::probe::{
-    detect_local_tool_version, should_mark_update_available, verify_tool_binary,
-};
+use crate::ffui_core::tools::probe::verify_tool_binary;
 use crate::ffui_core::tools::resolve::{
     downloaded_tool_filename, resolve_tool_path, tool_binary_name, tools_dir,
 };
@@ -50,18 +48,12 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                         "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
                     );
                     download_file_with_reqwest(&url, &dest_path, |downloaded, total| {
-                        if let Some(total) = total {
-                            let pct = (downloaded as f32 / total as f32) * 100.0;
-                            mark_download_progress(kind, pct);
-                        }
+                        mark_download_progress(kind, downloaded, total);
                     })?;
                 }
             } else {
                 download_file_with_reqwest(&url, &dest_path, |downloaded, total| {
-                    if let Some(total) = total {
-                        let pct = (downloaded as f32 / total as f32) * 100.0;
-                        mark_download_progress(kind, pct);
-                    }
+                    mark_download_progress(kind, downloaded, total);
                 })?;
             }
 
@@ -70,10 +62,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
         ExternalToolKind::Avifenc => {
             let url = default_avifenc_zip_url()?;
             let bytes = download_bytes_with_reqwest(url, |downloaded, total| {
-                if let Some(total) = total {
-                    let pct = (downloaded as f32 / total as f32) * 100.0;
-                    mark_download_progress(kind, pct);
-                }
+                mark_download_progress(kind, downloaded, total);
             })?;
 
             let dir = tools_dir()?;
@@ -116,6 +105,15 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
     }
 }
 
+/// Force a download/update for the given external tool kind.
+///
+/// This bypasses the `ensure_tool_available` auto-download/update decision
+/// logic and is intended for explicit user actions (manual “下载/更新”按钮或
+/// 自动更新开关触发的后台更新)。
+pub(crate) fn force_download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
+    download_tool_binary(kind)
+}
+
 pub(crate) fn ensure_tool_available(
     kind: ExternalToolKind,
     settings: &ExternalToolSettings,
@@ -127,7 +125,7 @@ pub(crate) fn ensure_tool_available(
     if source == "download" && runtime_state.download_arch_incompatible {
         return Err(anyhow!(
             "{} auto-downloaded binary at '{}' cannot be executed on this system; \
-请在\"软件设置 → 外部工具\"中关闭自动下载，并手动指定一份可用的 {} 路径。",
+请在\"软件设置 → 外部工具\"中手动指定一份可用的 {} 路径。",
             tool_binary_name(kind),
             path,
             tool_binary_name(kind),
@@ -137,7 +135,7 @@ pub(crate) fn ensure_tool_available(
     if source == "path" && runtime_state.path_arch_incompatible && !settings.auto_download {
         return Err(anyhow!(
             "system-provided {} at '{}' cannot be executed on this system; \
-请在\"软件设置 → 外部工具\"中关闭自动下载，或在设置中指定一份可用的 {} 路径。",
+请在\"软件设置 → 外部工具\"中指定一份可用的 {} 路径。",
             tool_binary_name(kind),
             path,
             tool_binary_name(kind),
@@ -169,27 +167,6 @@ pub(crate) fn ensure_tool_available(
             tool_binary_name(kind),
             path
         ));
-    }
-
-    let local_version = detect_local_tool_version(&path, kind);
-    let remote_version = if settings.auto_update {
-        latest_remote_version(kind)
-    } else {
-        None
-    };
-    if should_mark_update_available(
-        settings.auto_update,
-        &source,
-        local_version.as_deref(),
-        remote_version.as_deref(),
-    ) && let Ok(downloaded) = download_tool_binary(kind)
-    {
-        let new_path = downloaded.to_string_lossy().into_owned();
-        if verify_tool_binary(&new_path, kind, "download") {
-            path = new_path;
-            source = "download".to_string();
-            did_download = true;
-        }
     }
 
     Ok((path, source, did_download))

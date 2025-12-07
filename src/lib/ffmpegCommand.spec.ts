@@ -41,6 +41,32 @@ describe("ffmpegCommand utilities", () => {
     expect(text).toBe(cmd);
   });
 
+  it("expands bare ffmpeg program token to a concrete path when programOverrides are provided", () => {
+    const raw =
+      'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
+    const resolvedPath = "C:/Program Files/FFmpeg/bin/ffmpeg.exe";
+
+    const html = highlightFfmpegCommand(raw, {
+      programOverrides: { ffmpeg: resolvedPath },
+    });
+
+    // The rendered HTML should contain the concrete path and keep the rest of
+    // the command unchanged.
+    expect(html).toContain("C:/Program Files/FFmpeg/bin/ffmpeg.exe");
+
+    const stripTags = html.replace(/<[^>]+>/g, "");
+    const decode = (value: string) =>
+      value
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, "&");
+    const text = decode(stripTags);
+    expect(text.startsWith(`"${resolvedPath}"`)).toBe(true);
+    expect(text.endsWith('"C:/videos/output.mp4" -y')).toBe(true);
+  });
+
   it("normalizes a simple one-input-one-output command into INPUT/OUTPUT template", () => {
     const input =
       'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
@@ -51,6 +77,18 @@ describe("ffmpegCommand utilities", () => {
     expect(result.template).toContain('"INPUT"');
     expect(result.template).toContain('"OUTPUT"');
     expect(result.template.startsWith("ffmpeg ")).toBe(true);
+  });
+
+  it("normalizes commands whose program is an absolute ffmpeg.exe path into a stable ffmpeg template", () => {
+    const input =
+      '"E:/RustWorkSpace/ffui/src-tauri/target/debug/tools/ffmpeg.exe" -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
+
+    const result = normalizeFfmpegTemplate(input);
+    expect(result.inputReplaced).toBe(true);
+    expect(result.outputReplaced).toBe(true);
+    expect(result.template.startsWith("ffmpeg ")).toBe(true);
+    expect(result.template).toContain('"INPUT"');
+    expect(result.template).toContain('"OUTPUT"');
   });
 
   it("falls back to last non-option token as OUTPUT when no explicit placeholder is present", () => {

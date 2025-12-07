@@ -8,6 +8,7 @@
 
 use tauri::{AppHandle, State, WebviewWindow};
 
+use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary};
 use crate::ffui_core::{CpuUsageSnapshot, ExternalToolStatus, GpuUsageSnapshot, TranscodingEngine};
 use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
@@ -27,6 +28,35 @@ pub fn get_gpu_usage(engine: State<TranscodingEngine>) -> GpuUsageSnapshot {
 #[tauri::command]
 pub fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
+}
+
+/// Manually trigger download/update for a specific external tool. This is used
+/// by the Settings panel "下载 / 更新"按钮 so用户可以在真正跑任务之前提前拉取或更新
+/// ffmpeg/ffprobe/avifenc。
+#[tauri::command]
+pub fn download_external_tool_now(
+    engine: State<TranscodingEngine>,
+    kind: ExternalToolKind,
+) -> Result<Vec<ExternalToolStatus>, String> {
+    // 在独立线程中执行实际的下载逻辑，避免在 Tauri 命令线程上做长时间的
+    // 网络 I/O（aria2c / reqwest），从而导致整个窗口在“下载 ffmpeg/ffprobe”
+    // 时出现假死。
+    let engine_clone: TranscodingEngine = (*engine).clone();
+    std::thread::Builder::new()
+        .name(format!("ffui-tool-download-{kind:?}"))
+        .spawn(move || {
+            if let Err(err) = force_download_tool_binary(kind) {
+                eprintln!("forced download for {:?} failed: {err:#}", kind);
+            }
+
+            // 下载结束后重新拉取一份状态快照，以便通过
+            // TranscodingEngine::external_tool_statuses 更新缓存并向前端推送事件。
+            let _ = engine_clone.external_tool_statuses();
+        })
+        .map_err(|err| format!("failed to spawn tool download thread: {err}"))?;
+
+    // 立即返回当前的状态快照，确保前端调用不会被下载流程阻塞。
+    Ok(engine.external_tool_statuses())
 }
 
 /// Open the webview developer tools for the calling window.

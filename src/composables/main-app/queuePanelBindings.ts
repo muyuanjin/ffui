@@ -17,6 +17,7 @@ interface QueuePanelBindingsInput {
   queueModeWaitingJobs: Ref<TranscodeJob[]> | ComputedRef<TranscodeJob[]>;
   presets: Ref<FFmpegPreset[]>;
   queueViewMode: Ref<QueueViewMode>;
+  ffmpegResolvedPath: Ref<string | null> | ComputedRef<string | null>;
   queueProgressStyleModel: Ref<QueueProgressStyle>;
   queueMode: Ref<QueueMode>;
   isIconViewMode: Ref<boolean>;
@@ -48,6 +49,7 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     queueModeWaitingJobs: unref(input.queueModeWaitingJobs),
     presets: unref(input.presets),
     queueViewMode: input.queueViewMode.value,
+    ffmpegResolvedPath: unref(input.ffmpegResolvedPath),
     queueProgressStyle: input.queueProgressStyleModel.value,
     queueMode: input.queueMode.value,
     isIconViewMode: input.isIconViewMode.value,
@@ -65,6 +67,7 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     sortPrimaryDirection: input.sortPrimaryDirection.value,
     hasSelection: input.hasSelection.value,
     hasActiveFilters: input.hasActiveFilters.value,
+    selectedJobIds: input.selectedJobIds.value,
     selectedCount: input.selectedJobIds.value?.size ?? 0,
     expandedBatchIds: input.expandedBatchIds.value,
     queueError: input.queueError.value,

@@ -26,6 +26,17 @@ const {
   networkSeries,
 } = useSystemMetrics();
 
+const MAX_HISTORY_POINTS = 120;
+
+// 统一的轻量级过渡动画配置，让高频刷新时视觉更连贯。
+// 对于实时监控场景，ECharts 自带的补间动画在高频刷新下容易出现“顿挫”和形状抖动，
+// 这里直接关闭图表层面的动画，只依赖较高的采样频率来保证视觉连贯性。
+const CHART_ANIMATION = {
+  animation: false,
+  animationDuration: 0,
+  animationDurationUpdate: 0,
+} as const;
+
 // Prefer GPU metrics from the streaming system-metrics pipeline so the
 // performance view no longer depends on polling commands.
 const latestGpu = computed<GpuUsageSnapshot | null>(() => {
@@ -37,9 +48,13 @@ const latestGpu = computed<GpuUsageSnapshot | null>(() => {
 const hasMetrics = computed(() => snapshots.value.length > 0);
 
 const cpuTotalOption = computed(() => {
-  const points = cpuTotalSeries.value;
+  const allPoints = cpuTotalSeries.value;
+  const points =
+    allPoints.length > MAX_HISTORY_POINTS
+      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
+      : allPoints;
   return {
-    animation: false,
+    ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
     xAxis: {
       type: "category",
@@ -73,22 +88,37 @@ const cpuTotalOption = computed(() => {
 });
 
 const cpuPerCoreOption = computed(() => {
-  const baseAxis = cpuTotalSeries.value;
-  const series = perCoreSeries.value.map((core) => ({
-    name: `C${core.coreIndex}`,
-    type: "line",
-    data: core.values.map((p) => p.value),
-    showSymbol: false,
-    smooth: false,
-    lineStyle: { width: 1 },
-  }));
+  const baseAxisAll = cpuTotalSeries.value;
+  const axisPoints =
+    baseAxisAll.length > MAX_HISTORY_POINTS
+      ? baseAxisAll.slice(baseAxisAll.length - MAX_HISTORY_POINTS)
+      : baseAxisAll;
+
+  const series = perCoreSeries.value.map((core) => {
+    const valuesAll = core.values;
+    const values =
+      valuesAll.length > MAX_HISTORY_POINTS
+        ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS)
+        : valuesAll;
+
+    return {
+      name: `C${core.coreIndex}`,
+      type: "line",
+      data: values.map((p) => p.value),
+      showSymbol: false,
+      smooth: false,
+      lineStyle: { width: 1 },
+    };
+  });
 
   return {
-    animation: false,
+    ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
     xAxis: {
       type: "category",
-      data: baseAxis.map((p) => new Date(p.timestamp).toLocaleTimeString()),
+      data: axisPoints.map((p) =>
+        new Date(p.timestamp).toLocaleTimeString(),
+      ),
       boundaryGap: false,
       axisLabel: { show: false },
     },
@@ -112,9 +142,13 @@ const cpuPerCoreOption = computed(() => {
 });
 
 const memoryOption = computed(() => {
-  const points = memorySeries.value;
+  const allPoints = memorySeries.value;
+  const points =
+    allPoints.length > MAX_HISTORY_POINTS
+      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
+      : allPoints;
   return {
-    animation: false,
+    ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
     xAxis: {
       type: "category",
@@ -150,9 +184,13 @@ const memoryOption = computed(() => {
 });
 
 const diskOption = computed(() => {
-  const points = diskSeries.value;
+  const allPoints = diskSeries.value;
+  const points =
+    allPoints.length > MAX_HISTORY_POINTS
+      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
+      : allPoints;
   return {
-    animation: false,
+    ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
     xAxis: {
       type: "category",
@@ -197,40 +235,53 @@ const networkOption = computed(() => {
   const allSeries = networkSeries.value;
   if (allSeries.length === 0) {
     return {
-      animation: false,
+      ...CHART_ANIMATION,
       xAxis: { type: "category", data: [] },
       yAxis: { type: "value" },
       series: [],
     };
   }
 
-  const baseAxis = allSeries[0].values.map((p) =>
-    new Date(p.timestamp).toLocaleTimeString(),
-  );
+  const baseInterface = allSeries[0];
+  const baseValuesAll = baseInterface.values;
+  const baseValues =
+    baseValuesAll.length > MAX_HISTORY_POINTS
+      ? baseValuesAll.slice(baseValuesAll.length - MAX_HISTORY_POINTS)
+      : baseValuesAll;
 
-  const series = allSeries.flatMap((iface) => [
-    {
-      name: `${iface.name} RX`,
-      type: "line",
-      data: iface.values.map((p) => p.rxBps),
-      showSymbol: false,
-      smooth: true,
-    },
-    {
-      name: `${iface.name} TX`,
-      type: "line",
-      data: iface.values.map((p) => p.txBps),
-      showSymbol: false,
-      smooth: true,
-    },
-  ]);
+  const series = allSeries.flatMap((iface) => {
+    const valuesAll = iface.values;
+    const values =
+      valuesAll.length > MAX_HISTORY_POINTS
+        ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS)
+        : valuesAll;
+
+    return [
+      {
+        name: `${iface.name} RX`,
+        type: "line",
+        data: values.map((p) => p.rxBps),
+        showSymbol: false,
+        smooth: true,
+      },
+      {
+        name: `${iface.name} TX`,
+        type: "line",
+        data: values.map((p) => p.txBps),
+        showSymbol: false,
+        smooth: true,
+      },
+    ];
+  });
 
   return {
-    animation: false,
+    ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
     xAxis: {
       type: "category",
-      data: baseAxis,
+      data: baseValues.map((p) =>
+        new Date(p.timestamp).toLocaleTimeString(),
+      ),
       boundaryGap: false,
       axisLabel: { show: false },
     },

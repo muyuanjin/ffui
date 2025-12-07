@@ -65,16 +65,16 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
 }
 
 /**
- * Restart all selected non-terminal jobs.
- * Excludes completed, skipped, and cancelled jobs.
+ * Restart all selected non-completed jobs.
+ * Excludes completed and skipped jobs; cancelled jobs are eligible so users
+ * can explicitly restart terminated tasks from 0%.
  */
 export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
   const ids = deps.selectedJobs.value
     .filter(
       (job) =>
         job.status !== "completed" &&
-        job.status !== "skipped" &&
-        job.status !== "cancelled",
+        job.status !== "skipped",
     )
     .map((job) => job.id);
   for (const id of ids) {

@@ -86,14 +86,11 @@ pub(super) fn detect_local_tool_version(path: &str, _kind: ExternalToolKind) -> 
 }
 
 pub(super) fn should_mark_update_available(
-    auto_update_enabled: bool,
     source: &str,
     local_version: Option<&str>,
     remote_version: Option<&str>,
 ) -> bool {
-    if !auto_update_enabled || source != "path" {
-        return false;
-    }
+    let _ = source;
     match (local_version, remote_version) {
         (Some(local), Some(remote)) => !local.contains(remote),
         _ => false,
@@ -101,33 +98,34 @@ pub(super) fn should_mark_update_available(
 }
 
 pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> ExternalToolStatus {
-    use super::download::latest_remote_version;
     use super::resolve::resolve_tool_path;
-
-    let auto_download_enabled = settings.auto_download;
-    let auto_update_enabled = settings.auto_update;
 
     // For status reporting we prefer a lightweight, best-effort probe:
     // resolve the path and, if possible, grab a version line in a single process
     // spawn. This avoids double-spawning the tool just to confirm availability.
-    let (resolved_path, source, version, update_available) = match resolve_tool_path(kind, settings)
-    {
+    let (resolved_path, source, version) = match resolve_tool_path(kind, settings) {
         Ok((path, source)) => {
             let version = detect_local_tool_version(&path, kind);
-            let remote = if auto_update_enabled {
-                latest_remote_version(kind)
-            } else {
-                None
-            };
-            let update_available = should_mark_update_available(
-                auto_update_enabled,
-                &source,
-                version.as_deref(),
-                remote.as_deref(),
-            );
-            (Some(path), Some(source), version, update_available)
+            (Some(path), Some(source), version)
         }
-        Err(_) => (None, None, None, false),
+        Err(_) => (None, None, None),
+    };
+
+    // 使用一个快速的、本地常量版本号来提供“是否有更新”的提示，避免在
+    // Tauri 命令路径（尤其是应用启动后首次打开设置面板时）发起任何同步
+    // 网络请求，从而堵塞 UI。
+    let remote_version = match kind {
+        ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
+            Some(FFMPEG_STATIC_VERSION.to_string())
+        }
+        ExternalToolKind::Avifenc => None,
+    };
+
+    let update_available = match (&source, &version, &remote_version) {
+        (Some(source), version, remote) => {
+            should_mark_update_available(source, version.as_deref(), remote.as_deref())
+        }
+        (None, _, _) => false,
     };
 
     let runtime = snapshot_download_state(kind);
@@ -137,12 +135,16 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         resolved_path,
         source,
         version,
+        remote_version,
         update_available,
-        auto_download_enabled,
-        auto_update_enabled,
+        auto_download_enabled: settings.auto_download,
+        auto_update_enabled: settings.auto_update,
         // Map runtime state so the UI can render download-in-progress cards.
         download_in_progress: runtime.in_progress,
         download_progress: runtime.progress,
+        downloaded_bytes: runtime.downloaded_bytes,
+        total_bytes: runtime.total_bytes,
+        bytes_per_second: runtime.bytes_per_second,
         last_download_error: runtime.last_error,
         last_download_message: runtime.last_message,
     }

@@ -374,3 +374,56 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
         "paused job should not be scheduled automatically after crash recovery"
     );
 }
+
+#[test]
+fn crash_recovery_does_not_reuse_job_ids_for_new_jobs() {
+    let engine = make_engine_with_preset();
+
+    // Enqueue a few jobs on the original engine and take a snapshot.
+    let mut original_ids = Vec::new();
+    for i in 0..3 {
+        let job = engine.enqueue_transcode_job(
+            format!("C:/videos/recover-id-{i}.mp4"),
+            JobType::Video,
+            JobSource::Manual,
+            100.0,
+            Some("h264".into()),
+            "preset-1".into(),
+        );
+        original_ids.push(job.id.clone());
+    }
+
+    let snapshot = engine.queue_state();
+
+    // Simulate a fresh engine process restoring from the persisted snapshot.
+    let restored = make_engine_with_preset();
+    restore_jobs_from_snapshot(&restored.inner, snapshot);
+
+    // Enqueue a new job after recovery; it must get a fresh id that does not
+    // collide with any restored job ids.
+    let new_job = restored.enqueue_transcode_job(
+        "C:/videos/recover-id-new.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    assert!(
+        !original_ids.contains(&new_job.id),
+        "newly enqueued job id {} must be unique after crash recovery",
+        new_job.id
+    );
+
+    let state = restored
+        .inner
+        .state
+        .lock()
+        .expect("restored engine state poisoned");
+    assert_eq!(
+        state.jobs.len(),
+        original_ids.len() + 1,
+        "restored engine must keep all previous jobs when new jobs are enqueued after recovery"
+    );
+}

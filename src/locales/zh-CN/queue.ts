@@ -91,6 +91,7 @@ const queue = {
     secondaryLabel: "二级排序",
     asc: "升序",
     desc: "降序",
+    collapse: "收起二级排序",
   },
   actions: {
     wait: "等待",

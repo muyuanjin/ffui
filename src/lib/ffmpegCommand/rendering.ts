@@ -20,6 +20,19 @@ const stripQuotes = (value: string): string =>
   value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
 
 /**
+ * Re-wrap a replacement value with the same quote style (single/double) as
+ * the original token when it was quoted.
+ */
+const wrapWithSameQuotes = (original: string, replacement: string): string => {
+  const match = original.match(/^(['"])(.*)\1$/);
+  if (match) {
+    const quote = match[1];
+    return `${quote}${replacement}${quote}`;
+  }
+  return replacement;
+};
+
+/**
  * Get CSS class for a command token kind
  */
 const commandTokenClass = (kind: CommandTokenKind): string => {
@@ -80,11 +93,60 @@ const commandTokenTitle = (kind: CommandTokenKind, rawText: string): string | nu
   return null;
 };
 
+export interface HighlightProgramOverrides {
+  ffmpeg?: string | null;
+  ffprobe?: string | null;
+}
+
+export interface HighlightOptions {
+  /**
+   * Optional overrides for the program token when it is a bare `ffmpeg` /
+   * `ffprobe` name. This is used by the queue/task detail views to expand
+   * the logical program into the concrete executable path that was (or will
+   * be) invoked by the backend.
+   */
+  programOverrides?: HighlightProgramOverrides;
+}
+
+const applyProgramOverride = (
+  kind: CommandTokenKind,
+  rawText: string,
+  overrides?: HighlightProgramOverrides,
+): string | null => {
+  if (kind !== "program" || !overrides) return null;
+
+  const unquoted = stripQuotes(rawText);
+  const lower = unquoted.toLowerCase();
+  const base = lower.replace(/^.*[\\/]/, "");
+
+  const isFfmpeg = base === "ffmpeg" || base === "ffmpeg.exe";
+  const isFfprobe = base === "ffprobe" || base === "ffprobe.exe";
+
+  const replacement =
+    (isFfmpeg && overrides.ffmpeg) || (isFfprobe && overrides.ffprobe) || null;
+  if (!replacement) return null;
+
+  // Only override when the original looks like a bare program name without
+  // path segments. If the backend already logged an absolute path, keep it.
+  const looksLikeBareProgram =
+    !unquoted.includes("/") && !unquoted.includes("\\") && !unquoted.includes(":");
+  if (!looksLikeBareProgram) return null;
+
+  // Quote the replacement when it contains spaces and the original token was
+  // not already explicitly quoted.
+  const needsQuotes =
+    /\s/.test(replacement) && !/^['"].*['"]$/.test(rawText.trim());
+  const withQuotes = needsQuotes ? `"${replacement}"` : replacement;
+
+  return wrapWithSameQuotes(rawText, withQuotes);
+};
+
 /**
  * Highlight FFmpeg command with HTML syntax highlighting
  */
 export const highlightFfmpegCommand = (
   command: string | undefined | null,
+  options?: HighlightOptions,
 ): string => {
   const tokens = assignCommandTokenGroups(tokenizeFfmpegCommand(command));
   if (!tokens.length) return "";
@@ -92,7 +154,11 @@ export const highlightFfmpegCommand = (
   return tokens
     .map((token) => {
       const cls = commandTokenClass(token.kind);
-      const escaped = escapeHtml(token.text);
+      const programOverride =
+        options?.programOverrides &&
+        applyProgramOverride(token.kind, token.text, options.programOverrides);
+      const text = programOverride ?? token.text;
+      const escaped = escapeHtml(text);
       if (!cls) return escaped;
       const title = commandTokenTitle(token.kind, token.text);
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";

@@ -166,7 +166,7 @@ describe("QueueItem display basics", () => {
     expect(content).not.toContain("ffmpeg exited with non-zero status");
   });
 
-  it("emits inspect event with the job payload when card is clicked", () => {
+  it("toggles selection instead of opening details when card is clicked in selectable mode", async () => {
     const job = makeJob();
 
     const wrapper = mount(QueueItem, {
@@ -174,16 +174,72 @@ describe("QueueItem display basics", () => {
         job,
         preset: basePreset,
         canCancel: true,
+        canSelect: true,
       },
       global: {
         plugins: [i18n],
       },
     });
 
-    wrapper.trigger("click");
-    const emitted = wrapper.emitted("inspect");
-    expect(emitted).toBeTruthy();
-    expect(emitted?.[0]?.[0]).toEqual(job);
+    await wrapper.trigger("click");
+
+    const selectEvents = wrapper.emitted("toggle-select");
+    const inspectEvents = wrapper.emitted("inspect");
+
+    expect(selectEvents).toBeTruthy();
+    expect(selectEvents?.[0]?.[0]).toBe(job.id);
+    expect(inspectEvents).toBeFalsy();
+  });
+
+  it("emits inspect when card is clicked in non-selectable contexts (e.g. compact job lists)", async () => {
+    const job = makeJob();
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: true,
+        // canSelect omitted => non-selectable
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await wrapper.trigger("click");
+
+    const inspectEvents = wrapper.emitted("inspect");
+    const selectEvents = wrapper.emitted("toggle-select");
+
+    expect(inspectEvents).toBeTruthy();
+    expect(inspectEvents?.[0]?.[0]).toEqual(job);
+    expect(selectEvents).toBeFalsy();
+  });
+
+  it("uses the dedicated detail button to open task details without changing selection", async () => {
+    const job = makeJob();
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: true,
+        canSelect: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const detailButton = wrapper.get("[data-testid='queue-item-detail-button']");
+    await detailButton.trigger("click");
+
+    const inspectEvents = wrapper.emitted("inspect");
+    const selectEvents = wrapper.emitted("toggle-select");
+
+    expect(inspectEvents).toBeTruthy();
+    expect(inspectEvents?.[0]?.[0]).toEqual(job);
+    expect(selectEvents).toBeFalsy();
   });
 
   it("emits preview only (no inspect) when thumbnail is clicked", async () => {
@@ -443,5 +499,42 @@ describe("QueueItem display basics", () => {
       .find((btn) => btn.text().includes("Show full command"));
 
     expect(enToggleButton, "command view toggle should reflect EN label").toBeTruthy();
+  });
+
+  it("toggles between template and full command using the raw ffmpegCommand string", async () => {
+    const rawCommand =
+      '"C:/Program Files/FFmpeg/bin/ffmpeg.exe" -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"';
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand: rawCommand,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // 初始为模板视图：mock 的 normalizeFfmpegTemplate 会在前面加上 "TEMPLATE:"
+    let pre = wrapper.get("pre");
+    expect(pre.text()).toBe(`TEMPLATE:${rawCommand}`);
+
+    const toggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Show full command"));
+
+    expect(toggleButton, "command view toggle button should exist").toBeTruthy();
+
+    await toggleButton!.trigger("click");
+    await nextTick();
+
+    // 切换到“完整命令”视图后，应直接展示原始 ffmpegCommand 字符串
+    pre = wrapper.get("pre");
+    expect(pre.text()).toBe(rawCommand);
   });
 });

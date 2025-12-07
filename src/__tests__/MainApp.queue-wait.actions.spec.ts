@@ -133,7 +133,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
     expect(getJobsFromVm(vm).length).toBeGreaterThan(0);
 
-    await vm.waitJob(jobId);
+    await vm.handleWaitJob(jobId);
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
@@ -175,7 +175,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const vm: any = wrapper.vm;
     await nextTick();
 
-    await vm.resumeJob(jobId);
+    await vm.handleResumeJob(jobId);
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
@@ -216,7 +216,49 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const vm: any = wrapper.vm;
     await nextTick();
 
-    await vm.restartJob(jobId);
+    await vm.handleRestartJob(jobId);
+    await nextTick();
+
+    const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
+    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.progress).toBe(0);
+  });
+
+  it("allows restart_transcode_job for cancelled jobs and requeues them from 0 percent", async () => {
+    const jobId = "job-restart-cancelled-1";
+    queueJobs = [
+      {
+        id: jobId,
+        filename: "C:/videos/restart-cancelled.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "cancelled",
+        progress: 45,
+        logs: ["cancelled by user"],
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      if (cmd === "get_queue_state") return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
+      if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
+      if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
+      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "restart_transcode_job") {
+        expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(null);
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+
+    await vm.handleRestartJob(jobId);
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);

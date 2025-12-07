@@ -10,11 +10,7 @@ use sysinfo::{NetworkData, Networks, System};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ffui_core::{
-    GpuUsageSnapshot,
-    TranscodingEngine,
-    sample_gpu_usage,
-    AppSettings,
-    DEFAULT_METRICS_INTERVAL_MS,
+    AppSettings, DEFAULT_METRICS_INTERVAL_MS, GpuUsageSnapshot, TranscodingEngine, sample_gpu_usage,
 };
 
 /// Canonical event name for streaming system metrics snapshots.

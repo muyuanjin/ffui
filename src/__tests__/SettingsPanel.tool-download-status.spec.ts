@@ -1,0 +1,108 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest";
+import { mount } from "@vue/test-utils";
+import { createI18n } from "vue-i18n";
+
+import zhCN from "@/locales/zh-CN";
+import SettingsPanel from "@/components/panels/SettingsPanel.vue";
+import type { AppSettings, ExternalToolStatus } from "@/types";
+
+vi.mock("@/lib/backend", () => {
+  return {
+    hasTauri: () => true,
+    openDevtools: vi.fn(),
+    fetchExternalToolStatuses: vi.fn(async () => []),
+  };
+});
+
+vi.mock("@tauri-apps/api/event", () => {
+  return {
+    listen: vi.fn(async () => {
+      // Return unlisten noop
+      return () => {};
+    }),
+  };
+});
+
+const i18n = createI18n({
+  legacy: false,
+  locale: "zh-CN",
+  messages: {
+    "zh-CN": zhCN as any,
+  },
+});
+
+const makeAppSettings = (): AppSettings => ({
+  tools: {
+    ffmpegPath: undefined,
+    ffprobePath: undefined,
+    avifencPath: undefined,
+    autoDownload: true,
+    autoUpdate: true,
+    downloaded: undefined,
+  },
+  smartScanDefaults: {
+    minImageSizeKB: 50,
+    minVideoSizeMB: 50,
+    minSavingRatio: 0.95,
+    imageTargetFormat: "avif",
+    videoPresetId: "",
+  },
+  previewCapturePercent: 25,
+  developerModeEnabled: false,
+  defaultQueuePresetId: undefined,
+  maxParallelJobs: undefined,
+  progressUpdateIntervalMs: undefined,
+  metricsIntervalMs: undefined,
+  taskbarProgressMode: "byEstimatedTime",
+});
+
+describe("SettingsPanel external tool download status", () => {
+  it("renders download progress, bytes and speed for a tool in progress", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: "C:/tools/ffmpeg.exe",
+      source: "download",
+      version: "ffmpeg version 6.0",
+      updateAvailable: false,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: true,
+      downloadProgress: 42.5,
+      downloadedBytes: 5 * 1024 * 1024,
+      totalBytes: 10 * 1024 * 1024,
+      bytesPerSecond: 2.5 * 1024 * 1024,
+      lastDownloadError: undefined,
+      lastDownloadMessage: undefined,
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+      },
+    });
+
+    const text = wrapper.text();
+
+    // Badge text should stay on a single line; we enforce this via a
+    // whitespace-nowrap class.
+    const readyBadge = wrapper.get("span.whitespace-nowrap");
+    expect(readyBadge.text()).toBe("已就绪");
+
+    // Progress percentage and byte counters are visible for the in-progress tool.
+    expect(text).toContain("42.5%");
+    expect(text).toContain("5.0 MB");
+    expect(text).toContain("10.0 MB");
+    expect(text).toContain("MB/s");
+    // Fallback status message is used when no custom localized message exists.
+    expect(text).toContain("正在下载，请稍候");
+
+    wrapper.unmount();
+  });
+});

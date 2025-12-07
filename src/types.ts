@@ -376,17 +376,25 @@ export interface ExternalToolStatus {
   resolvedPath?: string;
   source?: string;
   version?: string;
+  /** Latest remote version string when known (for update hints). */
+  remoteVersion?: string;
   updateAvailable: boolean;
   autoDownloadEnabled: boolean;
   autoUpdateEnabled: boolean;
-   /** True when the backend is currently auto-downloading this tool. */
-   downloadInProgress: boolean;
-   /** Optional percentage progress (0-100); when undefined, treat as indeterminate spinner. */
-   downloadProgress?: number;
-   /** Last error message emitted while trying to download or update this tool. */
-   lastDownloadError?: string;
-   /** Last informational message about download/update activity for this tool. */
-   lastDownloadMessage?: string;
+  /** True when the backend is currently auto-downloading this tool. */
+  downloadInProgress: boolean;
+  /** Optional percentage progress (0-100); when undefined, treat as indeterminate spinner. */
+  downloadProgress?: number;
+  /** Total bytes downloaded so far for the current auto-download, when known. */
+  downloadedBytes?: number;
+  /** Total expected size in bytes for the current auto-download when known. */
+  totalBytes?: number;
+  /** Smoothed download speed in bytes per second when known. */
+  bytesPerSecond?: number;
+  /** Last error message emitted while trying to download or update this tool. */
+  lastDownloadError?: string;
+  /** Last informational message about download/update activity for this tool. */
+  lastDownloadMessage?: string;
 }
 
 export interface CpuUsageSnapshot {
