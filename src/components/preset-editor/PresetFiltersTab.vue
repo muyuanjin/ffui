@@ -15,11 +15,11 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+  <div class="bg-muted/40 p-3 rounded-md border border-border/60">
     <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
       {{ t("presetEditor.filters.title") }}
     </h3>
-    <div class="space-y-4">
+    <div class="space-y-3">
       <div>
         <Label class="block text-sm mb-1">
           {{ t("presetEditor.filters.scaleLabel") }}
@@ -39,7 +39,7 @@ const { t } = useI18n();
         </p>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <Label class="block text-xs mb-1">
           {{ t("presetEditor.filters.cropLabel") }}
@@ -75,7 +75,7 @@ const { t } = useI18n();
         </div>
       </div>
 
-      <div class="space-y-2">
+      <div class="">
         <Label class="block text-xs">
           {{ t("presetEditor.filters.vfChainLabel") }}
         </Label>
@@ -94,7 +94,7 @@ const { t } = useI18n();
         />
       </div>
 
-      <div class="space-y-2">
+      <div class="">
         <Label class="block text-xs">
           {{ t("presetEditor.filters.afChainLabel") }}
         </Label>
@@ -111,7 +111,7 @@ const { t } = useI18n();
         />
       </div>
 
-      <div class="space-y-2">
+      <div class="">
         <Label class="block text-xs">
           {{ t("presetEditor.filters.filterComplexLabel") }}
         </Label>
