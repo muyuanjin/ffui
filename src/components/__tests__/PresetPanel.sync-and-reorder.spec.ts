@@ -1,0 +1,113 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi } from "vitest";
+import { defineComponent, ref, nextTick } from "vue";
+import { mount } from "@vue/test-utils";
+import type { FFmpegPreset } from "@/types";
+import PresetPanel from "@/components/panels/PresetPanel.vue";
+import { i18n } from "@/__tests__/helpers/mainAppTauriDialog";
+
+// Mock useSortable so we can trigger onEnd 手动模拟拖拽结束回调。
+const useSortableMock = vi.fn();
+
+vi.mock("@vueuse/integrations/useSortable", () => ({
+  useSortable: (...args: any[]) => {
+    // 记录调用参数，便于测试中手动调用 onEnd。
+    useSortableMock(...args);
+  },
+}));
+
+const makePreset = (id: string, quality: number): FFmpegPreset => ({
+  id,
+  name: `Preset ${id}`,
+  description: `Desc ${id}`,
+  video: {
+    encoder: "libx264",
+    rateControl: "crf",
+    qualityValue: quality,
+    preset: "medium",
+  },
+  audio: {
+    codec: "aac",
+    bitrate: 192,
+  },
+  filters: {},
+  stats: {
+    usageCount: 0,
+    totalInputSizeMB: 0,
+    totalOutputSizeMB: 0,
+    totalTimeSeconds: 0,
+  },
+});
+
+describe("PresetPanel 参数展示与拖拽排序", () => {
+  it("当上游 presets 内容被替换时卡片展示会同步更新", async () => {
+    const Parent = defineComponent({
+      components: { PresetPanel },
+      setup() {
+        const presets = ref<FFmpegPreset[]>([makePreset("p1", 23)]);
+        const edit = vi.fn();
+        const remove = vi.fn();
+        const reorder = vi.fn();
+        return { presets, edit, remove, reorder };
+      },
+      template: `
+        <PresetPanel
+          :presets="presets"
+          @edit="edit"
+          @delete="remove"
+          @reorder="reorder"
+        />
+      `,
+    });
+
+    const wrapper = mount(Parent, {
+      global: { plugins: [i18n] },
+    });
+
+    // 初始卡片应展示 CRF 23
+    expect(wrapper.text()).toContain("CRF 23");
+
+    // 模拟在参数面板中保存预设：父级用 splice 替换数组中的元素（与 useMainAppPresets 逻辑一致）。
+    const vm: any = wrapper.vm;
+    vm.presets.splice(0, 1, makePreset("p1", 18));
+    await nextTick();
+
+    // 深度 watch 生效后，卡片应更新为 CRF 18
+    expect(wrapper.text()).toContain("CRF 18");
+
+    wrapper.unmount();
+  });
+
+  it("拖拽结束时会根据本地顺序发出正确的 reorder 事件", async () => {
+    const presets = [makePreset("p1", 23), makePreset("p2", 21)];
+
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+        edit: () => {},
+        delete: () => {},
+        reorder: () => {},
+      },
+      global: { plugins: [i18n] },
+    });
+
+    // 通过 useSortableMock 取到第二个参数（list）和第三个参数（options）
+    expect(useSortableMock.mock.calls.length).toBeGreaterThan(0);
+    const lastCall = useSortableMock.mock.calls[useSortableMock.mock.calls.length - 1];
+    const [, listRef, options] = lastCall;
+
+    // 模拟 SortableJS 改变本地顺序：将 p2 拖到 p1 前面
+    listRef.value = [presets[1], presets[0]];
+
+    // 手动触发 onEnd 回调
+    options.onEnd?.();
+
+    // 使用带事件名的 API，并为类型断言出 payload 结构，避免 any/索引类型错误。
+    const emitted = wrapper.emitted("reorder") as [string[]][];
+    expect(emitted.length).toBeGreaterThan(0);
+    // 第一次发出的 reorder 事件 payload 应为 ["p2", "p1"]
+    expect(emitted[0][0]).toEqual(["p2", "p1"]);
+
+    wrapper.unmount();
+  });
+});

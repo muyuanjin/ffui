@@ -38,43 +38,83 @@ pub(super) fn is_exec_arch_mismatch(err: &std::io::Error) -> bool {
 
 pub(super) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &str) -> bool {
     let debug_log = std::env::var("FFUI_TEST_LOG").is_ok();
-    // Prefer `-version` which works for ffmpeg/ffprobe and avoids the
-    // non-zero exit code some builds use for `--version`.
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
-    cmd.arg("-version");
-
-    match cmd.output() {
-        Ok(out) => {
-            if debug_log {
-                eprintln!(
-                    "[verify_tool_binary] path={} source={} status={} stdout_len={} stderr_len={}",
-                    path,
-                    source,
-                    out.status,
-                    out.stdout.len(),
-                    out.stderr.len()
-                );
+    // For ffmpeg/ffprobe we prefer `-version`, which avoids the non-zero exit
+    // code some builds use for `--version`. For avifenc we only care that the
+    // binary can be spawned at all; many builds exit non‑zero when called
+    // without real input, so we treat any successful spawn as "available".
+    match kind {
+        ExternalToolKind::Avifenc => {
+            cmd.arg("--help");
+            match cmd.output() {
+                Ok(out) => {
+                    if debug_log {
+                        eprintln!(
+                            "[verify_tool_binary] kind=avifenc path={} source={} status={} stdout_len={} stderr_len={}",
+                            path,
+                            source,
+                            out.status,
+                            out.stdout.len(),
+                            out.stderr.len()
+                        );
+                    }
+                    true
+                }
+                Err(err) => {
+                    if debug_log {
+                        eprintln!(
+                            "[verify_tool_binary] kind=avifenc path={} source={} error_kind={:?} os_error={:?}",
+                            path,
+                            source,
+                            err.kind(),
+                            err.raw_os_error()
+                        );
+                    }
+                    if is_exec_arch_mismatch(&err) {
+                        mark_arch_incompatible_for_session(kind, source, path, &err);
+                    }
+                    false
+                }
             }
-            out.status.success()
         }
-        Err(err) => {
-            if debug_log {
-                eprintln!(
-                    "[verify_tool_binary] path={} source={} error_kind={:?} os_error={:?}",
-                    path,
-                    source,
-                    err.kind(),
-                    err.raw_os_error()
-                );
+        _ => {
+            // Prefer `-version` which works for ffmpeg/ffprobe and avoids the
+            // non-zero exit code some builds use for `--version`.
+            cmd.arg("-version");
+            match cmd.output() {
+                Ok(out) => {
+                    if debug_log {
+                        eprintln!(
+                            "[verify_tool_binary] path={} source={} status={} stdout_len={} stderr_len={}",
+                            path,
+                            source,
+                            out.status,
+                            out.stdout.len(),
+                            out.stderr.len()
+                        );
+                    }
+                    out.status.success()
+                }
+                Err(err) => {
+                    if debug_log {
+                        eprintln!(
+                            "[verify_tool_binary] path={} source={} error_kind={:?} os_error={:?}",
+                            path,
+                            source,
+                            err.kind(),
+                            err.raw_os_error()
+                        );
+                    }
+                    if is_exec_arch_mismatch(&err) {
+                        // Treat this as an architecture incompatibility and remember it
+                        // for the rest of the session so we do not keep trying to run
+                        // a broken binary.
+                        mark_arch_incompatible_for_session(kind, source, path, &err);
+                    }
+                    false
+                }
             }
-            if is_exec_arch_mismatch(&err) {
-                // Treat this as an architecture incompatibility and remember it
-                // for the rest of the session so we do not keep trying to run
-                // a broken binary.
-                mark_arch_incompatible_for_session(kind, source, path, &err);
-            }
-            false
         }
     }
 }

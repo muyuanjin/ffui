@@ -23,10 +23,15 @@ const { t } = useI18n();
 const containerRef = ref<HTMLElement | null>(null);
 const localPresets = ref<FFmpegPreset[]>([...props.presets]);
 
-// Watch for prop changes
-watch(() => props.presets, (newPresets) => {
-  localPresets.value = [...newPresets];
-});
+// 当上游预设列表内容发生变化（例如在参数面板中保存后）时，同步到本地副本，
+// 确保卡片上的参数展示与详情面板保持一致。
+watch(
+  () => props.presets,
+  (newPresets) => {
+    localPresets.value = [...newPresets];
+  },
+  { deep: true },
+);
 
 // Setup sortable
 useSortable(containerRef, localPresets, {
