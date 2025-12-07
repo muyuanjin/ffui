@@ -21,21 +21,21 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="bg-muted/40 p-4 rounded-md border border-border/60 space-y-4">
+  <div class="bg-muted/40 p-3 rounded-md border border-border/60 space-y-3">
     <h3 class="font-semibold mb-2 border-b border-border/60 pb-2">
       {{ t("presetEditor.panel.inputTitle") }}
     </h3>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div class="space-y-2">
-        <Label class="text-xs">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.seekModeLabel") }}
         </Label>
         <Select
           :model-value="inputTimeline.seekMode ?? 'output'"
           @update:model-value="(value) => { inputTimeline.seekMode = value as any; }"
         >
-          <SelectTrigger class="h-8 text-xs">
+          <SelectTrigger class="h-9 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -49,8 +49,8 @@ const { t } = useI18n();
         </Select>
       </div>
 
-      <div class="space-y-2">
-        <Label class="text-xs">
+      <div class="">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.seekPositionLabel") }}
         </Label>
         <Input
@@ -69,9 +69,9 @@ const { t } = useI18n();
       </div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div class="space-y-2">
-        <Label class="text-xs">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.durationModeLabel") }}
         </Label>
         <Select
@@ -83,7 +83,7 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger class="h-8 text-xs">
+          <SelectTrigger class="h-9 text-xs">
             <SelectValue
               :placeholder="t('presetEditor.panel.durationModePlaceholder')"
             />
@@ -99,8 +99,8 @@ const { t } = useI18n();
         </Select>
       </div>
 
-      <div class="space-y-2">
-        <Label class="text-xs">
+      <div class="">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.durationLabel") }}
         </Label>
         <Input

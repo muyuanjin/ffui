@@ -22,42 +22,39 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="bg-muted/40 p-4 rounded-md border border-border/60 space-y-4">
-    <h3 class="font-semibold mb-2 border-b border-border/60 pb-2">
+  <div class="bg-muted/40 p-3 rounded-md border border-border/60 space-y-3">
+    <h3 class="font-semibold mb-2 text-sm border-b border-border/60 pb-1">
       {{ t("presetEditor.panel.globalTitle") }}
     </h3>
 
-    <div class="space-y-2">
-      <Label class="text-xs">
-        {{ t("presetEditor.panel.overwriteBehaviorLabel") }}
-      </Label>
-      <Select
-        :model-value="globalConfig.overwriteBehavior ?? 'ask'"
-        @update:model-value="(value) => { globalConfig.overwriteBehavior = value as any; }"
-      >
-        <SelectTrigger class="h-8 text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="ask">
-            {{ t("presetEditor.panel.overwriteAsk") }}
-          </SelectItem>
-          <SelectItem value="overwrite">
-            {{ t("presetEditor.panel.overwriteYes") }}
-          </SelectItem>
-          <SelectItem value="noOverwrite">
-            {{ t("presetEditor.panel.overwriteNo") }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <p class="text-[11px] text-muted-foreground">
-        {{ t("presetEditor.panel.overwriteHelp") }}
-      </p>
-    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <Label class="text-[10px] mb-1 block">
+          {{ t("presetEditor.panel.overwriteBehaviorLabel") }}
+        </Label>
+        <Select
+          :model-value="globalConfig.overwriteBehavior ?? 'ask'"
+          @update:model-value="(value) => { globalConfig.overwriteBehavior = value as any; }"
+        >
+          <SelectTrigger class="h-9 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ask">
+              {{ t("presetEditor.panel.overwriteAsk") }}
+            </SelectItem>
+            <SelectItem value="overwrite">
+              {{ t("presetEditor.panel.overwriteYes") }}
+            </SelectItem>
+            <SelectItem value="noOverwrite">
+              {{ t("presetEditor.panel.overwriteNo") }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div class="space-y-2">
-        <Label class="text-xs">
+      <div>
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.logLevelLabel") }}
         </Label>
         <Select
@@ -73,10 +70,8 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger class="h-8 text-xs">
-            <SelectValue
-              :placeholder="t('presetEditor.panel.logLevelPlaceholder')"
-            />
+          <SelectTrigger class="h-9 text-xs">
+            <SelectValue :placeholder="t('presetEditor.panel.logLevelPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="quiet">quiet</SelectItem>
@@ -90,37 +85,30 @@ const { t } = useI18n();
             <SelectItem value="trace">trace</SelectItem>
           </SelectContent>
         </Select>
-        <p class="text-[11px] text-muted-foreground">
-          {{ t("presetEditor.panel.logLevelHelp") }}
-        </p>
-      </div>
-
-      <div class="flex flex-col gap-2 pt-5">
-        <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-          <input
-            v-model="globalConfig.hideBanner"
-            type="checkbox"
-            class="h-3 w-3 rounded border-border bg-background"
-          />
-          <span>
-            {{ t("presetEditor.panel.hideBannerLabel") }}
-          </span>
-        </label>
-        <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-          <input
-            v-model="globalConfig.enableReport"
-            type="checkbox"
-            class="h-3 w-3 rounded border-border bg-background"
-          />
-          <span>
-            {{ t("presetEditor.panel.enableReportLabel") }}
-          </span>
-        </label>
       </div>
     </div>
 
-    <p class="text-[11px] text-muted-foreground">
-      {{ t("presetEditor.panel.globalHelp") }}
-    </p>
+    <div class="flex gap-3">
+      <label class="inline-flex items-center gap-2 text-[10px]">
+        <input
+          v-model="globalConfig.hideBanner"
+          type="checkbox"
+          class="h-3 w-3 rounded border-border bg-background"
+        />
+        <span>
+          {{ t("presetEditor.panel.hideBannerLabel") }}
+        </span>
+      </label>
+      <label class="inline-flex items-center gap-2 text-[10px]">
+        <input
+          v-model="globalConfig.enableReport"
+          type="checkbox"
+          class="h-3 w-3 rounded border-border bg-background"
+        />
+        <span>
+          {{ t("presetEditor.panel.enableReportLabel") }}
+        </span>
+      </label>
+    </div>
   </div>
 </template>
