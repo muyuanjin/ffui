@@ -17,7 +17,7 @@ const app = {
   settings: {
     externalToolsTitle: "External tools",
     externalToolsDescription:
-      "Manage ffmpeg / ffprobe / avifenc availability, custom paths, and auto-download status.",
+      "Manage ffmpeg / ffprobe / avifenc availability, custom paths, and how the app manages these tools.",
     refreshToolsStatus: "Refresh status",
     toolStatus: {
       ready: "Ready",
@@ -35,11 +35,21 @@ const app = {
       "When a custom path is set, it takes precedence; otherwise the app searches the auto-downloaded tools directory or system PATH.",
     autoDownloadSectionTitle: "Auto-download & global behaviour",
     autoDownloadSectionDescription:
-      "Configure auto-download/update policies, preview capture position, and queue concurrency limits.",
-    downloadStrategyLabel: "Download / update strategy",
-    allowAutoDownloadLabel: "Auto-download (recommended)",
-    allowAutoUpdateLabel: "Auto-update",
-    autoUpdateExternalToolsLabel: "Auto-update external tools",
+      "Choose how the app manages external tools, and configure preview capture and queue limits.",
+    downloadStrategyLabel: "Management mode",
+    toolModeAutoManagedLabel: "Full auto-manage",
+    toolModeInstallOnlyLabel: "Install when missing",
+    toolModeManualLabel: "Manual only",
+    toolModeAutoManagedDescription:
+      "Automatically installs ffmpeg / ffprobe / avifenc when missing and keeps them on the recommended version in the background.",
+    toolModeInstallOnlyDescription:
+      "Only auto-installs tools when the system has none available; once tools are usable, future updates are manual via the Download/Update button.",
+    toolModeManualDescription:
+      "Never auto-download or auto-update. The app uses only PATH or your custom paths, ideal for locked-down environments.",
+    toolModeRecommendedBadge: "Recommended",
+    toolModeCustomLabel: "Custom mode",
+    toolModeCustomDescription:
+      "Your current auto-download / auto-update switches do not match the three main modes. The app will follow your existing combination until you pick one of the modes above.",
     previewCaptureLabel: "Preview capture position (%)",
     previewCaptureHelp:
       "Percentage of total video duration used when capturing thumbnails; default is 25.",

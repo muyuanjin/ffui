@@ -17,7 +17,9 @@ static APP_HANDLE: once_cell::sync::OnceCell<Arc<tauri::AppHandle>> =
 /// this in a separate mutex so we don't need to re-probe the filesystem on
 /// every progress callback; instead callers provide the freshly computed
 /// ExternalToolStatus list.
-static LATEST_TOOL_STATUS: once_cell::sync::Lazy<Mutex<Vec<super::types::ExternalToolStatus>>> =
+pub(super) static LATEST_TOOL_STATUS: once_cell::sync::Lazy<
+    Mutex<Vec<super::types::ExternalToolStatus>>,
+> =
     once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
 
 pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
@@ -29,6 +31,37 @@ pub(crate) fn update_latest_status_snapshot(statuses: Vec<super::types::External
         .lock()
         .expect("LATEST_TOOL_STATUS lock poisoned");
     *lock = statuses;
+}
+
+/// Merge the latest in-memory download runtime state for a single tool into
+/// the cached ExternalToolStatus snapshot so that subsequent tool-status
+/// events can reflect byte counts, progress, speed, and messages without
+/// re-probing the filesystem for every tick.
+fn merge_download_state_into_latest_snapshot(kind: ExternalToolKind) {
+    // Fast path: if we have never produced a snapshot for the frontend (for
+    // example because the Settings panel has not been opened yet), there is
+    // nothing to merge into and no event should be emitted.
+    let runtime = snapshot_download_state(kind);
+
+    let mut lock = LATEST_TOOL_STATUS
+        .lock()
+        .expect("LATEST_TOOL_STATUS lock poisoned");
+    if lock.is_empty() {
+        return;
+    }
+
+    for status in lock.iter_mut() {
+        if status.kind == kind {
+            status.download_in_progress = runtime.in_progress;
+            status.download_progress = runtime.progress;
+            status.downloaded_bytes = runtime.downloaded_bytes;
+            status.total_bytes = runtime.total_bytes;
+            status.bytes_per_second = runtime.bytes_per_second;
+            status.last_download_error = runtime.last_error.clone();
+            status.last_download_message = runtime.last_message.clone();
+            break;
+        }
+    }
 }
 
 fn emit_tool_status_event_if_possible() {
@@ -70,13 +103,19 @@ pub(super) fn mark_download_started(kind: ExternalToolKind, message: String) {
     with_download_state(kind, |state| {
         state.in_progress = true;
         state.progress = None;
-        state.downloaded_bytes = Some(0);
+        // Until we have actually observed bytes on the wire we keep the
+        // counters empty so the UI does not show a misleading "0 B" value.
+        state.downloaded_bytes = None;
         state.total_bytes = None;
         state.bytes_per_second = None;
         state.started_at = Some(Instant::now());
         state.last_error = None;
         state.last_message = Some(message);
     });
+
+    // Keep the cached snapshot in sync with the newly started download so
+    // that the first event immediately reflects the "in progress" state.
+    merge_download_state_into_latest_snapshot(kind);
 
     // When a download starts, push a fresh status snapshot to the frontend so
     // the Settings panel can immediately reflect the new state.
@@ -119,6 +158,11 @@ pub(super) fn mark_download_progress(kind: ExternalToolKind, downloaded: u64, to
         }
     });
 
+    // Push updated progress metrics into the cached snapshot so subsequent
+    // events can show smooth, per‑tool progress and byte counters even when
+    // multiple tools are downloading in parallel.
+    merge_download_state_into_latest_snapshot(kind);
+
     // Push an incremental update so the frontend sees smooth progress/速度。
     emit_tool_status_event_if_possible();
 }
@@ -132,6 +176,10 @@ pub(super) fn mark_download_finished(kind: ExternalToolKind, message: String) {
         state.last_message = Some(message);
     });
 
+    // Synchronise the final 100% snapshot so the UI can briefly show the
+    // completed state even after the download thread has finished.
+    merge_download_state_into_latest_snapshot(kind);
+
     // Final event so the UI can flip from “下载中”到“已完成 100%”。
     emit_tool_status_event_if_possible();
 }
@@ -141,6 +189,10 @@ pub(super) fn mark_download_error(kind: ExternalToolKind, message: String) {
         state.in_progress = false;
         state.last_error = Some(message);
     });
+
+    // Surface the error on the cached snapshot for this tool without
+    // disturbing the download state of other tools.
+    merge_download_state_into_latest_snapshot(kind);
 
     // Surface错误给前端，以便在设置页显示失败信息。
     emit_tool_status_event_if_possible();

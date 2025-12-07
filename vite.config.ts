@@ -39,8 +39,9 @@ export default defineConfig(async () => ({
   },
 
   // Keep Vite build output warnings clean while allowing a larger main
-  // chunk for this desktop-focused app.
+  // chunk for this desktop-focused app. Bump the limit as the app grows
+  // to avoid noisy warnings for expected bundle size.
   build: {
-    chunkSizeWarningLimit: 2048,
+    chunkSizeWarningLimit: 3072,
   },
 }));

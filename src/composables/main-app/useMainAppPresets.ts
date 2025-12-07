@@ -121,6 +121,37 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   };
 
   const handleCompletedJobFromBackend = (job: TranscodeJob) => {
+    // 在 Tauri 环境下，优先从后端加载最新的预设统计信息，确保卡片底部统计与
+    // 实际生产数据一致（由 Rust 端基于真实输入/输出体积与耗时累计）。
+    if (hasTauri()) {
+      void (async () => {
+        try {
+          const loaded = await loadPresets();
+          if (Array.isArray(loaded) && loaded.length > 0) {
+            presets.value = loaded;
+            ensureManualPresetId();
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to refresh presets stats from backend:", e);
+        }
+
+        // 后端加载失败时退回到前端本地累加逻辑，至少保证当前会话内的统计是连贯的。
+        const input = job.originalSizeMB;
+        const output = job.outputSizeMB;
+        if (!input || !output || input <= 0 || output <= 0) {
+          return;
+        }
+        if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
+          return;
+        }
+        const durationSeconds = (job.endTime - job.startTime) / 1000;
+        updatePresetStats(job.presetId, input, output, durationSeconds);
+      })();
+      return;
+    }
+
+    // 非 Tauri / 测试环境下保持原有的本地统计行为，方便单元测试和纯网页模式演示。
     const input = job.originalSizeMB;
     const output = job.outputSizeMB;
     if (!input || !output || input <= 0 || output <= 0) {

@@ -66,18 +66,39 @@ pub(super) fn make_engine_with_preset() -> TranscodingEngine {
 
 /// Best-effort check whether `ffmpeg` is available on PATH.
 pub(super) fn ffmpeg_available() -> bool {
-    Command::new("ffmpeg")
-        .arg("-version")
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .map(|s| s.success())
+    // 为了避免在测试环境中误触发系统弹窗，这里的 ffmpeg 集成测试默认是
+    // “按需开启”的：只有当显式设置了环境变量
+    //   FFUI_ENABLE_FFMPEG_INTEGRATION_TESTS=1
+    // 时才会真正尝试运行 PATH 中的 ffmpeg。
+    //
+    // 这样可以：
+    // - 保证默认跑 `cargo test` 时不会启动任何外部 ffmpeg 进程，更不会弹出
+    //   “32 位程序无法运行”等系统提示；
+    // - 仍然允许在 CI 或特定开发机上，通过设置环境变量启用真实的 ffmpeg
+    //   集成测试。
+    if std::env::var("FFUI_ENABLE_FFMPEG_INTEGRATION_TESTS")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
+    {
+        Command::new("ffmpeg")
+            .arg("-version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    } else {
+        // 环境变量未开启时，一律视为“不可用”，让依赖它的集成测试走跳过分支。
+        false
+    }
 }
 
 /// Generate a tiny synthetic MP4 file for integration tests using ffmpeg's
 /// built-in testsrc filter. Returns true on success.
 pub(super) fn generate_test_input_video(path: &std::path::Path) -> bool {
+    // 这里假定调用方已经通过 `ffmpeg_available()` 做过一次环境探测，
+    // 且仅在返回 true 时才会调用本函数。这样默认环境（未开启集成测试）
+    // 下完全不会尝试启动外部 ffmpeg 进程。
     let status = Command::new("ffmpeg")
         .args([
             "-y",

@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
+import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import type { AppSettings, ExternalToolKind, ExternalToolStatus } from "@/types";
 
 const props = defineProps<{
@@ -58,85 +60,49 @@ const getMetricsIntervalInputValue = () => {
   return DEFAULT_METRICS_INTERVAL_MS;
 };
 
-const getToolDisplayName = (kind: ExternalToolKind): string => {
-  if (kind === "ffmpeg") return "FFmpeg";
-  if (kind === "ffprobe") return "FFprobe";
-  if (kind === "avifenc") return "avifenc";
-  return kind;
-};
-
-const getToolCustomPath = (kind: ExternalToolKind): string => {
-  if (!props.appSettings) return "";
-  const tools = props.appSettings.tools;
-  if (kind === "ffmpeg") return tools.ffmpegPath ?? "";
-  if (kind === "ffprobe") return tools.ffprobePath ?? "";
-  if (kind === "avifenc") return tools.avifencPath ?? "";
-  return "";
-};
-
-const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
-  if (!props.appSettings) return;
-  const settings = { ...props.appSettings };
-  const tools = { ...settings.tools };
-  const normalized = String(value ?? "").trim();
-  if (kind === "ffmpeg") {
-    tools.ffmpegPath = normalized || undefined;
-  } else if (kind === "ffprobe") {
-    tools.ffprobePath = normalized || undefined;
-  } else if (kind === "avifenc") {
-    tools.avifencPath = normalized || undefined;
-  }
-  settings.tools = tools;
-  emit("update:appSettings", settings);
-};
-
 const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
   if (!props.appSettings) return;
   emit("update:appSettings", { ...props.appSettings, [key]: value });
 };
 
-const updateToolsSetting = <K extends keyof AppSettings["tools"]>(key: K, value: AppSettings["tools"][K]) => {
-  if (!props.appSettings) return;
-  emit("update:appSettings", {
-    ...props.appSettings,
-    tools: { ...props.appSettings.tools, [key]: value },
-  });
-};
+type ExternalToolsMode = "autoManaged" | "installOnly" | "manual" | "custom";
 
-const copyToClipboard = async (value: string | undefined | null) => {
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    // Fallback method
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  }
-};
-
-const formatBytes = (value?: number): string => {
-  if (value == null || !Number.isFinite(value)) return "";
-  const units = ["B", "KB", "MB", "GB"];
-  let v = value;
-  let unitIndex = 0;
-  while (v >= 1024 && unitIndex < units.length - 1) {
-    v /= 1024;
-    unitIndex += 1;
-  }
-  const fractionDigits = unitIndex === 0 ? 0 : 1;
-  return `${v.toFixed(fractionDigits)} ${units[unitIndex]}`;
-};
-
-const formatSpeed = (bytesPerSecond?: number): string => {
-  if (bytesPerSecond == null || !Number.isFinite(bytesPerSecond)) return "";
-  return `${formatBytes(bytesPerSecond)}/s`;
-};
+const toolsMode = computed<ExternalToolsMode>({
+  get() {
+    const tools = props.appSettings?.tools;
+    if (!tools) return "autoManaged";
+    const { autoDownload, autoUpdate } = tools;
+    if (autoDownload && autoUpdate) return "autoManaged";
+    if (autoDownload && !autoUpdate) return "installOnly";
+    if (!autoDownload && !autoUpdate) return "manual";
+    // Rare legacy / advanced combination: surface as a custom strategy so
+    // the user can see it is not one of the three recommended modes.
+    return "custom";
+  },
+  set(mode) {
+    if (!props.appSettings) return;
+    if (mode === "custom") {
+      // Custom mode is derived from the underlying switches; selecting it
+      // should not mutate the existing combination.
+      return;
+    }
+    const next: AppSettings = {
+      ...props.appSettings,
+      tools: { ...props.appSettings.tools },
+    };
+    if (mode === "autoManaged") {
+      next.tools.autoDownload = true;
+      next.tools.autoUpdate = true;
+    } else if (mode === "installOnly") {
+      next.tools.autoDownload = true;
+      next.tools.autoUpdate = false;
+    } else if (mode === "manual") {
+      next.tools.autoDownload = false;
+      next.tools.autoUpdate = false;
+    }
+    emit("update:appSettings", next);
+  },
+});
 </script>
 
 <template>
@@ -145,121 +111,12 @@ const formatSpeed = (bytesPerSecond?: number): string => {
     <div class="grid gap-2 xl:grid-cols-3 lg:grid-cols-2">
 
       <!-- External Tools Section -->
-      <Card class="xl:col-span-2 border-border/50 bg-card/95 shadow-sm">
-        <CardHeader class="py-2 px-3 border-b border-border/30">
-          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-            {{ t("app.settings.externalToolsTitle") }}
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="p-2 space-y-1">
-          <div
-            v-for="tool in toolStatuses"
-            :key="tool.kind"
-            class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
-          >
-            <!-- Tool header with status -->
-            <div class="flex items-center justify-between mb-1.5 gap-2 min-w-0">
-              <div class="flex items-center gap-2 shrink-0">
-                <code class="text-[11px] font-mono font-semibold">{{ getToolDisplayName(tool.kind) }}</code>
-                <span
-                  class="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-mono uppercase tracking-wider whitespace-nowrap"
-                  :class="
-                    tool.resolvedPath
-                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                      : 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
-                  "
-                >
-                  {{ tool.resolvedPath ? t("app.settings.toolStatus.ready") : t("app.settings.toolStatus.missing") }}
-                </span>
-              </div>
-              <span
-                v-if="tool.version"
-                class="ml-2 text-[10px] text-muted-foreground font-mono opacity-70 truncate max-w-[55%] text-right"
-              >
-                {{ tool.version }}
-              </span>
-            </div>
-
-            <!-- Tool path display -->
-            <div v-if="tool.resolvedPath" class="mb-1.5">
-              <div class="flex items-center gap-1 group">
-                <span class="text-[9px] text-muted-foreground uppercase tracking-wider">PATH:</span>
-                <code class="flex-1 text-[10px] font-mono text-muted-foreground truncate">
-                  {{ tool.resolvedPath }}
-                </code>
-                <button
-                  class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-accent rounded transition-all"
-                  @click="copyToClipboard(tool.resolvedPath)"
-                >
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <!-- Custom path input -->
-            <div v-if="appSettings" class="flex items-center gap-1.5">
-              <span class="text-[9px] text-muted-foreground uppercase tracking-wider shrink-0">CUSTOM:</span>
-              <Input
-                :model-value="getToolCustomPath(tool.kind)"
-                :placeholder="t('app.settings.customToolPathPlaceholder')"
-                class="h-6 text-[10px] font-mono bg-background/50 border-border/30 px-2"
-                @update:model-value="(value) => setToolCustomPath(tool.kind, value)"
-              />
-            </div>
-
-            <!-- Update available / manual download actions -->
-            <div class="mt-1 flex items-center justify-between text-[9px]">
-              <span v-if="tool.updateAvailable" class="text-amber-600">
-                {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
-              </span>
-              <Button
-                v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
-                variant="outline"
-                size="sm"
-                class="h-5 px-2 text-[9px]"
-                @click="emit('downloadTool', tool.kind)"
-              >
-                {{ tool.updateAvailable ? "更新" : "下载" }}
-              </Button>
-            </div>
-
-            <!-- Download progress -->
-            <div v-if="tool.downloadInProgress" class="mt-1.5 space-y-0.5">
-              <div class="flex items-center justify-between text-[9px]">
-                <span class="text-muted-foreground uppercase tracking-wider">
-                  {{ t("app.settings.downloadStatusLabel") }}
-                </span>
-                <span v-if="tool.downloadProgress != null" class="font-mono text-primary">
-                  {{ tool.downloadProgress.toFixed(1) }}%
-                </span>
-              </div>
-              <div class="flex items-center justify-between text-[9px] text-muted-foreground">
-                <span v-if="tool.downloadedBytes != null">
-                  {{ formatBytes(tool.downloadedBytes) }}
-                  <span v-if="tool.totalBytes != null">
-                    / {{ formatBytes(tool.totalBytes) }}
-                  </span>
-                </span>
-                <span v-if="tool.bytesPerSecond != null" class="font-mono">
-                  {{ formatSpeed(tool.bytesPerSecond) }}
-                </span>
-              </div>
-              <div class="h-1 bg-muted/50 rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-300"
-                  :class="tool.downloadProgress == null ? 'animate-pulse w-1/3' : ''"
-                  :style="tool.downloadProgress != null ? { width: `${tool.downloadProgress}%` } : {}"
-                />
-              </div>
-              <p class="text-[9px] text-muted-foreground mt-0.5 leading-snug">
-                {{ tool.lastDownloadMessage || t("app.settings.downloadInProgress") }}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsExternalToolsSection
+        :app-settings="appSettings"
+        :tool-statuses="toolStatuses"
+        @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        @downloadTool="(kind) => emit('downloadTool', kind)"
+      />
 
       <!-- Core Settings Section -->
       <Card class="border-border/50 bg-card/95 shadow-sm">
@@ -268,38 +125,94 @@ const formatSpeed = (bytesPerSecond?: number): string => {
             {{ t("app.settings.autoDownloadSectionTitle") }}
           </CardTitle>
         </CardHeader>
-        <CardContent v-if="appSettings" class="p-2 space-y-2">
+      <CardContent v-if="appSettings" class="p-2 space-y-2">
           <p class="text-[10px] text-muted-foreground leading-snug">
             {{ t("app.settings.autoDownloadSectionDescription") }}
           </p>
 
           <!-- Download / update strategy -->
           <div class="space-y-1">
-            <!-- Allow auto-download -->
-            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <p class="text-[9px] text-muted-foreground uppercase tracking-wider">
+              {{ t("app.settings.downloadStrategyLabel") }}
+            </p>
+
+            <!-- Mode: app-managed (auto download + auto update) -->
+            <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
               <input
-                :checked="appSettings.tools.autoDownload"
-                type="checkbox"
-                class="w-3 h-3 rounded border-border/50"
-                @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
+                type="radio"
+                name="external-tools-mode"
+                class="mt-[2px] w-3 h-3 rounded border-border/50"
+                :checked="toolsMode === 'autoManaged'"
+                @change="toolsMode = 'autoManaged'"
               />
-              <span class="text-[10px] select-none">
-                {{ t("app.settings.allowAutoDownloadLabel") }}
-              </span>
+              <div class="flex-1 flex flex-col gap-0.5">
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] select-none">
+                    {{ t("app.settings.toolModeAutoManagedLabel") }}
+                  </span>
+                  <span
+                    class="inline-flex items-center px-1 py-[1px] rounded-full text-[8px] font-medium bg-primary/10 text-primary border border-primary/30"
+                  >
+                    {{ t("app.settings.toolModeRecommendedBadge") }}
+                  </span>
+                </div>
+                <p class="text-[9px] text-muted-foreground leading-snug">
+                  {{ t("app.settings.toolModeAutoManagedDescription") }}
+                </p>
+              </div>
             </label>
 
-            <!-- Auto update external tools switch -->
-            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <!-- Mode: install-only (auto download when missing, no auto update) -->
+            <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
               <input
-                :checked="appSettings.tools.autoUpdate"
-                type="checkbox"
-                class="w-3 h-3 rounded border-border/50"
-                @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
+                type="radio"
+                name="external-tools-mode"
+                class="mt-[2px] w-3 h-3 rounded border-border/50"
+                :checked="toolsMode === 'installOnly'"
+                @change="toolsMode = 'installOnly'"
               />
-              <span class="text-[10px] select-none">
-                {{ t("app.settings.autoUpdateExternalToolsLabel") }}
-              </span>
+              <div class="flex-1 flex flex-col gap-0.5">
+                <span class="text-[10px] select-none">
+                  {{ t("app.settings.toolModeInstallOnlyLabel") }}
+                </span>
+                <p class="text-[9px] text-muted-foreground leading-snug">
+                  {{ t("app.settings.toolModeInstallOnlyDescription") }}
+                </p>
+              </div>
             </label>
+
+            <!-- Mode: fully manual (no auto download / update) -->
+            <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+              <input
+                type="radio"
+                name="external-tools-mode"
+                class="mt-[2px] w-3 h-3 rounded border-border/50"
+                :checked="toolsMode === 'manual'"
+                @change="toolsMode = 'manual'"
+              />
+              <div class="flex-1 flex flex-col gap-0.5">
+                <span class="text-[10px] select-none">
+                  {{ t("app.settings.toolModeManualLabel") }}
+                </span>
+                <p class="text-[9px] text-muted-foreground leading-snug">
+                  {{ t("app.settings.toolModeManualDescription") }}
+                </p>
+              </div>
+            </label>
+
+            <!-- Custom combination hint -->
+            <div
+              v-if="toolsMode === 'custom'"
+              data-testid="tools-mode-custom-hint"
+              class="mt-0.5 rounded border border-amber-500/40 bg-amber-500/5 px-1.5 py-1"
+            >
+              <p class="text-[9px] leading-snug text-amber-700 dark:text-amber-400">
+                <span class="font-semibold">
+                  {{ t("app.settings.toolModeCustomLabel") }}：
+                </span>
+                {{ t("app.settings.toolModeCustomDescription") }}
+              </p>
+            </div>
           </div>
 
           <!-- Numeric settings -->

@@ -105,4 +105,48 @@ describe("SettingsPanel external tool download status", () => {
 
     wrapper.unmount();
   });
+
+  it("does not show misleading 0 B when a download has just started and uses an indeterminate bar", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: "C:/tools/ffmpeg.exe",
+      source: "download",
+      version: "ffmpeg version 6.0",
+      updateAvailable: false,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: true,
+      downloadProgress: undefined,
+      downloadedBytes: undefined,
+      totalBytes: undefined,
+      bytesPerSecond: undefined,
+      lastDownloadError: undefined,
+      lastDownloadMessage: "starting auto-download for ffmpeg",
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+      },
+    });
+
+    const text = wrapper.text();
+    // No explicit "0 B" should be rendered at the start of a download.
+    expect(text).not.toContain("0 B");
+
+    // The inner progress bar should render as an indeterminate, full-width
+    // animated bar to indicate activity without a fake percentage.
+    const bar = wrapper.get(".h-1.bg-muted\\/50 .h-full");
+    const barClasses = bar.attributes("class") ?? "";
+    expect(barClasses).toContain("animate-pulse");
+    expect(barClasses).toContain("w-full");
+
+    wrapper.unmount();
+  });
 });
