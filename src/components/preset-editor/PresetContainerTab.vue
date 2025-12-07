@@ -21,14 +21,14 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="bg-muted/40 p-4 rounded-md border border-border/60 space-y-4">
+  <div class="bg-muted/40 p-3 rounded-md border border-border/60 space-y-3">
     <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
       {{ t("presetEditor.panel.containerTitle") }}
     </h3>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="space-y-1">
-        <Label class="text-xs">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.formatLabel") }}
         </Label>
         <Select
@@ -40,7 +40,7 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger class="h-8 text-xs">
+          <SelectTrigger class="h-9 text-xs">
             <SelectValue
               :placeholder="t('presetEditor.panel.formatPlaceholder')"
             />
@@ -58,7 +58,7 @@ const { t } = useI18n();
       </div>
 
       <div class="space-y-1">
-        <Label class="text-xs">
+        <Label class="text-[10px] mb-1 block">
           {{ t("presetEditor.panel.movflagsLabel") }}
         </Label>
         <Input

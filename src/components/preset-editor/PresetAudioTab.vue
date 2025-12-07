@@ -25,22 +25,23 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="bg-muted/40 p-4 rounded-md border border-border/60">
-      <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
+  <div class="space-y-3">
+    <!-- 音频编码 -->
+    <div class="bg-muted/40 p-3 rounded-md border border-border/60">
+      <h3 class="font-semibold mb-2 text-sm border-b border-border/60 pb-1">
         {{ t("presetEditor.audio.title") }}
       </h3>
-      <div class="space-y-4">
-        <div class="flex gap-4">
+      <div class="">
+        <div class="flex gap-2">
           <Button
             :variant="audio.codec === 'copy' ? 'default' : 'outline'"
             class="flex-1 flex flex-col items-start gap-1 h-auto"
             @click="audio.codec = 'copy'"
           >
-            <span class="block font-bold">
+            <span class="block font-bold text-xs">
               {{ t("presetEditor.audio.copyTitle") }}
             </span>
-            <span class="text-xs text-muted-foreground">
+            <span class="text-[10px] text-muted-foreground">
               {{ t("presetEditor.audio.copyDesc") }}
             </span>
           </Button>
@@ -51,87 +52,49 @@ const { t } = useI18n();
             :aria-disabled="props.isCopyEncoder"
             @click="audio.codec = 'aac'"
           >
-            <span class="block font-bold">
+            <span class="block font-bold text-xs">
               {{ t("presetEditor.audio.aacTitle") }}
             </span>
-            <span class="text-xs text-muted-foreground">
+            <span class="text-[10px] text-muted-foreground">
               {{ t("presetEditor.audio.aacDesc") }}
             </span>
           </Button>
         </div>
 
-        <div
-          v-if="audio.codec === 'aac'"
-          class="space-y-3"
-        >
-          <div>
-            <Label class="block text-xs mb-1">
-              {{ t("presetEditor.audio.bitrateLabel") }}
-            </Label>
-            <Select
-              :model-value="audio.bitrate != null ? String(audio.bitrate) : ''"
-              @update:model-value="
-                (value) => {
-                  const parsed = Number(value as string);
-                  audio.bitrate = Number.isNaN(parsed) ? undefined : parsed;
-                }
-              "
-            >
-              <SelectTrigger class="h-8 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="128">
-                  {{ t("presetEditor.audio.bitrate128") }}
-                </SelectItem>
-                <SelectItem value="192">
-                  {{ t("presetEditor.audio.bitrate192") }}
-                </SelectItem>
-                <SelectItem value="320">
-                  {{ t("presetEditor.audio.bitrate320") }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p class="mt-1 text-[11px] text-muted-foreground">
-              {{ t("presetEditor.audio.bitrateHelp") }}
-            </p>
-          </div>
-
-          <div class="space-y-2">
-            <Label class="block text-xs">
-              {{ t("presetEditor.audio.loudnessProfileLabel") }}
-            </Label>
-            <div class="grid grid-cols-3 gap-2">
-              <Button
-                :variant="!audio.loudnessProfile || audio.loudnessProfile === 'none' ? 'default' : 'outline'"
-                class="h-8 px-2 text-[11px]"
-                @click="audio.loudnessProfile = 'none'"
+        <div v-if="audio.codec === 'aac'" class="">
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <Label class="text-[10px] mb-1 block">
+                {{ t("presetEditor.audio.bitrateLabel") }}
+              </Label>
+              <Select
+                :model-value="audio.bitrate != null ? String(audio.bitrate) : ''"
+                @update:model-value="
+                  (value) => {
+                    const parsed = Number(value as string);
+                    audio.bitrate = Number.isNaN(parsed) ? undefined : parsed;
+                  }
+                "
               >
-                {{ t("presetEditor.audio.loudnessNone") }}
-              </Button>
-              <Button
-                :variant="audio.loudnessProfile === 'cnBroadcast' ? 'default' : 'outline'"
-                class="h-8 px-2 text-[11px]"
-                @click="audio.loudnessProfile = 'cnBroadcast'"
-              >
-                {{ t("presetEditor.audio.loudnessCnBroadcast") }}
-              </Button>
-              <Button
-                :variant="audio.loudnessProfile === 'ebuR128' ? 'default' : 'outline'"
-                class="h-8 px-2 text-[11px]"
-                @click="audio.loudnessProfile = 'ebuR128'"
-              >
-                {{ t("presetEditor.audio.loudnessEbuR128") }}
-              </Button>
+                <SelectTrigger class="h-9 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="128">
+                    {{ t("presetEditor.audio.bitrate128") }}
+                  </SelectItem>
+                  <SelectItem value="192">
+                    {{ t("presetEditor.audio.bitrate192") }}
+                  </SelectItem>
+                  <SelectItem value="320">
+                    {{ t("presetEditor.audio.bitrate320") }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <p class="mt-1 text-[11px] text-muted-foreground">
-              {{ t("presetEditor.audio.loudnessHelp") }}
-            </p>
-          </div>
 
-          <div class="grid grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <Label class="block text-xs">
+            <div>
+              <Label class="text-[10px] mb-1 block">
                 {{ t("presetEditor.audio.sampleRateLabel") }}
               </Label>
               <Select
@@ -143,10 +106,8 @@ const { t } = useI18n();
                   }
                 "
               >
-                <SelectTrigger class="h-8 text-xs">
-                  <SelectValue
-                    :placeholder="t('presetEditor.audio.sampleRatePlaceholder')"
-                  />
+                <SelectTrigger class="h-9 text-xs">
+                  <SelectValue :placeholder="t('presetEditor.audio.sampleRatePlaceholder')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="44100">44100</SelectItem>
@@ -155,8 +116,8 @@ const { t } = useI18n();
               </Select>
             </div>
 
-            <div class="space-y-1">
-              <Label class="block text-xs">
+            <div>
+              <Label class="text-[10px] mb-1 block">
                 {{ t("presetEditor.audio.channelsLabel") }}
               </Label>
               <Select
@@ -168,10 +129,8 @@ const { t } = useI18n();
                   }
                 "
               >
-                <SelectTrigger class="h-8 text-xs">
-                  <SelectValue
-                    :placeholder="t('presetEditor.audio.channelsPlaceholder')"
-                  />
+                <SelectTrigger class="h-9 text-xs">
+                  <SelectValue :placeholder="t('presetEditor.audio.channelsPlaceholder')" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1</SelectItem>
@@ -180,34 +139,46 @@ const { t } = useI18n();
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div class="space-y-1">
-              <Label class="block text-xs">
-                {{ t("presetEditor.audio.layoutLabel") }}
-              </Label>
-              <Input
-                :model-value="audio.channelLayout ?? ''"
-                :placeholder="t('presetEditor.audio.layoutPlaceholder')"
-                class="h-8 text-xs"
-                @update:model-value="
-                  (value) => {
-                    const v = String(value ?? '');
-                    audio.channelLayout = v || undefined;
-                  }
-                "
-              />
+          <div>
+            <Label class="text-[10px] mb-1 block">
+              {{ t("presetEditor.audio.loudnessProfileLabel") }}
+            </Label>
+            <div class="grid grid-cols-3 gap-2">
+              <Button
+                :variant="!audio.loudnessProfile || audio.loudnessProfile === 'none' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[10px]"
+                @click="audio.loudnessProfile = 'none'"
+              >
+                {{ t("presetEditor.audio.loudnessNone") }}
+              </Button>
+              <Button
+                :variant="audio.loudnessProfile === 'cnBroadcast' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[10px]"
+                @click="audio.loudnessProfile = 'cnBroadcast'"
+              >
+                {{ t("presetEditor.audio.loudnessCnBroadcast") }}
+              </Button>
+              <Button
+                :variant="audio.loudnessProfile === 'ebuR128' ? 'default' : 'outline'"
+                class="h-8 px-2 text-[10px]"
+                @click="audio.loudnessProfile = 'ebuR128'"
+              >
+                {{ t("presetEditor.audio.loudnessEbuR128") }}
+              </Button>
             </div>
           </div>
 
-          <div class="grid grid-cols-3 gap-3">
-            <div class="space-y-1">
-              <Label class="block text-xs">
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <Label class="text-[10px] mb-1 block">
                 {{ t("presetEditor.audio.targetLufsLabel") }}
               </Label>
               <Input
                 type="number"
                 step="0.1"
-                class="h-8 text-xs"
+                class="h-9 text-xs"
                 :model-value="audio.targetLufs != null ? String(audio.targetLufs) : ''"
                 :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-24' : audio.loudnessProfile === 'ebuR128' ? '-23' : ''"
                 @update:model-value="
@@ -219,14 +190,14 @@ const { t } = useI18n();
               />
             </div>
 
-            <div class="space-y-1">
-              <Label class="block text-xs">
+            <div>
+              <Label class="text-[10px] mb-1 block">
                 {{ t("presetEditor.audio.loudnessRangeLabel") }}
               </Label>
               <Input
                 type="number"
                 step="0.1"
-                class="h-8 text-xs"
+                class="h-9 text-xs"
                 :model-value="audio.loudnessRange != null ? String(audio.loudnessRange) : ''"
                 :placeholder="'7'"
                 @update:model-value="
@@ -238,14 +209,14 @@ const { t } = useI18n();
               />
             </div>
 
-            <div class="space-y-1">
-              <Label class="block text-xs">
+            <div>
+              <Label class="text-[10px] mb-1 block">
                 {{ t("presetEditor.audio.truePeakDbLabel") }}
               </Label>
               <Input
                 type="number"
                 step="0.1"
-                class="h-8 text-xs"
+                class="h-9 text-xs"
                 :model-value="audio.truePeakDb != null ? String(audio.truePeakDb) : ''"
                 :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-2' : audio.loudnessProfile === 'ebuR128' ? '-1' : ''"
                 @update:model-value="
@@ -257,24 +228,42 @@ const { t } = useI18n();
               />
             </div>
           </div>
+
+          <div>
+            <Label class="text-[10px] mb-1 block">
+              {{ t("presetEditor.audio.layoutLabel") }}
+            </Label>
+            <Input
+              :model-value="audio.channelLayout ?? ''"
+              :placeholder="t('presetEditor.audio.layoutPlaceholder')"
+              class="h-9 text-xs"
+              @update:model-value="
+                (value) => {
+                  const v = String(value ?? '');
+                  audio.channelLayout = v || undefined;
+                }
+              "
+            />
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="bg-muted/40 p-4 rounded-md border border-border/60">
-      <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
+    <!-- 字幕设置 -->
+    <div class="bg-muted/40 p-3 rounded-md border border-border/60">
+      <h3 class="font-semibold mb-2 text-sm border-b border-border/60 pb-1">
         {{ t("presetEditor.panel.subtitlesTitle") }}
       </h3>
-      <div class="space-y-3">
-        <div class="space-y-1">
-          <Label class="text-xs">
+      <div class="">
+        <div>
+          <Label class="text-[10px] mb-1 block">
             {{ t("presetEditor.panel.subtitlesStrategyLabel") }}
           </Label>
           <Select
             :model-value="subtitles.strategy ?? 'keep'"
             @update:model-value="(value) => { subtitles.strategy = value as any; }"
           >
-            <SelectTrigger class="h-8 text-xs">
+            <SelectTrigger class="h-9 text-xs">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -291,20 +280,13 @@ const { t } = useI18n();
           </Select>
         </div>
 
-        <div
-          v-if="subtitles.strategy === 'burn_in'"
-          class="space-y-1"
-        >
-          <Label class="text-xs">
+        <div v-if="subtitles.strategy === 'burn_in'">
+          <Label class="text-[10px] mb-1 block">
             {{ t("presetEditor.panel.subtitlesBurnInFilterLabel") }}
           </Label>
           <Input
             :model-value="subtitles.burnInFilter ?? ''"
-            :placeholder="
-              t(
-                'presetEditor.panel.subtitlesBurnInFilterPlaceholder',
-              )
-            "
+            :placeholder="t('presetEditor.panel.subtitlesBurnInFilterPlaceholder')"
             class="h-8 text-xs font-mono"
             @update:model-value="
               (value) => {
@@ -313,9 +295,6 @@ const { t } = useI18n();
               }
             "
           />
-          <p class="text-[11px] text-muted-foreground">
-            {{ t("presetEditor.panel.subtitlesBurnInHelp") }}
-          </p>
         </div>
       </div>
     </div>

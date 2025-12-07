@@ -25,9 +25,9 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="space-y-4">
-    <div class="space-y-1">
-      <Label>{{ t("presetEditor.video.encoder") }}</Label>
+  <div class="space-y-3">
+    <div>
+      <Label class="text-xs mb-1 block">{{ t("presetEditor.video.encoder") }}</Label>
       <Select
         :model-value="video.encoder"
         @update:model-value="
@@ -35,10 +35,6 @@ const { t } = useI18n();
             const next = value as VideoConfig['encoder'];
             video.encoder = next;
 
-            // 简单保持 encoder 与速率控制的组合有效：
-            // - NVENC 优先 CQ / VBR；
-            // - 其他编码器用 CRF / VBR；
-            // - copy 模式不参与编码参数。
             if (next === 'hevc_nvenc') {
               if (!['cq', 'vbr', 'cbr'].includes(video.rateControl)) {
                 video.rateControl = 'cq';
@@ -56,7 +52,7 @@ const { t } = useI18n();
           }
         "
       >
-        <SelectTrigger>
+        <SelectTrigger class="h-9">
           <SelectValue :placeholder="t('presetEditor.video.encoderPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
@@ -71,15 +67,11 @@ const { t } = useI18n();
       </Select>
     </div>
 
-    <div v-if="!props.isCopyEncoder" class="space-y-4">
-      <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+    <div v-if="!props.isCopyEncoder" class="space-y-3">
+      <div class="bg-muted/40 p-3 rounded-md border border-border/60">
         <div class="flex justify-between items-center mb-2">
-          <span class="font-medium">
-            {{ props.rateControlLabel }}
-          </span>
-          <span class="text-primary font-bold text-lg">
-            {{ video.qualityValue }}
-          </span>
+          <span class="font-medium text-sm">{{ props.rateControlLabel }}</span>
+          <span class="text-primary font-bold text-xl">{{ video.qualityValue }}</span>
         </div>
         <Slider
           :min="0"
@@ -96,7 +88,7 @@ const { t } = useI18n();
             }
           "
         />
-        <p class="mt-2 text-xs text-muted-foreground">
+        <p class="mt-1 text-[10px] text-muted-foreground">
           <span v-if="video.encoder === 'libx264'">
             {{ t("presetEditor.tips.crf_x264") }}
           </span>
@@ -109,17 +101,14 @@ const { t } = useI18n();
         </p>
       </div>
 
-      <div class="grid grid-cols-2 gap-4 items-start">
-        <div class="space-y-1">
-          <Label>
-            {{ t("presetEditor.video.rateControlModeLabel") }}
-          </Label>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.rateControlModeLabel") }}</Label>
           <Select
             :model-value="video.rateControl"
             @update:model-value="
               (value) => {
                 video.rateControl = value as VideoConfig['rateControl'];
-                // 清理与模式不匹配的字段，避免生成互斥参数组合。
                 if (video.rateControl === 'crf' || video.rateControl === 'cq') {
                   video.bitrateKbps = undefined;
                   video.maxBitrateKbps = undefined;
@@ -129,7 +118,7 @@ const { t } = useI18n();
               }
             "
           >
-            <SelectTrigger>
+            <SelectTrigger class="h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -153,19 +142,14 @@ const { t } = useI18n();
               </SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-[10px] text-muted-foreground">
-            {{ t("presetEditor.video.rateControlHelp") }}
-          </p>
         </div>
 
-        <div class="space-y-1">
-          <Label>
-            {{ t("presetEditor.video.bitrateKbpsLabel") }}
-          </Label>
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.bitrateKbpsLabel") }}</Label>
           <Input
             type="number"
             min="0"
-            class="h-8 text-xs"
+            class="h-9 text-xs"
             :model-value="video.bitrateKbps ?? ''"
             @update:model-value="
               (value) => {
@@ -174,24 +158,19 @@ const { t } = useI18n();
               }
             "
           />
-          <p class="text-[10px] text-muted-foreground">
-            {{ t("presetEditor.video.bitrateHelp") }}
-          </p>
         </div>
       </div>
 
       <div
         v-if="video.rateControl === 'vbr' || video.rateControl === 'cbr'"
-        class="grid grid-cols-2 gap-4"
+        class="grid grid-cols-2 gap-2"
       >
-        <div class="space-y-1">
-          <Label>
-            {{ t("presetEditor.video.maxBitrateKbpsLabel") }}
-          </Label>
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.maxBitrateKbpsLabel") }}</Label>
           <Input
             type="number"
             min="0"
-            class="h-8 text-xs"
+            class="h-9 text-xs"
             :model-value="video.maxBitrateKbps ?? ''"
             @update:model-value="
               (value) => {
@@ -200,14 +179,9 @@ const { t } = useI18n();
               }
             "
           />
-          <p class="text-[10px] text-muted-foreground">
-            {{ t("presetEditor.video.maxBitrateKbpsHelp") }}
-          </p>
         </div>
-        <div class="space-y-1">
-          <Label>
-            {{ t("presetEditor.video.passLabel") }}
-          </Label>
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.passLabel") }}</Label>
           <Select
             :model-value="video.pass ? String(video.pass) : 'single'"
             @update:model-value="
@@ -221,7 +195,7 @@ const { t } = useI18n();
               }
             "
           >
-            <SelectTrigger>
+            <SelectTrigger class="h-9">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -236,14 +210,11 @@ const { t } = useI18n();
               </SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-[10px] text-muted-foreground">
-            {{ t("presetEditor.video.passHelp") }}
-          </p>
         </div>
       </div>
 
-      <div class="space-y-1">
-        <Label>{{ t("presetEditor.video.presetLabel") }}</Label>
+      <div>
+        <Label class="text-xs mb-1 block">{{ t("presetEditor.video.presetLabel") }}</Label>
         <Select
           :model-value="video.preset"
           @update:model-value="
@@ -252,7 +223,7 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger>
+          <SelectTrigger class="h-9">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -267,6 +238,5 @@ const { t } = useI18n();
         </Select>
       </div>
     </div>
-
   </div>
 </template>
