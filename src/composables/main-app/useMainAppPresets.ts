@@ -5,6 +5,7 @@ import {
   loadPresets,
   savePresetOnBackend,
   deletePresetOnBackend,
+  reorderPresetsOnBackend,
   enqueueTranscodeJob,
 } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -24,6 +25,7 @@ export interface UseMainAppPresetsReturn {
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   presetPendingDelete: Ref<FFmpegPreset | null>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
+  handleReorderPresets: (orderedIds: string[]) => Promise<void>;
   requestDeletePreset: (preset: FFmpegPreset) => void;
   confirmDeletePreset: () => Promise<void>;
   cancelDeletePreset: () => void;
@@ -126,6 +128,29 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     }
   };
 
+  const handleReorderPresets = async (orderedIds: string[]) => {
+    // Reorder local state to match the provided order
+    const idToIndex = new Map(orderedIds.map((id, i) => [id, i]));
+    const maxIdx = orderedIds.length;
+    presets.value.sort((a, b) => {
+      const idxA = idToIndex.get(a.id) ?? maxIdx;
+      const idxB = idToIndex.get(b.id) ?? maxIdx;
+      return idxA - idxB;
+    });
+
+    // Persist to backend
+    if (hasTauri()) {
+      try {
+        const updated = await reorderPresetsOnBackend(orderedIds);
+        if (Array.isArray(updated) && updated.length > 0) {
+          presets.value = updated;
+        }
+      } catch (e) {
+        console.error("Failed to reorder presets on backend:", e);
+      }
+    }
+  };
+
   const requestDeletePreset = (preset: FFmpegPreset) => {
     presetPendingDelete.value = preset;
   };
@@ -216,6 +241,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     manualJobPreset,
     presetPendingDelete,
     handleSavePreset,
+    handleReorderPresets,
     requestDeletePreset,
     confirmDeletePreset,
     cancelDeletePreset,

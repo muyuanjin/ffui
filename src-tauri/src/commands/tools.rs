@@ -46,7 +46,7 @@ pub fn download_external_tool_now(
         .name(format!("ffui-tool-download-{kind:?}"))
         .spawn(move || {
             if let Err(err) = force_download_tool_binary(kind) {
-                eprintln!("forced download for {:?} failed: {err:#}", kind);
+                eprintln!("forced download for {kind:?} failed: {err:#}");
             }
 
             // 下载结束后重新拉取一份状态快照，以便通过

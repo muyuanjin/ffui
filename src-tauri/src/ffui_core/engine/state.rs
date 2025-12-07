@@ -242,12 +242,11 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     // would overwrite existing entries and appear to "replace" existing tasks.
     let mut max_numeric_id: u64 = 0;
     for job in &snapshot.jobs {
-        if let Some(suffix) = job.id.strip_prefix("job-") {
-            if let Ok(n) = suffix.parse::<u64>() {
-                if n > max_numeric_id {
-                    max_numeric_id = n;
-                }
-            }
+        if let Some(suffix) = job.id.strip_prefix("job-")
+            && let Ok(n) = suffix.parse::<u64>()
+            && n > max_numeric_id
+        {
+            max_numeric_id = n;
         }
     }
     if max_numeric_id > 0 {

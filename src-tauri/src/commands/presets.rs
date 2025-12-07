@@ -32,3 +32,12 @@ pub fn delete_preset(
 ) -> Result<Vec<FFmpegPreset>, String> {
     engine.delete_preset(&preset_id).map_err(|e| e.to_string())
 }
+
+/// Reorder presets according to the provided list of IDs.
+#[tauri::command]
+pub fn reorder_presets(
+    engine: State<TranscodingEngine>,
+    ordered_ids: Vec<String>,
+) -> Result<Vec<FFmpegPreset>, String> {
+    engine.reorder_presets(&ordered_ids).map_err(|e| e.to_string())
+}
