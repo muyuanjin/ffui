@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::Read;
 use std::process::Command;
 
 use super::resolve::{
@@ -20,6 +22,30 @@ pub(super) fn configure_background_command(cmd: &mut Command) {
 #[cfg(not(windows))]
 pub(super) fn configure_background_command(_cmd: &mut Command) {}
 
+// Quick PE sanity check to avoid asking Windows to execute obviously-invalid
+// files named with an .exe extension (e.g. a leftover test stub). This prevents
+// the OS loader from showing the "Unsupported 16-bit application" dialog when
+// running `cargo test` on Windows.
+#[cfg(windows)]
+fn looks_like_pe_executable(path: &str) -> bool {
+    let Ok(mut f) = File::open(path) else {
+        return false;
+    };
+    let mut mz: [u8; 2] = [0, 0];
+    if f.read_exact(&mut mz).is_err() {
+        return false;
+    }
+    mz == [b'M', b'Z']
+}
+
+#[cfg(not(windows))]
+fn looks_like_pe_executable(_path: &str) -> bool {
+    true
+}
+
+// 注意：不调用 Win32 的 SetErrorMode / SetThreadErrorMode，以减少对 windows crate
+// 可选 feature 的依赖；通过前置 PE 头检查即可避免大多数系统弹窗。
+
 #[cfg(windows)]
 pub(super) fn is_exec_arch_mismatch(err: &std::io::Error) -> bool {
     // ERROR_BAD_EXE_FORMAT. This is the typical signal for trying to run a
@@ -36,8 +62,22 @@ pub(super) fn is_exec_arch_mismatch(err: &std::io::Error) -> bool {
     matches!(err.raw_os_error(), Some(8))
 }
 
-pub(super) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &str) -> bool {
+pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &str) -> bool {
     let debug_log = std::env::var("FFUI_TEST_LOG").is_ok();
+    // 避免在 Windows 上对明显不是 PE 可执行文件的 .exe 进行 spawn，
+    // 例如测试遗留的占位文本文件，从而防止系统弹出“不支持的 16 位应用程序”。
+    #[cfg(windows)]
+    {
+        if path.to_ascii_lowercase().ends_with(".exe") && !looks_like_pe_executable(path) {
+            if debug_log {
+                eprintln!(
+                    "[verify_tool_binary] skip invalid .exe (no MZ header): {path} ({source})"
+                );
+            }
+            return false;
+        }
+        // no-op: rely on PE 头检查避免触发系统弹窗
+    }
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
     // For ffmpeg/ffprobe we prefer `-version`, which avoids the non-zero exit
@@ -120,6 +160,13 @@ pub(super) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
 }
 
 pub(super) fn detect_local_tool_version(path: &str, _kind: ExternalToolKind) -> Option<String> {
+    #[cfg(windows)]
+    {
+        if path.to_ascii_lowercase().ends_with(".exe") && !looks_like_pe_executable(path) {
+            return None;
+        }
+        // no-op: rely on PE 头检查避免触发系统弹窗
+    }
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
     cmd.arg("-version")

@@ -83,6 +83,41 @@ describe("queue operations state sync", () => {
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
   });
 
+  it("applyQueueStateFromBackend fires onJobCompleted for newly completed jobs", () => {
+    const previousJob: TranscodeJob = {
+      id: "job-1",
+      filename: "C:/videos/progress.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: [],
+    };
+
+    const completedJob: TranscodeJob = {
+      ...previousJob,
+      status: "completed",
+      progress: 100,
+    };
+
+    const onJobCompleted = vi.fn();
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([previousJob]),
+      smartScanJobs: ref<TranscodeJob[]>([]),
+      onJobCompleted,
+    });
+
+    applyQueueStateFromBackend({ jobs: [completedJob] }, deps);
+
+    expect(onJobCompleted).toHaveBeenCalledTimes(1);
+    expect(onJobCompleted).toHaveBeenCalledWith(completedJob);
+    expect(deps.jobs.value).toHaveLength(1);
+    expect(deps.jobs.value[0].status).toBe("completed");
+  });
+
   it("refreshQueueFromBackend updates jobs from backend and fires onJobCompleted for new completed jobs", async () => {
     const previousJob: TranscodeJob = {
       id: "job-1",

@@ -149,4 +149,43 @@ describe("SettingsPanel external tool download status", () => {
 
     wrapper.unmount();
   });
+
+  it("surfaces last download error instead of an update hint when the downloaded binary is not usable", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: undefined,
+      source: "download",
+      version: "ffmpeg version 6.0",
+      remoteVersion: "6.0",
+      updateAvailable: true,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: false,
+      downloadProgress: undefined,
+      downloadedBytes: undefined,
+      totalBytes: undefined,
+      bytesPerSecond: undefined,
+      lastDownloadError: "some error message from backend",
+      lastDownloadMessage: undefined,
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("some error message from backend");
+    // 当存在明确的错误信息时，不再显示“检测到可用更新”这类模糊提示。
+    expect(text).not.toContain("检测到可用更新");
+
+    wrapper.unmount();
+  });
 });

@@ -158,7 +158,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
 
         <!-- Update available / manual download actions -->
         <div class="mt-1 flex items-center justify-between text-[9px]">
-          <span v-if="tool.updateAvailable" class="text-amber-600">
+          <span v-if="tool.updateAvailable && !tool.lastDownloadError" class="text-amber-600">
             {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
           </span>
           <Button
@@ -171,6 +171,14 @@ const formatSpeed = (bytesPerSecond?: number): string => {
             {{ tool.updateAvailable ? "更新" : "下载" }}
           </Button>
         </div>
+
+        <!-- Download error message -->
+        <p
+          v-if="tool.lastDownloadError"
+          class="mt-1 text-[9px] text-red-600 dark:text-red-400 leading-snug"
+        >
+          {{ tool.lastDownloadError }}
+        </p>
 
         <!-- Download progress -->
         <div v-if="tool.downloadInProgress" class="mt-1.5 space-y-0.5">

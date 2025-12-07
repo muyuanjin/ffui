@@ -8,7 +8,7 @@
 
 use tauri::{AppHandle, State, WebviewWindow};
 
-use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary};
+use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
 use crate::ffui_core::{CpuUsageSnapshot, ExternalToolStatus, GpuUsageSnapshot, TranscodingEngine};
 use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
@@ -45,8 +45,24 @@ pub fn download_external_tool_now(
     std::thread::Builder::new()
         .name(format!("ffui-tool-download-{kind:?}"))
         .spawn(move || {
-            if let Err(err) = force_download_tool_binary(kind) {
-                eprintln!("forced download for {kind:?} failed: {err:#}");
+            match force_download_tool_binary(kind) {
+                Ok(path) => {
+                    if let Some(path_str) = path.to_str() {
+                        // 在持久化之前先做一次轻量级的可执行性校验，避免把无法
+                        // 运行的二进制写入 settings.json，导致后续任务始终优先
+                        // 命中一条坏路径。
+                        if verify_tool_binary(path_str, kind, "download") {
+                            engine_clone.record_manual_tool_download(kind, path_str);
+                        } else {
+                            eprintln!(
+                                "forced download for {kind:?} produced a binary that failed verification at {path_str}"
+                            );
+                        }
+                    }
+                }
+                Err(err) => {
+                    eprintln!("forced download for {kind:?} failed: {err:#}");
+                }
             }
 
             // 下载结束后重新拉取一份状态快照，以便通过
