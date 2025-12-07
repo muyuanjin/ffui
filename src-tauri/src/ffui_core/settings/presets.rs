@@ -7,7 +7,7 @@ use crate::ffui_core::domain::{
 
 use super::io::{executable_sidecar_path, read_json_file, write_json_file};
 
-/// INITIAL_PRESETS in src/MainApp.vue (ids p1 / p2).
+/// INITIAL_PRESETS in src/composables/main-app/useMainAppPresets.ts (ids p1 / p2).
 pub(super) fn default_presets() -> Vec<FFmpegPreset> {
     vec![
         FFmpegPreset {
@@ -56,10 +56,10 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
             container: None,
             hardware: None,
             stats: PresetStats {
-                usage_count: 5,
-                total_input_size_mb: 2500.0,
-                total_output_size_mb: 800.0,
-                total_time_seconds: 420.0,
+                usage_count: 0,
+                total_input_size_mb: 0.0,
+                total_output_size_mb: 0.0,
+                total_time_seconds: 0.0,
             },
             advanced_enabled: Some(false),
             ffmpeg_template: None,
@@ -110,10 +110,10 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
             container: None,
             hardware: None,
             stats: PresetStats {
-                usage_count: 2,
-                total_input_size_mb: 5000.0,
-                total_output_size_mb: 3500.0,
-                total_time_seconds: 1200.0,
+                usage_count: 0,
+                total_input_size_mb: 0.0,
+                total_output_size_mb: 0.0,
+                total_time_seconds: 0.0,
             },
             advanced_enabled: Some(false),
             ffmpeg_template: None,
@@ -153,4 +153,21 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
 pub fn save_presets(presets: &[FFmpegPreset]) -> Result<()> {
     let path = executable_sidecar_path("presets.json")?;
     write_json_file(&path, presets)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_presets_start_with_zero_stats() {
+        let presets = default_presets();
+        assert!(!presets.is_empty(), "default_presets should not be empty");
+        for preset in presets {
+            assert_eq!(preset.stats.usage_count, 0);
+            assert_eq!(preset.stats.total_input_size_mb, 0.0);
+            assert_eq!(preset.stats.total_output_size_mb, 0.0);
+            assert_eq!(preset.stats.total_time_seconds, 0.0);
+        }
+    }
 }

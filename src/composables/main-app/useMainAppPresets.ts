@@ -1,5 +1,5 @@
 import { computed, onMounted, ref, type Ref, type ComputedRef } from "vue";
-import type { FFmpegPreset } from "@/types";
+import type { FFmpegPreset, TranscodeJob } from "@/types";
 import {
   hasTauri,
   loadPresets,
@@ -26,6 +26,8 @@ export interface UseMainAppPresetsReturn {
   presetPendingDelete: Ref<FFmpegPreset | null>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
+  updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
+  handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
   confirmDeletePreset: () => Promise<void>;
   cancelDeletePreset: () => void;
@@ -42,10 +44,10 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
     audio: { codec: "copy" },
     filters: { scale: "-2:1080" },
     stats: {
-      usageCount: 5,
-      totalInputSizeMB: 2500,
-      totalOutputSizeMB: 800,
-      totalTimeSeconds: 420,
+      usageCount: 0,
+      totalInputSizeMB: 0,
+      totalOutputSizeMB: 0,
+      totalTimeSeconds: 0,
     },
   },
   {
@@ -56,10 +58,10 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
     audio: { codec: "copy" },
     filters: {},
     stats: {
-      usageCount: 2,
-      totalInputSizeMB: 5000,
-      totalOutputSizeMB: 3500,
-      totalTimeSeconds: 1200,
+      usageCount: 0,
+      totalInputSizeMB: 0,
+      totalOutputSizeMB: 0,
+      totalTimeSeconds: 0,
     },
   },
 ];
@@ -101,6 +103,35 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   };
 
   ensureManualPresetId();
+
+  const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
+    presets.value = presets.value.map((preset) =>
+      preset.id === presetId
+        ? {
+            ...preset,
+            stats: {
+              usageCount: preset.stats.usageCount + 1,
+              totalInputSizeMB: preset.stats.totalInputSizeMB + input,
+              totalOutputSizeMB: preset.stats.totalOutputSizeMB + output,
+              totalTimeSeconds: preset.stats.totalTimeSeconds + timeSeconds,
+            },
+          }
+        : preset,
+    );
+  };
+
+  const handleCompletedJobFromBackend = (job: TranscodeJob) => {
+    const input = job.originalSizeMB;
+    const output = job.outputSizeMB;
+    if (!input || !output || input <= 0 || output <= 0) {
+      return;
+    }
+    if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
+      return;
+    }
+    const durationSeconds = (job.endTime - job.startTime) / 1000;
+    updatePresetStats(job.presetId, input, output, durationSeconds);
+  };
 
   const handleSavePreset = async (preset: FFmpegPreset) => {
     const idx = presets.value.findIndex((p) => p.id === preset.id);
@@ -242,6 +273,8 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     presetPendingDelete,
     handleSavePreset,
     handleReorderPresets,
+    updatePresetStats,
+    handleCompletedJobFromBackend,
     requestDeletePreset,
     confirmDeletePreset,
     cancelDeletePreset,

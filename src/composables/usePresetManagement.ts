@@ -77,7 +77,12 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
     video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
     audio: { codec: "copy" },
     filters: { scale: "-2:1080" },
-    stats: { usageCount: 5, totalInputSizeMB: 2500, totalOutputSizeMB: 800, totalTimeSeconds: 420 },
+    stats: {
+      usageCount: 0,
+      totalInputSizeMB: 0,
+      totalOutputSizeMB: 0,
+      totalTimeSeconds: 0,
+    },
   },
   {
     id: "p2",
@@ -86,7 +91,12 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
     video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
     audio: { codec: "copy" },
     filters: {},
-    stats: { usageCount: 2, totalInputSizeMB: 5000, totalOutputSizeMB: 3500, totalTimeSeconds: 1200 },
+    stats: {
+      usageCount: 0,
+      totalInputSizeMB: 0,
+      totalOutputSizeMB: 0,
+      totalTimeSeconds: 0,
+    },
   },
 ];
 
