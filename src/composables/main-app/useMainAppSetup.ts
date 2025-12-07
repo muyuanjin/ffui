@@ -60,6 +60,7 @@ export function useMainAppSetup() {
     manualJobPresetId,
     compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
     compositeTasksById: smartScan.compositeTasksById,
+    onJobCompleted: presetsModule.handleCompletedJobFromBackend,
   });
 
   const settings = useMainAppSettings({

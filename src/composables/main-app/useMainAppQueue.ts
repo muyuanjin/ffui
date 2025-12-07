@@ -28,6 +28,7 @@ export interface UseMainAppQueueOptions {
   manualJobPresetId: Ref<string | null>;
   compositeSmartScanTasks: ComputedRef<CompositeSmartScanTask[]>;
   compositeTasksById: ComputedRef<Map<string, CompositeSmartScanTask>>;
+  onJobCompleted?: (job: TranscodeJob) => void;
 }
 
 export interface UseMainAppQueueReturn
@@ -113,6 +114,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     manualJobPresetId,
     compositeSmartScanTasks,
     compositeTasksById,
+    onJobCompleted,
   } = options;
 
   // Queue view preferences
@@ -272,6 +274,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     selectedJobs,
     lastQueueSnapshotAtMs,
     t: (key: string) => t(key),
+    onJobCompleted,
   });
 
   void addManualJobMock;
@@ -310,29 +313,12 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     return displayModeSortedJobs.value;
   });
 
-  const bulkCancel = async () => {
-    await bulkCancelSelectedJobs();
-  };
-
-  const bulkWait = async () => {
-    await bulkWaitSelectedJobs();
-  };
-
-  const bulkResume = async () => {
-    await bulkResumeSelectedJobs();
-  };
-
-  const bulkRestart = async () => {
-    await bulkRestartSelectedJobs();
-  };
-
-  const bulkMoveToTop = async () => {
-    await bulkMoveSelectedJobsToTopInner();
-  };
-
-  const bulkMoveToBottom = async () => {
-    await bulkMoveSelectedJobsToBottomInner();
-  };
+  const bulkCancel = async () => bulkCancelSelectedJobs();
+  const bulkWait = async () => bulkWaitSelectedJobs();
+  const bulkResume = async () => bulkResumeSelectedJobs();
+  const bulkRestart = async () => bulkRestartSelectedJobs();
+  const bulkMoveToTop = async () => bulkMoveSelectedJobsToTopInner();
+  const bulkMoveToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
   const moveJobToTop = async (jobId: string) => {
     if (!jobId) return;
@@ -354,13 +340,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   };
 
   // Public helpers used directly in tests.
-  const bulkMoveSelectedJobsToTop = async () => {
-    await bulkMoveSelectedJobsToTopInner();
-  };
-
-  const bulkMoveSelectedJobsToBottom = async () => {
-    await bulkMoveSelectedJobsToBottomInner();
-  };
+  const bulkMoveSelectedJobsToTop = async () => bulkMoveSelectedJobsToTopInner();
+  const bulkMoveSelectedJobsToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
   const bulkDelete = () => {
     hideJobsById(Array.from(selectedJobIds.value));
@@ -495,5 +476,3 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkDelete,
   };
 }
-
-export default useMainAppQueue;
