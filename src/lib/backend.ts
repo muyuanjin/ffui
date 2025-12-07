@@ -107,6 +107,12 @@ export const deletePresetOnBackend = async (
   return invoke<FFmpegPreset[]>("delete_preset", { presetId });
 };
 
+export const reorderPresetsOnBackend = async (
+  orderedIds: string[],
+): Promise<FFmpegPreset[]> => {
+  return invoke<FFmpegPreset[]>("reorder_presets", { orderedIds });
+};
+
 export const loadQueueState = async (): Promise<QueueState> => {
   return invoke<QueueState>("get_queue_state");
 };

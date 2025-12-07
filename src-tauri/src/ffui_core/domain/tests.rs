@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod domain_contract_tests {
     use super::super::{
         job::*, preset::PresetStats, smart_scan::AutoCompressProgress,
         smart_scan::AutoCompressResult,

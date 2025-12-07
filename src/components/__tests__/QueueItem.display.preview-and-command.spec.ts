@@ -1,0 +1,278 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
+import { createI18n } from "vue-i18n";
+import type { FFmpegPreset, TranscodeJob } from "@/types";
+import en from "@/locales/en";
+import zhCN from "@/locales/zh-CN";
+
+vi.mock("@/lib/backend", () => {
+  const hasTauri = vi.fn(() => false);
+  const loadPreviewDataUrl = vi.fn(
+    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
+  );
+
+  return {
+    buildPreviewUrl: (path: string | null) => path,
+    hasTauri,
+    loadPreviewDataUrl,
+    selectPlayableMediaPath: vi.fn(
+      async (candidates: string[]) => candidates[0] ?? null,
+    ),
+  };
+});
+
+vi.mock("@/lib/ffmpegCommand", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
+    "@/lib/ffmpegCommand",
+  );
+  return {
+    ...actual,
+    highlightFfmpegCommand: (command: string) => command,
+    normalizeFfmpegTemplate: (command: string) => ({
+      template: command ? `TEMPLATE:${command}` : "",
+    }),
+  };
+});
+
+import { hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import QueueItem from "@/components/QueueItem.vue";
+
+const i18n = createI18n({
+  legacy: false,
+  locale: "en",
+  messages: {
+    en: en as any,
+    "zh-CN": zhCN as any,
+  },
+});
+
+const basePreset: FFmpegPreset = {
+  id: "preset-1",
+  name: "Test Preset",
+  description: "Preset used in QueueItem tests",
+  video: {
+    encoder: "libx264",
+    rateControl: "crf",
+    qualityValue: 23,
+    preset: "medium",
+  },
+  audio: {
+    codec: "copy",
+  },
+  filters: {},
+  stats: {
+    usageCount: 0,
+    totalInputSizeMB: 0,
+    totalOutputSizeMB: 0,
+    totalTimeSeconds: 0,
+  },
+};
+
+function makeJob(overrides: Partial<TranscodeJob> = {}): TranscodeJob {
+  return {
+    id: "job-1",
+    filename: "C:/videos/sample.mp4",
+    type: "video",
+    source: "manual",
+    originalSizeMB: 10,
+    originalCodec: "h264",
+    presetId: basePreset.id,
+    status: "completed",
+    progress: 100,
+    startTime: Date.now(),
+    endTime: Date.now(),
+    outputSizeMB: 5,
+    logs: [],
+    skipReason: undefined,
+    ...overrides,
+  };
+}
+
+describe("QueueItem display preview & command view", () => {
+  beforeEach(() => {
+    (hasTauri as any).mockReset();
+    (hasTauri as any).mockReturnValue(false);
+    (loadPreviewDataUrl as any).mockReset();
+    (i18n.global.locale as any).value = "en";
+  });
+
+  it("renders media summary when mediaInfo is present", () => {
+    const job = makeJob({
+      mediaInfo: {
+        durationSeconds: 125,
+        width: 1920,
+        height: 1080,
+        frameRate: 29.97,
+        videoCodec: "h264",
+        sizeMB: 10,
+      },
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("1920×1080");
+    expect(text.toLowerCase()).toContain("h264");
+  });
+
+  it("renders a thumbnail image when previewPath is present (pure web mode)", () => {
+    const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.element).toBeTruthy();
+    expect(img.attributes("src")).toBe(job.previewPath);
+  });
+
+  it("falls back to backend data URL when thumbnail fails to load in Tauri mode", async () => {
+    const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
+
+    (hasTauri as any).mockReturnValue(true);
+    (loadPreviewDataUrl as any).mockResolvedValueOnce(
+      "data:image/jpeg;base64,FALLBACK=",
+    );
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    await vm.handlePreviewError();
+
+    expect(loadPreviewDataUrl).toHaveBeenCalledTimes(1);
+    expect(loadPreviewDataUrl).toHaveBeenCalledWith(job.previewPath);
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.attributes("src")).toBe("data:image/jpeg;base64,FALLBACK=");
+  });
+
+  it("renders a stable thumbnail placeholder when previewPath is missing", () => {
+    const job = makeJob({ previewPath: undefined });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const imgs = thumb.findAll("img");
+    expect(imgs.length).toBe(0);
+  });
+
+  it("uses i18n labels for the command view toggle and updates on locale change", async () => {
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand:
+        'ffmpeg -i "INPUT" -c:v libx264 -crf 23 -preset medium -c:a copy "OUTPUT"',
+    });
+
+    (i18n.global.locale as any).value = "zh-CN";
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const toggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("显示完整命令"));
+
+    expect(
+      toggleButton,
+      "command view toggle button should exist",
+    ).toBeTruthy();
+
+    (i18n.global.locale as any).value = "en";
+    await nextTick();
+
+    const enToggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Show full command"));
+
+    expect(
+      enToggleButton,
+      "command view toggle should reflect EN label",
+    ).toBeTruthy();
+  });
+
+  it("toggles between template and full command using the raw ffmpegCommand string", async () => {
+    const rawCommand =
+      '"C:/Program Files/FFmpeg/bin/ffmpeg.exe" -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"';
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand: rawCommand,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    let pre = wrapper.get("pre");
+    expect(pre.text()).toBe(`TEMPLATE:${rawCommand}`);
+
+    const toggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Show full command"));
+
+    expect(
+      toggleButton,
+      "command view toggle button should exist",
+    ).toBeTruthy();
+
+    await toggleButton!.trigger("click");
+    await nextTick();
+
+    pre = wrapper.get("pre");
+    expect(pre.text()).toBe(rawCommand);
+  });
+});
+

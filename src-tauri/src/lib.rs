@@ -284,6 +284,7 @@ pub fn run() {
             commands::presets::get_presets,
             commands::presets::save_preset,
             commands::presets::delete_preset,
+            commands::presets::reorder_presets,
             commands::settings::get_app_settings,
             commands::settings::save_app_settings,
             commands::settings::get_smart_scan_defaults,

@@ -27,8 +27,7 @@ fn backend_source_files_should_not_exceed_threshold() {
     let src_root = crate_root.join("src");
     assert!(
         src_root.exists(),
-        "{NOTE} 未找到后端源码目录: {:?}",
-        src_root
+        "{NOTE} 未找到后端源码目录: {src_root:?}"
     );
 
     let mut files = Vec::new();

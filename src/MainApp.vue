@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import { useI18n } from "vue-i18n";
-import type { AppSettings, FFmpegPreset, TranscodeJob } from "@/types";
+import { computed } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import TitleBar from "@/components/TitleBar.vue";
@@ -16,137 +14,26 @@ import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
-
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 
-import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
-import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
-import { useMainAppSmartScan } from "@/composables/main-app/useMainAppSmartScan";
-import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
-import { useMainAppQueue } from "@/composables/main-app/useMainAppQueue";
-import { useMainAppSettings } from "@/composables/main-app/useMainAppSettings";
-import { useMainAppMedia } from "@/composables/main-app/useMainAppMedia";
-import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
-import { useMainAppDnDAndContextMenu } from "@/composables/main-app/useMainAppDnDAndContextMenu";
-import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu";
-import { useJobLog } from "@/composables";
-import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
-import { copyToClipboard } from "@/lib/copyToClipboard";
+import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 
-const { t } = useI18n();
+const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
 
-const jobs = ref<TranscodeJob[]>([]);
-const queueError = ref<string | null>(null);
-const lastQueueSnapshotAtMs = ref<number | null>(null);
-const lastDroppedRoot = ref<string | null>(null);
-const presets = ref<FFmpegPreset[]>([]);
-const presetsLoadedFromBackend = ref(false);
-const manualJobPresetId = ref<string | null>(null);
-const completedCount = computed(() =>
-  jobs.value.filter((job) => job.status === "completed").length,
-);
-
-const shell = useMainAppShell();
-const dialogs = useMainAppDialogs();
-
-const smartScan = useMainAppSmartScan({
-  t,
-  activeTab: shell.activeTab,
-  jobs,
-  presets,
-  queueError,
-  lastDroppedRoot,
-  dialogManager: dialogs.dialogManager,
-});
-
-const presetsModule = useMainAppPresets({
-  t,
-  presets,
-  presetsLoadedFromBackend,
-  manualJobPresetId,
-  dialogManager: dialogs.dialogManager,
-  shell,
-});
-
-const queue = useMainAppQueue({
-  t,
-  jobs,
-  queueError,
-  lastQueueSnapshotAtMs,
-  presets,
-  manualJobPresetId,
-  compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
-  compositeTasksById: smartScan.compositeTasksById,
-});
-
-const settings = useMainAppSettings({
-  jobs,
-  manualJobPresetId,
-  smartConfig: smartScan.smartConfig,
-});
-
-const media = useMainAppMedia({
-  t,
-  activeTab: shell.activeTab,
-});
-
-const preview = useMainAppPreview({
-  presets,
-  dialogManager: dialogs.dialogManager,
-  t,
-});
-
-const dnd = useMainAppDnDAndContextMenu({
-  activeTab: shell.activeTab,
-  inspectMediaForPath: media.inspectMediaForPath,
-  enqueueManualJobFromPath: queue.enqueueManualJobFromPath,
-  selectedJobIds: queue.selectedJobIds,
-  bulkMoveSelectedJobsToTopInner: queue.bulkMoveSelectedJobsToTopInner,
-});
-
-const titleForTab = {
-  queue: () => t("app.tabs.queue"),
-  presets: () => t("app.tabs.presets"),
-  media: () => t("app.tabs.media"),
-  monitor: () => t("app.tabs.monitor"),
-  settings: () => t("app.tabs.settings"),
-};
-const subtitleForTab = {
-  queue: () => t("app.queueHint"),
-  presets: () => t("app.presetsHint"),
-  media: () => t("app.mediaHint"),
-  monitor: () => t("app.monitorHint"),
-  settings: () => t("app.settingsHint"),
-};
-const currentTitle = computed(() => titleForTab[shell.activeTab.value]?.() ?? titleForTab.queue());
-const currentSubtitle = computed(() => subtitleForTab[shell.activeTab.value]?.() ?? "");
-
-const { activeTab, minimizeWindow, toggleMaximizeWindow, closeWindow } = shell;
-const { dialogManager, selectedJobForDetail } = dialogs;
+// 仅解构模板中直接使用到的绑定，其余字段通过 defineExpose 暴露给测试。
 const {
-  presetPendingDelete,
-  handleSavePreset,
-  requestDeletePreset,
-  confirmDeletePreset,
-  cancelDeletePreset,
-  openPresetEditor,
-  addManualJob,
-} = presetsModule;
+  // Shell / 标题栏与侧边栏
+  activeTab,
+  minimizeWindow,
+  toggleMaximizeWindow,
+  closeWindow,
+  jobs,
+  completedCount,
+  presets,
+  currentTitle,
+  currentSubtitle,
 
-const {
-  queueViewMode,
-  queueProgressStyle,
-  queueMode,
-  setQueueViewMode,
-  setQueueProgressStyle,
-  setQueueMode,
-  queueViewModeModel,
-  queueProgressStyleModel,
-  queueRowVariant,
-  isIconViewMode,
-  iconViewSize,
-  iconGridClass,
-  selectedJobIds,
+  // 队列过滤与排序
   activeStatusFilters,
   activeTypeFilters,
   filterText,
@@ -156,26 +43,37 @@ const {
   sortPrimaryDirection,
   sortSecondary,
   sortSecondaryDirection,
+  hasPrimarySortTies,
   hasActiveFilters,
   hasSelection,
-  hasPrimarySortTies,
-  queueModeProcessingJobs,
-  queueModeWaitingJobs,
+  selectedJobIds,
+  queueMode,
+  queueJobsForDisplay,
+  setQueueMode,
+  toggleStatusFilter,
+  toggleTypeFilter,
+  toggleFilterRegexMode,
+  resetQueueFilters,
   selectAllVisibleJobs,
   invertSelection,
   clearSelection,
-  toggleStatusFilter,
-  toggleTypeFilter,
-  resetQueueFilters,
-  toggleFilterRegexMode,
-  toggleJobSelected,
-  queueJobsForDisplay,
-  visibleQueueItems,
-  iconViewItems,
+
+  // 队列视图与操作
+  queueViewModeModel,
+  queuePanelProps,
+  addManualJob,
+  startSmartScan,
+  setQueueViewMode,
+  setQueueProgressStyle,
+  handleCancelJob,
   handleWaitJob,
   handleResumeJob,
   handleRestartJob,
-  handleCancelJob,
+  toggleJobSelected,
+  toggleBatchExpanded,
+  openBatchDetail,
+
+  // 队列批量操作
   bulkCancel,
   bulkWait,
   bulkResume,
@@ -183,129 +81,40 @@ const {
   bulkMoveToTop,
   bulkMoveToBottom,
   bulkDelete,
-} = queue;
 
-const {
-  appSettings,
-  isSavingSettings,
-  settingsSaveError,
-  toolStatuses,
-  progressUpdateIntervalMs,
-  globalTaskbarProgressPercent,
-  headerProgressPercent,
-  headerProgressVisible,
-  headerProgressFading,
-} = settings;
-
-// Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
-// Prefer the backend-probed resolvedPath (which already accounts for
-// auto-download and PATH lookup) and fall back to the custom path stored in
-// AppSettings when status snapshots are not yet available.
-const ffmpegResolvedPath = computed(() => {
-  const status = toolStatuses.value.find((s) => s.kind === "ffmpeg");
-  if (status?.resolvedPath) return status.resolvedPath;
-  return appSettings.value?.tools.ffmpegPath ?? null;
-});
-
-const {
+  // 媒体检查
+  isInspectingMedia,
+  mediaInspectError,
   inspectedMediaPath,
   inspectedPreviewUrl,
   inspectedIsImage,
-  inspectedRawJson,
   inspectedAnalysis,
-  isInspectingMedia,
-  mediaInspectError,
-  clearInspectedMedia,
+  inspectedRawJson,
   openMediaFileDialog,
-} = media;
+  clearInspectedMedia,
 
-const {
-  previewUrl,
-  previewIsImage,
-  previewError,
-  openJobPreviewFromQueue,
-  closeExpandedPreview,
-  handleExpandedPreviewError,
-  handleExpandedImagePreviewError,
-  openPreviewInSystemPlayer,
-  openBatchDetail,
-  handleJobDetailExpandPreview,
-  selectedJobPreset,
-} = preview;
+  // 设置与外部工具
+  appSettings,
+  toolStatuses,
+  isSavingSettings,
+  settingsSaveError,
+  handleUpdateAppSettings,
+  settings,
 
-const {
-  smartConfig,
-  smartScanBatchMeta,
-  expandedBatchIds,
-  compositeSmartScanTasks,
-  hasSmartScanBatches,
-  startSmartScan,
-  runSmartScan,
-  closeSmartScanWizard,
-  toggleBatchExpanded,
-} = smartScan;
-
-const queuePanelProps = createQueuePanelProps({
-  queueJobsForDisplay,
-  visibleQueueItems,
-  iconViewItems,
-  queueModeProcessingJobs,
-  queueModeWaitingJobs,
-  presets,
-  queueViewMode,
-   // Expand bare `ffmpeg` tokens in the "full command" view using the
-   // backend-resolved executable path so users can copy the actual command.
-  ffmpegResolvedPath,
-  queueProgressStyleModel,
-  queueMode,
-  isIconViewMode,
-  iconViewSize,
-  iconGridClass,
-  queueRowVariant,
-  progressUpdateIntervalMs,
-  hasSmartScanBatches,
-  activeStatusFilters,
-  activeTypeFilters,
-  filterText,
-  filterUseRegex,
-  filterRegexError,
-  sortPrimary,
-  sortPrimaryDirection,
-  hasSelection,
-  hasActiveFilters,
-  selectedJobIds,
-  expandedBatchIds,
-  queueError,
-});
-
-const queueContextMenu = useQueueContextMenu({
-  jobs,
-  selectedJobIds,
-  handleWaitJob,
-  handleResumeJob,
-  handleRestartJob,
-  handleCancelJob,
-  bulkMoveToTop,
-  bulkMoveToBottom,
-  bulkDelete,
-  openJobDetail: dialogs.dialogManager.openJobDetail,
-});
-
-const {
+  // 拖拽与等待任务右键菜单
   isDragging,
   handleDragOver,
   handleDragLeave,
   handleDrop,
   waitingJobContextMenuVisible,
-  closeWaitingJobContextMenu,
   handleWaitingJobContextMoveToTop,
-} = dnd;
+  closeWaitingJobContextMenu,
 
-const {
+  // 队列上下文菜单
   queueContextMenuVisible,
-  queueContextMenuMode,
   queueContextMenuX,
   queueContextMenuY,
+  queueContextMenuMode,
   queueContextMenuJobStatus,
   openQueueContextMenuForJob,
   openQueueContextMenuForBulk,
@@ -318,51 +127,59 @@ const {
   handleQueueContextMoveToTop,
   handleQueueContextMoveToBottom,
   handleQueueContextDelete,
-} = queueContextMenu;
 
-const { highlightedLogHtml } = useJobLog({ selectedJob: dialogManager.selectedJob });
-
-const handleUpdateAppSettings = (next: AppSettings) => {
-  appSettings.value = next;
-};
-
-const mainApp = {
-  jobs,
-  queueError,
-  lastDroppedRoot,
-  presets,
-  presetsLoadedFromBackend,
-  ...shell,
-  ...dialogs,
-  ...smartScan,
-  ...settings,
-  ...presetsModule,
-  ...queue,
-  ...media,
-  ...preview,
-  ...dnd,
-
-  currentTitle,
-  currentSubtitle,
-
-  selectedJobForDetail,
-  globalTaskbarProgressPercent,
-  compositeSmartScanTasks,
-  smartScanBatchMeta,
+  // 对话框栈 / 智能扫描 / 预览
+  dialogManager,
+  presetPendingDelete,
+  openPresetEditor,
+  requestDeletePreset,
+  handleReorderPresets,
+  smartConfig,
+  queueProgressStyle,
+  progressUpdateIntervalMs,
+  selectedJobPreset,
   highlightedLogHtml,
+  previewUrl,
+  previewIsImage,
+  previewError,
+  ffmpegResolvedPath,
+  handleSavePreset,
+  runSmartScan,
+  closeSmartScanWizard,
+  confirmDeletePreset,
+  cancelDeletePreset,
+  handleJobDetailExpandPreview,
   copyToClipboard,
-};
+  handleExpandedPreviewError,
+  handleExpandedImagePreviewError,
+  closeExpandedPreview,
+  openPreviewInSystemPlayer,
+  openJobPreviewFromQueue,
 
-Object.defineProperty(mainApp, "manualJobPresetId", {
+  // 标题栏进度
+  headerProgressPercent,
+  headerProgressVisible,
+  headerProgressFading,
+} = mainApp as any;
+
+const manualJobPresetId = computed<string | null>({
   get() {
-    return manualJobPresetId.value;
+    return manualJobPresetIdRef.value;
   },
-  set(value: string | null) {
-    manualJobPresetId.value = value;
+  set(value) {
+    manualJobPresetIdRef.value = value;
   },
 });
 
-defineExpose(mainApp);
+defineExpose({
+  ...mainApp,
+  get manualJobPresetId() {
+    return manualJobPresetIdRef.value;
+  },
+  set manualJobPresetId(value: string | null) {
+    manualJobPresetIdRef.value = value;
+  },
+});
 </script>
 
 <template>
@@ -474,6 +291,7 @@ defineExpose(mainApp);
               :presets="presets"
               @edit="openPresetEditor"
               @delete="requestDeletePreset"
+              @reorder="handleReorderPresets"
             />
 
             <MediaPanel

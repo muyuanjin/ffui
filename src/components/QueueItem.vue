@@ -307,11 +307,11 @@ const onCardContextMenu = (event: MouseEvent) => {
 
 <template>
   <Card
-    class="relative mb-3 border-border/60 bg-card/80 transition-colors cursor-pointer overflow-hidden"
+    class="relative mb-3 border-border/60 bg-card/80 transition-all cursor-pointer overflow-hidden ring-0"
     :class="[
       isSkipped ? 'opacity-60 bg-muted/60' : 'hover:border-primary/40',
       isSelectable && isSelected
-        ? 'border-primary/70 ring-1 ring-primary/60 bg-primary/5'
+        ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5'
         : '',
       isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
@@ -365,26 +365,28 @@ const onCardContextMenu = (event: MouseEvent) => {
       data-testid="queue-item-progress-bar"
     />
     <div
-      v-if="!isCompact && mediaSummary"
-      class="mt-2 text-[11px] text-muted-foreground flex flex-wrap gap-2"
+      v-if="!isCompact && (rawCommand || mediaSummary)"
+      class="mt-2 space-y-1"
     >
-      <span class="inline-flex items-center rounded bg-muted px-1.5 py-0.5">
-        {{ mediaSummary }}
-      </span>
-    </div>
-    <div v-if="!isCompact && rawCommand" class="mt-2 space-y-1">
       <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span>{{ t("taskDetail.commandTitle") }}</span>
+        <span class="flex-shrink-0">{{ t("taskDetail.commandTitle") }}</span>
+        <span
+          v-if="mediaSummary"
+          class="inline-flex items-center rounded bg-muted px-1.5 py-0.5 mx-2"
+        >
+          {{ mediaSummary }}
+        </span>
         <Button
           v-if="hasDistinctTemplate"
           type="button"
           variant="link"
           size="xs"
-          class="text-[10px] px-0"
+          class="text-[10px] px-0 flex-shrink-0"
           @click.stop="toggleCommandView"
         >
           {{ commandViewToggleLabel }}
         </Button>
+        <span v-else />
       </div>
       <pre
         class="max-h-24 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"

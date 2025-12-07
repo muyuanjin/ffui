@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 
 const {
@@ -61,16 +60,19 @@ const emit = defineEmits<{
 <template>
   <div class="relative flex items-center justify-between mb-2">
     <div class="flex items-center gap-3">
-      <Checkbox
+      <!-- 左侧选择指示条 -->
+      <button
         v-if="isSelectable"
-        :checked="isSelected"
+        type="button"
+        class="w-1 h-14 rounded-full transition-all flex-shrink-0"
+        :class="isSelected
+          ? 'bg-amber-500'
+          : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'"
         data-testid="queue-item-select-toggle"
-        class="mr-1 h-4 w-4 rounded-full border-border data-[state=checked]:border-primary/60"
-        @click.stop
-        @update:checked="() => emit('toggle-select', job.id)"
+        @click.stop="emit('toggle-select', job.id)"
       />
       <div
-        class="h-14 w-24 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0"
+        class="relative h-[72px] w-32 rounded-md bg-muted overflow-hidden border border-border/60 flex items-center justify-center flex-shrink-0 cursor-pointer"
         data-testid="queue-item-thumbnail"
         @click.stop="emit('preview', job)"
       >

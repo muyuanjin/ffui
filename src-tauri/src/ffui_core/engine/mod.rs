@@ -126,6 +126,33 @@ impl TranscodingEngine {
         Ok(state.presets.clone())
     }
 
+    /// Reorder presets according to the provided list of IDs.
+    ///
+    /// The new order is determined by the `ordered_ids` slice. Any preset IDs
+    /// not present in the slice are appended at the end in their original order.
+    pub fn reorder_presets(&self, ordered_ids: &[String]) -> Result<Vec<FFmpegPreset>> {
+        let mut state = self.inner.state.lock().expect("engine state poisoned");
+
+        // Build index map for O(1) lookup
+        let id_to_index: std::collections::HashMap<&str, usize> = ordered_ids
+            .iter()
+            .enumerate()
+            .map(|(i, id)| (id.as_str(), i))
+            .collect();
+
+        // Sort presets: those in ordered_ids come first (in that order),
+        // others are appended at the end preserving their relative order.
+        let max_idx = ordered_ids.len();
+        state.presets.sort_by(|a, b| {
+            let idx_a = id_to_index.get(a.id.as_str()).copied().unwrap_or(max_idx);
+            let idx_b = id_to_index.get(b.id.as_str()).copied().unwrap_or(max_idx);
+            idx_a.cmp(&idx_b)
+        });
+
+        settings::save_presets(&state.presets)?;
+        Ok(state.presets.clone())
+    }
+
     /// Get the current application settings.
     pub fn settings(&self) -> AppSettings {
         let state = self.inner.state.lock().expect("engine state poisoned");
