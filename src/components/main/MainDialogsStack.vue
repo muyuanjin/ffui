@@ -21,6 +21,7 @@ const {
   previewUrl,
   previewIsImage,
   previewError,
+  ffmpegResolvedPath,
 } = defineProps<{
   dialogManager: UseDialogManagerReturn;
   presets: FFmpegPreset[];
@@ -33,6 +34,7 @@ const {
   previewUrl: string | null;
   previewIsImage: boolean;
   previewError: string | null;
+  ffmpegResolvedPath: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -92,6 +94,7 @@ const emit = defineEmits<{
     :job="dialogManager.selectedJob.value"
     :preset="selectedJobPreset"
     :highlighted-log-html="highlightedLogHtml"
+    :ffmpeg-resolved-path="ffmpegResolvedPath"
     @update:open="(val) => { if (!val) emit('closeJobDetail'); }"
     @expand-preview="emit('handleJobDetailExpandPreview')"
     @copy-command="emit('copyToClipboard', dialogManager.selectedJob.value?.ffmpegCommand || '')"

@@ -255,3 +255,18 @@ fn app_settings_serializes_developer_mode_enabled_when_true() {
         "developer_mode_enabled must remain true after round-trip serialization"
     );
 }
+
+#[test]
+fn default_intervals_match_documented_constants() {
+    // Keep engine defaults for progress and metrics intervals stable and
+    // discoverable for the frontend (SettingsPanel) so both sides agree on
+    // what “默认值” means when fields are left unset.
+    assert_eq!(
+        DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, 250,
+        "DEFAULT_PROGRESS_UPDATE_INTERVAL_MS must remain 250ms unless explicitly coordinated with the frontend",
+    );
+    assert_eq!(
+        DEFAULT_METRICS_INTERVAL_MS, 1_000,
+        "DEFAULT_METRICS_INTERVAL_MS must remain 1000ms unless explicitly coordinated with the frontend",
+    );
+}

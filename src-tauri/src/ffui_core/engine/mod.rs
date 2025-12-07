@@ -47,12 +47,24 @@ impl TranscodingEngine {
     /// Create a new transcoding engine instance.
     ///
     /// This loads presets and settings from disk, restores any persisted queue
-    /// state, and spawns worker threads to process jobs.
+    /// state in the background, and spawns worker threads to process jobs.
     pub fn new() -> Result<Self> {
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
         let inner = Arc::new(Inner::new(presets, settings));
-        restore_jobs_from_persisted_queue(&inner);
+        {
+            // Crash-recovery from the persisted queue state can involve heavy
+            // disk I/O and JSON parsing if previous jobs carried large logs.
+            // Run this on a dedicated background thread so application startup
+            // is never blocked by queue deserialization.
+            let inner_clone = inner.clone();
+            std::thread::Builder::new()
+                .name("ffui-queue-recovery".to_string())
+                .spawn(move || {
+                    restore_jobs_from_persisted_queue(&inner_clone);
+                })
+                .expect("failed to spawn queue recovery thread");
+        }
         worker::spawn_worker(inner.clone());
         Ok(Self { inner })
     }
@@ -188,11 +200,18 @@ impl TranscodingEngine {
     pub fn external_tool_statuses(&self) -> Vec<ExternalToolStatus> {
         let state = self.inner.state.lock().expect("engine state poisoned");
         let tools = &state.settings.tools;
-        vec![
+        let statuses = vec![
             tool_status(ExternalToolKind::Ffmpeg, tools),
             tool_status(ExternalToolKind::Ffprobe, tools),
             tool_status(ExternalToolKind::Avifenc, tools),
-        ]
+        ];
+
+        // Cache a snapshot for event-based updates so the tools module can
+        // emit ffui://external-tool-status without re-probing the filesystem
+        // on every download tick.
+        crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
+
+        statuses
     }
 
     /// Get the Smart Scan default configuration.

@@ -9,7 +9,13 @@ const en = {
   media,
   presetEditor,
   queue,
+  // Flatten shared namespaces from `other`, but ensure `monitor.*` also
+  // exposes the enhanced performance monitor labels from `app.monitor`.
   ...other,
+  monitor: {
+    ...other.monitor,
+    ...app.monitor,
+  },
 } as const;
 
 export default en;

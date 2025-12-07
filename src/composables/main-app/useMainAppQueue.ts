@@ -249,6 +249,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
 
   const {
     refreshQueueFromBackend,
+    applyQueueStateFromBackend,
     handleWaitJob,
     handleResumeJob,
     handleRestartJob,
@@ -375,8 +376,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     }
 
     void listen<QueueState>("ffui://queue-state", (event) => {
-      jobs.value = event.payload.jobs;
-      lastQueueSnapshotAtMs.value = Date.now();
+      applyQueueStateFromBackend(event.payload);
     })
       .then((unlisten) => {
         queueUnlisten = unlisten;
@@ -430,15 +430,15 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   return {
-  queueViewMode,
-  queueProgressStyle,
-  queueMode,
-  setQueueViewMode,
-  setQueueProgressStyle,
-  setQueueMode,
-  queueViewModeModel,
-  queueModeModel,
-  queueProgressStyleModel,
+    queueViewMode,
+    queueProgressStyle,
+    queueMode,
+    setQueueViewMode,
+    setQueueProgressStyle,
+    setQueueMode,
+    queueViewModeModel,
+    queueModeModel,
+    queueProgressStyleModel,
     queueRowVariant,
     isIconViewMode,
     iconViewSize,

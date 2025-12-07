@@ -20,6 +20,13 @@ export interface UseSystemMetricsOptions {
   historyLimit?: number;
   /** Interval for mock metrics in web-only mode (ms). */
   mockIntervalMs?: number;
+  /**
+   * Minimum interval between UI updates (ms).
+   * When set to 0 or omitted, the composable will forward every
+   * incoming `system-metrics://update` 事件到前端历史，不再做额外节流。
+   * 在极端高频采样场景下可以显式设置一个较大的值来保护 UI。
+   */
+  viewUpdateMinIntervalMs?: number;
 }
 
 export interface TimePoint {
@@ -72,12 +79,14 @@ export function useSystemMetrics(
 ): UseSystemMetricsReturn {
   const historyLimit = options.historyLimit ?? 600;
   const mockIntervalMs = options.mockIntervalMs ?? 1000;
+  const viewUpdateMinIntervalMs = options.viewUpdateMinIntervalMs ?? 0;
 
   const snapshots = ref<SystemMetricsSnapshot[]>([]);
   const isActive = ref(false);
 
   let metricsUnlisten: UnlistenFn | null = null;
   let mockTimer: number | null = null;
+  let lastPushedAt = 0;
 
   const pushSnapshot = (snapshot: SystemMetricsSnapshot) => {
     const arr = snapshots.value;
@@ -164,6 +173,7 @@ export function useSystemMetrics(
     if (isActive.value) return;
     isActive.value = true;
     snapshots.value = [];
+    lastPushedAt = 0;
 
     if (hasTauri()) {
       try {
@@ -182,10 +192,15 @@ export function useSystemMetrics(
       }
 
       try {
+        const throttleMs = viewUpdateMinIntervalMs;
         metricsUnlisten = await listen<SystemMetricsSnapshot>(
           METRICS_EVENT_NAME,
           (event) => {
-            pushSnapshot(event.payload);
+            const now = Date.now();
+            if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
+              lastPushedAt = now;
+              pushSnapshot(event.payload);
+            }
           },
         );
       } catch (error) {

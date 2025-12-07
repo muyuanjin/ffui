@@ -29,6 +29,13 @@ const props = defineProps<{
    */
   selected?: boolean;
   /**
+   * Resolved FFmpeg executable path from the backend/tool status. When the
+   * command view is switched to "full", this is used to expand a bare
+   * `ffmpeg` program token into the concrete executable path so users can
+   * copy the exact command that will be executed.
+   */
+  ffmpegResolvedPath?: string | null;
+  /**
    * Visual density for this row. "detail" matches the existing layout,
    * while "compact" uses reduced spacing and hides secondary text.
    */
@@ -54,6 +61,7 @@ const emit = defineEmits<{
   (e: "inspect", job: TranscodeJob): void;
   (e: "preview", job: TranscodeJob): void;
   (e: "toggle-select", id: string): void;
+  (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
 
 const rowVariant = computed<"detail" | "compact">(
@@ -123,8 +131,7 @@ const isRestartable = computed(
   () =>
     props.canRestart &&
     props.job.status !== "completed" &&
-    props.job.status !== "skipped" &&
-    props.job.status !== "cancelled",
+    props.job.status !== "skipped",
 );
 
 const isSelectable = computed(() => props.canSelect === true);
@@ -214,7 +221,15 @@ const commandViewToggleLabel = computed(() => {
     : (t("taskDetail.commandToggle.showTemplate") as string);
 });
 
-const highlightedCommand = computed(() => highlightFfmpegCommand(effectiveCommand.value));
+const highlightedCommand = computed(() =>
+  highlightFfmpegCommand(effectiveCommand.value, {
+    programOverrides: {
+      // Only expand to the concrete ffmpeg path in the "full command" view;
+      // the template view should keep the normalized `ffmpeg` token.
+      ffmpeg: showTemplateCommand.value ? null : props.ffmpegResolvedPath ?? null,
+    },
+  }),
+);
 
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
@@ -276,6 +291,18 @@ const mediaSummary = computed(() => {
 
   return parts.join(" • ");
 });
+
+const onCardClick = () => {
+  if (isSelectable.value) {
+    emit("toggle-select", props.job.id);
+  } else {
+    emit("inspect", props.job);
+  }
+};
+
+const onCardContextMenu = (event: MouseEvent) => {
+  emit("contextmenu-job", { job: props.job, event });
+};
 </script>
 
 <template>
@@ -288,7 +315,9 @@ const mediaSummary = computed(() => {
         : '',
       isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
-    @click="emit('inspect', job)"
+    data-testid="queue-item-card"
+    @click="onCardClick"
+    @contextmenu.prevent.stop="onCardContextMenu"
   >
     <QueueItemProgressLayer
       :show-card-fill-progress="showCardFillProgress"
@@ -320,6 +349,7 @@ const mediaSummary = computed(() => {
       :preview-url="previewUrl"
       :t="t"
       @toggle-select="(id) => emit('toggle-select', id)"
+      @inspect="(targetJob) => emit('inspect', targetJob)"
       @wait="(id) => emit('wait', id)"
       @resume="(id) => emit('resume', id)"
       @restart="(id) => emit('restart', id)"

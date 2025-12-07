@@ -79,6 +79,7 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn latest_remote_version(kind: ExternalToolKind) -> Option<String> {
     match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {

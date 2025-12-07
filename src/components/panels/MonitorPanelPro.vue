@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import VChart from "vue-echarts";
 import "echarts";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
+import { useI18n } from "vue-i18n";
 
 // Legacy props kept for potential compatibility; the panel now reads
 // CPU/GPU metrics exclusively from the streaming useSystemMetrics pipe.
@@ -21,16 +22,48 @@ const {
   networkSeries,
 } = useSystemMetrics();
 
+const { t } = useI18n();
+
 const MAX_HISTORY_POINTS = 60;
 
-// 轻量级图表过渡动画配置，用来缓解数值刷新时的“顿挫感”
+// 对于实时监控场景，ECharts 自带的补间动画在高频刷新下容易出现“顿挫”和形状抖动，
+// 尤其是在采样间隔远小于 animationDurationUpdate 时，动画会不断被打断重启。
+// 这里统一关闭图表层面的动画，只依赖较高的采样频率与前端数值插值来获得流畅视觉效果。
 const CHART_ANIMATION = {
-  animation: true,
-  animationDuration: 400,
-  animationDurationUpdate: 400,
-  animationEasing: "linear",
-  animationEasingUpdate: "linear",
+  animation: false,
+  animationDuration: 0,
+  animationDurationUpdate: 0,
 } as const;
+
+// 简单的指数移动平均平滑，用来压制 I/O 抖动带来的"蛆动感"
+// 降低平滑因子，提高响应速度，同时保持一定的平滑效果
+const DEFAULT_SMOOTH_ALPHA = 0.25;
+
+function smoothEma(values: number[], alpha: number = DEFAULT_SMOOTH_ALPHA): number[] {
+  if (values.length === 0) return [];
+  const result = new Array<number>(values.length);
+  result[0] = values[0];
+  for (let i = 1; i < values.length; i += 1) {
+    result[i] = alpha * values[i] + (1 - alpha) * result[i - 1];
+  }
+  return result;
+}
+
+// 创建固定长度的数据缓冲区，用于所有图表
+const MINI_CHART_WINDOW = 20; // 迷你图表显示20个数据点
+const GPU_CHART_WINDOW = 40; // GPU图表显示40个数据点
+
+const createFixedBuffer = (data: number[], windowSize: number = MINI_CHART_WINDOW): number[] => {
+  if (data.length >= windowSize) {
+    return data.slice(-windowSize);
+  }
+  // 数据不足时，用0填充前面的部分
+  const buffer = new Array(windowSize).fill(0);
+  data.forEach((val, idx) => {
+    buffer[windowSize - data.length + idx] = val;
+  });
+  return buffer;
+};
 
 // GPU 指标：优先从 system-metrics 流获取，以避免通过轮询命令获取 GPU 使用率。
 const latestGpu = computed<GpuUsageSnapshot | null>(() => {
@@ -39,7 +72,9 @@ const latestGpu = computed<GpuUsageSnapshot | null>(() => {
   return null;
 });
 
-const gpuHistory = computed<Array<{ timestamp: number; usage: number; memory: number }>>(() => {
+const gpuHistory = computed<
+  Array<{ timestamp: number; usage: number; memory: number }>
+>(() => {
   const points: Array<{ timestamp: number; usage: number; memory: number }> = [];
   for (const s of snapshots.value) {
     const gpu = s.gpu;
@@ -52,7 +87,15 @@ const gpuHistory = computed<Array<{ timestamp: number; usage: number; memory: nu
   return points.slice(points.length - MAX_HISTORY_POINTS);
 });
 
-// 获取最新的系统指标
+// GPU 曲线做一次轻度平滑，减少闪烁
+const gpuUsageSeries = computed(() =>
+  smoothEma(gpuHistory.value.map((p) => p.usage)),
+);
+const gpuMemorySeries = computed(() =>
+  smoothEma(gpuHistory.value.map((p) => p.memory)),
+);
+
+// 获取最新的系统指标（原始采样值）
 const latestMetrics = computed(() => {
   const latest = snapshots.value[snapshots.value.length - 1];
   if (!latest) return null;
@@ -85,6 +128,48 @@ const latestMetrics = computed(() => {
   };
 });
 
+// 用于数值展示的指标快照，直接跟随 latestMetrics 刷新，不再做数值补间，
+// 避免在高频更新下数字持续滚动带来的视觉干扰。
+const displayMetrics = ref({
+  cpu: 0,
+  memory: 0,
+  gpuUsage: 0,
+  gpuMemory: 0,
+  diskReadMbps: 0,
+  diskWriteMbps: 0,
+  netRxMbps: 0,
+  netTxMbps: 0,
+});
+
+// 柱状图需要一个 0-100 范围内的稳定百分比，避免异常值把进度条“撑爆”。
+const clampPercent = (value: number): number =>
+  Math.max(0, Math.min(100, value));
+
+const cpuPercent = computed(() => clampPercent(displayMetrics.value.cpu));
+const memoryPercent = computed(() => clampPercent(displayMetrics.value.memory));
+const gpuPercent = computed(() => clampPercent(displayMetrics.value.gpuUsage));
+
+watch(
+  latestMetrics,
+  (next) => {
+    if (!next) return;
+    const target = {
+      cpu: next.cpu,
+      memory: next.memory,
+      gpuUsage: next.gpu.usage,
+      gpuMemory: next.gpu.memory,
+      diskReadMbps: next.disk.read / (1024 * 1024),
+      diskWriteMbps: next.disk.write / (1024 * 1024),
+      netRxMbps: next.network.rx / (1024 * 1024),
+      netTxMbps: next.network.tx / (1024 * 1024),
+    };
+
+    // 直接覆盖显示数据，保证“是什么就显示什么”，不做数值缓动动画。
+    displayMetrics.value = target;
+  },
+  { immediate: true },
+);
+
 // 监控面板自身的“大致在线时长”，用于替换随机的 SYSTEM UPTIME 数字。
 const monitorUptime = computed(() => {
   if (snapshots.value.length < 2) return null;
@@ -107,121 +192,100 @@ const monitorUptimeProgressPercent = computed(() => {
   return Math.min(100, (uptime.totalSeconds / maxSeconds) * 100);
 });
 
-// GPU实时曲线图
+// GPU 实时曲线图（ECharts：轻量级 sparkline）- 优化版本
+const gpuChartLabels = Array.from({ length: GPU_CHART_WINDOW }, () => '');
+
 const gpuChartOption = computed(() => {
-  const data = gpuHistory.value;
+  const usage = gpuUsageSeries.value;
+  const memory = gpuMemorySeries.value;
+
+  // 使用固定长度缓冲区
+  const usageBuffer = createFixedBuffer(usage, GPU_CHART_WINDOW);
+  const memoryBuffer = createFixedBuffer(memory, GPU_CHART_WINDOW);
+
   return {
     ...CHART_ANIMATION,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
     grid: {
-      left: 35,
-      right: 10,
-      top: 30,
-      bottom: 25
+      left: 8,
+      right: 8,
+      top: 8,
+      bottom: 16,
     },
     xAxis: {
-      type: 'category',
-      data: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+      type: "category",
+      data: gpuChartLabels,
       boundaryGap: false,
-      axisLine: { lineStyle: { color: '#333' } },
-      axisLabel: { show: false }
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
     yAxis: {
-      type: 'value',
+      type: "value",
       min: 0,
       max: 100,
-      axisLine: { lineStyle: { color: '#333' } },
-      splitLine: { lineStyle: { color: '#222', type: 'dashed' } },
-      axisLabel: {
-        color: '#666',
-        fontSize: 9,
-        formatter: '{value}%'
-      }
-    },
-    legend: {
-      data: ['GPU', 'VRAM'],
-      top: 5,
-      textStyle: { color: '#999', fontSize: 10 }
+      axisLabel: { show: false },
+      splitLine: { show: false },
     },
     series: [
       {
-        name: 'GPU',
-        type: 'line',
-      data: data.map(d => d.usage.toFixed(1)),
-        smooth: true,
+        name: "GPU",
+        type: "line",
+        data: usageBuffer,
         showSymbol: false,
-        lineStyle: {
-          width: 2,
-          shadowColor: '#ff00ff',
-          shadowBlur: 10
-        },
-        itemStyle: {
-          color: '#ff00ff'
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(255, 0, 255, 0.4)' },
-              { offset: 1, color: 'rgba(255, 0, 255, 0)' }
-            ]
-          }
-        }
+        smooth: true,
+        lineStyle: { width: 2 },
+        areaStyle: { opacity: 0.2 },
       },
       {
-        name: 'VRAM',
-        type: 'line',
-        data: data.map(d => d.memory.toFixed(1)),
-        smooth: true,
+        name: "VRAM",
+        type: "line",
+        data: memoryBuffer,
         showSymbol: false,
-        lineStyle: {
-          width: 2,
-          shadowColor: '#00ffff',
-          shadowBlur: 10
-        },
-        itemStyle: {
-          color: '#00ffff'
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(0, 255, 255, 0.3)' },
-              { offset: 1, color: 'rgba(0, 255, 255, 0)' }
-            ]
-          }
-        }
-      }
+        smooth: true,
+        lineStyle: { width: 2 },
+        areaStyle: { opacity: 0.2 },
+      },
     ],
     tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'rgba(0, 0, 0, 0.8)',
-      borderColor: '#333',
-      textStyle: { color: '#fff' },
+      trigger: "axis",
+      valueFormatter(value: number) {
+        if (typeof value !== "number" || Number.isNaN(value)) return "--";
+        return `${value.toFixed(1)}%`;
+      },
       formatter: (params: any) => {
-        const time = params[0].axisValue;
-        return `${time}<br/>GPU: ${params[0].data}%<br/>VRAM: ${params[1].data}%`;
-      }
-    }
+        const data = params[0];
+        return `${data.seriesName}: ${data.value.toFixed(1)}%`;
+      },
+    },
+    legend: { show: false },
   };
 });
 
-// CPU核心热力图
+// CPU核心热力图 - 优化版本，使用固定时间轴避免抖动
+const HEATMAP_TIME_WINDOW = 30; // 固定显示30个时间点
+
+// 预先生成固定的时间轴标签，避免重复计算
+const heatmapTimeLabels = computed(() =>
+  Array.from({ length: HEATMAP_TIME_WINDOW }, (_, i) =>
+    i % 5 === 0 ? `${-HEATMAP_TIME_WINDOW + i + 1}s` : ''
+  )
+);
+
 const cpuHeatmapOption = computed(() => {
   const cores = perCoreSeries.value;
   if (!cores.length) return null;
 
-  // 创建热力图数据 [时间索引, 核心索引, 使用率]
+  // 创建固定长度的数据缓冲区
   const data: any[] = [];
   const timePoints = cores[0]?.values.length || 0;
-  const displayPoints = Math.min(timePoints, 30); // 最多显示30个时间点
 
+  // 使用固定窗口，如果数据不足则用0填充
   cores.forEach((core, coreIndex) => {
-    core.values.slice(-displayPoints).forEach((point, timeIndex) => {
-      data.push([timeIndex, coreIndex, point.value]);
-    });
+    for (let timeIndex = 0; timeIndex < HEATMAP_TIME_WINDOW; timeIndex++) {
+      const dataIndex = timePoints - HEATMAP_TIME_WINDOW + timeIndex;
+      const value = dataIndex >= 0 ? core.values[dataIndex]?.value || 0 : 0;
+      data.push([timeIndex, coreIndex, value]);
+    }
   });
 
   return {
@@ -235,12 +299,11 @@ const cpuHeatmapOption = computed(() => {
     },
     xAxis: {
       type: 'category',
-      data: Array.from({ length: displayPoints }, (_, i) => `${i}s`),
+      data: heatmapTimeLabels.value,
       splitArea: { show: true },
       axisLabel: {
         color: '#666',
         fontSize: 9,
-        interval: 5
       }
     },
     yAxis: {
@@ -274,131 +337,179 @@ const cpuHeatmapOption = computed(() => {
     tooltip: {
       backgroundColor: 'rgba(0, 0, 0, 0.8)',
       formatter: (params: any) => {
-        return `Core ${params.value[1]}: ${params.value[2].toFixed(1)}%`;
+        return `${t('monitor.cpu')} ${params.value[1]}: ${params.value[2].toFixed(1)}%`;
       }
     }
   };
 });
 
-// 网络IO迷你图表
-const networkMiniOption = computed(() => {
-  const points = networkSeries.value[0]?.values.slice(-20) || [];
+// 网络IO迷你图表 - 优化版本，使用固定窗口避免变形
+const networkMiniSeries = computed(() => {
+  const firstSeries = networkSeries.value[0];
+  if (!firstSeries) {
+    return {
+      rx: new Array(MINI_CHART_WINDOW).fill(0),
+      tx: new Array(MINI_CHART_WINDOW).fill(0),
+    };
+  }
+
+  const valuesAll = firstSeries.values;
+  const rxRawAll = valuesAll.map((p) => p.rxBps / 1024 / 1024);
+  const txRawAll = valuesAll.map((p) => p.txBps / 1024 / 1024);
+
+  const rxSmoothAll = smoothEma(rxRawAll);
+  const txSmoothAll = smoothEma(txRawAll);
 
   return {
-    ...CHART_ANIMATION,
-    grid: { left: 5, right: 5, top: 5, bottom: 5 },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: points.map(() => ''),
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { show: false },
-      splitLine: { show: false }
-    },
-    series: [
-      {
-        type: 'line',
-        data: points.map(p => p.rxBps / 1024 / 1024),
-        smooth: true,
-        showSymbol: false,
-        lineStyle: { width: 1, color: '#00ff88' },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(0, 255, 136, 0.4)' },
-              { offset: 1, color: 'rgba(0, 255, 136, 0)' }
-            ]
-          }
-        }
-      },
-      {
-        type: 'line',
-        data: points.map(p => p.txBps / 1024 / 1024),
-        smooth: true,
-        showSymbol: false,
-        lineStyle: { width: 1, color: '#ff6600' },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(255, 102, 0, 0.4)' },
-              { offset: 1, color: 'rgba(255, 102, 0, 0)' }
-            ]
-          }
-        }
-      }
-    ]
+    rx: createFixedBuffer(rxSmoothAll),
+    tx: createFixedBuffer(txSmoothAll),
   };
 });
 
-// 磁盘IO迷你图表
-const diskMiniOption = computed(() => {
-  const points = diskSeries.value.slice(-20);
+// 固定的x轴标签，避免重复生成
+const miniChartLabels = Array.from({ length: MINI_CHART_WINDOW }, () => '');
+
+const networkChartOption = computed(() => {
+  const { rx, tx } = networkMiniSeries.value;
+  const allValues = [...rx, ...tx];
+  const maxValue = allValues.reduce((max, v) => (v > max ? v : max), 0);
+  // 为 I/O 指标提供一个稳定的 Y 轴范围：从 0 到当前窗口内的峰值略放大。
+  const maxWithHeadroom = maxValue <= 0 ? 1 : maxValue * 1.2;
 
   return {
     ...CHART_ANIMATION,
-    grid: { left: 5, right: 5, top: 5, bottom: 5 },
+    grid: {
+      left: 4,
+      right: 4,
+      top: 4,
+      bottom: 6,
+    },
     xAxis: {
-      type: 'category',
+      type: "category",
+      data: miniChartLabels,
       boundaryGap: false,
-      data: points.map(() => ''),
+      axisLabel: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
-      axisLabel: { show: false }
     },
     yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      axisTick: { show: false },
+      type: "value",
+      min: 0,
+      max: maxWithHeadroom,
       axisLabel: { show: false },
-      splitLine: { show: false }
+      splitLine: { show: false },
     },
     series: [
       {
-        type: 'line',
-        data: points.map(p => p.readBps / 1024 / 1024),
-        smooth: true,
+        name: "RX",
+        type: "line",
+        data: rx,
         showSymbol: false,
-        lineStyle: { width: 1, color: '#00ddff' },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(0, 221, 255, 0.4)' },
-              { offset: 1, color: 'rgba(0, 221, 255, 0)' }
-            ]
-          }
-        }
+        smooth: false,
+        lineStyle: { width: 1.5 },
       },
       {
-        type: 'line',
-        data: points.map(p => p.writeBps / 1024 / 1024),
-        smooth: true,
+        name: "TX",
+        type: "line",
+        data: tx,
         showSymbol: false,
-        lineStyle: { width: 1, color: '#ff00ff' },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: 'rgba(255, 0, 255, 0.4)' },
-              { offset: 1, color: 'rgba(255, 0, 255, 0)' }
-            ]
-          }
-        }
-      }
-    ]
+        smooth: false,
+        lineStyle: { width: 1.5 },
+      },
+    ],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        if (typeof value !== "number" || Number.isNaN(value)) return "--";
+        return `${value.toFixed(2)} MB/s`;
+      },
+      formatter: (params: any) => {
+        return `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`;
+      },
+    },
+  };
+});
+
+// 磁盘IO迷你图表 - 优化版本，使用固定窗口避免变形
+const diskMiniSeries = computed(() => {
+  const pointsAll = diskSeries.value;
+
+  if (!pointsAll.length) {
+    return {
+      read: new Array(MINI_CHART_WINDOW).fill(0),
+      write: new Array(MINI_CHART_WINDOW).fill(0),
+    };
+  }
+
+  const readRawAll = pointsAll.map((p) => p.readBps / 1024 / 1024);
+  const writeRawAll = pointsAll.map((p) => p.writeBps / 1024 / 1024);
+
+  const readSmoothAll = smoothEma(readRawAll);
+  const writeSmoothAll = smoothEma(writeRawAll);
+
+  return {
+    read: createFixedBuffer(readSmoothAll),
+    write: createFixedBuffer(writeSmoothAll),
+  };
+});
+
+const diskChartOption = computed(() => {
+  const { read, write } = diskMiniSeries.value;
+  const allValues = [...read, ...write];
+  const maxValue = allValues.reduce((max, v) => (v > max ? v : max), 0);
+  const maxWithHeadroom = maxValue <= 0 ? 1 : maxValue * 1.2;
+
+  return {
+    ...CHART_ANIMATION,
+    grid: {
+      left: 4,
+      right: 4,
+      top: 4,
+      bottom: 6,
+    },
+    xAxis: {
+      type: "category",
+      data: miniChartLabels,
+      boundaryGap: false,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: maxWithHeadroom,
+      axisLabel: { show: false },
+      splitLine: { show: false },
+    },
+    series: [
+      {
+        name: "Read",
+        type: "line",
+        data: read,
+        showSymbol: false,
+        smooth: false,
+        lineStyle: { width: 1.5 },
+      },
+      {
+        name: "Write",
+        type: "line",
+        data: write,
+        showSymbol: false,
+        smooth: false,
+        lineStyle: { width: 1.5 },
+      },
+    ],
+    tooltip: {
+      trigger: "axis",
+      valueFormatter(value: number) {
+        if (typeof value !== "number" || Number.isNaN(value)) return "--";
+        return `${value.toFixed(2)} MB/s`;
+      },
+      formatter: (params: any) => {
+        return `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`;
+      },
+    },
   };
 });
 </script>
@@ -410,7 +521,7 @@ const diskMiniOption = computed(() => {
       <!-- GPU实时状态卡片 -->
       <div class="gpu-card">
         <div class="gpu-header">
-          <span class="gpu-title">GPU STATUS</span>
+          <span class="gpu-title">{{ t('monitor.gpuStatus') }}</span>
           <span
             class="status-indicator"
             :class="{ active: latestGpu?.available }"
@@ -419,23 +530,24 @@ const diskMiniOption = computed(() => {
         <VChart
           class="gpu-chart"
           :option="gpuChartOption"
+          :update-options="{ notMerge: false, lazyUpdate: true }"
           autoresize
         />
         <div class="gpu-stats">
           <div class="stat">
-            <span class="stat-label">CORE</span>
+            <span class="stat-label">{{ t('monitor.gpuCore') }}</span>
             <span class="stat-value">
-              {{ latestMetrics?.gpu.usage.toFixed(1) ?? 0 }}%
+              {{ displayMetrics.gpuUsage.toFixed(1) }}%
             </span>
           </div>
           <div class="stat">
-            <span class="stat-label">VRAM</span>
+            <span class="stat-label">{{ t('monitor.gpuVram') }}</span>
             <span class="stat-value">
-              {{ latestMetrics?.gpu.memory.toFixed(1) ?? 0 }}%
+              {{ displayMetrics.gpuMemory.toFixed(1) }}%
             </span>
           </div>
           <div class="stat">
-            <span class="stat-label">TEMP</span>
+            <span class="stat-label">{{ t('monitor.gpuTemp') }}</span>
             <span class="stat-value">{{ Math.floor(Math.random() * 30 + 50) }}°C</span>
           </div>
         </div>
@@ -445,12 +557,13 @@ const diskMiniOption = computed(() => {
     <!-- CPU核心热力图 -->
     <div class="heatmap-section" v-if="cpuHeatmapOption">
       <div class="section-header">
-        <span class="section-title">CPU CORES HEATMAP</span>
-        <span class="section-subtitle">{{ perCoreSeries.length }} CORES</span>
+        <span class="section-title">{{ t('monitor.cpuHeatmap') }}</span>
+        <span class="section-subtitle">{{ perCoreSeries.length }} {{ t('monitor.cores') }}</span>
       </div>
       <VChart
         class="heatmap-chart"
         :option="cpuHeatmapOption"
+        :update-options="{ notMerge: false, lazyUpdate: true }"
         autoresize
       />
     </div>
@@ -460,23 +573,24 @@ const diskMiniOption = computed(() => {
       <!-- 网络IO -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">NETWORK I/O</span>
+          <span class="metric-title">{{ t('monitor.networkIo') }}</span>
           <div class="metric-badges">
-            <span class="badge rx">RX</span>
-            <span class="badge tx">TX</span>
+            <span class="badge rx">{{ t('monitor.rx') }}</span>
+            <span class="badge tx">{{ t('monitor.tx') }}</span>
           </div>
         </div>
         <VChart
           class="mini-chart"
-          :option="networkMiniOption"
+          :option="networkChartOption"
+          :update-options="{ notMerge: false, lazyUpdate: true }"
           autoresize
         />
         <div class="metric-values">
           <span class="value rx">
-            ↓ {{ ((latestMetrics?.network.rx || 0) / 1024 / 1024).toFixed(2) }} MB/s
+            {{ t('monitor.download') }} {{ displayMetrics.netRxMbps.toFixed(2) }} MB/s
           </span>
           <span class="value tx">
-            ↑ {{ ((latestMetrics?.network.tx || 0) / 1024 / 1024).toFixed(2) }} MB/s
+            {{ t('monitor.upload') }} {{ displayMetrics.netTxMbps.toFixed(2) }} MB/s
           </span>
         </div>
       </div>
@@ -484,23 +598,24 @@ const diskMiniOption = computed(() => {
       <!-- 磁盘IO -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">DISK I/O</span>
+          <span class="metric-title">{{ t('monitor.diskIo') }}</span>
           <div class="metric-badges">
-            <span class="badge read">R</span>
-            <span class="badge write">W</span>
+            <span class="badge read">{{ t('monitor.read') }}</span>
+            <span class="badge write">{{ t('monitor.write') }}</span>
           </div>
         </div>
         <VChart
           class="mini-chart"
-          :option="diskMiniOption"
+          :option="diskChartOption"
+          :update-options="{ notMerge: false, lazyUpdate: true }"
           autoresize
         />
         <div class="metric-values">
           <span class="value read">
-            R: {{ ((latestMetrics?.disk.read || 0) / 1024 / 1024).toFixed(2) }} MB/s
+            {{ t('monitor.reading') }} {{ displayMetrics.diskReadMbps.toFixed(2) }} MB/s
           </span>
           <span class="value write">
-            W: {{ ((latestMetrics?.disk.write || 0) / 1024 / 1024).toFixed(2) }} MB/s
+            {{ t('monitor.writing') }} {{ displayMetrics.diskWriteMbps.toFixed(2) }} MB/s
           </span>
         </div>
       </div>
@@ -508,26 +623,50 @@ const diskMiniOption = computed(() => {
       <!-- CPU / 内存 / GPU 汇总 -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">CPU / MEMORY / GPU</span>
+          <span class="metric-title">{{ t('monitor.cpuMemoryGpu') }}</span>
         </div>
-        <div class="process-stats">
-          <div class="process-item">
-            <span class="process-label">CPU</span>
-            <span class="process-value">
-              {{ latestMetrics ? `${latestMetrics.cpu.toFixed(1)}%` : "--" }}
-            </span>
+        <div class="resource-stats">
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">{{ t('monitor.cpu') }}</span>
+              <span class="resource-percent">
+                {{ latestMetrics ? `${cpuPercent.toFixed(1)}%` : "--" }}
+              </span>
+            </div>
+            <div class="resource-bar">
+              <div
+                class="resource-progress cpu"
+                :style="{ width: latestMetrics ? `${cpuPercent}%` : '0%' }"
+              ></div>
+            </div>
           </div>
-          <div class="process-item">
-            <span class="process-label">RAM</span>
-            <span class="process-value">
-              {{ latestMetrics ? `${latestMetrics.memory.toFixed(1)}%` : "--" }}
-            </span>
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">{{ t('monitor.memory') }}</span>
+              <span class="resource-percent">
+                {{ latestMetrics ? `${memoryPercent.toFixed(1)}%` : "--" }}
+              </span>
+            </div>
+            <div class="resource-bar">
+              <div
+                class="resource-progress memory"
+                :style="{ width: latestMetrics ? `${memoryPercent}%` : '0%' }"
+              ></div>
+            </div>
           </div>
-          <div class="process-item">
-            <span class="process-label">GPU</span>
-            <span class="process-value">
-              {{ latestMetrics ? `${latestMetrics.gpu.usage.toFixed(1)}%` : "--" }}
-            </span>
+          <div class="resource-item">
+            <div class="resource-header">
+              <span class="resource-label">{{ t('monitor.gpu') }}</span>
+              <span class="resource-percent">
+                {{ latestMetrics ? `${gpuPercent.toFixed(1)}%` : "--" }}
+              </span>
+            </div>
+            <div class="resource-bar">
+              <div
+                class="resource-progress gpu"
+                :style="{ width: latestMetrics ? `${gpuPercent}%` : '0%' }"
+              ></div>
+            </div>
           </div>
         </div>
       </div>
@@ -535,7 +674,7 @@ const diskMiniOption = computed(() => {
       <!-- 系统运行时间 -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">SYSTEM UPTIME</span>
+          <span class="metric-title">{{ t('monitor.systemUptime') }}</span>
         </div>
         <div class="uptime-display">
           <div class="uptime-value">
@@ -559,12 +698,10 @@ const diskMiniOption = computed(() => {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
-
 .monitor-pro {
   padding: 1rem;
   background: linear-gradient(135deg, #0a0e1a 0%, #0f1923 100%);
-  font-family: 'Orbitron', monospace;
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
   position: relative;
   overflow: hidden;
 }
@@ -828,7 +965,7 @@ const diskMiniOption = computed(() => {
 }
 
 .mini-chart {
-  height: 60px;
+  height: 80px;
   width: 100%;
   margin: 0.5rem 0;
 }
@@ -841,7 +978,7 @@ const diskMiniOption = computed(() => {
 }
 
 .value {
-  font-family: 'Orbitron', monospace;
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
 }
 
 .value.rx, .value.read {
@@ -852,32 +989,68 @@ const diskMiniOption = computed(() => {
   color: #ff6600;
 }
 
-/* 进程统计样式 */
-.process-stats {
+/* 资源使用率统计样式 */
+.resource-stats {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
   margin-top: 0.75rem;
 }
 
-.process-item {
+.resource-item {
   display: flex;
-  justify-content: space-between;
-  padding: 0.25rem 0;
-  border-bottom: 1px solid rgba(0, 255, 255, 0.1);
+  flex-direction: column;
+  gap: 0.375rem;
 }
 
-.process-label {
-  font-size: 0.625rem;
-  color: #666;
+.resource-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.resource-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #888;
   letter-spacing: 1px;
 }
 
-.process-value {
-  font-size: 0.75rem;
+.resource-percent {
+  font-size: 0.875rem;
   font-weight: 700;
   color: #00ddff;
-  font-family: 'Orbitron', monospace;
+  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  text-shadow: 0 0 8px rgba(0, 221, 255, 0.4);
+}
+
+.resource-bar {
+  height: 12px;
+  background: rgba(0, 50, 80, 0.5);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 255, 255, 0.15);
+}
+
+.resource-progress {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease-out;
+}
+
+.resource-progress.cpu {
+  background: linear-gradient(90deg, #00ccff, #00ffcc);
+  box-shadow: 0 0 12px rgba(0, 204, 255, 0.5);
+}
+
+.resource-progress.memory {
+  background: linear-gradient(90deg, #ff6600, #ffaa00);
+  box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
+}
+
+.resource-progress.gpu {
+  background: linear-gradient(90deg, #ff00ff, #aa00ff);
+  box-shadow: 0 0 12px rgba(255, 0, 255, 0.5);
 }
 
 /* 运行时间显示 */
