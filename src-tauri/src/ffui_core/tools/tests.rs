@@ -135,4 +135,5 @@ mod tools_tests {
         assert!(status.last_download_error.is_none());
         assert!(status.last_download_message.is_none());
     }
+
 }

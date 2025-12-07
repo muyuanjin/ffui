@@ -26,6 +26,11 @@ function loadLocale(localeDir) {
   const root = path.resolve(process.cwd());
   const baseDir = path.join(root, "src", "locales", localeDir);
   const result = {};
+  /** Keep a reference to the app module so we can mirror the real
+   *  `src/locales/<locale>.ts` behaviour where `monitor.*` merges
+   *  `other.monitor` and `app.monitor`.
+   */
+  let appModule = null;
 
   const modules = ["app", "media", "presetEditor", "queue", "other"];
   for (const name of modules) {
@@ -35,7 +40,19 @@ function loadLocale(localeDir) {
       Object.assign(result, obj);
     } else {
       result[name] = obj;
+      if (name === "app") {
+        appModule = obj;
+      }
     }
+  }
+
+  // Align with src/locales/en.ts & zh-CN.ts where monitor.* is composed as:
+  //   monitor: { ...other.monitor, ...app.monitor }
+  if (result.monitor && appModule && appModule.monitor) {
+    result.monitor = {
+      ...result.monitor,
+      ...appModule.monitor,
+    };
   }
 
   return result;
