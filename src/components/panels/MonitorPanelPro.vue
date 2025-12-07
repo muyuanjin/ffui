@@ -4,6 +4,8 @@ import VChart from "vue-echarts";
 import "echarts";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
+import { smoothEma, createFixedBuffer, MINI_CHART_WINDOW, GPU_CHART_WINDOW, useGpuMetrics, useMonitorUptime } from '@/composables/monitor';
+import { GpuCard, CpuHeatmap, ResourceBar } from './monitor';
 import { useI18n } from "vue-i18n";
 
 // Legacy props kept for potential compatibility; the panel now reads
@@ -24,9 +26,7 @@ const {
 
 const { t } = useI18n();
 
-const MAX_HISTORY_POINTS = 60;
-
-// 对于实时监控场景，ECharts 自带的补间动画在高频刷新下容易出现“顿挫”和形状抖动，
+// 对于实时监控场景，ECharts 自带的补间动画在高频刷新下容易出现"顿挫"和形状抖动，
 // 尤其是在采样间隔远小于 animationDurationUpdate 时，动画会不断被打断重启。
 // 这里统一关闭图表层面的动画，只依赖较高的采样频率与前端数值插值来获得流畅视觉效果。
 const CHART_ANIMATION = {
@@ -35,65 +35,8 @@ const CHART_ANIMATION = {
   animationDurationUpdate: 0,
 } as const;
 
-// 简单的指数移动平均平滑，用来压制 I/O 抖动带来的"蛆动感"
-// 降低平滑因子，提高响应速度，同时保持一定的平滑效果
-const DEFAULT_SMOOTH_ALPHA = 0.25;
-
-function smoothEma(values: number[], alpha: number = DEFAULT_SMOOTH_ALPHA): number[] {
-  if (values.length === 0) return [];
-  const result = new Array<number>(values.length);
-  result[0] = values[0];
-  for (let i = 1; i < values.length; i += 1) {
-    result[i] = alpha * values[i] + (1 - alpha) * result[i - 1];
-  }
-  return result;
-}
-
-// 创建固定长度的数据缓冲区，用于所有图表
-const MINI_CHART_WINDOW = 20; // 迷你图表显示20个数据点
-const GPU_CHART_WINDOW = 40; // GPU图表显示40个数据点
-
-const createFixedBuffer = (data: number[], windowSize: number = MINI_CHART_WINDOW): number[] => {
-  if (data.length >= windowSize) {
-    return data.slice(-windowSize);
-  }
-  // 数据不足时，用0填充前面的部分
-  const buffer = new Array(windowSize).fill(0);
-  data.forEach((val, idx) => {
-    buffer[windowSize - data.length + idx] = val;
-  });
-  return buffer;
-};
-
-// GPU 指标：优先从 system-metrics 流获取，以避免通过轮询命令获取 GPU 使用率。
-const latestGpu = computed<GpuUsageSnapshot | null>(() => {
-  const last = snapshots.value[snapshots.value.length - 1];
-  if (last && last.gpu) return last.gpu;
-  return null;
-});
-
-const gpuHistory = computed<
-  Array<{ timestamp: number; usage: number; memory: number }>
->(() => {
-  const points: Array<{ timestamp: number; usage: number; memory: number }> = [];
-  for (const s of snapshots.value) {
-    const gpu = s.gpu;
-    if (!gpu || !gpu.available) continue;
-    const usage = gpu.gpuPercent ?? 0;
-    const memory = gpu.memoryPercent ?? 0;
-    points.push({ timestamp: s.timestamp, usage, memory });
-  }
-  if (points.length <= MAX_HISTORY_POINTS) return points;
-  return points.slice(points.length - MAX_HISTORY_POINTS);
-});
-
-// GPU 曲线做一次轻度平滑，减少闪烁
-const gpuUsageSeries = computed(() =>
-  smoothEma(gpuHistory.value.map((p) => p.usage)),
-);
-const gpuMemorySeries = computed(() =>
-  smoothEma(gpuHistory.value.map((p) => p.memory)),
-);
+// 使用 GPU 指标 composable
+const { latestGpu, gpuUsageSeries, gpuMemorySeries } = useGpuMetrics(snapshots);
 
 // 获取最新的系统指标（原始采样值）
 const latestMetrics = computed(() => {
@@ -170,27 +113,8 @@ watch(
   { immediate: true },
 );
 
-// 监控面板自身的“大致在线时长”，用于替换随机的 SYSTEM UPTIME 数字。
-const monitorUptime = computed(() => {
-  if (snapshots.value.length < 2) return null;
-  const first = snapshots.value[0].timestamp;
-  const last = snapshots.value[snapshots.value.length - 1].timestamp;
-  const totalSeconds = Math.max(0, Math.round((last - first) / 1000));
-  const minutes = Math.floor(totalSeconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  const remHours = hours % 24;
-  const remMinutes = minutes % 60;
-  return { days, hours: remHours, minutes: remMinutes, totalSeconds };
-});
-
-const monitorUptimeProgressPercent = computed(() => {
-  const uptime = monitorUptime.value;
-  if (!uptime) return 0;
-  // 映射到一个 0-10 分钟的进度条区间，避免进度条过快或过慢。
-  const maxSeconds = 10 * 60;
-  return Math.min(100, (uptime.totalSeconds / maxSeconds) * 100);
-});
+// 使用监控在线时长 composable
+const { monitorUptime, monitorUptimeProgressPercent } = useMonitorUptime(snapshots);
 
 // GPU 实时曲线图（ECharts：轻量级 sparkline）- 优化版本
 const gpuChartLabels = Array.from({ length: GPU_CHART_WINDOW }, () => '');
@@ -519,54 +443,20 @@ const diskChartOption = computed(() => {
     <!-- 顶部状态区域：只保留 GPU 状态，移除多余的仪表盘卡片以减少视觉噪音 -->
     <div class="gauge-section">
       <!-- GPU实时状态卡片 -->
-      <div class="gpu-card">
-        <div class="gpu-header">
-          <span class="gpu-title">{{ t('monitor.gpuStatus') }}</span>
-          <span
-            class="status-indicator"
-            :class="{ active: latestGpu?.available }"
-          ></span>
-        </div>
-        <VChart
-          class="gpu-chart"
-          :option="gpuChartOption"
-          :update-options="{ notMerge: false, lazyUpdate: true }"
-          autoresize
-        />
-        <div class="gpu-stats">
-          <div class="stat">
-            <span class="stat-label">{{ t('monitor.gpuCore') }}</span>
-            <span class="stat-value">
-              {{ displayMetrics.gpuUsage.toFixed(1) }}%
-            </span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">{{ t('monitor.gpuVram') }}</span>
-            <span class="stat-value">
-              {{ displayMetrics.gpuMemory.toFixed(1) }}%
-            </span>
-          </div>
-          <div class="stat">
-            <span class="stat-label">{{ t('monitor.gpuTemp') }}</span>
-            <span class="stat-value">{{ Math.floor(Math.random() * 30 + 50) }}°C</span>
-          </div>
-        </div>
-      </div>
+      <GpuCard
+        :gpu="latestGpu"
+        :chart-option="gpuChartOption"
+        :gpu-usage="displayMetrics.gpuUsage"
+        :gpu-memory="displayMetrics.gpuMemory"
+      />
     </div>
 
     <!-- CPU核心热力图 -->
-    <div class="heatmap-section" v-if="cpuHeatmapOption">
-      <div class="section-header">
-        <span class="section-title">{{ t('monitor.cpuHeatmap') }}</span>
-        <span class="section-subtitle">{{ perCoreSeries.length }} {{ t('monitor.cores') }}</span>
-      </div>
-      <VChart
-        class="heatmap-chart"
-        :option="cpuHeatmapOption"
-        :update-options="{ notMerge: false, lazyUpdate: true }"
-        autoresize
-      />
-    </div>
+    <CpuHeatmap
+      v-if="cpuHeatmapOption"
+      :chart-option="cpuHeatmapOption"
+      :core-count="perCoreSeries.length"
+    />
 
     <!-- 底部快速指标区 -->
     <div class="metrics-grid">
@@ -622,52 +512,25 @@ const diskChartOption = computed(() => {
 
       <!-- CPU / 内存 / GPU 汇总 -->
       <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">{{ t('monitor.cpuMemoryGpu') }}</span>
-        </div>
         <div class="resource-stats">
-          <div class="resource-item">
-            <div class="resource-header">
-              <span class="resource-label">{{ t('monitor.cpu') }}</span>
-              <span class="resource-percent">
-                {{ latestMetrics ? `${cpuPercent.toFixed(1)}%` : "--" }}
-              </span>
-            </div>
-            <div class="resource-bar">
-              <div
-                class="resource-progress cpu"
-                :style="{ width: latestMetrics ? `${cpuPercent}%` : '0%' }"
-              ></div>
-            </div>
-          </div>
-          <div class="resource-item">
-            <div class="resource-header">
-              <span class="resource-label">{{ t('monitor.memory') }}</span>
-              <span class="resource-percent">
-                {{ latestMetrics ? `${memoryPercent.toFixed(1)}%` : "--" }}
-              </span>
-            </div>
-            <div class="resource-bar">
-              <div
-                class="resource-progress memory"
-                :style="{ width: latestMetrics ? `${memoryPercent}%` : '0%' }"
-              ></div>
-            </div>
-          </div>
-          <div class="resource-item">
-            <div class="resource-header">
-              <span class="resource-label">{{ t('monitor.gpu') }}</span>
-              <span class="resource-percent">
-                {{ latestMetrics ? `${gpuPercent.toFixed(1)}%` : "--" }}
-              </span>
-            </div>
-            <div class="resource-bar">
-              <div
-                class="resource-progress gpu"
-                :style="{ width: latestMetrics ? `${gpuPercent}%` : '0%' }"
-              ></div>
-            </div>
-          </div>
+          <ResourceBar
+            :label="t('monitor.cpu')"
+            :percent="cpuPercent"
+            type="cpu"
+            :has-data="!!latestMetrics"
+          />
+          <ResourceBar
+            :label="t('monitor.memory')"
+            :percent="memoryPercent"
+            type="memory"
+            :has-data="!!latestMetrics"
+          />
+          <ResourceBar
+            :label="t('monitor.gpu')"
+            :percent="gpuPercent"
+            type="gpu"
+            :has-data="!!latestMetrics"
+          />
         </div>
       </div>
 
@@ -759,134 +622,7 @@ const diskChartOption = computed(() => {
   50% { opacity: 0.3; }
 }
 
-.gauge-chart {
-  height: 120px;
-  width: 100%;
-}
-
-.gauge-label {
-  text-align: center;
-  font-size: 0.75rem;
-  color: rgba(0, 255, 204, 0.8);
-  font-weight: 700;
-  letter-spacing: 2px;
-  margin-top: -10px;
-}
-
-/* GPU卡片 */
-.gpu-card {
-  background: linear-gradient(145deg, rgba(40, 0, 40, 0.9), rgba(20, 0, 30, 0.9));
-  border: 1px solid rgba(255, 0, 255, 0.3);
-  border-radius: 12px;
-  padding: 1rem;
-  box-shadow:
-    0 4px 20px rgba(255, 0, 255, 0.2),
-    inset 0 1px 0 rgba(255, 0, 255, 0.2);
-  min-height: 180px;
-}
-
-.gpu-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.gpu-title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #ff00ff;
-  letter-spacing: 1px;
-}
-
-.status-indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #666;
-  box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
-  animation: pulse 2s infinite;
-}
-
-.status-indicator.active {
-  background: #00ff00;
-  box-shadow: 0 0 15px rgba(0, 255, 0, 0.8);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.gpu-chart {
-  height: 100px;
-  width: 100%;
-  margin: 0.5rem 0;
-}
-
-.gpu-stats {
-  display: flex;
-  justify-content: space-around;
-  padding-top: 0.5rem;
-  border-top: 1px solid rgba(255, 0, 255, 0.2);
-}
-
-.stat {
-  text-align: center;
-}
-
-.stat-label {
-  display: block;
-  font-size: 0.625rem;
-  color: #999;
-  margin-bottom: 0.25rem;
-  letter-spacing: 1px;
-}
-
-.stat-value {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #00ffcc;
-  text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
-}
-
-/* 热力图部分 */
-.heatmap-section {
-  background: rgba(0, 10, 20, 0.8);
-  border: 1px solid rgba(0, 255, 255, 0.2);
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  position: relative;
-  z-index: 2;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.section-title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #00ddff;
-  letter-spacing: 1px;
-}
-
-.section-subtitle {
-  font-size: 0.625rem;
-  color: #666;
-  letter-spacing: 1px;
-}
-
-.heatmap-chart {
-  height: 150px;
-  width: 100%;
-}
-
-/* 底部指标网格 */
+/* 网络IO迷你图表样式 */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -987,70 +723,6 @@ const diskChartOption = computed(() => {
 
 .value.tx, .value.write {
   color: #ff6600;
-}
-
-/* 资源使用率统计样式 */
-.resource-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  margin-top: 0.75rem;
-}
-
-.resource-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-
-.resource-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.resource-label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #888;
-  letter-spacing: 1px;
-}
-
-.resource-percent {
-  font-size: 0.875rem;
-  font-weight: 700;
-  color: #00ddff;
-  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
-  text-shadow: 0 0 8px rgba(0, 221, 255, 0.4);
-}
-
-.resource-bar {
-  height: 12px;
-  background: rgba(0, 50, 80, 0.5);
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(0, 255, 255, 0.15);
-}
-
-.resource-progress {
-  height: 100%;
-  border-radius: 5px;
-  transition: width 0.3s ease-out;
-}
-
-.resource-progress.cpu {
-  background: linear-gradient(90deg, #00ccff, #00ffcc);
-  box-shadow: 0 0 12px rgba(0, 204, 255, 0.5);
-}
-
-.resource-progress.memory {
-  background: linear-gradient(90deg, #ff6600, #ffaa00);
-  box-shadow: 0 0 12px rgba(255, 102, 0, 0.5);
-}
-
-.resource-progress.gpu {
-  background: linear-gradient(90deg, #ff00ff, #aa00ff);
-  box-shadow: 0 0 12px rgba(255, 0, 255, 0.5);
 }
 
 /* 运行时间显示 */
