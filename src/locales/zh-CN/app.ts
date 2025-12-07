@@ -17,7 +17,7 @@ const app = {
   settings: {
     externalToolsTitle: "外部工具",
     externalToolsDescription:
-      "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动下载状态。",
+      "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动管理策略。",
     refreshToolsStatus: "刷新状态",
     toolStatus: {
       ready: "已就绪",
@@ -34,11 +34,21 @@ const app = {
       "当设置了自定义路径时优先使用自定义路径，否则从自动下载的 tools 目录或系统 PATH 查找。",
     autoDownloadSectionTitle: "自动下载与全局参数",
     autoDownloadSectionDescription:
-      "控制外部工具的自动下载/更新策略，以及预览截帧和并行任务上限。",
-    downloadStrategyLabel: "下载 / 更新策略",
-    allowAutoDownloadLabel: "自动下载（推荐）",
-    allowAutoUpdateLabel: "自动更新",
-    autoUpdateExternalToolsLabel: "自动更新外部工具",
+      "从三种模式中选择如何管理外部工具，并配置预览截帧和并行任务上限。",
+    downloadStrategyLabel: "管理模式",
+    toolModeAutoManagedLabel: "自动托管",
+    toolModeInstallOnlyLabel: "缺时安装",
+    toolModeManualLabel: "手动管理",
+    toolModeAutoManagedDescription:
+      "缺少 ffmpeg / ffprobe / avifenc 时自动下载安装，并在后台保持推荐版本。",
+    toolModeInstallOnlyDescription:
+      "只在系统没有可用工具时自动下载安装；一旦可用，后续更新需手动点击“下载/更新”。",
+    toolModeManualDescription:
+      "完全使用 PATH 或自定义路径，不自动下载安装或更新。适合需要严格控制环境的场景。",
+    toolModeRecommendedBadge: "推荐",
+    toolModeCustomLabel: "自定义模式",
+    toolModeCustomDescription:
+      "当前自动下载 / 自动更新开关组合不属于以上三种模式，将按你现有配置工作。若希望回到推荐策略，可切换到上面的任一模式。",
     previewCaptureLabel: "预览截帧位置（%）",
     previewCaptureHelp: "相对于视频总时长的百分比，默认 25。",
     maxParallelJobsLabel: "最大并行转码任务数",
