@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, FFmpegPreset, TranscodeJob, JobStatus } from "@/types";
+import type { AppSettings, FFmpegPreset, TranscodeJob } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import TitleBar from "@/components/TitleBar.vue";
@@ -28,6 +28,7 @@ import { useMainAppSettings } from "@/composables/main-app/useMainAppSettings";
 import { useMainAppMedia } from "@/composables/main-app/useMainAppMedia";
 import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
 import { useMainAppDnDAndContextMenu } from "@/composables/main-app/useMainAppDnDAndContextMenu";
+import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu";
 import { useJobLog } from "@/composables";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
@@ -277,41 +278,18 @@ const queuePanelProps = createQueuePanelProps({
   queueError,
 });
 
-const queueContextMenuVisible = ref(false);
-const queueContextMenuMode = ref<"single" | "bulk">("single");
-const queueContextMenuX = ref(0);
-const queueContextMenuY = ref(0);
-const queueContextMenuJobId = ref<string | null>(null);
-
-const queueContextMenuJob = computed(() =>
-  jobs.value.find((job) => job.id === queueContextMenuJobId.value) ?? null,
-);
-const queueContextMenuJobStatus = computed<JobStatus | undefined>(
-  () => queueContextMenuJob.value?.status,
-);
-
-const openQueueContextMenuForJob = (payload: { job: TranscodeJob; event: MouseEvent }) => {
-  const { job, event } = payload;
-  queueContextMenuMode.value = "single";
-  queueContextMenuVisible.value = true;
-  queueContextMenuX.value = event.clientX;
-  queueContextMenuY.value = event.clientY;
-  queueContextMenuJobId.value = job.id;
-  // 右键单个任务时，将当前选中集更新为该任务，便于后续批量操作保持一致心智。
-  selectedJobIds.value = new Set([job.id]);
-};
-
-const openQueueContextMenuForBulk = (event: MouseEvent) => {
-  queueContextMenuMode.value = "bulk";
-  queueContextMenuVisible.value = true;
-  queueContextMenuX.value = event.clientX;
-  queueContextMenuY.value = event.clientY;
-  queueContextMenuJobId.value = null;
-};
-
-const closeQueueContextMenu = () => {
-  queueContextMenuVisible.value = false;
-};
+const queueContextMenu = useQueueContextMenu({
+  jobs,
+  selectedJobIds,
+  handleWaitJob,
+  handleResumeJob,
+  handleRestartJob,
+  handleCancelJob,
+  bulkMoveToTop,
+  bulkMoveToBottom,
+  bulkDelete,
+  openJobDetail: dialogs.dialogManager.openJobDetail,
+});
 
 const {
   isDragging,
@@ -323,52 +301,24 @@ const {
   handleWaitingJobContextMoveToTop,
 } = dnd;
 
-const handleQueueContextInspect = () => {
-  const job = queueContextMenuJob.value;
-  if (!job) return;
-  dialogs.dialogManager.openJobDetail(job);
-};
-
-const handleQueueContextWait = async () => {
-  const job = queueContextMenuJob.value;
-  if (!job) return;
-  await handleWaitJob(job.id);
-};
-
-const handleQueueContextResume = async () => {
-  const job = queueContextMenuJob.value;
-  if (!job) return;
-  await handleResumeJob(job.id);
-};
-
-const handleQueueContextRestart = async () => {
-  const job = queueContextMenuJob.value;
-  if (!job) return;
-  await handleRestartJob(job.id);
-};
-
-const handleQueueContextCancel = async () => {
-  const job = queueContextMenuJob.value;
-  if (!job) return;
-  await handleCancelJob(job.id);
-};
-
-const handleQueueContextMoveToTop = async () => {
-  if (queueContextMenuMode.value === "single") {
-    // 单任务模式下，selectedJobIds 已在打开菜单时指向该任务，直接复用批量“移到队首”逻辑。
-    await bulkMoveToTop();
-  } else {
-    await bulkMoveToTop();
-  }
-};
-
-const handleQueueContextMoveToBottom = async () => {
-  await bulkMoveToBottom();
-};
-
-const handleQueueContextDelete = async () => {
-  await bulkDelete();
-};
+const {
+  queueContextMenuVisible,
+  queueContextMenuMode,
+  queueContextMenuX,
+  queueContextMenuY,
+  queueContextMenuJobStatus,
+  openQueueContextMenuForJob,
+  openQueueContextMenuForBulk,
+  closeQueueContextMenu,
+  handleQueueContextInspect,
+  handleQueueContextWait,
+  handleQueueContextResume,
+  handleQueueContextRestart,
+  handleQueueContextCancel,
+  handleQueueContextMoveToTop,
+  handleQueueContextMoveToBottom,
+  handleQueueContextDelete,
+} = queueContextMenu;
 
 const { highlightedLogHtml } = useJobLog({ selectedJob: dialogManager.selectedJob });
 
