@@ -54,26 +54,34 @@ fn metrics_config_defaults_are_reasonable() {
 
 #[test]
 fn settings_override_sampling_interval_and_clamp_floor() {
-    let mut config = MetricsConfig {
+    // A reasonable override should be applied as-is.
+    let mut config_reasonable = MetricsConfig {
         sampling_interval: Duration::from_millis(1_000),
         ..MetricsConfig::default()
     };
-    let mut settings = AppSettings::default();
-
-    // A reasonable override should be applied as-is.
-    settings.metrics_interval_ms = Some(500);
-    apply_settings_overrides(&mut config, &settings);
+    let settings_reasonable = AppSettings {
+        metrics_interval_ms: Some(500),
+        ..AppSettings::default()
+    };
+    apply_settings_overrides(&mut config_reasonable, &settings_reasonable);
     assert_eq!(
-        config.sampling_interval,
+        config_reasonable.sampling_interval,
         Duration::from_millis(500),
         "metrics_interval_ms should override default sampling interval"
     );
 
     // Extremely small intervals should be clamped to avoid busy-looping.
-    settings.metrics_interval_ms = Some(10);
-    apply_settings_overrides(&mut config, &settings);
+    let mut config_small = MetricsConfig {
+        sampling_interval: Duration::from_millis(1_000),
+        ..MetricsConfig::default()
+    };
+    let settings_small = AppSettings {
+        metrics_interval_ms: Some(10),
+        ..AppSettings::default()
+    };
+    apply_settings_overrides(&mut config_small, &settings_small);
     assert_eq!(
-        config.sampling_interval,
+        config_small.sampling_interval,
         Duration::from_millis(100),
         "metrics_interval_ms must be clamped to a sensible minimum"
     );

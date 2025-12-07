@@ -171,8 +171,10 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   };
 
   const getToolCustomPath = (kind: ExternalToolKind): string => {
-    if (!appSettings.value) return "";
-    const tools = appSettings.value.tools;
+    const settings = appSettings.value;
+    if (!settings) return "";
+    const tools = (settings as any).tools as import("@/types").ExternalToolSettings | undefined;
+    if (!tools) return "";
     if (kind === "ffmpeg") return tools.ffmpegPath ?? "";
     if (kind === "ffprobe") return tools.ffprobePath ?? "";
     if (kind === "avifenc") return tools.avifencPath ?? "";
@@ -180,8 +182,16 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   };
 
   const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
-    if (!appSettings.value) return;
-    const tools = appSettings.value.tools;
+    const settings = appSettings.value;
+    if (!settings) return;
+    const root = settings as any;
+    if (!root.tools) {
+      root.tools = {
+        autoDownload: false,
+        autoUpdate: false,
+      } as import("@/types").ExternalToolSettings;
+    }
+    const tools = root.tools as import("@/types").ExternalToolSettings;
     const normalized = String(value ?? "").trim();
     if (kind === "ffmpeg") {
       tools.ffmpegPath = normalized || undefined;
@@ -214,7 +224,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   watch(
     () => ({
       statuses: toolStatuses.value,
-      autoUpdateEnabled: appSettings.value?.tools.autoUpdate,
+      autoUpdateEnabled:
+        (appSettings.value as any)?.tools?.autoUpdate ?? false,
     }),
     async ({ statuses, autoUpdateEnabled }) => {
       if (!hasTauri() || !autoUpdateEnabled) return;

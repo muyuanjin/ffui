@@ -200,11 +200,11 @@ const onCardContextMenu = (event: MouseEvent) => {
 
 <template>
   <div
-    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-colors cursor-pointer"
+    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-all cursor-pointer ring-0"
     :class="[
       rootSizeClass,
       isSelectable && isSelected
-        ? 'border-primary/70 ring-1 ring-primary/60 bg-primary/5'
+        ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5'
         : '',
     ]"
     data-testid="queue-icon-item"
@@ -240,60 +240,38 @@ const onCardContextMenu = (event: MouseEvent) => {
         </span>
       </div>
 
+      <!-- 选中指示器 -->
+      <div
+        v-if="isSelectable"
+        class="absolute top-1 right-1 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all"
+        :class="isSelected
+          ? 'bg-amber-500 border-amber-500 text-white'
+          : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'"
+      >
+        <svg
+          v-if="isSelected"
+          class="h-3 w-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="3"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
     </div>
 
     <div
-      class="relative border-t border-border/40 bg-card/80 overflow-hidden"
+      class="relative border-t border-border/40 bg-card/80"
       :class="captionPaddingClass"
     >
-      <!-- 在网格视图中，进度条通过底部说明区域的背景表现，避免覆盖预览图。 -->
-      <div
-        v-if="showBarProgress"
-        class="absolute inset-y-0 left-0 bg-primary/40"
-        :style="{ width: `${clampedProgress}%` }"
-        data-testid="queue-icon-item-progress-bar"
-      />
-      <div
-        v-else-if="showCardFillProgress"
-        class="absolute inset-y-0 left-0 overflow-hidden"
-        :style="{ width: `${clampedProgress}%` }"
-        data-testid="queue-icon-item-progress-card-fill"
-      >
-        <img
-          v-if="previewUrl"
-          :src="previewUrl"
-          alt=""
-          class="h-full w-full object-cover opacity-80"
-          @error="handlePreviewError"
-        />
-        <div
-          v-else
-          class="h-full w-full bg-gradient-to-r from-card/40 via-card/20 to-card/0"
-        />
-      </div>
-      <div
-        v-else-if="showRippleCardProgress"
-        class="absolute inset-y-0 left-0"
-        :style="{ width: `${clampedProgress}%` }"
-        data-testid="queue-icon-item-progress-ripple-card"
-      >
-        <div
-          v-if="job.status === 'processing'"
-          class="h-full w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 opacity-80 animate-pulse"
-        />
-        <div
-          v-else
-          class="h-full w-full bg-primary/60"
-        />
-      </div>
-
       <p
-        class="relative truncate text-[11px] font-medium text-foreground"
+        class="truncate text-[11px] font-medium text-foreground"
         :title="job.filename"
       >
         {{ displayFilename }}
       </p>
-      <div class="relative mt-0.5 flex items-center justify-between gap-2">
+      <div class="mt-0.5 flex items-center justify-between gap-2">
         <p class="text-[10px] text-muted-foreground truncate">
           {{ statusLabel }}
         </p>
@@ -305,6 +283,31 @@ const onCardContextMenu = (event: MouseEvent) => {
         >
           {{ t("jobDetail.title") }}
         </button>
+      </div>
+
+      <!-- 底部进度条：根据 progressStyle 切换不同视觉样式 -->
+      <div
+        v-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
+        class="absolute bottom-1.5 left-2 right-2 h-1 bg-muted/60 rounded-full overflow-hidden"
+      >
+        <div
+          v-if="showBarProgress"
+          class="h-full rounded-full transition-all duration-300 bg-primary"
+          :style="{ width: `${clampedProgress}%` }"
+          data-testid="queue-icon-item-progress-bar"
+        />
+        <div
+          v-else-if="showCardFillProgress"
+          class="h-full rounded-full transition-all duration-300 bg-primary"
+          :style="{ width: `${clampedProgress}%` }"
+          data-testid="queue-icon-item-progress-card-fill"
+        />
+        <div
+          v-else
+          class="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-primary/60 via-primary to-primary/60 animate-pulse"
+          :style="{ width: `${clampedProgress}%` }"
+          data-testid="queue-icon-item-progress-ripple-card"
+        />
       </div>
     </div>
   </div>

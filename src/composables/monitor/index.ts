@@ -5,3 +5,4 @@
 export * from "./useChartDataBuffer";
 export * from "./useGpuMetrics";
 export * from "./useMonitorUptime";
+export * from "./useMonitorPanelProState";
