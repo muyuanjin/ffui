@@ -292,6 +292,7 @@ pub fn run() {
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,
             commands::tools::get_external_tool_statuses,
+            commands::tools::download_external_tool_now,
             commands::tools::open_devtools,
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
@@ -346,6 +347,19 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
+
+            // Wire the tools runtime_state module with the global AppHandle so
+            // it can emit ffui://external-tool-status events whenever a tool
+            // download starts/progresses/completes/fails.
+            //
+            // 注意：这里刻意不在启动阶段调用 engine.external_tool_statuses()，
+            // 避免在 Tauri setup 阶段做同步网络请求（latest_remote_version →
+            // GitHub API），否则在网络不通/延迟很高时会阻塞应用启动，看起来像
+            // “程序卡死”。初始快照仍按需由前端通过 get_external_tool_statuses
+            // 命令拉取，再由 tools::update_latest_status_snapshot 进行缓存。
+            {
+                crate::ffui_core::tools::set_tool_event_app_handle(app.handle().clone());
+            }
 
             // Stream queue state changes from the Rust engine to the frontend via
             // a long-lived Tauri event so the UI does not need to poll.
@@ -475,5 +489,4 @@ mod tests {
 
         let _ = fs::remove_file(&existing_path);
     }
-
 }

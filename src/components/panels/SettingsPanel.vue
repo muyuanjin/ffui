@@ -19,11 +19,44 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  refreshToolStatuses: [];
   "update:appSettings": [settings: AppSettings];
+  downloadTool: [kind: ExternalToolKind];
 }>();
 
 const { t } = useI18n();
+
+// Defaults must stay in sync with the Rust engine constants:
+// - DEFAULT_PROGRESS_UPDATE_INTERVAL_MS in ffui_core::settings::types
+// - DEFAULT_METRICS_INTERVAL_MS in ffui_core::settings::types
+const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS = 250;
+const DEFAULT_METRICS_INTERVAL_MS = 1_000;
+// When unset, the engine derives concurrency automatically when maxParallelJobs
+// is None or 0. We surface this as an explicit "0 = 自动" default in the UI.
+const DEFAULT_MAX_PARALLEL_JOBS_AUTO = 0;
+
+const getMaxParallelJobsInputValue = () => {
+  if (!props.appSettings) return DEFAULT_MAX_PARALLEL_JOBS_AUTO;
+  const raw = props.appSettings.maxParallelJobs;
+  return typeof raw === "number" && Number.isFinite(raw) ? raw : DEFAULT_MAX_PARALLEL_JOBS_AUTO;
+};
+
+const getProgressUpdateIntervalInputValue = () => {
+  if (!props.appSettings) return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
+  const raw = props.appSettings.progressUpdateIntervalMs;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
+};
+
+const getMetricsIntervalInputValue = () => {
+  if (!props.appSettings) return DEFAULT_METRICS_INTERVAL_MS;
+  const raw = props.appSettings.metricsIntervalMs;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return raw;
+  }
+  return DEFAULT_METRICS_INTERVAL_MS;
+};
 
 const getToolDisplayName = (kind: ExternalToolKind): string => {
   if (kind === "ffmpeg") return "FFmpeg";
@@ -86,6 +119,24 @@ const copyToClipboard = async (value: string | undefined | null) => {
     document.body.removeChild(textarea);
   }
 };
+
+const formatBytes = (value?: number): string => {
+  if (value == null || !Number.isFinite(value)) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let v = value;
+  let unitIndex = 0;
+  while (v >= 1024 && unitIndex < units.length - 1) {
+    v /= 1024;
+    unitIndex += 1;
+  }
+  const fractionDigits = unitIndex === 0 ? 0 : 1;
+  return `${v.toFixed(fractionDigits)} ${units[unitIndex]}`;
+};
+
+const formatSpeed = (bytesPerSecond?: number): string => {
+  if (bytesPerSecond == null || !Number.isFinite(bytesPerSecond)) return "";
+  return `${formatBytes(bytesPerSecond)}/s`;
+};
 </script>
 
 <template>
@@ -96,23 +147,9 @@ const copyToClipboard = async (value: string | undefined | null) => {
       <!-- External Tools Section -->
       <Card class="xl:col-span-2 border-border/50 bg-card/95 shadow-sm">
         <CardHeader class="py-2 px-3 border-b border-border/30">
-          <div class="flex items-center justify-between">
-            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-              {{ t("app.settings.externalToolsTitle") }}
-            </CardTitle>
-            <Button
-              v-if="hasTauri()"
-              size="sm"
-              variant="ghost"
-              class="h-6 px-2 text-[10px] hover:bg-accent/50"
-              @click="emit('refreshToolStatuses')"
-            >
-              <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {{ t("app.settings.refreshToolsStatus") }}
-            </Button>
-          </div>
+          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+            {{ t("app.settings.externalToolsTitle") }}
+          </CardTitle>
         </CardHeader>
         <CardContent class="p-2 space-y-1">
           <div
@@ -121,11 +158,11 @@ const copyToClipboard = async (value: string | undefined | null) => {
             class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
           >
             <!-- Tool header with status -->
-            <div class="flex items-center justify-between mb-1.5">
-              <div class="flex items-center gap-2">
+            <div class="flex items-center justify-between mb-1.5 gap-2 min-w-0">
+              <div class="flex items-center gap-2 shrink-0">
                 <code class="text-[11px] font-mono font-semibold">{{ getToolDisplayName(tool.kind) }}</code>
                 <span
-                  class="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-mono uppercase tracking-wider"
+                  class="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-mono uppercase tracking-wider whitespace-nowrap"
                   :class="
                     tool.resolvedPath
                       ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
@@ -135,8 +172,11 @@ const copyToClipboard = async (value: string | undefined | null) => {
                   {{ tool.resolvedPath ? t("app.settings.toolStatus.ready") : t("app.settings.toolStatus.missing") }}
                 </span>
               </div>
-              <span v-if="tool.version" class="text-[10px] text-muted-foreground font-mono opacity-70">
-                v{{ tool.version }}
+              <span
+                v-if="tool.version"
+                class="ml-2 text-[10px] text-muted-foreground font-mono opacity-70 truncate max-w-[55%] text-right"
+              >
+                {{ tool.version }}
               </span>
             </div>
 
@@ -169,14 +209,41 @@ const copyToClipboard = async (value: string | undefined | null) => {
               />
             </div>
 
+            <!-- Update available / manual download actions -->
+            <div class="mt-1 flex items-center justify-between text-[9px]">
+              <span v-if="tool.updateAvailable" class="text-amber-600">
+                {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
+              </span>
+              <Button
+                v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
+                variant="outline"
+                size="sm"
+                class="h-5 px-2 text-[9px]"
+                @click="emit('downloadTool', tool.kind)"
+              >
+                {{ tool.updateAvailable ? "更新" : "下载" }}
+              </Button>
+            </div>
+
             <!-- Download progress -->
-            <div v-if="tool.downloadInProgress" class="mt-1.5">
-              <div class="flex items-center justify-between text-[9px] mb-0.5">
+            <div v-if="tool.downloadInProgress" class="mt-1.5 space-y-0.5">
+              <div class="flex items-center justify-between text-[9px]">
                 <span class="text-muted-foreground uppercase tracking-wider">
-                  {{ t("app.settings.downloadInProgress") }}
+                  {{ t("app.settings.downloadStatusLabel") }}
                 </span>
-                <span v-if="tool.downloadProgress" class="font-mono text-primary">
-                  {{ tool.downloadProgress }}%
+                <span v-if="tool.downloadProgress != null" class="font-mono text-primary">
+                  {{ tool.downloadProgress.toFixed(1) }}%
+                </span>
+              </div>
+              <div class="flex items-center justify-between text-[9px] text-muted-foreground">
+                <span v-if="tool.downloadedBytes != null">
+                  {{ formatBytes(tool.downloadedBytes) }}
+                  <span v-if="tool.totalBytes != null">
+                    / {{ formatBytes(tool.totalBytes) }}
+                  </span>
+                </span>
+                <span v-if="tool.bytesPerSecond != null" class="font-mono">
+                  {{ formatSpeed(tool.bytesPerSecond) }}
                 </span>
               </div>
               <div class="h-1 bg-muted/50 rounded-full overflow-hidden">
@@ -186,6 +253,9 @@ const copyToClipboard = async (value: string | undefined | null) => {
                   :style="tool.downloadProgress != null ? { width: `${tool.downloadProgress}%` } : {}"
                 />
               </div>
+              <p class="text-[9px] text-muted-foreground mt-0.5 leading-snug">
+                {{ tool.lastDownloadMessage || t("app.settings.downloadInProgress") }}
+              </p>
             </div>
           </div>
         </CardContent>
@@ -199,27 +269,18 @@ const copyToClipboard = async (value: string | undefined | null) => {
           </CardTitle>
         </CardHeader>
         <CardContent v-if="appSettings" class="p-2 space-y-2">
-          <!-- Auto download switches -->
-          <div class="grid grid-cols-2 gap-2">
-            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-              <input
-                :checked="appSettings.tools.autoDownload"
-                type="checkbox"
-                class="w-3 h-3 rounded border-border/50"
-                @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
-              />
-              <span class="text-[10px] select-none">{{ t("app.settings.allowAutoDownloadLabel") }}</span>
-            </label>
-            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-              <input
-                :checked="appSettings.tools.autoUpdate"
-                type="checkbox"
-                class="w-3 h-3 rounded border-border/50"
-                @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
-              />
-              <span class="text-[10px] select-none">{{ t("app.settings.allowAutoUpdateLabel") }}</span>
-            </label>
-          </div>
+          <!-- Auto update external tools switch -->
+          <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <input
+              :checked="appSettings.tools.autoUpdate"
+              type="checkbox"
+              class="w-3 h-3 rounded border-border/50"
+              @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="text-[10px] select-none">
+              {{ t("app.settings.autoUpdateExternalToolsLabel") }}
+            </span>
+          </label>
 
           <!-- Numeric settings -->
           <div class="space-y-1.5 pt-1">
@@ -241,7 +302,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
             <div class="grid grid-cols-[1fr,auto] items-center gap-2">
               <label class="text-[10px] text-muted-foreground">{{ t("app.settings.maxParallelJobsLabel") }}</label>
               <Input
-                :model-value="appSettings.maxParallelJobs"
+                :model-value="getMaxParallelJobsInputValue()"
                 type="number"
                 min="0"
                 max="32"
@@ -254,7 +315,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               <label class="text-[10px] text-muted-foreground">{{ t("app.settings.progressUpdateIntervalLabel") }}</label>
               <div class="flex items-center gap-1">
                 <Input
-                  :model-value="appSettings.progressUpdateIntervalMs"
+                  :model-value="getProgressUpdateIntervalInputValue()"
                   type="number"
                   min="50"
                   max="2000"
@@ -272,7 +333,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               </label>
               <div class="flex items-center gap-1">
                 <Input
-                  :model-value="appSettings.metricsIntervalMs"
+                  :model-value="getMetricsIntervalInputValue()"
                   type="number"
                   min="100"
                   max="5000"
@@ -336,6 +397,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               variant="outline"
               size="sm"
               class="h-6 px-2 text-[10px]"
+              data-testid="settings-open-devtools"
               :disabled="!hasTauri()"
               @click="openDevtools"
             >

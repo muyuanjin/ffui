@@ -1,10 +1,11 @@
 <script setup lang="ts">
+import { ref, toRef, watch } from "vue";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 
-defineProps<{
+const props = defineProps<{
   /** Whether dialog is open */
   open: boolean;
   /** The job to preview */
@@ -17,6 +18,12 @@ defineProps<{
   error: string | null;
 }>();
 
+const open = toRef(props, "open");
+const job = toRef(props, "job");
+const previewUrl = toRef(props, "previewUrl");
+const isImage = toRef(props, "isImage");
+const error = toRef(props, "error");
+
 const emit = defineEmits<{
   "update:open": [value: boolean];
   videoError: [];
@@ -26,6 +33,30 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// 控制视频标签的 controls 何时显示：刚打开预览时完全隐藏，直到用户在视频区域内产生交互，
+// 避免一开始出现黑色 loading 圆圈或控制条闪现。
+const showVideoControls = ref(false);
+
+// 当对话框关闭、预览 URL 变化或切换为图片时，重置控制条可见状态。
+watch(
+  [open, previewUrl, isImage],
+  ([openVal, previewUrlVal, isImageVal]) => {
+    if (!openVal || !previewUrlVal || isImageVal) {
+      showVideoControls.value = false;
+      return;
+    }
+  },
+  { immediate: true },
+);
+
+// 用户在视频区域产生交互（鼠标移动/触摸）时再启用 controls，
+// 此时浏览器会按照“自动隐藏”的原生策略显示/隐藏控制条。
+const handleVideoInteraction = () => {
+  if (!showVideoControls.value) {
+    showVideoControls.value = true;
+  }
+};
 
 const handleVideoLoadedMetadata = (event: Event) => {
   const el = event.target as HTMLVideoElement | null;
@@ -58,7 +89,11 @@ const handleVideoLoadedMetadata = (event: Event) => {
           {{ t("jobDetail.previewDescription") }}
         </DialogDescription>
       </DialogHeader>
-      <div class="mt-2 relative w-full max-h-[70vh] rounded-md bg-black flex items-center justify-center overflow-hidden">
+      <div
+        class="mt-2 relative w-full max-h-[70vh] rounded-md bg-black flex items-center justify-center overflow-hidden"
+        @mousemove="handleVideoInteraction"
+        @touchstart="handleVideoInteraction"
+      >
         <template v-if="previewUrl">
           <img
             v-if="isImage"
@@ -72,7 +107,7 @@ const handleVideoLoadedMetadata = (event: Event) => {
             :src="previewUrl"
             data-testid="task-detail-expanded-video"
             class="w-full h-full object-contain"
-            controls
+            :controls="showVideoControls"
             autoplay
             @loadedmetadata="handleVideoLoadedMetadata"
             @error="emit('videoError')"

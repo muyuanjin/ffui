@@ -1,4 +1,5 @@
 import { computed, onUnmounted, ref, watch, type ComputedRef } from "vue";
+import gsap from "gsap";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 
 const DEFAULT_PROGRESS_INTERVAL_MS = 250;
@@ -50,47 +51,52 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
     return DEFAULT_PROGRESS_INTERVAL_MS;
   });
 
+  // 优化平滑动画持续时间的计算
+  // 降低最大持续时间，提高响应速度
   const smoothDurationMs = computed(() => {
     const interval = effectiveProgressIntervalMs.value;
-    if (interval <= 80) return 0;
-    if (interval <= 200) return 160;
-    return Math.min(interval, 600);
+    // 对于极短的更新间隔，禁用动画避免卡顿
+    if (interval <= 50) return 0;
+    // 缩短动画时长，最长不超过300ms
+    if (interval <= 100) return 80;
+    if (interval <= 200) return 120;
+    return Math.min(interval * 0.6, 300);
   });
 
-  let progressAnimationFrame: number | null = null;
-  let progressAnimStartTime = 0;
-  let progressAnimStartValue = 0;
-  let progressAnimTargetValue = 0;
+  let progressTween: gsap.core.Tween | null = null;
 
   const cancelProgressAnimation = () => {
-    if (progressAnimationFrame != null) {
-      window.cancelAnimationFrame(progressAnimationFrame);
-      progressAnimationFrame = null;
+    if (progressTween) {
+      progressTween.kill();
+      progressTween = null;
     }
   };
 
-  const progressAnimationTick = () => {
-    progressAnimationFrame = null;
-    const now = performance.now();
+  const animateTo = (target: number) => {
+    cancelProgressAnimation();
+
     const durationMs = smoothDurationMs.value;
     if (durationMs <= 0) {
-      displayedProgress.value = Math.min(100, Math.max(0, progressAnimTargetValue));
+      displayedProgress.value = Math.min(100, Math.max(0, target));
       return;
     }
-    const elapsed = now - progressAnimStartTime;
-    const t = Math.min(1, durationMs > 0 ? elapsed / durationMs : 1);
-    const eased = t;
-    const next =
-      progressAnimStartValue +
-      (progressAnimTargetValue - progressAnimStartValue) * eased;
 
-    displayedProgress.value = Math.min(100, Math.max(0, next));
+    // 优化：缩短动画时长上限，使用更线性的缓动
+    const durationSec = Math.min(Math.max(durationMs / 1000, 0.05), 0.3);
+    const state = { value: displayedProgress.value };
 
-    if (t < 1) {
-      progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
-    } else {
-      displayedProgress.value = progressAnimTargetValue;
-    }
+    progressTween = gsap.to(state, {
+      value: target,
+      duration: durationSec,
+      ease: "power1.inOut", // 使用更温和的缓动函数
+      onUpdate: () => {
+        displayedProgress.value = Math.min(100, Math.max(0, state.value));
+      },
+      onComplete: () => {
+        displayedProgress.value = Math.min(100, Math.max(0, target));
+        progressTween = null;
+      },
+    });
   };
 
   watch(
@@ -107,7 +113,8 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
         return;
       }
       if (options.job.value.status !== "processing") return;
-      if (Math.abs(target - displayedProgress.value) < 0.1) {
+      // 优化：降低跳过动画的阈值，让更多变化都有动画
+      if (Math.abs(target - displayedProgress.value) < 0.01) {
         displayedProgress.value = target;
         return;
       }
@@ -115,12 +122,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
         displayedProgress.value = target;
         return;
       }
-
-      cancelProgressAnimation();
-      progressAnimStartTime = performance.now();
-      progressAnimStartValue = displayedProgress.value;
-      progressAnimTargetValue = target;
-      progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
+      animateTo(target);
     },
     { immediate: true },
   );
@@ -134,17 +136,11 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
 
       if (reachedTerminalFromProcessing) {
         const target = clampedProgress.value;
-        const start = displayedProgress.value;
-
-        if (Math.abs(target - start) < 0.1) {
+        // 优化：降低跳过动画的阈值
+        if (Math.abs(target - displayedProgress.value) < 0.01 || smoothDurationMs.value <= 0) {
           displayedProgress.value = target;
-        } else if (smoothDurationMs.value > 0) {
-          progressAnimStartTime = performance.now();
-          progressAnimStartValue = start;
-          progressAnimTargetValue = target;
-          progressAnimationFrame = window.requestAnimationFrame(progressAnimationTick);
         } else {
-          displayedProgress.value = target;
+          animateTo(target);
         }
         return;
       }

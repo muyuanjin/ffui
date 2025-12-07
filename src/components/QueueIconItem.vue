@@ -16,11 +16,23 @@ const props = defineProps<{
    * queueProgressStyle preference through.
    */
   progressStyle?: QueueProgressStyle;
+  /**
+   * When true, clicking the card toggles selection instead of opening
+   * details. Used by the queue icon view to drive bulk operations.
+   */
+  canSelect?: boolean;
+  /**
+   * Selection state driven by the parent. The visual highlight mirrors
+   * this flag and emits a `toggle-select` event when the card is clicked.
+   */
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "inspect", job: TranscodeJob): void;
   (e: "preview", job: TranscodeJob): void;
+  (e: "toggle-select", id: string): void;
+  (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
 
 const { t } = useI18n();
@@ -127,6 +139,9 @@ const displayFilename = computed(() => {
   return idx >= 0 ? name.slice(idx + 1) : name;
 });
 
+const isSelectable = computed(() => props.canSelect === true);
+const isSelected = computed(() => !!props.selected);
+
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
 
@@ -169,14 +184,32 @@ const onPreview = (event: MouseEvent) => {
   event.stopPropagation();
   emit("preview", props.job);
 };
+
+const onCardClick = () => {
+  if (isSelectable.value) {
+    emit("toggle-select", props.job.id);
+  } else {
+    onInspect();
+  }
+};
+
+const onCardContextMenu = (event: MouseEvent) => {
+  emit("contextmenu-job", { job: props.job, event });
+};
 </script>
 
 <template>
   <div
     class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-colors cursor-pointer"
-    :class="rootSizeClass"
+    :class="[
+      rootSizeClass,
+      isSelectable && isSelected
+        ? 'border-primary/70 ring-1 ring-primary/60 bg-primary/5'
+        : '',
+    ]"
     data-testid="queue-icon-item"
-    @click="onInspect"
+    @click="onCardClick"
+    @contextmenu.prevent.stop="onCardContextMenu"
   >
     <div
       class="relative w-full bg-muted/60"
@@ -260,9 +293,19 @@ const onPreview = (event: MouseEvent) => {
       >
         {{ displayFilename }}
       </p>
-      <p class="relative mt-0.5 text-[10px] text-muted-foreground truncate">
-        {{ statusLabel }}
-      </p>
+      <div class="relative mt-0.5 flex items-center justify-between gap-2">
+        <p class="text-[10px] text-muted-foreground truncate">
+          {{ statusLabel }}
+        </p>
+        <button
+          type="button"
+          class="text-[10px] text-primary hover:underline"
+          data-testid="queue-icon-item-detail-button"
+          @click.stop="onInspect"
+        >
+          {{ t("jobDetail.title") }}
+        </button>
+      </div>
     </div>
   </div>
 </template>

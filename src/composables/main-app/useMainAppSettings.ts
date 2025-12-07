@@ -18,6 +18,7 @@ export interface UseMainAppSettingsReturn {
   ensureAppSettingsLoaded: () => Promise<void>;
   scheduleSaveSettings: () => void;
   refreshToolStatuses: () => Promise<void>;
+  downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
   progressUpdateIntervalMs: ReturnType<typeof useJobProgress>["progressUpdateIntervalMs"];
   globalTaskbarProgressPercent: ReturnType<typeof useJobProgress>["globalTaskbarProgressPercent"];
   headerProgressPercent: ReturnType<typeof useJobProgress>["headerProgressPercent"];
@@ -47,6 +48,7 @@ export function useMainAppSettings(
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     refreshToolStatuses,
+    downloadToolNow,
     cleanup: cleanupAppSettings,
   } = useAppSettings({
     smartConfig,
@@ -117,6 +119,7 @@ export function useMainAppSettings(
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     refreshToolStatuses,
+    downloadToolNow,
     progressUpdateIntervalMs,
     globalTaskbarProgressPercent,
     headerProgressPercent,

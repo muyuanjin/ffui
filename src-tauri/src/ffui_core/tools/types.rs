@@ -19,6 +19,8 @@ pub struct ExternalToolStatus {
     pub resolved_path: Option<String>,
     pub source: Option<String>,
     pub version: Option<String>,
+    /// Latest remote version string when known (for update hints).
+    pub remote_version: Option<String>,
     pub update_available: bool,
     pub auto_download_enabled: bool,
     pub auto_update_enabled: bool,
@@ -27,6 +29,18 @@ pub struct ExternalToolStatus {
     /// Optional percentage (0-100) for the current download; None means
     /// progress is indeterminate and the UI should show a spinner instead.
     pub download_progress: Option<f32>,
+    /// Total bytes downloaded so far for the current auto-download, when
+    /// known. None when no download is in progress or no data has been
+    /// observed yet.
+    pub downloaded_bytes: Option<u64>,
+    /// Total expected size in bytes for the current auto-download when the
+    /// HTTP server exposes a Content-Length header. None when the size is
+    /// unknown.
+    pub total_bytes: Option<u64>,
+    /// Smoothed download speed in bytes per second when known. This is
+    /// computed as an average since the first progress callback and is
+    /// intended for human-facing status display.
+    pub bytes_per_second: Option<f32>,
     /// Last error message observed while trying to download/update this tool.
     pub last_download_error: Option<String>,
     /// Last informational message about download/update activity.
@@ -39,7 +53,21 @@ pub struct ExternalToolStatus {
 #[derive(Debug, Clone, Default)]
 pub(super) struct ToolDownloadRuntimeState {
     pub(super) in_progress: bool,
-    pub(super) progress: Option<f32>, // 0-100 when known, otherwise None for indeterminate.
+    /// Percentage (0-100) when known, otherwise None for indeterminate.
+    pub(super) progress: Option<f32>,
+    /// Total bytes downloaded so far since the start of the current
+    /// auto-download. None when no download has been observed in this session.
+    pub(super) downloaded_bytes: Option<u64>,
+    /// Total expected size in bytes when known from Content-Length. None when
+    /// the HTTP server does not expose a length.
+    pub(super) total_bytes: Option<u64>,
+    /// Smoothed download speed in bytes per second. This is computed as an
+    /// average since the first progress callback and is intended for UI
+    /// display only (not for rate limiting logic).
+    pub(super) bytes_per_second: Option<f32>,
+    /// Timestamp of the first progress callback for the current download,
+    /// used to compute an average bytes/sec.
+    pub(super) started_at: Option<std::time::Instant>,
     pub(super) last_error: Option<String>,
     pub(super) last_message: Option<String>,
     /// True when we have determined that the auto-downloaded binary for this

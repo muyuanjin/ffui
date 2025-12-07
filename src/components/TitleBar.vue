@@ -39,7 +39,7 @@ const currentLocale = computed<AppLocale>({
   >
     <div
       v-if="progressVisible"
-      class="absolute inset-y-0 left-0 pointer-events-none transition-[width,opacity] duration-700 ease-out z-0 bg-gradient-to-r from-emerald-500/50 via-cyan-400/50 to-fuchsia-500/50 shadow-lg"
+      class="absolute inset-y-0 left-0 pointer-events-none transition-[width,opacity] duration-300 ease-linear z-0 bg-gradient-to-r from-emerald-500/50 via-cyan-400/50 to-fuchsia-500/50 shadow-lg"
       :class="progressFading ? 'opacity-0' : 'opacity-100'"
       :style="{ width: `${progressPercent}%` }"
     />

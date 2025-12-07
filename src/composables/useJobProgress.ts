@@ -1,4 +1,5 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
+import gsap from "gsap";
 import type { TranscodeJob, AppSettings, TaskbarProgressMode } from "@/types";
 
 // ----- Constants -----
@@ -172,12 +173,47 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     );
   });
 
+  // 使用 GSAP 对标题栏进度做补间动画，避免大步跳变。
+  let headerProgressTween: gsap.core.Tween | null = null;
+
+  const animateHeaderProgressTo = (target: number) => {
+    if (!Number.isFinite(target)) return;
+
+    if (headerProgressTween) {
+      headerProgressTween.kill();
+      headerProgressTween = null;
+    }
+
+    const durationMs = progressUpdateIntervalMs.value;
+    if (durationMs <= 0) {
+      headerProgressPercent.value = target;
+      return;
+    }
+
+    // 优化：缩短动画时长，使用更线性的缓动
+    const durationSec = Math.min(Math.max(durationMs * 0.5 / 1000, 0.05), 0.3);
+    const state = { value: headerProgressPercent.value };
+
+    headerProgressTween = gsap.to(state, {
+      value: target,
+      duration: durationSec,
+      ease: "power1.inOut", // 使用更温和的缓动函数
+      onUpdate: () => {
+        headerProgressPercent.value = Math.max(0, Math.min(100, state.value));
+      },
+      onComplete: () => {
+        headerProgressPercent.value = Math.max(0, Math.min(100, target));
+        headerProgressTween = null;
+      },
+    });
+  };
+
   // ----- Header Progress Animation Watch -----
   watch(
     [globalTaskbarProgressPercent, hasActiveJobs],
     ([percent, active]) => {
       if (percent != null && active) {
-        headerProgressPercent.value = percent;
+        animateHeaderProgressTo(percent);
         headerProgressVisible.value = true;
         headerProgressFading.value = false;
         if (headerProgressFadeTimer !== undefined) {
@@ -199,11 +235,15 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
         window.clearTimeout(headerProgressFadeTimer);
       }
       headerProgressFadeTimer = window.setTimeout(() => {
+        if (headerProgressTween) {
+          headerProgressTween.kill();
+          headerProgressTween = null;
+        }
         headerProgressVisible.value = false;
         headerProgressFading.value = false;
         headerProgressPercent.value = 0;
         headerProgressFadeTimer = undefined;
-      }, 800);
+      }, 400); // 缩短淡出时间到400ms
     },
   );
 
@@ -212,6 +252,10 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     if (headerProgressFadeTimer !== undefined) {
       window.clearTimeout(headerProgressFadeTimer);
       headerProgressFadeTimer = undefined;
+    }
+    if (headerProgressTween) {
+      headerProgressTween.kill();
+      headerProgressTween = null;
     }
   };
 

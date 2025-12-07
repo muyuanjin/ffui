@@ -58,44 +58,34 @@ mod tests {
     }
 
     #[test]
-    fn should_mark_update_available_only_for_path_source() {
+    fn should_mark_update_available_based_on_version_mismatch() {
         use crate::ffui_core::tools::{
             probe::should_mark_update_available, types::FFMPEG_STATIC_VERSION,
         };
 
-        // PATH-based tool with mismatched version string should be considered
-        // updatable when auto-update is enabled.
+        // Mismatched local/remote versions should be considered updatable.
         let local = Some("ffmpeg version 4.0.0");
         let remote = Some(FFMPEG_STATIC_VERSION);
         assert!(
-            should_mark_update_available(true, "path", local, remote),
-            "path-based tool should be considered updatable when local version does not contain the pinned tag"
+            should_mark_update_available("path", local, remote),
+            "tools should be considered updatable when the local version string does not contain the remote version"
         );
 
-        // Auto-update disabled: never mark updates as available.
+        // When the local version already contains the remote version token, no
+        // update should be reported.
+        let same_local = format!("ffmpeg version {FFMPEG_STATIC_VERSION}");
         assert!(
-            !should_mark_update_available(false, "path", local, remote),
-            "auto-update disabled must suppress update_available even for PATH tools"
-        );
-
-        // Custom and download sources are always treated as user-managed and
-        // must not be marked as having updates available.
-        assert!(
-            !should_mark_update_available(true, "custom", local, remote),
-            "custom-path tools should not be marked as updatable by the auto-update logic"
-        );
-        assert!(
-            !should_mark_update_available(true, "download", local, remote),
-            "auto-downloaded tools should not be marked as updatable for the same pinned tag"
+            !should_mark_update_available("path", Some(&same_local), remote),
+            "when local version already contains the remote version, update_available must be false"
         );
 
         // Missing version information should not produce false positives.
         assert!(
-            !should_mark_update_available(true, "path", None, remote),
+            !should_mark_update_available("path", None, remote),
             "missing local version must not be treated as needing an update"
         );
         assert!(
-            !should_mark_update_available(true, "path", local, None),
+            !should_mark_update_available("path", local, None),
             "missing remote version must not be treated as needing an update"
         );
     }
@@ -139,6 +129,9 @@ mod tests {
         let status = tool_status(ExternalToolKind::Ffmpeg, &settings);
         assert!(!status.download_in_progress);
         assert!(status.download_progress.is_none() || status.download_progress == Some(0.0));
+        assert!(status.downloaded_bytes.is_none());
+        assert!(status.total_bytes.is_none());
+        assert!(status.bytes_per_second.is_none());
         assert!(status.last_download_error.is_none());
         assert!(status.last_download_message.is_none());
     }

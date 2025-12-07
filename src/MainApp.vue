@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, FFmpegPreset, TranscodeJob } from "@/types";
+import type { AppSettings, FFmpegPreset, TranscodeJob, JobStatus } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import TitleBar from "@/components/TitleBar.vue";
@@ -15,6 +15,7 @@ import MediaPanel from "@/components/panels/MediaPanel.vue";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
+import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 
@@ -194,6 +195,17 @@ const {
   headerProgressVisible,
   headerProgressFading,
 } = settings;
+
+// Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
+// Prefer the backend-probed resolvedPath (which already accounts for
+// auto-download and PATH lookup) and fall back to the custom path stored in
+// AppSettings when status snapshots are not yet available.
+const ffmpegResolvedPath = computed(() => {
+  const status = toolStatuses.value.find((s) => s.kind === "ffmpeg");
+  if (status?.resolvedPath) return status.resolvedPath;
+  return appSettings.value?.tools.ffmpegPath ?? null;
+});
+
 const {
   inspectedMediaPath,
   inspectedPreviewUrl,
@@ -240,6 +252,9 @@ const queuePanelProps = createQueuePanelProps({
   queueModeWaitingJobs,
   presets,
   queueViewMode,
+   // Expand bare `ffmpeg` tokens in the "full command" view using the
+   // backend-resolved executable path so users can copy the actual command.
+  ffmpegResolvedPath,
   queueProgressStyleModel,
   queueMode,
   isIconViewMode,
@@ -262,6 +277,42 @@ const queuePanelProps = createQueuePanelProps({
   queueError,
 });
 
+const queueContextMenuVisible = ref(false);
+const queueContextMenuMode = ref<"single" | "bulk">("single");
+const queueContextMenuX = ref(0);
+const queueContextMenuY = ref(0);
+const queueContextMenuJobId = ref<string | null>(null);
+
+const queueContextMenuJob = computed(() =>
+  jobs.value.find((job) => job.id === queueContextMenuJobId.value) ?? null,
+);
+const queueContextMenuJobStatus = computed<JobStatus | undefined>(
+  () => queueContextMenuJob.value?.status,
+);
+
+const openQueueContextMenuForJob = (payload: { job: TranscodeJob; event: MouseEvent }) => {
+  const { job, event } = payload;
+  queueContextMenuMode.value = "single";
+  queueContextMenuVisible.value = true;
+  queueContextMenuX.value = event.clientX;
+  queueContextMenuY.value = event.clientY;
+  queueContextMenuJobId.value = job.id;
+  // 右键单个任务时，将当前选中集更新为该任务，便于后续批量操作保持一致心智。
+  selectedJobIds.value = new Set([job.id]);
+};
+
+const openQueueContextMenuForBulk = (event: MouseEvent) => {
+  queueContextMenuMode.value = "bulk";
+  queueContextMenuVisible.value = true;
+  queueContextMenuX.value = event.clientX;
+  queueContextMenuY.value = event.clientY;
+  queueContextMenuJobId.value = null;
+};
+
+const closeQueueContextMenu = () => {
+  queueContextMenuVisible.value = false;
+};
+
 const {
   isDragging,
   handleDragOver,
@@ -271,6 +322,53 @@ const {
   closeWaitingJobContextMenu,
   handleWaitingJobContextMoveToTop,
 } = dnd;
+
+const handleQueueContextInspect = () => {
+  const job = queueContextMenuJob.value;
+  if (!job) return;
+  dialogs.dialogManager.openJobDetail(job);
+};
+
+const handleQueueContextWait = async () => {
+  const job = queueContextMenuJob.value;
+  if (!job) return;
+  await handleWaitJob(job.id);
+};
+
+const handleQueueContextResume = async () => {
+  const job = queueContextMenuJob.value;
+  if (!job) return;
+  await handleResumeJob(job.id);
+};
+
+const handleQueueContextRestart = async () => {
+  const job = queueContextMenuJob.value;
+  if (!job) return;
+  await handleRestartJob(job.id);
+};
+
+const handleQueueContextCancel = async () => {
+  const job = queueContextMenuJob.value;
+  if (!job) return;
+  await handleCancelJob(job.id);
+};
+
+const handleQueueContextMoveToTop = async () => {
+  if (queueContextMenuMode.value === "single") {
+    // 单任务模式下，selectedJobIds 已在打开菜单时指向该任务，直接复用批量“移到队首”逻辑。
+    await bulkMoveToTop();
+  } else {
+    await bulkMoveToTop();
+  }
+};
+
+const handleQueueContextMoveToBottom = async () => {
+  await bulkMoveToBottom();
+};
+
+const handleQueueContextDelete = async () => {
+  await bulkDelete();
+};
 
 const { highlightedLogHtml } = useJobLog({ selectedJob: dialogManager.selectedJob });
 
@@ -417,6 +515,8 @@ defineExpose(mainApp);
               @preview-job="openJobPreviewFromQueue"
               @toggle-batch-expanded="toggleBatchExpanded"
               @open-batch-detail="openBatchDetail"
+              @open-job-context-menu="openQueueContextMenuForJob"
+              @open-bulk-context-menu="openQueueContextMenuForBulk"
             />
 
             <PresetPanel
@@ -447,8 +547,8 @@ defineExpose(mainApp);
               :tool-statuses="toolStatuses"
               :is-saving-settings="isSavingSettings"
               :settings-save-error="settingsSaveError"
-              @refresh-tool-statuses="settings.refreshToolStatuses"
               @update:app-settings="handleUpdateAppSettings"
+              @download-tool="settings.downloadToolNow"
             />
           </div>
         </ScrollArea>
@@ -459,6 +559,25 @@ defineExpose(mainApp);
       :visible="waitingJobContextMenuVisible"
       @move-to-top="handleWaitingJobContextMoveToTop"
       @close="closeWaitingJobContextMenu"
+    />
+
+    <QueueContextMenu
+      :visible="queueContextMenuVisible"
+      :x="queueContextMenuX"
+      :y="queueContextMenuY"
+      :mode="queueContextMenuMode"
+      :job-status="queueContextMenuJobStatus"
+      :queue-mode="queueMode"
+      :has-selection="hasSelection"
+      @inspect="handleQueueContextInspect"
+      @wait="handleQueueContextWait"
+      @resume="handleQueueContextResume"
+      @restart="handleQueueContextRestart"
+      @cancel="handleQueueContextCancel"
+      @move-to-top="handleQueueContextMoveToTop"
+      @move-to-bottom="handleQueueContextMoveToBottom"
+      @remove="handleQueueContextDelete"
+      @close="closeQueueContextMenu"
     />
 
     <MainDialogsStack
@@ -473,6 +592,7 @@ defineExpose(mainApp);
       :preview-url="previewUrl"
       :preview-is-image="previewIsImage"
       :preview-error="previewError"
+      :ffmpeg-resolved-path="ffmpegResolvedPath"
       @savePreset="handleSavePreset"
       @closeWizard="dialogManager.closeWizard()"
       @closeParameterPanel="dialogManager.closeParameterPanel()"

@@ -63,6 +63,46 @@ describe("MainApp task detail surface - basics", () => {
     (i18n.global.locale as any).value = "en";
   });
 
+  it("shows the image Smart Scan output path when present", async () => {
+    const job: TranscodeJob = {
+      id: "image-job-1",
+      filename: "C:/images/sample.png",
+      type: "image",
+      source: "smart_scan",
+      originalSizeMB: 2,
+      originalCodec: "png",
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: Date.now() - 3000,
+      endTime: Date.now(),
+      logs: [],
+      inputPath: "C:/images/sample.png",
+      outputPath: "C:/images/sample.avif",
+      previewPath: "C:/images/sample.avif",
+    };
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const outputPathEl = document.querySelector(
+      "[data-testid='task-detail-output-path']",
+    ) as HTMLElement | null;
+
+    expect(outputPathEl).toBeTruthy();
+    expect(outputPathEl?.textContent).toContain("C:/images/sample.avif");
+
+    wrapper.unmount();
+  });
+
   it("renders rich details for a completed job", async () => {
     const job: TranscodeJob = {
       id: "job-1",

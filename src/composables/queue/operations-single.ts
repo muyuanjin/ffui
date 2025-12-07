@@ -132,7 +132,8 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
 /**
  * Restart a job.
  * Resets job status to waiting and clears progress/error fields.
- * Only works for non-terminal jobs (not completed/skipped/cancelled).
+ * Applies to any non-completed job (including failed/cancelled), so the next
+ * run starts from 0% while keeping the original job id for history.
  */
 export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
   if (!jobId) return;
@@ -141,8 +142,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.jobs.value = deps.jobs.value.map((job) =>
       job.id === jobId &&
       job.status !== "completed" &&
-      job.status !== "skipped" &&
-      job.status !== "cancelled"
+      job.status !== "skipped"
         ? ({
             ...job,
             status: "waiting" as JobStatus,
@@ -165,11 +165,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
 
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
-      if (
-        job.status !== "completed" &&
-        job.status !== "skipped" &&
-        job.status !== "cancelled"
-      ) {
+      if (job.status !== "completed" && job.status !== "skipped") {
         return {
           ...job,
           status: "waiting" as JobStatus,

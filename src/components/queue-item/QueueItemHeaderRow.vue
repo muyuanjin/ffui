@@ -54,6 +54,7 @@ const emit = defineEmits<{
   (e: "cancel", id: string): void;
   (e: "preview", job: TranscodeJob): void;
   (e: "preview-error"): void;
+   (e: "inspect", job: TranscodeJob): void;
 }>();
 </script>
 
@@ -152,16 +153,26 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <div class="text-right flex flex-col items-end gap-1">
+    <div class="text-right flex flex-col items-end gap-1.5">
       <span class="text-xs font-bold uppercase tracking-wide" :class="statusTextClass">
         {{ localizedStatus }}
       </span>
-      <div class="flex flex-wrap justify-end gap-1">
+      <div class="flex flex-wrap justify-end items-center gap-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 px-3 text-[11px] border-primary/50 text-primary hover:bg-primary/10 hover:border-primary"
+          data-testid="queue-item-detail-button"
+          @click.stop="emit('inspect', job)"
+        >
+          {{ t("jobDetail.title") }}
+        </Button>
         <Button
           v-if="isWaitable"
           variant="outline"
           size="sm"
-          class="h-6 px-2 text-[10px]"
+          class="h-7 px-2 text-[11px]"
           data-testid="queue-item-wait-button"
           @click.stop="emit('wait', job.id)"
         >
@@ -171,7 +182,7 @@ const emit = defineEmits<{
           v-if="isResumable"
           variant="outline"
           size="sm"
-          class="h-6 px-2 text-[10px]"
+          class="h-7 px-2 text-[11px]"
           data-testid="queue-item-resume-button"
           @click.stop="emit('resume', job.id)"
         >
@@ -181,7 +192,7 @@ const emit = defineEmits<{
           v-if="isRestartable"
           variant="outline"
           size="sm"
-          class="h-6 px-2 text-[10px]"
+          class="h-7 px-2 text-[11px]"
           data-testid="queue-item-restart-button"
           @click.stop="emit('restart', job.id)"
         >
@@ -191,7 +202,7 @@ const emit = defineEmits<{
           v-if="isCancellable"
           variant="outline"
           size="sm"
-          class="h-6 px-2 text-[10px]"
+          class="h-7 px-2 text-[11px]"
           @click.stop="emit('cancel', job.id)"
         >
           {{ t('app.actions.cancel') }}

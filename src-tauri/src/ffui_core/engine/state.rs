@@ -224,7 +224,6 @@ pub(super) fn restore_jobs_from_persisted_queue(inner: &Inner) {
         Some(s) => s,
         None => return,
     };
-
     restore_jobs_from_snapshot(inner, snapshot);
 }
 
@@ -236,6 +235,25 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // this process; recovery is only applied on a fresh engine.
             return;
         }
+    }
+
+    // Ensure that newly enqueued jobs after recovery do not reuse IDs from the
+    // restored snapshot. Otherwise inserting into the HashMap<String, TranscodeJob>
+    // would overwrite existing entries and appear to "replace" existing tasks.
+    let mut max_numeric_id: u64 = 0;
+    for job in &snapshot.jobs {
+        if let Some(suffix) = job.id.strip_prefix("job-") {
+            if let Ok(n) = suffix.parse::<u64>() {
+                if n > max_numeric_id {
+                    max_numeric_id = n;
+                }
+            }
+        }
+    }
+    if max_numeric_id > 0 {
+        inner
+            .next_job_id
+            .store(max_numeric_id + 1, std::sync::atomic::Ordering::SeqCst);
     }
 
     let mut waiting: Vec<(u64, String)> = Vec::new();
@@ -301,6 +319,11 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     // Emit a snapshot so the frontend sees the recovered queue without having
     // to poll immediately after startup.
     notify_queue_listeners(inner);
+
+    // Wake any worker threads that might already be waiting for work so they
+    // can immediately observe the recovered queue instead of staying parked
+    // on the condition variable until a brand-new job is enqueued.
+    inner.cv.notify_all();
 }
 
 pub(super) fn notify_smart_scan_listeners(inner: &Inner, progress: AutoCompressProgress) {

@@ -102,6 +102,7 @@ pub(crate) fn handle_image_file(
 
         // Prefer the existing AVIF sibling as the preview surface so the UI
         // can show the final compressed result instead of the original PNG.
+        job.output_path = Some(avif_target.to_string_lossy().into_owned());
         job.preview_path = Some(avif_target.to_string_lossy().into_owned());
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
@@ -167,7 +168,10 @@ pub(crate) fn handle_image_file(
                     job.progress = 100.0;
                     job.end_time = Some(current_time_millis());
                     job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
-                    job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+                    // For image Smart Scan jobs, surface the final AVIF path as both
+                    // the logical output path and preview surface so the UI can show
+                    // "compressed file path" alongside the original input.
+                    job.output_path = Some(avif_target.to_string_lossy().into_owned());
                     job.preview_path = Some(avif_target.to_string_lossy().into_owned());
 
                     return Ok(job);
@@ -274,6 +278,9 @@ pub(crate) fn handle_image_file(
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());
     job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+    // When falling back to ffmpeg-based AVIF encoding, also expose the
+    // resulting AVIF as the job's output path so the UI can display it.
+    job.output_path = Some(avif_target.to_string_lossy().into_owned());
 
     Ok(job)
 }

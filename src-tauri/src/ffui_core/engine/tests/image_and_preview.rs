@@ -103,6 +103,12 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
         "preview_path should point to the existing AVIF sibling, got {preview}"
     );
 
+    let output = job.output_path.as_deref().unwrap_or_default();
+    assert!(
+        output.ends_with(".avif"),
+        "output_path should point to the existing AVIF sibling so the UI can display the compressed image path, got {output}"
+    );
+
     let _ = fs::remove_file(&png);
     let _ = fs::remove_file(&avif);
     let _ = fs::remove_dir_all(&dir);

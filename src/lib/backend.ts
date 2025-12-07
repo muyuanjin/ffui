@@ -4,6 +4,7 @@ import type {
   AppSettings,
   AutoCompressResult,
   CpuUsageSnapshot,
+  ExternalToolKind,
   ExternalToolStatus,
   GpuUsageSnapshot,
   FFmpegPreset,
@@ -73,6 +74,12 @@ export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> =>
 
 export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]> => {
   return invoke<ExternalToolStatus[]>("get_external_tool_statuses");
+};
+
+export const downloadExternalToolNow = async (
+  kind: ExternalToolKind,
+): Promise<ExternalToolStatus[]> => {
+  return invoke<ExternalToolStatus[]>("download_external_tool_now", { kind });
 };
 
 export const acknowledgeTaskbarProgress = async (): Promise<void> => {

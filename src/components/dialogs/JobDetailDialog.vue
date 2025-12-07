@@ -13,6 +13,12 @@ const props = defineProps<{
   job: TranscodeJob | null;
   preset: FFmpegPreset | null;
   highlightedLogHtml: string;
+  /**
+   * Resolved FFmpeg executable path from backend/tool status (if known).
+   * Used to expand bare `ffmpeg` program tokens into the concrete path in
+   * the "full command" view so users can copy the exact binary invocation.
+   */
+  ffmpegResolvedPath?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -111,7 +117,15 @@ const commandViewToggleLabel = computed(() => {
     ? (t("taskDetail.commandToggle.showFull") as string)
     : (t("taskDetail.commandToggle.showTemplate") as string);
 });
-const highlightedCommandHtml = computed(() => highlightFfmpegCommand(jobDetailEffectiveCommand.value));
+const highlightedCommandHtml = computed(() =>
+  highlightFfmpegCommand(jobDetailEffectiveCommand.value, {
+    programOverrides: {
+      // Only expand to the concrete ffmpeg path in the "full command" view;
+      // the template view should retain the normalized `ffmpeg` token.
+      ffmpeg: showTemplateCommand.value ? null : props.ffmpegResolvedPath ?? null,
+    },
+  }),
+);
 
 const jobDetailLogText = computed(() => {
   const job = props.job;

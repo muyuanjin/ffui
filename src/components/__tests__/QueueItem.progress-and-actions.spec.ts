@@ -210,4 +210,17 @@ describe("QueueItem progress and actions", () => {
     await checkbox.trigger("click");
     expect(wrapper.emitted("toggle-select")?.[0]).toEqual([job.id]);
   });
+
+  it("applies a highlighted card style when the row is selected", () => {
+    const job = makeJob({ status: "completed" });
+
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canSelect: true, selected: true },
+      global: { plugins: [i18n] },
+    });
+
+    const root = wrapper.element as HTMLElement;
+    expect(root.className).toContain("border-primary/70");
+    expect(root.className).toContain("ring-1");
+  });
 });

@@ -91,6 +91,7 @@ const queue = {
     secondaryLabel: "Then by",
     asc: "Ascending",
     desc: "Descending",
+    collapse: "Collapse secondary sort",
   },
   actions: {
     wait: "Wait",

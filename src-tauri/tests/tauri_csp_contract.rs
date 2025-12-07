@@ -26,4 +26,3 @@ fn tauri_csp_allows_asset_protocol_for_images_and_media() {
         "CSP must allow asset protocol (http/https) for media (video/audio), got: {csp}"
     );
 }
-
