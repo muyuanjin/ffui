@@ -269,18 +269,38 @@ const formatSpeed = (bytesPerSecond?: number): string => {
           </CardTitle>
         </CardHeader>
         <CardContent v-if="appSettings" class="p-2 space-y-2">
-          <!-- Auto update external tools switch -->
-          <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-            <input
-              :checked="appSettings.tools.autoUpdate"
-              type="checkbox"
-              class="w-3 h-3 rounded border-border/50"
-              @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="text-[10px] select-none">
-              {{ t("app.settings.autoUpdateExternalToolsLabel") }}
-            </span>
-          </label>
+          <p class="text-[10px] text-muted-foreground leading-snug">
+            {{ t("app.settings.autoDownloadSectionDescription") }}
+          </p>
+
+          <!-- Download / update strategy -->
+          <div class="space-y-1">
+            <!-- Allow auto-download -->
+            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+              <input
+                :checked="appSettings.tools.autoDownload"
+                type="checkbox"
+                class="w-3 h-3 rounded border-border/50"
+                @change="updateToolsSetting('autoDownload', ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-[10px] select-none">
+                {{ t("app.settings.allowAutoDownloadLabel") }}
+              </span>
+            </label>
+
+            <!-- Auto update external tools switch -->
+            <label class="flex items-center gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+              <input
+                :checked="appSettings.tools.autoUpdate"
+                type="checkbox"
+                class="w-3 h-3 rounded border-border/50"
+                @change="updateToolsSetting('autoUpdate', ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="text-[10px] select-none">
+                {{ t("app.settings.autoUpdateExternalToolsLabel") }}
+              </span>
+            </label>
+          </div>
 
           <!-- Numeric settings -->
           <div class="space-y-1.5 pt-1">

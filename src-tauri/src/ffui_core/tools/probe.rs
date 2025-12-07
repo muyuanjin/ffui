@@ -1,5 +1,9 @@
 use std::process::Command;
 
+use super::resolve::{
+    custom_path_for, downloaded_tool_path, looks_like_bare_program_name, resolve_in_path,
+    tool_binary_name,
+};
 use super::runtime_state::{mark_arch_incompatible_for_session, snapshot_download_state};
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
@@ -98,18 +102,64 @@ pub(super) fn should_mark_update_available(
 }
 
 pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> ExternalToolStatus {
-    use super::resolve::resolve_tool_path;
+    // For status reporting we prefer a robust, best-effort probe that only
+    // reports a path as "ready" when we have actually confirmed that it can
+    // be executed. This mirrors the candidate ordering used by
+    // `ensure_tool_available` but deliberately never triggers auto-download
+    // so that opening the Settings panel remains cheap and predictable.
+    let runtime = snapshot_download_state(kind);
 
-    // For status reporting we prefer a lightweight, best-effort probe:
-    // resolve the path and, if possible, grab a version line in a single process
-    // spawn. This avoids double-spawning the tool just to confirm availability.
-    let (resolved_path, source, version) = match resolve_tool_path(kind, settings) {
-        Ok((path, source)) => {
-            let version = detect_local_tool_version(&path, kind);
-            (Some(path), Some(source), version)
+    let mut resolved_path: Option<String> = None;
+    let mut source: Option<String> = None;
+    let mut version: Option<String> = None;
+
+    // Build candidates in the same priority order as ensure_tool_available:
+    // custom > downloaded > PATH. We skip any candidate that is already
+    // known to be architecturally incompatible in this session.
+    let mut candidates: Vec<(String, String)> = Vec::new();
+
+    if let Some(custom_raw) = custom_path_for(kind, settings) {
+        let expanded = if looks_like_bare_program_name(&custom_raw) {
+            resolve_in_path(&custom_raw)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or(custom_raw)
+        } else {
+            custom_raw
+        };
+        candidates.push((expanded, "custom".to_string()));
+    }
+
+    if runtime.download_arch_incompatible {
+        // Skip the downloaded candidate for this session; PATH or custom
+        // sources may still succeed.
+    } else if let Some(downloaded) = downloaded_tool_path(kind) {
+        candidates.push((
+            downloaded.to_string_lossy().into_owned(),
+            "download".to_string(),
+        ));
+    }
+
+    let bin = tool_binary_name(kind).to_string();
+    let path_candidate = resolve_in_path(&bin)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(bin);
+    candidates.push((path_candidate, "path".to_string()));
+
+    for (path, src) in candidates {
+        if src == "path" && runtime.path_arch_incompatible {
+            // We already know PATH is architecturally incompatible for this
+            // tool in this session; surface this via last_download_error but
+            // do not pretend the tool is ready.
+            continue;
         }
-        Err(_) => (None, None, None),
-    };
+
+        if verify_tool_binary(&path, kind, &src) {
+            version = detect_local_tool_version(&path, kind);
+            resolved_path = Some(path);
+            source = Some(src);
+            break;
+        }
+    }
 
     // 使用一个快速的、本地常量版本号来提供“是否有更新”的提示，避免在
     // Tauri 命令路径（尤其是应用启动后首次打开设置面板时）发起任何同步
@@ -127,8 +177,6 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         }
         (None, _, _) => false,
     };
-
-    let runtime = snapshot_download_state(kind);
 
     ExternalToolStatus {
         kind,
