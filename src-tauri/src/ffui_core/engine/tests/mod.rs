@@ -33,3 +33,4 @@ mod progress_parsing_and_utils;
 mod queue_basic;
 mod queue_wait_and_restart;
 mod smart_scan_tests;
+mod tools_download_metadata;

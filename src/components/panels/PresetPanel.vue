@@ -60,6 +60,35 @@ const getPresetAvgSpeed = (preset: FFmpegPreset): number | null => {
   return input / time;
 };
 
+const getVideoRateControlSummary = (video: FFmpegPreset["video"]): string => {
+  const mode = video.rateControl;
+
+  if (mode === "crf") {
+    return `CRF ${video.qualityValue}`;
+  }
+  if (mode === "cq") {
+    return `CQ ${video.qualityValue}`;
+  }
+
+  if (mode === "cbr") {
+    if (typeof video.bitrateKbps === "number" && video.bitrateKbps > 0) {
+      return `CBR ${video.bitrateKbps}k`;
+    }
+    return "CBR";
+  }
+
+  if (mode === "vbr") {
+    if (typeof video.bitrateKbps === "number" && video.bitrateKbps > 0) {
+      return `VBR ${video.bitrateKbps}k`;
+    }
+    return "VBR";
+  }
+
+  // 兜底：理论上已覆盖所有 rateControl 枚举值；
+  // 但为兼容未来新增值，使用 String() 转为字符串避免 TS 将其收窄为 never。
+  return String(mode).toUpperCase();
+};
+
 const getFiltersSummary = (preset: FFmpegPreset): string => {
   const parts: string[] = [];
   if (preset.filters.scale) parts.push(`${t("presets.scale")}: ${preset.filters.scale}`);
@@ -173,7 +202,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 {{ preset.video.encoder }}
               </div>
               <div class="font-mono text-[10px] text-primary mt-0.5">
-                {{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}
+                {{ getVideoRateControlSummary(preset.video) }}
                 <span v-if="preset.video.pass" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
               </div>
             </div>
