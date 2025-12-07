@@ -32,11 +32,37 @@ export function recomputeJobsFromBackend(
 }
 
 /**
+ * Detect newly completed jobs by comparing the previous jobs list with the
+ * latest backend snapshot, and invoke the onJobCompleted callback for each.
+ */
+function detectNewlyCompletedJobs(
+  previousJobs: TranscodeJob[],
+  backendJobs: TranscodeJob[],
+  onJobCompleted?: (job: TranscodeJob) => void,
+) {
+  if (!onJobCompleted) return;
+
+  const previousById = new Map(previousJobs.map((job) => [job.id, job]));
+
+  for (const job of backendJobs) {
+    const prev = previousById.get(job.id);
+    if (job.status === "completed" && (!prev || prev.status !== "completed")) {
+      onJobCompleted(job);
+    }
+  }
+}
+
+/**
  * Apply a full queue state snapshot from the backend.
- * Updates jobs list and records snapshot timestamp.
+ * Updates jobs list, records snapshot timestamp, and triggers onJobCompleted
+ * for jobs that have newly transitioned into the `completed` state.
  */
 export function applyQueueStateFromBackend(state: QueueState, deps: StateSyncDeps) {
-  recomputeJobsFromBackend(state.jobs, deps);
+  const backendJobs = state.jobs ?? [];
+  const previousJobs = deps.jobs.value;
+
+  detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
+  recomputeJobsFromBackend(backendJobs, deps);
   deps.lastQueueSnapshotAtMs.value = Date.now();
 }
 
@@ -49,17 +75,10 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
   if (!hasTauri()) return;
   try {
     const previousJobs = deps.jobs.value;
-    const previousById = new Map(previousJobs.map((job) => [job.id, job]));
     const state = await loadQueueState();
     const backendJobs = state.jobs ?? [];
 
-    for (const job of backendJobs) {
-      const prev = previousById.get(job.id);
-      if (job.status === "completed" && (!prev || prev.status !== "completed")) {
-        deps.onJobCompleted?.(job);
-      }
-    }
-
+    detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
     recomputeJobsFromBackend(backendJobs, deps);
     deps.queueError.value = null;
   } catch (error) {

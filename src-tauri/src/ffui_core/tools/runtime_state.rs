@@ -19,8 +19,7 @@ static APP_HANDLE: once_cell::sync::OnceCell<Arc<tauri::AppHandle>> =
 /// ExternalToolStatus list.
 pub(super) static LATEST_TOOL_STATUS: once_cell::sync::Lazy<
     Mutex<Vec<super::types::ExternalToolStatus>>,
-> =
-    once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
+> = once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
 
 pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
     let _ = APP_HANDLE.set(Arc::new(handle));

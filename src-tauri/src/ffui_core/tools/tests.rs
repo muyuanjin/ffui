@@ -178,8 +178,7 @@ mod tools_tests {
                     .expect("read permissions for fake avifenc script")
                     .permissions();
                 perms.set_mode(0o755);
-                fs::set_permissions(&path, perms)
-                    .expect("mark fake avifenc script as executable");
+                fs::set_permissions(&path, perms).expect("mark fake avifenc script as executable");
             }
 
             assert!(
@@ -196,15 +195,13 @@ mod tools_tests {
 
     #[test]
     fn download_runtime_state_updates_only_the_target_tool_in_latest_snapshot() {
-        use crate::ffui_core::tools::{
-            ExternalToolKind,
-            ExternalToolStatus,
-            update_latest_status_snapshot,
-        };
         use crate::ffui_core::tools::runtime_state::{
-            mark_download_started, mark_download_progress, LATEST_TOOL_STATUS,
+            LATEST_TOOL_STATUS, mark_download_progress, mark_download_started,
         };
         use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
+        use crate::ffui_core::tools::{
+            ExternalToolKind, ExternalToolStatus, update_latest_status_snapshot,
+        };
 
         // Start from a clean runtime state.
         {
@@ -292,7 +289,8 @@ mod tools_tests {
             "ffmpeg entry must expose total bytes from progress callback",
         );
         assert!(
-            ffmpeg.last_download_message
+            ffmpeg
+                .last_download_message
                 .as_deref()
                 .unwrap_or_default()
                 .contains("starting auto-download for ffmpeg"),
@@ -308,5 +306,4 @@ mod tools_tests {
             "ffprobe entry must not gain download bytes when it is not downloading",
         );
     }
-
 }

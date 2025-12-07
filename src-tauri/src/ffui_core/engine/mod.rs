@@ -223,6 +223,15 @@ impl TranscodingEngine {
         sample_gpu_usage()
     }
 
+    /// Persist metadata for a manually triggered external tool download.
+    ///
+    /// This is used by the Settings panel “下载 / 更新”按钮 so that once a
+    /// user-initiated download completes, the freshly downloaded binary
+    /// becomes the preferred path in settings.json and the Settings UI.
+    pub fn record_manual_tool_download(&self, kind: ExternalToolKind, binary_path: &str) {
+        job_runner::record_tool_download_with_inner(&self.inner, kind, binary_path);
+    }
+
     /// Get the status of all external tools.
     pub fn external_tool_statuses(&self) -> Vec<ExternalToolStatus> {
         let state = self.inner.state.lock().expect("engine state poisoned");

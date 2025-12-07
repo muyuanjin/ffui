@@ -13,8 +13,8 @@ use super::release::{
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::probe::verify_tool_binary;
 use crate::ffui_core::tools::resolve::{
-    custom_path_for, downloaded_tool_filename, downloaded_tool_path,
-    looks_like_bare_program_name, resolve_in_path, tool_binary_name, tools_dir,
+    custom_path_for, downloaded_tool_filename, downloaded_tool_path, looks_like_bare_program_name,
+    resolve_in_path, tool_binary_name, tools_dir,
 };
 use crate::ffui_core::tools::runtime_state::{
     mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
