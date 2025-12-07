@@ -13,7 +13,8 @@ use super::release::{
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::probe::verify_tool_binary;
 use crate::ffui_core::tools::resolve::{
-    downloaded_tool_filename, resolve_tool_path, tool_binary_name, tools_dir,
+    custom_path_for, downloaded_tool_filename, downloaded_tool_path,
+    looks_like_bare_program_name, resolve_in_path, tool_binary_name, tools_dir,
 };
 use crate::ffui_core::tools::runtime_state::{
     mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
@@ -118,56 +119,125 @@ pub(crate) fn ensure_tool_available(
     kind: ExternalToolKind,
     settings: &ExternalToolSettings,
 ) -> Result<(String, String, bool)> {
-    let (mut path, mut source) = resolve_tool_path(kind, settings)?;
+    // Core strategy:
+    // 1) Build a candidate chain in priority order: custom > downloaded > PATH.
+    // 2) For each candidate, require a successful `-version` probe before
+    //    treating it as usable.
+    // 3) If a higher-priority candidate fails verification, automatically
+    //    fall back to the next one instead of immediately failing, so that a
+    //    broken auto-downloaded binary can never "poison" an otherwise
+    //    healthy PATH configuration.
+    //
+    // Auto-download remains constrained to the PATH branch only, and only
+    // when enabled in settings. This preserves the previous "no download
+    // loop" behaviour while adding PATH fallback for damaged downloads.
     let runtime_state = snapshot_download_state(kind);
     let mut did_download = false;
 
-    if source == "download" && runtime_state.download_arch_incompatible {
-        return Err(anyhow!(
-            "{} auto-downloaded binary at '{}' cannot be executed on this system; \
-请在\"软件设置 → 外部工具\"中手动指定一份可用的 {} 路径。",
-            tool_binary_name(kind),
-            path,
-            tool_binary_name(kind),
+    let tool = tool_binary_name(kind);
+
+    // Build candidate paths in priority order. Each entry is (path, source).
+    let mut candidates: Vec<(String, String)> = Vec::new();
+
+    // 1) Explicit custom path from settings (highest priority).
+    if let Some(custom_raw) = custom_path_for(kind, settings) {
+        // Keep behaviour consistent with resolve_tool_path: if the custom
+        // value looks like a bare program name (e.g. "ffmpeg"), try to expand
+        // it via PATH so logs and job commands see the same concrete path.
+        let expanded = if looks_like_bare_program_name(&custom_raw) {
+            resolve_in_path(&custom_raw)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or(custom_raw)
+        } else {
+            custom_raw
+        };
+        candidates.push((expanded, "custom".to_string()));
+    }
+
+    // 2) Auto-downloaded binary next to the executable, unless we already
+    //    know it cannot be executed on this system (architecture mismatch).
+    if runtime_state.download_arch_incompatible {
+        // Known incompatible for this session; skip the downloaded candidate
+        // so that PATH/custom sources can still be used.
+    } else if let Some(downloaded) = downloaded_tool_path(kind) {
+        candidates.push((
+            downloaded.to_string_lossy().into_owned(),
+            "download".to_string(),
         ));
     }
 
-    if source == "path" && runtime_state.path_arch_incompatible && !settings.auto_download {
-        return Err(anyhow!(
-            "system-provided {} at '{}' cannot be executed on this system; \
-请在\"软件设置 → 外部工具\"中指定一份可用的 {} 路径。",
-            tool_binary_name(kind),
-            path,
-            tool_binary_name(kind),
-        ));
-    }
+    // 3) System PATH as the ultimate fallback. We still try to resolve the
+    //    bare program name into an absolute path when possible so that logs
+    //    and queue commands can show where the binary actually lives.
+    let bin = tool_binary_name(kind).to_string();
+    let path_candidate = resolve_in_path(&bin)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(bin);
+    candidates.push((path_candidate, "path".to_string()));
 
-    let mut verified = verify_tool_binary(&path, kind, &source);
+    // Walk candidates in order, looking for the first one that passes the
+    // verification probe. For PATH we are allowed to auto-download once
+    // (when enabled) to migrate to a pinned static binary.
+    let mut last_error: Option<String> = None;
 
-    if settings.auto_download && !verified && source == "path" {
-        match download_tool_binary(kind) {
-            Ok(downloaded) => {
-                path = downloaded.to_string_lossy().into_owned();
-                source = "download".to_string();
-                did_download = true;
-                verified = verify_tool_binary(&path, kind, &source);
+    for (path, source) in candidates {
+        // When we already know the PATH-resolved binary is architecturally
+        // incompatible and auto-download is disabled, surface a clear error
+        // instead of re-probing the same broken executable.
+        if source == "path" && runtime_state.path_arch_incompatible && !settings.auto_download {
+            last_error = Some(format!(
+                "system-provided {tool} at '{path}' cannot be executed on this system; \
+请在\"软件设置 → 外部工具\"中指定一份可用的 {tool} 路径。",
+            ));
+            continue;
+        }
+
+        let verified = verify_tool_binary(&path, kind, &source);
+        if verified {
+            return Ok((path, source, did_download));
+        }
+
+        // If PATH fails verification and auto-download is enabled, attempt a
+        // one-off download of the pinned static binary, but only when we do
+        // not already know the downloaded binary is architecturally broken.
+        if source == "path" && settings.auto_download && !runtime_state.download_arch_incompatible {
+            match download_tool_binary(kind) {
+                Ok(downloaded) => {
+                    let downloaded_path = downloaded.to_string_lossy().into_owned();
+                    let downloaded_source = "download".to_string();
+                    did_download = true;
+                    if verify_tool_binary(&downloaded_path, kind, &downloaded_source) {
+                        return Ok((downloaded_path, downloaded_source, did_download));
+                    } else {
+                        last_error = Some(format!(
+                            "{tool} auto-downloaded binary at '{downloaded_path}' could not be \
+executed. 请在\"软件设置 → 外部工具\"中手动指定一份可用的 {tool} 路径。",
+                        ));
+                    }
+                }
+                Err(err) => {
+                    last_error = Some(format!(
+                        "{tool} not found on PATH and auto-download failed: {err}",
+                    ));
+                }
             }
-            Err(err) => {
-                return Err(anyhow!(
-                    "{} not found and auto-download failed: {err}",
-                    tool_binary_name(kind)
-                ));
-            }
+            // After a PATH + auto-download attempt there are no higher
+            // priority candidates left to try, so we can break early.
+            break;
+        } else {
+            // For custom/download candidates (and PATH when auto-download is
+            // disabled), remember a generic "not available" error while still
+            // allowing lower-priority candidates to be tried.
+            last_error = Some(format!(
+                "{tool} does not appear to be available at '{path}'. Install it or configure a valid custom path.",
+            ));
         }
     }
 
-    if !verified {
-        return Err(anyhow!(
-            "{} does not appear to be available at '{}'. Install it or configure a valid custom path.",
-            tool_binary_name(kind),
-            path
-        ));
-    }
-
-    Ok((path, source, did_download))
+    Err(anyhow!(last_error.unwrap_or_else(|| {
+        format!(
+            "{tool} does not appear to be available on this system. \
+请在\"软件设置 → 外部工具\"中配置一份可用的 {tool} 路径，或确保它在系统 PATH 中可见。"
+        )
+    })))
 }

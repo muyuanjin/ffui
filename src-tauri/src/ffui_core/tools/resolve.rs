@@ -25,6 +25,7 @@ pub(super) fn custom_path_for(
     }
 }
 
+#[allow(dead_code)]
 pub fn resolve_tool_path(
     kind: ExternalToolKind,
     settings: &ExternalToolSettings,
@@ -107,7 +108,7 @@ pub(super) fn downloaded_tool_path(kind: ExternalToolKind) -> Option<PathBuf> {
 /// input does not contain any path separators, and we require the candidate
 /// to exist as a regular file. If anything looks unexpected we return None
 /// so callers can fall back to the original program string.
-fn resolve_in_path(program: &str) -> Option<PathBuf> {
+pub(super) fn resolve_in_path(program: &str) -> Option<PathBuf> {
     use std::env;
     resolve_in_path_with_env(program, env::var_os("PATH"), env::var_os("PATHEXT"))
 }
@@ -116,7 +117,7 @@ fn resolve_in_path(program: &str) -> Option<PathBuf> {
 /// than a path. This helps us avoid treating complex custom strings such
 /// as `"ffmpeg -loglevel error"` or explicit `C:\tools\ffmpeg.exe` as
 /// candidates for PATH expansion.
-fn looks_like_bare_program_name(program: &str) -> bool {
+pub(super) fn looks_like_bare_program_name(program: &str) -> bool {
     !program.is_empty()
         && !program.contains('/')
         && !program.contains('\\')
@@ -126,7 +127,7 @@ fn looks_like_bare_program_name(program: &str) -> bool {
         && !program.contains('\'')
 }
 
-fn resolve_in_path_with_env(
+pub(super) fn resolve_in_path_with_env(
     program: &str,
     path_var: Option<std::ffi::OsString>,
     pathext_var: Option<std::ffi::OsString>,
