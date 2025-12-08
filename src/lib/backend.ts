@@ -95,6 +95,13 @@ export const acknowledgeTaskbarProgress = async (): Promise<void> => {
   await invoke<void>("ack_taskbar_progress");
 };
 
+export const revealPathInFolder = async (path: string): Promise<void> => {
+  const normalized = path.trim();
+  if (!normalized) return;
+  if (!hasTauri()) return;
+  await invoke<void>("reveal_path_in_folder", { path: normalized });
+};
+
 export const openDevtools = async (): Promise<void> => {
   await invoke<void>("open_devtools");
 };

@@ -27,6 +27,7 @@ import {
   deletePresetOnBackend,
   inspectMedia,
   selectPlayableMediaPath,
+  revealPathInFolder,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -144,6 +145,27 @@ describe("backend contract", () => {
     expect(result).toBe(chosen);
   });
 
+  it("revealPathInFolder calls reveal_path_in_folder with trimmed path", async () => {
+    (globalThis as any).window = (globalThis as any).window ?? {};
+    (globalThis as any).window.__TAURI__ = {};
+
+    await revealPathInFolder("  C:/videos/output.mp4  ");
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith("reveal_path_in_folder", {
+      path: "C:/videos/output.mp4",
+    });
+  });
+
+  it("revealPathInFolder no-ops when path is empty", async () => {
+    (globalThis as any).window = (globalThis as any).window ?? {};
+    (globalThis as any).window.__TAURI__ = {};
+
+    await revealPathInFolder("   ");
+
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it("loadPresets calls get_presets and returns the backend list unchanged", async () => {
     const presets: FFmpegPreset[] = [
       {
@@ -186,7 +208,7 @@ describe("backend contract", () => {
       {
         id: "smart-hevc-fast",
         name: "H.265 Fast NVENC",
-        description: "HEVC NVENC CQ 28, preset p5, scaled to 1080p for quick web/share.",
+        description: "HEVC NVENC CQ 28, preset p5, keeps source resolution for quick web/share.",
         video: {
           encoder: "hevc_nvenc",
           rateControl: "cq",
@@ -196,9 +218,7 @@ describe("backend contract", () => {
         audio: {
           codec: "copy",
         },
-        filters: {
-          scale: "-2:1080",
-        },
+        filters: {},
         stats: {
           usageCount: 0,
           totalInputSizeMB: 0,
@@ -216,6 +236,7 @@ describe("backend contract", () => {
     const [cmd] = invokeMock.mock.calls[0];
     expect(cmd).toBe("get_smart_default_presets");
     expect(result).toEqual(presets);
+    expect(result[0]?.filters?.scale).toBeUndefined();
   });
 
   it("savePresetOnBackend sends save_preset with the preset payload and returns the updated list", async () => {

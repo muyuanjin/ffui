@@ -245,6 +245,8 @@ export function useMainAppSetup() {
     queueContextMenuX,
     queueContextMenuY,
     queueContextMenuJobStatus,
+    queueContextMenuCanRevealInputPath,
+    queueContextMenuCanRevealOutputPath,
     openQueueContextMenuForJob,
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
@@ -256,6 +258,8 @@ export function useMainAppSetup() {
     handleQueueContextMoveToTop,
     handleQueueContextMoveToBottom,
     handleQueueContextDelete,
+    handleQueueContextOpenInputFolder,
+    handleQueueContextOpenOutputFolder,
   } = queueContextMenu;
 
   const { highlightedLogHtml } = useJobLog({
@@ -307,6 +311,8 @@ export function useMainAppSetup() {
     queueContextMenuX,
     queueContextMenuY,
     queueContextMenuJobStatus,
+    queueContextMenuCanRevealInputPath,
+    queueContextMenuCanRevealOutputPath,
     openQueueContextMenuForJob,
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
@@ -318,6 +324,8 @@ export function useMainAppSetup() {
     handleQueueContextMoveToTop,
     handleQueueContextMoveToBottom,
     handleQueueContextDelete,
+    handleQueueContextOpenInputFolder,
+    handleQueueContextOpenOutputFolder,
   };
   return { mainApp, manualJobPresetId };
 }

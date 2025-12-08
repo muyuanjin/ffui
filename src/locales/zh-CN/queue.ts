@@ -99,6 +99,8 @@ const queue = {
     wait: "暂停",
     resume: "继续",
     restart: "重新开始",
+    openInputFolder: "打开输入文件夹",
+    openOutputFolder: "打开输出文件夹",
     moveToPosition: "移动到指定位置",
     moveToPositionPrompt: "请输入新的队列位置（1-{max}）：",
     bulkCancel: "批量停止",

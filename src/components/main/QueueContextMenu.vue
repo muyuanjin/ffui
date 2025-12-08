@@ -21,8 +21,40 @@
               $emit('close');
             }
           "
+          >
+            {{ t("jobDetail.title") }}
+          </button>
+
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canRevealInput"
+          data-testid="queue-context-menu-open-input"
+          @click="
+            () => {
+              if (!canRevealInput) return;
+              $emit('open-input-folder');
+              $emit('close');
+            }
+          "
         >
-          {{ t("jobDetail.title") }}
+          {{ t("queue.actions.openInputFolder") }}
+        </button>
+
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canRevealOutput"
+          data-testid="queue-context-menu-open-output"
+          @click="
+            () => {
+              if (!canRevealOutput) return;
+              $emit('open-output-folder');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.openOutputFolder") }}
         </button>
 
         <div class="h-px my-1 bg-border/40" />
@@ -274,10 +306,14 @@ const props = defineProps<{
   jobStatus?: JobStatus;
   queueMode: QueueMode;
   hasSelection: boolean;
+  canRevealInputPath?: boolean;
+  canRevealOutputPath?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "inspect"): void;
+  (e: "open-input-folder"): void;
+  (e: "open-output-folder"): void;
   (e: "wait"): void;
   (e: "resume"): void;
   (e: "restart"): void;
@@ -293,6 +329,13 @@ const { t } = useI18n();
 
 const isQueueMode = computed(() => props.queueMode === "queue");
 const status = computed<JobStatus | undefined>(() => props.jobStatus);
+
+const canRevealInput = computed(
+  () => props.mode === "single" && props.canRevealInputPath === true,
+);
+const canRevealOutput = computed(
+  () => props.mode === "single" && props.canRevealOutputPath === true,
+);
 
 const isTerminalStatus = (value: JobStatus | undefined) =>
   value === "completed" ||

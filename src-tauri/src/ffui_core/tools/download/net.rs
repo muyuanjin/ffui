@@ -191,23 +191,50 @@ where
 
 /// Best-effort: mark a downloaded file as executable on Unix platforms.
 /// On non-Unix platforms this is a no-op.
-fn mark_download_executable_if_unix(dest: &Path) -> Result<()> {
+fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(dest)
-            .with_context(|| format!("failed to read metadata for {}", dest.display()))?
+        let mut perms = fs::metadata(_dest)
+            .with_context(|| format!("failed to read metadata for {}", _dest.display()))?
             .permissions();
         // rwxr-xr-x
         perms.set_mode(0o755);
-        fs::set_permissions(dest, perms)
-            .with_context(|| format!("failed to mark {} as executable", dest.display()))?;
+        fs::set_permissions(_dest, perms)
+            .with_context(|| format!("failed to mark {} as executable", _dest.display()))?;
     }
     Ok(())
 }
 
+/// Lightweight HEAD to retrieve Content-Length when available. This is used
+/// to provide determinate progress for aria2c-driven downloads.
+pub(crate) fn content_length_head(url: &str) -> Option<u64> {
+    use reqwest::Proxy;
+    use reqwest::blocking::Client;
+    use std::time::Duration;
+
+    let mut builder = Client::builder().timeout(Duration::from_secs(5));
+
+    if let Some(proxy_url) = proxy_from_env()
+        && let Ok(proxy) = Proxy::all(&proxy_url)
+    {
+        builder = builder.proxy(proxy);
+    }
+
+    let client = builder.build().ok()?;
+    client
+        .head(url)
+        .send()
+        .ok()?
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+}
+
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use super::*;
 
     #[cfg(unix)]

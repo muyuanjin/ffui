@@ -31,7 +31,9 @@ use crate::ffui_core::monitor::{
     CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
 };
 use crate::ffui_core::settings::{self, AppSettings};
-use crate::ffui_core::tools::{ExternalToolKind, ExternalToolStatus, tool_status};
+use crate::ffui_core::tools::{
+    ExternalToolKind, ExternalToolStatus, hydrate_last_tool_download_from_settings, tool_status,
+};
 
 use state::{Inner, restore_jobs_from_persisted_queue, snapshot_queue_state};
 
@@ -52,6 +54,7 @@ impl TranscodingEngine {
     pub fn new() -> Result<Self> {
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
+        hydrate_last_tool_download_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
         {
             // Crash-recovery from the persisted queue state can involve heavy

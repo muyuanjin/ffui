@@ -16,9 +16,9 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
     vec![
         FFmpegPreset {
             id: "smart-hevc-fast".to_string(),
-            name: "H.264 Fast 1080p".to_string(),
+            name: "H.264 Fast".to_string(),
             description:
-                "x264 CRF 23 preset medium scaled to 1080p for fast, broadly compatible output."
+                "x264 CRF 23 preset medium keeping source resolution for fast, broadly compatible output."
                     .to_string(),
             global: None,
             input: None,
@@ -51,7 +51,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 true_peak_db: None,
             },
             filters: FilterConfig {
-                scale: Some("-2:1080".to_string()),
+                scale: None,
                 crop: None,
                 fps: None,
                 vf_chain: None,
@@ -118,7 +118,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
             id: "smart-av1-fast".to_string(),
             name: "AV1 Fast (SVT)".to_string(),
             description:
-                "libsvtav1 CRF 34 preset 6, 10-bit 1080p for high-efficiency fast compression."
+                "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression."
                     .to_string(),
             global: None,
             input: None,
@@ -151,7 +151,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 true_peak_db: None,
             },
             filters: FilterConfig {
-                scale: Some("-2:1080".to_string()),
+                scale: None,
                 crop: None,
                 fps: None,
                 vf_chain: None,

@@ -116,6 +116,8 @@ const {
   queueContextMenuY,
   queueContextMenuMode,
   queueContextMenuJobStatus,
+  queueContextMenuCanRevealInputPath,
+  queueContextMenuCanRevealOutputPath,
   openQueueContextMenuForJob,
   openQueueContextMenuForBulk,
   closeQueueContextMenu,
@@ -127,6 +129,8 @@ const {
   handleQueueContextMoveToTop,
   handleQueueContextMoveToBottom,
   handleQueueContextDelete,
+  handleQueueContextOpenInputFolder,
+  handleQueueContextOpenOutputFolder,
 
   // 对话框栈 / 智能扫描 / 预览
   dialogManager,
@@ -340,6 +344,8 @@ defineExpose({
       :job-status="queueContextMenuJobStatus"
       :queue-mode="queueMode"
       :has-selection="hasSelection"
+      :can-reveal-input-path="queueContextMenuCanRevealInputPath"
+      :can-reveal-output-path="queueContextMenuCanRevealOutputPath"
       @inspect="handleQueueContextInspect"
       @wait="handleQueueContextWait"
       @resume="handleQueueContextResume"
@@ -348,6 +354,8 @@ defineExpose({
       @move-to-top="handleQueueContextMoveToTop"
       @move-to-bottom="handleQueueContextMoveToBottom"
       @remove="handleQueueContextDelete"
+      @open-input-folder="handleQueueContextOpenInputFolder"
+      @open-output-folder="handleQueueContextOpenOutputFolder"
       @close="closeQueueContextMenu"
     />
 

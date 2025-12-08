@@ -1,5 +1,6 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { JobStatus, TranscodeJob } from "@/types";
+import { hasTauri, revealPathInFolder } from "@/lib/backend";
 
 export interface UseQueueContextMenuOptions {
   jobs: Ref<TranscodeJob[]>;
@@ -22,6 +23,8 @@ export interface UseQueueContextMenuReturn {
   queueContextMenuJobId: Ref<string | null>;
   queueContextMenuJob: ComputedRef<TranscodeJob | null>;
   queueContextMenuJobStatus: ComputedRef<JobStatus | undefined>;
+  queueContextMenuCanRevealInputPath: ComputedRef<boolean>;
+  queueContextMenuCanRevealOutputPath: ComputedRef<boolean>;
   openQueueContextMenuForJob: (payload: { job: TranscodeJob; event: MouseEvent }) => void;
   openQueueContextMenuForBulk: (event: MouseEvent) => void;
   closeQueueContextMenu: () => void;
@@ -33,6 +36,8 @@ export interface UseQueueContextMenuReturn {
   handleQueueContextMoveToTop: () => Promise<void>;
   handleQueueContextMoveToBottom: () => Promise<void>;
   handleQueueContextDelete: () => void;
+  handleQueueContextOpenInputFolder: () => Promise<void>;
+  handleQueueContextOpenOutputFolder: () => Promise<void>;
 }
 
 export function useQueueContextMenu(
@@ -63,6 +68,30 @@ export function useQueueContextMenu(
 
   const queueContextMenuJobStatus = computed<JobStatus | undefined>(
     () => queueContextMenuJob.value?.status,
+  );
+
+  const queueContextMenuInputPath = computed<string | null>(() => {
+    const job = queueContextMenuJob.value;
+    if (!job) return null;
+    const path = job.inputPath || job.filename || "";
+    const trimmed = path.trim();
+    return trimmed ? trimmed : null;
+  });
+
+  const queueContextMenuOutputPath = computed<string | null>(() => {
+    const job = queueContextMenuJob.value;
+    if (!job) return null;
+    const path = job.outputPath || job.waitMetadata?.tmpOutputPath || "";
+    const trimmed = path?.trim?.() ?? "";
+    return trimmed ? trimmed : null;
+  });
+
+  const queueContextMenuCanRevealInputPath = computed(
+    () => hasTauri() && !!queueContextMenuInputPath.value,
+  );
+
+  const queueContextMenuCanRevealOutputPath = computed(
+    () => hasTauri() && !!queueContextMenuOutputPath.value,
   );
 
   const openQueueContextMenuForJob = (payload: { job: TranscodeJob; event: MouseEvent }) => {
@@ -137,6 +166,24 @@ export function useQueueContextMenu(
     bulkDelete();
   };
 
+  const revealPathIfAvailable = async (path: string | null) => {
+    if (!path) return;
+    if (!hasTauri()) return;
+    try {
+      await revealPathInFolder(path);
+    } catch (error) {
+      console.error("QueueContextMenu: failed to reveal path", error);
+    }
+  };
+
+  const handleQueueContextOpenInputFolder = async () => {
+    await revealPathIfAvailable(queueContextMenuInputPath.value);
+  };
+
+  const handleQueueContextOpenOutputFolder = async () => {
+    await revealPathIfAvailable(queueContextMenuOutputPath.value);
+  };
+
   return {
     queueContextMenuVisible,
     queueContextMenuMode,
@@ -145,6 +192,8 @@ export function useQueueContextMenu(
     queueContextMenuJobId,
     queueContextMenuJob,
     queueContextMenuJobStatus,
+    queueContextMenuCanRevealInputPath,
+    queueContextMenuCanRevealOutputPath,
     openQueueContextMenuForJob,
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
@@ -156,5 +205,7 @@ export function useQueueContextMenu(
     handleQueueContextMoveToTop,
     handleQueueContextMoveToBottom,
     handleQueueContextDelete,
+    handleQueueContextOpenInputFolder,
+    handleQueueContextOpenOutputFolder,
   };
 }
