@@ -253,19 +253,38 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     async ({ statuses, autoUpdateEnabled }) => {
       if (!hasTauri() || !autoUpdateEnabled) return;
       for (const tool of statuses) {
-        if (!tool.updateAvailable) continue;
-        if (tool.downloadInProgress) continue;
         const remoteVersion = tool.remoteVersion ?? null;
         const lastAttempted = autoUpdatedRemoteVersions.get(tool.kind) ?? null;
+
+        // If a download is already in progress for this tool, treat the
+        // corresponding remoteVersion as "attempted" so we do not schedule a
+        // second auto‑update in parallel. This covers cases where the user
+        // manually点击“下载/更新”或队列在后台触发了下载。
+        if (tool.downloadInProgress) {
+          if (remoteVersion && lastAttempted == null) {
+            autoUpdatedRemoteVersions.set(tool.kind, remoteVersion);
+          }
+          continue;
+        }
+
+        if (!tool.updateAvailable) continue;
         // Skip when we have already attempted to auto‑update to the same
         // remote version in this session. 即便后端因为网络/缓存原因持续标记
         // updateAvailable=true，也只会尝试一次，避免“死循环”式重复下载。
         if (remoteVersion && lastAttempted === remoteVersion) continue;
         if (autoUpdateInFlight.has(tool.kind)) continue;
         autoUpdateInFlight.add(tool.kind);
-        autoUpdatedRemoteVersions.set(tool.kind, remoteVersion);
         try {
           await downloadToolNow(tool.kind);
+          // After the download request completes, refresh the last-attempted
+          // version from the latest status snapshot so that dynamic remote
+          // metadata（例如 GitHub Releases 最新 tag）不会因为 remoteVersion
+          // 变化而在同一版本上再次触发下载。
+          const latest = toolStatuses.value.find((t) => t.kind === tool.kind);
+          const latestRemoteVersion = latest?.remoteVersion ?? remoteVersion;
+          if (latestRemoteVersion) {
+            autoUpdatedRemoteVersions.set(tool.kind, latestRemoteVersion);
+          }
         } catch (error) {
           console.error("Failed to auto-update external tool", error);
         } finally {

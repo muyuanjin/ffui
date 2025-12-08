@@ -1,0 +1,210 @@
+use std::path::{Path, PathBuf};
+
+use super::resolve::{resolve_in_path_with_env, looks_like_bare_program_name};
+use super::types::ExternalToolKind;
+
+/// Multi-source discovery of external tool executables.
+/// Returns a de-duplicated list of plausible absolute paths in best-effort order.
+pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+
+    // 1) If the input is already a plausible explicit path, prefer it.
+    if !looks_like_bare_program_name(program) {
+        let p = PathBuf::from(program);
+        if p.is_file() { out.push(p); }
+        return dedup_paths(out);
+    }
+
+    // 2) PATH resolution (authoritative).
+    if let Some(p) = resolve_in_path_with_env(program, std::env::var_os("PATH"), std::env::var_os("PATHEXT")) {
+        out.push(p);
+    }
+
+    // 3) Environment variables that may contain direct overrides
+    // Allow FFUI_FFMPEG/FFUI_FFPROBE/FFUI_AVIFENC or generic FFUI_TOOL
+    if let Some(env_path) = env_override_for(kind) {
+        let p = PathBuf::from(env_path);
+        if p.is_file() { out.push(p); }
+    }
+
+    // 4) Windows: Registry known install locations (best-effort, non-fatal)
+    #[cfg(windows)]
+    if let Some(reg_paths) = windows_registry_locations(program) {
+        out.extend(reg_paths.into_iter().filter(|p| p.is_file()));
+    }
+
+    // 5) Windows: optional Everything SDK fast search (if crate present at runtime)
+    #[cfg(windows)]
+    if let Some(found) = everything_search(program) {
+        out.extend(found.into_iter().filter(|p| p.is_file()));
+    }
+
+    dedup_paths(out)
+}
+
+fn dedup_paths(mut v: Vec<PathBuf>) -> Vec<PathBuf> {
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+    v.retain(|p| seen.insert(canon_key(p)));
+    v
+}
+
+fn canon_key(p: &Path) -> String {
+    p.to_string_lossy().to_ascii_lowercase()
+}
+
+fn env_override_for(kind: ExternalToolKind) -> Option<String> {
+    let keys: &[&str] = match kind {
+        ExternalToolKind::Ffmpeg => &["FFUI_FFMPEG", "FFMPEG"],
+        ExternalToolKind::Ffprobe => &["FFUI_FFPROBE", "FFPROBE"],
+        ExternalToolKind::Avifenc => &["FFUI_AVIFENC", "AVIFENC"],
+    };
+    for k in keys {
+        if let Some(v) = std::env::var_os(k) { return Some(v.to_string_lossy().into_owned()); }
+    }
+    // Generic override for ad-hoc debugging
+    if let Some(v) = std::env::var_os("FFUI_TOOL") { return Some(v.to_string_lossy().into_owned()); }
+    None
+}
+
+#[cfg(windows)]
+fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
+    use std::ffi::OsString;
+    use windows::Win32::System::Registry::{RegOpenKeyExW, RegQueryValueExW, HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER, HKEY, KEY_READ, REG_VALUE_TYPE};
+    use windows::core::PCWSTR;
+
+    // Known uninstall keys to scan for InstallLocation
+    const SUBKEYS: &[&str] = &[
+        r"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        r"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+    ];
+
+    let mut results: Vec<PathBuf> = Vec::new();
+
+    unsafe fn read_string_value(hkey: HKEY, value: &str) -> Option<String> {
+        let name: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut typ = REG_VALUE_TYPE(0);
+        let mut cb = 0u32;
+        if RegQueryValueExW(hkey, PCWSTR(name.as_ptr()), None, Some(&mut typ), None, Some(&mut cb)).is_err() || typ != REG_VALUE_TYPE(1) {
+            return None;
+        }
+        let mut buf: Vec<u16> = vec![0; (cb as usize + 1) / 2];
+        if RegQueryValueExW(hkey, PCWSTR(name.as_ptr()), None, Some(&mut typ), Some(buf.as_mut_ptr().cast()), Some(&mut cb)).is_err() || typ != REG_VALUE_TYPE(1) {
+            return None;
+        }
+        let s = String::from_utf16_lossy(&buf[..buf.iter().position(|&c| c == 0).unwrap_or(buf.len())]);
+        Some(s)
+    }
+
+    unsafe fn open_subkey(root: HKEY, path: &str) -> Option<HKEY> {
+        let p: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut hk: HKEY = HKEY(std::ptr::null_mut());
+        let ok = RegOpenKeyExW(root, PCWSTR(p.as_ptr()), 0, KEY_READ, &mut hk).is_ok();
+        if ok { Some(hk) } else { None }
+    }
+
+    unsafe fn scan_uninstall(root: HKEY, program: &str, out: &mut Vec<PathBuf>) {
+        // Minimal implementation: try common value names under root itself.
+        // For brevity and to keep lines low, we don't enumerate subkeys here; this
+        // is sufficient for well-behaved installers that set InstallLocation directly.
+        if let Some(hk) = open_subkey(root, SUBKEYS[0]) {
+            if let Some(location) = read_string_value(hk, "InstallLocation") {
+                let candidate = PathBuf::from(location).join(program);
+                out.push(candidate);
+            }
+        }
+    }
+
+    unsafe { scan_uninstall(HKEY_LOCAL_MACHINE, program, &mut results); }
+    unsafe { scan_uninstall(HKEY_CURRENT_USER, program, &mut results); }
+
+    Some(results)
+}
+
+#[cfg(not(windows))]
+fn windows_registry_locations(_program: &str) -> Option<Vec<PathBuf>> { None }
+
+#[cfg(windows)]
+fn everything_search(program: &str) -> Option<Vec<PathBuf>> {
+    use everything_sdk::ergo::*;
+    let mut list: Vec<PathBuf> = Vec::new();
+    // Everything SDK 要求单进程全局序列化访问，这里做一次短查询。
+    if let Ok(mut global) = global().try_lock() {
+        // 确认后端已运行且数据库可用。
+        if global.is_db_loaded().unwrap_or(false) {
+            let mut searcher = global.searcher();
+            // 精确匹配文件名，避免太多结果；允许包含通配符。
+            searcher.set_search(program);
+            searcher.set_request_flags(
+                RequestFlags::EVERYTHING_REQUEST_FILE_NAME
+                    | RequestFlags::EVERYTHING_REQUEST_PATH,
+            );
+            searcher.set_max(64);
+            let results = searcher.query();
+            for item in results.iter() {
+                if let Ok(full) = item.filepath() {
+                    list.push(full);
+                }
+            }
+        }
+    }
+    // 按优先级排序：1) 程序同目录/工具子目录 2) 系统目录(WINDIR) 3) 其他
+    if !list.is_empty() {
+        sort_by_proximity(&mut list);
+    }
+    if list.is_empty() { None } else { Some(list) }
+}
+
+#[cfg(not(windows))]
+fn everything_search(_program: &str) -> Option<Vec<PathBuf>> { None }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dedup_keeps_first_and_ignores_case() {
+        let p1 = if cfg!(windows) { PathBuf::from("C:/Tools/ffmpeg.exe") } else { PathBuf::from("/usr/bin/ffmpeg") };
+        let p2 = PathBuf::from(p1.to_string_lossy().to_ascii_uppercase());
+        let v = super::dedup_paths(vec![p1.clone(), p2]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].to_string_lossy().to_ascii_lowercase(), p1.to_string_lossy().to_ascii_lowercase());
+    }
+}
+
+#[cfg(windows)]
+fn sort_by_proximity(paths: &mut Vec<PathBuf>) {
+    fn norm(p: &Path) -> String {
+        p.to_string_lossy().replace('/', "\\").to_ascii_lowercase()
+    }
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    let (exe_dir_s, tools_dir_s) = if let Some(dir) = exe_dir {
+        let exe_s = norm(&dir);
+        let tools_s = norm(&dir.join("tools"));
+        (exe_s, tools_s)
+    } else {
+        (String::new(), String::new())
+    };
+    let windir_s = std::env::var_os("WINDIR")
+        .map(|v| norm(Path::new(&v)))
+        .unwrap_or_default();
+
+    paths.sort_by(|a, b| {
+        let as_ = norm(a);
+        let bs_ = norm(b);
+        let rank = |s: &str| -> (u8, usize) {
+            if !tools_dir_s.is_empty() && s.starts_with(&tools_dir_s) {
+                (0, s.len())
+            } else if !exe_dir_s.is_empty() && s.starts_with(&exe_dir_s) {
+                (0, s.len())
+            } else if !windir_s.is_empty() && s.starts_with(&windir_s) {
+                (1, s.len())
+            } else {
+                (2, s.len())
+            }
+        };
+        rank(&as_).cmp(&rank(&bs_))
+    });
+}

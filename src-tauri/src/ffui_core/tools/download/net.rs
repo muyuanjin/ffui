@@ -57,6 +57,11 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<()> {
         bail!("aria2c exited with status {status} while downloading {url}");
     }
 
+    // Ensure the downloaded file is executable on Unix. Without this, a
+    // successful aria2c download would still fail our verification probe
+    // and trigger repeated downloads across app restarts.
+    mark_download_executable_if_unix(dest)?;
+
     Ok(())
 }
 
@@ -126,16 +131,7 @@ where
         on_progress(downloaded, total_len);
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(dest)
-            .with_context(|| format!("failed to read metadata for {}", dest.display()))?
-            .permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(dest, perms)
-            .with_context(|| format!("failed to mark {} as executable", dest.display()))?;
-    }
+    mark_download_executable_if_unix(dest)?;
 
     Ok(())
 }
@@ -191,4 +187,45 @@ where
     }
 
     Ok(out)
+}
+
+/// Best-effort: mark a downloaded file as executable on Unix platforms.
+/// On non-Unix platforms this is a no-op.
+fn mark_download_executable_if_unix(dest: &Path) -> Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(dest)
+            .with_context(|| format!("failed to read metadata for {}", dest.display()))?
+            .permissions();
+        // rwxr-xr-x
+        perms.set_mode(0o755);
+        fs::set_permissions(dest, perms)
+            .with_context(|| format!("failed to mark {} as executable", dest.display()))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn mark_download_executable_sets_exec_bits_on_unix() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("ffmpeg-static");
+        fs::write(&path, b"#!/bin/sh\nexit 0\n").expect("write temp file");
+
+        // Start with 0644
+        let mut perms = fs::metadata(&path).expect("metadata").permissions();
+        perms.set_mode(0o644);
+        fs::set_permissions(&path, perms).expect("set perms 0644");
+
+        mark_download_executable_if_unix(&path).expect("mark executable");
+
+        let mode = fs::metadata(&path).expect("metadata").permissions().mode() & 0o777;
+        assert_eq!(mode, 0o755, "downloaded file must become executable");
+    }
 }
