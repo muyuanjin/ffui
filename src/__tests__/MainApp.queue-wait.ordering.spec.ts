@@ -112,7 +112,9 @@ describe("MainApp queue ordering helpers", () => {
     ];
 
     invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
-      if (cmd === "get_queue_state") return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      if (cmd === "get_queue_state" || cmd === "get_queue_state_lite") {
+        return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      }
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
@@ -168,7 +170,9 @@ describe("MainApp queue ordering helpers", () => {
     ];
 
     invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
-      if (cmd === "get_queue_state") return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      if (cmd === "get_queue_state" || cmd === "get_queue_state_lite") {
+        return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      }
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });

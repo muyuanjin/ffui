@@ -32,10 +32,12 @@ vi.mock("@tauri-apps/api/event", () => {
   };
 });
 
-vi.mock("@/lib/backend", () => {
+vi.mock("@/lib/backend", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const acknowledgeTaskbarProgress = vi.fn(async () => {});
 
   return {
+    ...actual,
     acknowledgeTaskbarProgress,
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
@@ -65,7 +67,9 @@ vi.mock("@/lib/backend", () => {
       taskbarProgressMode: "byEstimatedTime",
     })),
     loadPresets: vi.fn(async () => []),
+    loadSmartDefaultPresets: vi.fn(async () => []),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadPreviewDataUrl: vi.fn(async () => ""),
     runAutoCompress: vi.fn(async () => ({
       rootPath: "",
