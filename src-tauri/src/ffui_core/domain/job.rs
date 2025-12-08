@@ -171,6 +171,10 @@ pub struct TranscodeJobLite {
     /// `logs` vector this is required for the UI to render task cards and
     /// details correctly, so it is preserved in the lite snapshot.
     pub ffmpeg_command: Option<String>,
+    /// Short human-readable reason for why a job was skipped. This is used by
+    /// the queue list to surface skip context even when the full logs are
+    /// omitted from the lite snapshot.
+    pub skip_reason: Option<String>,
     /// Compact media metadata derived from ffprobe or existing job fields.
     pub media_info: Option<MediaInfo>,
     /// Optional estimated processing time in seconds for this job. This is
@@ -216,6 +220,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             input_path: job.input_path.clone(),
             output_path: job.output_path.clone(),
             ffmpeg_command: job.ffmpeg_command.clone(),
+            skip_reason: job.skip_reason.clone(),
             media_info: job.media_info.clone(),
             estimated_seconds: job.estimated_seconds,
             preview_path: job.preview_path.clone(),
