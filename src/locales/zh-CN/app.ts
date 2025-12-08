@@ -61,9 +61,8 @@ const app = {
     metricsIntervalLabel: "性能监控刷新节奏（毫秒）",
     metricsIntervalHelp:
       "控制系统性能监控采样频率。数值越小，监控越连贯，但开销略高；数值越大，刷新更平滑但不够实时。",
-    queuePersistenceLabel: "任务队列持久化（崩溃恢复）",
-    queuePersistenceCrashRecoveryOption:
-      "为崩溃恢复持久化队列状态（可能在磁盘上保留较大的日志快照）",
+    queuePersistenceLabel: "任务队列持久化",
+    queuePersistenceCrashRecoveryOption: "保存队列状态，重启后仍能恢复任务",
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",

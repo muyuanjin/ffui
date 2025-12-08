@@ -224,7 +224,7 @@ const toolsMode = computed<ExternalToolsMode>({
           </div>
 
           <!-- Numeric settings -->
-          <div class="space-y-1.5 pt-1">
+          <div class="pt-1 space-y-0 divide-y divide-border/40">
             <div class="flex items-start gap-2">
               <label class="text-[10px] text-muted-foreground leading-snug">
                 {{ t("app.settings.queuePersistenceLabel") }}
@@ -253,65 +253,95 @@ const toolsMode = computed<ExternalToolsMode>({
               </div>
             </div>
 
-            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
-              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.previewCaptureLabel") }}</label>
-              <div class="flex items-center gap-1">
-                <Input
-                  :model-value="appSettings.previewCapturePercent"
-                  type="number"
-                  min="0"
-                  max="100"
-                  class="w-16 h-6 text-[10px] font-mono text-center"
-                  @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
-                />
-                <span class="text-[10px] text-muted-foreground">%</span>
+            <div class="py-1">
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.previewCaptureLabel") }}
+                </label>
+                <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                  <Input
+                    :model-value="appSettings.previewCapturePercent"
+                    type="number"
+                    min="0"
+                    max="100"
+                    class="w-20 h-6 text-[10px] font-mono text-center"
+                    @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
+                  />
+                  <span class="text-[10px] text-muted-foreground text-right w-6">%</span>
+                </div>
               </div>
+              <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.previewCaptureHelp") }}
+              </p>
             </div>
 
-            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
-              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.maxParallelJobsLabel") }}</label>
-              <Input
-                :model-value="getMaxParallelJobsInputValue()"
-                type="number"
-                min="0"
-                max="32"
-                class="w-16 h-6 text-[10px] font-mono text-center"
-                @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
-              />
+            <div class="py-1">
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.maxParallelJobsLabel") }}
+                </label>
+                <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                  <Input
+                    :model-value="getMaxParallelJobsInputValue()"
+                    type="number"
+                    min="0"
+                    max="32"
+                    class="w-20 h-6 text-[10px] font-mono text-center"
+                    @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
+                  />
+                  <!-- 占位以对齐右侧单位列 -->
+                  <span class="w-6" aria-hidden="true"></span>
+                </div>
+              </div>
+              <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.maxParallelJobsHelp") }}
+              </p>
             </div>
 
-            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
-              <label class="text-[10px] text-muted-foreground">{{ t("app.settings.progressUpdateIntervalLabel") }}</label>
-              <div class="flex items-center gap-1">
-                <Input
-                  :model-value="getProgressUpdateIntervalInputValue()"
-                  type="number"
-                  min="50"
-                  max="2000"
-                  step="50"
-                  class="w-20 h-6 text-[10px] font-mono text-center"
-                  @update:model-value="(v) => updateSetting('progressUpdateIntervalMs', Number(v))"
-                />
-                <span class="text-[10px] text-muted-foreground">ms</span>
+            <div class="py-1">
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.progressUpdateIntervalLabel") }}
+                </label>
+                <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                  <Input
+                    :model-value="getProgressUpdateIntervalInputValue()"
+                    type="number"
+                    min="50"
+                    max="2000"
+                    step="50"
+                    class="w-20 h-6 text-[10px] font-mono text-center"
+                    @update:model-value="(v) => updateSetting('progressUpdateIntervalMs', Number(v))"
+                  />
+                  <span class="text-[10px] text-muted-foreground text-right w-6">ms</span>
+                </div>
               </div>
+              <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.progressUpdateIntervalHelp") }}
+              </p>
             </div>
 
-            <div class="grid grid-cols-[1fr,auto] items-center gap-2">
-              <label class="text-[10px] text-muted-foreground">
-                {{ t("app.settings.metricsIntervalLabel") }}
-              </label>
-              <div class="flex items-center gap-1">
-                <Input
-                  :model-value="getMetricsIntervalInputValue()"
-                  type="number"
-                  min="100"
-                  max="5000"
-                  step="100"
-                  class="w-20 h-6 text-[10px] font-mono text-center"
-                  @update:model-value="(v) => updateSetting('metricsIntervalMs', Number(v))"
-                />
-                <span class="text-[10px] text-muted-foreground">ms</span>
+            <div class="py-1">
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.metricsIntervalLabel") }}
+                </label>
+                <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                  <Input
+                    :model-value="getMetricsIntervalInputValue()"
+                    type="number"
+                    min="100"
+                    max="5000"
+                    step="100"
+                    class="w-20 h-6 text-[10px] font-mono text-center"
+                    @update:model-value="(v) => updateSetting('metricsIntervalMs', Number(v))"
+                  />
+                  <span class="text-[10px] text-muted-foreground text-right w-6">ms</span>
+                </div>
               </div>
+              <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.metricsIntervalHelp") }}
+              </p>
             </div>
           </div>
         </CardContent>
