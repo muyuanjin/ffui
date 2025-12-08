@@ -7,7 +7,13 @@ use crate::ffui_core::domain::{
 
 use super::io::{executable_sidecar_path, read_json_file, write_json_file};
 
-/// INITIAL_PRESETS in src/composables/main-app/useMainAppPresets.ts (ids p1 / p2).
+/// Build the original pair of x264-based default presets used before the
+/// onboarding-driven smart presets were introduced.
+///
+/// These remain as a compatibility fallback and are injected when no
+/// presets sidecar exists and onboarding/smart defaults have not yet been
+/// applied. New smart default packs are built on top of a richer recipe
+/// library and do not rely on this helper.
 pub(super) fn default_presets() -> Vec<FFmpegPreset> {
     vec![
         FFmpegPreset {
@@ -126,26 +132,20 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
     // When there is no presets.json yet (fresh install), or when the file is
     // unreadable/empty, fall back to the built-in defaults so well-known
     // presets like "Universal 1080p" (id p1) are always present for the
-    // transcoding engine.
-    let mut presets = if !path.exists() {
+    // transcoding engine. Otherwise, respect exactly what the user saved
+    // (including intentional removal of built-in presets).
+    let presets: Vec<FFmpegPreset> = if !path.exists() {
         default_presets()
     } else {
-        match read_json_file(&path) {
-            Ok(existing) => existing,
+        match read_json_file::<Vec<FFmpegPreset>>(&path) {
+            Ok(existing) if !existing.is_empty() => existing,
+            Ok(_) => default_presets(),
             Err(err) => {
                 eprintln!("failed to load presets from {}: {err:#}", path.display());
                 default_presets()
             }
         }
     };
-
-    // Ensure all built-in defaults exist at least once. This protects against
-    // older installs that may have an empty or partial presets.json on disk.
-    for builtin in default_presets() {
-        if !presets.iter().any(|p| p.id == builtin.id) {
-            presets.push(builtin);
-        }
-    }
 
     Ok(presets)
 }

@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import ParameterWizard from "@/components/ParameterWizard.vue";
+import en from "@/locales/en";
 import type { FFmpegPreset } from "@/types";
 
 // reka-ui 的下拉组件依赖 ResizeObserver，这里在测试环境中提供一个最小 mock。
@@ -15,11 +16,15 @@ class ResizeObserverMock {
 (globalThis as any).ResizeObserver =
   (globalThis as any).ResizeObserver || ResizeObserverMock;
 
-const i18n = createI18n({
+// 注意：vue-i18n 的类型推导对大型 messages 对象会产生“Type instantiation is excessively deep”。
+// 在测试里使用宽松 schema，避免在这里耗尽类型推导深度。
+const i18n = createI18n<any>({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  // 在测试环境内也挂载完整的英文文案，避免反复出现 intlify “Not found” 告警。
+  messages: { en: en as any },
 });
+const t = (key: string) => (i18n.global as any).t(key) as string;
 
 describe("ParameterWizard", () => {
   it("does not carry over x264 tune film when saving an NVENC preset", async () => {
@@ -36,26 +41,29 @@ describe("ParameterWizard", () => {
     });
 
     // Step 1: choose the fast NVENC recipe to switch encoder to hevc_nvenc.
+    const fastNvencLabel = t("presetEditor.recipes.fastTranscode");
     const recipeButtons = wrapper.findAll("button");
     const fastNvencButton = recipeButtons.find((btn) =>
-      btn.text().includes("presetEditor.recipes.fastTranscode"),
+      btn.text().includes(fastNvencLabel),
     );
     expect(fastNvencButton).toBeTruthy();
     await fastNvencButton!.trigger("click");
 
+    const nextLabel = t("common.next");
     // Recipe 会把 step 设置为 2，这里依次点击 Next 直到最后一步再保存。
     for (let i = 0; i < 3; i += 1) {
       const nextButton = wrapper
         .findAll("button")
-        .find((btn) => btn.text().includes("common.next"));
+        .find((btn) => btn.text().includes(nextLabel));
       expect(nextButton).toBeTruthy();
       await nextButton!.trigger("click");
     }
 
     // Final step: click the save button which triggers handleSave.
+    const saveLabel = t("presetEditor.actions.save");
     const saveButton = wrapper
       .findAll("button")
-      .find((btn) => btn.text().includes("presetEditor.actions.save"));
+      .find((btn) => btn.text().includes(saveLabel));
     expect(saveButton).toBeTruthy();
     await saveButton!.trigger("click");
 
@@ -65,6 +73,58 @@ describe("ParameterWizard", () => {
     expect(preset.video.encoder).toBe("hevc_nvenc");
     // 关键断言：保存到后端的 NVENC 预设里不应该再包含 x264 的 tune film。
     expect("tune" in preset.video).toBe(false);
+  });
+
+  it("defaults AAC audio to 320k with EBU loudness profile when selected in the wizard", async () => {
+    const emitted: FFmpegPreset[] = [];
+
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: null,
+        onSave: (preset: FFmpegPreset) => emitted.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const nextLabel = t("common.next");
+    // 从基础信息依次点击 Next 进入到音频步骤（第 4 步）。
+    for (let i = 0; i < 3; i += 1) {
+      const nextButton = wrapper
+        .findAll("button")
+        .find((btn) => btn.text().includes(nextLabel));
+      expect(nextButton).toBeTruthy();
+      await nextButton!.trigger("click");
+    }
+
+    const aacLabel = t("presetEditor.audio.aacTitle");
+    const aacButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes(aacLabel));
+    expect(aacButton).toBeTruthy();
+    await aacButton!.trigger("click");
+
+    // 继续到最后一步并保存预设。
+    const nextButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes(nextLabel));
+    expect(nextButton).toBeTruthy();
+    await nextButton!.trigger("click");
+
+    const saveLabel = t("presetEditor.actions.save");
+    const saveButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes(saveLabel));
+    expect(saveButton).toBeTruthy();
+    await saveButton!.trigger("click");
+
+    expect(emitted.length).toBe(1);
+    const preset = emitted[0];
+
+    expect(preset.audio.codec).toBe("aac");
+    expect(preset.audio.bitrate).toBe(320);
+    expect(preset.audio.loudnessProfile).toBe("ebuR128");
   });
 
   it("can switch from new preset wizard directly into the full parameter panel", async () => {

@@ -26,6 +26,7 @@ export interface UseMainAppPresetsReturn {
   presetPendingDelete: Ref<FFmpegPreset | null>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
+  handleImportSmartPackConfirmed: (presetsToImport: FFmpegPreset[]) => Promise<void>;
   updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
@@ -191,10 +192,10 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   };
 
   const handleReorderPresets = async (orderedIds: string[]) => {
-    // Reorder local state to match the provided order
+    // Reorder local state to match the provided order (stable by id map)
     const idToIndex = new Map(orderedIds.map((id, i) => [id, i]));
     const maxIdx = orderedIds.length;
-    presets.value.sort((a, b) => {
+    presets.value = [...presets.value].sort((a, b) => {
       const idxA = idToIndex.get(a.id) ?? maxIdx;
       const idxB = idToIndex.get(b.id) ?? maxIdx;
       return idxA - idxB;
@@ -205,6 +206,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       try {
         const updated = await reorderPresetsOnBackend(orderedIds);
         if (Array.isArray(updated) && updated.length > 0) {
+          // 后端返回最新顺序（含统计），用其覆盖本地，避免“回弹”。
           presets.value = updated;
         }
       } catch (e) {
@@ -283,6 +285,32 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     }
   };
 
+  const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
+    if (!Array.isArray(presetsToImport) || presetsToImport.length === 0) return;
+
+    for (const preset of presetsToImport) {
+      const idx = presets.value.findIndex((p) => p.id === preset.id);
+      if (idx >= 0) {
+        presets.value.splice(idx, 1, preset);
+      } else {
+        presets.value.push(preset);
+      }
+      if (hasTauri()) {
+        try {
+          await savePresetOnBackend(preset);
+        } catch (e) {
+          console.error("Failed to save smart-pack preset to backend:", e);
+        }
+      }
+    }
+
+    ensureManualPresetId();
+
+    if (shell) {
+      shell.activeTab.value = "presets";
+    }
+  };
+
   onMounted(async () => {
     if (!hasTauri()) return;
     if (presetsLoadedFromBackend.value) return;
@@ -304,6 +332,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     presetPendingDelete,
     handleSavePreset,
     handleReorderPresets,
+    handleImportSmartPackConfirmed,
     updatePresetStats,
     handleCompletedJobFromBackend,
     requestDeletePreset,

@@ -385,6 +385,51 @@ pub(super) fn restart_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     result
 }
 
+/// Permanently delete a job from the engine state.
+///
+/// Only terminal-state jobs (Completed/Failed/Skipped/Cancelled) are eligible
+/// for deletion. Active or waiting jobs are kept to avoid silently losing
+/// work that is still running or scheduled.
+pub(super) fn delete_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let job = match state.jobs.get(job_id) {
+            Some(j) => j.clone(),
+            None => return false,
+        };
+
+        match job.status {
+            JobStatus::Completed
+            | JobStatus::Failed
+            | JobStatus::Skipped
+            | JobStatus::Cancelled => {
+                // Guard against deleting the currently active job even if the
+                // status somehow appears terminal; this should not normally
+                // happen but keeps the behaviour defensive.
+                if state.active_job.as_deref() == Some(job_id) {
+                    return false;
+                }
+
+                // Remove from waiting queue and book-keeping sets.
+                state.queue.retain(|id| id != job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.wait_requests.remove(job_id);
+                state.restart_requests.remove(job_id);
+
+                // Finally drop the job record.
+                state.jobs.remove(job_id);
+            }
+            _ => {
+                // Non-terminal jobs cannot be deleted directly.
+                return false;
+            }
+        }
+    }
+
+    notify_queue_listeners(inner);
+    true
+}
+
 /// Reorder the waiting queue according to the provided ordered job ids.
 /// Job ids not present in `ordered_ids` keep their relative order at the
 /// tail of the queue so the operation is resilient to partial payloads.

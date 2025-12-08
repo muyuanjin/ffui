@@ -7,7 +7,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
-import type { AppSettings, ExternalToolKind, ExternalToolStatus } from "@/types";
+import type {
+  AppSettings,
+  ExternalToolCandidate,
+  ExternalToolKind,
+  ExternalToolStatus,
+} from "@/types";
 
 const props = defineProps<{
   /** Application settings */
@@ -18,6 +23,8 @@ const props = defineProps<{
   isSavingSettings: boolean;
   /** Settings save error message */
   settingsSaveError: string | null;
+  /** Fetch available candidate binaries for a tool kind. */
+  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
 }>();
 
 const emit = defineEmits<{
@@ -114,6 +121,7 @@ const toolsMode = computed<ExternalToolsMode>({
       <SettingsExternalToolsSection
         :app-settings="appSettings"
         :tool-statuses="toolStatuses"
+        :fetch-tool-candidates="fetchToolCandidates"
         @update:app-settings="(settings) => emit('update:appSettings', settings)"
         @downloadTool="(kind) => emit('downloadTool', kind)"
       />
@@ -217,6 +225,34 @@ const toolsMode = computed<ExternalToolsMode>({
 
           <!-- Numeric settings -->
           <div class="space-y-1.5 pt-1">
+            <div class="flex items-start gap-2">
+              <label class="text-[10px] text-muted-foreground leading-snug">
+                {{ t("app.settings.queuePersistenceLabel") }}
+              </label>
+              <div class="flex items-center gap-1">
+                <input
+                  v-if="appSettings"
+                  id="queue-persistence-crash-recovery"
+                  type="checkbox"
+                  class="w-3 h-3 rounded border-border/50"
+                  :checked="appSettings.queuePersistenceMode === 'crashRecovery'"
+                  @change="
+                    (e) =>
+                      updateSetting(
+                        'queuePersistenceMode',
+                        (e.target as HTMLInputElement).checked ? 'crashRecovery' : 'none',
+                      )
+                  "
+                />
+                <label
+                  for="queue-persistence-crash-recovery"
+                  class="text-[10px] text-muted-foreground cursor-pointer select-none"
+                >
+                  {{ t("app.settings.queuePersistenceCrashRecoveryOption") }}
+                </label>
+              </div>
+            </div>
+
             <div class="grid grid-cols-[1fr,auto] items-center gap-2">
               <label class="text-[10px] text-muted-foreground">{{ t("app.settings.previewCaptureLabel") }}</label>
               <div class="flex items-center gap-1">

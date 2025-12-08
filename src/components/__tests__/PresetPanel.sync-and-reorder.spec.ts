@@ -40,6 +40,29 @@ const makePreset = (id: string, quality: number): FFmpegPreset => ({
 });
 
 describe("PresetPanel 参数展示与拖拽排序", () => {
+  it("Sortable 选中态类名为单一 token（避免 DOMTokenList 错误）", async () => {
+    const presets = [makePreset("p1", 23), makePreset("p2", 21)];
+
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+        edit: () => {},
+        delete: () => {},
+        reorder: () => {},
+      },
+      global: { plugins: [i18n] },
+    });
+
+    expect(useSortableMock.mock.calls.length).toBeGreaterThan(0);
+    const lastCall = useSortableMock.mock.calls[useSortableMock.mock.calls.length - 1];
+    const [, , options] = lastCall;
+
+    // 断言：chosenClass 为 is-chosen，且不包含空格
+    expect(options.chosenClass).toBe("is-chosen");
+    expect(String(options.chosenClass).includes(" ")).toBe(false);
+
+    wrapper.unmount();
+  });
   it("当上游 presets 内容被替换时卡片展示会同步更新", async () => {
     const Parent = defineComponent({
       components: { PresetPanel },
@@ -91,16 +114,16 @@ describe("PresetPanel 参数展示与拖拽排序", () => {
       global: { plugins: [i18n] },
     });
 
-    // 通过 useSortableMock 取到第二个参数（list）和第三个参数（options）
+    // 通过 useSortableMock 取到第三个参数（options），手动触发 onUpdate 模拟拖拽完成。
     expect(useSortableMock.mock.calls.length).toBeGreaterThan(0);
     const lastCall = useSortableMock.mock.calls[useSortableMock.mock.calls.length - 1];
-    const [, listRef, options] = lastCall;
+    const [, , options] = lastCall;
 
-    // 模拟 SortableJS 改变本地顺序：将 p2 拖到 p1 前面
-    listRef.value = [presets[1], presets[0]];
-
-    // 手动触发 onEnd 回调
-    options.onEnd?.();
+    // 模拟 SortableJS 事件：将索引 0 的元素拖到索引 1 位置（p1 -> p2 后面）。
+    options.onUpdate?.({
+      oldIndex: 0,
+      newIndex: 1,
+    });
 
     // 使用带事件名的 API，并为类型断言出 payload 结构，避免 any/索引类型错误。
     const emitted = wrapper.emitted("reorder") as [string[]][];

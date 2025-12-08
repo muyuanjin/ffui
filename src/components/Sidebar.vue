@@ -113,7 +113,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         <span>{{ t("app.actions.addJob") }}</span>
       </Button>
       <Button
-        variant="secondary"
+        variant="smartScan"
         size="lg"
         class="w-full justify-center"
         @click="emit('smartScan')"

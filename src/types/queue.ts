@@ -74,7 +74,7 @@ export interface TranscodeJob {
   startTime?: number;
   endTime?: number;
   outputSizeMB?: number;
-  logs: string[];
+  logs?: string[];
   skipReason?: string;
   /** Absolute input path for this job when known (Tauri only). */
   inputPath?: string;
@@ -101,3 +101,8 @@ export interface TranscodeJob {
 export interface QueueState {
   jobs: TranscodeJob[];
 }
+
+// Lightweight queue snapshot shape used by startup and high-frequency
+// updates. It intentionally omits heavy fields (such as full logs) on the
+// backend side while keeping the TS surface compatible with QueueState.
+export type QueueStateLite = QueueState;

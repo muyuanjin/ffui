@@ -60,11 +60,12 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
       if (job.status === "processing") {
+        const existingLogs = job.logs ?? [];
         return {
           ...job,
           status: "paused" as JobStatus,
           logs: [
-            ...job.logs,
+            ...existingLogs,
             "Wait requested from UI; worker slot will be released when ffmpeg reaches a safe point",
           ],
         };
@@ -110,11 +111,12 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
       if (job.status === "paused") {
+        const existingLogs = job.logs ?? [];
         return {
           ...job,
           status: "waiting" as JobStatus,
           logs: [
-            ...job.logs,
+            ...existingLogs,
             "Resume requested from UI; job re-entered waiting queue",
           ],
         };
@@ -214,11 +216,12 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
         return { ...job, status: "cancelled" as JobStatus };
       }
       if (job.status === "processing") {
+        const existingLogs = job.logs ?? [];
         return {
           ...job,
           status: "cancelled" as JobStatus,
           logs: [
-            ...job.logs,
+            ...existingLogs,
             "Cancellation requested from UI; waiting for backend to stop ffmpeg",
           ],
         };
@@ -262,7 +265,8 @@ export function addManualJobMock(deps: Pick<SingleJobOpsDeps, "jobs" | "manualJo
 
 /**
  * Enqueue a manual job from a file path.
- * Backend will compute accurate size and codec metadata.
+ * Backend will compute accurate size and codec metadata based on the actual
+ * file on disk.
  * Requires a valid preset; fails gracefully if none available.
  */
 export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsDeps) {
@@ -275,11 +279,11 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
   }
 
   try {
-    // Let the backend compute accurate size and codec; we only provide a
-    // filename hint and preset. For UI consistency we keep using the basename
-    // (matching the legacy MainApp behaviour and tests).
-    const normalized = path.replace(/\\/g, "/");
-    const filename = normalized.split("/").pop() || path;
+    // Let the backend compute accurate size and codec from the real file
+    // path; we pass the full path through so the engine can call fs::metadata
+    // and build output paths correctly. The UI derives a display-friendly
+    // name from this path (e.g. last segment) where needed.
+    const filename = path;
 
     await enqueueTranscodeJob({
       filename,

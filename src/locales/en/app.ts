@@ -31,6 +31,7 @@ const app = {
     downloadStatusLabel: "Download / update status",
     downloadInProgress: "Downloading, please wait…",
     updateAvailableHint: "Update available: {version}",
+    toolUpToDateHint: "Up to date",
     customToolPathFooter:
       "When a custom path is set, it takes precedence; otherwise the app searches the auto-downloaded tools directory or system PATH.",
     autoDownloadSectionTitle: "Auto-download & global behaviour",
@@ -62,6 +63,9 @@ const app = {
     metricsIntervalLabel: "Performance monitoring interval (ms)",
     metricsIntervalHelp:
       "Controls how frequently system performance metrics are sampled. Smaller values feel more continuous but cost more resources; larger values are cheaper but less real-time.",
+    queuePersistenceLabel: "Queue crash-recovery persistence",
+    queuePersistenceCrashRecoveryOption:
+      "Persist queue state for crash recovery (may keep large logs on disk)",
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",

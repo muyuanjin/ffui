@@ -44,8 +44,6 @@ export interface UseQueueFilteringReturn {
   // ----- State -----
   /** IDs of selected jobs. */
   selectedJobIds: Ref<Set<string>>;
-  /** IDs of hidden (soft-deleted) jobs. */
-  hiddenJobIds: Ref<Set<string>>;
   /** Active status filters. */
   activeStatusFilters: Ref<Set<QueueFilterStatus>>;
   /** Active type filters. */
@@ -110,8 +108,6 @@ export interface UseQueueFilteringReturn {
   resetQueueFilters: () => void;
   /** Toggle regex filter mode. */
   toggleFilterRegexMode: () => void;
-  /** Hide jobs by IDs (soft delete). */
-  hideJobsById: (ids: string[]) => void;
   /** Compare jobs by configured sort fields. */
   compareJobsByConfiguredFields: (a: TranscodeJob, b: TranscodeJob) => number;
   /** Compare jobs for display (with fallbacks). */

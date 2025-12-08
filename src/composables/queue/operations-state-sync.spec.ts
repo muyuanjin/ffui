@@ -2,13 +2,13 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ref, type Ref } from "vue";
-import type { TranscodeJob, QueueState } from "@/types";
+import type { TranscodeJob, QueueStateLite } from "@/types";
 
-const loadQueueStateMock = vi.fn<() => Promise<QueueState>>();
+const loadQueueStateMock = vi.fn<() => Promise<QueueStateLite>>();
 
 vi.mock("@/lib/backend", () => ({
   hasTauri: () => true,
-  loadQueueState: () => loadQueueStateMock(),
+  loadQueueStateLite: () => loadQueueStateMock(),
 }));
 
 import {

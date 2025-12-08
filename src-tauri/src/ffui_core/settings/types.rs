@@ -81,6 +81,21 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+/// Queue persistence mode for crash-recovery. This controls whether the
+/// engine writes queue-state snapshots to disk and attempts to restore them
+/// on startup.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum QueuePersistenceMode {
+    /// Do not persist or restore the queue at all. This is the default and
+    /// treats the queue as an in-memory session without crash recovery.
+    #[default]
+    None,
+    /// Persist queue snapshots to a sidecar JSON file and restore them on
+    /// startup for crash recovery. This may keep large logs on disk.
+    CrashRecovery,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -115,6 +130,14 @@ pub struct AppSettings {
     /// omitted in existing settings.json files, this defaults to an
     /// estimated-time based mode for better weighting of heavy presets.
     pub taskbar_progress_mode: TaskbarProgressMode,
+    /// Queue persistence strategy. When omitted in existing settings.json
+    /// files this defaults to `None` so older installs keep the previous
+    /// behaviour of not restoring queue state unless explicitly enabled.
+    pub queue_persistence_mode: QueuePersistenceMode,
+    /// One-time onboarding completion marker. When true, the smart preset /
+    /// tools onboarding flow will not auto-run again on startup.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub onboarding_completed: bool,
 }
 
 impl Default for AppSettings {
@@ -135,6 +158,8 @@ impl Default for AppSettings {
             progress_update_interval_ms: None,
             metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),
+            queue_persistence_mode: QueuePersistenceMode::default(),
+            onboarding_completed: false,
         }
     }
 }

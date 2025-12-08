@@ -1,6 +1,5 @@
 import { computed, ref, watch } from "vue";
 import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
-import { compareJobsByField, getJobSortValue } from "./queue/filtering-utils";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
 import type {
@@ -11,6 +10,10 @@ import type {
   UseQueueFilteringOptions,
   UseQueueFilteringReturn,
 } from "./queue/useQueueFiltering.types";
+import {
+  createQueueSortingState,
+  type QueueSortingState,
+} from "./queue/queueSorting";
 
 /**
  * Composable for queue filtering, sorting, and selection.
@@ -20,7 +23,6 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
 
   // ----- State -----
   const selectedJobIds = ref<Set<string>>(new Set());
-  const hiddenJobIds = ref<Set<string>>(new Set());
   const activeStatusFilters = ref<Set<QueueFilterStatus>>(new Set());
   const activeTypeFilters = ref<Set<QueueFilterKind>>(new Set());
   const filterText = ref("");
@@ -120,11 +122,6 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
 
   // ----- Filter Methods -----
   const jobMatchesFilters = (job: TranscodeJob): boolean => {
-    // Soft-deleted jobs are never shown again in the UI.
-    if (hiddenJobIds.value.has(job.id)) {
-      return false;
-    }
-
     if (activeStatusFilters.value.size > 0) {
       if (!activeStatusFilters.value.has(job.status as QueueFilterStatus)) {
         return false;
@@ -248,113 +245,23 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return jobs.value.filter((job) => jobMatchesFilters(job));
   });
 
-  const hasPrimarySortTies = computed(() => {
-    const list = filteredJobs.value;
-    if (list.length < 2) return false;
-
-    const field = sortPrimary.value;
-    const seen = new Set<string>();
-
-    for (const job of list) {
-      const raw = getJobSortValue(job, field);
-      let key: string;
-      if (raw == null) {
-        key = "null";
-      } else if (typeof raw === "string") {
-        key = `s:${raw.toLowerCase()}`;
-      } else {
-        key = `n:${raw}`;
-      }
-
-      if (seen.has(key)) {
-        return true;
-      }
-      seen.add(key);
-    }
-
-    return false;
+  // ----- Sorting & grouping -----
+  const {
+    hasPrimarySortTies,
+    displayModeSortedJobs,
+    manualQueueJobs,
+    queueModeProcessingJobs,
+    queueModeWaitingJobs,
+    compareJobsByConfiguredFields,
+    compareJobsForDisplay,
+    compareJobsInWaitingGroup,
+  }: QueueSortingState = createQueueSortingState({
+    filteredJobs,
+    sortPrimary,
+    sortPrimaryDirection,
+    sortSecondary,
+    sortSecondaryDirection,
   });
-
-  // ----- Sort Methods -----
-  const compareJobsByConfiguredFields = (a: TranscodeJob, b: TranscodeJob): number => {
-    let result = compareJobsByField(
-      a,
-      b,
-      sortPrimary.value,
-      sortPrimaryDirection.value,
-    );
-    if (result !== 0) return result;
-    result = compareJobsByField(
-      a,
-      b,
-      sortSecondary.value,
-      sortSecondaryDirection.value,
-    );
-    return result;
-  };
-
-  const compareJobsForDisplay = (a: TranscodeJob, b: TranscodeJob): number => {
-    let result = compareJobsByConfiguredFields(a, b);
-    if (result !== 0) return result;
-
-    const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    if (ao !== bo) return ao - bo;
-
-    const as = a.startTime ?? 0;
-    const bs = b.startTime ?? 0;
-    if (as !== bs) return as - bs;
-
-    if (a.id < b.id) return -1;
-    if (a.id > b.id) return 1;
-    return 0;
-  };
-
-  const compareJobsInWaitingGroup = (a: TranscodeJob, b: TranscodeJob): number => {
-    const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    if (ao !== bo) return ao - bo;
-
-    let result = compareJobsByConfiguredFields(a, b);
-    if (result !== 0) return result;
-
-    const as = a.startTime ?? 0;
-    const bs = b.startTime ?? 0;
-    if (as !== bs) return as - bs;
-
-    if (a.id < b.id) return -1;
-    if (a.id > b.id) return 1;
-    return 0;
-  };
-
-  const displayModeSortedJobs = computed<TranscodeJob[]>(() => {
-    const list = filteredJobs.value.slice();
-    if (list.length === 0) return list;
-    return list.sort((a, b) => compareJobsForDisplay(a, b));
-  });
-
-  const manualQueueJobs = computed<TranscodeJob[]>(() =>
-    filteredJobs.value.filter((job) => !job.batchId),
-  );
-
-  const queueModeProcessingJobs = computed<TranscodeJob[]>(() =>
-    manualQueueJobs.value
-      .filter((job) => job.status === "processing")
-      .slice()
-      .sort((a, b) => (a.startTime ?? 0) - (b.startTime ?? 0)),
-  );
-
-  const queueModeWaitingJobs = computed<TranscodeJob[]>(() =>
-    manualQueueJobs.value
-      .filter(
-        (job) =>
-          job.status === "waiting" ||
-          job.status === "queued" ||
-          job.status === "paused",
-      )
-      .slice()
-      .sort((a, b) => compareJobsInWaitingGroup(a, b)),
-  );
 
   const {
     isJobSelected,
@@ -399,37 +306,9 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     filterUseRegex.value = !filterUseRegex.value;
   };
 
-  const hideJobsById = (ids: string[]) => {
-    if (ids.length === 0) return;
-
-    const nextHidden = new Set(hiddenJobIds.value);
-    let hiddenChanged = false;
-    for (const id of ids) {
-      if (!nextHidden.has(id)) {
-        nextHidden.add(id);
-        hiddenChanged = true;
-      }
-    }
-    if (hiddenChanged) {
-      hiddenJobIds.value = nextHidden;
-    }
-
-    const nextSelected = new Set(selectedJobIds.value);
-    let selectionChanged = false;
-    for (const id of ids) {
-      if (nextSelected.delete(id)) {
-        selectionChanged = true;
-      }
-    }
-    if (selectionChanged) {
-      selectedJobIds.value = nextSelected;
-    }
-  };
-
   return {
     // State
     selectedJobIds,
-    hiddenJobIds,
     activeStatusFilters,
     activeTypeFilters,
     filterText,
@@ -464,7 +343,6 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     toggleTypeFilter,
     resetQueueFilters,
     toggleFilterRegexMode,
-    hideJobsById,
     compareJobsByConfiguredFields,
     compareJobsForDisplay,
     compareJobsInWaitingGroup,
