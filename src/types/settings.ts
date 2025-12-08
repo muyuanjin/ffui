@@ -6,6 +6,9 @@ export type QueuePersistenceMode = "none" | "crashRecovery";
 /** 预设排序方式 */
 export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
 
+/** 预设面板视图模式 */
+export type PresetViewMode = "grid" | "compact";
+
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
@@ -17,6 +20,8 @@ export interface AppSettings {
   defaultQueuePresetId?: string;
   /** Optional preset sort mode for the presets panel and dropdown. */
   presetSortMode?: PresetSortMode;
+  /** Optional preset view mode for the presets panel (grid or compact). */
+  presetViewMode?: PresetViewMode;
   /** Optional upper bound for concurrent ffmpeg jobs; 0 or undefined means auto. */
   maxParallelJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */

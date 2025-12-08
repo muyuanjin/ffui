@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { FFmpegPreset } from "@/types";
-import { loadSmartDefaultPresets } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { loadSmartDefaultPresets } from "@/lib/backend";
+import { resolvePresetDescription } from "@/lib/presetLocalization";
+import type { FFmpegPreset } from "@/types";
 
 const props = defineProps<{
   open: boolean;
@@ -17,7 +18,7 @@ const emit = defineEmits<{
   (e: "openToolsSettings"): void;
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 // 向导步骤
 type WizardStep = "welcome" | "codec" | "useCase" | "presets" | "confirm";
@@ -113,8 +114,11 @@ const classifyCodec = (encoder: string): CodecPreference | "other" => {
 };
 
 // 用途分类
+const resolveDescription = (preset: FFmpegPreset): string =>
+  resolvePresetDescription(preset, locale.value);
+
 const classifyUseCase = (preset: FFmpegPreset): UseCasePreference => {
-  const text = `${preset.id} ${preset.name} ${preset.description ?? ""}`.toLowerCase();
+  const text = `${preset.id} ${preset.name} ${resolveDescription(preset)}`.toLowerCase();
   if (text.includes("archive") || text.includes("归档") || text.includes("visually")) {
     return "archive";
   }
@@ -385,7 +389,9 @@ const selectedPresets = computed(() =>
                     <h4 class="text-sm font-medium truncate">{{ preset.name }}</h4>
                     <span class="text-[10px] text-muted-foreground font-mono px-1.5 py-0.5 bg-muted rounded">{{ preset.video.encoder }}</span>
                   </div>
-                  <p class="text-xs text-muted-foreground truncate mt-0.5">{{ preset.description }}</p>
+                  <p class="text-xs text-muted-foreground truncate mt-0.5">
+                    {{ resolveDescription(preset) }}
+                  </p>
                 </div>
                 <div class="text-xs text-muted-foreground text-right shrink-0">
                   <div>{{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}</div>

@@ -38,7 +38,7 @@ const other = {
     importButton: "Get Started",
   },
   smartScan: {
-    title: "Smart Auto-Compression",
+    title: "Batch Auto-Compression",
     subtitle: "Recursively scan and compress media files",
     notice:
       "Files matching specific criteria (already efficient codec, small size, or low compression gain) will be automatically skipped.",

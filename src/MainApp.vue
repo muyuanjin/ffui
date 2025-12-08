@@ -166,8 +166,9 @@ const {
   headerProgressVisible,
   headerProgressFading,
 
-  // 预设排序模式
+  // 预设排序模式和视图模式
   presetSortMode,
+  presetViewMode,
 } = mainApp as any;
 
 const manualJobPresetId = computed<string | null>({
@@ -299,11 +300,13 @@ defineExpose({
               v-else-if="activeTab === 'presets'"
               :presets="presets"
               :sort-mode="presetSortMode"
+              :view-mode="presetViewMode"
               @edit="openPresetEditor"
               @delete="requestDeletePreset"
               @reorder="handleReorderPresets"
               @importSmartPack="dialogManager.openSmartPresetImport()"
               @update:sortMode="(v) => (presetSortMode = v)"
+              @update:viewMode="(v) => (presetViewMode = v)"
             />
 
             <MediaPanel

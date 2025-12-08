@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
@@ -58,7 +59,7 @@ const makeToolStatus = (kind: ExternalToolKind): ExternalToolStatus => ({
 });
 
 describe("SettingsExternalToolsSection candidate loading", () => {
-  it("caches per-tool candidates, ignores stale results, and renders Everything SDK badges", async () => {
+  it("caches per-tool candidates, ignores stale results, renders Everything SDK badges, and toggles closed on repeat click", async () => {
     const resolvers: Partial<
       Record<ExternalToolKind, (value: ExternalToolCandidate[]) => void>
     > = {};
@@ -123,10 +124,19 @@ describe("SettingsExternalToolsSection candidate loading", () => {
     expect(textAfterStale).toContain("C:/everything/ffprobe.exe");
     expect(textAfterStale).not.toContain("C:/system/ffmpeg.exe");
 
-    // Clicking ffprobe again should reuse the cached snapshot instead of
-    // issuing another heavy discovery call.
+    // Clicking ffprobe again should collapse the list without a new fetch.
     await candidateButtons[1].trigger("click");
     await flushPromises();
+    await nextTick();
+    expect(wrapper.text()).not.toContain("C:/everything/ffprobe.exe");
+    expect(fetchToolCandidates).toHaveBeenCalledTimes(2);
+
+    // Clicking ffprobe after collapse should reopen using cached data without
+    // firing a new fetch.
+    await candidateButtons[1].trigger("click");
+    await flushPromises();
+    await nextTick();
+    expect(wrapper.text()).toContain("C:/everything/ffprobe.exe");
     expect(fetchToolCandidates).toHaveBeenCalledTimes(2);
 
     wrapper.unmount();
