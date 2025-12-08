@@ -12,6 +12,7 @@ mod ffmpeg_args;
 mod job_runner;
 mod smart_scan;
 mod state;
+mod state_persist;
 mod worker;
 mod worker_utils;
 

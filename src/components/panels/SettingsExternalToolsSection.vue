@@ -123,7 +123,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
 </script>
 
 <template>
-  <Card class="xl:col-span-2 border-border/50 bg-card/95 shadow-sm">
+  <Card class="xl:col-span-2 xl:row-span-2 h-full border-border/50 bg-card/95 shadow-sm">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.externalToolsTitle") }}

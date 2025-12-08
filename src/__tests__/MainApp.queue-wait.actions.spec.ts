@@ -269,4 +269,128 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     expect(updatedJob?.status).toBe("waiting");
     expect(updatedJob?.progress).toBe(0);
   });
+
+  it("wires queue context menu wait action through to wait_transcode_job and updates job status", async () => {
+    const jobId = "job-context-wait-1";
+    queueJobs = [
+      {
+        id: jobId,
+        filename: "C:/videos/context-wait.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "processing",
+        progress: 25,
+        logs: [],
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      switch (cmd) {
+        case "get_queue_state":
+        case "get_queue_state_lite":
+          return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+        case "get_app_settings":
+          return Promise.resolve(makeDefaultSettings());
+        case "get_cpu_usage":
+          return Promise.resolve({ overall: 0, perCore: [] });
+        case "get_gpu_usage":
+          return Promise.resolve({ available: false });
+        case "get_external_tool_statuses":
+          return Promise.resolve([]);
+        case "wait_transcode_job":
+          expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+          return Promise.resolve(true);
+        default:
+          return Promise.resolve(null);
+      }
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await vm.refreshQueueFromBackend();
+    await nextTick();
+
+    const jobs = getJobsFromVm(vm);
+    expect(jobs.length).toBe(1);
+
+    // Open context menu for the processing job and invoke the wait handler.
+    vm.openQueueContextMenuForJob({
+      job: jobs[0],
+      event: { clientX: 0, clientY: 0 } as any,
+    });
+    await vm.handleQueueContextWait();
+    await nextTick();
+
+    const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
+    expect(updatedJob?.status).toBe("paused");
+    expect(invokeMock).toHaveBeenCalledWith(
+      "wait_transcode_job",
+      expect.objectContaining({ jobId }),
+    );
+  });
+
+  it("wires queue context menu resume action through to resume_transcode_job and updates job status", async () => {
+    const jobId = "job-context-resume-1";
+    queueJobs = [
+      {
+        id: jobId,
+        filename: "C:/videos/context-resume.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "paused",
+        progress: 60,
+        logs: [],
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      switch (cmd) {
+        case "get_queue_state":
+        case "get_queue_state_lite":
+          return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+        case "get_app_settings":
+          return Promise.resolve(makeDefaultSettings());
+        case "get_cpu_usage":
+          return Promise.resolve({ overall: 0, perCore: [] });
+        case "get_gpu_usage":
+          return Promise.resolve({ available: false });
+        case "get_external_tool_statuses":
+          return Promise.resolve([]);
+        case "resume_transcode_job":
+          expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+          return Promise.resolve(true);
+        default:
+          return Promise.resolve(null);
+      }
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await vm.refreshQueueFromBackend();
+    await nextTick();
+
+    const jobs = getJobsFromVm(vm);
+    expect(jobs.length).toBe(1);
+
+    vm.openQueueContextMenuForJob({
+      job: jobs[0],
+      event: { clientX: 0, clientY: 0 } as any,
+    });
+    await vm.handleQueueContextResume();
+    await nextTick();
+
+    const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
+    expect(updatedJob?.status).toBe("waiting");
+    expect(invokeMock).toHaveBeenCalledWith(
+      "resume_transcode_job",
+      expect.objectContaining({ jobId }),
+    );
+  });
+
 });

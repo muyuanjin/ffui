@@ -1,5 +1,5 @@
 mod extract;
-mod manager;
+pub(super) mod manager;
 mod net;
 mod release;
 

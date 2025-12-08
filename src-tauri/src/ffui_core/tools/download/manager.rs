@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, Context};
 
 use super::extract::extract_avifenc_from_zip;
 use super::net::{
@@ -16,6 +16,7 @@ use crate::ffui_core::tools::resolve::{
     custom_path_for, downloaded_tool_filename, downloaded_tool_path, looks_like_bare_program_name,
     resolve_in_path, tool_binary_name, tools_dir,
 };
+use crate::ffui_core::tools::discover::discover_candidates;
 use crate::ffui_core::tools::runtime_state::{
     mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
     record_last_tool_download, snapshot_download_state,
@@ -42,20 +43,65 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             let dir = tools_dir()?;
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
+            let tmp_path = dir.join(format!("{filename}.tmp"));
 
             if super::net::aria2c_available() {
-                if let Err(err) = download_file_with_aria2c(&url, &dest_path) {
+                // Download to a temporary file first to avoid surfacing a
+                // truncated/corrupted binary under the final name on crashes.
+                if let Err(err) = download_file_with_aria2c(&url, &tmp_path) {
                     eprintln!(
                         "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
                     );
-                    download_file_with_reqwest(&url, &dest_path, |downloaded, total| {
+                    download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
                         mark_download_progress(kind, downloaded, total);
                     })?;
                 }
             } else {
-                download_file_with_reqwest(&url, &dest_path, |downloaded, total| {
+                download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
                     mark_download_progress(kind, downloaded, total);
                 })?;
+            }
+
+            // On Windows we must verify using an executable-looking path
+            // (suffix .exe), so perform verification _after_ moving into
+            // place. To avoid losing a good existing binary on failure, keep
+            // a best-effort backup and restore it if verification fails.
+            let mut backup_path: Option<PathBuf> = None;
+            if dest_path.exists() {
+                let candidate = dest_path.with_extension("bak");
+                let _ = std::fs::remove_file(&candidate);
+                if std::fs::rename(&dest_path, &candidate).is_ok() {
+                    backup_path = Some(candidate);
+                } else {
+                    // Fallback: remove existing file so the new download can be placed.
+                    let _ = std::fs::remove_file(&dest_path);
+                }
+            }
+
+            std::fs::rename(&tmp_path, &dest_path).with_context(|| {
+                format!(
+                    "failed to move freshly downloaded {tool} into place: {} -> {}",
+                    tmp_path.display(),
+                    dest_path.display(),
+                    tool = tool_binary_name(kind)
+                )
+            })?;
+
+            let dest_str = dest_path.to_string_lossy().into_owned();
+            if !verify_tool_binary(&dest_str, kind, "download") {
+                let _ = std::fs::remove_file(&dest_path);
+                if let Some(backup) = &backup_path {
+                    let _ = std::fs::rename(backup, &dest_path);
+                }
+                return Err(anyhow!(
+                    "downloaded {tool} binary failed verification after install; refusing to keep it",
+                    tool = tool_binary_name(kind)
+                ));
+            }
+
+            // Verified successfully; clean up any backup.
+            if let Some(backup) = &backup_path {
+                let _ = std::fs::remove_file(backup);
             }
 
             Ok(dest_path)
@@ -69,8 +115,45 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             let dir = tools_dir()?;
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
+            let tmp_path = dir.join(format!("{filename}.tmp"));
 
-            extract_avifenc_from_zip(&bytes, &dest_path)?;
+            // Extract into a temporary path first to avoid leaving a partial
+            // binary with the final name when extraction is interrupted.
+            extract_avifenc_from_zip(&bytes, &tmp_path)?;
+
+            let mut backup_path: Option<PathBuf> = None;
+            if dest_path.exists() {
+                let candidate = dest_path.with_extension("bak");
+                let _ = std::fs::remove_file(&candidate);
+                if std::fs::rename(&dest_path, &candidate).is_ok() {
+                    backup_path = Some(candidate);
+                } else {
+                    let _ = std::fs::remove_file(&dest_path);
+                }
+            }
+
+            std::fs::rename(&tmp_path, &dest_path).with_context(|| {
+                format!(
+                    "failed to move freshly extracted avifenc into place: {} -> {}",
+                    tmp_path.display(),
+                    dest_path.display()
+                )
+            })?;
+
+            let dest_str = dest_path.to_string_lossy().into_owned();
+            if !verify_tool_binary(&dest_str, kind, "download") {
+                let _ = std::fs::remove_file(&dest_path);
+                if let Some(backup) = &backup_path {
+                    let _ = std::fs::rename(backup, &dest_path);
+                }
+                return Err(anyhow!(
+                    "extracted avifenc failed verification after install; refusing to keep it"
+                ));
+            }
+
+            if let Some(backup) = &backup_path {
+                let _ = std::fs::remove_file(backup);
+            }
             record_last_tool_download(
                 kind,
                 url.to_string(),
@@ -172,8 +255,19 @@ pub(crate) fn ensure_tool_available(
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or(bin);
-    candidates.push((path_candidate, "path".to_string()));
+        .unwrap_or(bin.clone());
+    candidates.push((path_candidate.clone(), "path".to_string()));
+
+    // Enrich with additional discovered locations (env/registry/indexers).
+    // Mark as "path" source to keep UI stable (custom/download/path only).
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(path_candidate);
+    for p in discover_candidates(&bin, kind) {
+        let s = p.to_string_lossy().into_owned();
+        if seen.insert(s.clone()) {
+            candidates.push((s, "path".to_string()));
+        }
+    }
 
     // Walk candidates in order, looking for the first one that passes the
     // verification probe. For PATH we are allowed to auto-download once

@@ -115,7 +115,7 @@ pub(super) fn resolve_in_path(program: &str) -> Option<PathBuf> {
 
 /// Heuristic check for values that look like a plain program name rather
 /// than a path. This helps us avoid treating complex custom strings such
-/// as `"ffmpeg -loglevel error"` or explicit `C:\tools\ffmpeg.exe` as
+/// as `"ffmpeg -loglevel error"` or explicit `C:\\tools\\ffmpeg.exe` as
 /// candidates for PATH expansion.
 pub(super) fn looks_like_bare_program_name(program: &str) -> bool {
     !program.is_empty()
@@ -225,3 +225,4 @@ mod tests {
         assert_eq!(resolved_str, candidate_str);
     }
 }
+
