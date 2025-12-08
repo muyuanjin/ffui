@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "vue-i18n";
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -63,19 +63,44 @@ const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
 };
 
 const candidateKind = ref<ExternalToolKind | null>(null);
-const candidates = ref<ExternalToolCandidate[] | null>(null);
-const candidatesLoading = ref(false);
+const candidatesByKind = ref<Partial<Record<ExternalToolKind, ExternalToolCandidate[]>>>({});
+const candidatesFetchedAt = ref<Partial<Record<ExternalToolKind, number>>>({});
+const candidatesLoadingKind = ref<ExternalToolKind | null>(null);
+let candidateRequestId = 0;
+const CANDIDATE_CACHE_TTL_MS = 30_000;
+
+const currentCandidates = computed<ExternalToolCandidate[]>(() => {
+  if (!candidateKind.value) return [];
+  return candidatesByKind.value[candidateKind.value] ?? [];
+});
 
 const loadCandidates = async (kind: ExternalToolKind) => {
   candidateKind.value = kind;
-  candidatesLoading.value = true;
+  const now = Date.now();
+  const lastFetched = candidatesFetchedAt.value[kind] ?? 0;
+  const cached = candidatesByKind.value[kind];
+  // Avoid re-querying heavy discovery (Everything SDK) repeatedly; reuse a
+  // recent snapshot but still allow refresh after a short TTL.
+  if (cached && now - lastFetched < CANDIDATE_CACHE_TTL_MS) {
+    return;
+  }
+
+  const requestId = ++candidateRequestId;
+  candidatesLoadingKind.value = kind;
   try {
-    candidates.value = await props.fetchToolCandidates(kind);
+    const result = await props.fetchToolCandidates(kind);
+    if (requestId !== candidateRequestId) return;
+    candidatesByKind.value = { ...candidatesByKind.value, [kind]: result };
+    candidatesFetchedAt.value = { ...candidatesFetchedAt.value, [kind]: Date.now() };
   } catch (error) {
     console.error("Failed to load external tool candidates", error);
-    candidates.value = [];
+    if (requestId !== candidateRequestId) return;
+    candidatesByKind.value = { ...candidatesByKind.value, [kind]: [] };
+    candidatesFetchedAt.value = { ...candidatesFetchedAt.value, [kind]: Date.now() };
   } finally {
-    candidatesLoading.value = false;
+    if (requestId === candidateRequestId) {
+      candidatesLoadingKind.value = null;
+    }
   }
 };
 
@@ -83,6 +108,9 @@ const formatCandidateSource = (source: string): string => {
   if (source === "custom") return "自定义路径";
   if (source === "download") return "自动下载";
   if (source === "path") return "系统 PATH";
+  if (source === "env") return "环境变量";
+  if (source === "registry") return "系统注册表";
+  if (source === "everything") return "Everything SDK";
   return source;
 };
 
@@ -188,17 +216,20 @@ const formatSpeed = (bytesPerSecond?: number): string => {
             >
               选择已检测路径…
             </button>
-            <span v-if="candidatesLoading && candidateKind === tool.kind" class="text-muted-foreground">
+            <span
+              v-if="candidatesLoadingKind === tool.kind"
+              class="text-muted-foreground"
+            >
               加载中…
             </span>
           </div>
 
           <div
-            v-if="candidateKind === tool.kind && candidates && candidates.length"
+            v-if="candidateKind === tool.kind && currentCandidates.length"
             class="mt-1.5 space-y-0.5 rounded border border-border/30 bg-background/60 p-1.5"
           >
             <div
-              v-for="candidate in candidates"
+              v-for="candidate in currentCandidates"
               :key="candidate.path"
               class="flex items-center gap-1.5"
             >

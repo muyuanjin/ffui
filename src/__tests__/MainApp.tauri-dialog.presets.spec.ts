@@ -13,6 +13,7 @@ import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
 import type { FFmpegPreset, AppSettings, TranscodeJob } from "@/types";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 describe("MainApp Tauri presets", () => {
   it("saves new presets to the backend before using them for manual jobs", async () => {
@@ -139,13 +140,7 @@ describe("MainApp Tauri presets", () => {
       ...defaultAppSettings({
         tools: { autoDownload: true, autoUpdate: false, ffmpegPath: undefined, ffprobePath: undefined, avifencPath: undefined },
         defaultQueuePresetId: "p2",
-        smartScanDefaults: {
-          minImageSizeKB: 50,
-          minVideoSizeMB: 50,
-          minSavingRatio: 0.95,
-          imageTargetFormat: "avif",
-          videoPresetId: "p2",
-        },
+        smartScanDefaults: buildSmartScanDefaults({ videoPresetId: "p2" }),
         maxParallelJobs: 0,
       }),
     } as AppSettings;

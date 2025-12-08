@@ -1,12 +1,9 @@
 import { beforeEach, vi } from "vitest";
 import { createI18n } from "vue-i18n";
-import type {
-  AppSettings,
-  AutoCompressResult,
-  TranscodeJob,
-} from "@/types";
+import type { AppSettings, AutoCompressResult, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
+import { buildSmartScanDefaults } from "./smartScanDefaults";
 
 export const dialogOpenMock = vi.fn();
 export const invokeMock = vi.fn<
@@ -79,13 +76,7 @@ export function defaultAppSettings(overrides: Partial<AppSettings> = {}): AppSet
       autoDownload: tools.autoDownload ?? false,
       autoUpdate: tools.autoUpdate ?? false,
     },
-    smartScanDefaults: {
-      minImageSizeKB: overrides.smartScanDefaults?.minImageSizeKB ?? 50,
-      minVideoSizeMB: overrides.smartScanDefaults?.minVideoSizeMB ?? 50,
-      minSavingRatio: overrides.smartScanDefaults?.minSavingRatio ?? 0.95,
-      imageTargetFormat: overrides.smartScanDefaults?.imageTargetFormat ?? "avif",
-      videoPresetId: overrides.smartScanDefaults?.videoPresetId ?? "",
-    },
+    smartScanDefaults: buildSmartScanDefaults(overrides.smartScanDefaults),
     previewCapturePercent: overrides.previewCapturePercent ?? 25,
     defaultQueuePresetId: overrides.defaultQueuePresetId,
     maxParallelJobs: overrides.maxParallelJobs,

@@ -94,7 +94,13 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       appSettings.value = settings;
       lastSavedSettingsSnapshot = JSON.stringify(settings);
       if (settings?.smartScanDefaults && smartConfig) {
-        smartConfig.value = { ...settings.smartScanDefaults };
+        const existing = smartConfig.value;
+        const next = { ...settings.smartScanDefaults };
+        // 若用户已通过拖拽等方式选择了目录，保留当前的 rootPath，避免加载设置时覆盖预填路径
+        if (existing?.rootPath) {
+          next.rootPath = existing.rootPath;
+        }
+        smartConfig.value = next;
       }
       // Restore the user's preferred default queue preset when available.
       if (settings?.defaultQueuePresetId && manualJobPresetId) {

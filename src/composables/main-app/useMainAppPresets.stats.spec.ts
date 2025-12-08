@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { ref } from "vue";
+import { mount } from "@vue/test-utils";
 import type { FFmpegPreset } from "@/types";
 import { useMainAppPresets } from "./useMainAppPresets";
 
@@ -25,19 +26,31 @@ describe("useMainAppPresets stats aggregation", () => {
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
 
-    const { updatePresetStats } = useMainAppPresets({
-      t: (key: string) => key,
-      presets,
-      presetsLoadedFromBackend,
-      manualJobPresetId,
-      // dialogManager / shell are unused in this test; pass minimal stubs.
-      dialogManager: {
-        openParameterPanel: () => {},
-        closeParameterPanel: () => {},
-        closeWizard: () => {},
-      } as any,
-      shell: undefined,
+    const wrapper = mount({
+      setup() {
+        const composable = useMainAppPresets({
+          t: (key: string) => key,
+          presets,
+          presetsLoadedFromBackend,
+          manualJobPresetId,
+          // dialogManager / shell are unused in this test; pass minimal stubs.
+          dialogManager: {
+            openParameterPanel: () => {},
+            closeParameterPanel: () => {},
+            closeWizard: () => {},
+          } as any,
+          shell: undefined,
+        });
+        return { composable };
+      },
+      template: "<div />",
     });
+
+    const { composable } = wrapper.vm as unknown as {
+      composable: ReturnType<typeof useMainAppPresets>;
+    };
+
+    const { updatePresetStats } = composable;
 
     const targetId = presets.value[0].id;
     updatePresetStats(targetId, 100, 40, 20);
@@ -47,5 +60,6 @@ describe("useMainAppPresets stats aggregation", () => {
     expect(updated.stats.totalInputSizeMB).toBeCloseTo(100);
     expect(updated.stats.totalOutputSizeMB).toBeCloseTo(40);
     expect(updated.stats.totalTimeSeconds).toBeCloseTo(20);
+    wrapper.unmount();
   });
 });

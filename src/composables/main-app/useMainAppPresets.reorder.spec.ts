@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { ref } from "vue";
+import { mount } from "@vue/test-utils";
 import type { FFmpegPreset } from "@/types";
 import { useMainAppPresets } from "./useMainAppPresets";
 
@@ -19,6 +20,22 @@ const makePreset = (id: string, name: string): FFmpegPreset => ({
   },
 });
 
+const mountComposable = (options: Parameters<typeof useMainAppPresets>[0]) => {
+  const wrapper = mount({
+    setup() {
+      const composable = useMainAppPresets(options);
+      return { composable };
+    },
+    template: "<div />",
+  });
+
+  const { composable } = wrapper.vm as unknown as {
+    composable: ReturnType<typeof useMainAppPresets>;
+  };
+
+  return { wrapper, composable };
+};
+
 describe("useMainAppPresets handleReorderPresets", () => {
   it("reorders local presets according to orderedIds even without Tauri backend", async () => {
     const presets = ref<FFmpegPreset[]>([
@@ -29,7 +46,7 @@ describe("useMainAppPresets handleReorderPresets", () => {
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
 
-    const { handleReorderPresets } = useMainAppPresets({
+    const { composable, wrapper } = mountComposable({
       t: (key: string) => key,
       presets,
       presetsLoadedFromBackend,
@@ -42,9 +59,9 @@ describe("useMainAppPresets handleReorderPresets", () => {
       shell: undefined,
     });
 
-    await handleReorderPresets(["p3", "p1", "p2"]);
+    await composable.handleReorderPresets(["p3", "p1", "p2"]);
 
     expect(presets.value.map((p) => p.id)).toEqual(["p3", "p1", "p2"]);
+    wrapper.unmount();
   });
 });
-

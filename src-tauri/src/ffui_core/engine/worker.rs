@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -15,12 +13,11 @@ use super::worker_utils::{
     mark_smart_scan_child_processed, recompute_log_tail,
 };
 
-/// Spawn worker threads that process jobs from the queue.
-///
-/// Determines a bounded worker count based on available logical cores
-/// and, when configured, the user-specified concurrency limit. This
-/// keeps behaviour predictable while still letting power users cap
-/// resource usage explicitly from the settings panel.
+mod worker_reorder;
+
+pub(super) use worker_reorder::reorder_waiting_jobs;
+
+/// Spawn worker threads with a bounded count derived from cores/settings.
 pub(super) fn spawn_worker(inner: Arc<Inner>) {
     let logical_cores = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -55,9 +52,7 @@ pub(super) fn spawn_worker(inner: Arc<Inner>) {
     }
 }
 
-/// Pop the next job id from the queue and mark it as processing under the
-/// engine state lock. This helper is used both by the real worker threads and
-/// by tests that need to reason about multi-worker scheduling behaviour.
+/// Pop the next job id and mark it processing under lock (used by workers/tests).
 pub(super) fn next_job_for_worker_locked(state: &mut EngineState) -> Option<String> {
     let job_id = state.queue.pop_front()?;
     state.active_job = Some(job_id.clone());
@@ -79,10 +74,7 @@ pub(super) fn next_job_for_worker_locked(state: &mut EngineState) -> Option<Stri
     Some(job_id)
 }
 
-/// Worker thread main loop.
-///
-/// Continuously waits for jobs in the queue, processes them, and updates
-/// their status. Handles cooperative cancellation and error reporting.
+/// Worker loop: wait for jobs, process, handle cancellation/errors.
 fn worker_loop(inner: Arc<Inner>) {
     loop {
         let job_id = {
@@ -128,10 +120,7 @@ fn worker_loop(inner: Arc<Inner>) {
     }
 }
 
-/// Enqueue a new transcode job with the specified parameters.
-///
-/// Creates a new job, assigns it a unique ID, computes metadata, and adds it
-/// to the waiting queue. Returns the created job.
+/// Enqueue a new transcode job with computed metadata and queue it.
 pub(super) fn enqueue_transcode_job(
     inner: &Arc<Inner>,
     filename: String,
@@ -297,8 +286,9 @@ pub(super) fn wait_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     result
 }
 
-/// Resume a previously paused (waited) job by placing it back into the
-/// waiting queue. The job keeps its existing progress and wait metadata.
+/// Resume a paused/waited job by putting it back into the waiting queue while
+/// keeping its progress/wait metadata intact。Processing 状态下如仍有待处理暂停
+/// 请求，则直接取消，避免快速“暂停→继续”引发的竞态。
 pub(super) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     let mut should_notify = false;
 
@@ -317,6 +307,29 @@ pub(super) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
                 }
                 should_notify = true;
                 true
+            }
+            JobStatus::Processing => {
+                // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
+                let wait_request_cancelled = {
+                    // 先释放对 job 的可变借用，再操作 wait_requests，避免重复可变借用。
+                    let _ = job;
+                    state.wait_requests.remove(job_id)
+                };
+
+                if !wait_request_cancelled {
+                    // 没有待处理的暂停请求，任务正在正常处理中，无需操作
+                    false
+                } else {
+                    if let Some(job) = state.jobs.get_mut(job_id) {
+                        job.logs.push(
+                            "Resume requested while wait was pending; cancelling wait request"
+                                .to_string(),
+                        );
+                        recompute_log_tail(job);
+                    }
+                    should_notify = true;
+                    true
+                }
             }
             _ => false,
         }
@@ -428,58 +441,4 @@ pub(super) fn delete_job(inner: &Arc<Inner>, job_id: &str) -> bool {
 
     notify_queue_listeners(inner);
     true
-}
-
-/// Reorder the waiting queue according to the provided ordered job ids.
-/// Job ids not present in `ordered_ids` keep their relative order at the
-/// tail of the queue so the operation is resilient to partial payloads.
-pub(super) fn reorder_waiting_jobs(inner: &Arc<Inner>, ordered_ids: Vec<String>) -> bool {
-    let mut should_notify = false;
-
-    {
-        let mut state = inner.state.lock().expect("engine state poisoned");
-        if state.queue.is_empty() || ordered_ids.is_empty() {
-            return false;
-        }
-
-        let ordered_set: HashSet<String> = ordered_ids.iter().cloned().collect();
-
-        // Preserve any ids that are currently in the queue but not covered
-        // by the payload so we never "lose" jobs due to a truncated list.
-        let mut remaining: VecDeque<String> = state
-            .queue
-            .iter()
-            .filter(|id| !ordered_set.contains(*id))
-            .cloned()
-            .collect();
-
-        let mut next_queue: VecDeque<String> = VecDeque::new();
-
-        for id in ordered_ids {
-            if state.jobs.contains_key(&id)
-                && state.queue.contains(&id)
-                && !next_queue.contains(&id)
-            {
-                next_queue.push_back(id.clone());
-            }
-        }
-
-        // Append any remaining jobs that were not explicitly reordered.
-        while let Some(id) = remaining.pop_front() {
-            if !next_queue.contains(&id) {
-                next_queue.push_back(id);
-            }
-        }
-
-        if next_queue != state.queue {
-            state.queue = next_queue;
-            should_notify = true;
-        }
-    }
-
-    if should_notify {
-        notify_queue_listeners(inner);
-    }
-
-    should_notify
 }

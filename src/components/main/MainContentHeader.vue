@@ -1,19 +1,12 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { FFmpegPreset } from "@/types";
+import type { FFmpegPreset, PresetSortMode } from "@/types";
+import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 
-const {
-  activeTab,
-  currentTitle,
-  currentSubtitle,
-  jobsLength,
-  completedCount,
-  manualJobPresetId,
-  presets,
-  queueViewModeModel,
-} = defineProps<{
+const props = defineProps<{
   activeTab: string;
   currentTitle: string | unknown;
   currentSubtitle: string | unknown;
@@ -22,6 +15,7 @@ const {
   manualJobPresetId: string | null;
   presets: FFmpegPreset[];
   queueViewModeModel: string;
+  presetSortMode?: PresetSortMode;
 }>();
 
 const emit = defineEmits<{
@@ -31,6 +25,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+// 根据排序模式排序预设列表
+const sortedPresets = computed(() => sortPresets(props.presets, props.presetSortMode ?? "manual"));
 </script>
 
 <template>
@@ -62,7 +59,7 @@ const { t } = useI18n();
             <SelectValue :placeholder="t('app.queueDefaultPresetPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="preset in presets" :key="preset.id" :value="preset.id">
+            <SelectItem v-for="preset in sortedPresets" :key="preset.id" :value="preset.id">
               {{ preset.name }}
             </SelectItem>
           </SelectContent>

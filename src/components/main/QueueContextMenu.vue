@@ -109,7 +109,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canCancel"
           data-testid="queue-context-menu-cancel"
           @click="
@@ -159,7 +159,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canDeleteSingle"
           data-testid="queue-context-menu-remove"
           @click="
@@ -275,7 +275,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkDelete"
           data-testid="queue-context-menu-bulk-remove"
           @click="

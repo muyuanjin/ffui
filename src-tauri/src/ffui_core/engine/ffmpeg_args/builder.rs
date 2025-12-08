@@ -176,7 +176,14 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
             args.push("-c:v".to_string());
             let enc_name = match enc {
                 EncoderType::Libx264 => "libx264",
+                EncoderType::Libx265 => "libx265",
                 EncoderType::HevcNvenc => "hevc_nvenc",
+                EncoderType::H264Nvenc => "h264_nvenc",
+                EncoderType::Av1Nvenc => "av1_nvenc",
+                EncoderType::HevcQsv => "hevc_qsv",
+                EncoderType::Av1Qsv => "av1_qsv",
+                EncoderType::HevcAmf => "hevc_amf",
+                EncoderType::Av1Amf => "av1_amf",
                 EncoderType::LibSvtAv1 => "libsvtav1",
                 EncoderType::Copy => "copy",
             };
@@ -187,26 +194,31 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
                     args.push("-crf".to_string());
                     args.push(preset.video.quality_value.to_string());
                 }
-                RateControlMode::Cq => {
-                    args.push("-cq".to_string());
+                RateControlMode::Constqp => {
+                    args.push("-rc".to_string());
+                    args.push("constqp".to_string());
+                    args.push("-qp".to_string());
                     args.push(preset.video.quality_value.to_string());
                 }
+                RateControlMode::Cq => {
+                    if matches!(enc, EncoderType::HevcQsv | EncoderType::Av1Qsv) {
+                        args.push("-global_quality".to_string());
+                        args.push(preset.video.quality_value.to_string());
+                    } else {
+                        args.push("-cq".to_string());
+                        args.push(preset.video.quality_value.to_string());
+                    }
+                }
                 RateControlMode::Cbr | RateControlMode::Vbr => {
-                    if let Some(bitrate) = preset.video.bitrate_kbps
-                        && bitrate > 0
-                    {
+                    if let Some(bitrate) = preset.video.bitrate_kbps {
                         args.push("-b:v".to_string());
                         args.push(format!("{bitrate}k"));
                     }
-                    if let Some(maxrate) = preset.video.max_bitrate_kbps
-                        && maxrate > 0
-                    {
+                    if let Some(maxrate) = preset.video.max_bitrate_kbps {
                         args.push("-maxrate".to_string());
                         args.push(format!("{maxrate}k"));
                     }
-                    if let Some(bufsize) = preset.video.buffer_size_kbits
-                        && bufsize > 0
-                    {
+                    if let Some(bufsize) = preset.video.buffer_size_kbits {
                         args.push("-bufsize".to_string());
                         args.push(format!("{bufsize}k"));
                     }
@@ -256,6 +268,26 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
             {
                 args.push("-pix_fmt".to_string());
                 args.push(pix_fmt.clone());
+            }
+            if let Some(mode) = &preset.video.b_ref_mode
+                && !mode.is_empty()
+            {
+                args.push("-b_ref_mode".to_string());
+                args.push(mode.clone());
+            }
+            if let Some(lookahead) = preset.video.rc_lookahead
+                && lookahead > 0
+            {
+                args.push("-rc-lookahead".to_string());
+                args.push(lookahead.to_string());
+            }
+            if let Some(true) = preset.video.spatial_aq {
+                args.push("-spatial-aq".to_string());
+                args.push("1".to_string());
+            }
+            if let Some(true) = preset.video.temporal_aq {
+                args.push("-temporal-aq".to_string());
+                args.push("1".to_string());
             }
         }
     }

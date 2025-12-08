@@ -1,6 +1,17 @@
-export type EncoderType = "libx264" | "hevc_nvenc" | "libsvtav1" | "copy";
+export type EncoderType =
+  | "libx264"
+  | "libx265"
+  | "hevc_nvenc"
+  | "h264_nvenc"
+  | "av1_nvenc"
+  | "hevc_qsv"
+  | "av1_qsv"
+  | "hevc_amf"
+  | "av1_amf"
+  | "libsvtav1"
+  | "copy";
 export type AudioCodecType = "copy" | "aac";
-export type RateControlMode = "crf" | "cq" | "cbr" | "vbr";
+export type RateControlMode = "crf" | "cq" | "constqp" | "cbr" | "vbr";
 export type AudioLoudnessProfile = "none" | "cnBroadcast" | "ebuR128";
 
 // ----- Global / input / mapping / container / hardware parameter groups -----
@@ -102,6 +113,14 @@ export interface VideoConfig {
   bf?: number;
   /** Optional pixel format, e.g. `yuv420p`. */
   pixFmt?: string;
+  /** Optional NVENC b_ref_mode value, e.g. `each`. */
+  bRefMode?: string;
+  /** Optional lookahead depth for rate control. */
+  rcLookahead?: number;
+  /** Optional spatial AQ toggle. */
+  spatialAq?: boolean;
+  /** Optional temporal AQ toggle. */
+  temporalAq?: boolean;
 }
 
 export interface AudioConfig {

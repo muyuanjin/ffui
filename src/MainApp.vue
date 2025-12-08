@@ -165,6 +165,9 @@ const {
   headerProgressPercent,
   headerProgressVisible,
   headerProgressFading,
+
+  // 预设排序模式
+  presetSortMode,
 } = mainApp as any;
 
 const manualJobPresetId = computed<string | null>({
@@ -224,6 +227,7 @@ defineExpose({
           :manual-job-preset-id="manualJobPresetId"
           :presets="presets"
           :queue-view-mode-model="queueViewModeModel"
+          :preset-sort-mode="presetSortMode"
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
           @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
           @openPresetWizard="dialogManager.openWizard()"
@@ -294,10 +298,12 @@ defineExpose({
             <PresetPanel
               v-else-if="activeTab === 'presets'"
               :presets="presets"
+              :sort-mode="presetSortMode"
               @edit="openPresetEditor"
               @delete="requestDeletePreset"
               @reorder="handleReorderPresets"
               @importSmartPack="dialogManager.openSmartPresetImport()"
+              @update:sortMode="(v) => (presetSortMode = v)"
             />
 
             <MediaPanel

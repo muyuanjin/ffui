@@ -241,8 +241,12 @@ fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
     {
         let program = "explorer.exe".to_string();
         let args = match target {
+            // Use two separate arguments to avoid passing a pre-quoted string to
+            // `explorer.exe`, which can cause the path to be ignored and the
+            // shell to open the default Documents folder instead of selecting
+            // the requested file.
             RevealTarget::SelectFile(path) => {
-                vec![format!("/select,\"{}\"", path.to_string_lossy())]
+                vec!["/select,".to_string(), path.to_string_lossy().to_string()]
             }
             RevealTarget::OpenDirectory(path) => vec![path.to_string_lossy().to_string()],
         };
@@ -355,6 +359,22 @@ mod tests {
                     .expect("temp file must have a parent directory")
                     .to_string_lossy()
                     .to_string()
+            ]
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn build_reveal_command_splits_select_arg_on_windows() {
+        let path = std::path::PathBuf::from(r"C:\\videos\\sample.mp4");
+        let command = build_reveal_command(RevealTarget::SelectFile(path)).unwrap();
+
+        assert_eq!(command.program, "explorer.exe");
+        assert_eq!(
+            command.args,
+            vec![
+                "/select,".to_string(),
+                r"C:\\videos\\sample.mp4".to_string()
             ]
         );
     }

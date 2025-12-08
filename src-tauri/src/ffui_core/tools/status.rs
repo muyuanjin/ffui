@@ -1,8 +1,10 @@
+use super::discover::discover_candidates;
 use super::probe::{detect_local_tool_version, verify_tool_binary};
 use super::resolve::{custom_path_for, downloaded_tool_path, resolve_in_path, tool_binary_name};
 use super::runtime_state::{last_tool_download_metadata, snapshot_download_state};
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
+use std::collections::HashSet;
 
 pub(super) fn should_mark_update_available(
     source: &str,
@@ -19,6 +21,9 @@ pub(super) fn should_mark_update_available(
 pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<String> {
     match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
+            if let Some(latest) = super::download::latest_remote_version(kind) {
+                return Some(latest);
+            }
             if let Some((_url, version, _tag)) = last_tool_download_metadata(kind)
                 && let Some(v) = version
             {
@@ -37,6 +42,12 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
     let mut version: Option<String> = None;
 
     let mut candidates: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut push_candidate = |path: String, source: &str| {
+        if seen.insert(path.clone()) {
+            candidates.push((path, source.to_string()));
+        }
+    };
 
     if let Some(custom_raw) = custom_path_for(kind, settings) {
         let expanded = if super::resolve::looks_like_bare_program_name(&custom_raw) {
@@ -46,23 +57,27 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         } else {
             custom_raw
         };
-        candidates.push((expanded, "custom".to_string()));
+        push_candidate(expanded, "custom");
     }
 
     if !runtime.download_arch_incompatible
         && let Some(downloaded) = downloaded_tool_path(kind)
     {
-        candidates.push((
-            downloaded.to_string_lossy().into_owned(),
-            "download".to_string(),
-        ));
+        push_candidate(downloaded.to_string_lossy().into_owned(), "download");
     }
 
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or(bin);
-    candidates.push((path_candidate, "path".to_string()));
+        .unwrap_or_else(|| bin.clone());
+    push_candidate(path_candidate.clone(), "path");
+
+    // Enrich with additional discovered candidates (env overrides, registry,
+    // Everything search). We expose them as PATH-sourced for UI stability.
+    for discovered in discover_candidates(&bin, kind) {
+        let s = discovered.path.to_string_lossy().into_owned();
+        push_candidate(s, discovered.source);
+    }
 
     for (path, src) in candidates {
         if src == "path" && runtime.path_arch_incompatible {

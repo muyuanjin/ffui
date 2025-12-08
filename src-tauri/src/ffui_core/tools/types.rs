@@ -118,10 +118,10 @@ pub(super) static LAST_TOOL_DOWNLOAD: Lazy<Mutex<HashMap<ExternalToolKind, ToolD
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 /// Pinned upstream ffmpeg version used as a fallback when GitHub metadata is
-/// unavailable. Upstream 仓库使用 tag `b6.0` 对应 ffmpeg 6.0，这里把用户可见的
+/// unavailable. Upstream 仓库使用 tag `b6.1.1` 对应 ffmpeg 6.1.1，这里把用户可见的
 /// "版本号"和下载用的 tag 解耦，减少与 `ffmpeg -version` 输出的混淆。
-pub(super) const FFMPEG_STATIC_VERSION: &str = "6.0";
-pub(super) const FFMPEG_STATIC_TAG: &str = "b6.0";
+pub(super) const FFMPEG_STATIC_VERSION: &str = "6.1.1";
+pub(super) const FFMPEG_STATIC_TAG: &str = "b6.1.1";
 
 #[derive(Debug, Clone)]
 pub(super) struct FfmpegStaticRelease {

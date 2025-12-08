@@ -8,6 +8,7 @@ import MainApp from "@/MainApp.vue";
 import type { AppSettings, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 const i18n = createI18n({
   legacy: false,
@@ -47,13 +48,7 @@ describe("MainApp global aggregated progress", () => {
         autoUpdate: false,
         downloaded: undefined,
       },
-      smartScanDefaults: {
-        minImageSizeKB: 50,
-        minVideoSizeMB: 50,
-        minSavingRatio: 0.95,
-        imageTargetFormat: "avif",
-        videoPresetId: "",
-      },
+      smartScanDefaults: buildSmartScanDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,
