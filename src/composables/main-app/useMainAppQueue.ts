@@ -1,16 +1,14 @@
-import { computed, onMounted, onUnmounted, type ComputedRef, type Ref } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { hasTauri } from "@/lib/backend";
+import { computed, type ComputedRef, type Ref } from "vue";
 import type {
   CompositeSmartScanTask,
   FFmpegPreset,
   QueueMode,
   QueueProgressStyle,
-  QueueState,
   QueueViewMode,
   TranscodeJob,
 } from "@/types";
 import { useQueuePreferences } from "@/lib/queuePreferences";
+import { deleteTranscodeJob, hasTauri } from "@/lib/backend";
 import {
   type QueueListItem,
   useQueueFiltering,
@@ -18,6 +16,7 @@ import {
   type UseQueueFilteringReturn,
 } from "@/composables";
 import { buildWaitingQueueIds, reorderWaitingQueue } from "@/composables/queue/operations-bulk";
+import { useQueueEventListeners } from "./useMainAppQueue.events";
 
 export interface UseMainAppQueueOptions {
   t: (key: string) => string;
@@ -29,6 +28,8 @@ export interface UseMainAppQueueOptions {
   compositeSmartScanTasks: ComputedRef<CompositeSmartScanTask[]>;
   compositeTasksById: ComputedRef<Map<string, CompositeSmartScanTask>>;
   onJobCompleted?: (job: TranscodeJob) => void;
+  /** Optional startup idle gate so the initial queue poll can be deferred. */
+  startupIdleReady?: Ref<boolean>;
 }
 
 export interface UseMainAppQueueReturn
@@ -96,7 +97,7 @@ export interface UseMainAppQueueReturn
   bulkMoveSelectedJobsToTopInner: () => Promise<void>;
   bulkMoveSelectedJobsToBottomInner: () => Promise<void>;
   moveJobToTop: (jobId: string) => Promise<void>;
-  bulkDelete: () => void;
+  bulkDelete: () => Promise<void>;
 }
 
 const ICON_VIEW_MAX_VISIBLE_ITEMS = 200;
@@ -115,6 +116,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     compositeSmartScanTasks,
     compositeTasksById,
     onJobCompleted,
+    startupIdleReady,
   } = options;
 
   // Queue view preferences
@@ -196,7 +198,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
 
   const {
     selectedJobIds,
-    hiddenJobIds,
     activeStatusFilters,
     activeTypeFilters,
     filterText,
@@ -227,7 +228,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     toggleTypeFilter,
     resetQueueFilters,
     toggleFilterRegexMode,
-    hideJobsById,
     compareJobsByConfiguredFields,
     compareJobsForDisplay,
   } = useQueueFiltering({
@@ -238,7 +238,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   // Keep additional filtering internals visible for tests.
-  void hiddenJobIds;
   void filterRegex;
   void sortSecondary;
   void sortSecondaryDirection;
@@ -320,6 +319,12 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   const bulkMoveToTop = async () => bulkMoveSelectedJobsToTopInner();
   const bulkMoveToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
+  const isTerminalStatus = (status: TranscodeJob["status"]) =>
+    status === "completed" ||
+    status === "failed" ||
+    status === "skipped" ||
+    status === "cancelled";
+
   const moveJobToTop = async (jobId: string) => {
     if (!jobId) return;
     const waitingIds = buildWaitingQueueIds({ jobs });
@@ -343,71 +348,66 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   const bulkMoveSelectedJobsToTop = async () => bulkMoveSelectedJobsToTopInner();
   const bulkMoveSelectedJobsToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
-  const bulkDelete = () => {
-    hideJobsById(Array.from(selectedJobIds.value));
-  };
+  const bulkDelete = async () => {
+    const selected = Array.from(selectedJobIds.value);
+    if (!selected.length) return;
 
-  // Queue / Smart Scan event listeners for queue state updates.
-  let queueUnlisten: UnlistenFn | null = null;
-  let queueTimer: number | undefined;
+    const terminalJobs = selectedJobs.value.filter((job) =>
+      isTerminalStatus(job.status),
+    );
+    const nonTerminalJobs = selectedJobs.value.filter(
+      (job) => !isTerminalStatus(job.status),
+    );
 
-  onMounted(() => {
-    if (!hasTauri()) {
+    if (!terminalJobs.length) {
+      // All selected jobs are still active; surface a clear error and bail.
+      queueError.value =
+        (t("queue.error.deleteActiveNotAllowed") as string) ??
+        "Cannot delete jobs that are still running; please stop them first.";
       return;
     }
 
-    void listen<QueueState>("ffui://queue-state", (event) => {
-      applyQueueStateFromBackend(event.payload);
-    })
-      .then((unlisten) => {
-        queueUnlisten = unlisten;
-      })
-      .catch((err) => {
-        console.error("Failed to register queue_state listener:", err);
-      });
-
-    void refreshQueueFromBackend();
-
-    if (queueTimer !== undefined) {
-      clearInterval(queueTimer);
+    if (!hasTauri()) {
+      // In non-Tauri environments (web preview/tests), simulate deletion
+      // by removing the eligible jobs from the local list only.
+      const deletableIds = new Set(terminalJobs.map((job) => job.id));
+      jobs.value = jobs.value.filter((job) => !deletableIds.has(job.id));
+      selectedJobIds.value = new Set();
+      return;
     }
 
-    queueTimer = window.setInterval(() => {
-      const snapshot = jobs.value;
-      if (!snapshot || snapshot.length === 0) return;
-
-      const hasStuckProcessingJob = snapshot.some(
-        (job) => job.status === "processing" && (!job.progress || job.progress <= 0),
-      );
-      if (!hasStuckProcessingJob) return;
-
-      const lastSnapshotAt = lastQueueSnapshotAtMs.value;
-      const ageMs =
-        typeof lastSnapshotAt === "number"
-          ? Date.now() - lastSnapshotAt
-          : Number.POSITIVE_INFINITY;
-
-      if (ageMs > 5000) {
-        void refreshQueueFromBackend();
-      }
-    }, 3000);
-  });
-
-  onUnmounted(() => {
-    if (queueUnlisten) {
+    let anyFailed = false;
+    for (const job of terminalJobs) {
       try {
-        queueUnlisten();
-      } catch (err) {
-        console.error("Failed to unlisten queue_state event:", err);
-      } finally {
-        queueUnlisten = null;
+        const ok = await deleteTranscodeJob(job.id);
+        if (!ok) {
+          anyFailed = true;
+        }
+      } catch {
+        anyFailed = true;
       }
     }
 
-    if (queueTimer !== undefined) {
-      clearInterval(queueTimer);
-      queueTimer = undefined;
+    if (anyFailed || nonTerminalJobs.length > 0) {
+      queueError.value =
+        (t("queue.error.deleteFailed") as string) ??
+        "Failed to delete some jobs from queue.";
+    } else {
+      queueError.value = null;
     }
+
+    // Backend queue events / manual refresh will update `jobs`; we only
+    // clear the local selection here.
+    selectedJobIds.value = new Set();
+  };
+
+  // Queue / Smart Scan event listeners for queue state updates.
+  useQueueEventListeners({
+    jobs,
+    lastQueueSnapshotAtMs,
+    startupIdleReady,
+    refreshQueueFromBackend,
+    applyQueueStateFromBackend,
   });
 
   return {

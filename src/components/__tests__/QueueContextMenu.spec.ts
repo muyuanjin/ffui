@@ -25,7 +25,7 @@ describe("QueueContextMenu", () => {
         y: 200,
         mode: "single",
         jobStatus: "processing",
-        queueMode: "queue",
+        queueMode: "display",
         hasSelection: true,
       },
       global: {
@@ -85,4 +85,3 @@ describe("QueueContextMenu", () => {
     expect(wrapper.emitted("close")).toBeTruthy();
   });
 });
-

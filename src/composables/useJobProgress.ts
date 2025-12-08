@@ -164,13 +164,9 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
   const hasActiveJobs = computed(() => {
     const list = jobs.value;
     if (!list || list.length === 0) return false;
-    return list.some(
-      (job) =>
-        job.status === "processing" ||
-        job.status === "paused" ||
-        job.status === "waiting" ||
-        job.status === "queued",
-    );
+    // 仅把 processing / paused 视为“活跃任务”，避免队列中残留的
+    // waiting / queued 任务让标题栏进度条长期保持亮起状态。
+    return list.some((job) => job.status === "processing" || job.status === "paused");
   });
 
   // 使用 GSAP 对标题栏进度做补间动画，避免大步跳变。

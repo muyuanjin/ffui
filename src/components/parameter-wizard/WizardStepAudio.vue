@@ -40,7 +40,15 @@ const emit = defineEmits<{
             class="flex-1 flex flex-col items-start gap-1 h-auto"
             :disabled="isCopyEncoder"
             :aria-disabled="isCopyEncoder"
-            @click="emit('update-audio', { codec: 'aac' })"
+            @click="
+              emit('update-audio', {
+                codec: 'aac',
+                // When switching to AAC, prefer a high-quality default and enable
+                // international loudness normalization out of the box.
+                bitrate: 320,
+                loudnessProfile: 'ebuR128',
+              })
+            "
           >
             <span class="block font-bold">
               {{ t("presetEditor.audio.aacTitle") }}

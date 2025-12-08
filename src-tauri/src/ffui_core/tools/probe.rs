@@ -6,7 +6,9 @@ use super::resolve::{
     custom_path_for, downloaded_tool_path, looks_like_bare_program_name, resolve_in_path,
     tool_binary_name,
 };
-use super::runtime_state::{mark_arch_incompatible_for_session, snapshot_download_state};
+use super::runtime_state::{
+    last_tool_download_metadata, mark_arch_incompatible_for_session, snapshot_download_state,
+};
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
 
@@ -188,6 +190,104 @@ pub(super) fn should_mark_update_available(
     }
 }
 
+/// Determine the "remote" baseline version string used for update hints.
+///
+/// Behaviour:
+/// - Prefer the version recorded for the last successful download in this
+///   process (when available). This reflects the version we actually fetch
+///   from upstream (e.g. GitHub) without triggering any network I/O on the
+///   status path.
+/// - Fall back to the pinned static version constant when no download
+///   metadata has been recorded yet (for example on first app launch or when
+///   running fully offline).
+pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<String> {
+    match kind {
+        ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
+            if let Some((_url, version, _tag)) = last_tool_download_metadata(kind)
+                && let Some(v) = version
+            {
+                return Some(v);
+            }
+            Some(FFMPEG_STATIC_VERSION.to_string())
+        }
+        ExternalToolKind::Avifenc => None,
+    }
+}
+
+/// Enumerate all verified candidate binaries for a given external tool kind.
+///
+/// This mirrors the resolution order used by `tool_status` (custom >
+/// downloaded > PATH) but returns every candidate that passes the
+/// verification probe instead of stopping at the first match. The
+/// currently selected path is marked via `is_current` so the frontend
+/// can show a clear “current vs alternative” distinction.
+pub fn tool_candidates(
+    kind: ExternalToolKind,
+    settings: &ExternalToolSettings,
+) -> Vec<ExternalToolCandidate> {
+    // Use the existing status helper to determine which candidate is
+    // currently considered active for this tool kind.
+    let current_status = tool_status(kind, settings);
+    let current_path = current_status.resolved_path.clone();
+
+    let runtime = snapshot_download_state(kind);
+
+    // Build candidates in the same priority order as tool_status:
+    // custom > downloaded > PATH.
+    let mut candidates: Vec<(String, String)> = Vec::new();
+
+    if let Some(custom_raw) = custom_path_for(kind, settings) {
+        let expanded = if looks_like_bare_program_name(&custom_raw) {
+            resolve_in_path(&custom_raw)
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or(custom_raw)
+        } else {
+            custom_raw
+        };
+        candidates.push((expanded, "custom".to_string()));
+    }
+
+    if runtime.download_arch_incompatible {
+        // Skip the downloaded candidate when we already know it cannot be
+        // executed on this system in this session.
+    } else if let Some(downloaded) = downloaded_tool_path(kind) {
+        candidates.push((
+            downloaded.to_string_lossy().into_owned(),
+            "download".to_string(),
+        ));
+    }
+
+    let bin = tool_binary_name(kind).to_string();
+    let path_candidate = resolve_in_path(&bin)
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or(bin);
+    candidates.push((path_candidate, "path".to_string()));
+
+    let mut result: Vec<ExternalToolCandidate> = Vec::new();
+
+    for (path, source) in candidates {
+        if source == "path" && runtime.path_arch_incompatible {
+            // Known PATH architecture mismatch for this session; do not
+            // surface it as a usable candidate.
+            continue;
+        }
+
+        if verify_tool_binary(&path, kind, &source) {
+            let version = detect_local_tool_version(&path, kind);
+            let is_current = current_path.as_deref() == Some(path.as_str());
+            result.push(ExternalToolCandidate {
+                kind,
+                path,
+                source,
+                version,
+                is_current,
+            });
+        }
+    }
+
+    result
+}
+
 pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> ExternalToolStatus {
     // For status reporting we prefer a robust, best-effort probe that only
     // reports a path as "ready" when we have actually confirmed that it can
@@ -248,15 +348,12 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         }
     }
 
-    // 使用一个快速的、本地常量版本号来提供“是否有更新”的提示，避免在
-    // Tauri 命令路径（尤其是应用启动后首次打开设置面板时）发起任何同步
-    // 网络请求，从而堵塞 UI。
-    let remote_version = match kind {
-        ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
-            Some(FFMPEG_STATIC_VERSION.to_string())
-        }
-        ExternalToolKind::Avifenc => None,
-    };
+    // 使用一个快速的、本地版本号来提供“是否有更新”的提示：
+    // - 优先使用本进程中最近一次成功下载记录下来的 version（通常来自
+    //   GitHub release tag 解析），这与实际下载到的静态构建版本保持一致；
+    // - 在尚未有任何下载记录时，退回到编译期常量 FFMPEG_STATIC_VERSION，
+    //   避免在状态查询路径上发起同步网络请求。
+    let remote_version = effective_remote_version_for(kind);
 
     let update_available = match (&source, &version, &remote_version) {
         (Some(source), version, remote) => {

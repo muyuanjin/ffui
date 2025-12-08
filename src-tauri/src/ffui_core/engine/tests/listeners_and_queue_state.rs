@@ -144,3 +144,60 @@ fn queue_state_exposes_stable_queue_order_for_waiting_jobs() {
         "remaining waiting job should shift to queueOrder 0"
     );
 }
+
+#[test]
+fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/lite.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    // Inject some heavy fields into the in-memory job so we can verify they
+    // are not expanded in the lite snapshot.
+    {
+        let mut state = engine
+            .inner
+            .state
+            .lock()
+            .expect("engine state poisoned for lite test");
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.logs = vec!["line-1".into(), "line-2".into()];
+            j.ffmpeg_command = Some("ffmpeg -i input -c:v libx264 output".into());
+            j.log_tail = Some("tail-line".into());
+        }
+    }
+
+    let lite = engine.queue_state_lite();
+    assert_eq!(lite.jobs.len(), 1, "lite snapshot carries one job");
+
+    let j = &lite.jobs[0];
+    assert_eq!(j.id, job.id);
+    assert_eq!(j.filename, job.filename);
+    assert_eq!(j.preset_id, job.preset_id);
+    assert!(matches!(j.status, JobStatus::Waiting));
+    // Lite snapshot exposes metadata like queueOrder and media/output fields.
+    assert!(j.queue_order.is_some(), "lite snapshot surfaces queueOrder");
+    // Heavy fields like the full `logs` vector must not be present on the
+    // lite struct; they are only available via the full job detail endpoint.
+    // (TranscodeJobLite does not carry a logs field, so we only assert on
+    // presence of the lightweight log_tail marker here.)
+    assert_eq!(
+        j.log_tail.as_deref(),
+        Some("tail-line"),
+        "lite snapshot should surface a short log tail"
+    );
+    // The effective ffmpeg command line, however, is required by the UI for
+    // both queue cards and the task detail dialog, so it must be preserved
+    // on the lite snapshot.
+    assert_eq!(
+        j.ffmpeg_command.as_deref(),
+        Some("ffmpeg -i input -c:v libx264 output"),
+        "lite snapshot must carry ffmpeg_command so the UI can render commands"
+    );
+}

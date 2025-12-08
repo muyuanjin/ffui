@@ -142,6 +142,7 @@ export function getSmartScanProgressHandler() {
 
 export function defaultBackendResponse(cmd: string): unknown {
   switch (cmd) {
+    case "get_queue_state_lite":
     case "get_queue_state":
       return { jobs: queueJobs };
     case "get_app_settings":
@@ -161,7 +162,11 @@ export function useBackendMock(
   overrides: Record<string, (payload?: Record<string, unknown>) => unknown>,
 ): void {
   invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>) => {
-    const handler = overrides[cmd];
+    const handler =
+      overrides[cmd] ??
+      // Treat the lite queue state command as an alias for the existing
+      // full queue state handler in tests so older specs keep working.
+      (cmd === "get_queue_state_lite" ? overrides["get_queue_state"] : undefined);
     if (handler) {
       return Promise.resolve(handler(payload));
     }
@@ -180,7 +185,7 @@ beforeEach(() => {
 
   listenMock.mockImplementation(
     async (event: string, handler: (event: { payload: unknown }) => void) => {
-      if (event === "ffui://queue-state") {
+      if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {
         queueStateHandler = handler;
       } else if (event === "auto-compress://progress") {
         smartScanProgressHandler = handler;

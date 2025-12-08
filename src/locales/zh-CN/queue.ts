@@ -94,13 +94,16 @@ const queue = {
     collapse: "收起二级排序",
   },
   actions: {
-    wait: "等待",
+    // 前端‘等待’动作实际语义为“暂停（保留进度，释放工作线程）”，
+    // 为避免歧义，将单项操作按钮文案改为“暂停”。
+    wait: "暂停",
     resume: "继续",
     restart: "重新开始",
     moveToPosition: "移动到指定位置",
     moveToPositionPrompt: "请输入新的队列位置（1-{max}）：",
     bulkCancel: "批量停止",
-    bulkWait: "批量等待",
+    // 批量栏的“等待”亦对应暂停语义，统一命名为“批量暂停”。
+    bulkWait: "批量暂停",
     bulkResume: "批量继续",
     bulkRestart: "批量重新开始",
     bulkMoveToTop: "移到队首",
@@ -122,6 +125,8 @@ const queue = {
     restartFailed: "重新开始任务时出现错误，请稍后重试或检查设置。",
     reorderRejected: "后台拒绝调整等待队列顺序，可能当前队列已发生变化。",
     reorderFailed: "调整等待队列顺序时出现错误，请稍后重试或检查设置。",
+    deleteActiveNotAllowed: "正在运行或排队中的任务不能直接从列表删除，请先停止或完成任务。",
+    deleteFailed: "部分任务从队列中删除失败，请稍后重试或检查后端日志。",
   },
 } as const;
 

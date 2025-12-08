@@ -52,7 +52,7 @@ beforeEach(() => {
   queueStateHandler = null;
 
   listenMock.mockImplementation(async (event: string, handler: (event: { payload: unknown }) => void) => {
-    if (event === "ffui://queue-state") {
+    if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {
       queueStateHandler = handler;
     }
     return () => {};

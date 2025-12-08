@@ -109,9 +109,10 @@ describe("MainApp Tauri drag & drop integration", () => {
     vm.activeTab = "queue";
     await nextTick();
 
+    const droppedPath = "C:/videos/sample.mp4";
     dragDropHandler?.({
       payload: {
-        paths: ["C:/videos/sample.mp4"],
+        paths: [droppedPath],
       },
     });
     await nextTick();
@@ -120,7 +121,9 @@ describe("MainApp Tauri drag & drop integration", () => {
     expect(enqueueTranscodeJob).toHaveBeenCalledTimes(1);
     const [args] = (enqueueTranscodeJob as any).mock.calls[0];
     expect(args).toMatchObject({
-      filename: "sample.mp4",
+      // In Tauri mode we now pass the full path through so the backend can
+      // compute metadata and build output paths correctly.
+      filename: droppedPath,
       source: "manual",
       jobType: "video",
     });

@@ -27,7 +27,7 @@ import {
   CheckSquare,
   Square,
   Trash2,
-  Pause,
+  Hourglass,
   Play,
   RefreshCw,
   ArrowUp,
@@ -372,11 +372,10 @@ const toggleSecondarySortDirection = () => {
               variant="ghost"
               size="sm"
               class="h-6 px-2 gap-1 text-xs"
-              :disabled="props.queueMode !== 'queue'"
               @click="emit('bulk-wait')"
               :title="t('queue.actions.bulkWait')"
             >
-              <Pause class="h-3 w-3" />
+              <Hourglass class="h-3 w-3" />
               <span class="hidden lg:inline">{{ t("queue.actions.bulkWait") }}</span>
             </Button>
 
@@ -385,7 +384,6 @@ const toggleSecondarySortDirection = () => {
               variant="ghost"
               size="sm"
               class="h-6 px-2 gap-1 text-xs"
-              :disabled="props.queueMode !== 'queue'"
               @click="emit('bulk-resume')"
               :title="t('queue.actions.bulkResume')"
             >

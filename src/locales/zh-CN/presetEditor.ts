@@ -12,7 +12,9 @@ const presetEditor = {
     title: "快速预设",
     hqArchive: "高质量归档 (CPU)",
     fastTranscode: "快速转码 (NVIDIA)",
+    hevcVisuallyLossless: "H.265 视觉无损归档 (NVENC)",
     modernAv1: "现代 AV1",
+    av1VisuallyLossless: "AV1 视觉无损归档 (NVENC)",
     streamCopy: "仅封装 / 直拷贝",
   },
   video: {

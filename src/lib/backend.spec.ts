@@ -22,6 +22,7 @@ import {
   reorderQueue,
   loadPreviewDataUrl,
   loadPresets,
+  loadSmartDefaultPresets,
   savePresetOnBackend,
   deletePresetOnBackend,
   inspectMedia,
@@ -177,6 +178,43 @@ describe("backend contract", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     const [cmd] = invokeMock.mock.calls[0];
     expect(cmd).toBe("get_presets");
+    expect(result).toEqual(presets);
+  });
+
+  it("loadSmartDefaultPresets calls get_smart_default_presets and returns the backend list unchanged", async () => {
+    const presets: FFmpegPreset[] = [
+      {
+        id: "smart-hevc-fast",
+        name: "H.265 Fast NVENC",
+        description: "HEVC NVENC CQ 28, preset p5, scaled to 1080p for quick web/share.",
+        video: {
+          encoder: "hevc_nvenc",
+          rateControl: "cq",
+          qualityValue: 28,
+          preset: "p5",
+        },
+        audio: {
+          codec: "copy",
+        },
+        filters: {
+          scale: "-2:1080",
+        },
+        stats: {
+          usageCount: 0,
+          totalInputSizeMB: 0,
+          totalOutputSizeMB: 0,
+          totalTimeSeconds: 0,
+        },
+      },
+    ];
+
+    invokeMock.mockResolvedValueOnce(presets);
+
+    const result = await loadSmartDefaultPresets();
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("get_smart_default_presets");
     expect(result).toEqual(presets);
   });
 

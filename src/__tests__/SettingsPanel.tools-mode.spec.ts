@@ -69,6 +69,7 @@ describe("SettingsPanel external tools management modes", () => {
         toolStatuses: [] as ExternalToolStatus[],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -106,6 +107,7 @@ describe("SettingsPanel external tools management modes", () => {
         toolStatuses: [] as ExternalToolStatus[],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -141,6 +143,7 @@ describe("SettingsPanel external tools management modes", () => {
         toolStatuses: [] as ExternalToolStatus[],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -163,4 +166,3 @@ describe("SettingsPanel external tools management modes", () => {
     wrapper.unmount();
   });
 });
-

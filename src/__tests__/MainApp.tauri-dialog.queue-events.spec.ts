@@ -33,6 +33,7 @@ describe("MainApp queue event handling", () => {
 
     useBackendMock({
       get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
     });
 
@@ -88,6 +89,10 @@ describe("MainApp queue event handling", () => {
 
     useBackendMock({
       get_queue_state: () => {
+        getQueueStateCalls += 1;
+        return { jobs: getQueueJobs() };
+      },
+      get_queue_state_lite: () => {
         getQueueStateCalls += 1;
         return { jobs: getQueueJobs() };
       },

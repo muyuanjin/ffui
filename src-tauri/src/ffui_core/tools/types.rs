@@ -47,6 +47,25 @@ pub struct ExternalToolStatus {
     pub last_download_message: Option<String>,
 }
 
+/// A concrete, verified candidate binary for a given external tool kind.
+/// This is used by the Settings UI to let users pick between multiple
+/// available executables (for example a system PATH binary vs an
+/// auto-downloaded static build).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalToolCandidate {
+    pub kind: ExternalToolKind,
+    /// Concrete executable path for this candidate.
+    pub path: String,
+    /// Source of this candidate, e.g. "custom", "download", or "path".
+    pub source: String,
+    /// Optional version string detected from the binary, when available.
+    pub version: Option<String>,
+    /// True when this candidate matches the currently resolved path used
+    /// by the engine for this tool kind.
+    pub is_current: bool,
+}
+
 /// In-memory runtime download state for each external tool. This is used to
 /// enrich `ExternalToolStatus` so the frontend can render progress bars and
 /// error messages while ffmpeg/ffprobe/avifenc are being auto-downloaded.

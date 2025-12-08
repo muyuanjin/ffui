@@ -4,6 +4,7 @@ import type {
   AppSettings,
   AutoCompressResult,
   CpuUsageSnapshot,
+  ExternalToolCandidate,
   ExternalToolKind,
   ExternalToolStatus,
   GpuUsageSnapshot,
@@ -12,6 +13,7 @@ import type {
   JobType,
   SmartScanConfig,
   QueueState,
+  QueueStateLite,
   TranscodeJob,
   SystemMetricsSnapshot,
 } from "../types";
@@ -76,6 +78,12 @@ export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]>
   return invoke<ExternalToolStatus[]>("get_external_tool_statuses");
 };
 
+export const fetchExternalToolCandidates = async (
+  kind: ExternalToolKind,
+): Promise<ExternalToolCandidate[]> => {
+  return invoke<ExternalToolCandidate[]>("get_external_tool_candidates", { kind });
+};
+
 export const downloadExternalToolNow = async (
   kind: ExternalToolKind,
 ): Promise<ExternalToolStatus[]> => {
@@ -95,6 +103,10 @@ export const loadPresets = async (): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("get_presets");
 };
 
+export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
+  return invoke<FFmpegPreset[]>("get_smart_default_presets");
+};
+
 export const savePresetOnBackend = async (
   preset: FFmpegPreset,
 ): Promise<FFmpegPreset[]> => {
@@ -110,11 +122,16 @@ export const deletePresetOnBackend = async (
 export const reorderPresetsOnBackend = async (
   orderedIds: string[],
 ): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("reorder_presets", { orderedIds });
+  // Accept both camelCase and snake_case to stay resilient to Rust-side param names.
+  return invoke<FFmpegPreset[]>("reorder_presets", { orderedIds, ordered_ids: orderedIds });
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {
   return invoke<QueueState>("get_queue_state");
+};
+
+export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
+  return invoke<QueueStateLite>("get_queue_state_lite");
 };
 
 export const enqueueTranscodeJob = async (params: {
@@ -169,12 +186,26 @@ export const restartTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
+export const deleteTranscodeJob = async (jobId: string): Promise<boolean> => {
+  return invoke<boolean>("delete_transcode_job", {
+    jobId,
+    job_id: jobId,
+  });
+};
+
 export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
   return invoke<boolean>("reorder_queue", {
     orderedIds,
     ordered_ids: orderedIds,
     jobIds: orderedIds,
     job_ids: orderedIds,
+  });
+};
+
+export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null> => {
+  return invoke<TranscodeJob | null>("get_job_detail", {
+    jobId,
+    job_id: jobId,
   });
 };
 

@@ -77,7 +77,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canCancel"
           data-testid="queue-context-menu-cancel"
           @click="
@@ -127,10 +127,12 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground"
+          :disabled="!canDeleteSingle"
           data-testid="queue-context-menu-remove"
           @click="
             () => {
+              if (!canDeleteSingle) return;
               $emit('remove');
               $emit('close');
             }
@@ -241,7 +243,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkDelete"
           data-testid="queue-context-menu-bulk-remove"
           @click="
@@ -292,18 +294,19 @@ const { t } = useI18n();
 const isQueueMode = computed(() => props.queueMode === "queue");
 const status = computed<JobStatus | undefined>(() => props.jobStatus);
 
+const isTerminalStatus = (value: JobStatus | undefined) =>
+  value === "completed" ||
+  value === "failed" ||
+  value === "skipped" ||
+  value === "cancelled";
+
+// 允许在显示模式下也能进行暂停/继续操作（仅影响单个任务状态，不改变队列优先级）。
 const canWait = computed(
-  () =>
-    props.mode === "single" &&
-    isQueueMode.value &&
-    status.value === "processing",
+  () => props.mode === "single" && status.value === "processing",
 );
 
 const canResume = computed(
-  () =>
-    props.mode === "single" &&
-    isQueueMode.value &&
-    status.value === "paused",
+  () => props.mode === "single" && status.value === "paused",
 );
 
 const canRestart = computed(
@@ -328,15 +331,19 @@ const canCancel = computed(
 
 const canMove = computed(() => props.mode === "single" && isQueueMode.value);
 
+const canDeleteSingle = computed(
+  () => props.mode === "single" && isTerminalStatus(status.value),
+);
+
 const canBulkBase = computed(
   () => props.mode === "bulk" && props.hasSelection,
 );
 
 const canBulkCancel = computed(() => canBulkBase.value);
-const canBulkWait = computed(() => canBulkBase.value && isQueueMode.value);
-const canBulkResume = computed(() => canBulkBase.value && isQueueMode.value);
-const canBulkRestart = computed(() => canBulkBase.value && isQueueMode.value);
+// 批量暂停/继续在显示模式下也允许；批量移动仍仅在队列模式下。
+const canBulkWait = computed(() => canBulkBase.value);
+const canBulkResume = computed(() => canBulkBase.value);
+const canBulkRestart = computed(() => canBulkBase.value);
 const canBulkMove = computed(() => canBulkBase.value && isQueueMode.value);
 const canBulkDelete = computed(() => canBulkBase.value);
 </script>
-

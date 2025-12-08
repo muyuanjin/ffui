@@ -26,10 +26,18 @@ pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
 }
 
 pub(crate) fn update_latest_status_snapshot(statuses: Vec<super::types::ExternalToolStatus>) {
-    let mut lock = LATEST_TOOL_STATUS
-        .lock()
-        .expect("LATEST_TOOL_STATUS lock poisoned");
-    *lock = statuses;
+    {
+        let mut lock = LATEST_TOOL_STATUS
+            .lock()
+            .expect("LATEST_TOOL_STATUS lock poisoned");
+        *lock = statuses;
+    }
+
+    // After refreshing the cached snapshot (for example via
+    // TranscodingEngine::external_tool_statuses after a manual download),
+    // immediately emit an event so the frontend sees the latest resolved
+    // path/version/update flags instead of a stale pre-download snapshot.
+    emit_tool_status_event_if_possible();
 }
 
 /// Merge the latest in-memory download runtime state for a single tool into

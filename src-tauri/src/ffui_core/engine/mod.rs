@@ -24,7 +24,7 @@ use anyhow::Result;
 
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, FFmpegPreset, JobSource, JobType, QueueState,
-    SmartScanConfig, TranscodeJob,
+    QueueStateLite, SmartScanConfig, TranscodeJob,
 };
 use crate::ffui_core::monitor::{
     CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
@@ -72,6 +72,22 @@ impl TranscodingEngine {
     /// Get a snapshot of the current queue state.
     pub fn queue_state(&self) -> QueueState {
         snapshot_queue_state(&self.inner)
+    }
+
+    /// Get a lightweight snapshot of the current queue state for high-
+    /// frequency updates and startup payloads.
+    pub fn queue_state_lite(&self) -> QueueStateLite {
+        // For now we reuse the full snapshot and convert it into the lite
+        // representation, which strips heavy fields like the full logs vector
+        // from the serialized payload.
+        let full = snapshot_queue_state(&self.inner);
+        QueueStateLite::from(&full)
+    }
+
+    /// Fetch full details for a single job from the in-memory engine state.
+    pub fn job_detail(&self, job_id: &str) -> Option<TranscodeJob> {
+        let state = self.inner.state.lock().expect("engine state poisoned");
+        state.jobs.get(job_id).cloned()
     }
 
     /// Register a listener for queue state changes.
@@ -206,6 +222,15 @@ impl TranscodingEngine {
     /// Restart a job from the beginning.
     pub fn restart_job(&self, job_id: &str) -> bool {
         worker::restart_job(&self.inner, job_id)
+    }
+
+    /// Permanently delete a job from the in-memory queue state.
+    ///
+    /// Only jobs that are already in a terminal state (completed/failed/
+    /// skipped/cancelled) are eligible for deletion. Running or waiting
+    /// jobs remain protected so the UI cannot "hide" active work.
+    pub fn delete_job(&self, job_id: &str) -> bool {
+        worker::delete_job(&self.inner, job_id)
     }
 
     /// Reorder the waiting jobs in the queue.

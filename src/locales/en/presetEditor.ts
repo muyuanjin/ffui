@@ -12,7 +12,9 @@ const presetEditor = {
     title: "Quick Recipes",
     hqArchive: "HQ Archive (CPU)",
     fastTranscode: "Fast Transcode (NVIDIA)",
+    hevcVisuallyLossless: "HEVC Visually Lossless (NVENC)",
     modernAv1: "Modern AV1",
+    av1VisuallyLossless: "AV1 Visually Lossless (NVENC)",
     streamCopy: "Stream Copy / Remux",
   },
   video: {

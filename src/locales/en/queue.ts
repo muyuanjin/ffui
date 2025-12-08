@@ -134,6 +134,10 @@ const queue = {
       "The backend refused to reorder the waiting queue. The queue may have changed.",
     reorderFailed:
       "Error while reordering the waiting queue. Please retry later or verify external tool settings.",
+    deleteActiveNotAllowed:
+      "Cannot delete jobs that are still running or waiting. Please stop or complete them first.",
+    deleteFailed:
+      "Failed to delete some jobs from the queue. Please retry later or check backend logs.",
   },
 } as const;
 
