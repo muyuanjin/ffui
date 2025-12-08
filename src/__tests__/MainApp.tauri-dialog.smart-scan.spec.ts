@@ -28,10 +28,8 @@ if (typeof (globalThis as any).ResizeObserver === "undefined") {
 }
 
 describe("MainApp Smart Scan integration", () => {
-  it("uses a directory dialog to choose Smart Scan root in Tauri mode", async () => {
-    const selectedRoot = "C:/videos/batch";
-    dialogOpenMock.mockResolvedValueOnce(selectedRoot);
-
+  it("opens Smart Scan wizard directly without directory dialog", async () => {
+    // 新行为：点击智能压缩按钮直接打开面板，用户在面板内选择路径
     useBackendMock({
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
@@ -50,13 +48,41 @@ describe("MainApp Smart Scan integration", () => {
     await vm.startSmartScan();
     await nextTick();
 
-    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
-    const [options] = dialogOpenMock.mock.calls[0];
-    expect(options).toMatchObject({ multiple: false, directory: true });
+    // 不再调用文件夹选择对话框
+    expect(dialogOpenMock).not.toHaveBeenCalled();
 
-    expect(vm.lastDroppedRoot).toBe(selectedRoot);
+    // 直接打开智能压缩面板
     expect(vm.showSmartScan).toBe(true);
     expect(vm.activeTab).toBe("queue");
+
+    wrapper.unmount();
+  });
+
+  it("pre-fills rootPath from lastDroppedRoot when opening Smart Scan wizard", async () => {
+    const droppedRoot = "C:/videos/dropped";
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      run_auto_compress: () => null,
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    // 模拟之前有拖拽路径
+    vm.lastDroppedRoot = droppedRoot;
+
+    await vm.startSmartScan();
+    await nextTick();
+
+    // 面板打开，且配置中预填充了路径
+    // smartConfig 是一个 ref，需要访问其 value
+    expect(vm.showSmartScan).toBe(true);
+    expect(vm.smartConfig?.rootPath ?? vm.smartConfig).toBeTruthy();
 
     wrapper.unmount();
   });
@@ -114,11 +140,20 @@ describe("MainApp Smart Scan integration", () => {
     vm.lastDroppedRoot = rootPath;
 
     const config = {
+      rootPath: rootPath,
+      replaceOriginal: true,
       minImageSizeKB: 10,
       minVideoSizeMB: 10,
+      minAudioSizeKB: 500,
+      savingConditionType: "ratio" as const,
       minSavingRatio: 0.8,
+      minSavingAbsoluteMB: 5,
       imageTargetFormat: "avif" as const,
       videoPresetId: "",
+      audioPresetId: "",
+      videoFilter: { enabled: true, extensions: ["mp4", "mkv"] },
+      imageFilter: { enabled: true, extensions: ["jpg", "png"] },
+      audioFilter: { enabled: false, extensions: ["mp3"] },
     };
 
     await vm.runSmartScan(config);

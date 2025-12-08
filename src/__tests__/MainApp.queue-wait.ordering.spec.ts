@@ -7,6 +7,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 const invokeMock = vi.fn<
   (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
@@ -68,13 +69,7 @@ function makeDefaultSettings(): AppSettings {
       autoDownload: false,
       autoUpdate: false,
     },
-    smartScanDefaults: {
-      minImageSizeKB: 50,
-      minVideoSizeMB: 50,
-      minSavingRatio: 0.95,
-      imageTargetFormat: "avif",
-      videoPresetId: "",
-    },
+    smartScanDefaults: buildSmartScanDefaults(),
     previewCapturePercent: 25,
     maxParallelJobs: undefined,
     progressUpdateIntervalMs: undefined,

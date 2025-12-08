@@ -5,8 +5,22 @@ use serde::{Deserialize, Serialize};
 pub enum EncoderType {
     #[serde(rename = "libx264")]
     Libx264,
+    #[serde(rename = "libx265")]
+    Libx265,
     #[serde(rename = "hevc_nvenc")]
     HevcNvenc,
+    #[serde(rename = "h264_nvenc")]
+    H264Nvenc,
+    #[serde(rename = "av1_nvenc")]
+    Av1Nvenc,
+    #[serde(rename = "hevc_qsv")]
+    HevcQsv,
+    #[serde(rename = "av1_qsv")]
+    Av1Qsv,
+    #[serde(rename = "hevc_amf")]
+    HevcAmf,
+    #[serde(rename = "av1_amf")]
+    Av1Amf,
     #[serde(rename = "libsvtav1")]
     LibSvtAv1,
     #[serde(rename = "copy")]
@@ -27,6 +41,7 @@ pub enum AudioCodecType {
 pub enum RateControlMode {
     Crf,
     Cq,
+    Constqp,
     Cbr,
     Vbr,
 }
@@ -56,6 +71,14 @@ pub struct VideoConfig {
     pub bf: Option<u32>,
     /// Optional pixel format mapped to `-pix_fmt`.
     pub pix_fmt: Option<String>,
+    /// Optional NVENC b_ref_mode value.
+    pub b_ref_mode: Option<String>,
+    /// Optional lookahead depth mapped to `-rc-lookahead`.
+    pub rc_lookahead: Option<u32>,
+    /// Optional spatial AQ toggle mapped to `-spatial-aq`.
+    pub spatial_aq: Option<bool>,
+    /// Optional temporal AQ toggle mapped to `-temporal-aq`.
+    pub temporal_aq: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

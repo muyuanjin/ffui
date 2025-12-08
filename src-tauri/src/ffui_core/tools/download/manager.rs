@@ -312,13 +312,12 @@ pub(crate) fn ensure_tool_available(
     candidates.push((path_candidate.clone(), "path".to_string()));
 
     // Enrich with additional discovered locations (env/registry/indexers).
-    // Mark as "path" source to keep UI stable (custom/download/path only).
     let mut seen = std::collections::HashSet::new();
     seen.insert(path_candidate);
-    for p in discover_candidates(&bin, kind) {
-        let s = p.to_string_lossy().into_owned();
+    for discovered in discover_candidates(&bin, kind) {
+        let s = discovered.path.to_string_lossy().into_owned();
         if seen.insert(s.clone()) {
-            candidates.push((s, "path".to_string()));
+            candidates.push((s, discovered.source.to_string()));
         }
     }
 

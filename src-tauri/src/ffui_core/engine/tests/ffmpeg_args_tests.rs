@@ -148,6 +148,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
     let modes = [
         RateControlMode::Crf,
         RateControlMode::Cq,
+        RateControlMode::Constqp,
         RateControlMode::Cbr,
         RateControlMode::Vbr,
     ];
@@ -167,6 +168,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
 
             let has_crf = joined.contains(" -crf ");
             let has_cq = joined.contains(" -cq ");
+            let has_constqp = joined.contains("-rc constqp");
             let has_bitrate = joined.contains(" -b:v ");
             let has_maxrate = joined.contains(" -maxrate ");
             let has_bufsize = joined.contains(" -bufsize ");
@@ -183,14 +185,34 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
                 RateControlMode::Cq => {
                     assert!(has_cq, "Cq mode must emit -cq, got: {joined}");
                     assert!(
-                        !has_crf && !has_bitrate && !has_maxrate && !has_bufsize && !has_pass,
+                        !has_crf
+                            && !has_constqp
+                            && !has_bitrate
+                            && !has_maxrate
+                            && !has_bufsize
+                            && !has_pass,
                         "Cq mode must not emit CRF/bitrate/two-pass flags, got: {joined}"
+                    );
+                }
+                RateControlMode::Constqp => {
+                    assert!(
+                        has_constqp && joined.contains("-qp "),
+                        "Constqp mode must emit -rc constqp and -qp, got: {joined}"
+                    );
+                    assert!(
+                        !has_crf
+                            && !has_cq
+                            && !has_bitrate
+                            && !has_maxrate
+                            && !has_bufsize
+                            && !has_pass,
+                        "Constqp mode must not emit CRF/CQ/bitrate/two-pass flags, got: {joined}"
                     );
                 }
                 RateControlMode::Cbr | RateControlMode::Vbr => {
                     assert!(
-                        !has_crf && !has_cq,
-                        "CBR/VBR modes must not emit CRF/CQ flags, got: {joined}"
+                        !has_crf && !has_cq && !has_constqp,
+                        "CBR/VBR modes must not emit CRF/CQ/ConstQP flags, got: {joined}"
                     );
                     assert!(
                         has_bitrate || has_maxrate || has_bufsize || has_pass,
@@ -338,6 +360,49 @@ fn build_ffmpeg_args_skips_audio_filters_when_codec_is_copy() {
             && !joined.ends_with(" -af")
             && !joined.contains("-af acompressor"),
         "audio copy mode must not emit -af even when af_chain is configured, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_args_supports_constqp_nvenc_hq_with_aac_loudness() {
+    let mut preset = make_test_preset();
+    preset.video.encoder = EncoderType::Av1Nvenc;
+    preset.video.rate_control = RateControlMode::Constqp;
+    preset.video.quality_value = 18;
+    preset.video.preset = "p7".to_string();
+    preset.video.tune = Some("hq".to_string());
+    preset.video.pix_fmt = Some("p010le".to_string());
+    preset.video.b_ref_mode = Some("each".to_string());
+    preset.video.rc_lookahead = Some(32);
+    preset.video.spatial_aq = Some(true);
+    preset.video.temporal_aq = Some(true);
+    preset.audio.codec = AudioCodecType::Aac;
+    preset.audio.bitrate = Some(320);
+    preset.audio.loudness_profile = Some("ebuR128".to_string());
+    preset.audio.true_peak_db = Some(-1.0);
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+
+    assert!(
+        joined.contains("-rc constqp") && joined.contains("-qp 18"),
+        "constqp mode must emit -rc constqp and -qp, got: {joined}"
+    );
+    assert!(
+        joined.contains("-b_ref_mode each")
+            && joined.contains("-rc-lookahead 32")
+            && joined.contains("-spatial-aq 1")
+            && joined.contains("-temporal-aq 1"),
+        "NVENC quality flags should be emitted, got: {joined}"
+    );
+    assert!(
+        joined.contains("-c:a aac") && joined.contains("-b:a 320k"),
+        "AAC 320k audio flags should be emitted, got: {joined}"
+    );
+    assert!(
+        joined.contains("loudnorm"),
+        "Loudness profile should emit loudnorm filter, got: {joined}"
     );
 }
 

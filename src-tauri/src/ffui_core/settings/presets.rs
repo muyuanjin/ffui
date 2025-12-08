@@ -38,6 +38,10 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
                 gop_size: None,
                 bf: None,
                 pix_fmt: None,
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -92,6 +96,10 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
                 gop_size: None,
                 bf: None,
                 pix_fmt: None,
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,

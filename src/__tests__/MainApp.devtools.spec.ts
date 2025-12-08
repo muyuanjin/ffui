@@ -6,6 +6,7 @@ import { nextTick } from "vue";
 
 import en from "@/locales/en";
 import MainApp from "@/MainApp.vue";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 const openDevtoolsMock = vi.fn();
 
@@ -56,13 +57,7 @@ vi.mock("@/lib/backend", async () => {
       autoDownload: false,
       autoUpdate: false,
     },
-    smartScanDefaults: {
-      minImageSizeKB: 50,
-      minVideoSizeMB: 50,
-      minSavingRatio: 0.95,
-      imageTargetFormat: "avif",
-      videoPresetId: "",
-    },
+    smartScanDefaults: buildSmartScanDefaults(),
     previewCapturePercent: 25,
     defaultQueuePresetId: undefined,
     maxParallelJobs: undefined,
@@ -142,13 +137,7 @@ describe("MainApp devtools quick action", () => {
         autoDownload: false,
         autoUpdate: false,
       },
-      smartScanDefaults: {
-        minImageSizeKB: 50,
-        minVideoSizeMB: 50,
-        minSavingRatio: 0.95,
-        imageTargetFormat: "avif",
-        videoPresetId: "",
-      },
+      smartScanDefaults: buildSmartScanDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,

@@ -50,7 +50,19 @@ const { t } = useI18n();
             class="flex-1 flex flex-col items-start gap-1 h-auto"
             :disabled="props.isCopyEncoder"
             :aria-disabled="props.isCopyEncoder"
-            @click="audio.codec = 'aac'"
+            @click="
+              () => {
+                audio.codec = 'aac';
+                // 切换到 AAC 时，如果比特率为空，设置默认值
+                if (audio.bitrate == null) {
+                  audio.bitrate = 320;
+                }
+                // 如果响度配置为空，设置默认的国际标准
+                if (!audio.loudnessProfile) {
+                  audio.loudnessProfile = 'ebuR128';
+                }
+              }
+            "
           >
             <span class="block font-bold text-xs">
               {{ t("presetEditor.audio.aacTitle") }}

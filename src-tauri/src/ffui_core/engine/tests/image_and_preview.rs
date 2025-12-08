@@ -75,6 +75,7 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
         min_saving_ratio: 0.95,
         image_target_format: ImageTargetFormat::Avif,
         video_preset_id: "preset-1".to_string(),
+        ..Default::default()
     };
 
     let job = handle_image_file(

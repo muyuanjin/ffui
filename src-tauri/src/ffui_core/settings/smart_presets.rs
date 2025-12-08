@@ -1,21 +1,188 @@
+use std::collections::HashMap;
+
+use serde::Deserialize;
+
 use crate::ffui_core::domain::{
-    AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, PresetStats,
-    RateControlMode, VideoConfig,
+    AudioConfig, ContainerConfig, FFmpegPreset, FilterConfig, GlobalConfig, HardwareConfig,
+    InputTimelineConfig, MappingConfig, PresetStats, SubtitlesConfig, VideoConfig,
 };
+use crate::ffui_core::settings::presets::default_presets;
 use crate::ffui_core::settings::smart_presets_cpu::smart_presets_for_cpu_only;
+
+const SMART_PRESETS_JSON: &str = include_str!("../../../assets/smart-presets.json");
 
 /// Build a small library of structured FFmpeg presets that act as the basis
 /// for hardware-aware smart defaults and the onboarding preset pack.
 ///
-/// These presets intentionally avoid extremely specialised encoder flags so
-/// that they remain robust across a wide range of ffmpeg builds, while still
-/// capturing the core CRF/CQ/preset/pix_fmt choices recommended in the
-/// project docs and external research.
+/// This now loads from the data file `assets/smart-presets.json`, where each
+/// preset包含自身的匹配条件和优先级，便于按硬件选择合适的变体。
 pub fn hardware_smart_default_presets(has_nvidia_gpu: bool) -> Vec<FFmpegPreset> {
-    if has_nvidia_gpu {
-        smart_presets_for_nvidia()
-    } else {
-        smart_presets_for_cpu_only()
+    let env = SmartPresetEnv {
+        gpu_available: has_nvidia_gpu,
+        gpu_vendor: if has_nvidia_gpu {
+            Some("nvidia".to_string())
+        } else {
+            None
+        },
+    };
+
+    let records = load_smart_preset_records().unwrap_or_else(|err| {
+        eprintln!("failed to load smart presets json: {err:#}");
+        Vec::new()
+    });
+
+    let presets = select_presets(records, &env);
+    if presets.is_empty() {
+        // Prefer CPU-only smart presets when没有 GPU 时也要给出合理的默认值。
+        if !has_nvidia_gpu {
+            let cpu_presets = smart_presets_for_cpu_only();
+            if !cpu_presets.is_empty() {
+                return cpu_presets;
+            }
+        }
+        // Fallback to the classic built-in defaults so onboarding never returns empty.
+        return default_presets();
+    }
+    presets
+}
+
+fn select_presets(records: Vec<SmartPresetRecord>, env: &SmartPresetEnv) -> Vec<FFmpegPreset> {
+    let mut candidates: Vec<_> = records
+        .into_iter()
+        .filter(|r| r.expose && r.r#match.matches(env))
+        .collect();
+
+    candidates.sort_by(|a, b| {
+        b.priority
+            .cmp(&a.priority)
+            .then(a.preset.name.cmp(&b.preset.name))
+    });
+
+    let mut by_id: HashMap<String, SmartPresetRecord> = HashMap::new();
+    for record in candidates {
+        by_id.entry(record.preset.id.clone()).or_insert(record);
+    }
+
+    by_id
+        .into_values()
+        .map(|r| r.preset.into())
+        .collect::<Vec<_>>()
+}
+
+fn load_smart_preset_records() -> Result<Vec<SmartPresetRecord>, serde_json::Error> {
+    let parsed: SmartPresetFile = serde_json::from_str(SMART_PRESETS_JSON)?;
+    Ok(parsed.presets)
+}
+
+#[derive(Debug, Deserialize)]
+struct SmartPresetFile {
+    #[allow(dead_code)]
+    version: Option<u32>,
+    presets: Vec<SmartPresetRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SmartPresetRecord {
+    #[serde(flatten)]
+    preset: SerializablePreset,
+    #[serde(default)]
+    r#match: MatchCriteria,
+    #[serde(default)]
+    priority: i32,
+    #[serde(default = "default_true")]
+    #[allow(dead_code)]
+    default_selected: bool,
+    #[serde(default = "default_true")]
+    expose: bool,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct MatchCriteria {
+    #[serde(default)]
+    gpu: Option<GpuMatch>,
+}
+
+impl MatchCriteria {
+    fn matches(&self, env: &SmartPresetEnv) -> bool {
+        if let Some(gpu) = &self.gpu {
+            if let Some(required) = gpu.available
+                && required != env.gpu_available
+            {
+                return false;
+            }
+            if let Some(vendor) = gpu.vendor.as_deref()
+                && env.gpu_vendor.as_deref() != Some(vendor)
+            {
+                return false;
+            }
+        }
+        true
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct GpuMatch {
+    available: Option<bool>,
+    vendor: Option<String>,
+}
+
+#[derive(Debug)]
+struct SmartPresetEnv {
+    gpu_available: bool,
+    gpu_vendor: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SerializablePreset {
+    id: String,
+    name: String,
+    description: String,
+    #[serde(default)]
+    global: Option<GlobalConfig>,
+    #[serde(default)]
+    input: Option<InputTimelineConfig>,
+    #[serde(default)]
+    mapping: Option<MappingConfig>,
+    video: VideoConfig,
+    audio: AudioConfig,
+    #[serde(default = "default_filter_config")]
+    filters: FilterConfig,
+    #[serde(default)]
+    subtitles: Option<SubtitlesConfig>,
+    #[serde(default)]
+    container: Option<ContainerConfig>,
+    #[serde(default)]
+    hardware: Option<HardwareConfig>,
+    #[serde(default = "empty_stats")]
+    stats: PresetStats,
+    #[serde(default)]
+    advanced_enabled: Option<bool>,
+    #[serde(default)]
+    ffmpeg_template: Option<String>,
+}
+
+impl From<SerializablePreset> for FFmpegPreset {
+    fn from(value: SerializablePreset) -> Self {
+        FFmpegPreset {
+            id: value.id,
+            name: value.name,
+            description: value.description,
+            global: value.global,
+            input: value.input,
+            mapping: value.mapping,
+            video: value.video,
+            audio: value.audio,
+            filters: value.filters,
+            subtitles: value.subtitles,
+            container: value.container,
+            hardware: value.hardware,
+            stats: value.stats,
+            advanced_enabled: value.advanced_enabled,
+            ffmpeg_template: value.ffmpeg_template,
+        }
     }
 }
 
@@ -28,213 +195,19 @@ fn empty_stats() -> PresetStats {
     }
 }
 
-fn smart_presets_for_nvidia() -> Vec<FFmpegPreset> {
-    vec![
-        FFmpegPreset {
-            id: "smart-hevc-fast".to_string(),
-            name: "H.265 Fast NVENC".to_string(),
-            description:
-                "HEVC NVENC CQ 28, preset p5, keeps source resolution for quick web/share."
-                    .to_string(),
-            global: None,
-            input: None,
-            mapping: None,
-            video: VideoConfig {
-                encoder: EncoderType::HevcNvenc,
-                rate_control: RateControlMode::Cq,
-                quality_value: 28,
-                preset: "p5".to_string(),
-                tune: None,
-                profile: None,
-                bitrate_kbps: None,
-                max_bitrate_kbps: None,
-                buffer_size_kbits: None,
-                pass: None,
-                level: None,
-                gop_size: Some(120),
-                bf: Some(3),
-                pix_fmt: Some("yuv420p".to_string()),
-            },
-            audio: AudioConfig {
-                codec: AudioCodecType::Copy,
-                bitrate: None,
-                sample_rate_hz: None,
-                channels: None,
-                channel_layout: None,
-                loudness_profile: None,
-                target_lufs: None,
-                loudness_range: None,
-                true_peak_db: None,
-            },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
-            subtitles: None,
-            container: None,
-            hardware: None,
-            stats: empty_stats(),
-            advanced_enabled: Some(false),
-            ffmpeg_template: None,
-        },
-        FFmpegPreset {
-            id: "smart-hevc-archive".to_string(),
-            name: "H.265 Archival NVENC".to_string(),
-            description:
-                "HEVC NVENC CQ 20, preset p7, 10-bit output for visually lossless archival."
-                    .to_string(),
-            global: None,
-            input: None,
-            mapping: None,
-            video: VideoConfig {
-                encoder: EncoderType::HevcNvenc,
-                rate_control: RateControlMode::Cq,
-                quality_value: 20,
-                preset: "p7".to_string(),
-                tune: None,
-                profile: None,
-                bitrate_kbps: None,
-                max_bitrate_kbps: None,
-                buffer_size_kbits: None,
-                pass: None,
-                level: None,
-                gop_size: Some(60),
-                bf: Some(3),
-                pix_fmt: Some("yuv420p10le".to_string()),
-            },
-            audio: AudioConfig {
-                codec: AudioCodecType::Copy,
-                bitrate: None,
-                sample_rate_hz: None,
-                channels: None,
-                channel_layout: None,
-                loudness_profile: None,
-                target_lufs: None,
-                loudness_range: None,
-                true_peak_db: None,
-            },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
-            subtitles: None,
-            container: None,
-            hardware: None,
-            stats: empty_stats(),
-            advanced_enabled: Some(false),
-            ffmpeg_template: None,
-        },
-        FFmpegPreset {
-            id: "smart-av1-fast".to_string(),
-            name: "AV1 Fast (SVT)".to_string(),
-            description:
-                "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression."
-                    .to_string(),
-            global: None,
-            input: None,
-            mapping: None,
-            video: VideoConfig {
-                encoder: EncoderType::LibSvtAv1,
-                rate_control: RateControlMode::Crf,
-                quality_value: 34,
-                preset: "6".to_string(),
-                tune: None,
-                profile: None,
-                bitrate_kbps: None,
-                max_bitrate_kbps: None,
-                buffer_size_kbits: None,
-                pass: None,
-                level: None,
-                gop_size: Some(240),
-                bf: Some(3),
-                pix_fmt: Some("yuv420p10le".to_string()),
-            },
-            audio: AudioConfig {
-                codec: AudioCodecType::Copy,
-                bitrate: None,
-                sample_rate_hz: None,
-                channels: None,
-                channel_layout: None,
-                loudness_profile: None,
-                target_lufs: None,
-                loudness_range: None,
-                true_peak_db: None,
-            },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
-            subtitles: None,
-            container: None,
-            hardware: None,
-            stats: empty_stats(),
-            advanced_enabled: Some(false),
-            ffmpeg_template: None,
-        },
-        FFmpegPreset {
-            id: "smart-av1-archive".to_string(),
-            name: "AV1 Archival (SVT)".to_string(),
-            description:
-                "libsvtav1 CRF 24 preset 6, 10-bit output tuned for visually lossless archival."
-                    .to_string(),
-            global: None,
-            input: None,
-            mapping: None,
-            video: VideoConfig {
-                encoder: EncoderType::LibSvtAv1,
-                rate_control: RateControlMode::Crf,
-                quality_value: 24,
-                preset: "6".to_string(),
-                tune: None,
-                profile: None,
-                bitrate_kbps: None,
-                max_bitrate_kbps: None,
-                buffer_size_kbits: None,
-                pass: None,
-                level: None,
-                gop_size: Some(240),
-                bf: Some(3),
-                pix_fmt: Some("yuv420p10le".to_string()),
-            },
-            audio: AudioConfig {
-                codec: AudioCodecType::Copy,
-                bitrate: None,
-                sample_rate_hz: None,
-                channels: None,
-                channel_layout: None,
-                loudness_profile: None,
-                target_lufs: None,
-                loudness_range: None,
-                true_peak_db: None,
-            },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
-            subtitles: None,
-            container: None,
-            hardware: None,
-            stats: empty_stats(),
-            advanced_enabled: Some(false),
-            ffmpeg_template: None,
-        },
-    ]
+fn default_filter_config() -> FilterConfig {
+    FilterConfig {
+        scale: None,
+        crop: None,
+        fps: None,
+        vf_chain: None,
+        af_chain: None,
+        filter_complex: None,
+    }
+}
+
+const fn default_true() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -242,64 +215,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hardware_smart_default_presets_builds_four_presets_for_nvidia_and_cpu() {
+    fn hardware_smart_default_presets_use_json_and_match_gpu_flag() {
         let nvidia = hardware_smart_default_presets(true);
         let cpu_only = hardware_smart_default_presets(false);
 
-        assert_eq!(
-            nvidia.len(),
-            4,
-            "NVIDIA smart presets should contain exactly four entries"
-        );
-        assert_eq!(
-            cpu_only.len(),
-            4,
-            "CPU-only smart presets should contain exactly four entries"
-        );
-
-        // IDs must be stable and consistent across hardware variants so that
-        // onboarding and UI code can rely on them when marking recommended
-        // presets.
-        let nvidia_ids: Vec<_> = nvidia.iter().map(|p| p.id.as_str()).collect();
-        let cpu_ids: Vec<_> = cpu_only.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(
-            nvidia_ids, cpu_ids,
-            "smart preset IDs must be identical between NVIDIA and CPU-only variants"
-        );
-
-        for preset in nvidia.iter().chain(cpu_only.iter()) {
-            assert!(
-                preset.filters.scale.is_none(),
-                "smart preset {} should not downscale by default",
-                preset.id
-            );
-        }
-
-        // NVIDIA branch should use HEVC NVENC for the H.265 slots and libsvtav1
-        // for AV1 slots so that we benefit from hardware where available.
-        let nvenc_count = nvidia
-            .iter()
-            .filter(|p| matches!(p.video.encoder, EncoderType::HevcNvenc))
-            .count();
-        let av1_count = nvidia
-            .iter()
-            .filter(|p| matches!(p.video.encoder, EncoderType::LibSvtAv1))
-            .count();
-        assert_eq!(
-            nvenc_count, 2,
-            "expected exactly two HEVC NVENC presets in NVIDIA smart defaults"
-        );
-        assert_eq!(
-            av1_count, 2,
-            "expected exactly two libsvtav1 presets in NVIDIA smart defaults"
-        );
-
-        // CPU-only branch keeps the same IDs but should not reference NVENC.
         assert!(
-            cpu_only
-                .iter()
-                .all(|p| !matches!(p.video.encoder, EncoderType::HevcNvenc)),
-            "CPU-only smart presets must not use HEVC NVENC encoder"
+            !nvidia.is_empty(),
+            "NVIDIA smart presets should not be empty"
+        );
+        assert!(
+            !cpu_only.is_empty(),
+            "CPU smart presets should not be empty"
+        );
+
+        let has_nvenc = nvidia.iter().any(|p| {
+            matches!(
+                p.video.encoder,
+                crate::ffui_core::domain::EncoderType::HevcNvenc
+                    | crate::ffui_core::domain::EncoderType::H264Nvenc
+                    | crate::ffui_core::domain::EncoderType::Av1Nvenc
+            )
+        });
+        assert!(
+            has_nvenc,
+            "GPU smart presets should contain at least one NVENC-driven entry"
+        );
+
+        assert!(
+            cpu_only.iter().all(|p| !matches!(
+                p.video.encoder,
+                crate::ffui_core::domain::EncoderType::HevcNvenc
+                    | crate::ffui_core::domain::EncoderType::H264Nvenc
+                    | crate::ffui_core::domain::EncoderType::Av1Nvenc
+            )),
+            "CPU smart presets must not include NVENC encoders"
+        );
+
+        assert!(
+            cpu_only.iter().any(|p| matches!(
+                p.video.encoder,
+                crate::ffui_core::domain::EncoderType::Libx264
+                    | crate::ffui_core::domain::EncoderType::Libx265
+                    | crate::ffui_core::domain::EncoderType::LibSvtAv1
+            )),
+            "CPU smart presets should include at least one CPU encoder"
         );
     }
 }

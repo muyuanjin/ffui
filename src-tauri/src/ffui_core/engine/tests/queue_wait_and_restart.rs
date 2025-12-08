@@ -217,3 +217,196 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
         );
     }
 }
+
+#[test]
+fn resume_cancels_pending_wait_request_for_processing_job() {
+    // 测试场景：用户快速连续点击"暂停→继续"时的竞态条件处理。
+    // 当任务仍在 Processing 状态但存在待处理的 wait_request 时，
+    // resume_job 应该取消该暂停请求，让任务继续运行。
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/rapid-pause-resume.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    // 模拟 worker 已经取走任务并开始处理
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+            j.progress = 30.0;
+        }
+    }
+
+    // 用户点击暂停 - 这会设置 wait_request 但不会立即改变状态
+    let wait_accepted = engine.wait_job(&job.id);
+    assert!(wait_accepted, "wait_job must accept a Processing job");
+
+    // 验证 wait_request 已设置，但状态仍是 Processing
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        assert!(
+            state.wait_requests.contains(&job.id),
+            "wait_requests should contain the job id after wait_job"
+        );
+        let stored = state.jobs.get(&job.id).expect("job must exist");
+        assert_eq!(
+            stored.status,
+            JobStatus::Processing,
+            "job should still be Processing (wait is cooperative)"
+        );
+    }
+
+    // 用户立即点击继续 - 在协作式暂停完成之前
+    // 这应该取消待处理的暂停请求
+    let resume_accepted = engine.resume_job(&job.id);
+    assert!(
+        resume_accepted,
+        "resume_job must accept a Processing job with pending wait_request"
+    );
+
+    // 验证 wait_request 已被取消，任务继续处理
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        assert!(
+            !state.wait_requests.contains(&job.id),
+            "wait_requests should be cleared after resume cancels the pending wait"
+        );
+        let stored = state.jobs.get(&job.id).expect("job must exist");
+        assert_eq!(
+            stored.status,
+            JobStatus::Processing,
+            "job should remain Processing after resume cancels pending wait"
+        );
+        assert!(
+            (stored.progress - 30.0).abs() < f64::EPSILON,
+            "progress should be unchanged"
+        );
+        // 验证日志记录了这个操作
+        assert!(
+            stored
+                .logs
+                .iter()
+                .any(|log| log.contains("cancelling wait request")),
+            "logs should record that the wait request was cancelled"
+        );
+    }
+}
+
+#[test]
+fn resume_rejects_processing_job_without_pending_wait_request() {
+    // 测试场景：对正在处理且没有待处理暂停请求的任务调用 resume 应该返回 false
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/no-pending-wait.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    // 模拟 worker 已经取走任务并开始处理
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+            j.progress = 50.0;
+        }
+    }
+
+    // 直接调用 resume（没有先调用 wait）
+    let resume_accepted = engine.resume_job(&job.id);
+    assert!(
+        !resume_accepted,
+        "resume_job must reject a Processing job without pending wait_request"
+    );
+
+    // 验证状态没有改变
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let stored = state.jobs.get(&job.id).expect("job must exist");
+        assert_eq!(
+            stored.status,
+            JobStatus::Processing,
+            "job should remain Processing"
+        );
+    }
+}
+
+#[test]
+fn rapid_pause_resume_pause_sequence_handles_correctly() {
+    // 测试场景：用户快速连续点击"暂停→继续→暂停"
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/rapid-sequence.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    // 模拟 worker 已经取走任务并开始处理
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+            j.progress = 20.0;
+        }
+    }
+
+    // 第一次暂停
+    assert!(engine.wait_job(&job.id), "first wait_job must succeed");
+
+    // 立即继续（取消暂停请求）
+    assert!(
+        engine.resume_job(&job.id),
+        "resume_job must cancel pending wait"
+    );
+
+    // 再次暂停
+    assert!(engine.wait_job(&job.id), "second wait_job must succeed");
+
+    // 验证最终状态：有一个待处理的暂停请求
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        assert!(
+            state.wait_requests.contains(&job.id),
+            "wait_requests should contain the job id after final wait_job"
+        );
+        let stored = state.jobs.get(&job.id).expect("job must exist");
+        assert_eq!(
+            stored.status,
+            JobStatus::Processing,
+            "job should still be Processing"
+        );
+    }
+
+    // 模拟协作式暂停完成
+    let tmp = PathBuf::from("C:/videos/rapid-sequence.compressed.tmp.mp4");
+    let out = PathBuf::from("C:/videos/rapid-sequence.compressed.mp4");
+    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0))
+        .expect("mark_job_waiting must succeed");
+
+    // 验证任务现在是 Paused 状态
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let stored = state.jobs.get(&job.id).expect("job must exist");
+        assert_eq!(
+            stored.status,
+            JobStatus::Paused,
+            "job should be Paused after cooperative wait completes"
+        );
+    }
+}

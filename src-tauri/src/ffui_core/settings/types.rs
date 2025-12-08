@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::ffui_core::domain::{ImageTargetFormat, SmartScanConfig};
+use crate::ffui_core::domain::{
+    FileTypeFilter, ImageTargetFormat, SavingConditionType, SmartScanConfig,
+};
 
 /// Human-readable metadata for a downloaded tool binary.
 /// All fields are optional so existing settings.json files remain valid and minimal.
@@ -145,11 +147,57 @@ impl Default for AppSettings {
         Self {
             tools: ExternalToolSettings::default(),
             smart_scan_defaults: SmartScanConfig {
+                root_path: None,
+                replace_original: true,
                 min_image_size_kb: 50,
                 min_video_size_mb: 50,
+                min_audio_size_kb: 500,
+                saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 image_target_format: ImageTargetFormat::Avif,
                 video_preset_id: String::new(),
+                audio_preset_id: None,
+                video_filter: FileTypeFilter {
+                    enabled: true,
+                    extensions: vec![
+                        "mp4".to_string(),
+                        "mkv".to_string(),
+                        "mov".to_string(),
+                        "avi".to_string(),
+                        "flv".to_string(),
+                        "ts".to_string(),
+                        "m2ts".to_string(),
+                        "wmv".to_string(),
+                        "webm".to_string(),
+                    ],
+                },
+                image_filter: FileTypeFilter {
+                    enabled: true,
+                    extensions: vec![
+                        "jpg".to_string(),
+                        "jpeg".to_string(),
+                        "png".to_string(),
+                        "bmp".to_string(),
+                        "tif".to_string(),
+                        "tiff".to_string(),
+                        "webp".to_string(),
+                        "gif".to_string(),
+                    ],
+                },
+                audio_filter: FileTypeFilter {
+                    enabled: false,
+                    extensions: vec![
+                        "mp3".to_string(),
+                        "wav".to_string(),
+                        "flac".to_string(),
+                        "aac".to_string(),
+                        "ogg".to_string(),
+                        "m4a".to_string(),
+                        "wma".to_string(),
+                        "opus".to_string(),
+                    ],
+                },
             },
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,

@@ -3,16 +3,27 @@ use std::path::{Path, PathBuf};
 use super::resolve::{looks_like_bare_program_name, resolve_in_path_with_env};
 use super::types::ExternalToolKind;
 
+#[derive(Debug, Clone)]
+pub struct DiscoveredPath {
+    pub path: PathBuf,
+    /// Source hint for the discovered path so the frontend can render an
+    /// accurate badge (e.g. distinguish Everything SDK from PATH).
+    pub source: &'static str,
+}
+
 /// Multi-source discovery of external tool executables.
 /// Returns a de-duplicated list of plausible absolute paths in best-effort order.
-pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = Vec::new();
+pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<DiscoveredPath> {
+    let mut out: Vec<DiscoveredPath> = Vec::new();
 
     // 1) If the input is already a plausible explicit path, prefer it.
     if !looks_like_bare_program_name(program) {
         let p = PathBuf::from(program);
         if p.is_file() {
-            out.push(p);
+            out.push(DiscoveredPath {
+                path: p,
+                source: "path",
+            });
         }
         return dedup_paths(out);
     }
@@ -23,7 +34,10 @@ pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<PathBuf
         std::env::var_os("PATH"),
         std::env::var_os("PATHEXT"),
     ) {
-        out.push(p);
+        out.push(DiscoveredPath {
+            path: p,
+            source: "path",
+        });
     }
 
     // 3) Environment variables that may contain direct overrides
@@ -31,29 +45,48 @@ pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<PathBuf
     if let Some(env_path) = env_override_for(kind) {
         let p = PathBuf::from(env_path);
         if p.is_file() {
-            out.push(p);
+            out.push(DiscoveredPath {
+                path: p,
+                source: "env",
+            });
         }
     }
 
     // 4) Windows: Registry known install locations (best-effort, non-fatal)
     #[cfg(windows)]
     if let Some(reg_paths) = windows_registry_locations(program) {
-        out.extend(reg_paths.into_iter().filter(|p| p.is_file()));
+        out.extend(
+            reg_paths
+                .into_iter()
+                .filter(|p| p.is_file())
+                .map(|path| DiscoveredPath {
+                    path,
+                    source: "registry",
+                }),
+        );
     }
 
     // 5) Windows: optional Everything SDK fast search (if crate present at runtime)
     #[cfg(windows)]
     if let Some(found) = everything_search(program) {
-        out.extend(found.into_iter().filter(|p| p.is_file()));
+        out.extend(
+            found
+                .into_iter()
+                .filter(|p| p.is_file())
+                .map(|path| DiscoveredPath {
+                    path,
+                    source: "everything",
+                }),
+        );
     }
 
     dedup_paths(out)
 }
 
-fn dedup_paths(mut v: Vec<PathBuf>) -> Vec<PathBuf> {
+fn dedup_paths(mut v: Vec<DiscoveredPath>) -> Vec<DiscoveredPath> {
     use std::collections::HashSet;
     let mut seen = HashSet::new();
-    v.retain(|p| seen.insert(canon_key(p)));
+    v.retain(|p| seen.insert(canon_key(&p.path)));
     v
 }
 
@@ -200,27 +233,6 @@ fn everything_search(_program: &str) -> Option<Vec<PathBuf>> {
     None
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn dedup_keeps_first_and_ignores_case() {
-        let p1 = if cfg!(windows) {
-            PathBuf::from("C:/Tools/ffmpeg.exe")
-        } else {
-            PathBuf::from("/usr/bin/ffmpeg")
-        };
-        let p2 = PathBuf::from(p1.to_string_lossy().to_ascii_uppercase());
-        let v = super::dedup_paths(vec![p1.clone(), p2]);
-        assert_eq!(v.len(), 1);
-        assert_eq!(
-            v[0].to_string_lossy().to_ascii_lowercase(),
-            p1.to_string_lossy().to_ascii_lowercase()
-        );
-    }
-}
-
 #[cfg(windows)]
 fn sort_by_proximity(paths: &mut [PathBuf]) {
     fn norm(p: &Path) -> String {
@@ -256,4 +268,58 @@ fn sort_by_proximity(paths: &mut [PathBuf]) {
         };
         rank(&as_).cmp(&rank(&bs_))
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dedup_keeps_first_and_ignores_case() {
+        let p1 = if cfg!(windows) {
+            PathBuf::from("C:/Tools/ffmpeg.exe")
+        } else {
+            PathBuf::from("/usr/bin/ffmpeg")
+        };
+        let p2 = PathBuf::from(p1.to_string_lossy().to_ascii_uppercase());
+        let v = super::dedup_paths(vec![
+            DiscoveredPath {
+                path: p1.clone(),
+                source: "path",
+            },
+            DiscoveredPath {
+                path: p2,
+                source: "path",
+            },
+        ]);
+        assert_eq!(v.len(), 1);
+        assert_eq!(
+            v[0].path.to_string_lossy().to_ascii_lowercase(),
+            p1.to_string_lossy().to_ascii_lowercase()
+        );
+    }
+
+    #[test]
+    fn env_override_is_exposed_with_env_source() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fake = dir.path().join("ffmpeg");
+        std::fs::write(&fake, b"#!/bin/sh\nexit 0").expect("write fake tool");
+
+        // These test-only env tweaks are confined to this thread, and we
+        // restore the variable immediately afterwards.
+        unsafe {
+            std::env::set_var("FFUI_FFMPEG", &fake);
+        }
+        let candidates = super::discover_candidates("ffmpeg", ExternalToolKind::Ffmpeg);
+        unsafe {
+            std::env::remove_var("FFUI_FFMPEG");
+        }
+
+        assert!(
+            candidates
+                .iter()
+                .any(|c| c.source == "env" && c.path == fake),
+            "env override candidate should be marked as env"
+        );
+    }
 }

@@ -3,6 +3,9 @@ import type { SmartScanConfig } from "./smart-scan";
 
 export type QueuePersistenceMode = "none" | "crashRecovery";
 
+/** 预设排序方式 */
+export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
+
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
@@ -12,6 +15,8 @@ export interface AppSettings {
   developerModeEnabled?: boolean;
   /** Optional default preset id used for manual queue jobs. */
   defaultQueuePresetId?: string;
+  /** Optional preset sort mode for the presets panel and dropdown. */
+  presetSortMode?: PresetSortMode;
   /** Optional upper bound for concurrent ffmpeg jobs; 0 or undefined means auto. */
   maxParallelJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */

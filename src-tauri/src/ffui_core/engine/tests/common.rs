@@ -23,6 +23,10 @@ pub(super) fn make_test_preset() -> FFmpegPreset {
             gop_size: None,
             bf: None,
             pix_fmt: None,
+            b_ref_mode: None,
+            rc_lookahead: None,
+            spatial_aq: None,
+            temporal_aq: None,
         },
         audio: AudioConfig {
             codec: AudioCodecType::Copy,
