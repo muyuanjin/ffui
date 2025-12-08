@@ -219,6 +219,62 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
 }
 
 #[test]
+fn resume_cancels_pending_wait_request_and_logs_when_processing() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/resume-during-wait.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        80.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+            j.progress = 50.0;
+        }
+        state.wait_requests.insert(job.id.clone());
+    }
+
+    let resumed = engine.resume_job(&job.id);
+    assert!(
+        resumed,
+        "resume_job must cancel a pending wait request while job is processing"
+    );
+
+    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let stored = state
+        .jobs
+        .get(&job.id)
+        .expect("job must remain present after cancelling wait");
+    assert_eq!(
+        stored.status,
+        JobStatus::Processing,
+        "cancelling wait request should not change job status mid-processing"
+    );
+    assert!(
+        !state.wait_requests.contains(&job.id),
+        "wait_requests set must remove the job after cancelling wait"
+    );
+    assert!(
+        stored
+            .logs
+            .iter()
+            .any(|entry| entry.contains("Resume requested while wait was pending")),
+        "resume_job should append a log entry when cancelling a pending wait request"
+    );
+    assert!(
+        !state.queue.contains(&job.id),
+        "processing job should remain out of the waiting queue after cancelling wait"
+    );
+}
+
+#[test]
 fn resume_cancels_pending_wait_request_for_processing_job() {
     // 测试场景：用户快速连续点击"暂停→继续"时的竞态条件处理。
     // 当任务仍在 Processing 状态但存在待处理的 wait_request 时，

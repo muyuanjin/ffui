@@ -1,0 +1,240 @@
+use std::sync::Arc;
+
+use crate::ffui_core::domain::JobStatus;
+
+use super::super::state::{Inner, notify_queue_listeners};
+use super::super::worker_utils::{current_time_millis, recompute_log_tail};
+
+/// Cancel a job by ID.
+///
+/// If the job is waiting/queued, removes it from the queue and marks as cancelled.
+/// If the job is processing, marks it for cooperative cancellation by the worker.
+/// Returns true if the job was successfully cancelled or marked for cancellation.
+pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    let mut should_notify = false;
+
+    let result = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let status = match state.jobs.get(job_id) {
+            Some(job) => job.status.clone(),
+            None => return false,
+        };
+
+        match status {
+            JobStatus::Waiting | JobStatus::Queued => {
+                // Remove from queue and mark as cancelled without ever starting ffmpeg.
+                state.queue.retain(|id| id != job_id);
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Cancelled;
+                    job.progress = 0.0;
+                    job.end_time = Some(current_time_millis());
+                    job.logs.push("Cancelled before start".to_string());
+                    recompute_log_tail(job);
+                }
+                should_notify = true;
+                true
+            }
+            JobStatus::Processing => {
+                // Mark for cooperative cancellation; the worker thread will
+                // observe this and terminate the underlying ffmpeg process.
+                state.cancelled_jobs.insert(job_id.to_string());
+                should_notify = true;
+                true
+            }
+            _ => false,
+        }
+    };
+
+    if should_notify {
+        notify_queue_listeners(inner);
+    }
+
+    result
+}
+
+/// Request that a running job transition into a "wait" state, releasing
+/// its worker slot while preserving progress. The actual state change is
+/// performed cooperatively inside the worker loop.
+pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    let mut should_notify = false;
+
+    let result = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let status = match state.jobs.get(job_id) {
+            Some(job) => job.status.clone(),
+            None => return false,
+        };
+
+        match status {
+            JobStatus::Processing => {
+                state.wait_requests.insert(job_id.to_string());
+                should_notify = true;
+                true
+            }
+            _ => false,
+        }
+    };
+
+    if should_notify {
+        notify_queue_listeners(inner);
+    }
+
+    result
+}
+
+/// Resume a paused/waited job by putting it back into the waiting queue while
+/// keeping its progress/wait metadata intact。Processing 状态下如仍有待处理暂停
+/// 请求，则直接取消，避免快速“暂停→继续”引发的竞态。
+pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    let mut should_notify = false;
+
+    let result = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let job = match state.jobs.get_mut(job_id) {
+            Some(job) => job,
+            None => return false,
+        };
+
+        match job.status {
+            JobStatus::Paused => {
+                job.status = JobStatus::Waiting;
+                if !state.queue.iter().any(|id| id == job_id) {
+                    state.queue.push_back(job_id.to_string());
+                }
+                should_notify = true;
+                true
+            }
+            JobStatus::Processing => {
+                // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
+                let wait_request_cancelled = {
+                    // 先释放对 job 的可变借用，再操作 wait_requests，避免重复可变借用。
+                    let _ = job;
+                    state.wait_requests.remove(job_id)
+                };
+
+                if !wait_request_cancelled {
+                    // 没有待处理的暂停请求，任务正在正常处理中，无需操作
+                    false
+                } else {
+                    if let Some(job) = state.jobs.get_mut(job_id) {
+                        job.logs.push(
+                            "Resume requested while wait was pending; cancelling wait request"
+                                .to_string(),
+                        );
+                        recompute_log_tail(job);
+                    }
+                    should_notify = true;
+                    true
+                }
+            }
+            _ => false,
+        }
+    };
+
+    if should_notify {
+        inner.cv.notify_one();
+        notify_queue_listeners(inner);
+    }
+
+    result
+}
+
+/// Restart a job from 0% progress. For jobs that are currently processing
+/// this schedules a cooperative cancellation followed by a fresh enqueue
+/// in `mark_job_cancelled`. For non-processing jobs the state is reset
+/// immediately and the job is reinserted into the waiting queue.
+pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    let mut should_notify = false;
+
+    let result = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let job = match state.jobs.get_mut(job_id) {
+            Some(job) => job,
+            None => return false,
+        };
+
+        match job.status {
+            JobStatus::Completed | JobStatus::Skipped => false,
+            JobStatus::Processing => {
+                state.restart_requests.insert(job_id.to_string());
+                state.cancelled_jobs.insert(job_id.to_string());
+                should_notify = true;
+                true
+            }
+            _ => {
+                // Reset immediately for non-processing jobs.
+                job.status = JobStatus::Waiting;
+                job.progress = 0.0;
+                job.end_time = None;
+                job.failure_reason = None;
+                job.skip_reason = None;
+                job.wait_metadata = None;
+                job.logs
+                    .push("Restart requested from UI; job will re-run from 0%".to_string());
+                recompute_log_tail(job);
+
+                if !state.queue.iter().any(|id| id == job_id) {
+                    state.queue.push_back(job_id.to_string());
+                }
+
+                should_notify = true;
+                // Any old restart or cancel flags become irrelevant.
+                state.restart_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                true
+            }
+        }
+    };
+
+    if should_notify {
+        inner.cv.notify_one();
+        notify_queue_listeners(inner);
+    }
+
+    result
+}
+
+/// Permanently delete a job from the engine state.
+///
+/// Only terminal-state jobs (Completed/Failed/Skipped/Cancelled) are eligible
+/// for deletion. Active or waiting jobs are kept to avoid silently losing
+/// work that is still running or scheduled.
+pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let job = match state.jobs.get(job_id) {
+            Some(j) => j.clone(),
+            None => return false,
+        };
+
+        match job.status {
+            JobStatus::Completed
+            | JobStatus::Failed
+            | JobStatus::Skipped
+            | JobStatus::Cancelled => {
+                // Guard against deleting the currently active job even if the
+                // status somehow appears terminal; this should not normally
+                // happen but keeps the behaviour defensive.
+                if state.active_job.as_deref() == Some(job_id) {
+                    return false;
+                }
+
+                // Remove from waiting queue and book-keeping sets.
+                state.queue.retain(|id| id != job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.wait_requests.remove(job_id);
+                state.restart_requests.remove(job_id);
+
+                // Finally drop the job record.
+                state.jobs.remove(job_id);
+            }
+            _ => {
+                // Non-terminal jobs cannot be deleted directly.
+                return false;
+            }
+        }
+    }
+
+    notify_queue_listeners(inner);
+    true
+}

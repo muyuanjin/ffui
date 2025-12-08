@@ -4,7 +4,11 @@
     {
       "id": "smart-hevc-fast",
       "name": "H.265 Fast NVENC",
-      "description": "HEVC NVENC CQ 28, preset p5, keeps source resolution for quick web/share.",
+      "description": "有 NVIDIA 时的日常快速压缩/分享，HEVC CQ28 p5，保留分辨率。",
+      "descriptionI18n": {
+        "zh-CN": "有 NVIDIA 时的日常快速压缩/分享，HEVC CQ28 p5，保留分辨率。",
+        "en": "NVIDIA quick share: HEVC CQ28 preset p5, keep source resolution for fast everyday compress."
+      },
       "video": {
         "encoder": "hevc_nvenc",
         "rateControl": "cq",
@@ -28,7 +32,11 @@
     {
       "id": "smart-av1-nvenc-hq-constqp18",
       "name": "AV1 NVENC HQ ConstQP18",
-      "description": "AV1 NVENC constqp 18, p7, HQ tune, 10-bit, B-ref each, lookahead 32, AQ on; audio AAC 320k with EBU loudness。",
+      "description": "RTX40+/Ada 视觉无损：AV1 NVENC constqp18 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频 AAC 320k EBU。",
+      "descriptionI18n": {
+        "zh-CN": "RTX40+/Ada 视觉无损：AV1 NVENC constqp18 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频 AAC 320k EBU。",
+        "en": "RTX 40+/Ada near-lossless: AV1 NVENC constqp18 p7 HQ, 10-bit, B-ref each, rc-lookahead 32, AQ on; audio AAC 320k with EBU loudness."
+      },
       "video": {
         "encoder": "av1_nvenc",
         "rateControl": "constqp",
@@ -61,7 +69,11 @@
     {
       "id": "smart-hevc-nvenc-hq-constqp19",
       "name": "H.265 NVENC HQ ConstQP19",
-      "description": "HEVC NVENC constqp 19, p7, HQ tune, 10-bit, B-ref each, lookahead 32, AQ on；音频复制。",
+      "description": "RTX 有 NVENC 时的高质量 HEVC：constqp19 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频复制。",
+      "descriptionI18n": {
+        "zh-CN": "RTX 有 NVENC 时的高质量 HEVC：constqp19 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频复制。",
+        "en": "RTX NVENC HQ HEVC: constqp19 p7 HQ, 10-bit, B-ref each, rc-lookahead 32, AQ on; audio copy."
+      },
       "video": {
         "encoder": "hevc_nvenc",
         "rateControl": "constqp",
@@ -90,7 +102,11 @@
     {
       "id": "smart-hevc-balanced",
       "name": "H.265 Balanced NVENC",
-      "description": "HEVC NVENC CQ 26, preset p7, 10-bit for balanced quality vs size.",
+      "description": "NVENC 日常平衡：HEVC CQ26 p7 10-bit，质量/体积折中，分享/备份皆可。",
+      "descriptionI18n": {
+        "zh-CN": "NVENC 日常平衡：HEVC CQ26 p7 10-bit，质量/体积折中，分享/备份皆可。",
+        "en": "NVENC balanced: HEVC CQ26 p7 10-bit, quality/size tradeoff for daily share/backup."
+      },
       "video": {
         "encoder": "hevc_nvenc",
         "rateControl": "cq",
@@ -114,7 +130,11 @@
     {
       "id": "smart-hevc-archive",
       "name": "H.265 Archival NVENC",
-      "description": "HEVC NVENC CQ 20, preset p7, 10-bit output for visually lossless archival.",
+      "description": "NVENC 归档：HEVC CQ20 p7 10-bit，视觉无损取向。",
+      "descriptionI18n": {
+        "zh-CN": "NVENC 归档：HEVC CQ20 p7 10-bit，视觉无损取向。",
+        "en": "NVENC archival: HEVC CQ20 p7 10-bit, visually lossless leaning."
+      },
       "video": {
         "encoder": "hevc_nvenc",
         "rateControl": "cq",
@@ -138,7 +158,11 @@
     {
       "id": "smart-h264-nvenc-hq",
       "name": "H.264 HQ NVENC",
-      "description": "H.264 NVENC cq 29 preset p7 for compatibility-first fast transcodes.",
+      "description": "NVENC H.264 兼容性优先：cq29 p7，适合老设备/播放器。",
+      "descriptionI18n": {
+        "zh-CN": "NVENC H.264 兼容性优先：cq29 p7，适合老设备/播放器。",
+        "en": "NVENC H.264 compatibility-first: cq29 p7, good for older devices/players."
+      },
       "video": {
         "encoder": "h264_nvenc",
         "rateControl": "cq",
@@ -162,7 +186,11 @@
     {
       "id": "smart-av1-nvenc-fast",
       "name": "AV1 Fast NVENC",
-      "description": "AV1 NVENC cq 36 preset p7 for RTX 40 系及以上显卡。",
+      "description": "RTX40+ 体积优先：AV1 NVENC cq36 p7，快速高压缩。",
+      "descriptionI18n": {
+        "zh-CN": "RTX40+ 体积优先：AV1 NVENC cq36 p7，快速高压缩。",
+        "en": "RTX 40+ size-first: AV1 NVENC cq36 p7, fast high compression."
+      },
       "video": {
         "encoder": "av1_nvenc",
         "rateControl": "cq",
@@ -186,7 +214,11 @@
     {
       "id": "smart-hevc-fast",
       "name": "H.264 Fast",
-      "description": "x264 CRF 23 preset medium keeping source resolution for fast, broadly compatible output.",
+      "description": "无独显/兼容性优先的快速 CPU 转码：x264 CRF23 preset medium。",
+      "descriptionI18n": {
+        "zh-CN": "无独显/兼容性优先的快速 CPU 转码：x264 CRF23 preset medium。",
+        "en": "CPU quick/compat: x264 CRF23 preset medium for fast, broad playback support."
+      },
       "video": {
         "encoder": "libx264",
         "rateControl": "crf",
@@ -208,7 +240,11 @@
     {
       "id": "smart-aac-ebu-320",
       "name": "Audio AAC 320k EBU",
-      "description": "视频复制，音频转码 AAC 320kbps，EBU R128 响度，适合国际响度标准。",
+      "description": "仅做音频标准化：视频 copy，音频 AAC 320k + EBU R128，适合响度一致化/国际标准。",
+      "descriptionI18n": {
+        "zh-CN": "仅做音频标准化：视频 copy，音频 AAC 320k + EBU R128，适合响度一致化/国际标准。",
+        "en": "Audio loudness only: video copy, audio AAC 320k with EBU R128 for consistent loudness."
+      },
       "video": {
         "encoder": "copy",
         "rateControl": "crf",
@@ -233,7 +269,11 @@
     {
       "id": "smart-hevc-balanced",
       "name": "H.264 Balanced",
-      "description": "x264 CRF 23 preset slow for a quality/size balance on CPU-only systems.",
+      "description": "CPU-only 平衡：x264 CRF23 preset slow，质量/体积折中。",
+      "descriptionI18n": {
+        "zh-CN": "CPU-only 平衡：x264 CRF23 preset slow，质量/体积折中。",
+        "en": "CPU balance: x264 CRF23 preset slow, quality/size tradeoff."
+      },
       "video": {
         "encoder": "libx264",
         "rateControl": "crf",
@@ -255,7 +295,11 @@
     {
       "id": "smart-hevc-archive",
       "name": "H.264 Archival",
-      "description": "x264 CRF 18 preset slow for near visually lossless archival.",
+      "description": "CPU-only 归档：x264 CRF18 preset slow，视觉无损取向。",
+      "descriptionI18n": {
+        "zh-CN": "CPU-only 归档：x264 CRF18 preset slow，视觉无损取向。",
+        "en": "CPU archival: x264 CRF18 preset slow, visually lossless leaning."
+      },
       "video": {
         "encoder": "libx264",
         "rateControl": "crf",
@@ -277,7 +321,11 @@
     {
       "id": "smart-x265-balanced",
       "name": "H.265 Balanced (x265)",
-      "description": "libx265 CRF 24 preset slow for smaller size with good quality.",
+      "description": "CPU x265 平衡：CRF24 preset slow 10-bit，体积小且画质佳。",
+      "descriptionI18n": {
+        "zh-CN": "CPU x265 平衡：CRF24 preset slow 10-bit，体积小且画质佳。",
+        "en": "CPU x265 balanced: CRF24 preset slow 10-bit, smaller size with solid quality."
+      },
       "video": {
         "encoder": "libx265",
         "rateControl": "crf",
@@ -299,7 +347,11 @@
     {
       "id": "smart-x265-archive",
       "name": "H.265 Archive (x265)",
-      "description": "libx265 CRF 22 preset slow for high-quality archival.",
+      "description": "CPU x265 归档：CRF22 preset slow 10-bit，高质量保存。",
+      "descriptionI18n": {
+        "zh-CN": "CPU x265 归档：CRF22 preset slow 10-bit，高质量保存。",
+        "en": "CPU x265 archival: CRF22 preset slow 10-bit for high-quality keeps."
+      },
       "video": {
         "encoder": "libx265",
         "rateControl": "crf",
@@ -321,7 +373,11 @@
     {
       "id": "smart-av1-fast",
       "name": "AV1 Fast (SVT)",
-      "description": "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression.",
+      "description": "CPU AV1 快速：CRF34 preset6 10-bit，高压缩，速度取向。",
+      "descriptionI18n": {
+        "zh-CN": "CPU AV1 快速：CRF34 preset6 10-bit，高压缩，速度取向。",
+        "en": "CPU AV1 fast: CRF34 preset6 10-bit, high compression, speed oriented."
+      },
       "video": {
         "encoder": "libsvtav1",
         "rateControl": "crf",
@@ -344,7 +400,11 @@
     {
       "id": "smart-av1-balanced",
       "name": "AV1 Balanced (SVT)",
-      "description": "libsvtav1 CRF 30 preset 6, 10-bit for balanced quality/size.",
+      "description": "CPU AV1 平衡：CRF30 preset6 10-bit，质量/体积兼顾。",
+      "descriptionI18n": {
+        "zh-CN": "CPU AV1 平衡：CRF30 preset6 10-bit，质量/体积兼顾。",
+        "en": "CPU AV1 balanced: CRF30 preset6 10-bit, balance of quality/size."
+      },
       "video": {
         "encoder": "libsvtav1",
         "rateControl": "crf",
@@ -367,7 +427,11 @@
     {
       "id": "smart-av1-archive",
       "name": "AV1 Archival (SVT)",
-      "description": "libsvtav1 CRF 24 preset 6, 10-bit output tuned for visually lossless archival.",
+      "description": "CPU AV1 归档：CRF24 preset6 10-bit，偏视觉无损。",
+      "descriptionI18n": {
+        "zh-CN": "CPU AV1 归档：CRF24 preset6 10-bit，偏视觉无损。",
+        "en": "CPU AV1 archival: CRF24 preset6 10-bit, near visually lossless."
+      },
       "video": {
         "encoder": "libsvtav1",
         "rateControl": "crf",
@@ -390,7 +454,11 @@
     {
       "id": "smart-hevc-qsv-balanced",
       "name": "H.265 Balanced (QSV)",
-      "description": "hevc_qsv global_quality 24 preset veryslow for Intel iGPU/ARC.",
+      "description": "Intel 核显/ARC：HEVC QSV global_quality 24 preset veryslow，平衡质量与体积。",
+      "descriptionI18n": {
+        "zh-CN": "Intel 核显/ARC：HEVC QSV global_quality 24 preset veryslow，平衡质量与体积。",
+        "en": "Intel iGPU/ARC: HEVC QSV global_quality 24 preset veryslow, balanced quality/size."
+      },
       "video": {
         "encoder": "hevc_qsv",
         "rateControl": "cq",
@@ -412,7 +480,11 @@
     {
       "id": "smart-av1-qsv-balanced",
       "name": "AV1 Balanced (QSV)",
-      "description": "av1_qsv global_quality 34 preset veryslow for Intel ARC / 新核显。",
+      "description": "Intel 核显/ARC：AV1 QSV global_quality 34 preset veryslow，高压缩平衡。",
+      "descriptionI18n": {
+        "zh-CN": "Intel 核显/ARC：AV1 QSV global_quality 34 preset veryslow，高压缩平衡。",
+        "en": "Intel iGPU/ARC: AV1 QSV global_quality 34 preset veryslow, high compression balance."
+      },
       "video": {
         "encoder": "av1_qsv",
         "rateControl": "cq",
@@ -434,7 +506,11 @@
     {
       "id": "smart-hevc-amf-balanced",
       "name": "H.265 Balanced (AMF)",
-      "description": "hevc_amf qp 28 preset balanced for AMD dGPU/APU.",
+      "description": "AMD dGPU/APU：HEVC AMF qp28 preset balanced，快速兼顾体积（质量次之）。",
+      "descriptionI18n": {
+        "zh-CN": "AMD dGPU/APU：HEVC AMF qp28 preset balanced，快速兼顾体积（质量次之）。",
+        "en": "AMD dGPU/APU: HEVC AMF qp28 preset balanced, fast with size focus (quality secondary)."
+      },
       "video": {
         "encoder": "hevc_amf",
         "rateControl": "cq",
@@ -456,7 +532,11 @@
     {
       "id": "smart-av1-amf-balanced",
       "name": "AV1 Balanced (AMF)",
-      "description": "av1_amf qp 34 preset balanced for AMD 7000 系显卡/核显。",
+      "description": "AMD 7000+：AV1 AMF qp34 preset balanced，体积优先（实验性）。",
+      "descriptionI18n": {
+        "zh-CN": "AMD 7000+：AV1 AMF qp34 preset balanced，体积优先（实验性）。",
+        "en": "AMD 7000+: AV1 AMF qp34 preset balanced, size-first (experimental)."
+      },
       "video": {
         "encoder": "av1_amf",
         "rateControl": "cq",

@@ -210,6 +210,8 @@ export interface FFmpegPreset {
   id: string;
   name: string;
   description: string;
+  /** Optional localized descriptions keyed by locale, e.g. { "en": "...", "zh-CN": "..." } */
+  descriptionI18n?: Record<string, string>;
   /** Optional global ffmpeg options (loglevel, overwrite, banner, report). */
   global?: GlobalConfig;
   /** Optional input/timeline options (seek / trim). */

@@ -38,7 +38,7 @@ const other = {
     importButton: "开始使用",
   },
   smartScan: {
-    title: "智能自动压缩",
+    title: "批量压缩转码",
     subtitle: "递归扫描并压缩媒体文件",
     notice:
       "满足特定条件（已是高效编码、小文件或压缩收益太低）的文件会被自动跳过。",

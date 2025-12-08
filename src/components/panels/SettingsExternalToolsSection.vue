@@ -75,6 +75,11 @@ const currentCandidates = computed<ExternalToolCandidate[]>(() => {
 });
 
 const loadCandidates = async (kind: ExternalToolKind) => {
+  // Toggle: clicking the same tool closes the list without re-querying.
+  if (candidateKind.value === kind && currentCandidates.value.length) {
+    candidateKind.value = null;
+    return;
+  }
   candidateKind.value = kind;
   const now = Date.now();
   const lastFetched = candidatesFetchedAt.value[kind] ?? 0;
