@@ -32,10 +32,12 @@ vi.mock("@tauri-apps/api/window", () => {
   };
 });
 
-vi.mock("@/lib/backend", () => {
+vi.mock("@/lib/backend", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const enqueueTranscodeJob = vi.fn(async () => ({} as any));
 
   return {
+    ...actual,
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
@@ -44,6 +46,9 @@ vi.mock("@/lib/backend", () => {
     fetchGpuUsage: vi.fn(async () => ({} as any)),
     loadAppSettings: vi.fn(async () => ({} as any)),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
+    loadSmartDefaultPresets: vi.fn(async () => []),
+    loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
     enqueueTranscodeJob,

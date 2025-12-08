@@ -46,7 +46,8 @@ vi.mock("@tauri-apps/api/core", () => {
   };
 });
 
-vi.mock("@/lib/backend", () => {
+vi.mock("@/lib/backend", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const loadAppSettings = vi.fn(async () => ({
     tools: {
       ffmpegPath: undefined,
@@ -70,6 +71,7 @@ vi.mock("@/lib/backend", () => {
   }));
 
   return {
+    ...actual,
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
@@ -78,7 +80,9 @@ vi.mock("@/lib/backend", () => {
     fetchGpuUsage: vi.fn(async () => ({ available: false })),
     loadAppSettings,
     loadPresets: vi.fn(async () => []),
+    loadSmartDefaultPresets: vi.fn(async () => []),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadPreviewDataUrl: vi.fn(async () => ""),
     runAutoCompress: vi.fn(async () => ({
       rootPath: "",

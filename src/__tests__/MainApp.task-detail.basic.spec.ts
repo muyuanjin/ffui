@@ -22,23 +22,30 @@ vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() =
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), convertFileSrc: (path: string) => path }));
 
-vi.mock("@/lib/backend", () => ({
-  hasTauri: () => false,
-  buildPreviewUrl: (path: string | null) => path,
-  inspectMedia: vi.fn(async () => "{}"),
-  fetchCpuUsage: vi.fn(async () => ({} as any)),
-  fetchExternalToolStatuses: vi.fn(async () => []),
-  fetchGpuUsage: vi.fn(async () => ({} as any)),
-  loadAppSettings: vi.fn(async () => ({} as any)),
-  loadQueueState: vi.fn(async () => ({ jobs: [] })),
-  runAutoCompress: vi.fn(async () => ({ jobs: [] })),
-  saveAppSettings: vi.fn(async (settings: any) => settings),
-  enqueueTranscodeJob: vi.fn(async () => ({} as any)),
-  cancelTranscodeJob: vi.fn(async () => true),
-  selectPlayableMediaPath: vi.fn(
-    async (candidates: string[]) => candidates[0] ?? null,
-  ),
-}));
+vi.mock("@/lib/backend", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
+  return {
+    ...actual,
+    hasTauri: () => false,
+    buildPreviewUrl: (path: string | null) => path,
+    inspectMedia: vi.fn(async () => "{}"),
+    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchExternalToolStatuses: vi.fn(async () => []),
+    fetchGpuUsage: vi.fn(async () => ({} as any)),
+    loadAppSettings: vi.fn(async () => ({} as any)),
+    loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
+    loadSmartDefaultPresets: vi.fn(async () => []),
+    loadPresets: vi.fn(async () => []),
+    runAutoCompress: vi.fn(async () => ({ jobs: [] })),
+    saveAppSettings: vi.fn(async (settings: any) => settings),
+    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    cancelTranscodeJob: vi.fn(async () => true),
+    selectPlayableMediaPath: vi.fn(
+      async (candidates: string[]) => candidates[0] ?? null,
+    ),
+  };
+});
 
 const i18n = createI18n({
   legacy: false,
