@@ -97,6 +97,8 @@ const queue = {
     wait: "Wait",
     resume: "Resume",
     restart: "Restart",
+    openInputFolder: "Open input folder",
+    openOutputFolder: "Open output folder",
     moveToPosition: "Move to position…",
     moveToPositionPrompt: "Enter a new queue position (1-{max}):",
     bulkCancel: "Stop selected",

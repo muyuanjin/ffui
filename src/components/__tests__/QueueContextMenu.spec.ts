@@ -40,6 +40,55 @@ describe("QueueContextMenu", () => {
     expect(resumeButton.attributes("disabled")).toBeDefined();
   });
 
+  it("disables file actions when reveal paths are unavailable", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "single",
+        jobStatus: "completed",
+        queueMode: "queue",
+        hasSelection: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const openInput = wrapper.get("[data-testid='queue-context-menu-open-input']");
+    const openOutput = wrapper.get("[data-testid='queue-context-menu-open-output']");
+
+    expect(openInput.attributes("disabled")).toBeDefined();
+    expect(openOutput.attributes("disabled")).toBeDefined();
+  });
+
+  it("emits file reveal events when enabled", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "single",
+        jobStatus: "completed",
+        queueMode: "queue",
+        hasSelection: true,
+        canRevealInputPath: true,
+        canRevealOutputPath: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await wrapper.get("[data-testid='queue-context-menu-open-input']").trigger("click");
+    await wrapper.get("[data-testid='queue-context-menu-open-output']").trigger("click");
+
+    expect(wrapper.emitted("open-input-folder")).toBeTruthy();
+    expect(wrapper.emitted("open-output-folder")).toBeTruthy();
+    expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
   it("disables bulk actions when nothing is selected", async () => {
     const wrapper = mount(QueueContextMenu, {
       props: {

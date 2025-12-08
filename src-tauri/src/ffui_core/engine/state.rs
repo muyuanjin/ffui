@@ -1,15 +1,13 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Condvar, Mutex};
-use std::time::Instant;
-
 use crate::ffui_core::domain::{
     AutoCompressProgress, FFmpegPreset, JobStatus, JobType, MediaInfo, QueueState, TranscodeJob,
     WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, Condvar, Mutex};
 
 use super::state_persist::{load_persisted_queue_state, persist_queue_state};
 

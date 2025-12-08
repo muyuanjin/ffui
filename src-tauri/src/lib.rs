@@ -304,6 +304,7 @@ pub fn run() {
             commands::tools::inspect_media,
             commands::tools::get_preview_data_url,
             commands::tools::select_playable_media_path,
+            commands::tools::reveal_path_in_folder,
             commands::tools::metrics_subscribe,
             commands::tools::metrics_unsubscribe,
             commands::tools::get_metrics_history

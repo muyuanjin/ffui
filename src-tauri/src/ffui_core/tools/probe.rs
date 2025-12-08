@@ -1,18 +1,11 @@
+use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
-use std::collections::HashMap;
 
-use super::resolve::{
-    custom_path_for, downloaded_tool_path, looks_like_bare_program_name, resolve_in_path,
-    tool_binary_name,
-};
-use super::runtime_state::{
-    last_tool_download_metadata, mark_arch_incompatible_for_session, snapshot_download_state,
-};
+use super::runtime_state::mark_arch_incompatible_for_session;
 use super::types::*;
-use crate::ffui_core::settings::ExternalToolSettings;
 
 // Avoid visible console windows for helper commands on Windows.
 #[cfg(windows)]
@@ -67,9 +60,14 @@ fn file_fingerprint(path: &str) -> Option<FileFingerprint> {
     let meta = fs::metadata(path).ok()?;
     let len = meta.len();
     let modified_millis = meta.modified().ok().and_then(|t| {
-        t.duration_since(SystemTime::UNIX_EPOCH).ok().map(|d| d.as_millis())
+        t.duration_since(SystemTime::UNIX_EPOCH)
+            .ok()
+            .map(|d| d.as_millis())
     });
-    Some(FileFingerprint { len, modified_millis })
+    Some(FileFingerprint {
+        len,
+        modified_millis,
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -93,10 +91,11 @@ fn cache_lookup(kind: ExternalToolKind, path: &str) -> Option<bool> {
             return Some(entry.ok);
         }
         // If we have no fingerprint (e.g. bare program name), reuse negative result briefly.
-        if entry.fingerprint.is_none() && !entry.ok {
-            if entry.last_checked.elapsed() < Duration::from_secs(2) {
-                return Some(entry.ok);
-            }
+        if entry.fingerprint.is_none()
+            && !entry.ok
+            && entry.last_checked.elapsed() < Duration::from_secs(2)
+        {
+            return Some(entry.ok);
         }
     }
     None
@@ -105,7 +104,11 @@ fn cache_lookup(kind: ExternalToolKind, path: &str) -> Option<bool> {
 fn cache_store(kind: ExternalToolKind, path: &str, ok: bool) {
     let key = (kind, path.to_string());
     let fp = file_fingerprint(path);
-    let entry = VerifyCacheEntry { ok, fingerprint: fp, last_checked: std::time::Instant::now() };
+    let entry = VerifyCacheEntry {
+        ok,
+        fingerprint: fp,
+        last_checked: std::time::Instant::now(),
+    };
     if let Ok(mut map) = VERIFY_CACHE.lock() {
         map.insert(key, entry);
     }
@@ -116,11 +119,17 @@ fn current_windows_pe_machine() -> Option<u16> {
     // Map Rust target_arch to PE machine codes.
     // IMAGE_FILE_MACHINE_AMD64 = 0x8664; I386 = 0x014c; ARM64 = 0xAA64.
     #[cfg(target_arch = "x86_64")]
-    { return Some(0x8664); }
+    {
+        return Some(0x8664);
+    }
     #[cfg(target_arch = "x86")]
-    { return Some(0x014c); }
+    {
+        return Some(0x014c);
+    }
     #[cfg(target_arch = "aarch64")]
-    { return Some(0xAA64); }
+    {
+        return Some(0xAA64);
+    }
     #[allow(unreachable_code)]
     None
 }
@@ -130,7 +139,9 @@ fn parse_pe_machine(path: &str) -> Option<u16> {
     let mut f = File::open(path).ok()?;
     let mut mz: [u8; 2] = [0, 0];
     f.read_exact(&mut mz).ok()?;
-    if mz != [b'M', b'Z'] { return None; }
+    if mz != [b'M', b'Z'] {
+        return None;
+    }
     // e_lfanew at offset 0x3C
     f.seek(SeekFrom::Start(0x3C)).ok()?;
     let mut off_buf = [0u8; 4];
@@ -140,7 +151,9 @@ fn parse_pe_machine(path: &str) -> Option<u16> {
     f.seek(SeekFrom::Start(pe_off)).ok()?;
     let mut sig = [0u8; 4];
     f.read_exact(&mut sig).ok()?;
-    if sig != [b'P', b'E', 0, 0] { return None; }
+    if sig != [b'P', b'E', 0, 0] {
+        return None;
+    }
     let mut machine_buf = [0u8; 2];
     f.read_exact(&mut machine_buf).ok()?;
     Some(u16::from_le_bytes(machine_buf))
@@ -199,7 +212,9 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     }
                     cache_store(kind, path, true);
                     if debug_log {
-                        eprintln!("[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}");
+                        eprintln!(
+                            "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
+                        );
                     }
                     return true;
                 }

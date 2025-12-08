@@ -237,4 +237,42 @@ describe("SettingsPanel external tool download status", () => {
 
     wrapper.unmount();
   });
+
+  it("surfaces the backend-provided remote version in the update hint", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: "C:/tools/ffmpeg.exe",
+      source: "download",
+      version: "ffmpeg version 6.0",
+      remoteVersion: "6.1.1",
+      updateAvailable: true,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: false,
+      downloadProgress: undefined,
+      downloadedBytes: undefined,
+      totalBytes: undefined,
+      bytesPerSecond: undefined,
+      lastDownloadError: undefined,
+      lastDownloadMessage: undefined,
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("检测到可用更新：6.1.1");
+
+    wrapper.unmount();
+  });
 });
