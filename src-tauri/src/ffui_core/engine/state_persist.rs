@@ -4,7 +4,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use crate::ffui_core::domain::{JobStatus, QueueState, TranscodeJob};
+#[cfg(test)]
+use crate::ffui_core::domain::TranscodeJob;
+use crate::ffui_core::domain::{JobStatus, QueueState};
 
 /// Path to the sidecar JSON file used for crash-recovery queue snapshots.
 fn queue_state_sidecar_path() -> Option<PathBuf> {
@@ -278,4 +280,3 @@ mod tests {
         );
     }
 }
-

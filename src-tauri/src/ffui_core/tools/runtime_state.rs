@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use super::types::*;
+use crate::ffui_core::settings::ExternalToolSettings;
 use tauri::Emitter;
 
 /// Name of the Tauri event used to push external tool status snapshots to the
@@ -267,4 +268,44 @@ pub fn last_tool_download_metadata(
         .expect("LAST_TOOL_DOWNLOAD lock poisoned");
     map.get(&kind)
         .map(|m| (m.url.clone(), m.version.clone(), m.tag.clone()))
+}
+
+/// Seed the in-memory last-download metadata from persisted settings so that
+/// remote_version/update_available flags remain accurate across restarts
+/// without requiring a fresh network fetch.
+pub fn hydrate_last_tool_download_from_settings(settings: &ExternalToolSettings) {
+    let Some(downloaded) = settings.downloaded.as_ref() else {
+        return;
+    };
+
+    let mut map = LAST_TOOL_DOWNLOAD
+        .lock()
+        .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+
+    let mut seed =
+        |kind: ExternalToolKind, info: &Option<crate::ffui_core::settings::DownloadedToolInfo>| {
+            let Some(info) = info else {
+                return;
+            };
+            // Do not overwrite fresher runtime metadata (e.g. a download in the
+            // current session) with older persisted data.
+            if map.contains_key(&kind) {
+                return;
+            }
+            if info.version.is_none() && info.tag.is_none() && info.source_url.is_none() {
+                return;
+            }
+            map.insert(
+                kind,
+                ToolDownloadMetadata {
+                    url: info.source_url.clone().unwrap_or_default(),
+                    version: info.version.clone(),
+                    tag: info.tag.clone(),
+                },
+            );
+        };
+
+    seed(ExternalToolKind::Ffmpeg, &downloaded.ffmpeg);
+    seed(ExternalToolKind::Ffprobe, &downloaded.ffprobe);
+    seed(ExternalToolKind::Avifenc, &downloaded.avifenc);
 }

@@ -393,4 +393,66 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     );
   });
 
+  it("opens input and output folders from the queue context menu", async () => {
+    const jobId = "job-context-reveal";
+    queueJobs = [
+      {
+        id: jobId,
+        filename: "C:/videos/context-reveal.mp4",
+        inputPath: "C:/videos/context-reveal.mp4",
+        outputPath: "C:/videos/context-reveal-output.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 12,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "completed",
+        progress: 100,
+        logs: [],
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      switch (cmd) {
+        case "get_queue_state":
+        case "get_queue_state_lite":
+          return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+        case "get_app_settings":
+          return Promise.resolve(makeDefaultSettings());
+        case "get_cpu_usage":
+          return Promise.resolve({ overall: 0, perCore: [] });
+        case "get_gpu_usage":
+          return Promise.resolve({ available: false });
+        case "get_external_tool_statuses":
+          return Promise.resolve([]);
+        case "reveal_path_in_folder":
+          expect(payload?.path).toBeDefined();
+          return Promise.resolve(null);
+        default:
+          return Promise.resolve(null);
+      }
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await vm.refreshQueueFromBackend();
+    await nextTick();
+
+    const job = getJobsFromVm(vm)[0];
+    vm.openQueueContextMenuForJob({
+      job,
+      event: { clientX: 0, clientY: 0 } as any,
+    });
+
+    await vm.handleQueueContextOpenInputFolder();
+    await vm.handleQueueContextOpenOutputFolder();
+
+    expect(invokeMock).toHaveBeenCalledWith("reveal_path_in_folder", {
+      path: job.inputPath,
+    });
+    expect(invokeMock).toHaveBeenCalledWith("reveal_path_in_folder", {
+      path: job.outputPath,
+    });
+  });
+
 });

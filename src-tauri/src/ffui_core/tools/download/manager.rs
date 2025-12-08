@@ -1,6 +1,12 @@
 use std::path::PathBuf;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread;
+use std::time::Duration;
 
-use anyhow::{Result, anyhow, Context};
+use anyhow::{Context, Result, anyhow};
 
 use super::extract::extract_avifenc_from_zip;
 use super::net::{
@@ -11,17 +17,42 @@ use super::release::{
     default_ffprobe_download_url,
 };
 use crate::ffui_core::settings::ExternalToolSettings;
+use crate::ffui_core::tools::discover::discover_candidates;
 use crate::ffui_core::tools::probe::verify_tool_binary;
 use crate::ffui_core::tools::resolve::{
     custom_path_for, downloaded_tool_filename, downloaded_tool_path, looks_like_bare_program_name,
     resolve_in_path, tool_binary_name, tools_dir,
 };
-use crate::ffui_core::tools::discover::discover_candidates;
 use crate::ffui_core::tools::runtime_state::{
     mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
     record_last_tool_download, snapshot_download_state,
 };
 use crate::ffui_core::tools::types::*;
+
+/// For download flows that do not naturally surface per-chunk progress
+/// (notably aria2c), poll the temporary download file size and emit progress
+/// events so the frontend sees determinate progress instead of a long-lived
+/// indeterminate spinner.
+fn spawn_download_size_probe(
+    kind: ExternalToolKind,
+    tmp_path: PathBuf,
+    total: Option<u64>,
+) -> (Arc<AtomicBool>, thread::JoinHandle<()>) {
+    let stop = Arc::new(AtomicBool::new(false));
+    let stop_flag = stop.clone();
+    let handle = thread::Builder::new()
+        .name("ffui-tool-progress-probe".to_string())
+        .spawn(move || {
+            while !stop_flag.load(Ordering::Relaxed) {
+                if let Ok(meta) = std::fs::metadata(&tmp_path) {
+                    mark_download_progress(kind, meta.len(), total);
+                }
+                thread::sleep(Duration::from_millis(250));
+            }
+        })
+        .expect("failed to spawn progress probe thread");
+    (stop, handle)
+}
 
 fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
     mark_download_started(
@@ -44,8 +75,16 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
             let tmp_path = dir.join(format!("{filename}.tmp"));
+            let mut probe: Option<(Arc<AtomicBool>, thread::JoinHandle<()>)> = None;
 
             if super::net::aria2c_available() {
+                // Try to fetch a content length hint to expose determinate progress early.
+                let total_hint = super::net::content_length_head(&url);
+                probe = Some(spawn_download_size_probe(
+                    kind,
+                    tmp_path.clone(),
+                    total_hint,
+                ));
                 // Download to a temporary file first to avoid surfacing a
                 // truncated/corrupted binary under the final name on crashes.
                 if let Err(err) = download_file_with_aria2c(&url, &tmp_path) {
@@ -60,6 +99,10 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                 download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
                     mark_download_progress(kind, downloaded, total);
                 })?;
+            }
+            if let Some((stop, handle)) = probe {
+                stop.store(true, Ordering::Relaxed);
+                let _ = handle.join();
             }
 
             // On Windows we must verify using an executable-looking path
@@ -102,6 +145,12 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             // Verified successfully; clean up any backup.
             if let Some(backup) = &backup_path {
                 let _ = std::fs::remove_file(backup);
+            }
+
+            // Ensure progress reaches 100% with concrete byte counts even when
+            // aria2c is used (which does not emit per-chunk callbacks).
+            if let Ok(meta) = std::fs::metadata(&dest_path) {
+                mark_download_progress(kind, meta.len(), Some(meta.len()));
             }
 
             Ok(dest_path)
@@ -160,6 +209,10 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                 Some(LIBAVIF_VERSION.to_string()),
                 Some(LIBAVIF_VERSION.to_string()),
             );
+
+            if let Ok(meta) = std::fs::metadata(&dest_path) {
+                mark_download_progress(kind, meta.len(), Some(meta.len()));
+            }
             Ok(dest_path)
         }
     };

@@ -3,10 +3,12 @@ mod tools_tests_manager {
     use std::env;
     use std::fs::{self, File};
     use std::io::Write;
+    use std::time::Duration;
 
     use crate::ffui_core::settings::ExternalToolSettings;
     use crate::ffui_core::tools::ensure_tool_available;
     use crate::ffui_core::tools::types::ExternalToolKind;
+    use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
 
     // 防回归：当 tools 目录下已存在且可通过 -version 验证的二进制时，
     // ensure_tool_available 不应再次下载。
@@ -51,8 +53,54 @@ mod tools_tests_manager {
             bin.as_path(),
             "resolved path should match the fake downloaded binary"
         );
-        assert!(!did_download, "must not trigger a new download when file exists");
+        assert!(
+            !did_download,
+            "must not trigger a new download when file exists"
+        );
 
         let _ = fs::remove_file(&bin);
+    }
+
+    #[test]
+    fn aria2c_progress_probe_reports_file_growth() {
+        // Serialise with other tests that mutate TOOL_DOWNLOAD_STATE.
+        let _guard = crate::ffui_core::tools::tests_runtime::TEST_MUTEX
+            .lock()
+            .unwrap();
+
+        {
+            let mut map = TOOL_DOWNLOAD_STATE
+                .lock()
+                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            map.clear();
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file_path = tmp.path().join("ffmpeg.tmp");
+
+        let (stop, handle) = super::super::spawn_download_size_probe(
+            ExternalToolKind::Ffmpeg,
+            file_path.clone(),
+            Some(10),
+        );
+
+        // Simulate aria2c writing bytes in the background.
+        {
+            let mut f = File::create(&file_path).expect("create file");
+            writeln!(f, "1234").expect("write");
+        }
+
+        std::thread::sleep(Duration::from_millis(400));
+
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = handle.join();
+
+        let state = crate::ffui_core::tools::runtime_state::snapshot_download_state(
+            ExternalToolKind::Ffmpeg,
+        );
+
+        assert_eq!(state.downloaded_bytes, Some(4));
+        assert_eq!(state.total_bytes, Some(10));
+        assert!(state.progress.unwrap_or_default().abs_sub(40.0).lt(&0.1));
     }
 }

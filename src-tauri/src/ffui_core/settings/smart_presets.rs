@@ -33,8 +33,9 @@ fn smart_presets_for_nvidia() -> Vec<FFmpegPreset> {
         FFmpegPreset {
             id: "smart-hevc-fast".to_string(),
             name: "H.265 Fast NVENC".to_string(),
-            description: "HEVC NVENC CQ 28, preset p5, scaled to 1080p for quick web/share."
-                .to_string(),
+            description:
+                "HEVC NVENC CQ 28, preset p5, keeps source resolution for quick web/share."
+                    .to_string(),
             global: None,
             input: None,
             mapping: None,
@@ -66,7 +67,7 @@ fn smart_presets_for_nvidia() -> Vec<FFmpegPreset> {
                 true_peak_db: None,
             },
             filters: FilterConfig {
-                scale: Some("-2:1080".to_string()),
+                scale: None,
                 crop: None,
                 fps: None,
                 vf_chain: None,
@@ -135,7 +136,7 @@ fn smart_presets_for_nvidia() -> Vec<FFmpegPreset> {
             id: "smart-av1-fast".to_string(),
             name: "AV1 Fast (SVT)".to_string(),
             description:
-                "libsvtav1 CRF 34 preset 6, 10-bit 1080p for high-efficiency fast compression."
+                "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression."
                     .to_string(),
             global: None,
             input: None,
@@ -168,7 +169,7 @@ fn smart_presets_for_nvidia() -> Vec<FFmpegPreset> {
                 true_peak_db: None,
             },
             filters: FilterConfig {
-                scale: Some("-2:1080".to_string()),
+                scale: None,
                 crop: None,
                 fps: None,
                 vf_chain: None,
@@ -265,6 +266,14 @@ mod tests {
             nvidia_ids, cpu_ids,
             "smart preset IDs must be identical between NVIDIA and CPU-only variants"
         );
+
+        for preset in nvidia.iter().chain(cpu_only.iter()) {
+            assert!(
+                preset.filters.scale.is_none(),
+                "smart preset {} should not downscale by default",
+                preset.id
+            );
+        }
 
         // NVIDIA branch should use HEVC NVENC for the H.265 slots and libsvtav1
         // for AV1 slots so that we benefit from hardware where available.

@@ -6,6 +6,10 @@
 //! - Media inspection and preview generation
 //! - Developer tools and taskbar progress management
 
+use std::path::{Path, PathBuf};
+#[cfg(not(test))]
+use std::process::Command;
+
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
@@ -196,6 +200,170 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
     }
 
     None
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RevealCommand {
+    program: String,
+    args: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RevealTarget {
+    SelectFile(PathBuf),
+    OpenDirectory(PathBuf),
+}
+
+fn normalize_reveal_target(path: &Path) -> Result<RevealTarget, String> {
+    if path.as_os_str().is_empty() {
+        return Err("path is empty".to_string());
+    }
+
+    if path.is_file() {
+        return Ok(RevealTarget::SelectFile(path.to_path_buf()));
+    }
+
+    if path.is_dir() {
+        return Ok(RevealTarget::OpenDirectory(path.to_path_buf()));
+    }
+
+    if let Some(parent) = path.parent()
+        && parent.is_dir()
+    {
+        return Ok(RevealTarget::OpenDirectory(parent.to_path_buf()));
+    }
+
+    Err("path does not exist and has no accessible parent directory".to_string())
+}
+
+fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let program = "explorer.exe".to_string();
+        let args = match target {
+            RevealTarget::SelectFile(path) => {
+                vec![format!("/select,\"{}\"", path.to_string_lossy())]
+            }
+            RevealTarget::OpenDirectory(path) => vec![path.to_string_lossy().to_string()],
+        };
+        Ok(RevealCommand { program, args })
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let program = "open".to_string();
+        let args = match target {
+            RevealTarget::SelectFile(path) => vec!["-R".to_string(), path.to_string_lossy().into()],
+            RevealTarget::OpenDirectory(path) => vec![path.to_string_lossy().to_string()],
+        };
+        Ok(RevealCommand { program, args })
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let program = "xdg-open".to_string();
+        let dir = match target {
+            RevealTarget::SelectFile(path) => path.parent().unwrap_or(path.as_path()).to_path_buf(),
+            RevealTarget::OpenDirectory(path) => path,
+        };
+        let dir_str = dir.to_string_lossy().to_string();
+        Ok(RevealCommand {
+            program,
+            args: vec![dir_str],
+        })
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        let _ = target;
+        Err("reveal_path_in_folder is not supported on this platform".to_string())
+    }
+}
+
+#[cfg(not(test))]
+fn execute_reveal_command(cmd: &RevealCommand) -> Result<(), String> {
+    Command::new(&cmd.program)
+        .args(&cmd.args)
+        .spawn()
+        .map_err(|e| format!("failed to launch file manager: {e}"))?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+fn execute_reveal_command(_cmd: &RevealCommand) -> Result<(), String> {
+    // In tests we don't want to spawn external processes; validating the
+    // command shape is sufficient.
+    Ok(())
+}
+
+/// Open the system file manager for the given path and select/highlight the
+/// file when supported by the platform.
+#[tauri::command]
+pub fn reveal_path_in_folder(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("path is empty".to_string());
+    }
+
+    let normalized_target = normalize_reveal_target(Path::new(trimmed))?;
+    let command = build_reveal_command(normalized_target)?;
+    execute_reveal_command(&command)?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_reveal_target_prefers_existing_file_selection() {
+        let tmp = tempfile::NamedTempFile::new().expect("temp file must be created");
+        let target = normalize_reveal_target(tmp.path()).expect("file path should be valid");
+
+        match target {
+            RevealTarget::SelectFile(path) => assert_eq!(path, tmp.path()),
+            other => panic!("expected SelectFile, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn normalize_reveal_target_falls_back_to_parent_directory() {
+        let dir = tempfile::tempdir().expect("temp dir must be created");
+        let missing = dir.path().join("missing-output.mp4");
+
+        let target = normalize_reveal_target(&missing).expect("missing file should fall back");
+        match target {
+            RevealTarget::OpenDirectory(path) => assert_eq!(path, dir.path()),
+            other => panic!("expected OpenDirectory fallback, got {other:?}"),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn build_reveal_command_uses_xdg_open_parent_directory() {
+        let tmp = tempfile::NamedTempFile::new().expect("temp file must be created");
+        let command =
+            build_reveal_command(RevealTarget::SelectFile(tmp.path().to_path_buf())).unwrap();
+
+        assert_eq!(command.program, "xdg-open");
+        assert_eq!(
+            command.args,
+            vec![
+                tmp.path()
+                    .parent()
+                    .expect("temp file must have a parent directory")
+                    .to_string_lossy()
+                    .to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn reveal_path_in_folder_rejects_empty_input() {
+        let result = reveal_path_in_folder("".to_string());
+        assert!(result.is_err(), "empty paths should be rejected");
+    }
 }
 
 /// Increment the number of active system metrics subscribers.
