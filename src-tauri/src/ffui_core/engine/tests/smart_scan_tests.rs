@@ -35,6 +35,7 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
         min_saving_ratio: 0.95,
         image_target_format: ImageTargetFormat::Avif,
         video_preset_id: "preset-1".to_string(),
+        ..Default::default()
     };
 
     let root_path = dir.to_string_lossy().into_owned();
@@ -153,6 +154,7 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
         min_saving_ratio: 0.95,
         image_target_format: ImageTargetFormat::Avif,
         video_preset_id: "preset-1".to_string(),
+        ..Default::default()
     };
 
     let root_path = dir.to_string_lossy().into_owned();

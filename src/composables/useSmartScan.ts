@@ -8,7 +8,6 @@ import type {
 } from "@/types";
 import { DEFAULT_SMART_SCAN_CONFIG, EXTENSIONS } from "@/constants";
 import { hasTauri, runAutoCompress } from "@/lib/backend";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 // ----- Types -----
 
@@ -326,8 +325,12 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
       return;
     }
 
-    const root = lastDroppedRoot.value;
+    // 优先使用配置中的路径，其次使用拖拽路径
+    const root = config.rootPath?.trim() || lastDroppedRoot.value;
     if (root) {
+      // 更新 lastDroppedRoot 以便后续使用
+      lastDroppedRoot.value = root;
+
       try {
         const result = await runAutoCompress(root, config);
         const batchId = result.batchId;
@@ -347,9 +350,13 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         queueError.value = null;
         return;
       } catch (error) {
-        console.error("auto-compress failed with dropped root", error);
+        console.error("auto-compress failed with root path", error);
         queueError.value = (t?.("queue.error.autoCompressFailed") as string) ?? "";
       }
+    } else {
+      // 没有路径时显示错误
+      queueError.value = (t?.("smartScan.noPathSelected") as string) ?? "Please select a folder to scan";
+      return;
     }
 
     // Fallback to mock behavior when backend path fails.
@@ -359,46 +366,13 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
   const startSmartScan = async () => {
     activeTab.value = "queue";
 
-    // In pure web mode we keep the existing behaviour.
-    if (!hasTauri()) {
-      showSmartScan.value = true;
-      return;
-    }
-
-    // If we already know a root path from drag & drop or a previous selection,
-    // just open the Smart Scan wizard directly.
+    // 如果有之前拖拽的路径，预填充到配置中
     if (lastDroppedRoot.value) {
-      showSmartScan.value = true;
-      return;
+      smartConfig.value.rootPath = lastDroppedRoot.value;
     }
 
-    // In Tauri environment, use native directory dialog to get root path,
-    // avoiding WebView's "upload entire folder to site" privacy prompt.
-    try {
-      const selected = await openDialog({
-        multiple: false,
-        directory: true,
-      });
-
-      if (!selected) {
-        // User cancelled selection; stay silent, don't show error.
-        return;
-      }
-
-      const root = Array.isArray(selected) ? selected[0] : selected;
-      if (!root || typeof root !== "string") {
-        console.error("Dialog returned an invalid root path for Smart Scan", selected);
-        showSmartScan.value = true;
-        return;
-      }
-
-      lastDroppedRoot.value = root;
-      showSmartScan.value = true;
-    } catch (error) {
-      console.error("Failed to open directory dialog for Smart Scan", error);
-      // Fallback to opening wizard directly; user can input manually or use drag & drop.
-      showSmartScan.value = true;
-    }
+    // 直接打开智能压缩面板，让用户在面板内选择路径和配置
+    showSmartScan.value = true;
   };
 
   return {

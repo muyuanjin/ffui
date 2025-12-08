@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { ref } from "vue";
+import { mount } from "@vue/test-utils";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 
 // 针对本测试，强制 hasTauri() 返回 true，并用可控的 mock 替换 loadPresets。
@@ -38,23 +39,36 @@ describe("useMainAppPresets.handleCompletedJobFromBackend", () => {
     const backendUpdated = makePreset("p1", 5);
 
     const presets = ref<FFmpegPreset[]>([initial]);
-    const presetsLoadedFromBackend = ref(false);
+    // 设为 true 避免 onMounted 的自动加载干扰本用例，聚焦 handleCompletedJobFromBackend 的刷新逻辑。
+    const presetsLoadedFromBackend = ref(true);
     const manualJobPresetId = ref<string | null>(null);
 
     loadPresetsMock.mockResolvedValueOnce([backendUpdated]);
 
-    const { handleCompletedJobFromBackend } = useMainAppPresets({
-      t: (key: string) => key,
-      presets,
-      presetsLoadedFromBackend,
-      manualJobPresetId,
-      dialogManager: {
-        openParameterPanel: () => {},
-        closeParameterPanel: () => {},
-        closeWizard: () => {},
-      } as any,
-      shell: undefined,
+    const wrapper = mount({
+      setup() {
+        const composable = useMainAppPresets({
+          t: (key: string) => key,
+          presets,
+          presetsLoadedFromBackend,
+          manualJobPresetId,
+          dialogManager: {
+            openParameterPanel: () => {},
+            closeParameterPanel: () => {},
+            closeWizard: () => {},
+          } as any,
+          shell: undefined,
+        });
+        return { composable };
+      },
+      template: "<div />",
     });
+
+    const { composable } = wrapper.vm as unknown as {
+      composable: ReturnType<typeof useMainAppPresets>;
+    };
+
+    const { handleCompletedJobFromBackend } = composable;
 
     const job: TranscodeJob = {
       id: "job-1",
@@ -81,5 +95,6 @@ describe("useMainAppPresets.handleCompletedJobFromBackend", () => {
 
     expect(loadPresetsMock).toHaveBeenCalledTimes(1);
     expect(presets.value[0].stats.usageCount).toBe(5);
+    wrapper.unmount();
   });
 });

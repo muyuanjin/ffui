@@ -29,6 +29,7 @@ vi.mock("@tauri-apps/api/event", () => {
 
 import { useAppSettings } from "@/composables/useAppSettings";
 import * as backend from "@/lib/backend";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -39,13 +40,7 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
-  smartScanDefaults: {
-    minImageSizeKB: 50,
-    minVideoSizeMB: 50,
-    minSavingRatio: 0.95,
-    imageTargetFormat: "avif",
-    videoPresetId: "",
-  },
+  smartScanDefaults: buildSmartScanDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   defaultQueuePresetId: undefined,
@@ -65,6 +60,46 @@ const TestHost = defineComponent({
 });
 
 describe("useAppSettings auto-update behaviour", () => {
+  it("propagates backend remoteVersion so the Settings panel shows the latest available release", async () => {
+    const mockFetchExternalToolStatuses = vi.mocked(
+      backend.fetchExternalToolStatuses,
+    );
+    mockFetchExternalToolStatuses.mockResolvedValueOnce([
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "path",
+        version: "ffmpeg version 6.0",
+        remoteVersion: "6.1.1",
+        updateAvailable: true,
+        autoDownloadEnabled: true,
+        autoUpdateEnabled: true,
+        downloadInProgress: false,
+        downloadProgress: undefined,
+        downloadedBytes: undefined,
+        totalBytes: undefined,
+        bytesPerSecond: undefined,
+        lastDownloadError: undefined,
+        lastDownloadMessage: undefined,
+      },
+    ]);
+
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as unknown as {
+      toolStatuses: ExternalToolStatus[];
+    };
+
+    await flushPromises();
+    expect(mockFetchExternalToolStatuses).toHaveBeenCalled();
+    expect(vm.toolStatuses[0]?.remoteVersion).toBe("6.1.1");
+
+    wrapper.unmount();
+    mockFetchExternalToolStatuses.mockReset();
+    mockFetchExternalToolStatuses.mockImplementation(
+      async () => [] as ExternalToolStatus[],
+    );
+  });
+
   it("only schedules a single auto-download per remote version even if remoteVersion changes after the call", async () => {
     const mockDownloadExternalToolNow = vi.mocked(
       backend.downloadExternalToolNow,

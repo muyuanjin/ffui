@@ -137,9 +137,9 @@ const canCancelJob = (job: TranscodeJob): boolean => {
       @click="emit('addJob')"
     >
       <div
-        class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md border border-border bg-card/70"
+        class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70"
       >
-        <span class="text-[10px] font-semibold tracking-[0.18em] uppercase text-muted-foreground">
+        <span class="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground whitespace-nowrap">
           {{ t("app.tabs.queue") }}
         </span>
       </div>

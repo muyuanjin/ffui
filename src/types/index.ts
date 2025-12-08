@@ -73,4 +73,4 @@ export type {
 } from "./smart-scan";
 
 // Application settings
-export type { AppSettings } from "./settings";
+export type { AppSettings, PresetSortMode } from "./settings";

@@ -38,6 +38,10 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 gop_size: None,
                 bf: None,
                 pix_fmt: Some("yuv420p".to_string()),
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -87,6 +91,10 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 gop_size: None,
                 bf: None,
                 pix_fmt: Some("yuv420p".to_string()),
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -138,6 +146,10 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 gop_size: Some(240),
                 bf: Some(3),
                 pix_fmt: Some("yuv420p10le".to_string()),
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,
@@ -189,6 +201,10 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 gop_size: Some(240),
                 bf: Some(3),
                 pix_fmt: Some("yuv420p10le".to_string()),
+                b_ref_mode: None,
+                rc_lookahead: None,
+                spatial_aq: None,
+                temporal_aq: None,
             },
             audio: AudioConfig {
                 codec: AudioCodecType::Copy,

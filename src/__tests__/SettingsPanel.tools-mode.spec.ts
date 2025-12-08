@@ -6,6 +6,7 @@ import { createI18n } from "vue-i18n";
 import zhCN from "@/locales/zh-CN";
 import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import type { AppSettings, ExternalToolStatus } from "@/types";
+import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -42,13 +43,7 @@ const makeAppSettings = (overrides: Partial<AppSettings["tools"]> = {}): AppSett
     downloaded: undefined,
     ...overrides,
   },
-  smartScanDefaults: {
-    minImageSizeKB: 50,
-    minVideoSizeMB: 50,
-    minSavingRatio: 0.95,
-    imageTargetFormat: "avif",
-    videoPresetId: "",
-  },
+  smartScanDefaults: buildSmartScanDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   defaultQueuePresetId: undefined,

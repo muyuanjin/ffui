@@ -59,7 +59,7 @@ export interface ExternalToolCandidate {
   kind: ExternalToolKind;
   /** Concrete executable path for this candidate. */
   path: string;
-  /** Source of this candidate: custom / download / path. */
+  /** Source of this candidate: custom / download / path / env / registry / everything. */
   source: string;
   /** Optional version string detected from the binary, when available. */
   version?: string;
