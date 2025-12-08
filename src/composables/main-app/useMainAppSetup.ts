@@ -1,6 +1,6 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, FFmpegPreset, PresetSortMode, TranscodeJob } from "@/types";
+import type { AppSettings, FFmpegPreset, PresetSortMode, PresetViewMode, TranscodeJob } from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
 import { useMainAppSmartScan } from "@/composables/main-app/useMainAppSmartScan";
@@ -27,6 +27,7 @@ export function useMainAppSetup() {
   const presetsLoadedFromBackend = ref(false);
   const manualJobPresetId = ref<string | null>(null);
   const presetSortMode = ref<PresetSortMode>("manual");
+  const presetViewMode = ref<PresetViewMode>("grid");
   const completedCount = computed(() =>
     jobs.value.filter((job) => job.status === "completed").length,
   );
@@ -176,6 +177,11 @@ export function useMainAppSetup() {
         presetSortMode.value = value.presetSortMode;
       }
 
+      // 恢复预设视图模式
+      if (value.presetViewMode && value.presetViewMode !== presetViewMode.value) {
+        presetViewMode.value = value.presetViewMode;
+      }
+
       // 自动打开智能预设导入对话框
       if (!value.onboardingCompleted && !autoOnboardingTriggered.value) {
         autoOnboardingTriggered.value = true;
@@ -203,6 +209,30 @@ export function useMainAppSetup() {
         settings.appSettings.value = saved;
       } catch (error) {
         console.error("Failed to save presetSortMode to AppSettings", error);
+      }
+      settings.scheduleSaveSettings();
+    },
+    { flush: "post" },
+  );
+
+  // 保存预设视图模式变化
+  watch(
+    presetViewMode,
+    async (nextMode) => {
+      if (!settings.appSettings.value || !hasTauri()) return;
+      if (settings.appSettings.value.presetViewMode === nextMode) return;
+
+      const nextSettings: AppSettings = {
+        ...settings.appSettings.value,
+        presetViewMode: nextMode,
+      };
+      settings.appSettings.value = nextSettings;
+
+      try {
+        const saved = await saveAppSettings(nextSettings);
+        settings.appSettings.value = saved;
+      } catch (error) {
+        console.error("Failed to save presetViewMode to AppSettings", error);
       }
       settings.scheduleSaveSettings();
     },
@@ -334,6 +364,7 @@ export function useMainAppSetup() {
     // exposed on the instance.
     completedCount,
     presetSortMode,
+    presetViewMode,
     queuePanelProps,
     handleImportSmartPackConfirmed,
     ffmpegResolvedPath,

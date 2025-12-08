@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
+import { resolvePresetDescription } from "@/lib/presetLocalization";
 import { sortPresets, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
@@ -17,8 +18,10 @@ type ViewMode = "grid" | "compact";
 const props = withDefaults(defineProps<{
   presets: FFmpegPreset[];
   sortMode?: PresetSortMode;
+  viewMode?: ViewMode;
 }>(), {
   sortMode: "manual",
+  viewMode: "grid",
 });
 
 const emit = defineEmits<{
@@ -27,12 +30,24 @@ const emit = defineEmits<{
   reorder: [orderedIds: string[]];
   importSmartPack: [];
   "update:sortMode": [mode: PresetSortMode];
+  "update:viewMode": [mode: ViewMode];
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const containerRef = ref<HTMLElement | null>(null);
 const localPresets = ref<FFmpegPreset[]>([...props.presets]);
-const viewMode = ref<ViewMode>("grid");
+const localViewMode = ref<ViewMode>(props.viewMode);
+
+// 监听 viewMode prop 变化
+watch(() => props.viewMode, (newMode) => {
+  localViewMode.value = newMode;
+});
+
+// 视图模式变化时发出事件
+const handleViewModeChange = (mode: ViewMode) => {
+  localViewMode.value = mode;
+  emit("update:viewMode", mode);
+};
 
 // 本地排序模式（与 prop 同步）
 const localSortMode = ref<PresetSortMode>(props.sortMode);
@@ -178,19 +193,22 @@ const copyToClipboard = async (value: string | undefined | null) => {
 const isSmartPreset = (preset: FFmpegPreset): boolean => {
   return typeof preset.id === "string" && preset.id.startsWith("smart-");
 };
+
+const getPresetDescription = (preset: FFmpegPreset): string =>
+  resolvePresetDescription(preset, locale.value);
 </script>
 
 <template>
   <div class="w-full max-w-6xl mx-auto px-4">
     <!-- Header with hint and actions -->
-    <div class="mb-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
-      <div class="flex items-center gap-2">
-        <GripVertical class="w-4 h-4" />
-        <span>
+    <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0 flex-shrink">
+        <GripVertical class="w-4 h-4 flex-shrink-0" />
+        <span class="truncate">
           {{ t("presets.dragToReorder") }} · {{ t("presets.presetCount", { count: presets.length }) }}
         </span>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-shrink-0">
         <!-- 排序下拉选择 -->
         <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
           <SelectTrigger class="h-7 w-[100px] text-[11px]">
@@ -204,13 +222,13 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
         </Select>
 
         <!-- 视图切换按钮 -->
-        <div class="flex border rounded-md">
+        <div class="flex border rounded-md flex-shrink-0">
           <Button
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 rounded-r-none"
-            :class="{ 'bg-accent': viewMode === 'grid' }"
-            @click="viewMode = 'grid'"
+            :class="{ 'bg-accent': localViewMode === 'grid' }"
+            @click="handleViewModeChange('grid')"
           >
             <LayoutGrid class="w-3.5 h-3.5" />
           </Button>
@@ -218,8 +236,8 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 rounded-l-none border-l"
-            :class="{ 'bg-accent': viewMode === 'compact' }"
-            @click="viewMode = 'compact'"
+            :class="{ 'bg-accent': localViewMode === 'compact' }"
+            @click="handleViewModeChange('compact')"
           >
             <LayoutList class="w-3.5 h-3.5" />
           </Button>
@@ -228,7 +246,7 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
         <Button
           variant="outline"
           size="sm"
-          class="h-7 px-2 text-[11px]"
+          class="h-7 px-2 text-[11px] whitespace-nowrap"
           @click="emit('importSmartPack')"
         >
           {{ t("presets.importSmartPack") }}
@@ -237,7 +255,7 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
     </div>
 
     <!-- 紧凑视图 -->
-    <div v-if="viewMode === 'compact'" ref="containerRef" class="space-y-1.5">
+    <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
       <div
         v-for="preset in sortedPresets"
         :key="preset.id"
@@ -262,13 +280,13 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
                 {{ t("presets.recommendedSmart") }}
               </span>
             </div>
-            <p class="text-[10px] text-muted-foreground truncate">{{ preset.description }}</p>
+            <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset) }}</p>
           </div>
 
           <!-- 命令预览 -->
-          <div class="flex-1 min-w-0">
+          <div class="flex-1 min-w-0 overflow-hidden">
             <pre
-              class="rounded bg-background/80 border border-border/30 px-2 py-1 text-[9px] font-mono text-muted-foreground truncate select-text"
+              class="rounded bg-background/80 border border-border/30 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap select-text"
               v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
             />
           </div>
@@ -328,7 +346,7 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-base leading-tight truncate">{{ preset.name }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ preset.description }}</p>
+              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ getPresetDescription(preset) }}</p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span
