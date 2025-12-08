@@ -32,8 +32,27 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   const isDragging = ref(false);
   let dragDropUnlisten: UnlistenFn | null = null;
 
+  const isFileDragEvent = (e: DragEvent): boolean => {
+    // In browsers, dataTransfer.types contains 'Files' when dragging files from OS.
+    const types = e.dataTransfer?.types;
+    if (types && Array.from(types).includes('Files')) return true;
+    // Some environments expose items with kind === 'file'.
+    const items = e.dataTransfer?.items;
+    if (items && Array.from(items).some((it) => (it as any)?.kind === 'file')) return true;
+    // During drop, some environments only populate `dataTransfer.files`.
+    const filesLen = (e as any)?.dataTransfer?.files?.length ?? 0;
+    if (filesLen > 0) return true;
+    return false;
+  };
+
   const handleDragOver = (e: DragEvent) => {
-    e.preventDefault();
+    // Even if we cannot confidently detect a file drag (e.g. tests provide a
+    // minimal stub event), we still surface the dragging overlay so UX remains
+    // responsive. Only call preventDefault() when it's a file drag to avoid
+    // interfering with text selections.
+    if (isFileDragEvent(e)) {
+      e.preventDefault();
+    }
     isDragging.value = true;
   };
 
@@ -42,15 +61,17 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   };
 
   const handleDrop = async (e: DragEvent) => {
-    e.preventDefault();
+    const isFile = isFileDragEvent(e);
+    const hasFiles = !!(e as any)?.dataTransfer?.files && (e as any).dataTransfer.files.length > 0;
+    if (isFile || hasFiles) e.preventDefault();
     isDragging.value = false;
 
-    // 浏览器拖放处理
-    if (e.dataTransfer?.files) {
+    // 浏览器拖放处理（在部分环境只在 drop 阶段提供 files）
+    if ((isFile || hasFiles) && (e as any).dataTransfer?.files) {
       const paths: string[] = [];
-      for (const file of e.dataTransfer.files) {
-        // @ts-expect-error - file.path is available in Electron/Tauri
-        paths.push(file.path || file.name);
+      for (const file of (e as any).dataTransfer.files as FileList) {
+        // 在 Electron/Tauri 环境下 file.path 存在；在浏览器环境下退回 file.name。
+        paths.push((file as any).path || file.name);
       }
       if (paths.length > 0 && onFilesDropped) {
         onFilesDropped(paths);

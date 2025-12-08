@@ -386,3 +386,93 @@
 *   **硬件编码器质量参数**: `-cq` (NVENC), `-global_quality` (QSV), `-qp_i/-qp_p` (AMF) 必须与对应的 `-c:v` 编码器一起使用。
 *   **`-ss` (寻址)**: 其行为（快速 vs 精确）完全取决于它在命令行中相对于 `-i` 的位置。
 *   **滤镜 (`-vf`, `-af`)**: 滤镜链的执行是**有顺序的**。例如，`scale,crop` 和 `crop,scale` 的结果可能完全不同。
+
+## H. FFUI 智能预设与内置配方参考
+
+FFUI 在应用内提供了一组“智能预设包”和参数向导配方，这些组合基于本指南的推荐值以及社区实测（包括 `best-ffmpeg-arguments` 等），在质量/体积/速度之间做了相对稳健的权衡。
+
+### 1. 智能硬件预设（Smart Default Pack）
+
+当检测到 NVIDIA GPU 时，FFUI 会优先推荐以下 4 条硬件感知预设（对应内部 ID：`smart-hevc-fast` / `smart-hevc-archive` / `smart-av1-fast` / `smart-av1-archive`）：
+
+- **H.265 Fast NVENC（快速压缩 / 分享场景）**
+  - 核心参数：`-c:v hevc_nvenc -rc vbr -cq 28 -preset p5 -g 120 -bf 3 -pix_fmt yuv420p -vf scale=-2:1080`
+  - 理由：
+    - `cq 28`：综合测试接近 `libx265 -crf 24/25` 的主观质量，是日常分享视频的“甜点区”。
+    - `preset p5`：在 Turing/Ampere/Ada 上兼顾速度与效率；比 p1/p2 多启用一部分质量相关算法。
+    - `g=120`：约 5 秒 GOP（24–25 fps 视频），提高压缩效率同时控制 seek 代价。
+    - `bf=3`：为大多数内容提供更高压缩率，兼容主流播放器。
+    - `yuv420p` + `scale=-2:1080`：面向网页/设备播放的通用 1080p 输出。
+
+- **H.265 Archival NVENC（视觉无损归档）**
+  - 核心参数：`-c:v hevc_nvenc -rc vbr -cq 20 -preset p7 -g 60 -bf 3 -pix_fmt yuv420p10le`
+  - 理由：
+    - `cq 20`：对应“接近视觉无损”的 NVENC 档位，适合作为长期归档或高质量中间件。
+    - `preset p7`：启用全部质量增强路径，在 RTX 40 系列上仍具备良好速度。
+    - `10-bit (yuv420p10le)`：极大降低 banding 风险，与文档中对归档场景的 10bit 推荐一致。
+    - `g=60`：更密集的关键帧，提升 seek 体验，适合剪辑/审片。
+
+- **AV1 Fast (SVT)（高压缩比快速压制）**
+  - 核心参数：`-c:v libsvtav1 -crf 34 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le -vf scale=-2:1080`
+  - 理由：
+    - `crf 34`：约等于 `libx264 -crf 23` 的视觉质量，但体积显著更小。
+    - `preset 6`：在桌面 CPU 上保持可接受速度，压缩效率优于传统 H.264 方案。
+    - `g=240`：为 AV1 设计的较长 GOP，有利于压缩效率。
+    - `10-bit`：与 HEVC 归档方案保持一致的高质量色彩处理。
+
+- **AV1 Archival (SVT)（视觉无损归档）**
+  - 核心参数：`-c:v libsvtav1 -crf 24 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le`
+  - 理由：
+    - `crf 24`：面向“极致画质/体积比”的归档需求，肉眼难以区分与原片差异。
+    - 保留 10-bit 与长 GOP 设置，在保证质量的前提下进一步压缩体积。
+
+在 CPU-only 场景（无 NVENC/AV1 硬编码可用）下，上述 4 条预设会自动回退为：
+
+- H.264 快速压制：`libx264 -crf 23 -preset medium -vf scale=-2:1080`
+- H.264 归档：`libx264 -crf 18 -preset slow`
+- AV1 快速压制 / 归档：仍使用 `libsvtav1`，参数与上述 AV1 预设保持一致。
+
+### 2. 参数向导中的“视觉无损”高级配方
+
+在 FFUI 的参数向导（Parameter Wizard）中，还内置了两条偏向“极致画质”的高级模板，适合作为用户手动加载/微调的起点：
+
+- **H.265 视觉无损归档（NVENC，高级模板）**
+  - 示例模板（核心片段）：
+    ```bash
+    -hide_banner -i INPUT -map 0 \
+      -c:v hevc_nvenc -preset:v p7 -profile:v main10 \
+      -rc:v constqp -rc-lookahead 1 \
+      -spatial-aq 0 -temporal-aq 1 -weighted_pred 0 \
+      -init_qpI 20 -init_qpP 20 -init_qpB 24 \
+      -qp_cb_offset 10 -qp_cr_offset 11 \
+      -b_ref_mode 1 -dpb_size 4 -multipass 1 \
+      -g 60 -bf 3 \
+      -pix_fmt yuv420p10le \
+      -color_range tv -color_primaries bt709 -color_trc bt709 -colorspace bt709 \
+      -c:a copy -movflags +faststart \
+      OUTPUT
+    ```
+  - 设计思路：
+    - 使用 `constqp` + 手工 `init_qpI/P/B` 和 `qp_*_offset`，将 QP 锁定在 20–24 一带，瞄准视觉无损。
+    - `profile main10` + `yuv420p10le` 保证 10-bit 输出，减少梯度丢失。
+    - 启用 B 帧参考（`b_ref_mode 1`）和双倍缓冲（`dpb_size`）增强压缩效率。
+
+- **AV1 视觉无损归档（NVENC，高级模板）**
+  - 示例模板（核心片段，基于 Ada NVENC 推荐）：
+    ```bash
+    -i INPUT -map 0 \
+      -c:v av1_nvenc -preset p7 -tune hq \
+      -rc constqp -qp 18 \
+      -pix_fmt p010le \
+      -b_ref_mode each -bf 3 \
+      -rc-lookahead 32 \
+      -spatial-aq 1 -temporal-aq 1 \
+      -c:a copy \
+      OUTPUT
+    ```
+  - 设计思路：
+    - `constqp + qp 18`：以视觉无损为目标（低于 18 收益递减），且文件体积仍远小于传统 HEVC。
+    - `p010le`：保证 10-bit 管线，减少 banding。
+    - 开启空间/时间自适应量化和较大的 `rc-lookahead`，在场景切换时智能分配比特。
+
+这两条高级模板在 UI 中通过“从内置方案加载”一键写入预设的高级参数区域，随后仍可按需微调；后端负责在生成最终命令时自动注入 `-progress pipe:2 -nostdin -hide_banner` 等运行时控制参数。

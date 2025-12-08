@@ -161,18 +161,29 @@ const handleRecipeSelect = ({
   video: videoPatch,
   audio: audioPatch,
   nextStep,
+  advancedEnabled: nextAdvancedEnabled,
+  ffmpegTemplate: nextTemplate,
 }: {
   name: string;
   description: string;
   video: Partial<VideoConfig>;
   audio?: Partial<AudioConfig>;
   nextStep?: number;
+  advancedEnabled?: boolean;
+  ffmpegTemplate?: string;
 }) => {
   name.value = nextName;
   description.value = nextDescription;
   applyVideoPatch(videoPatch);
   if (audioPatch) {
     applyAudioPatch(audioPatch);
+  }
+   // 当配方明确指定高级模板时，直接切换到高级模式，并用给定模板覆盖现有内容。
+  if (typeof nextAdvancedEnabled === "boolean") {
+    advancedEnabled.value = nextAdvancedEnabled;
+  }
+  if (typeof nextTemplate === "string") {
+    ffmpegTemplate.value = nextTemplate;
   }
   step.value = nextStep ?? step.value;
 };

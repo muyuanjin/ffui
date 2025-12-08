@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
+import en from "@/locales/en";
 import type { FFmpegPreset } from "@/types";
 
 // reka-ui 的 Slider 依赖 ResizeObserver，这里在测试环境中提供一个最小 mock。
@@ -18,7 +19,8 @@ class ResizeObserverMock {
 const i18n = createI18n({
   legacy: false,
   locale: "en",
-  messages: { en: {} },
+  // 使用真实的英文文案，避免测试过程中出现多条 i18n 缺失 key 的告警。
+  messages: { en: en as any },
 });
 
 const makeBasePreset = (): FFmpegPreset => ({

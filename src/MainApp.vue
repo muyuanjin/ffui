@@ -143,6 +143,7 @@ const {
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
+  handleImportSmartPackConfirmed,
   handleSavePreset,
   runSmartScan,
   closeSmartScanWizard,
@@ -224,47 +225,47 @@ defineExpose({
           @openPresetWizard="dialogManager.openWizard()"
         />
 
-        <ScrollArea class="flex-1">
-          <QueueFiltersBar
-            v-if="activeTab === 'queue'"
-            :active-status-filters="activeStatusFilters"
-            :active-type-filters="activeTypeFilters"
-            :filter-text="filterText"
-            :filter-use-regex="filterUseRegex"
-            :filter-regex-error="filterRegexError"
-            :sort-primary="sortPrimary"
-            :sort-primary-direction="sortPrimaryDirection"
-            :sort-secondary="sortSecondary"
-            :sort-secondary-direction="sortSecondaryDirection"
-            :has-primary-sort-ties="hasPrimarySortTies"
-            :has-active-filters="hasActiveFilters"
-            :has-selection="hasSelection"
-            :selected-count="selectedJobIds.size"
-            :queue-mode="queueMode"
-            :visible-count="queueJobsForDisplay.length"
-            :total-count="jobs.length"
-            @update:queueMode="(v) => setQueueMode(v as any)"
-            @toggle-status-filter="toggleStatusFilter"
-            @toggle-type-filter="toggleTypeFilter"
-            @update:filterText="(v) => (filterText = v)"
-            @toggle-filter-regex-mode="toggleFilterRegexMode"
-            @reset-queue-filters="resetQueueFilters"
-            @update:sortPrimary="(v) => (sortPrimary = v)"
-            @update:sortPrimaryDirection="(v) => (sortPrimaryDirection = v)"
-            @update:sortSecondary="(v) => (sortSecondary = v)"
-            @update:sortSecondaryDirection="(v) => (sortSecondaryDirection = v)"
-            @select-all-visible-jobs="selectAllVisibleJobs"
-            @invert-selection="invertSelection"
-            @clear-selection="clearSelection"
-            @bulk-cancel="bulkCancel"
-            @bulk-wait="bulkWait"
-            @bulk-resume="bulkResume"
-            @bulk-restart="bulkRestart"
-            @bulk-move-to-top="bulkMoveToTop"
-            @bulk-move-to-bottom="bulkMoveToBottom"
-            @bulk-delete="bulkDelete"
-          />
+        <QueueFiltersBar
+          v-if="activeTab === 'queue'"
+          :active-status-filters="activeStatusFilters"
+          :active-type-filters="activeTypeFilters"
+          :filter-text="filterText"
+          :filter-use-regex="filterUseRegex"
+          :filter-regex-error="filterRegexError"
+          :sort-primary="sortPrimary"
+          :sort-primary-direction="sortPrimaryDirection"
+          :sort-secondary="sortSecondary"
+          :sort-secondary-direction="sortSecondaryDirection"
+          :has-primary-sort-ties="hasPrimarySortTies"
+          :has-active-filters="hasActiveFilters"
+          :has-selection="hasSelection"
+          :selected-count="selectedJobIds.size"
+          :queue-mode="queueMode"
+          :visible-count="queueJobsForDisplay.length"
+          :total-count="jobs.length"
+          @update:queueMode="(v) => setQueueMode(v as any)"
+          @toggle-status-filter="toggleStatusFilter"
+          @toggle-type-filter="toggleTypeFilter"
+          @update:filterText="(v) => (filterText = v)"
+          @toggle-filter-regex-mode="toggleFilterRegexMode"
+          @reset-queue-filters="resetQueueFilters"
+          @update:sortPrimary="(v) => (sortPrimary = v)"
+          @update:sortPrimaryDirection="(v) => (sortPrimaryDirection = v)"
+          @update:sortSecondary="(v) => (sortSecondary = v)"
+          @update:sortSecondaryDirection="(v) => (sortSecondaryDirection = v)"
+          @select-all-visible-jobs="selectAllVisibleJobs"
+          @invert-selection="invertSelection"
+          @clear-selection="clearSelection"
+          @bulk-cancel="bulkCancel"
+          @bulk-wait="bulkWait"
+          @bulk-resume="bulkResume"
+          @bulk-restart="bulkRestart"
+          @bulk-move-to-top="bulkMoveToTop"
+          @bulk-move-to-bottom="bulkMoveToBottom"
+          @bulk-delete="bulkDelete"
+        />
 
+        <ScrollArea class="flex-1">
           <div class="p-4">
             <QueuePanel
               v-if="activeTab === 'queue'"
@@ -292,6 +293,7 @@ defineExpose({
               @edit="openPresetEditor"
               @delete="requestDeletePreset"
               @reorder="handleReorderPresets"
+              @importSmartPack="dialogManager.openSmartPresetImport()"
             />
 
             <MediaPanel
@@ -315,6 +317,7 @@ defineExpose({
               :tool-statuses="toolStatuses"
               :is-saving-settings="isSavingSettings"
               :settings-save-error="settingsSaveError"
+              :fetch-tool-candidates="settings.fetchToolCandidates"
               @update:app-settings="handleUpdateAppSettings"
               @download-tool="settings.downloadToolNow"
             />
@@ -378,6 +381,8 @@ defineExpose({
       @handleExpandedImagePreviewError="handleExpandedImagePreviewError"
       @closeExpandedPreview="closeExpandedPreview"
       @openPreviewInSystemPlayer="openPreviewInSystemPlayer"
+      @importSmartPackConfirmed="handleImportSmartPackConfirmed"
+      @openToolsSettings="activeTab = 'settings'"
     />
   </div>
 </template>

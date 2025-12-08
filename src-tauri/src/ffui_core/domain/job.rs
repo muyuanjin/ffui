@@ -130,3 +130,106 @@ pub struct TranscodeJob {
 pub struct QueueState {
     pub jobs: Vec<TranscodeJob>,
 }
+
+/// Lightweight view of a transcode job used for high-frequency queue
+/// snapshots and startup payloads. This intentionally omits heavy log
+/// history fields such as the full `logs` vector while keeping all fields
+/// needed for list rendering, sorting, bulk operations, and displaying /
+/// copying the effective ffmpeg command line in the UI.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeJobLite {
+    pub id: String,
+    pub filename: String,
+    #[serde(rename = "type")]
+    pub job_type: JobType,
+    pub source: JobSource,
+    /// Stable execution priority within the waiting queue. Lower values are
+    /// scheduled earlier. The frontend uses this for queue-mode ordering while
+    /// treating it as metadata in display-only mode.
+    #[serde(rename = "queueOrder")]
+    pub queue_order: Option<u64>,
+    // Align with TS field name `originalSizeMB` but accept legacy
+    // `originalSizeMb` when deserializing.
+    #[serde(rename = "originalSizeMB", alias = "originalSizeMb")]
+    pub original_size_mb: f64,
+    pub original_codec: Option<String>,
+    pub preset_id: String,
+    pub status: JobStatus,
+    pub progress: f64,
+    pub start_time: Option<u64>,
+    pub end_time: Option<u64>,
+    // Align with TS field name `outputSizeMB` but accept legacy
+    // `outputSizeMb` when deserializing.
+    #[serde(rename = "outputSizeMB", alias = "outputSizeMb")]
+    pub output_size_mb: Option<f64>,
+    /// Absolute input path for this job when known (Tauri only).
+    pub input_path: Option<String>,
+    /// Planned or final output path for this job (e.g. .compressed.mp4).
+    pub output_path: Option<String>,
+    /// Human-readable ffmpeg command line used for this job. Unlike the full
+    /// `logs` vector this is required for the UI to render task cards and
+    /// details correctly, so it is preserved in the lite snapshot.
+    pub ffmpeg_command: Option<String>,
+    /// Compact media metadata derived from ffprobe or existing job fields.
+    pub media_info: Option<MediaInfo>,
+    /// Optional estimated processing time in seconds for this job. This is
+    /// used for aggregated progress weighting (e.g. Windows taskbar).
+    pub estimated_seconds: Option<f64>,
+    /// Optional thumbnail path for this job's input media.
+    pub preview_path: Option<String>,
+    /// Optional pre-truncated tail string of logs from the backend. The
+    /// detail view prefers the full in-memory logs when available and falls
+    /// back to this tail for legacy snapshots.
+    pub log_tail: Option<String>,
+    /// Short structured description of why the job failed.
+    pub failure_reason: Option<String>,
+    /// Optional stable id for the Smart Scan batch this job belongs to.
+    pub batch_id: Option<String>,
+    /// Optional metadata captured when a job is paused via wait or restored
+    /// after crash recovery.
+    pub wait_metadata: Option<WaitMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueStateLite {
+    pub jobs: Vec<TranscodeJobLite>,
+}
+
+impl From<&TranscodeJob> for TranscodeJobLite {
+    fn from(job: &TranscodeJob) -> Self {
+        Self {
+            id: job.id.clone(),
+            filename: job.filename.clone(),
+            job_type: job.job_type.clone(),
+            source: job.source.clone(),
+            queue_order: job.queue_order,
+            original_size_mb: job.original_size_mb,
+            original_codec: job.original_codec.clone(),
+            preset_id: job.preset_id.clone(),
+            status: job.status.clone(),
+            progress: job.progress,
+            start_time: job.start_time,
+            end_time: job.end_time,
+            output_size_mb: job.output_size_mb,
+            input_path: job.input_path.clone(),
+            output_path: job.output_path.clone(),
+            ffmpeg_command: job.ffmpeg_command.clone(),
+            media_info: job.media_info.clone(),
+            estimated_seconds: job.estimated_seconds,
+            preview_path: job.preview_path.clone(),
+            log_tail: job.log_tail.clone(),
+            failure_reason: job.failure_reason.clone(),
+            batch_id: job.batch_id.clone(),
+            wait_metadata: job.wait_metadata.clone(),
+        }
+    }
+}
+
+impl From<&QueueState> for QueueStateLite {
+    fn from(snapshot: &QueueState) -> Self {
+        let jobs = snapshot.jobs.iter().map(TranscodeJobLite::from).collect();
+        QueueStateLite { jobs }
+    }
+}

@@ -1,10 +1,17 @@
 import { onMounted, onUnmounted, ref, watch, type Ref } from "vue";
-import type { AppSettings, ExternalToolKind, ExternalToolStatus, SmartScanConfig } from "@/types";
+import type {
+  AppSettings,
+  ExternalToolCandidate,
+  ExternalToolKind,
+  ExternalToolStatus,
+  SmartScanConfig,
+} from "@/types";
 import {
   hasTauri,
   loadAppSettings,
   saveAppSettings,
   fetchExternalToolStatuses,
+  fetchExternalToolCandidates,
   downloadExternalToolNow,
 } from "@/lib/backend";
 import { listen } from "@tauri-apps/api/event";
@@ -40,6 +47,8 @@ export interface UseAppSettingsReturn {
   refreshToolStatuses: () => Promise<void>;
   /** Manually trigger download/update for a given tool kind. */
   downloadToolNow: (kind: ExternalToolKind) => Promise<void>;
+  /** Enumerate available candidate binaries for a tool. */
+  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   /** Get display name for a tool kind. */
   getToolDisplayName: (kind: ExternalToolKind) => string;
   /** Get custom path for a tool. */
@@ -192,6 +201,10 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       } as import("@/types").ExternalToolSettings;
     }
     const tools = root.tools as import("@/types").ExternalToolSettings;
+    // Switching to a manually specified path should implicitly move the
+    // management mode to “手动管理”，以免后续自动下载/更新悄悄覆盖用户选择。
+    tools.autoDownload = false;
+    tools.autoUpdate = false;
     const normalized = String(value ?? "").trim();
     if (kind === "ffmpeg") {
       tools.ffmpegPath = normalized || undefined;
@@ -209,6 +222,16 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     } catch (error) {
       console.error("Failed to download external tool", error);
       // 具体错误信息已经从后端事件/日志中可见，这里不额外冒泡给用户。
+    }
+  };
+
+  const fetchToolCandidates = async (kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => {
+    if (!hasTauri()) return [];
+    try {
+      return await fetchExternalToolCandidates(kind);
+    } catch (error) {
+      console.error("Failed to load external tool candidates", error);
+      return [];
     }
   };
 
@@ -280,6 +303,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     scheduleSaveSettings,
     refreshToolStatuses,
     downloadToolNow,
+    fetchToolCandidates,
     getToolDisplayName,
     getToolCustomPath,
     setToolCustomPath,

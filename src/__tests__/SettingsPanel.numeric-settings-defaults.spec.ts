@@ -68,6 +68,7 @@ describe("SettingsPanel numeric settings defaults", () => {
         toolStatuses: [] as ExternalToolStatus[],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -108,6 +109,7 @@ describe("SettingsPanel numeric settings defaults", () => {
         toolStatuses: [] as ExternalToolStatus[],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 

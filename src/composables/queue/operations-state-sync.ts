@@ -1,6 +1,6 @@
 import { type Ref } from "vue";
-import type { TranscodeJob, QueueState } from "@/types";
-import { hasTauri, loadQueueState } from "@/lib/backend";
+import type { TranscodeJob, QueueState, QueueStateLite } from "@/types";
+import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 
 /**
  * State sync function dependencies.
@@ -57,7 +57,10 @@ function detectNewlyCompletedJobs(
  * Updates jobs list, records snapshot timestamp, and triggers onJobCompleted
  * for jobs that have newly transitioned into the `completed` state.
  */
-export function applyQueueStateFromBackend(state: QueueState, deps: StateSyncDeps) {
+export function applyQueueStateFromBackend(
+  state: QueueState | QueueStateLite,
+  deps: StateSyncDeps,
+) {
   const backendJobs = state.jobs ?? [];
   const previousJobs = deps.jobs.value;
 
@@ -75,8 +78,8 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
   if (!hasTauri()) return;
   try {
     const previousJobs = deps.jobs.value;
-    const state = await loadQueueState();
-    const backendJobs = state.jobs ?? [];
+    const state = await loadQueueStateLite();
+    const backendJobs = (state as QueueStateLite).jobs ?? [];
 
     detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
     recomputeJobsFromBackend(backendJobs, deps);

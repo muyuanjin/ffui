@@ -85,6 +85,7 @@ describe("SettingsPanel external tool download status", () => {
         toolStatuses: [toolStatus],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -133,6 +134,7 @@ describe("SettingsPanel external tool download status", () => {
         toolStatuses: [toolStatus],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -178,6 +180,7 @@ describe("SettingsPanel external tool download status", () => {
         toolStatuses: [toolStatus],
         isSavingSettings: false,
         settingsSaveError: null,
+        fetchToolCandidates: async () => [],
       },
     });
 
@@ -185,6 +188,52 @@ describe("SettingsPanel external tool download status", () => {
     expect(text).toContain("some error message from backend");
     // 当存在明确的错误信息时，不再显示“检测到可用更新”这类模糊提示。
     expect(text).not.toContain("检测到可用更新");
+
+    wrapper.unmount();
+  });
+
+  it("shows an explicit up-to-date hint and hides the 下载/更新 button when no update is available and the tool is ready", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: "C:/tools/ffmpeg.exe",
+      source: "download",
+      version: "ffmpeg version 6.0",
+      remoteVersion: "6.0",
+      updateAvailable: false,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: false,
+      downloadProgress: undefined,
+      downloadedBytes: undefined,
+      totalBytes: undefined,
+      bytesPerSecond: undefined,
+      lastDownloadError: undefined,
+      lastDownloadMessage: undefined,
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("已是最新版本");
+
+    const buttons = wrapper.findAll("button");
+    const hasDownloadOrUpdateButton = buttons.some((btn) => {
+      const label = btn.text();
+      return label.includes("更新") || label.includes("下载");
+    });
+
+    expect(hasDownloadOrUpdateButton).toBe(false);
 
     wrapper.unmount();
   });

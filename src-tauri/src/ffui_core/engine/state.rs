@@ -4,12 +4,14 @@ use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use crate::ffui_core::domain::{
     AutoCompressProgress, FFmpegPreset, JobStatus, JobType, MediaInfo, QueueState, TranscodeJob,
     WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
+use crate::ffui_core::settings::types::QueuePersistenceMode;
 
 const SMART_SCAN_PROGRESS_EVERY: u64 = 32;
 
@@ -128,7 +130,12 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
 
 pub(super) fn notify_queue_listeners(inner: &Inner) {
     let snapshot = snapshot_queue_state(inner);
-    persist_queue_state(&snapshot);
+    {
+        let state = inner.state.lock().expect("engine state poisoned");
+        if state.settings.queue_persistence_mode == QueuePersistenceMode::CrashRecovery {
+            persist_queue_state(&snapshot);
+        }
+    }
     let listeners = inner
         .queue_listeners
         .lock()
@@ -174,7 +181,10 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
     }
 }
 
-pub(super) fn persist_queue_state(snapshot: &QueueState) {
+/// Actual on-disk writer for queue state snapshots. This performs a single
+/// compact JSON write without any debouncing semantics; callers should go
+/// through `persist_queue_state` instead.
+fn persist_queue_state_inner(snapshot: &QueueState) {
     let path = match queue_state_sidecar_path() {
         Some(p) => p,
         None => return,
@@ -193,7 +203,7 @@ pub(super) fn persist_queue_state(snapshot: &QueueState) {
     let tmp_path = path.with_extension("tmp");
     match fs::File::create(&tmp_path) {
         Ok(file) => {
-            if let Err(err) = serde_json::to_writer_pretty(&file, snapshot) {
+            if let Err(err) = serde_json::to_writer(&file, snapshot) {
                 eprintln!(
                     "failed to write queue state to {}: {err:#}",
                     tmp_path.display()
@@ -219,7 +229,82 @@ pub(super) fn persist_queue_state(snapshot: &QueueState) {
     }
 }
 
+/// Debounce window for queue persistence writes. This reduces disk I/O on
+/// hot paths (high-frequency progress updates) while still ensuring the first
+/// snapshot is written promptly.
+const QUEUE_PERSIST_DEBOUNCE_MS: u64 = 250;
+
+/// In-memory state used to coalesce queue persistence writes across rapid
+/// snapshots.
+struct QueuePersistState {
+    last_write_at: Option<Instant>,
+    // Most recent snapshot observed since the last write. When the debounce
+    // window elapses, this is the snapshot that will be persisted.
+    last_snapshot: Option<QueueState>,
+}
+
+static QUEUE_PERSIST_STATE: once_cell::sync::Lazy<Mutex<QueuePersistState>> =
+    once_cell::sync::Lazy::new(|| {
+        Mutex::new(QueuePersistState {
+            last_write_at: None,
+            last_snapshot: None,
+        })
+    });
+
+/// Persist the given snapshot to disk using a debounced writer. The first
+/// snapshot is written immediately; subsequent snapshots within the debounce
+/// window are coalesced so that at most one write occurs per window while
+/// still keeping a recent snapshot durable.
+pub(super) fn persist_queue_state(snapshot: &QueueState) {
+    let mut state = QUEUE_PERSIST_STATE
+        .lock()
+        .expect("queue persist state lock poisoned");
+
+    let now = Instant::now();
+    state.last_snapshot = Some(snapshot.clone());
+
+    match state.last_write_at {
+        None => {
+            // First snapshot: write immediately so there is always at least
+            // one queue state persisted early in the session.
+            state.last_write_at = Some(now);
+            let to_write = state
+                .last_snapshot
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| snapshot.clone());
+            drop(state);
+            persist_queue_state_inner(&to_write);
+        }
+        Some(last) => {
+            let debounce = Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS);
+            if now.duration_since(last) >= debounce {
+                state.last_write_at = Some(now);
+                let to_write = state
+                    .last_snapshot
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| snapshot.clone());
+                drop(state);
+                persist_queue_state_inner(&to_write);
+            }
+            // If still within the debounce window, we keep last_snapshot
+            // updated but avoid an immediate write; the next call after the
+            // window elapses will flush the latest snapshot.
+        }
+    }
+}
+
 pub(super) fn restore_jobs_from_persisted_queue(inner: &Inner) {
+    // Respect the configured queue persistence mode; when disabled we skip
+    // loading any previous queue snapshot and start from a clean state.
+    {
+        let state = inner.state.lock().expect("engine state poisoned");
+        if state.settings.queue_persistence_mode != QueuePersistenceMode::CrashRecovery {
+            return;
+        }
+    }
+
     let snapshot = match load_persisted_queue_state() {
         Some(s) => s,
         None => return,

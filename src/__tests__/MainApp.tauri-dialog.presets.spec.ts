@@ -11,6 +11,7 @@ import {
 } from "./helpers/mainAppTauriDialog";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
+import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
 import type { FFmpegPreset, AppSettings, TranscodeJob } from "@/types";
 
 describe("MainApp Tauri presets", () => {
@@ -180,6 +181,46 @@ describe("MainApp Tauri presets", () => {
     expect(savedSettings.length).toBeGreaterThan(0);
     const last = savedSettings[savedSettings.length - 1];
     expect(last.defaultQueuePresetId).toBe("p1");
+
+    wrapper.unmount();
+  });
+
+  it("switches to the settings tab when smart preset onboarding requests external tools configuration", async () => {
+    const backendPresets: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+        audio: { codec: "copy" },
+        filters: { scale: "-2:1080" },
+        stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      },
+    ];
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_presets: () => backendPresets,
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    // By default the app opens on the queue tab.
+    expect(vm.activeTab).toBe("queue");
+
+    const dialogs = wrapper.findComponent(MainDialogsStack);
+    expect(dialogs.exists()).toBe(true);
+
+    // Simulate the onboarding dialog asking to open external tools settings.
+    dialogs.vm.$emit("openToolsSettings");
+    await nextTick();
+
+    expect(vm.activeTab).toBe("settings");
 
     wrapper.unmount();
   });

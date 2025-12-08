@@ -1,5 +1,6 @@
 mod commands;
 mod ffui_core;
+mod queue_events;
 mod system_metrics;
 mod taskbar_progress;
 
@@ -7,9 +8,8 @@ use std::{thread, time::Duration};
 
 use tauri::{Emitter, Manager};
 
-use crate::ffui_core::{AutoCompressProgress, QueueState, TranscodingEngine};
+use crate::ffui_core::{AutoCompressProgress, TranscodingEngine};
 use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
-use crate::taskbar_progress::update_taskbar_progress;
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
@@ -275,13 +275,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::queue::get_queue_state,
+            commands::queue::get_queue_state_lite,
             commands::queue::enqueue_transcode_job,
             commands::queue::cancel_transcode_job,
             commands::queue::wait_transcode_job,
             commands::queue::resume_transcode_job,
             commands::queue::restart_transcode_job,
+            commands::queue::delete_transcode_job,
             commands::queue::reorder_queue,
+            commands::queue::get_job_detail,
             commands::presets::get_presets,
+            commands::presets::get_smart_default_presets,
             commands::presets::save_preset,
             commands::presets::delete_preset,
             commands::presets::reorder_presets,
@@ -293,6 +297,7 @@ pub fn run() {
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,
             commands::tools::get_external_tool_statuses,
+            commands::tools::get_external_tool_candidates,
             commands::tools::download_external_tool_now,
             commands::tools::open_devtools,
             commands::tools::ack_taskbar_progress,
@@ -364,30 +369,7 @@ pub fn run() {
 
             // Stream queue state changes from the Rust engine to the frontend via
             // a long-lived Tauri event so the UI does not need to poll.
-            {
-                let event_handle = handle.clone();
-                let taskbar_handle = handle.clone();
-                let engine = handle.state::<TranscodingEngine>();
-                engine.register_queue_listener(move |state: QueueState| {
-                    if let Err(err) = event_handle.emit("ffui://queue-state", state.clone()) {
-                        eprintln!("failed to emit queue-state event: {err}");
-                    }
-
-                    // Update the Windows taskbar progress bar (no-op on
-                    // non-Windows platforms) based on the aggregated queue
-                    // progress for this snapshot.
-                    #[cfg(windows)]
-                    {
-                        let engine = taskbar_handle.state::<TranscodingEngine>();
-                        let settings = engine.settings();
-                        update_taskbar_progress(
-                            &taskbar_handle,
-                            &state,
-                            settings.taskbar_progress_mode,
-                        );
-                    }
-                });
-            }
+            queue_events::register_queue_stream(&handle);
 
             // Stream Smart Scan progress snapshots so the frontend can show
             // coarse-grained scanning progress for large directory trees.

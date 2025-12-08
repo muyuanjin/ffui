@@ -1,6 +1,12 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, SmartScanConfig, TranscodeJob } from "@/types";
+import type {
+  AppSettings,
+  ExternalToolCandidate,
+  ExternalToolKind,
+  SmartScanConfig,
+  TranscodeJob,
+} from "@/types";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
 
@@ -8,6 +14,8 @@ export interface UseMainAppSettingsOptions {
   jobs: Ref<TranscodeJob[]>;
   manualJobPresetId: Ref<string | null>;
   smartConfig: Ref<SmartScanConfig>;
+  /** Optional startup idle gate so initial calls can be deferred until after first paint. */
+  startupIdleReady?: Ref<boolean>;
 }
 
 export interface UseMainAppSettingsReturn {
@@ -19,6 +27,9 @@ export interface UseMainAppSettingsReturn {
   scheduleSaveSettings: () => void;
   refreshToolStatuses: () => Promise<void>;
   downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
+  fetchToolCandidates: (
+    kind: ExternalToolKind,
+  ) => Promise<ExternalToolCandidate[]>;
   progressUpdateIntervalMs: ReturnType<typeof useJobProgress>["progressUpdateIntervalMs"];
   globalTaskbarProgressPercent: ReturnType<typeof useJobProgress>["globalTaskbarProgressPercent"];
   headerProgressPercent: ReturnType<typeof useJobProgress>["headerProgressPercent"];
@@ -36,7 +47,7 @@ export interface UseMainAppSettingsReturn {
 export function useMainAppSettings(
   options: UseMainAppSettingsOptions,
 ): UseMainAppSettingsReturn {
-  const { jobs, manualJobPresetId, smartConfig } = options;
+  const { jobs, manualJobPresetId, smartConfig, startupIdleReady } = options;
 
   const { t } = useI18n();
 
@@ -49,6 +60,7 @@ export function useMainAppSettings(
     scheduleSaveSettings,
     refreshToolStatuses,
     downloadToolNow,
+    fetchToolCandidates,
     cleanup: cleanupAppSettings,
   } = useAppSettings({
     smartConfig,
@@ -99,8 +111,36 @@ export function useMainAppSettings(
 
   // Best-effort load of app settings and external tools on mount.
   onMounted(async () => {
-    await ensureAppSettingsLoaded();
-    await refreshToolStatuses();
+    const runStartupSettingsLoad = async () => {
+      await ensureAppSettingsLoaded();
+      await refreshToolStatuses();
+    };
+
+    // When no idle gate is provided, preserve the previous behaviour and run
+    // startup calls immediately on mount.
+    if (!startupIdleReady) {
+      await runStartupSettingsLoad();
+      return;
+    }
+
+    // If the gate is already open, run immediately.
+    if (startupIdleReady.value) {
+      await runStartupSettingsLoad();
+      return;
+    }
+
+    // Otherwise wait until the idle gate opens, then run the startup calls
+    // once. This keeps first paint responsive while still ensuring settings
+    // and tool statuses are loaded early in the session.
+    const stop = watch(
+      startupIdleReady,
+      (ready) => {
+        if (!ready) return;
+        stop();
+        void runStartupSettingsLoad();
+      },
+      { flush: "post" },
+    );
   });
 
   onUnmounted(() => {
@@ -120,6 +160,7 @@ export function useMainAppSettings(
     scheduleSaveSettings,
     refreshToolStatuses,
     downloadToolNow,
+    fetchToolCandidates,
     progressUpdateIntervalMs,
     globalTaskbarProgressPercent,
     headerProgressPercent,

@@ -155,7 +155,7 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <div class="text-right flex flex-col items-end gap-1.5">
+  <div class="text-right flex flex-col items-end gap-1.5">
       <span class="text-xs font-bold uppercase tracking-wide" :class="statusTextClass">
         {{ localizedStatus }}
       </span>
@@ -166,6 +166,7 @@ const emit = defineEmits<{
           size="sm"
           class="h-7 px-3 text-[11px] border-primary/50 text-primary hover:bg-primary/10 hover:border-primary"
           data-testid="queue-item-detail-button"
+          :title="String(t('jobDetail.title'))"
           @click.stop="emit('inspect', job)"
         >
           {{ t("jobDetail.title") }}
@@ -176,6 +177,7 @@ const emit = defineEmits<{
           size="sm"
           class="h-7 px-2 text-[11px]"
           data-testid="queue-item-wait-button"
+          :title="String(t('queue.actions.wait'))"
           @click.stop="emit('wait', job.id)"
         >
           {{ t('queue.actions.wait') }}
@@ -186,6 +188,7 @@ const emit = defineEmits<{
           size="sm"
           class="h-7 px-2 text-[11px]"
           data-testid="queue-item-resume-button"
+          :title="String(t('queue.actions.resume'))"
           @click.stop="emit('resume', job.id)"
         >
           {{ t('queue.actions.resume') }}
@@ -196,6 +199,7 @@ const emit = defineEmits<{
           size="sm"
           class="h-7 px-2 text-[11px]"
           data-testid="queue-item-restart-button"
+          :title="String(t('queue.actions.restart'))"
           @click.stop="emit('restart', job.id)"
         >
           {{ t('queue.actions.restart') }}
@@ -205,6 +209,7 @@ const emit = defineEmits<{
           variant="outline"
           size="sm"
           class="h-7 px-2 text-[11px]"
+          :title="String(t('app.actions.cancel'))"
           @click.stop="emit('cancel', job.id)"
         >
           {{ t('app.actions.cancel') }}

@@ -34,6 +34,10 @@ export type {
   WaitMetadata,
   TranscodeJob,
   QueueState,
+  // Lightweight queue snapshot shape used for startup and high-frequency updates.
+  // Kept as a separate alias so existing imports remain valid while sharing the
+  // same underlying structure as QueueState.
+  QueueStateLite,
 } from "./queue";
 
 // System monitoring types
@@ -57,6 +61,7 @@ export type {
   ExternalToolSettings,
   ExternalToolKind,
   ExternalToolStatus,
+   ExternalToolCandidate,
 } from "./tools";
 
 // Smart scan types

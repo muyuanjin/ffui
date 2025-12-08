@@ -8,12 +8,22 @@
 
 use tauri::State;
 
-use crate::ffui_core::{JobSource, JobType, QueueState, TranscodeJob, TranscodingEngine};
+use crate::ffui_core::{
+    JobSource, JobType, QueueState, QueueStateLite, TranscodeJob, TranscodingEngine,
+};
 
 /// Get the current state of the transcoding queue.
 #[tauri::command]
 pub fn get_queue_state(engine: State<TranscodingEngine>) -> QueueState {
     engine.queue_state()
+}
+
+/// Get a lightweight snapshot of the transcoding queue without heavy fields
+/// such as the full logs vector. This is intended for startup and frequent
+/// updates where payload size matters more than full detail.
+#[tauri::command]
+pub fn get_queue_state_lite(engine: State<TranscodingEngine>) -> QueueStateLite {
+    engine.queue_state_lite()
 }
 
 /// Enqueue a new transcoding job.
@@ -61,8 +71,23 @@ pub fn restart_transcode_job(engine: State<TranscodingEngine>, job_id: String) -
     engine.restart_job(&job_id)
 }
 
+/// Permanently delete a transcode job by ID.
+///
+/// Only jobs that are already in a terminal state (completed/failed/skipped/
+/// cancelled) are eligible for deletion; active jobs remain protected.
+#[tauri::command]
+pub fn delete_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+    engine.delete_job(&job_id)
+}
+
 /// Reorder jobs in the queue by their IDs.
 #[tauri::command]
 pub fn reorder_queue(engine: State<TranscodingEngine>, ordered_ids: Vec<String>) -> bool {
     engine.reorder_waiting_jobs(ordered_ids)
+}
+
+/// Fetch full details for a single job, including logs and media metadata.
+#[tauri::command]
+pub fn get_job_detail(engine: State<TranscodingEngine>, job_id: String) -> Option<TranscodeJob> {
+    engine.job_detail(&job_id)
 }

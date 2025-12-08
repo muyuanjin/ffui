@@ -9,7 +9,10 @@
 use tauri::{AppHandle, State, WebviewWindow};
 
 use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
-use crate::ffui_core::{CpuUsageSnapshot, ExternalToolStatus, GpuUsageSnapshot, TranscodingEngine};
+use crate::ffui_core::{
+    CpuUsageSnapshot, ExternalToolCandidate, ExternalToolStatus, GpuUsageSnapshot,
+    TranscodingEngine,
+};
 use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
 /// Get the current CPU usage snapshot.
@@ -28,6 +31,20 @@ pub fn get_gpu_usage(engine: State<TranscodingEngine>) -> GpuUsageSnapshot {
 #[tauri::command]
 pub fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
+}
+
+/// Enumerate all verified candidate binaries for a specific external tool.
+///
+/// This is used by the Settings panel when multiple executables are
+/// available (for example a system PATH binary and an auto-downloaded
+/// static build) so that users can explicitly choose which one to use.
+#[tauri::command]
+pub fn get_external_tool_candidates(
+    engine: State<TranscodingEngine>,
+    kind: ExternalToolKind,
+) -> Vec<ExternalToolCandidate> {
+    let settings = engine.settings();
+    crate::ffui_core::tools::tool_candidates(kind, &settings.tools)
 }
 
 /// Manually trigger download/update for a specific external tool. This is used

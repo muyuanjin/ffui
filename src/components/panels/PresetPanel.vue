@@ -17,6 +17,7 @@ const emit = defineEmits<{
   edit: [preset: FFmpegPreset];
   delete: [preset: FFmpegPreset];
   reorder: [orderedIds: string[]];
+  importSmartPack: [];
 }>();
 
 const { t } = useI18n();
@@ -36,11 +37,38 @@ watch(
 // Setup sortable
 useSortable(containerRef, localPresets, {
   animation: 150,
+  // 只允许通过拖动把手来拖拽卡片，避免误触
   handle: ".drag-handle",
   ghostClass: "opacity-30",
-  chosenClass: "ring-2 ring-primary",
-  onEnd: () => {
-    const orderedIds = localPresets.value.map((p) => p.id);
+  // SortableJS 的 chosenClass 仅支持单个类名；
+  // 这里使用自定义类并在样式中通过 Tailwind @apply 组合出需要的视觉效果。
+  chosenClass: "is-chosen",
+  // 在 Tauri/WebView 等环境下强制使用 fallback 提升兼容性
+  forceFallback: true,
+  fallbackOnBody: true,
+  fallbackClass: "drag-fallback",
+  // 注意：SortableJS 的事件顺序为 update → sort → end。
+  // useSortable 内部默认在 onUpdate 中用 nextTick 异步更新 list，
+  // 如果我们在 onEnd 中读取 list，很容易拿到的是“旧顺序”，看起来像“松手后弹回原位”。
+  //
+  // 因此这里覆写 onUpdate：根据 oldIndex/newIndex 同步调整本地数组，
+  // 然后立刻按最新顺序发出 reorder 事件，由上游负责持久化到后端。
+  onUpdate: (evt: any) => {
+    const oldIndex = evt?.oldIndex;
+    const newIndex = evt?.newIndex;
+    if (typeof oldIndex !== "number" || typeof newIndex !== "number") return;
+
+    const current = localPresets.value;
+    if (!Array.isArray(current) || oldIndex === newIndex) return;
+    if (oldIndex < 0 || oldIndex >= current.length) return;
+    if (newIndex < 0 || newIndex >= current.length) return;
+
+    const next = [...current];
+    const [moved] = next.splice(oldIndex, 1);
+    next.splice(newIndex, 0, moved);
+    localPresets.value = next;
+
+    const orderedIds = next.map((p) => p.id);
     emit("reorder", orderedIds);
   },
 });
@@ -107,6 +135,16 @@ const getSubtitleSummary = (preset: FFmpegPreset): string => {
   return t("presets.subtitleBurnIn");
 };
 
+// 音频摘要：避免出现 “AAC 0k” 这类看起来像假数据的展示。
+// - copy: 显示“复制”
+// - 其他：如果有有效 bitrate 显示 “CODEC 192k”，否则仅显示 “CODEC”
+const getAudioSummary = (audio: FFmpegPreset["audio"]) => {
+  if (audio.codec === "copy") return t("presets.audioCopy");
+  const name = String(audio.codec).toUpperCase();
+  const br = typeof audio.bitrate === "number" && audio.bitrate > 0 ? `${audio.bitrate}k` : "";
+  return br ? `${name} ${br}` : name;
+};
+
 const copyToClipboard = async (value: string | undefined | null) => {
   if (!value) return;
   if (typeof navigator === "undefined" || typeof document === "undefined") return;
@@ -135,14 +173,33 @@ const copyToClipboard = async (value: string | undefined | null) => {
     console.error("Fallback copy to clipboard failed", error);
   }
 };
+
+const isSmartPreset = (preset: FFmpegPreset): boolean => {
+  return typeof preset.id === "string" && preset.id.startsWith("smart-");
+};
 </script>
 
 <template>
   <div class="w-full max-w-6xl mx-auto px-4">
-    <!-- Header with hint -->
-    <div class="mb-4 text-sm text-muted-foreground flex items-center gap-2">
-      <GripVertical class="w-4 h-4" />
-      <span>{{ t("presets.dragToReorder") }} · {{ t("presets.presetCount", { count: presets.length }) }}</span>
+    <!-- Header with hint and actions -->
+    <div class="mb-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <GripVertical class="w-4 h-4" />
+        <span>
+          {{ t("presets.dragToReorder") }} ·
+          {{ t("presets.presetCount", { count: presets.length }) }}
+        </span>
+      </div>
+      <div class="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          class="h-7 px-2 text-[11px]"
+          @click="emit('importSmartPack')"
+        >
+          {{ t("presets.importSmartPack") }}
+        </Button>
+      </div>
     </div>
 
     <!-- Presets Grid -->
@@ -170,10 +227,17 @@ const copyToClipboard = async (value: string | undefined | null) => {
               </p>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span
+                v-if="isSmartPreset(preset)"
+                class="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[9px] font-medium border border-primary/40"
+              >
+                {{ t("presets.recommendedSmart") }}
+              </span>
               <Button
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                data-prevent-drag
                 @click="emit('edit', preset)"
               >
                 <Edit class="h-3.5 w-3.5" />
@@ -182,6 +246,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 variant="ghost"
                 size="icon"
                 class="h-7 w-7 hover:bg-destructive/10 hover:text-destructive"
+                data-prevent-drag
                 @click="emit('delete', preset)"
               >
                 <Trash2 class="h-3.5 w-3.5" />
@@ -213,11 +278,8 @@ const copyToClipboard = async (value: string | undefined | null) => {
                 {{ t("presets.audioLabel") }}
               </div>
               <div class="font-mono text-[11px] text-foreground leading-tight">
-                <span v-if="preset.audio.codec === 'copy'">
-                  {{ t("presets.audioCopy") }}
-                </span>
-                <span v-else>
-                  {{ t("presets.audioAac", { kbps: preset.audio.bitrate ?? 0 }) }}
+                <span>
+                  {{ getAudioSummary(preset.audio) }}
                 </span>
               </div>
             </div>
@@ -320,5 +382,11 @@ const copyToClipboard = async (value: string | undefined | null) => {
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* 拖拽选中态：避免在 @apply 中使用自定义颜色类导致构建期报错。
+   使用纯 CSS 模拟 Tailwind 的 ring 效果，颜色取主题主色变量。 */
+.is-chosen {
+  box-shadow: 0 0 0 2px hsl(var(--primary));
 }
 </style>

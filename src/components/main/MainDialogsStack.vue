@@ -6,6 +6,7 @@ import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vu
 import ParameterWizard from "@/components/ParameterWizard.vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import SmartScanWizard from "@/components/SmartScanWizard.vue";
+import SmartPresetImportDialog from "@/components/dialogs/SmartPresetImportDialog.vue";
 import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
 
@@ -55,6 +56,8 @@ const emit = defineEmits<{
   (e: "handleExpandedImagePreviewError"): void;
   (e: "closeExpandedPreview"): void;
   (e: "openPreviewInSystemPlayer"): void;
+  (e: "importSmartPackConfirmed", presets: FFmpegPreset[]): void;
+  (e: "openToolsSettings"): void;
 }>();
 </script>
 
@@ -123,5 +126,13 @@ const emit = defineEmits<{
     @image-error="emit('handleExpandedImagePreviewError')"
     @open-in-system-player="emit('openPreviewInSystemPlayer')"
     @copy-path="emit('copyToClipboard', dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '')"
+  />
+
+  <SmartPresetImportDialog
+    v-if="dialogManager.smartPresetImportOpen.value"
+    :open="dialogManager.smartPresetImportOpen.value"
+    @update:open="(open) => { if (!open) dialogManager.closeSmartPresetImport(); }"
+    @confirmed="(presets) => emit('importSmartPackConfirmed', presets)"
+    @openToolsSettings="emit('openToolsSettings')"
   />
 </template>

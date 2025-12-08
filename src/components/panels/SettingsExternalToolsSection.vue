@@ -3,11 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, ExternalToolKind, ExternalToolStatus } from "@/types";
+import { ref } from "vue";
+import type {
+  AppSettings,
+  ExternalToolCandidate,
+  ExternalToolKind,
+  ExternalToolStatus,
+} from "@/types";
 
 const props = defineProps<{
   appSettings: AppSettings | null;
   toolStatuses: ExternalToolStatus[];
+  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
 }>();
 
 const emit = defineEmits<{
@@ -38,6 +45,11 @@ const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
   const settings = { ...props.appSettings };
   const tools = { ...settings.tools };
   const normalized = String(value ?? "").trim();
+  // Once the user explicitly picks a path (either by typing or by choosing
+  // from detected candidates), switch the management mode to “手动管理”
+  // so that future auto-download/update will not override the chosen binary.
+  tools.autoDownload = false;
+  tools.autoUpdate = false;
   if (kind === "ffmpeg") {
     tools.ffmpegPath = normalized || undefined;
   } else if (kind === "ffprobe") {
@@ -48,6 +60,30 @@ const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
   settings.tools = tools;
   // Persist the updated path in app settings so the UI reflects changes.
   emit("update:appSettings", settings);
+};
+
+const candidateKind = ref<ExternalToolKind | null>(null);
+const candidates = ref<ExternalToolCandidate[] | null>(null);
+const candidatesLoading = ref(false);
+
+const loadCandidates = async (kind: ExternalToolKind) => {
+  candidateKind.value = kind;
+  candidatesLoading.value = true;
+  try {
+    candidates.value = await props.fetchToolCandidates(kind);
+  } catch (error) {
+    console.error("Failed to load external tool candidates", error);
+    candidates.value = [];
+  } finally {
+    candidatesLoading.value = false;
+  }
+};
+
+const formatCandidateSource = (source: string): string => {
+  if (source === "custom") return "自定义路径";
+  if (source === "download") return "自动下载";
+  if (source === "path") return "系统 PATH";
+  return source;
 };
 
 const copyToClipboard = async (value: string | undefined | null) => {
@@ -143,6 +179,60 @@ const formatSpeed = (bytesPerSecond?: number): string => {
               </svg>
             </button>
           </div>
+          <div class="mt-0.5 flex items-center justify-between text-[9px]">
+            <button
+              type="button"
+              class="text-[9px] text-primary hover:underline focus:outline-none"
+              @click="loadCandidates(tool.kind)"
+            >
+              选择已检测路径…
+            </button>
+            <span v-if="candidatesLoading && candidateKind === tool.kind" class="text-muted-foreground">
+              加载中…
+            </span>
+          </div>
+
+          <div
+            v-if="candidateKind === tool.kind && candidates && candidates.length"
+            class="mt-1.5 space-y-0.5 rounded border border-border/30 bg-background/60 p-1.5"
+          >
+            <div
+              v-for="candidate in candidates"
+              :key="candidate.path"
+              class="flex items-center gap-1.5"
+            >
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1">
+                  <code class="text-[9px] font-mono truncate">
+                    {{ candidate.path }}
+                  </code>
+                  <span
+                    class="px-1 py-0 rounded-full text-[8px] border border-border/40 text-muted-foreground"
+                  >
+                    {{ formatCandidateSource(candidate.source) }}
+                  </span>
+                </div>
+                <div v-if="candidate.version" class="text-[9px] text-muted-foreground truncate">
+                  {{ candidate.version }}
+                </div>
+              </div>
+              <span
+                v-if="candidate.isCurrent"
+                class="text-[9px] text-emerald-600 whitespace-nowrap mr-1"
+              >
+                当前
+              </span>
+              <Button
+                v-else
+                variant="outline"
+                size="sm"
+                class="h-5 px-2 text-[9px]"
+                @click="setToolCustomPath(candidate.kind, candidate.path)"
+              >
+                使用
+              </Button>
+            </div>
+          </div>
         </div>
 
         <!-- Custom path input -->
@@ -158,8 +248,17 @@ const formatSpeed = (bytesPerSecond?: number): string => {
 
         <!-- Update available / manual download actions -->
         <div class="mt-1 flex items-center justify-between text-[9px]">
-          <span v-if="tool.updateAvailable && !tool.lastDownloadError" class="text-amber-600">
+          <span
+            v-if="tool.updateAvailable && !tool.lastDownloadError"
+            class="text-amber-600"
+          >
             {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
+          </span>
+          <span
+            v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError"
+            class="text-emerald-600"
+          >
+            {{ t("app.settings.toolUpToDateHint") }}
           </span>
           <Button
             v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"

@@ -54,3 +54,15 @@ export interface ExternalToolStatus {
   /** Last informational message about download/update activity for this tool. */
   lastDownloadMessage?: string;
 }
+
+export interface ExternalToolCandidate {
+  kind: ExternalToolKind;
+  /** Concrete executable path for this candidate. */
+  path: string;
+  /** Source of this candidate: custom / download / path. */
+  source: string;
+  /** Optional version string detected from the binary, when available. */
+  version?: string;
+  /** True when this candidate matches the currently resolvedPath used by the app. */
+  isCurrent: boolean;
+}

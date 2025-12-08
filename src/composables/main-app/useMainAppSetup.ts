@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AppSettings, FFmpegPreset, TranscodeJob } from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
@@ -14,6 +14,7 @@ import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu"
 import { useJobLog } from "@/composables";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { hasTauri, saveAppSettings } from "@/lib/backend";
 
 export function useMainAppSetup() {
   const { t } = useI18n();
@@ -28,6 +29,32 @@ export function useMainAppSetup() {
   const completedCount = computed(() =>
     jobs.value.filter((job) => job.status === "completed").length,
   );
+
+  // Startup idle gate: used to defer non-critical startup calls (settings,
+  // tool status, initial queue poll) until after the first paint so the shell
+  // can appear quickly. In test environments we flip this gate to true
+  // immediately to keep behaviour deterministic.
+  const startupIdleReady = ref(false);
+  const isTestEnv =
+    typeof import.meta !== "undefined" &&
+    typeof import.meta.env !== "undefined" &&
+    import.meta.env.MODE === "test";
+
+  if (isTestEnv || typeof window === "undefined") {
+    startupIdleReady.value = true;
+  } else {
+    const anyWindow = window as any;
+    const scheduleIdle = (cb: () => void) => {
+      if (typeof anyWindow.requestIdleCallback === "function") {
+        anyWindow.requestIdleCallback(cb);
+      } else {
+        window.setTimeout(cb, 0);
+      }
+    };
+    scheduleIdle(() => {
+      startupIdleReady.value = true;
+    });
+  }
 
   const shell = useMainAppShell();
   const dialogs = useMainAppDialogs();
@@ -61,12 +88,14 @@ export function useMainAppSetup() {
     compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
     compositeTasksById: smartScan.compositeTasksById,
     onJobCompleted: presetsModule.handleCompletedJobFromBackend,
+    startupIdleReady,
   });
 
   const settings = useMainAppSettings({
     jobs,
     manualJobPresetId,
     smartConfig: smartScan.smartConfig,
+    startupIdleReady,
   });
 
   const media = useMainAppMedia({
@@ -107,6 +136,44 @@ export function useMainAppSetup() {
   );
   const currentSubtitle = computed(
     () => subtitleForTab[shell.activeTab.value]?.() ?? "",
+  );
+
+  // One-time smart preset onboarding: when AppSettings are loaded in a Tauri
+  // environment and onboardingCompleted is false/undefined, automatically
+  // open the smart preset import dialog once.
+  const autoOnboardingTriggered = ref(false);
+
+  const markOnboardingCompleted = async () => {
+    if (!hasTauri()) return;
+    const current = settings.appSettings.value;
+    if (!current || current.onboardingCompleted) return;
+
+    const next: AppSettings = { ...current, onboardingCompleted: true };
+    settings.appSettings.value = next;
+    try {
+      const saved = await saveAppSettings(next);
+      settings.appSettings.value = saved;
+    } catch (error) {
+      console.error("Failed to mark onboardingCompleted in AppSettings", error);
+    }
+    settings.scheduleSaveSettings();
+  };
+
+  const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
+    await presetsModule.handleImportSmartPackConfirmed(presetsToImport);
+    await markOnboardingCompleted();
+  };
+
+  watch(
+    () => settings.appSettings.value,
+    (value) => {
+      if (!hasTauri()) return;
+      if (!value || value.onboardingCompleted) return;
+      if (autoOnboardingTriggered.value) return;
+      autoOnboardingTriggered.value = true;
+      dialogs.dialogManager.openSmartPresetImport();
+    },
+    { flush: "post" },
   );
 
   const { dialogManager, selectedJobForDetail } = dialogs;
@@ -230,6 +297,7 @@ export function useMainAppSetup() {
     // exposed on the instance.
     completedCount,
     queuePanelProps,
+    handleImportSmartPackConfirmed,
     ffmpegResolvedPath,
     handleUpdateAppSettings,
 

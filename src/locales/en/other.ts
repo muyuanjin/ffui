@@ -2,6 +2,7 @@ const other = {
   common: {
     back: "Back",
     cancel: "Cancel",
+    loading: "Loading…",
     next: "Next",
     stepOf: "Step {step} of {total}",
   },
@@ -119,6 +120,25 @@ const other = {
     twoPass: "2-pass",
     dragToReorder: "Drag to reorder",
     presetCount: "{count} presets",
+    recommendedSmart: "Smart recommended",
+    codecPreferenceLabel: "Preferred codec",
+    codecPreferenceAuto: "Auto",
+    codecPreferenceH264: "H.264",
+    codecPreferenceHevc: "H.265 / HEVC",
+    codecPreferenceAv1: "AV1",
+    useCasePreferenceLabel: "Primary use case",
+    useCasePreferenceShare: "Share / upload",
+    useCasePreferenceDaily: "Daily compress",
+    useCasePreferenceArchive: "Archival",
+    importSmartPack: "Import smart preset pack…",
+    importSmartPackDescription:
+      "Suggests H.26x / AV1 presets for fast compression and visually lossless archival based on current hardware. Imported presets remain fully editable.",
+    openToolsSettingsFromOnboarding: "Configure FFmpeg / external tools…",
+    hardwareSummaryNvenc:
+      "Detected NVIDIA / NVENC: smart pack will prefer H.265 hardware-accelerated presets.",
+    hardwareSummaryCpuOnly:
+      "No NVIDIA NVENC detected: smart pack will use H.264 / AV1 (SVT) software presets.",
+    hardwareSummaryAv1: "AV1 encoding support detected.",
   },
   stats: {
     empty: "Run some jobs first; stats will show up here.",

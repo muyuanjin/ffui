@@ -23,6 +23,7 @@ export function useDialogManager() {
   const batchDetailOpen = ref(false);
   const previewOpen = ref(false);
   const deletePresetDialogOpen = ref(false);
+  const smartPresetImportOpen = ref(false);
 
   // 当前选中的项目(用于详情对话框)
   const selectedJob = ref<TranscodeJob | null>(null);
@@ -62,6 +63,10 @@ export function useDialogManager() {
   const openDeletePresetDialog = (preset: FFmpegPreset) => {
     editingPreset.value = preset;
     deletePresetDialogOpen.value = true;
+  };
+
+  const openSmartPresetImport = () => {
+    smartPresetImportOpen.value = true;
   };
 
   // 关闭方法
@@ -107,6 +112,10 @@ export function useDialogManager() {
     editingPreset.value = null;
   };
 
+  const closeSmartPresetImport = () => {
+    smartPresetImportOpen.value = false;
+  };
+
   // 关闭所有对话框
   const closeAllDialogs = () => {
     wizardOpen.value = false;
@@ -116,6 +125,7 @@ export function useDialogManager() {
     batchDetailOpen.value = false;
     previewOpen.value = false;
     deletePresetDialogOpen.value = false;
+    smartPresetImportOpen.value = false;
     selectedJob.value = null;
     selectedBatch.value = null;
     editingPreset.value = null;
@@ -130,6 +140,7 @@ export function useDialogManager() {
     batchDetailOpen,
     previewOpen,
     deletePresetDialogOpen,
+    smartPresetImportOpen,
     selectedJob,
     selectedBatch,
     editingPreset,
@@ -141,6 +152,7 @@ export function useDialogManager() {
     openBatchDetail,
     openPreview,
     openDeletePresetDialog,
+    openSmartPresetImport,
     // 关闭方法
     closeWizard,
     closeParameterPanel,
@@ -149,6 +161,7 @@ export function useDialogManager() {
     closeBatchDetail,
     closePreview,
     closeDeletePresetDialog,
+    closeSmartPresetImport,
     closeAllDialogs,
   };
 }

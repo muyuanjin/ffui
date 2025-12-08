@@ -1,6 +1,7 @@
-import { computed, type Ref } from "vue";
+import { computed, ref, type Ref, watch } from "vue";
 import { escapeHtml, highlightFfmpegCommand } from "@/lib/ffmpegCommand";
 import type { TranscodeJob } from "@/types";
+import { hasTauri, loadJobDetail } from "@/lib/backend";
 
 // ----- Types -----
 
@@ -316,8 +317,37 @@ export interface UseJobLogReturn {
 export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   const { selectedJob } = options;
 
+  const effectiveJob = ref<TranscodeJob | null>(null);
+
+  const maybeHydrateFromBackend = async (job: TranscodeJob | null) => {
+    if (!job) return;
+    if (!hasTauri()) return;
+    if (!job.id) return;
+    if (job.logs && job.logs.length > 0) return;
+
+    try {
+      const full = await loadJobDetail(job.id);
+      // Only apply the fetched detail if it still matches the currently
+      // selected job to avoid races when the user switches selection.
+      if (full && full.id === (selectedJob.value && selectedJob.value.id)) {
+        effectiveJob.value = full;
+      }
+    } catch (error) {
+      console.error("Failed to load job detail from backend", error);
+    }
+  };
+
+  watch(
+    selectedJob,
+    (job) => {
+      effectiveJob.value = job;
+      void maybeHydrateFromBackend(job);
+    },
+    { immediate: true },
+  );
+
   const jobDetailLogText = computed<string>(() => {
-    const job = selectedJob.value;
+    const job = effectiveJob.value;
     if (!job) return "";
     const full = job.logs?.length ? job.logs.join("\n") : "";
     const tailRaw = job.logTail ?? "";
