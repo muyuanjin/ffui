@@ -73,6 +73,7 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
             },
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: None,
         },
         FFmpegPreset {
             id: "p2".to_string(),
@@ -131,6 +132,7 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
             },
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: None,
         },
     ]
 }

@@ -232,4 +232,6 @@ export interface FFmpegPreset {
   advancedEnabled?: boolean;
   /** Full ffmpeg command template, e.g. `ffmpeg -i INPUT -c:v libx264 ... OUTPUT` */
   ffmpegTemplate?: string;
+  /** 标记该预设是否为智能推荐预设（用户修改参数后会被清除） */
+  isSmartPreset?: boolean;
 }
