@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { resolvePresetDescription } from "@/lib/presetLocalization";
 import { sortPresets, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, LayoutGrid, LayoutList } from "lucide-vue-next";
@@ -131,6 +132,7 @@ const getVideoRateControlSummary = (video: FFmpegPreset["video"]): string => {
   const mode = video.rateControl;
   if (mode === "crf") return `CRF ${video.qualityValue}`;
   if (mode === "cq") return `CQ ${video.qualityValue}`;
+  if (mode === "constqp") return `ConstQP ${video.qualityValue}`;
   if (mode === "cbr") {
     return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0
       ? `CBR ${video.bitrateKbps}k` : "CBR";
@@ -158,36 +160,26 @@ const getSubtitleSummary = (preset: FFmpegPreset): string => {
 
 const getAudioSummary = (audio: FFmpegPreset["audio"]) => {
   if (audio.codec === "copy") return t("presets.audioCopy");
-  const name = String(audio.codec).toUpperCase();
-  const br = typeof audio.bitrate === "number" && audio.bitrate > 0 ? `${audio.bitrate}k` : "";
-  return br ? `${name} ${br}` : name;
-};
 
-const copyToClipboard = async (value: string | undefined | null) => {
-  if (!value) return;
-  if (typeof navigator === "undefined" || typeof document === "undefined") return;
-  try {
-    if ("clipboard" in navigator && (navigator as any).clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return;
+  const bitrateValue =
+    typeof audio.bitrate === "number" && audio.bitrate > 0 ? audio.bitrate : null;
+
+  if (audio.codec === "aac") {
+    const profile = (audio as any).loudnessProfile as string | undefined;
+    if (bitrateValue != null) {
+      if (profile === "ebuR128") {
+        return t("presets.audioAacLoudnormEbu", { kbps: bitrateValue });
+      }
+      if (profile === "cnBroadcast") {
+        return t("presets.audioAacLoudnormCn", { kbps: bitrateValue });
+      }
+      return t("presets.audioAac", { kbps: bitrateValue });
     }
-  } catch (error) {
-    console.error("navigator.clipboard.writeText failed", error);
+    return "AAC";
   }
-  try {
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    textarea.style.top = "0";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  } catch (error) {
-    console.error("Fallback copy to clipboard failed", error);
-  }
+
+  const name = String(audio.codec).toUpperCase();
+  return bitrateValue != null ? `${name} ${bitrateValue}k` : name;
 };
 
 const isSmartPreset = (preset: FFmpegPreset): boolean => {
@@ -431,6 +423,9 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
                 {{ t("presetEditor.advanced.copyButton") }}
               </Button>
             </div>
+            <p class="text-[9px] text-muted-foreground">
+              {{ t("presets.commandPreviewHint") }}
+            </p>
             <pre
               class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
               v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
