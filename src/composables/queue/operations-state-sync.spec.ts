@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ref, type Ref } from "vue";
+import { ref, computed, type Ref } from "vue";
 import type { TranscodeJob, QueueStateLite } from "@/types";
 
 const loadQueueStateMock = vi.fn<() => Promise<QueueStateLite>>();
@@ -81,6 +81,41 @@ describe("queue operations state sync", () => {
       backendJob.id,
     ]);
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
+  });
+
+  it("applyQueueStateFromBackend does not duplicate smart scan jobs that already exist in backend snapshot", () => {
+    const smartScanJob: TranscodeJob = {
+      id: "scan-1",
+      filename: "C:/videos/scan.mp4",
+      type: "video",
+      source: "smart_scan",
+      originalSizeMB: 50,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    };
+
+    // 模拟 MainApp 中的实际接线：smartScanJobs 由 jobs 计算而来。
+    const jobs = ref<TranscodeJob[]>([smartScanJob]);
+    const smartScanJobs = computed<TranscodeJob[]>(() =>
+      jobs.value.filter((job) => job.source === "smart_scan"),
+    );
+
+    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
+      jobs,
+      smartScanJobs,
+      queueError: ref<string | null>(null),
+      lastQueueSnapshotAtMs: ref<number | null>(null),
+      t: undefined,
+      onJobCompleted: undefined,
+    };
+
+    applyQueueStateFromBackend({ jobs: [smartScanJob] }, deps);
+
+    // 同一个 Smart Scan 任务只应出现一次，而不是在每次快照时不断复制。
+    expect(deps.jobs.value.map((j) => j.id)).toEqual([smartScanJob.id]);
   });
 
   it("applyQueueStateFromBackend fires onJobCompleted for newly completed jobs", () => {

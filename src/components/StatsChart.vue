@@ -15,7 +15,8 @@ const data = computed(() =>
     .map((p) => {
       const input = p.stats.totalInputSizeMB || 1;
       const output = p.stats.totalOutputSizeMB || 1;
-      const ratio = ((1 - output / input) * 100).toFixed(1);
+      // 压缩率定义为：输出体积 / 输入体积 * 100
+      const ratio = ((output / input) * 100).toFixed(1);
       const speed =
         p.stats.totalTimeSeconds > 0
           ? (p.stats.totalInputSizeMB / p.stats.totalTimeSeconds).toFixed(1)
@@ -57,8 +58,8 @@ const data = computed(() =>
             <div class="flex-1 h-3 bg-muted rounded overflow-hidden">
               <div
                 class="h-full rounded"
-                :class="entry.ratio > 50 ? 'bg-emerald-500' : 'bg-blue-500'"
-                :style="{ width: `${Math.min(entry.ratio, 100)}%` }"
+                :class="entry.ratio <= 50 ? 'bg-emerald-500' : 'bg-blue-500'"
+                :style="{ width: `${Math.min(Math.max(entry.ratio, 0), 100)}%` }"
               />
             </div>
             <span class="w-10 text-right text-foreground">

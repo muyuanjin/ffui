@@ -91,6 +91,15 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         }
     }
 
+    // 如果最终找到了可用的可执行文件，则说明当前会话下已经存在一条健康路径。
+    // 此时应当把之前为“坏路径”（例如架构不匹配的 PATH / Prefetch 伪文件）
+    // 记录的错误消息从对前端暴露的状态中清理掉，避免出现“工具已就绪但仍显示致命错误”的
+    // 矛盾提示。运行时内部仍保留架构不兼容标记，以便后续探测时跳过这些坏候选。
+    let mut runtime_for_status = runtime.clone();
+    if resolved_path.is_some() {
+        runtime_for_status.last_error = None;
+    }
+
     let remote_version = effective_remote_version_for(kind);
     let update_available = match (&source, &version, &remote_version) {
         (Some(source), version, remote) => {
@@ -113,7 +122,7 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         downloaded_bytes: runtime.downloaded_bytes,
         total_bytes: runtime.total_bytes,
         bytes_per_second: runtime.bytes_per_second,
-        last_download_error: runtime.last_error,
+        last_download_error: runtime_for_status.last_error,
         last_download_message: runtime.last_message,
     }
 }

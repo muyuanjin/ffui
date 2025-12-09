@@ -1,14 +1,19 @@
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 
 /**
- * 计算预设的平均压缩率
+ * 计算预设的平均压缩率（输出体积 / 输入体积 * 100）
+ *
+ * 返回值示例：
+ * - 50  表示输出体积约为原始体积的 50%
+ * - 80  表示输出体积约为原始体积的 80%
+ * - 120 表示输出体积约为原始体积的 120%（变大了）
  */
 export function getPresetAvgRatio(preset: FFmpegPreset): number | null {
   const input = preset.stats.totalInputSizeMB;
   const output = preset.stats.totalOutputSizeMB;
   if (!input || !output || input <= 0 || output <= 0) return null;
-  const ratio = (1 - output / input) * 100;
-  return Math.max(Math.min(ratio, 100), -100);
+  const ratio = (output / input) * 100;
+  return ratio;
 }
 
 /**
@@ -39,9 +44,14 @@ export function sortPresets(presets: FFmpegPreset[], sortMode: PresetSortMode): 
       break;
     case "ratio":
       sorted.sort((a, b) => {
-        const ratioA = getPresetAvgRatio(a) ?? -Infinity;
-        const ratioB = getPresetAvgRatio(b) ?? -Infinity;
-        return ratioB - ratioA;
+        const ratioA = getPresetAvgRatio(a);
+        const ratioB = getPresetAvgRatio(b);
+        // 无统计数据的预设排在后面
+        if (ratioA == null && ratioB == null) return 0;
+        if (ratioA == null) return 1;
+        if (ratioB == null) return -1;
+        // 压缩率越小表示输出体积越小，压缩效率越高
+        return ratioA - ratioB;
       });
       break;
     case "speed":

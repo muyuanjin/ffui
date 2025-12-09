@@ -208,4 +208,92 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
     const jobIcons = wrapper.findAll("[data-testid='queue-icon-item-stub']");
     expect(jobIcons.length).toBe(0);
   });
+
+  it("hides Smart Scan batch cards once all child jobs are removed from the queue", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    vm.activeTab = "queue";
+
+    const batchId = "batch-delete-1";
+
+    // 先注入一条批次元数据和对应的 Smart Scan 子任务，使得复合任务卡片出现。
+    if (typeof vm.applySmartScanBatchMetaSnapshot === "function") {
+      vm.applySmartScanBatchMetaSnapshot({
+        batchId,
+        rootPath: "C:/videos",
+        totalFilesScanned: 10,
+        totalCandidates: 2,
+        totalProcessed: 2,
+        startedAtMs: Date.now(),
+        completedAtMs: Date.now(),
+      });
+    }
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-1",
+        filename: "C:/videos/input-1.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 100,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "completed",
+        progress: 100,
+        logs: [],
+        batchId,
+      } as any,
+      {
+        id: "job-2",
+        filename: "C:/videos/input-2.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 80,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "failed",
+        progress: 100,
+        logs: [],
+        batchId,
+      } as any,
+    ];
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = jobs;
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = jobs;
+    }
+
+    await nextTick();
+
+    // Composite 计算结果中应包含该批次。
+    const composite =
+      (vm.compositeSmartScanTasks &&
+        "value" in vm.compositeSmartScanTasks
+        ? vm.compositeSmartScanTasks.value
+        : vm.compositeSmartScanTasks) ?? [];
+    expect(Array.isArray(composite) ? composite.length : 0).toBeGreaterThan(0);
+
+    // 模拟“从列表中删除”成功后，后端清空了该批次的所有队列任务，但前端仍保留批次元数据。
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [];
+    }
+
+    await nextTick();
+
+    // 修改后的 useSmartScan 应在没有任何子任务且批次已处理完时隐藏空的复合任务卡片。
+    expect(wrapper.findAll('[data-testid=\"smart-scan-batch-card\"]').length).toBe(0);
+
+    wrapper.unmount();
+  });
 });

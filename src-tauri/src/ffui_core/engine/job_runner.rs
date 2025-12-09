@@ -25,8 +25,10 @@ use super::state::{
 // Implementation is split across smaller include files to keep each source file
 // under the 500-line limit while preserving the original module API.
 include!("job_runner_time_and_smart_scan.rs");
-include!("job_runner_process.rs");
 include!("job_runner_state.rs");
 include!("job_runner_progress.rs");
 include!("job_runner_paths_and_preview.rs");
 include!("job_runner_media_and_logging.rs");
+// 将包含测试子模块的 job_runner_process 放在最后，避免 clippy::items_after_test_module
+// 警告，同时保持原有 API 和行为不变。
+include!("job_runner_process.rs");

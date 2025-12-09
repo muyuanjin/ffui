@@ -19,6 +19,14 @@ mod worker_utils;
 #[cfg(test)]
 mod tests;
 
+// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免多个单元测试
+// 并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
+#[cfg(test)]
+static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
+// 导出 Job Object 初始化函数，供应用启动时调用
+pub use ffmpeg_args::init_child_process_job;
+
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -32,7 +40,8 @@ use crate::ffui_core::monitor::{
 };
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::ffui_core::tools::{
-    ExternalToolKind, ExternalToolStatus, hydrate_last_tool_download_from_settings, tool_status,
+    ExternalToolKind, ExternalToolStatus, clear_tool_runtime_error,
+    hydrate_last_tool_download_from_settings, tool_status,
 };
 
 use state::{Inner, restore_jobs_from_persisted_queue, snapshot_queue_state};
@@ -52,6 +61,11 @@ impl TranscodingEngine {
     /// This loads presets and settings from disk, restores any persisted queue
     /// state in the background, and spawns worker threads to process jobs.
     pub fn new() -> Result<Self> {
+        #[cfg(test)]
+        let _guard = ENGINE_TEST_MUTEX
+            .lock()
+            .expect("ENGINE_TEST_MUTEX lock poisoned");
+
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
         hydrate_last_tool_download_from_settings(&settings.tools);
@@ -182,8 +196,28 @@ impl TranscodingEngine {
     /// Save new application settings.
     pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
         let mut state = self.inner.state.lock().expect("engine state poisoned");
+
+        // 在后台记录旧的 tools 配置，用于判断是否需要清理外部工具的错误状态。
+        let old_tools = state.settings.tools.clone();
+
         state.settings = new_settings.clone();
         settings::save_settings(&state.settings)?;
+
+        // 如果外部工具相关配置发生了变化（自定义路径或自动管理策略），
+        // 则清理所有外部工具的错误信息与架构不兼容标记，避免旧错误粘在 UI 上。
+        let new_tools = &state.settings.tools;
+        let tools_changed = old_tools.ffmpeg_path != new_tools.ffmpeg_path
+            || old_tools.ffprobe_path != new_tools.ffprobe_path
+            || old_tools.avifenc_path != new_tools.avifenc_path
+            || old_tools.auto_download != new_tools.auto_download
+            || old_tools.auto_update != new_tools.auto_update;
+
+        if tools_changed {
+            clear_tool_runtime_error(ExternalToolKind::Ffmpeg);
+            clear_tool_runtime_error(ExternalToolKind::Ffprobe);
+            clear_tool_runtime_error(ExternalToolKind::Avifenc);
+        }
+
         Ok(new_settings)
     }
 

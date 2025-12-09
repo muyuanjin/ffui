@@ -288,7 +288,8 @@ const onCardContextMenu = (event: MouseEvent) => {
       <!-- 底部进度条：根据 progressStyle 切换不同视觉样式 -->
       <div
         v-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
-        class="absolute bottom-1.5 left-2 right-2 h-1 bg-muted/60 rounded-full overflow-hidden"
+        class="mt-1.5 h-1 w-full bg-muted/60 rounded-full overflow-hidden"
+        data-testid="queue-icon-item-progress-container"
       >
         <div
           v-if="showBarProgress"

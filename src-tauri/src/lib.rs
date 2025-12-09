@@ -8,7 +8,7 @@ use std::{thread, time::Duration};
 
 use tauri::{Emitter, Manager};
 
-use crate::ffui_core::{AutoCompressProgress, TranscodingEngine};
+use crate::ffui_core::{AutoCompressProgress, TranscodingEngine, init_child_process_job};
 use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
@@ -263,6 +263,14 @@ pub fn run() {
         if elevation_shim::relaunch_unelevated_if_needed() {
             return;
         }
+    }
+
+    // 初始化 Job Object，确保子进程在父进程退出时被自动终止
+    // 这对于 Windows 平台尤为重要，防止 ffmpeg 进程在 FFUI 被强制关闭后继续运行
+    if !init_child_process_job() {
+        eprintln!(
+            "警告: 无法初始化子进程 Job Object，强制关闭程序时 ffmpeg 进程可能不会被自动终止"
+        );
     }
 
     let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");

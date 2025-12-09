@@ -274,8 +274,8 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
     const input = preset.stats.totalInputSizeMB;
     const output = preset.stats.totalOutputSizeMB;
     if (!input || !output || input <= 0 || output <= 0) return null;
-    const ratio = (1 - output / input) * 100;
-    return Math.max(Math.min(ratio, 100), -100);
+    // 与 Smart Scan 逻辑保持一致：压缩率 = 输出体积 / 输入体积 * 100
+    return (output / input) * 100;
   };
 
   const getPresetAvgSpeed = (preset: FFmpegPreset): number | null => {
