@@ -174,7 +174,11 @@ const canCancelJob = (job: TranscodeJob): boolean => {
               :batch="item.batch"
               :size="iconViewSize"
               :progress-style="queueProgressStyle"
+              :can-select="true"
+              :selected="item.batch.jobs.some((j) => selectedJobIds.has(j.id))"
               @open-detail="emit('openBatchDetail', $event)"
+              @toggle-select="item.batch.jobs.forEach((j) => emit('toggleJobSelected', j.id))"
+              @contextmenu-batch="(payload) => emit('openBulkContextMenu', payload.event)"
             />
           </template>
         </div>

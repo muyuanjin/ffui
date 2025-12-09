@@ -39,43 +39,88 @@ pub(super) fn build_video_resume_tmp_output_path(input: &Path) -> PathBuf {
 
 pub(super) fn concat_video_segments(
     ffmpeg_path: &str,
-    first: &Path,
-    second: &Path,
+    segments: &[PathBuf],
     target: &Path,
 ) -> Result<()> {
+    if segments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "concat_video_segments requires at least one segment path"
+        ));
+    }
+
+    if segments.len() == 1 {
+        // 单段场景退化为简单拷贝，避免不必要的 ffmpeg 调用。
+        fs::copy(&segments[0], target).with_context(|| {
+            format!(
+                "failed to copy single segment {} -> {}",
+                segments[0].display(),
+                target.display()
+            )
+        })?;
+        return Ok(());
+    }
+
+    // 使用 concat demuxer 进行无损拼接，避免 filter_complex 与 -c copy 组合
+    // 带来的“不允许过滤+流复制”的问题，同时对多段输入更友好。
+    let list_path = target.with_extension("concat.list");
+    {
+        use std::io::Write as IoWrite;
+
+        let mut file = std::fs::File::create(&list_path).with_context(|| {
+            let joined = segments
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "failed to create concat list file {} for segments: {joined}",
+                list_path.display()
+            )
+        })?;
+
+        for seg in segments {
+            let s = seg.to_string_lossy();
+            // concat demuxer 使用单引号包裹路径，这里仅对单引号做转义。
+            let escaped = s.replace('\'', "'\\''");
+            writeln!(file, "file '{escaped}'").with_context(|| {
+                format!("failed to write concat list entry for {}", seg.display())
+            })?;
+        }
+    }
+
     let mut cmd = Command::new(ffmpeg_path);
     configure_background_command(&mut cmd);
     let status = cmd
         .arg("-y")
+        .arg("-f")
+        .arg("concat")
+        .arg("-safe")
+        .arg("0")
         .arg("-i")
-        .arg(first.as_os_str())
-        .arg("-i")
-        .arg(second.as_os_str())
-        .arg("-filter_complex")
-        .arg("[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]")
-        .arg("-map")
-        .arg("[v]")
-        .arg("-map")
-        .arg("[a]")
-        .arg("-c:v")
-        .arg("copy")
-        .arg("-c:a")
+        .arg(list_path.as_os_str())
+        .arg("-c")
         .arg("copy")
         .arg(target.as_os_str())
         .status()
         .with_context(|| {
-            format!(
-                "failed to run ffmpeg concat for {} and {}",
-                first.display(),
-                second.display()
-            )
+            let joined = segments
+                .iter()
+                .map(|p| p.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("failed to run ffmpeg concat for segments: {joined}")
         })?;
 
+    let _ = fs::remove_file(&list_path);
+
     if !status.success() {
+        let joined = segments
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
         return Err(anyhow::anyhow!(
-            "ffmpeg concat failed with status {status} for {} and {}",
-            first.display(),
-            second.display()
+            "ffmpeg concat failed with status {status} for segments: {joined}"
         ));
     }
 

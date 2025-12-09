@@ -17,7 +17,10 @@ struct PreparedTranscodeJob {
     preset_id: String,
     output_path: PathBuf,
     resume_from_seconds: Option<f64>,
-    existing_segment: Option<PathBuf>,
+    // Partial output segments accumulated across previous pauses. When this
+    // vector is non-empty,本次运行会在成功完成后将这些分段与当前 tmp_output
+    // 生成的最新分段一起 concat 为最终输出。
+    existing_segments: Vec<PathBuf>,
     tmp_output: PathBuf,
     total_duration: Option<f64>,
     ffmpeg_path: String,
@@ -38,5 +41,5 @@ pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
     execute_transcode_job(inner, job_id, prepared)
 }
 
-include!("job_runner_process_prepare.rs");
 include!("job_runner_process_execute.rs");
+include!("job_runner_process_prepare.rs");

@@ -270,6 +270,16 @@ pub fn last_tool_download_metadata(
         .map(|m| (m.url.clone(), m.version.clone(), m.tag.clone()))
 }
 
+/// 当用户在设置中切换外部工具（例如修改自定义路径或管理模式）
+/// 时，清理上一条错误信息与架构不兼容标记，避免旧错误在新配置下“残留”。
+pub(crate) fn clear_tool_runtime_error(kind: ExternalToolKind) {
+    with_download_state(kind, |state| {
+        state.last_error = None;
+        state.download_arch_incompatible = false;
+        state.path_arch_incompatible = false;
+    });
+}
+
 /// Seed the in-memory last-download metadata from persisted settings so that
 /// remote_version/update_available flags remain accurate across restarts
 /// without requiring a fresh network fetch.

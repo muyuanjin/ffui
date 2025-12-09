@@ -34,4 +34,6 @@ export interface AppSettings {
   queuePersistenceMode?: QueuePersistenceMode;
   /** One-time onboarding flag; when true, the smart preset/tool onboarding will not auto-run again. */
   onboardingCompleted?: boolean;
+  /** Whether the queue selection bar should remain visible even when no jobs are selected. */
+  selectionBarPinned?: boolean;
 }

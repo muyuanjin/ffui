@@ -52,10 +52,35 @@ pub(super) fn mark_job_waiting(
                 _ => None,
             };
 
+            // 累积所有暂停产生的分段路径，支持多次“暂停→继续”后进行多段 concat。
+            let mut segments: Vec<String> = job
+                .wait_metadata
+                .as_ref()
+                .and_then(|m| m.segments.clone())
+                .unwrap_or_default();
+
+            // 兼容旧快照：如果之前只记录了 tmp_output_path 而没有 segments，
+            // 则将其作为第一段补入列表。
+            if segments.is_empty()
+                && let Some(prev_tmp) = job
+                    .wait_metadata
+                    .as_ref()
+                    .and_then(|m| m.tmp_output_path.as_ref())
+                && !prev_tmp.is_empty()
+                && prev_tmp != &tmp_str
+            {
+                segments.push(prev_tmp.clone());
+            }
+
+            if segments.last().map(|s| s != &tmp_str).unwrap_or(true) {
+                segments.push(tmp_str.clone());
+            }
+
             job.wait_metadata = Some(WaitMetadata {
                 last_progress_percent: percent,
                 processed_seconds,
                 tmp_output_path: Some(tmp_str.clone()),
+                segments: Some(segments),
             });
 
             if job.output_path.is_none() {

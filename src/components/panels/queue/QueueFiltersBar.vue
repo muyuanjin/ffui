@@ -33,6 +33,8 @@ import {
   ArrowUp,
   ArrowDown,
   XCircle,
+  Pin,
+  PinOff,
 } from "lucide-vue-next";
 
 const props = defineProps<{
@@ -52,6 +54,8 @@ const props = defineProps<{
   queueMode: QueueMode;
   visibleCount: number;
   totalCount: number;
+  /** 是否固定选择操作栏（即使没有选中项也显示） */
+  selectionBarPinned?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -75,6 +79,7 @@ const emit = defineEmits<{
   (e: "bulk-move-to-top"): void;
   (e: "bulk-move-to-bottom"): void;
   (e: "bulk-delete"): void;
+  (e: "update:selectionBarPinned", value: boolean): void;
 }>();
 
 const { t } = useI18n();
@@ -83,6 +88,12 @@ const { t } = useI18n();
 const filterPanelOpen = ref(false);
 // Local UI state: whether the secondary sort controls are expanded.
 const secondarySortExpanded = ref(false);
+
+// 固定选择操作栏的状态（从 prop 读取，通过 emit 更新以持久化）
+const selectionBarPinned = computed(() => props.selectionBarPinned ?? false);
+const toggleSelectionBarPinned = () => {
+  emit("update:selectionBarPinned", !selectionBarPinned.value);
+};
 
 const modeHint = computed(() =>
   props.queueMode === "queue"
@@ -307,9 +318,9 @@ const toggleSecondarySortDirection = () => {
       </div>
     </div>
 
-    <!-- 选择操作栏 (有选中项时显示) -->
+    <!-- 选择操作栏 (有选中项或固定时显示) -->
     <Transition name="slide">
-      <div v-if="props.hasSelection" class="border-t border-border/60 px-3 py-1.5 bg-accent/5">
+      <div v-if="props.hasSelection || selectionBarPinned" class="border-t border-border/60 px-3 py-1.5 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <!-- 选择信息 -->
           <div class="flex items-center gap-2">
@@ -445,6 +456,22 @@ const toggleSecondarySortDirection = () => {
               <Trash2 class="h-3 w-3" />
               <span class="hidden lg:inline">{{ t("queue.actions.bulkDelete") }}</span>
             </Button>
+
+            <div class="h-4 w-px bg-border/40 mx-1" />
+
+            <!-- 固定/取消固定按钮 -->
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="h-6 px-2 gap-1 text-xs"
+              :class="{ 'text-primary': selectionBarPinned }"
+              @click="toggleSelectionBarPinned"
+              :title="selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
+            >
+              <PinOff v-if="selectionBarPinned" class="h-3 w-3" />
+              <Pin v-else class="h-3 w-3" />
+            </Button>
           </div>
         </div>
       </div>
@@ -469,26 +496,4 @@ const toggleSecondarySortDirection = () => {
     </Transition>
   </header>
 </template>
-
-<style scoped>
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.15s ease;
-}
-.slide-enter-from {
-  opacity: 0;
-  transform: translateY(-4px);
-}
-.slide-leave-to {
-  opacity: 0;
-  transform: translateY(-2px);
-}
-</style>
+<style scoped src="./QueueFiltersBar.css"></style>

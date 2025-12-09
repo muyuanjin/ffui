@@ -145,7 +145,9 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
       ...Object.keys(byBatch),
     ]);
 
-    return Array.from(allBatchIds).map((batchId) => {
+    const tasks: CompositeSmartScanTask[] = [];
+
+    for (const batchId of allBatchIds) {
       const batchJobs = byBatch[batchId]?.jobs ?? [];
       const meta = metaById[batchId];
       const totalCount = batchJobs.length;
@@ -190,6 +192,25 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         }
       }
 
+      const locallyProcessedCount =
+        completedCount + skippedCount + failedCount + cancelledCount;
+
+      const totalCandidates = meta?.totalCandidates ?? totalCount;
+      const totalProcessed = meta?.totalProcessed ?? locallyProcessedCount;
+
+      const hasQueuedChildren = batchJobs.length > 0;
+      const batchComplete =
+        totalCandidates > 0 && totalProcessed >= totalCandidates;
+
+      if (!hasQueuedChildren && batchComplete) {
+        // 当该批次的所有子任务都已经处理完并且从队列中移除时，不再渲染空的复合任务卡片，
+        // 这样“从列表中删除”在包含智能压缩批次时也能真正清空队列视图。
+        // （Smart Scan 元数据仍保留在前端状态中，用于后续统计或调试。）
+        // 这里仅在 totalCandidates > 0 的情况下隐藏，避免影响纯扫描但无候选的边界情况。
+        // 这也避免了仅靠批次元数据就让队列面板看起来“还有任务没删干净”的错觉。
+        continue;
+      }
+
       const overallProgress =
         totalCount > 0 ? (progressSum / totalCount) * 100 : 0;
 
@@ -205,13 +226,13 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         }
       }
 
-      return {
+      tasks.push({
         batchId,
         rootPath,
         jobs: batchJobs,
         totalFilesScanned: meta?.totalFilesScanned ?? totalCount,
-        totalCandidates: meta?.totalCandidates ?? totalCount,
-        totalProcessed: meta?.totalProcessed ?? completedCount,
+        totalCandidates,
+        totalProcessed,
         startedAtMs: meta?.startedAtMs,
         completedAtMs: meta?.completedAtMs,
         overallProgress,
@@ -221,8 +242,10 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         failedCount,
         cancelledCount,
         totalCount,
-      };
-    });
+      });
+    }
+
+    return tasks;
   });
 
   const hasSmartScanBatches = computed(() => {

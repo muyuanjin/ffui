@@ -169,6 +169,10 @@ const {
   // 预设排序模式和视图模式
   presetSortMode,
   presetViewMode,
+
+  // 选择操作栏固定状态
+  selectionBarPinned,
+  setSelectionBarPinned,
 } = mainApp as any;
 
 const manualJobPresetId = computed<string | null>({
@@ -218,7 +222,8 @@ defineExpose({
         @smart-scan="startSmartScan"
       />
 
-      <main class="flex-1 flex min-h-0 flex-col bg-background">
+      <!-- 主内容区作为 flex 子项必须设置 min-w-0，避免内部长内容把整体布局撑宽，导致侧边栏被挤压 -->
+      <main class="flex-1 flex min-h-0 min-w-0 flex-col bg-background">
         <MainContentHeader
           :active-tab="activeTab"
           :current-title="currentTitle"
@@ -252,6 +257,7 @@ defineExpose({
           :queue-mode="queueMode"
           :visible-count="queueJobsForDisplay.length"
           :total-count="jobs.length"
+          :selection-bar-pinned="selectionBarPinned"
           @update:queueMode="(v) => setQueueMode(v as any)"
           @toggle-status-filter="toggleStatusFilter"
           @toggle-type-filter="toggleTypeFilter"
@@ -272,6 +278,7 @@ defineExpose({
           @bulk-move-to-top="bulkMoveToTop"
           @bulk-move-to-bottom="bulkMoveToBottom"
           @bulk-delete="bulkDelete"
+          @update:selectionBarPinned="setSelectionBarPinned"
         />
 
         <ScrollArea class="flex-1">
@@ -393,6 +400,9 @@ defineExpose({
       @copyToClipboard="copyToClipboard($event)"
       @openJobPreviewFromQueue="openJobPreviewFromQueue"
       @handleCancelJob="handleCancelJob"
+      @handleWaitJob="handleWaitJob"
+      @handleResumeJob="handleResumeJob"
+      @handleRestartJob="handleRestartJob"
       @closeBatchDetail="dialogManager.closeBatchDetail()"
       @handleExpandedPreviewError="handleExpandedPreviewError"
       @handleExpandedImagePreviewError="handleExpandedImagePreviewError"

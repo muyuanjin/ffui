@@ -14,6 +14,11 @@ pub struct WaitMetadata {
     /// available. This is intended for future crash-recovery and resume
     /// strategies; callers must tolerate it being absent.
     pub tmp_output_path: Option<String>,
+    /// Ordered list of partial output segment paths accumulated across one
+    /// or more pauses. 当存在多个暂停/继续时，后端会将每次生成的分段路径按时间
+    /// 顺序追加到该列表，用于最终 concat 多段输出。对于仅包含单段的旧快照，
+    /// 此字段可能为 None，此时仍需回退到 `tmp_output_path` 以保持兼容。
+    pub segments: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

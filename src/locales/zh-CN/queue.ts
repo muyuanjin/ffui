@@ -70,6 +70,8 @@ const queue = {
     invert: "反选",
     clear: "清除选择",
     selectedCount: "已选中 {count} 个任务",
+    pin: "固定操作栏",
+    unpin: "取消固定",
   },
   sort: {
     label: "排序",

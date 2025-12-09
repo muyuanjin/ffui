@@ -180,13 +180,14 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     }
 
     // 判断是否保留智能推荐标记：
-    // - 如果原始预设是智能预设且参数未被修改，保留标记
-    // - 如果参数被修改了，清除标记（设为 false）
+    // - 如果原始预设是智能预设且参数未被修改，保留标记 (true)
+    // - 如果参数被修改了，显式清除标记 (false)，防止回退到 ID 前缀判断
     // - 名称和描述的修改不影响智能推荐标记
     const wasSmartPreset = initialPreset.isSmartPreset === true ||
       (typeof initialPreset.id === "string" && initialPreset.id.startsWith("smart-"));
     const parametersChanged = hasParametersChanged();
-    const isSmartPreset = wasSmartPreset && !parametersChanged ? true : undefined;
+    // 如果原本是智能预设，需要显式设置 true 或 false；否则保持 undefined
+    const isSmartPreset = wasSmartPreset ? !parametersChanged : undefined;
 
     return {
       id: initialPreset.id,

@@ -223,10 +223,12 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             {
                 let tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
                 if tmp_output.exists() {
+                    let tmp_str = tmp_output.to_string_lossy().into_owned();
                     job.wait_metadata = Some(WaitMetadata {
                         last_progress_percent: Some(job.progress),
                         processed_seconds: None,
-                        tmp_output_path: Some(tmp_output.to_string_lossy().into_owned()),
+                        tmp_output_path: Some(tmp_str.clone()),
+                        segments: Some(vec![tmp_str]),
                     });
                 }
             }

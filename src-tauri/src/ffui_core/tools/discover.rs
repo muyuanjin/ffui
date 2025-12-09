@@ -83,6 +83,14 @@ pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<Discove
     dedup_paths(out)
 }
 
+/// 简单基于路径字符串判断是否是 Windows Prefetch 生成的 .pf 文件。
+/// 这类文件并不是可执行文件，但 Everything 等索引工具可能会返回它们，
+/// 如果不加过滤就去执行，会得到类似“%1 不是有效的 Win32 应用程序”的错误。
+fn is_prefetch_path(p: &Path) -> bool {
+    let s = p.to_string_lossy().to_ascii_lowercase();
+    s.ends_with(".pf") || s.contains("\\prefetch\\")
+}
+
 fn dedup_paths(mut v: Vec<DiscoveredPath>) -> Vec<DiscoveredPath> {
     use std::collections::HashSet;
     let mut seen = HashSet::new();
@@ -216,6 +224,11 @@ fn everything_search(program: &str) -> Option<Vec<PathBuf>> {
             let results = searcher.query();
             for item in results.iter() {
                 if let Ok(full) = item.filepath() {
+                    // Windows Prefetch 目录下的 .pf 文件只是启动痕迹，不是真正的可执行文件。
+                    // 这里直接过滤掉，避免后续验证逻辑把它们当成“坏的 avifenc/ffmpeg”而产生误导性错误。
+                    if is_prefetch_path(&full) {
+                        continue;
+                    }
                     list.push(full);
                 }
             }
@@ -320,6 +333,25 @@ mod tests {
                 .iter()
                 .any(|c| c.source == "env" && c.path == fake),
             "env override candidate should be marked as env"
+        );
+    }
+
+    #[test]
+    fn prefetch_paths_are_recognised_and_can_be_filtered() {
+        let normal = if cfg!(windows) {
+            PathBuf::from("C:/Tools/avifenc.exe")
+        } else {
+            PathBuf::from("/usr/bin/avifenc")
+        };
+        let prefetch = PathBuf::from("C:/Windows/Prefetch/AVIFENC.EXE-BA34AC6F.pf");
+
+        assert!(
+            !super::is_prefetch_path(&normal),
+            "normal tool path must not be treated as a Prefetch artifact"
+        );
+        assert!(
+            super::is_prefetch_path(&prefetch),
+            "Windows Prefetch .pf path should be recognised so discovery can skip it"
         );
     }
 }
