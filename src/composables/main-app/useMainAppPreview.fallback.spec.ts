@@ -70,5 +70,32 @@ describe("useMainAppPreview fallback path selection", () => {
 
     wrapper.unmount();
   });
-});
 
+  it("prefers outputPath for completed image jobs when available", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-image-1",
+      filename: "C:/images/sample.avif",
+      type: "image",
+      source: "smart_scan",
+      originalSizeMB: 2,
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/images/original.png",
+      outputPath: "C:/images/sample.avif",
+    } as any;
+
+    await vm.openJobPreviewFromQueue(job);
+    await nextTick();
+
+    expect(vm.previewIsImage).toBe(true);
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewError).toBeNull();
+
+    wrapper.unmount();
+  });
+});

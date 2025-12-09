@@ -153,8 +153,9 @@ export function useMainAppSetup() {
     const next: AppSettings = { ...current, onboardingCompleted: true };
     settings.appSettings.value = next;
     try {
-      const saved = await saveAppSettings(next);
-      settings.appSettings.value = saved;
+      // 直接持久化当前快照，由 useAppSettings 的自动保存逻辑统一维护内存状态，
+      // 避免异步返回的旧快照覆盖后续用户修改（例如固定操作栏开关）。
+      await saveAppSettings(next);
     } catch (error) {
       console.error("Failed to mark onboardingCompleted in AppSettings", error);
     }
@@ -208,8 +209,9 @@ export function useMainAppSetup() {
       settings.appSettings.value = nextSettings;
 
       try {
-        const saved = await saveAppSettings(nextSettings);
-        settings.appSettings.value = saved;
+        // 仅持久化，而不再用异步返回值回写 appSettings，
+        // 由共享的 useAppSettings 自动保存统一负责状态同步，避免状态竞争。
+        await saveAppSettings(nextSettings);
       } catch (error) {
         console.error("Failed to save presetSortMode to AppSettings", error);
       }
@@ -232,8 +234,7 @@ export function useMainAppSetup() {
       settings.appSettings.value = nextSettings;
 
       try {
-        const saved = await saveAppSettings(nextSettings);
-        settings.appSettings.value = saved;
+        await saveAppSettings(nextSettings);
       } catch (error) {
         console.error("Failed to save presetViewMode to AppSettings", error);
       }
@@ -318,6 +319,10 @@ export function useMainAppSetup() {
     handleResumeJob: queue.handleResumeJob,
     handleRestartJob: queue.handleRestartJob,
     handleCancelJob: queue.handleCancelJob,
+    bulkCancel: queue.bulkCancel,
+    bulkWait: queue.bulkWait,
+    bulkResume: queue.bulkResume,
+    bulkRestart: queue.bulkRestart,
     bulkMoveToTop: queue.bulkMoveToTop,
     bulkMoveToBottom: queue.bulkMoveToBottom,
     bulkDelete: queue.bulkDelete,

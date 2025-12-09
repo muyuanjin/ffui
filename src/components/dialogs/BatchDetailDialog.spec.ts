@@ -439,5 +439,31 @@ describe("BatchDetailDialog", () => {
       expect(emitted).toBeTruthy();
       expect(emitted?.[0][0]).toMatchObject({ id: "job-1" });
     });
+
+    it("对于图片子任务在缺失 previewPath 时回退到 outputPath 进行预览", async () => {
+      const imageJob: TranscodeJob = {
+        ...createMockJob("job-image-1", "completed"),
+        type: "image",
+        filename: "C:/images/sample.avif",
+        inputPath: "C:/images/original.png",
+        outputPath: "C:/images/sample.avif",
+        previewPath: undefined,
+      } as TranscodeJob;
+
+      const batch = createMockBatch([imageJob]);
+
+      const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
+
+      await flushPromises();
+      await nextTick();
+
+      const previewGrid = wrapper.find(".grid.grid-cols-3");
+      expect(previewGrid.exists()).toBe(true);
+
+      const firstImg = previewGrid.find("img");
+      expect(firstImg.exists()).toBe(true);
+      // 在测试环境中 buildPreviewUrl 会直接返回原始路径，因此应等于 outputPath。
+      expect(firstImg.attributes("src")).toBe(imageJob.outputPath);
+    });
   });
 });

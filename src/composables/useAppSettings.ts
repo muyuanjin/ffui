@@ -91,7 +91,14 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     if (appSettings.value) return;
     try {
       const settings = await loadAppSettings();
-      appSettings.value = settings;
+
+      // 若在等待后端返回期间，前端已经基于空设置写入了临时 appSettings
+      //（例如用户在设置加载完成前就点击了“固定操作栏”等开关），
+      //这里需要做一次合并，避免后到达的后端快照把用户刚刚的修改覆盖掉。
+      const current = appSettings.value;
+      appSettings.value = Object.assign({}, settings, current ?? {});
+      // lastSavedSettingsSnapshot 仍然记录“后端当前视角”的快照，
+      //这样自动保存逻辑可以正确检测到前端合并后的差异并触发一次保存。
       lastSavedSettingsSnapshot = JSON.stringify(settings);
       if (settings?.smartScanDefaults && smartConfig) {
         const existing = smartConfig.value;
@@ -128,9 +135,10 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       }
       isSavingSettings.value = true;
       try {
-        const saved = await saveAppSettings(current);
-        appSettings.value = saved;
-        lastSavedSettingsSnapshot = JSON.stringify(saved);
+        // 仅将当前快照持久化，不再用后端返回值覆盖前端状态，
+        // 避免在保存过程中引入旧快照把用户刚刚修改的字段（例如 selectionBarPinned）改回去。
+        await saveAppSettings(current);
+        lastSavedSettingsSnapshot = serialized;
         await refreshToolStatuses();
       } catch (error) {
         console.error("Failed to save settings", error);

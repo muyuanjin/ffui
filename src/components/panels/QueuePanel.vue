@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from "vue";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import type {
@@ -109,6 +106,66 @@ const isBatchExpanded = (batchId: string) => props.expandedBatchIds.has(batchId)
 const canCancelJob = (job: TranscodeJob): boolean => {
   return hasTauri() && ["waiting", "queued", "processing", "paused"].includes(job.status);
 };
+
+/**
+ * 判断一个 Smart Scan 批次是否“完全选中”（所有子任务都在 selectedJobIds 中）。
+ * 用于图标视图下的复合卡片选中状态和批量点击行为。
+ */
+const isBatchFullySelected = (batch: CompositeSmartScanTask): boolean => {
+  const jobs = batch.jobs ?? [];
+  if (jobs.length === 0) return false;
+  for (const job of jobs) {
+    if (!props.selectedJobIds.has(job.id)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+/**
+ * 在图标视图中点击复合任务卡片时的批量选中逻辑：
+ * - 如果当前批次所有子任务都已选中，则取消该批次所有子任务的选中；
+ * - 否则，仅为该批次中未被选中的子任务补齐选中状态，不影响其它任务的选中。
+ */
+const handleToggleBatchSelection = (batch: CompositeSmartScanTask) => {
+  const jobs = batch.jobs ?? [];
+  if (jobs.length === 0) return;
+
+  const fullySelected = isBatchFullySelected(batch);
+
+  if (fullySelected) {
+    // 批次已经处于“全选”状态时，点击视为“取消选中该批次所有子任务”
+    for (const job of jobs) {
+      if (props.selectedJobIds.has(job.id)) {
+        emit("toggleJobSelected", job.id);
+      }
+    }
+  } else {
+    // 批次尚未全选时，仅为未选中的子任务补齐选中，避免“逐个取反”导致的半选中困惑
+    for (const job of jobs) {
+      if (!props.selectedJobIds.has(job.id)) {
+        emit("toggleJobSelected", job.id);
+      }
+    }
+  }
+};
+
+/**
+ * 在图标视图中右键复合任务卡片时的批量操作入口：
+ * - 先清空现有选中，再选中该批次所有子任务；
+ * - 随后以 bulk 模式打开队列右键菜单，使“删除/暂停/继续/移动”等操作明确作用于该批次。
+ */
+const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent) => {
+  const jobs = batch.jobs ?? [];
+
+  // 重置选中集为该批次的子任务集合，保持与右键单个任务时的心智一致
+  emit("clearSelection");
+  for (const job of jobs) {
+    emit("toggleJobSelected", job.id);
+  }
+
+  emit("openBulkContextMenu", event);
+};
 </script>
 
 <template>
@@ -154,16 +211,19 @@ const canCancelJob = (job: TranscodeJob): boolean => {
     <!-- Queue content -->
     <div v-else>
       <!-- Icon view mode -->
-          <div v-if="isIconViewMode">
-            <div data-testid="queue-icon-grid" :class="iconGridClass">
-              <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
-                <QueueIconItem
-                  v-if="item.kind === 'job'"
-                  :job="item.job"
-                  :size="iconViewSize"
-                  :progress-style="queueProgressStyle"
-                  :can-select="true"
-                  :selected="selectedJobIds.has(item.job.id)"
+      <div v-if="isIconViewMode">
+        <div data-testid="queue-icon-grid" :class="iconGridClass">
+          <template
+            v-for="item in iconViewItems"
+            :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
+          >
+            <QueueIconItem
+              v-if="item.kind === 'job'"
+              :job="item.job"
+              :size="iconViewSize"
+              :progress-style="queueProgressStyle"
+              :can-select="true"
+              :selected="selectedJobIds.has(item.job.id)"
               @toggle-select="emit('toggleJobSelected', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
@@ -175,10 +235,10 @@ const canCancelJob = (job: TranscodeJob): boolean => {
               :size="iconViewSize"
               :progress-style="queueProgressStyle"
               :can-select="true"
-              :selected="item.batch.jobs.some((j) => selectedJobIds.has(j.id))"
+              :selected="isBatchFullySelected(item.batch)"
               @open-detail="emit('openBatchDetail', $event)"
-              @toggle-select="item.batch.jobs.forEach((j) => emit('toggleJobSelected', j.id))"
-              @contextmenu-batch="(payload) => emit('openBulkContextMenu', payload.event)"
+              @toggle-select="handleToggleBatchSelection(item.batch)"
+              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
             />
           </template>
         </div>
@@ -268,71 +328,28 @@ const canCancelJob = (job: TranscodeJob): boolean => {
             :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
             class="mb-3"
           >
-            <Card
+            <QueueSmartScanBatchCard
               v-if="item.kind === 'batch'"
-              data-testid="smart-scan-batch-card"
-              class="border-border/70 bg-card/90 shadow-sm hover:border-primary/40 transition-colors"
-            >
-              <CardHeader
-                class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer"
-                @click="emit('toggleBatchExpanded', item.batch.batchId)"
-              >
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2">
-                    <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
-                      {{ t("queue.source.smartScan") }}
-                    </Badge>
-                    <span class="text-xs text-muted-foreground">
-                      {{ item.batch.totalProcessed }} / {{ item.batch.totalCandidates }}
-                    </span>
-                  </div>
-                  <CardTitle class="text-sm font-semibold truncate max-w-lg">
-                    {{ item.batch.rootPath || t("smartScan.title") }}
-                  </CardTitle>
-                  <CardDescription class="text-xs text-muted-foreground">
-                    <span v-if="item.batch.currentJob">{{ item.batch.currentJob.filename }}</span>
-                    <span v-else>{{ t("smartScan.subtitle") }}</span>
-                  </CardDescription>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="text-xs font-mono text-muted-foreground">{{ Math.round(item.batch.overallProgress) }}%</span>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    class="h-6 w-6 rounded-full border-border/60 bg-muted/40 text-xs"
-                    @click.stop="emit('toggleBatchExpanded', item.batch.batchId)"
-                  >
-                    <span v-if="isBatchExpanded(item.batch.batchId)">−</span>
-                    <span v-else>＋</span>
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent class="pt-0 pb-3 space-y-2">
-                <Progress :model-value="item.batch.overallProgress" />
-                <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                  <span>{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}: {{ item.batch.jobs.filter((j) => j.type === "video").length }} / {{ item.batch.jobs.filter((j) => j.type === "image").length }}</span>
-                  <span>{{ t("queue.status.completed") }}: {{ item.batch.completedCount }}</span>
-                  <span v-if="item.batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ item.batch.skippedCount }}</span>
-                  <span v-if="item.batch.failedCount > 0">{{ t("queue.status.failed") }}: {{ item.batch.failedCount }}</span>
-                </div>
-                <div v-if="isBatchExpanded(item.batch.batchId)" data-testid="smart-scan-batch-children" class="mt-2 space-y-2">
-                  <QueueItem
-                    v-for="child in item.batch.jobs.filter((j) => j.status !== 'skipped')"
-                    :key="child.id"
-                    :job="child"
-                    :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
-                    :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                    :can-cancel="canCancelJob(child)"
-                    :view-mode="queueRowVariant"
-                    :progress-style="queueProgressStyle"
-                    :progress-update-interval-ms="progressUpdateIntervalMs"
-                    @cancel="emit('cancelJob', $event)"
-                    @inspect="emit('inspectJob', $event)"
-                    @preview="emit('previewJob', $event)"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              :batch="item.batch"
+              :presets="presets"
+              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+              :queue-row-variant="queueRowVariant"
+              :queue-progress-style="queueProgressStyle"
+              :progress-update-interval-ms="progressUpdateIntervalMs"
+              :selected-job-ids="selectedJobIds"
+              :is-expanded="isBatchExpanded(item.batch.batchId)"
+              :can-cancel-job="canCancelJob"
+              @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
+              @cancel-job="emit('cancelJob', $event)"
+              @wait-job="emit('waitJob', $event)"
+              @resume-job="emit('resumeJob', $event)"
+              @restart-job="emit('restartJob', $event)"
+              @toggle-job-selected="emit('toggleJobSelected', $event)"
+              @inspect-job="emit('inspectJob', $event)"
+              @preview-job="emit('previewJob', $event)"
+              @open-job-context-menu="emit('openJobContextMenu', $event)"
+              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
+            />
             <QueueItem
               v-else-if="item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)"
               :job="item.job"
@@ -360,71 +377,28 @@ const canCancelJob = (job: TranscodeJob): boolean => {
             :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
             class="mb-3"
           >
-            <Card
+            <QueueSmartScanBatchCard
               v-if="item.kind === 'batch'"
-              data-testid="smart-scan-batch-card"
-              class="border-border/70 bg-card/90 shadow-sm hover:border-primary/40 transition-colors"
-            >
-              <CardHeader
-                class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer"
-                @click="emit('toggleBatchExpanded', item.batch.batchId)"
-              >
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2">
-                    <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
-                      {{ t("queue.source.smartScan") }}
-                    </Badge>
-                    <span class="text-xs text-muted-foreground">
-                      {{ item.batch.totalProcessed }} / {{ item.batch.totalCandidates }}
-                    </span>
-                  </div>
-                  <CardTitle class="text-sm font-semibold truncate max-w-lg">
-                    {{ item.batch.rootPath || t("smartScan.title") }}
-                  </CardTitle>
-                  <CardDescription class="text-xs text-muted-foreground">
-                    <span v-if="item.batch.currentJob">{{ item.batch.currentJob.filename }}</span>
-                    <span v-else>{{ t("smartScan.subtitle") }}</span>
-                  </CardDescription>
-                </div>
-                <div class="flex flex-col items-end gap-1">
-                  <span class="text-xs font-mono text-muted-foreground">{{ Math.round(item.batch.overallProgress) }}%</span>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    class="h-6 w-6 rounded-full border-border/60 bg-muted/40 text-xs"
-                    @click.stop="emit('toggleBatchExpanded', item.batch.batchId)"
-                  >
-                    <span v-if="isBatchExpanded(item.batch.batchId)">−</span>
-                    <span v-else>＋</span>
-                  </Button>
-                </div>
-              </CardHeader>
-            <CardContent class="pt-0 pb-3 space-y-2">
-              <Progress :model-value="item.batch.overallProgress" />
-              <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-                  <span>{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}: {{ item.batch.jobs.filter((j) => j.type === "video").length }} / {{ item.batch.jobs.filter((j) => j.type === "image").length }}</span>
-                  <span>{{ t("queue.status.completed") }}: {{ item.batch.completedCount }}</span>
-                  <span v-if="item.batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ item.batch.skippedCount }}</span>
-                  <span v-if="item.batch.failedCount > 0">{{ t("queue.status.failed") }}: {{ item.batch.failedCount }}</span>
-                </div>
-                <div v-if="isBatchExpanded(item.batch.batchId)" data-testid="smart-scan-batch-children" class="mt-2 space-y-2">
-                  <QueueItem
-                    v-for="child in item.batch.jobs.filter((j) => j.status !== 'skipped')"
-                    :key="child.id"
-                    :job="child"
-                    :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
-                    :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                    :can-cancel="canCancelJob(child)"
-                    :view-mode="queueRowVariant"
-                    :progress-style="queueProgressStyle"
-                    :progress-update-interval-ms="progressUpdateIntervalMs"
-                    @cancel="emit('cancelJob', $event)"
-                    @inspect="emit('inspectJob', $event)"
-                    @preview="emit('previewJob', $event)"
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              :batch="item.batch"
+              :presets="presets"
+              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+              :queue-row-variant="queueRowVariant"
+              :queue-progress-style="queueProgressStyle"
+              :progress-update-interval-ms="progressUpdateIntervalMs"
+              :selected-job-ids="selectedJobIds"
+              :is-expanded="isBatchExpanded(item.batch.batchId)"
+              :can-cancel-job="canCancelJob"
+              @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
+              @cancel-job="emit('cancelJob', $event)"
+              @wait-job="emit('waitJob', $event)"
+              @resume-job="emit('resumeJob', $event)"
+              @restart-job="emit('restartJob', $event)"
+              @toggle-job-selected="emit('toggleJobSelected', $event)"
+              @inspect-job="emit('inspectJob', $event)"
+              @preview-job="emit('previewJob', $event)"
+              @open-job-context-menu="emit('openJobContextMenu', $event)"
+              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
+            />
             <QueueItem
               v-else
               :job="item.job"

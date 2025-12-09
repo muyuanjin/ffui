@@ -217,7 +217,7 @@
         "advancedEnabled": false,
         "ffmpegTemplate": null
       },
-      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel warning -hide_banner -i INPUT -map 0 -c:v libsvtav1 -crf 34 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le -c:a aac -b:a 160k -ar 48000 -ac 2 -channel_layout stereo -vf scale=-2:1080,fps=30 -f mkv OUTPUT"
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel warning -hide_banner -i INPUT -map 0 -c:v libsvtav1 -crf 34 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le -c:a aac -b:a 160k -ar 48000 -ac 2 -channel_layout stereo -vf scale=-2:1080,fps=30 -f matroska OUTPUT"
     },
     {
       "id": "stream-copy-remux",
@@ -286,7 +286,7 @@
         "advancedEnabled": false,
         "ffmpegTemplate": null
       },
-      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -i INPUT -map 0 -c:v copy -c:a copy -f mkv OUTPUT"
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -i INPUT -map 0 -c:v copy -c:a copy -f matroska OUTPUT"
     }
   ]
 }

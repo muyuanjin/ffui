@@ -51,6 +51,53 @@ const showRippleCardProgress = computed(
     clampedProgress.value > 0 && effectiveProgressStyle.value === "ripple-card",
 );
 
+// 根据批次状态计算进度条颜色类
+const progressColorClass = computed(() => {
+  const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
+  const hasProcessing = jobs.some(j => j.status === "processing");
+  const hasPaused = jobs.some(j => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+  
+  // 全部完成
+  if (completedCount === totalCount && totalCount > 0) {
+    return "bg-emerald-500/40";
+  }
+  // 有失败
+  if (failedCount > 0) {
+    return "bg-red-500/40";
+  }
+  // 有取消且没有正在处理
+  if (cancelledCount > 0 && !hasProcessing) {
+    return "bg-muted-foreground/40";
+  }
+  // 有暂停/等待且没有正在处理
+  if (hasPaused && !hasProcessing) {
+    return "bg-amber-500/40";
+  }
+  // 默认处理中
+  return "bg-primary/40";
+});
+
+// 波纹进度条的渐变色类
+const rippleProgressColorClass = computed(() => {
+  const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
+  const hasProcessing = jobs.some(j => j.status === "processing");
+  const hasPaused = jobs.some(j => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+  
+  if (completedCount === totalCount && totalCount > 0) {
+    return "bg-gradient-to-r from-emerald-500/30 via-emerald-500/60 to-emerald-500/30";
+  }
+  if (failedCount > 0) {
+    return "bg-gradient-to-r from-red-500/30 via-red-500/60 to-red-500/30";
+  }
+  if (cancelledCount > 0 && !hasProcessing) {
+    return "bg-gradient-to-r from-muted-foreground/30 via-muted-foreground/60 to-muted-foreground/30";
+  }
+  if (hasPaused && !hasProcessing) {
+    return "bg-gradient-to-r from-amber-500/30 via-amber-500/60 to-amber-500/30";
+  }
+  return "bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30";
+});
+
 const rootSizeClass = computed(() => {
   if (props.size === "small") return "text-[10px]";
   if (props.size === "large") return "text-xs";
@@ -128,6 +175,12 @@ const firstPreviewUrl = computed<string | null>(() => {
 
 const progressLabel = computed(() => `${Math.round(clampedProgress.value)}%`);
 
+const onPreviewClick = (event: MouseEvent) => {
+  // 在网格视图中，点击 9 宫格缩略图应始终优先展开复合任务详情，而不是触发卡片选中。
+  event.stopPropagation();
+  emit("open-detail", props.batch);
+};
+
 const onClick = () => {
   if (isSelectable.value) {
     emit("toggle-select", props.batch.batchId);
@@ -158,7 +211,10 @@ const onContextMenu = (event: MouseEvent) => {
       class="relative w-full bg-muted/40"
       :class="thumbnailAspectClass"
     >
-      <div class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40">
+      <div
+        class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40"
+        @click="onPreviewClick"
+      >
         <div
           v-for="slot in previewSlots"
           :key="slot.key"
@@ -224,10 +280,11 @@ const onContextMenu = (event: MouseEvent) => {
       class="relative border-t border-border/40 bg-card/80 overflow-hidden"
       :class="captionPaddingClass"
     >
-      <!-- 在网格视图中，进度通过底部说明区域的背景表现，避免覆盖预览九宫格。 -->
+      <!-- 在网格视图中，进度通过底部说明区域的背景表现，避免覆盖预览九宫格。颜色随批次状态变化 -->
       <div
         v-if="showBarProgress"
-        class="absolute inset-y-0 left-0 bg-primary/40"
+        class="absolute inset-y-0 left-0"
+        :class="progressColorClass"
         :style="{ width: `${clampedProgress}%` }"
         data-testid="queue-icon-batch-progress-bar"
       />
@@ -255,7 +312,8 @@ const onContextMenu = (event: MouseEvent) => {
         data-testid="queue-icon-batch-progress-ripple-card"
       >
         <div
-          class="h-full w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 opacity-80 animate-pulse"
+          class="h-full w-full opacity-80 animate-pulse"
+          :class="rippleProgressColorClass"
         />
       </div>
 

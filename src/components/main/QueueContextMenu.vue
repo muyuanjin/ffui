@@ -110,7 +110,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canCancel"
           data-testid="queue-context-menu-cancel"
           @click="
@@ -160,7 +160,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canDeleteSingle"
           data-testid="queue-context-menu-remove"
           @click="
@@ -176,22 +176,6 @@
       </template>
 
       <template v-else>
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkCancel"
-          data-testid="queue-context-menu-bulk-cancel"
-          @click="
-            () => {
-              if (!canBulkCancel) return;
-              $emit('cancel');
-              $emit('close');
-            }
-          "
-        >
-          {{ t("queue.actions.bulkCancel") }}
-        </button>
-
         <button
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
@@ -222,6 +206,22 @@
           "
         >
           {{ t("queue.actions.bulkResume") }}
+        </button>
+
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canBulkCancel"
+          data-testid="queue-context-menu-bulk-cancel"
+          @click="
+            () => {
+              if (!canBulkCancel) return;
+              $emit('cancel');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.bulkCancel") }}
         </button>
 
         <button
@@ -276,7 +276,7 @@
 
         <button
           type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkDelete"
           data-testid="queue-context-menu-bulk-remove"
           @click="
@@ -386,7 +386,6 @@ const canResume = computed(
 const canRestart = computed(
   () =>
     props.mode === "single" &&
-    isQueueMode.value &&
     status.value !== undefined &&
     status.value !== "completed" &&
     status.value !== "skipped",
@@ -395,7 +394,6 @@ const canRestart = computed(
 const canCancel = computed(
   () =>
     props.mode === "single" &&
-    isQueueMode.value &&
     status.value !== undefined &&
     (status.value === "waiting" ||
       status.value === "queued" ||

@@ -84,6 +84,46 @@ const showRippleCardProgress = computed(
     effectiveProgressStyle.value === "ripple-card",
 );
 
+// 根据任务状态计算进度条颜色类
+const progressColorClass = computed(() => {
+  switch (props.job.status) {
+    case "completed":
+      return "bg-emerald-500";
+    case "failed":
+      return "bg-red-500";
+    case "paused":
+    case "waiting":
+    case "queued":
+      return "bg-amber-500";
+    case "cancelled":
+    case "skipped":
+      return "bg-muted-foreground";
+    case "processing":
+    default:
+      return "bg-primary";
+  }
+});
+
+// 波纹进度条的渐变色类
+const rippleProgressColorClass = computed(() => {
+  switch (props.job.status) {
+    case "completed":
+      return "bg-gradient-to-r from-emerald-500/60 via-emerald-500 to-emerald-500/60";
+    case "failed":
+      return "bg-gradient-to-r from-red-500/60 via-red-500 to-red-500/60";
+    case "paused":
+    case "waiting":
+    case "queued":
+      return "bg-gradient-to-r from-amber-500/60 via-amber-500 to-amber-500/60";
+    case "cancelled":
+    case "skipped":
+      return "bg-gradient-to-r from-muted-foreground/60 via-muted-foreground to-muted-foreground/60";
+    case "processing":
+    default:
+      return "bg-gradient-to-r from-primary/60 via-primary to-primary/60";
+  }
+});
+
 // 与列表视图保持一致：内部 queued 状态在文案层统一视为 waiting。
 const displayStatusKey = computed(() =>
   props.job.status === "queued" ? "waiting" : props.job.status,
@@ -285,7 +325,7 @@ const onCardContextMenu = (event: MouseEvent) => {
         </button>
       </div>
 
-      <!-- 底部进度条：根据 progressStyle 切换不同视觉样式 -->
+      <!-- 底部进度条：根据 progressStyle 切换不同视觉样式，颜色随任务状态变化 -->
       <div
         v-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
         class="mt-1.5 h-1 w-full bg-muted/60 rounded-full overflow-hidden"
@@ -293,19 +333,22 @@ const onCardContextMenu = (event: MouseEvent) => {
       >
         <div
           v-if="showBarProgress"
-          class="h-full rounded-full transition-all duration-300 bg-primary"
+          class="h-full rounded-full transition-all duration-300"
+          :class="progressColorClass"
           :style="{ width: `${clampedProgress}%` }"
           data-testid="queue-icon-item-progress-bar"
         />
         <div
           v-else-if="showCardFillProgress"
-          class="h-full rounded-full transition-all duration-300 bg-primary"
+          class="h-full rounded-full transition-all duration-300"
+          :class="progressColorClass"
           :style="{ width: `${clampedProgress}%` }"
           data-testid="queue-icon-item-progress-card-fill"
         />
         <div
           v-else
-          class="h-full rounded-full transition-all duration-300 bg-gradient-to-r from-primary/60 via-primary to-primary/60 animate-pulse"
+          class="h-full rounded-full transition-all duration-300 animate-pulse"
+          :class="rippleProgressColorClass"
           :style="{ width: `${clampedProgress}%` }"
           data-testid="queue-icon-item-progress-ripple-card"
         />

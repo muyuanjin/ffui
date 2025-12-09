@@ -5,10 +5,9 @@ use std::sync::atomic::Ordering;
 
 use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
 
+use super::super::ffmpeg_args::infer_output_extension;
 use super::super::state::{Inner, notify_queue_listeners};
-use super::super::worker_utils::{
-    build_video_output_path, current_time_millis, estimate_job_seconds_for_preset,
-};
+use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 
 /// Enqueue a new transcode job with computed metadata and queue it.
 pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
@@ -35,17 +34,6 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
         .map(|m| m.len() as f64 / (1024.0 * 1024.0))
         .unwrap_or(original_size_mb);
 
-    let output_path = if matches!(job_type, JobType::Video) {
-        let path = PathBuf::from(&filename);
-        Some(
-            build_video_output_path(&path)
-                .to_string_lossy()
-                .into_owned(),
-        )
-    } else {
-        None
-    };
-
     let codec_for_job = original_codec.clone();
 
     let job = {
@@ -55,6 +43,31 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             .iter()
             .find(|p| p.id == preset_id)
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
+        let output_path = if matches!(job_type, JobType::Video) {
+            let path = PathBuf::from(&filename);
+            let container_format = state
+                .presets
+                .iter()
+                .find(|p| p.id == preset_id)
+                .and_then(|p| p.container.as_ref())
+                .and_then(|c| c.format.as_deref());
+            let input_ext = path.extension().and_then(|e| e.to_str());
+            let ext = infer_output_extension(container_format, input_ext);
+
+            let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("output");
+            Some(
+                parent
+                    .join(format!("{stem}.compressed.{ext}"))
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        } else {
+            None
+        };
         let job = TranscodeJob {
             id: id.clone(),
             filename,

@@ -83,6 +83,9 @@ const app = {
     zh: "中文",
     en: "English",
   },
+  minimize: "最小化",
+  maximize: "最大化",
+  close: "关闭",
   globalProgressLabel: "整体队列进度",
   taskbarProgressModeLabel: "任务栏进度计算方式",
   taskbarProgressModeHelp:

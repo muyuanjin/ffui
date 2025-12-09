@@ -88,6 +88,9 @@ const app = {
     zh: "中文",
     en: "English",
   },
+  minimize: "Minimize",
+  maximize: "Maximize",
+  close: "Close",
   globalProgressLabel: "Overall queue progress",
   taskbarProgressModeLabel: "Taskbar progress mode",
   taskbarProgressModeHelp:

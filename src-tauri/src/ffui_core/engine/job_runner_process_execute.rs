@@ -18,7 +18,10 @@ fn execute_transcode_job(
         ffmpeg_source,
     } = prepared;
 
-    let mut args = build_ffmpeg_args(&preset, &input_path, &tmp_output);
+    // 队列转码任务需要支持“暂停 / 继续”，后端会通过 stdin 写入控制指令
+    //（例如 `q\n`）来让 ffmpeg 优雅结束当前分段，因此这里显式关闭
+    // `non_interactive`，避免自动注入 `-nostdin`。
+    let mut args = build_ffmpeg_args(&preset, &input_path, &tmp_output, false);
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
@@ -46,6 +49,7 @@ fn execute_transcode_job(
     log_external_command(inner, job_id, &ffmpeg_program_for_log, &args);
     let mut child = cmd
         .args(&args)
+        .stdin(Stdio::piped())
         .stderr(Stdio::piped())
         .stdout(Stdio::null())
         .spawn()
@@ -56,6 +60,10 @@ fn execute_transcode_job(
     assign_child_to_job(child.id());
 
     let start_time = SystemTime::now();
+
+    // 保留对子进程 stdin 的可选句柄，用于在“暂停”时写入 `q\n` 请求 ffmpeg
+    // 优雅退出当前分段。这样生成的临时输出文件结构完整，便于后续多段 concat。
+    let mut child_stdin = child.stdin.take();
 
     if let Some(stderr) = child.stderr.take() {
         let reader = BufReader::new(stderr);
@@ -69,7 +77,14 @@ fn execute_transcode_job(
             // a wait or cancel for this job, terminate the ffmpeg child
             // process and transition the job into the appropriate state.
             if is_job_wait_requested(inner, job_id) {
-                let _ = child.kill();
+                // 暂停请求：通过 stdin 写入 `q\n`，请求 ffmpeg 优雅退出当前分段。
+                // 这里不区分退出码，统一视为“本段完成并进入等待状态”，由上层
+                // 通过 WaitMetadata 记录已完成分段路径与进度。
+                if let Some(mut stdin) = child_stdin.take() {
+                    use std::io::Write as IoWrite;
+                    let _ = stdin.write_all(b"q\n");
+                    let _ = stdin.flush();
+                }
                 let _ = child.wait();
                 mark_job_waiting(inner, job_id, &tmp_output, &output_path, total_duration)?;
                 return Ok(());
@@ -298,11 +313,47 @@ fn execute_transcode_job(
         final_output_size_bytes = new_size_bytes;
     }
 
-    // 记录所有成功生成的视频输出路径,供 Smart Scan 在后续批次中进行去重与跳过。
-    register_known_smart_scan_output_with_inner(inner, &output_path);
+    // 后续逻辑中，final_output_path 代表对用户可见的“最终输出路径”。
+    // 对于非 Smart Scan 场景，它与 output_path 相同；对于启用了
+    // “替换原文件”的 Smart Scan 任务，可能会在下方被更新为去掉
+    // `.compressed` 后的路径（同时原文件被移入回收站）。
+    let mut final_output_path = output_path.clone();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
+
+        // 先基于不可变快照计算是否需要替换原文件以及相关路径，避免在同一作用域内
+        // 同时对 state 进行可变和不可变借用。
+        let replace_plan: Option<(std::path::PathBuf, std::path::PathBuf)> = {
+            let job_snapshot = state.jobs.get(job_id).cloned();
+            if let Some(job_snapshot) = job_snapshot
+                && matches!(
+                    job_snapshot.source,
+                    crate::ffui_core::domain::JobSource::SmartScan
+                )
+                && matches!(
+                    job_snapshot.job_type,
+                    crate::ffui_core::domain::JobType::Video
+                )
+            {
+                if let Some(batch_id) = job_snapshot.batch_id.clone()
+                    && let Some(batch) = state.smart_scan_batches.get(&batch_id)
+                    && batch.replace_original
+                    && let (Some(ref input_str), Some(ref output_str)) =
+                        (job_snapshot.input_path.as_ref(), job_snapshot.output_path.as_ref())
+                {
+                    Some((
+                        std::path::PathBuf::from(input_str),
+                        std::path::PathBuf::from(output_str),
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Completed;
             job.progress = 100.0;
@@ -311,6 +362,58 @@ fn execute_transcode_job(
                 job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
             }
             job.wait_metadata = None;
+
+            if let Some((input_path_buf, output_path_buf)) = replace_plan {
+                let final_dir = input_path_buf
+                    .parent()
+                    .map(std::path::Path::to_path_buf)
+                    .unwrap_or_else(|| std::path::PathBuf::from("."));
+                let stem = input_path_buf
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("output");
+                let ext = output_path_buf
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .unwrap_or("mp4");
+                let candidate_final = final_dir.join(format!("{stem}.{ext}"));
+
+                // 1）将源文件移入系统回收站（最佳努力）。
+                match trash::delete(&input_path_buf) {
+                    Ok(()) => job.logs.push(format!(
+                        "replace original: moved source video {} to recycle bin",
+                        input_path_buf.display()
+                    )),
+                    Err(err) => job.logs.push(format!(
+                        "replace original: failed to move source video {} to recycle bin: {err}",
+                        input_path_buf.display()
+                    )),
+                }
+
+                // 2）将压缩结果重命名为“去掉 .compressed”的最终路径。
+                if output_path_buf != candidate_final {
+                    match fs::rename(&output_path_buf, &candidate_final) {
+                        Ok(()) => {
+                            job.logs.push(format!(
+                                "replace original: renamed compressed output to {}",
+                                candidate_final.display()
+                            ));
+                            job.output_path =
+                                Some(candidate_final.to_string_lossy().into_owned());
+                            final_output_path = candidate_final;
+                        }
+                        Err(err) => job.logs.push(format!(
+                            "replace original: failed to rename output {} -> {}: {err}",
+                            output_path_buf.display(),
+                            candidate_final.display()
+                        )),
+                    }
+                } else {
+                    // 输出路径本身已经是最终形态。
+                    final_output_path = candidate_final;
+                }
+            }
+
             job.logs.push(format!(
                 "Completed in {:.1}s, output size {:.2} MB",
                 elapsed,
@@ -333,6 +436,9 @@ fn execute_transcode_job(
             let _ = crate::ffui_core::settings::save_presets(&state.presets);
         }
     }
+
+    // 记录所有成功生成的最终输出路径,供 Smart Scan 在后续批次中进行去重与跳过。
+    register_known_smart_scan_output_with_inner(inner, &final_output_path);
 
     mark_smart_scan_child_processed(inner, job_id);
 

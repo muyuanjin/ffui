@@ -105,7 +105,7 @@ const queue = {
     openOutputFolder: "打开输出文件夹",
     moveToPosition: "移动到指定位置",
     moveToPositionPrompt: "请输入新的队列位置（1-{max}）：",
-    bulkCancel: "批量停止",
+    bulkCancel: "批量取消",
     // 批量栏的“等待”亦对应暂停语义，统一命名为“批量暂停”。
     bulkWait: "批量暂停",
     bulkResume: "批量继续",

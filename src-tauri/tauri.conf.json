@@ -17,6 +17,9 @@
         "width": 1280,
         "height": 720,
         "decorations": false,
+        "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
         "backgroundColor": "#020617",
         "visible": true,
         "dragDropEnabled": true

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::ffui_core::domain::{FFmpegPreset, JobStatus, TranscodeJob};
@@ -30,17 +29,6 @@ pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
     } else {
         job.log_tail = Some(joined);
     }
-}
-
-/// Build the default output path for a video transcode job.
-pub(super) fn build_video_output_path(input: &std::path::Path) -> PathBuf {
-    let parent = input.parent().unwrap_or_else(|| std::path::Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
-    parent.join(format!("{stem}.compressed.{ext}"))
 }
 
 /// Estimate the expected duration in seconds for a job based on preset statistics.

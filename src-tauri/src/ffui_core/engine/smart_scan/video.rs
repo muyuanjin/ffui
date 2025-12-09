@@ -150,7 +150,17 @@ pub(crate) fn handle_video_file(
         logs: Vec::new(),
         skip_reason: None,
         input_path: Some(input_path.clone()),
-        output_path: Some(build_video_output_path(path).to_string_lossy().into_owned()),
+        output_path: Some(
+            build_video_output_path(
+                path,
+                preset
+                    .as_ref()
+                    .and_then(|p| p.container.as_ref())
+                    .and_then(|c| c.format.as_deref()),
+            )
+            .to_string_lossy()
+            .into_owned(),
+        ),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -209,9 +219,13 @@ pub(crate) fn handle_video_file(
     let (ffmpeg_path, _source, did_download) =
         ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
 
-    let output_path = build_video_output_path(path);
-    let tmp_output = build_video_tmp_output_path(path);
+    let container_format = preset.container.as_ref().and_then(|c| c.format.as_deref());
 
+    let output_path = build_video_output_path(path, container_format);
+    let tmp_output = build_video_tmp_output_path(path, container_format);
+
+    // Smart Scan 任务不支持暂停 / 继续，这里复用 smart_scan::video_paths 中的
+    // build_ffmpeg_args，它会自动注入 `-nostdin`，保证 ffmpeg 不会在交互提问上挂起。
     let args = build_ffmpeg_args(&preset, path, &tmp_output);
 
     if did_download {
@@ -380,7 +394,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
 
     // 为 Smart Scan 视频任务选择一个不会覆盖现有文件的输出路径，并记录到已知输出集合中。
     let mut state = inner.state.lock().expect("engine state poisoned");
-    let output_path = reserve_unique_smart_scan_video_output_path(&mut state, path);
+    let output_path = reserve_unique_smart_scan_video_output_path(&mut state, path, preset);
 
     job.output_path = Some(output_path.to_string_lossy().into_owned());
     job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);

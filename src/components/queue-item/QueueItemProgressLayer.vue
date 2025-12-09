@@ -1,11 +1,7 @@
 <script setup lang="ts">
-const {
-  showCardFillProgress,
-  showRippleCardProgress,
-  previewUrl,
-  displayedClampedProgress,
-  status,
-} = defineProps<{
+import { computed } from "vue";
+
+const props = defineProps<{
   showCardFillProgress: boolean;
   showRippleCardProgress: boolean;
   previewUrl: string | null;
@@ -16,6 +12,46 @@ const {
 const emit = defineEmits<{
   (e: "preview-error"): void;
 }>();
+
+// 根据任务状态计算波纹进度的颜色类
+const rippleProgressColorClass = computed(() => {
+  switch (props.status) {
+    case "completed":
+      return "bg-gradient-to-r from-emerald-500/30 via-emerald-500/60 to-emerald-500/30";
+    case "failed":
+      return "bg-gradient-to-r from-red-500/30 via-red-500/60 to-red-500/30";
+    case "paused":
+    case "waiting":
+    case "queued":
+      return "bg-gradient-to-r from-amber-500/30 via-amber-500/60 to-amber-500/30";
+    case "cancelled":
+    case "skipped":
+      return "bg-gradient-to-r from-muted-foreground/30 via-muted-foreground/60 to-muted-foreground/30";
+    case "processing":
+    default:
+      return "bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30";
+  }
+});
+
+// 非处理中状态的静态颜色
+const staticProgressColorClass = computed(() => {
+  switch (props.status) {
+    case "completed":
+      return "bg-emerald-500/60";
+    case "failed":
+      return "bg-red-500/60";
+    case "paused":
+    case "waiting":
+    case "queued":
+      return "bg-amber-500/60";
+    case "cancelled":
+    case "skipped":
+      return "bg-muted-foreground/60";
+    case "processing":
+    default:
+      return "bg-primary/60";
+  }
+});
 </script>
 
 <template>
@@ -48,13 +84,14 @@ const emit = defineEmits<{
     <div
       class="absolute inset-y-0 left-0"
       data-testid="queue-item-progress-fill"
-      :style="{ width: `${displayedClampedProgress}%` }"
+      :style="{ width: `${props.displayedClampedProgress}%` }"
     >
       <div
-        v-if="status === 'processing'"
-        class="h-full w-full bg-gradient-to-r from-primary/30 via-primary/60 to-primary/30 opacity-80 animate-pulse"
+        v-if="props.status === 'processing'"
+        class="h-full w-full opacity-80 animate-pulse"
+        :class="rippleProgressColorClass"
       />
-      <div v-else class="h-full w-full bg-primary/60" />
+      <div v-else class="h-full w-full" :class="staticProgressColorClass" />
     </div>
   </div>
 </template>
