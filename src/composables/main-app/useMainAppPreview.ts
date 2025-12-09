@@ -55,8 +55,19 @@ export function useMainAppPreview(
     const candidates: (string | undefined)[] = [];
 
     if (job.type === "image") {
-      // 图片任务：只需要输入路径即可；预览图本身由 previewPath/inline 负责。
-      if (input) candidates.push(input);
+      const isCompletedStatus = job.status === "completed";
+
+      // 图片任务：
+      // - 在任务已完成时，优先使用最终输出路径（例如 Smart Scan 生成的 .avif），
+      //   这样即便用户勾选了“替换原文件”导致 inputPath 被移入回收站，预览仍然可用；
+      // - 在等待/处理中等状态下仍然优先使用 inputPath，保证在输出尚未生成时也能预览。
+      if (isCompletedStatus) {
+        if (output) candidates.push(output);
+        if (input) candidates.push(input);
+      } else {
+        if (input) candidates.push(input);
+        if (output) candidates.push(output);
+      }
     } else {
       const isCompletedStatus = job.status === "completed";
 

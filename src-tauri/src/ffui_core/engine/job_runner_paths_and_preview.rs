@@ -2,38 +2,50 @@
 // Path building utilities
 // ============================================================================
 
-pub(super) fn build_video_output_path(input: &Path) -> PathBuf {
+/// 根据输入路径与容器格式构建最终输出路径。
+///
+/// 规则：
+/// - 当预设显式指定 `container.format` 时，扩展名遵循容器（如 mkv→`.mkv`）；
+/// - 否则退回到输入扩展名（如 `.mp4` → `.compressed.mp4`）。
+pub(super) fn build_video_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.{ext}"))
 }
 
-// Temporary output path for video transcodes. We keep the final container
-// extension (e.g. .mp4) so that ffmpeg can still auto-detect the muxer based
-// on the filename, and only insert ".tmp" before the extension. After a
-// successful run we rename this file to the stable output path to make the
-// operation atomic from the user's perspective.
-pub(super) fn build_video_tmp_output_path(input: &Path) -> PathBuf {
+// Temporary output path for video transcodes. We keep an extension that matches
+// the target container (when known) so工具与用户都能从文件名推断大致类型，同时仅在
+// 扩展名前插入 `.tmp`。成功转码后再重命名到稳定输出路径，以保证“原子替换”。
+pub(super) fn build_video_tmp_output_path(
+    input: &Path,
+    container_format: Option<&str>,
+) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.tmp.{ext}"))
 }
 
-pub(super) fn build_video_resume_tmp_output_path(input: &Path) -> PathBuf {
+pub(super) fn build_video_resume_tmp_output_path(
+    input: &Path,
+    container_format: Option<&str>,
+) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.resume.tmp.{ext}"))
 }
 

@@ -41,6 +41,38 @@ describe("QueueContextMenu", () => {
     expect(resumeButton.attributes("disabled")).toBeDefined();
   });
 
+  it("allows restart for non-terminal jobs in both queue and display modes", async () => {
+    const commonProps = {
+      visible: true,
+      x: 0,
+      y: 0,
+      mode: "single" as const,
+      jobStatus: "failed" as const,
+      hasSelection: true,
+    };
+
+    const inQueueMode = mount(QueueContextMenu, {
+      props: {
+        ...commonProps,
+        queueMode: "queue",
+      },
+      global: { plugins: [i18n] },
+    });
+    const inDisplayMode = mount(QueueContextMenu, {
+      props: {
+        ...commonProps,
+        queueMode: "display",
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const restartInQueue = inQueueMode.get("[data-testid='queue-context-menu-restart']");
+    const restartInDisplay = inDisplayMode.get("[data-testid='queue-context-menu-restart']");
+
+    expect(restartInQueue.attributes("disabled")).toBeUndefined();
+    expect(restartInDisplay.attributes("disabled")).toBeUndefined();
+  });
+
   it("disables file actions when reveal paths are unavailable", async () => {
     const wrapper = mount(QueueContextMenu, {
       props: {

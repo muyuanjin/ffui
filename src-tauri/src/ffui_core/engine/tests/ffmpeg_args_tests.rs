@@ -5,12 +5,31 @@ fn build_ffmpeg_args_injects_progress_flags_for_standard_preset() {
     let input = PathBuf::from("C:/Videos/input file.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
 
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
     let joined = args.join(" ");
 
     assert!(
         joined.contains("-progress") && joined.contains("pipe:2"),
         "ffmpeg args must include -progress pipe:2 for structured progress, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_args_can_enable_stdin_control_when_requested() {
+    let preset = make_test_preset();
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+    let non_interactive = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let interactive = build_ffmpeg_args(&preset, &input, &output, false).join(" ");
+
+    assert!(
+        non_interactive.contains("-nostdin"),
+        "non_interactive=true must inject -nostdin to avoid unexpected stdin prompts, got: {non_interactive}"
+    );
+    assert!(
+        !interactive.contains("-nostdin"),
+        "non_interactive=false must NOT inject -nostdin so that the backend can send control commands (q\\n) over stdin, got: {interactive}"
     );
 }
 
@@ -23,7 +42,7 @@ fn build_ffmpeg_args_respects_existing_progress_flag_in_template() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
 
     let progress_flags = args.iter().filter(|a| a.as_str() == "-progress").count();
     assert_eq!(
@@ -70,7 +89,7 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
     let joined = args.join(" ");
 
     assert!(
@@ -134,6 +153,30 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
 }
 
 #[test]
+fn build_ffmpeg_args_normalizes_mkv_container_to_matroska_muxer() {
+    let mut preset = make_test_preset();
+    preset.container = Some(ContainerConfig {
+        format: Some("mkv".to_string()),
+        movflags: None,
+    });
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
+    let joined = args.join(" ");
+
+    assert!(
+        joined.contains("-f matroska"),
+        "preset with container.format=mkv must emit -f matroska so ffmpeg accepts the muxer, got: {joined}"
+    );
+    assert!(
+        !joined.contains("-f mkv"),
+        "preset with container.format=mkv must NOT emit -f mkv (unsupported alias in some ffmpeg builds), got: {joined}"
+    );
+}
+
+#[test]
 fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
     let mut preset = make_test_preset();
 
@@ -163,7 +206,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
             preset.video.buffer_size_kbits = Some(6000);
             preset.video.pass = Some(2);
 
-            let args = build_ffmpeg_args(&preset, &input, &output);
+            let args = build_ffmpeg_args(&preset, &input, &output, true);
             let joined = args.join(" ");
 
             let has_crf = joined.contains(" -crf ");
@@ -237,7 +280,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 
     // copy mode: only -c:a copy, no re-encode flags.
     preset.audio.codec = AudioCodecType::Copy;
-    let copy_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let copy_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
     assert!(
         copy_args.contains("-c:a copy"),
         "audio copy mode must emit -c:a copy, got: {copy_args}"
@@ -252,7 +295,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 
     // aac mode: re-encode flags must be present.
     preset.audio.codec = AudioCodecType::Aac;
-    let aac_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let aac_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
     assert!(
         aac_args.contains("-c:a aac"),
         "audio aac mode must emit -c:a aac, got: {aac_args}"
@@ -281,7 +324,7 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
         burn_in_filter: Some("subtitles=INPUT:si=0".to_string()),
     });
 
-    let burn_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let burn_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
     assert!(
         burn_args.contains("-vf "),
         "burn-in subtitles must emit -vf chain, got: {burn_args}"
@@ -303,7 +346,7 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
         burn_in_filter: None,
     });
 
-    let drop_args = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let drop_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
     assert!(
         drop_args.contains(" -sn") || drop_args.ends_with("-sn"),
         "drop subtitles strategy must emit -sn, got: {drop_args}"
@@ -326,7 +369,7 @@ fn build_ffmpeg_args_skips_video_filters_when_encoder_is_copy() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
 
     assert!(
         joined.contains("-c:v copy"),
@@ -349,7 +392,7 @@ fn build_ffmpeg_args_skips_audio_filters_when_codec_is_copy() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
 
     assert!(
         joined.contains("-c:a copy"),
@@ -383,7 +426,7 @@ fn build_ffmpeg_args_supports_constqp_nvenc_hq_with_aac_loudness() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
 
     assert!(
         joined.contains("-rc constqp") && joined.contains("-qp 18"),
@@ -406,56 +449,5 @@ fn build_ffmpeg_args_supports_constqp_nvenc_hq_with_aac_loudness() {
     );
 }
 
-#[derive(serde::Deserialize)]
-struct CommandContractCase {
-    id: String,
-    preset: FFmpegPreset,
-    #[serde(rename = "expectedCommand")]
-    expected_command: String,
-}
-
-#[derive(serde::Deserialize)]
-struct CommandContractFixtures {
-    cases: Vec<CommandContractCase>,
-}
-
-#[test]
-fn build_ffmpeg_args_matches_frontend_contract_fixtures() {
-    let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let path = std::path::Path::new(manifest_dir)
-        .join("tests")
-        .join("ffmpeg-command-contract.json");
-    let raw = std::fs::read_to_string(&path).unwrap_or_else(|err| {
-        panic!(
-            "failed to read command contract fixtures at {}: {err}",
-            path.display()
-        )
-    });
-
-    let fixtures: CommandContractFixtures =
-        serde_json::from_str(&raw).expect("command contract fixtures JSON must be valid");
-
-    assert!(
-        !fixtures.cases.is_empty(),
-        "command contract fixtures must contain at least one case"
-    );
-
-    for case in fixtures.cases {
-        assert!(
-            !case.expected_command.is_empty(),
-            "fixture {} must provide a non-empty expectedCommand",
-            case.id
-        );
-
-        let input = std::path::Path::new("INPUT");
-        let output = std::path::Path::new("OUTPUT");
-        let args = build_ffmpeg_args(&case.preset, input, output);
-        let joined = format!("ffmpeg {}", args.join(" "));
-
-        assert_eq!(
-            joined, case.expected_command,
-            "Rust build_ffmpeg_args output must match frontend preview for case {}",
-            case.id
-        );
-    }
-}
+// 其余与 ffmpeg 参数结构相关的测试保留在本文件中，契约测试已移动到
+// ffmpeg_args_contract_tests.rs 以满足单文件 500 行限制。

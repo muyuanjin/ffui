@@ -241,5 +241,39 @@ describe("QueueSmartScanIconBatchItem", () => {
       const slots = grid.findAll(':scope > div');
       expect(slots.length).toBe(9);
     });
+
+    it("在可选中模式下点击9宫格预览应该弹出详情而不是选中", async () => {
+      const jobs = Array.from({ length: 3 }, (_, i) =>
+        createMockJob(`job-${i}`, "waiting"),
+      );
+      const batch = createMockBatch(jobs);
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+          canSelect: true,
+          selected: false,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const grid = wrapper.find(".grid.grid-cols-3.grid-rows-3");
+      expect(grid.exists()).toBe(true);
+
+      await grid.trigger("click");
+
+      const openDetail = wrapper.emitted("open-detail");
+      expect(openDetail).toBeTruthy();
+      expect(openDetail?.[0][0]).toMatchObject({ batchId: "batch-1" });
+
+      const toggleSelect = wrapper.emitted("toggle-select");
+      expect(toggleSelect).toBeUndefined();
+    });
   });
 });

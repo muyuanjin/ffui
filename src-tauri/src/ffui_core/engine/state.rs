@@ -30,6 +30,8 @@ pub(crate) enum SmartScanBatchStatus {
 pub(crate) struct SmartScanBatch {
     pub(crate) batch_id: String,
     pub(crate) root_path: String,
+    /// 当前批次是否在压缩完成后替换原文件（移动到回收站并更新输出路径）。
+    pub(crate) replace_original: bool,
     pub(crate) status: SmartScanBatchStatus,
     pub(crate) total_files_scanned: u64,
     pub(crate) total_candidates: u64,

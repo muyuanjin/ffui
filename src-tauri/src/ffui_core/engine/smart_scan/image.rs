@@ -10,9 +10,10 @@ use crate::ffui_core::domain::{
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
-use super::super::ffmpeg_args::configure_background_command;
+use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
 use super::super::state::Inner;
 use super::super::state::register_known_smart_scan_output_with_inner;
+use super::super::worker_utils::recompute_log_tail;
 use super::detection::build_image_avif_paths;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 
@@ -128,12 +129,33 @@ pub(crate) fn handle_image_file(
             let start_ms = current_time_millis();
             job.start_time = Some(start_ms);
 
+            // 构建 avifenc 命令行：使用 10bit 4:4:4 + sRGB/BT.709 CICP 与 full range，
+            // 尽量避免解码端按照错误的默认色彩参数导致的明显偏色。
+            let avif_args: Vec<String> = vec![
+                "--lossless".to_string(),
+                "--depth".to_string(),
+                "10".to_string(),
+                "--yuv".to_string(),
+                "444".to_string(),
+                // 使用 CICP (nclx) 1/13/1 近似 sRGB / BT.709。
+                "--cicp".to_string(),
+                "1/13/1".to_string(),
+                // 显式标记 full range，减少播放器误判为 limited 的机会。
+                "--range".to_string(),
+                "full".to_string(),
+                path.to_string_lossy().into_owned(),
+                tmp_output.to_string_lossy().into_owned(),
+            ];
+
+            // 将实际执行的命令记录到任务中，便于 UI 展示与复制。
+            let avif_cmd = format_command_for_log(&avifenc_path, &avif_args);
+            job.ffmpeg_command = Some(avif_cmd.clone());
+            job.logs.push(format!("command: {avif_cmd}"));
+
             let mut cmd = Command::new(&avifenc_path);
             configure_background_command(&mut cmd);
             let output = cmd
-                .arg("--lossless")
-                .arg(path.as_os_str())
-                .arg(&tmp_output)
+                .args(&avif_args)
                 .output()
                 .with_context(|| format!("failed to run avifenc on {}", path.display()));
 
@@ -174,6 +196,27 @@ pub(crate) fn handle_image_file(
                     job.output_path = Some(avif_target.to_string_lossy().into_owned());
                     job.preview_path = Some(avif_target.to_string_lossy().into_owned());
 
+                    job.logs.push(format!(
+                        "avifenc: lossless AVIF encode completed; new size {:.2} MB ({:.1}% of original)",
+                        job.output_size_mb.unwrap_or(0.0),
+                        ratio * 100.0,
+                    ));
+
+                    // 若用户勾选“替换原文件”，尝试将源图片移入系统回收站（最佳努力）。
+                    if config.replace_original {
+                        match trash::delete(path) {
+                            Ok(()) => job.logs.push(format!(
+                                "replace original: moved source image {} to recycle bin",
+                                path.display()
+                            )),
+                            Err(err) => job.logs.push(format!(
+                                "replace original: failed to move source image {} to recycle bin: {err}",
+                                path.display()
+                            )),
+                        }
+                    }
+
+                    recompute_log_tail(&mut job);
                     return Ok(job);
                 }
                 Ok(output) => {
@@ -222,21 +265,39 @@ pub(crate) fn handle_image_file(
         job.start_time = Some(current_time_millis());
     }
 
+    // 使用 ffmpeg 兜底做 AVIF 编码时，同时显式设置色彩参数，降低偏色风险。
+    let ffmpeg_args: Vec<String> = vec![
+        "-y".to_string(),
+        "-i".to_string(),
+        path.to_string_lossy().into_owned(),
+        "-frames:v".to_string(),
+        "1".to_string(),
+        "-c:v".to_string(),
+        "libaom-av1".to_string(),
+        "-still-picture".to_string(),
+        "1".to_string(),
+        "-pix_fmt".to_string(),
+        "yuv444p10le".to_string(),
+        // 显式声明色彩信息为 sRGB/BT.709 full range。
+        "-color_primaries".to_string(),
+        "bt709".to_string(),
+        "-color_trc".to_string(),
+        "iec61966-2-1".to_string(),
+        "-colorspace".to_string(),
+        "bt709".to_string(),
+        "-color_range".to_string(),
+        "pc".to_string(),
+        tmp_output.to_string_lossy().into_owned(),
+    ];
+
+    let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &ffmpeg_args);
+    job.ffmpeg_command = Some(ffmpeg_cmd.clone());
+    job.logs.push(format!("command: {ffmpeg_cmd}"));
+
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
     let output = cmd
-        .arg("-y")
-        .arg("-i")
-        .arg(path.as_os_str())
-        .arg("-frames:v")
-        .arg("1")
-        .arg("-c:v")
-        .arg("libaom-av1")
-        .arg("-still-picture")
-        .arg("1")
-        .arg("-pix_fmt")
-        .arg("yuv444p10le")
-        .arg(&tmp_output)
+        .args(&ffmpeg_args)
         .output()
         .with_context(|| format!("failed to run ffmpeg for AVIF on {}", path.display()))?;
 
@@ -281,6 +342,27 @@ pub(crate) fn handle_image_file(
     // When falling back to ffmpeg-based AVIF encoding, also expose the
     // resulting AVIF as the job's output path so the UI can display it.
     job.output_path = Some(avif_target.to_string_lossy().into_owned());
+
+    job.logs.push(format!(
+        "ffmpeg: AVIF encode completed; new size {:.2} MB ({:.1}% of original)",
+        job.output_size_mb.unwrap_or(0.0),
+        ratio * 100.0,
+    ));
+
+    if config.replace_original {
+        match trash::delete(path) {
+            Ok(()) => job.logs.push(format!(
+                "replace original: moved source image {} to recycle bin",
+                path.display()
+            )),
+            Err(err) => job.logs.push(format!(
+                "replace original: failed to move source image {} to recycle bin: {err}",
+                path.display()
+            )),
+        }
+    }
+
+    recompute_log_tail(&mut job);
 
     Ok(job)
 }

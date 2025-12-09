@@ -28,6 +28,21 @@ export interface FfmpegCommandPreviewInput {
 }
 
 /**
+ * 容器格式规范化：
+ * - UI 中使用更直观的标识（例如 mkv），但 ffmpeg 实际要求 muxer 名称（例如 matroska）。
+ * - 这里做一层映射，保证生成的命令始终使用 ffmpeg 支持的格式名。
+ */
+const normalizeContainerFormat = (format: string): string => {
+  const trimmed = format.trim();
+  if (!trimmed) return trimmed;
+
+  // Matroska：扩展名常用 mkv，但 ffmpeg muxer 名称是 matroska。
+  if (trimmed === "mkv") return "matroska";
+
+  return trimmed;
+};
+
+/**
  * Build a structured ffmpeg command preview from typed preset fields.
  * This mirrors the logic used by the preset wizard and parameter panel.
  */
@@ -289,7 +304,10 @@ export const buildFfmpegCommandFromStructured = (
   // Container / muxer options.
   if (container) {
     if (container.format && container.format.trim().length > 0) {
-      args.push("-f", container.format.trim());
+      const fmt = normalizeContainerFormat(container.format);
+      if (fmt.length > 0) {
+        args.push("-f", fmt);
+      }
     }
     if (container.movflags && container.movflags.length > 0) {
       const joined = container.movflags

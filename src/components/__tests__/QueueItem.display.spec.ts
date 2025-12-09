@@ -393,4 +393,35 @@ describe("QueueItem display basics", () => {
     expect(text).toContain("1920×1080");
     expect(text.toLowerCase()).toContain("h264");
   });
+
+  it("renders a generic command title and shows the encoder command for image jobs", () => {
+    const job = makeJob({
+      type: "image",
+      filename: "C:/images/sample.png",
+      ffmpegCommand:
+        'avifenc --lossless --depth 10 --yuv 444 --cicp 1/13/1 --range full "C:/images/sample.png" "C:/images/sample.tmp.avif"',
+      mediaInfo: {
+        sizeMB: 2,
+      },
+    } as any);
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const headerSpans = wrapper.findAll("span.flex-shrink-0");
+    const commandTitleSpan = headerSpans[headerSpans.length - 1];
+    expect(commandTitleSpan.text().toLowerCase()).toContain("command");
+
+    const pre = wrapper.find("pre");
+    expect(pre.exists()).toBe(true);
+    expect(pre.text()).toContain("avifenc");
+  });
 });

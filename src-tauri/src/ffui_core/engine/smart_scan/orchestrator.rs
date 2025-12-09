@@ -52,6 +52,9 @@ pub(crate) fn run_auto_compress(
         let batch = SmartScanBatch {
             batch_id: batch_id.clone(),
             root_path: root_path.clone(),
+            // 每个批次独立携带 replace_original 配置，避免后续修改默认设置时影响
+            // 之前已入队但尚未处理完的 Smart Scan 任务。
+            replace_original: config.replace_original,
             status: SmartScanBatchStatus::Scanning,
             total_files_scanned: 0,
             total_candidates: 0,

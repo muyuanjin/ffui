@@ -24,6 +24,7 @@ mod common;
 use common::*;
 
 mod enqueue_and_logging;
+mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_tests;
 mod ffmpeg_integration;
 mod image_and_preview;

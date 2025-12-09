@@ -179,6 +179,7 @@ const presetEditor = {
     containerTitle: "容器与分片",
     formatLabel: "输出格式 (-f)",
     formatPlaceholder: "通常按输出扩展名自动推断",
+    formatAutoOption: "自动推断（按输出扩展名）",
     movflagsLabel: "movflags（使用 + 连接）",
     movflagsPlaceholder: "例如 faststart+frag_keyframe",
     containerHelp:

@@ -8,7 +8,6 @@ import type {
   TranscodeJob,
 } from "@/types";
 import { useQueuePreferences } from "@/lib/queuePreferences";
-import { deleteTranscodeJob, hasTauri } from "@/lib/backend";
 import {
   type QueueListItem,
   useQueueFiltering,
@@ -17,6 +16,7 @@ import {
 } from "@/composables";
 import { buildWaitingQueueIds, reorderWaitingQueue } from "@/composables/queue/operations-bulk";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
+import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
 
 export interface UseMainAppQueueOptions {
   t: (key: string) => string;
@@ -319,12 +319,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   const bulkMoveToTop = async () => bulkMoveSelectedJobsToTopInner();
   const bulkMoveToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
-  const isTerminalStatus = (status: TranscodeJob["status"]) =>
-    status === "completed" ||
-    status === "failed" ||
-    status === "skipped" ||
-    status === "cancelled";
-
   const moveJobToTop = async (jobId: string) => {
     if (!jobId) return;
     const waitingIds = buildWaitingQueueIds({ jobs });
@@ -348,64 +342,14 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   const bulkMoveSelectedJobsToTop = async () => bulkMoveSelectedJobsToTopInner();
   const bulkMoveSelectedJobsToBottom = async () => bulkMoveSelectedJobsToBottomInner();
 
-  const bulkDelete = async () => {
-    const selected = Array.from(selectedJobIds.value);
-    if (!selected.length) return;
-
-    const terminalJobs = selectedJobs.value.filter((job) =>
-      isTerminalStatus(job.status),
-    );
-    const nonTerminalJobs = selectedJobs.value.filter(
-      (job) => !isTerminalStatus(job.status),
-    );
-
-    if (!terminalJobs.length) {
-      // All selected jobs are still active; surface a clear error and bail.
-      queueError.value =
-        (t("queue.error.deleteActiveNotAllowed") as string) ??
-        "Cannot delete jobs that are still running; please stop them first.";
-      return;
-    }
-
-    if (!hasTauri()) {
-      // In non-Tauri environments (web preview/tests), simulate deletion
-      // by removing the eligible jobs from the local list only.
-      const deletableIds = new Set(terminalJobs.map((job) => job.id));
-      jobs.value = jobs.value.filter((job) => !deletableIds.has(job.id));
-      selectedJobIds.value = new Set();
-      return;
-    }
-
-    let anyFailed = false;
-    for (const job of terminalJobs) {
-      try {
-        const ok = await deleteTranscodeJob(job.id);
-        if (!ok) {
-          anyFailed = true;
-        }
-      } catch {
-        anyFailed = true;
-      }
-    }
-
-    if (anyFailed) {
-      // 仅在真正的后端删除失败（返回 false 或抛异常）时，提示“部分任务删除失败”。
-      queueError.value =
-        (t("queue.error.deleteFailed") as string) ??
-        "Failed to delete some jobs from queue.";
-    } else if (nonTerminalJobs.length > 0) {
-      // 当存在仍在运行/排队中的任务时，删除已完成任务，但提示用户这些活动任务不能直接删除。
-      queueError.value =
-        (t("queue.error.deleteActiveNotAllowed") as string) ??
-        "Cannot delete jobs that are still running; please stop them first.";
-    } else {
-      queueError.value = null;
-    }
-
-    // Backend queue events / manual refresh will update `jobs`; we only
-    // clear the local selection here.
-    selectedJobIds.value = new Set();
-  };
+  const bulkDelete = createBulkDelete({
+    jobs,
+    selectedJobIds,
+    selectedJobs,
+    queueError,
+    refreshQueueFromBackend,
+    t: (key: string) => t(key),
+  });
 
   // Queue / Smart Scan event listeners for queue state updates.
   useQueueEventListeners({

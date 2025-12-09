@@ -229,7 +229,8 @@ fn smart_scan_video_output_naming_avoids_overwrites() {
         .known_smart_scan_outputs
         .insert(existing2.to_string_lossy().into_owned());
 
-    let first = reserve_unique_smart_scan_video_output_path(&mut state, &input);
+    let preset_ref = state.presets.first().expect("preset must exist").clone();
+    let first = reserve_unique_smart_scan_video_output_path(&mut state, &input, &preset_ref);
     assert_ne!(
         first, existing1,
         "first Smart Scan output path must not overwrite pre-existing sample.compressed.mp4"
@@ -239,7 +240,7 @@ fn smart_scan_video_output_naming_avoids_overwrites() {
         "first Smart Scan output path must not overwrite pre-existing sample.compressed (1).mp4"
     );
 
-    let second = reserve_unique_smart_scan_video_output_path(&mut state, &input);
+    let second = reserve_unique_smart_scan_video_output_path(&mut state, &input, &preset_ref);
     assert_ne!(
         second, first,
         "subsequent Smart Scan output path must differ from previously reserved path"
@@ -252,6 +253,47 @@ fn smart_scan_video_output_naming_avoids_overwrites() {
         second, existing2,
         "second Smart Scan output path must not overwrite pre-existing outputs"
     );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn smart_scan_batch_carries_replace_original_flag() {
+    let dir = env::temp_dir().join("ffui_smart_scan_replace_flag");
+    let _ = fs::create_dir_all(&dir);
+
+    let engine = make_engine_with_preset();
+
+    let root_path = dir.to_string_lossy().into_owned();
+
+    let config = SmartScanConfig {
+        root_path: Some(root_path.clone()),
+        replace_original: true,
+        min_image_size_kb: 0,
+        min_video_size_mb: 0,
+        min_saving_ratio: 0.0,
+        image_target_format: ImageTargetFormat::Avif,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+
+    let descriptor = engine
+        .run_auto_compress(root_path.clone(), config)
+        .expect("run_auto_compress should succeed for replace_original flag test");
+
+    let batch_id = descriptor.batch_id.clone();
+
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let batch = state
+            .smart_scan_batches
+            .get(&batch_id)
+            .expect("Smart Scan batch should be registered immediately");
+        assert!(
+            batch.replace_original,
+            "SmartScanBatch.replace_original must mirror SmartScanConfig.replace_original",
+        );
+    }
 
     let _ = fs::remove_dir_all(&dir);
 }
@@ -290,6 +332,42 @@ fn smart_scan_does_not_reenqueue_known_outputs_as_candidates() {
     assert!(
         !input_is_known,
         "original input video.mp4 must not be treated as a known output and must remain eligible"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn smart_scan_video_output_uses_container_extension_when_present() {
+    let dir = env::temp_dir().join("ffui_smart_scan_mkv_ext");
+    let _ = fs::create_dir_all(&dir);
+
+    let input = dir.join("movie.mp4");
+    {
+        let mut file =
+            File::create(&input).expect("create input video file for mkv extension test");
+        file.write_all(&[0u8; 1024])
+            .expect("write input data for mkv extension test");
+    }
+
+    // 预设声明 mkv 容器。
+    let mut preset = make_test_preset();
+    preset.id = "preset-mkv".to_string();
+    preset.container = Some(ContainerConfig {
+        format: Some("mkv".to_string()),
+        movflags: None,
+    });
+
+    let settings = AppSettings::default();
+    let mut state = EngineState::new(vec![preset], settings);
+    let preset_ref = state.presets.first().expect("preset must exist").clone();
+
+    let p = reserve_unique_smart_scan_video_output_path(&mut state, &input, &preset_ref);
+
+    assert!(
+        p.to_string_lossy().ends_with(".compressed.mkv"),
+        "Smart Scan 预设使用 container.format=mkv 时，输出路径应以 .compressed.mkv 结尾，实际为 {}",
+        p.display()
     );
 
     let _ = fs::remove_dir_all(&dir);

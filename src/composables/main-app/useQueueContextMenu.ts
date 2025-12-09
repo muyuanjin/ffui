@@ -9,6 +9,14 @@ export interface UseQueueContextMenuOptions {
   handleResumeJob: (jobId: string) => Promise<void>;
   handleRestartJob: (jobId: string) => Promise<void>;
   handleCancelJob: (jobId: string) => Promise<void>;
+  /** 批量取消当前选中任务 */
+  bulkCancel: () => Promise<void>;
+  /** 批量暂停当前选中任务 */
+  bulkWait: () => Promise<void>;
+  /** 批量继续当前选中任务 */
+  bulkResume: () => Promise<void>;
+  /** 批量重新开始当前选中任务 */
+  bulkRestart: () => Promise<void>;
   bulkMoveToTop: () => Promise<void>;
   bulkMoveToBottom: () => Promise<void>;
   bulkDelete: () => void;
@@ -50,6 +58,10 @@ export function useQueueContextMenu(
     handleResumeJob,
     handleRestartJob,
     handleCancelJob,
+    bulkCancel,
+    bulkWait,
+    bulkResume,
+    bulkRestart,
     bulkMoveToTop,
     bulkMoveToBottom,
     bulkDelete,
@@ -125,24 +137,48 @@ export function useQueueContextMenu(
   };
 
   const handleQueueContextWait = async () => {
+    // 批量模式下，统一走批量暂停逻辑
+    if (queueContextMenuMode.value === "bulk") {
+      await bulkWait();
+      return;
+    }
+
     const job = queueContextMenuJob.value;
     if (!job) return;
     await handleWaitJob(job.id);
   };
 
   const handleQueueContextResume = async () => {
+    // 批量模式下，统一走批量继续逻辑
+    if (queueContextMenuMode.value === "bulk") {
+      await bulkResume();
+      return;
+    }
+
     const job = queueContextMenuJob.value;
     if (!job) return;
     await handleResumeJob(job.id);
   };
 
   const handleQueueContextRestart = async () => {
+    // 批量模式下，统一走批量重新开始逻辑
+    if (queueContextMenuMode.value === "bulk") {
+      await bulkRestart();
+      return;
+    }
+
     const job = queueContextMenuJob.value;
     if (!job) return;
     await handleRestartJob(job.id);
   };
 
   const handleQueueContextCancel = async () => {
+    // 批量模式下，统一走批量取消逻辑
+    if (queueContextMenuMode.value === "bulk") {
+      await bulkCancel();
+      return;
+    }
+
     const job = queueContextMenuJob.value;
     if (!job) return;
     await handleCancelJob(job.id);

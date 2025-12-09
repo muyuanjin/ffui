@@ -56,55 +56,56 @@ fn delete_smart_scan_child_job_is_deletable() {
     let job_id = "smart-scan-job-delete-test".to_string();
 
     {
-      let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
 
-      // 为该批次注册一个简单的 Smart Scan 批次记录，模拟真实运行环境中的批次元数据。
-      state.smart_scan_batches.insert(
-          batch_id.clone(),
-          SmartScanBatch {
-              batch_id: batch_id.clone(),
-              root_path: "C:/videos".to_string(),
-              status: SmartScanBatchStatus::Completed,
-              total_files_scanned: 1,
-              total_candidates: 1,
-              total_processed: 1,
-              child_job_ids: vec![job_id.clone()],
-              started_at_ms: 0,
-              completed_at_ms: Some(0),
-          },
-      );
+        // 为该批次注册一个简单的 Smart Scan 批次记录，模拟真实运行环境中的批次元数据。
+        state.smart_scan_batches.insert(
+            batch_id.clone(),
+            SmartScanBatch {
+                batch_id: batch_id.clone(),
+                root_path: "C:/videos".to_string(),
+                replace_original: false,
+                status: SmartScanBatchStatus::Completed,
+                total_files_scanned: 1,
+                total_candidates: 1,
+                total_processed: 1,
+                child_job_ids: vec![job_id.clone()],
+                started_at_ms: 0,
+                completed_at_ms: Some(0),
+            },
+        );
 
-      // 插入一个属于该 Smart Scan 批次、已完成状态的子任务。
-      state.jobs.insert(
-          job_id.clone(),
-          TranscodeJob {
-              id: job_id.clone(),
-              filename: "C:/videos/input.mp4".to_string(),
-              job_type: JobType::Video,
-              source: JobSource::SmartScan,
-              queue_order: None,
-              original_size_mb: 10.0,
-              original_codec: Some("h264".to_string()),
-              preset_id: "preset-1".to_string(),
-              status: JobStatus::Completed,
-              progress: 100.0,
-              start_time: Some(current_time_millis()),
-              end_time: Some(current_time_millis()),
-              output_size_mb: Some(5.0),
-              logs: Vec::new(),
-              skip_reason: None,
-              input_path: Some("C:/videos/input.mp4".to_string()),
-              output_path: Some("C:/videos/input.compressed.mp4".to_string()),
-              ffmpeg_command: None,
-              media_info: None,
-              estimated_seconds: None,
-              preview_path: None,
-              log_tail: None,
-              failure_reason: None,
-              batch_id: Some(batch_id.clone()),
-              wait_metadata: None,
-          },
-      );
+        // 插入一个属于该 Smart Scan 批次、已完成状态的子任务。
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: "C:/videos/input.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::SmartScan,
+                queue_order: None,
+                original_size_mb: 10.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Completed,
+                progress: 100.0,
+                start_time: Some(current_time_millis()),
+                end_time: Some(current_time_millis()),
+                output_size_mb: Some(5.0),
+                logs: Vec::new(),
+                skip_reason: None,
+                input_path: Some("C:/videos/input.mp4".to_string()),
+                output_path: Some("C:/videos/input.compressed.mp4".to_string()),
+                ffmpeg_command: None,
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                log_tail: None,
+                failure_reason: None,
+                batch_id: Some(batch_id.clone()),
+                wait_metadata: None,
+            },
+        );
     }
 
     // Smart Scan 的子任务同样应该可以被 delete_job 删除，并从队列快照中消失。

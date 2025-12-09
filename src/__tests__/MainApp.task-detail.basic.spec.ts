@@ -110,6 +110,56 @@ describe("MainApp task detail surface - basics", () => {
     wrapper.unmount();
   });
 
+  it("renders encoder command and logs for image Smart Scan jobs", async () => {
+    const job: TranscodeJob = {
+      id: "image-job-2",
+      filename: "C:/images/sample2.png",
+      type: "image",
+      source: "smart_scan",
+      originalSizeMB: 2,
+      originalCodec: "png",
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: Date.now() - 3000,
+      endTime: Date.now(),
+      logs: [
+        'command: avifenc --lossless --depth 10 --yuv 444 --cicp 1/13/1 --range full "C:/images/sample2.png" "C:/images/sample2.tmp.avif"',
+        "avifenc: lossless AVIF encode completed; new size 1.00 MB (50.0% of original)",
+      ],
+      inputPath: "C:/images/sample2.png",
+      outputPath: "C:/images/sample2.avif",
+      ffmpegCommand:
+        'avifenc --lossless --depth 10 --yuv 444 --cicp 1/13/1 --range full "C:/images/sample2.png" "C:/images/sample2.tmp.avif"',
+      previewPath: "C:/images/sample2.avif",
+    } as any;
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const commandEl = document.querySelector(
+      "[data-testid='task-detail-command']",
+    ) as HTMLElement | null;
+    expect(commandEl).toBeTruthy();
+    expect(commandEl?.textContent || "").toContain("avifenc");
+
+    const logContainer = document.querySelector(
+      "[data-testid='task-detail-log']",
+    ) as HTMLElement | null;
+    expect(logContainer).toBeTruthy();
+    expect(logContainer?.textContent || "").toContain("avifenc");
+
+    wrapper.unmount();
+  });
+
   it("renders rich details for a completed job", async () => {
     const job: TranscodeJob = {
       id: "job-1",

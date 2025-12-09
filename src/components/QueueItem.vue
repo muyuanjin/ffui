@@ -2,7 +2,7 @@
 import { computed, ref, watch } from "vue";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
@@ -183,6 +183,26 @@ const {
   progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
 });
 
+// 根据任务状态计算进度条颜色变体
+const progressVariant = computed<ProgressVariant>(() => {
+  switch (props.job.status) {
+    case "completed":
+      return "success";
+    case "failed":
+      return "error";
+    case "paused":
+    case "waiting":
+    case "queued":
+      return "warning";
+    case "cancelled":
+    case "skipped":
+      return "muted";
+    case "processing":
+    default:
+      return "default";
+  }
+});
+
 const showTemplateCommand = ref(true);
 
 const rawCommand = computed(() => props.job.ffmpegCommand ?? "");
@@ -234,14 +254,37 @@ const highlightedCommand = computed(() =>
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
 
+/**
+ * 为队列项计算缩略图路径：
+ * - 首选后端提供的 previewPath（通常是预生成的 jpg 预览图或 AVIF 输出）；
+ * - 对于图片任务，当 previewPath 为空时，回退到 outputPath 或 inputPath，保证
+ *   Smart Scan 图片子任务在“替换原文件”后仍然可以预览最终压缩结果；
+ * - 视频任务仍然只依赖 previewPath，避免直接用视频文件作为 <img> 源。
+ */
 watch(
-  () => props.job.previewPath,
-  (path) => {
+  () => ({
+    previewPath: props.job.previewPath,
+    type: props.job.type,
+    inputPath: props.job.inputPath,
+    outputPath: props.job.outputPath,
+  }),
+  ({ previewPath, type, inputPath, outputPath }) => {
     previewFallbackLoaded.value = false;
+
+    let path: string | null = null;
+
+    if (previewPath) {
+      path = previewPath;
+    } else if (type === "image") {
+      // 图片任务在缺少专用预览图时，使用最终输出或原始输入路径兜底。
+      path = outputPath || inputPath || null;
+    }
+
     if (!path) {
       previewUrl.value = null;
       return;
     }
+
     previewUrl.value = buildPreviewUrl(path);
   },
   { immediate: true },
@@ -361,6 +404,7 @@ const onCardContextMenu = (event: MouseEvent) => {
     <Progress
       v-if="showBarProgress"
       :model-value="displayedClampedProgress"
+      :variant="progressVariant"
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />
