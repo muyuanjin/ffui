@@ -1,10 +1,10 @@
 use std::path::Path;
 
+use super::normalize_container_format;
 use crate::ffui_core::domain::{
     AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OverwriteBehavior, RateControlMode,
     SeekMode, SubtitleStrategy,
 };
-
 /// Build a human-readable command line for logging, quoting arguments that
 /// contain spaces to make it easier to copy/paste for debugging.
 pub(crate) fn format_command_for_log(program: &str, args: &[String]) -> String {
@@ -33,7 +33,17 @@ pub(crate) fn ensure_progress_args(args: &mut Vec<String>) {
     args.insert(0, "-progress".to_string());
 }
 
-pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Path) -> Vec<String> {
+/// 构建 ffmpeg 参数列表。
+///
+/// `non_interactive=true` 时自动注入 `-nostdin`，用于一次性非交互转码/扫描；
+/// 需要支持“暂停 / 继续”的长跑任务应传 `false`，并由调用方确保不会触发
+/// 交互式提问（例如总是显式指定 `-y`/`-n`），以免 ffmpeg 阻塞在 stdin。
+pub(crate) fn build_ffmpeg_args(
+    preset: &FFmpegPreset,
+    input: &Path,
+    output: &Path,
+    non_interactive: bool,
+) -> Vec<String> {
     if preset.advanced_enabled.unwrap_or(false)
         && preset
             .ffmpeg_template
@@ -49,7 +59,7 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
             .map(|s| s.to_string())
             .collect();
         ensure_progress_args(&mut args);
-        if !args.iter().any(|a| a == "-nostdin") {
+        if non_interactive && !args.iter().any(|a| a == "-nostdin") {
             args.push("-nostdin".to_string());
         }
         return args;
@@ -57,7 +67,7 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
 
     let mut args: Vec<String> = Vec::new();
     ensure_progress_args(&mut args);
-    if !args.iter().any(|a| a == "-nostdin") {
+    if non_interactive && !args.iter().any(|a| a == "-nostdin") {
         args.push("-nostdin".to_string());
     }
 
@@ -431,7 +441,10 @@ pub(crate) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
             && !format.is_empty()
         {
             args.push("-f".to_string());
-            args.push(format.clone());
+            let normalized = normalize_container_format(format);
+            if !normalized.is_empty() {
+                args.push(normalized);
+            }
         }
         if let Some(flags) = &container.movflags {
             let joined: String = flags

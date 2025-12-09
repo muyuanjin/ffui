@@ -91,7 +91,8 @@ const other = {
     resolutionLabel: "分辨率",
     frameRateLabel: "帧率",
     mediaInfoFallback: "当前任务没有可用的媒体元数据。",
-    commandTitle: "ffmpeg 命令",
+    // 这里的命令既可能是 ffmpeg，也可能是 avifenc 等其它外部工具，因此使用更通用的标题。
+    commandTitle: "命令",
     commandToggle: {
       showFull: "显示完整命令",
       showTemplate: "显示模板视图",

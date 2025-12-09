@@ -2,9 +2,12 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
+import { nextTick, reactive } from "vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
+import PresetContainerTab from "@/components/preset-editor/PresetContainerTab.vue";
+import { Select } from "@/components/ui/select";
 import en from "@/locales/en";
-import type { FFmpegPreset } from "@/types";
+import type { ContainerConfig, FFmpegPreset } from "@/types";
 
 // reka-ui 的 Slider 依赖 ResizeObserver，这里在测试环境中提供一个最小 mock。
 class ResizeObserverMock {
@@ -167,5 +170,25 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-hwaccel_device cuda:0");
     expect(text).toContain("-hwaccel_output_format cuda");
     expect(text).toContain("-bsf h264_mp4toannexb");
+  });
+
+  it("allows resetting container format back to auto inference", async () => {
+    const container = reactive<ContainerConfig>({
+      format: "mp4",
+      movflags: [],
+    });
+
+    const wrapper = mount(PresetContainerTab, {
+      props: { container },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const select = wrapper.getComponent(Select);
+    select.vm.$emit("update:modelValue", "__auto__");
+    await nextTick();
+
+    expect(container.format).toBeUndefined();
   });
 });

@@ -410,4 +410,22 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     );
     expect(av1Crf63).toContain("-crf 63");
   });
+
+  it("normalizes container.format=mkv to ffmpeg muxer name matroska", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        container: {
+          format: "mkv",
+          movflags: [],
+        },
+      }),
+    );
+    const args = splitArgs(cmd);
+    const fIndex = args.indexOf("-f");
+    expect(fIndex).toBeGreaterThan(-1);
+    expect(args[fIndex + 1]).toBe("matroska");
+    // 不应再出现 -f mkv 这种 ffmpeg 无法识别的格式名
+    const joined = ` ${args.join(" ")} `;
+    expect(joined).not.toContain(" -f mkv ");
+  });
 });

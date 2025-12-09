@@ -267,6 +267,39 @@ fn multi_worker_wait_resume_respects_queue_order() {
 }
 
 #[test]
+fn enqueue_transcode_job_uses_container_extension_when_present() {
+    // 构造一个显式声明 mkv 容器的预设。
+    let mut preset = make_test_preset();
+    preset.id = "preset-mkv".to_string();
+    preset.container = Some(ContainerConfig {
+        format: Some("mkv".to_string()),
+        movflags: None,
+    });
+
+    let settings = AppSettings::default();
+    let inner = Arc::new(Inner::new(vec![preset], settings));
+    let engine = TranscodingEngine { inner };
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/sample_input.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-mkv".into(),
+    );
+
+    let output_path = job
+        .output_path
+        .as_deref()
+        .expect("output_path must be set for video job");
+    assert!(
+        output_path.ends_with("sample_input.compressed.mkv"),
+        "当预设声明 container.format=mkv 时，入队的输出路径应使用 .compressed.mkv 扩展名，实际为 {output_path}"
+    );
+}
+
+#[test]
 fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     let engine = make_engine_with_preset();
 
@@ -276,7 +309,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     // A small placeholder file is enough; we never feed it to ffmpeg in this test.
     fs::write(&input_path, [0u8; 1024]).expect("write crash-recovery input file");
 
-    let tmp_output = build_video_tmp_output_path(&input_path);
+    let tmp_output = build_video_tmp_output_path(&input_path, None);
     fs::create_dir_all(
         tmp_output
             .parent()

@@ -96,8 +96,7 @@ export function useMainAppSettings(
       // without waiting for the debounced saver, while still keeping the shared
       // app settings composable as the single source of truth.
       try {
-        const saved = await saveAppSettings(nextSettings);
-        appSettings.value = saved;
+        await saveAppSettings(nextSettings);
       } catch (error) {
         console.error("Failed to save default queue preset to AppSettings", error);
       }

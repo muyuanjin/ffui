@@ -91,7 +91,8 @@ const other = {
     resolutionLabel: "Resolution",
     frameRateLabel: "Frame rate",
     mediaInfoFallback: "No media metadata available for this job.",
-    commandTitle: "ffmpeg command",
+    // The command can be ffmpeg, avifenc or other tools, so keep the title generic.
+    commandTitle: "Command",
     commandToggle: {
       showFull: "Show full command",
       showTemplate: "Show template view",

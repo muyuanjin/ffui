@@ -150,9 +150,17 @@ const previewSlots = computed<PreviewSlot[]>(() => {
     const job = withPreview[index] ?? jobs[index] ?? null;
 
     if (job) {
+      // 对于图片任务，在缺失 previewPath 时回退到 outputPath 或 inputPath，
+      // 避免 Smart Scan 图片子任务在“替换原文件”后 9 宫格中完全没有缩略图。
+      const effectivePreviewPath =
+        job.previewPath ||
+        (job.type === "image"
+          ? job.outputPath || job.inputPath || null
+          : job.previewPath || null);
+
       slots.push({
         key: job.id ?? `slot-${index}`,
-        previewPath: job.previewPath ?? null,
+        previewPath: effectivePreviewPath,
         job,
       });
     } else {

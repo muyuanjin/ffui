@@ -28,7 +28,7 @@ fn ffmpeg_integration_runs_x264_crf_preset_without_errors() {
         movflags: Some(vec!["faststart".to_string()]),
     });
 
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
     let output_result = Command::new("ffmpeg")
         .args(&args)
         .output()
@@ -125,7 +125,7 @@ fn ffmpeg_integration_runs_av1_crf_preset_when_encoder_available() {
         movflags: None,
     });
 
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
     let output_result = Command::new("ffmpeg")
         .args(&args)
         .output()
@@ -198,7 +198,7 @@ fn ffmpeg_integration_runs_stream_copy_preset_without_filtering_conflicts() {
         movflags: None,
     });
 
-    let args = build_ffmpeg_args(&preset, &input, &output);
+    let args = build_ffmpeg_args(&preset, &input, &output, true);
     let output_result = Command::new("ffmpeg")
         .args(&args)
         .output()

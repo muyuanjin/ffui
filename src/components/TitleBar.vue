@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useI18n } from "vue-i18n";
 import type { AppLocale } from "@/i18n";
 import { DEFAULT_LOCALE, loadLocale } from "@/i18n";
+import { Minus, Square, X } from "lucide-vue-next";
 
 defineProps<{
   /** Progress percent for header bar (0-100) */
@@ -71,31 +72,31 @@ const currentLocale = computed<AppLocale>({
           </Select>
         </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
-          class="h-7 w-7 rounded-md border-border/70 bg-card/70 text-foreground hover:bg-card/90"
-          title="Minimize"
+          class="h-8 w-8 rounded-lg text-muted-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors"
+          :title="t('app.minimize')"
           @click="emit('minimize')"
         >
-          <span class="text-sm">─</span>
+          <Minus class="h-4 w-4" :stroke-width="1.5" />
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
-          class="h-7 w-7 rounded-md border-border/70 bg-card/70 text-foreground hover:bg-card/90"
-          title="Maximize"
+          class="h-8 w-8 rounded-lg text-muted-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors"
+          :title="t('app.maximize')"
           @click="emit('toggleMaximize')"
         >
-          <span class="text-xs">▢</span>
+          <Square class="h-3.5 w-3.5" :stroke-width="1.5" />
         </Button>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon-sm"
-          class="h-7 w-7 rounded-md border border-destructive/70 bg-destructive/80 text-destructive-foreground hover:bg-destructive"
-          title="Close"
+          class="h-8 w-8 rounded-lg text-muted-foreground/80 hover:text-destructive hover:bg-destructive/10 transition-colors"
+          :title="t('app.close')"
           @click="emit('close')"
         >
-          <span class="text-sm font-semibold">✕</span>
+          <X class="h-4 w-4" :stroke-width="1.5" />
         </Button>
       </div>
     </div>

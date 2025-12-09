@@ -371,18 +371,6 @@ const toggleSecondarySortDirection = () => {
               variant="ghost"
               size="sm"
               class="h-6 px-2 gap-1 text-xs"
-              @click="emit('bulk-cancel')"
-              :title="t('queue.actions.bulkCancel')"
-            >
-              <XCircle class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkCancel") }}</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
               @click="emit('bulk-wait')"
               :title="t('queue.actions.bulkWait')"
             >
@@ -400,6 +388,18 @@ const toggleSecondarySortDirection = () => {
             >
               <Play class="h-3 w-3" />
               <span class="hidden lg:inline">{{ t("queue.actions.bulkResume") }}</span>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="h-6 px-2 gap-1 text-xs"
+              @click="emit('bulk-cancel')"
+              :title="t('queue.actions.bulkCancel')"
+            >
+              <XCircle class="h-3 w-3" />
+              <span class="hidden lg:inline">{{ t("queue.actions.bulkCancel") }}</span>
             </Button>
 
             <Button

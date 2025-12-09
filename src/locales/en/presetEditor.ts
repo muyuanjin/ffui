@@ -183,6 +183,7 @@ const presetEditor = {
     containerTitle: "Container & segmenting",
     formatLabel: "Output format (-f)",
     formatPlaceholder: "Infer from OUTPUT extension",
+    formatAutoOption: "Auto (infer from OUTPUT extension)",
     movflagsLabel: "movflags (combine with +)",
     movflagsPlaceholder: "e.g. faststart+frag_keyframe",
     containerHelp:

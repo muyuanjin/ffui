@@ -195,6 +195,35 @@ describe("QueueItem display preview & command view", () => {
     expect(imgs.length).toBe(0);
   });
 
+  it("falls back to input/output path for image jobs when previewPath is missing", async () => {
+    const job = makeJob({
+      type: "image",
+      filename: "C:/images/sample.avif",
+      inputPath: "C:/images/sample.avif",
+      outputPath: undefined,
+      previewPath: undefined,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await nextTick();
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.exists()).toBe(true);
+    // 在测试环境中 buildPreviewUrl 会直接返回原始路径，因此应等于 inputPath。
+    expect(img.attributes("src")).toBe(job.inputPath);
+  });
+
   it("uses i18n labels for the command view toggle and updates on locale change", async () => {
     const job = makeJob({
       status: "completed",
@@ -275,4 +304,3 @@ describe("QueueItem display preview & command view", () => {
     expect(pre.text()).toBe(rawCommand);
   });
 });
-

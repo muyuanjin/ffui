@@ -32,11 +32,11 @@ const { t } = useI18n();
           {{ t("presetEditor.panel.formatLabel") }}
         </Label>
         <Select
-          :model-value="container.format ?? ''"
+          :model-value="container.format ?? '__auto__'"
           @update:model-value="
             (value) => {
-              const v = String(value ?? '');
-              container.format = v || undefined;
+              const v = String(value ?? '__auto__');
+              container.format = v === '__auto__' ? undefined : v;
             }
           "
         >
@@ -46,6 +46,9 @@ const { t } = useI18n();
             />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="__auto__">
+              {{ t("presetEditor.panel.formatAutoOption") }}
+            </SelectItem>
             <SelectItem value="mp4">mp4</SelectItem>
             <SelectItem value="mkv">mkv</SelectItem>
             <SelectItem value="mov">mov</SelectItem>

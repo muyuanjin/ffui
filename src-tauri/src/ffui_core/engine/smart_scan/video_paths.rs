@@ -1,29 +1,34 @@
 use std::path::{Path, PathBuf};
 
 use crate::ffui_core::domain::FFmpegPreset;
+use crate::ffui_core::engine::ffmpeg_args::infer_output_extension;
 
 use super::super::state::EngineState;
 
-pub(super) fn build_video_output_path(input: &Path) -> PathBuf {
+pub(super) fn build_video_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.{ext}"))
 }
 
 pub(crate) fn reserve_unique_smart_scan_video_output_path(
     state: &mut EngineState,
     input: &Path,
+    preset: &FFmpegPreset,
 ) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let container_format = preset.container.as_ref().and_then(|c| c.format.as_deref());
+    let ext = infer_output_extension(container_format, input_ext);
 
     let mut index: u32 = 0;
     loop {
@@ -43,13 +48,14 @@ pub(crate) fn reserve_unique_smart_scan_video_output_path(
     }
 }
 
-pub(super) fn build_video_tmp_output_path(input: &Path) -> PathBuf {
+pub(super) fn build_video_tmp_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.tmp.{ext}"))
 }
 

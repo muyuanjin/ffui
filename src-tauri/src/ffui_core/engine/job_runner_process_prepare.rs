@@ -2,9 +2,10 @@ fn plan_resume_paths(
     input_path: &Path,
     media_duration: Option<f64>,
     wait_meta: Option<&WaitMetadata>,
+    container_format: Option<&str>,
 ) -> (Option<f64>, Vec<PathBuf>, PathBuf) {
-    let base_tmp_output = build_video_tmp_output_path(input_path);
-    let resume_tmp_output = build_video_resume_tmp_output_path(input_path);
+    let base_tmp_output = build_video_tmp_output_path(input_path, container_format);
+    let resume_tmp_output = build_video_resume_tmp_output_path(input_path, container_format);
 
     // 根据 WaitMetadata 计算“已处理秒数”和历史分段列表，以支撑多次暂停/继续。
     let mut resume_from_seconds: Option<f64> = None;
@@ -56,6 +57,48 @@ fn plan_resume_paths(
     let tmp_output = resume_tmp_output;
 
     (resume_from_seconds, existing_segments, tmp_output)
+}
+
+/// 为 mp4/mov 输出启用 fragmented MP4 相关 movflags，提升在崩溃或异常中断时
+/// 临时分段文件的可读性与可 concat 性。
+///
+/// 这里不会移除用户已经配置的 movflags，只会在缺失时追加
+/// `frag_keyframe` 与 `empty_moov` 两个标志。
+fn ensure_fragmented_movflags_for_mp4_like_output(
+    preset: &mut crate::ffui_core::domain::FFmpegPreset,
+    output_path: &Path,
+) {
+    let ext = output_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    // 只针对 mp4/mov 系列容器启用 fragmented movflags。
+    if ext != "mp4" && ext != "mov" && ext != "m4v" {
+        return;
+    }
+
+    use crate::ffui_core::domain::ContainerConfig;
+
+    let container = preset
+        .container
+        .get_or_insert(ContainerConfig {
+            format: None,
+            movflags: None,
+        });
+
+    let mut flags = container.movflags.clone().unwrap_or_default();
+    let mut ensure_flag = |flag: &str| {
+        if !flags.iter().any(|f| f == flag) {
+            flags.push(flag.to_string());
+        }
+    };
+
+    ensure_flag("frag_keyframe");
+    ensure_flag("empty_moov");
+
+    container.movflags = Some(flags);
 }
 
 fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedTranscodeJob>> {
@@ -209,14 +252,33 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             if let Some(ref out) = job.output_path {
                 PathBuf::from(out)
             } else {
-                build_video_output_path(&input_path)
+                build_video_output_path(
+                    &input_path,
+                    preset
+                        .container
+                        .as_ref()
+                        .and_then(|c| c.format.as_deref()),
+                )
             }
         } else {
-            build_video_output_path(&input_path)
+            build_video_output_path(
+                &input_path,
+                preset
+                    .container
+                    .as_ref()
+                    .and_then(|c| c.format.as_deref()),
+            )
         }
     };
-    let (mut resume_from_seconds, mut existing_segments, tmp_output) =
-        plan_resume_paths(&input_path, media_info.duration_seconds, job_wait_metadata.as_ref());
+    let (mut resume_from_seconds, mut existing_segments, tmp_output) = plan_resume_paths(
+        &input_path,
+        media_info.duration_seconds,
+        job_wait_metadata.as_ref(),
+        preset
+            .container
+            .as_ref()
+            .and_then(|c| c.format.as_deref()),
+    );
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
     // in later if ffprobe is missing or fails on the current file.
@@ -310,6 +372,10 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         }
     }
 
+    // 为 mp4/mov 输出启用 fragmented MP4 片段写入，提高“暂停/崩溃后继续”场景下
+    // 临时分段文件的稳健性。最终完整输出的 concat 会基于这些分段进行无损拼接。
+    ensure_fragmented_movflags_for_mp4_like_output(&mut effective_preset, &output_path);
+
     Ok(Some(PreparedTranscodeJob {
         input_path,
         settings_snapshot,
@@ -337,8 +403,8 @@ mod process_prepare_tests {
     fn plan_resume_paths_uses_first_tmp_segment_for_initial_resume() {
         let dir = env::temp_dir();
         let input = dir.join("ffui_resume_plan_first.mp4");
-        let base_tmp = build_video_tmp_output_path(&input);
-        let resume_tmp = build_video_resume_tmp_output_path(&input);
+        let base_tmp = build_video_tmp_output_path(&input, None);
+        let resume_tmp = build_video_resume_tmp_output_path(&input, None);
 
         // 构造一次“首次暂停”的场景：存在基础临时输出段，并在 WaitMetadata 中记录。
         if let Some(parent) = base_tmp.parent() {
@@ -358,7 +424,7 @@ mod process_prepare_tests {
         };
 
         let (resume_from, existing, tmp_output) =
-            plan_resume_paths(&input, Some(100.0), Some(&meta));
+            plan_resume_paths(&input, Some(100.0), Some(&meta), None);
 
         assert!(
             (resume_from.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
@@ -382,8 +448,8 @@ mod process_prepare_tests {
     fn plan_resume_paths_builds_existing_segments_from_metadata() {
         let dir = env::temp_dir();
         let input = dir.join("ffui_resume_plan_multi.mp4");
-        let base_tmp = build_video_tmp_output_path(&input);
-        let resume_tmp = build_video_resume_tmp_output_path(&input);
+        let base_tmp = build_video_tmp_output_path(&input, None);
+        let resume_tmp = build_video_resume_tmp_output_path(&input, None);
 
         // 构造“再次继续”场景：已经存在两段历史分段文件，WaitMetadata.segments 中记录其路径。
         if let Some(parent) = base_tmp.parent() {
@@ -411,7 +477,7 @@ mod process_prepare_tests {
         };
 
         let (resume_from, existing, tmp_output) =
-            plan_resume_paths(&input, Some(100.0), Some(&meta));
+            plan_resume_paths(&input, Some(100.0), Some(&meta), None);
 
         assert!(
             (resume_from.unwrap_or(0.0) - 50.0).abs() < f64::EPSILON,
@@ -424,7 +490,7 @@ mod process_prepare_tests {
         );
         assert_eq!(
             tmp_output,
-            build_video_resume_tmp_output_path(&input),
+            build_video_resume_tmp_output_path(&input, None),
             "存在历史分段时应将新输出写入 resume 临时路径"
         );
 
