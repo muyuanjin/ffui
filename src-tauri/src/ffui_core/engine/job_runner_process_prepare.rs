@@ -1,3 +1,60 @@
+fn plan_resume_paths(
+    input_path: &Path,
+    media_duration: Option<f64>,
+    wait_meta: Option<&WaitMetadata>,
+) -> (Option<f64>, Option<PathBuf>, PathBuf) {
+    let base_tmp_output = build_video_tmp_output_path(input_path);
+    let resume_tmp_output = build_video_resume_tmp_output_path(input_path);
+
+    // Determine whether this run should resume from a previous partial output
+    // segment. When we have both a known temp output path and a meaningful
+    // processed duration, we treat the job as resumable; otherwise we fall
+    // back to a fresh transcode from 0%. 若发现 tmp_output_path 本身已经指向
+    // resume 临时文件，则说明是“再次继续”的场景，当前实现只支持单段拼接，此时
+    // 直接回退到完整重编码以避免后续 concat 使用同一个文件作为两段输入。
+    let mut resume_from_seconds: Option<f64> = None;
+    let mut existing_segment: Option<PathBuf> = None;
+
+    if let Some(meta) = wait_meta
+        && let Some(tmp) = meta.tmp_output_path.as_ref()
+    {
+        let path = PathBuf::from(tmp);
+        if path.exists() {
+            // 多次继续：已有的分段文件就是 resume 临时文件，无法再安全地做
+            // “老分段 + 新分段”的两段拼接，此时清理旧 resume 段并回退为完整
+            // 重编码。
+            if path == resume_tmp_output {
+                let _ = std::fs::remove_file(&path);
+                let _ = std::fs::remove_file(&base_tmp_output);
+            } else if let Some(processed) = meta.processed_seconds {
+                if processed.is_finite() && processed > 0.0 {
+                    resume_from_seconds = Some(processed);
+                    existing_segment = Some(path);
+                }
+            } else if let (Some(pct), Some(total)) = (meta.last_progress_percent, media_duration)
+                && pct.is_finite()
+                && pct > 0.0
+                && total.is_finite()
+                && total > 0.0
+            {
+                let processed = (pct / 100.0) * total;
+                if processed > 0.0 {
+                    resume_from_seconds = Some(processed);
+                    existing_segment = Some(path);
+                }
+            }
+        }
+    }
+
+    let tmp_output = if existing_segment.is_some() {
+        resume_tmp_output
+    } else {
+        base_tmp_output
+    };
+
+    (resume_from_seconds, existing_segment, tmp_output)
+}
+
 fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedTranscodeJob>> {
     let (
         input_path,
@@ -155,45 +212,8 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             build_video_output_path(&input_path)
         }
     };
-    let base_tmp_output = build_video_tmp_output_path(&input_path);
-    // Determine whether this run should resume from a previous partial output
-    // segment. When we have both a known temp output path and a meaningful
-    // processed duration, we treat the job as resumable; otherwise we fall
-    // back to a fresh transcode from 0%.
-    let mut resume_from_seconds: Option<f64> = None;
-    let mut existing_segment: Option<PathBuf> = None;
-
-    if let Some(meta) = job_wait_metadata
-        && let Some(tmp) = meta.tmp_output_path.as_ref()
-    {
-        let path = PathBuf::from(tmp);
-        if path.exists() {
-            if let Some(processed) = meta.processed_seconds {
-                if processed.is_finite() && processed > 0.0 {
-                    resume_from_seconds = Some(processed);
-                    existing_segment = Some(path);
-                }
-            } else if let (Some(pct), Some(total)) =
-                (meta.last_progress_percent, media_info.duration_seconds)
-                && pct.is_finite()
-                && pct > 0.0
-                && total.is_finite()
-                && total > 0.0
-            {
-                let processed = (pct / 100.0) * total;
-                if processed > 0.0 {
-                    resume_from_seconds = Some(processed);
-                    existing_segment = Some(path);
-                }
-            }
-        }
-    }
-
-    let tmp_output = if existing_segment.is_some() {
-        build_video_resume_tmp_output_path(&input_path)
-    } else {
-        base_tmp_output.clone()
-    };
+    let (mut resume_from_seconds, mut existing_segment, tmp_output) =
+        plan_resume_paths(&input_path, media_info.duration_seconds, job_wait_metadata.as_ref());
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
     // in later if ffprobe is missing or fails on the current file.
@@ -300,4 +320,102 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         ffmpeg_path: ffmpeg_path.clone(),
         ffmpeg_source: ffmpeg_source.clone(),
     }))
+}
+
+#[cfg(test)]
+mod process_prepare_tests {
+    use super::*;
+    use std::env;
+    use std::fs::{self, File};
+    use std::io::Write;
+
+    #[test]
+    fn plan_resume_paths_uses_temp_segment_for_first_resume() {
+        let dir = env::temp_dir();
+        let input = dir.join("ffui_resume_plan_first.mp4");
+        let base_tmp = build_video_tmp_output_path(&input);
+        let resume_tmp = build_video_resume_tmp_output_path(&input);
+
+        // 构造一次“首次暂停”的场景：存在基础临时输出段，并在 WaitMetadata 中记录。
+        if let Some(parent) = base_tmp.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        {
+            let mut file =
+                File::create(&base_tmp).expect("create base tmp segment for first resume test");
+            let _ = file.write_all(b"segment");
+        }
+
+        let meta = WaitMetadata {
+            last_progress_percent: None,
+            processed_seconds: Some(12.5),
+            tmp_output_path: Some(base_tmp.to_string_lossy().into_owned()),
+        };
+
+        let (resume_from, existing, tmp_output) =
+            plan_resume_paths(&input, Some(100.0), Some(&meta));
+
+        assert!(
+            (resume_from.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
+            "首次继续时应复用 WaitMetadata 中记录的 processed_seconds"
+        );
+        assert_eq!(
+            existing.as_deref(),
+            Some(base_tmp.as_path()),
+            "existing_segment 必须指向基础临时输出段"
+        );
+        assert_eq!(
+            tmp_output, resume_tmp,
+            "首次继续时应将新的输出写入 resume 临时路径"
+        );
+
+        let _ = fs::remove_file(&base_tmp);
+        let _ = fs::remove_file(&resume_tmp);
+    }
+
+    #[test]
+    fn plan_resume_paths_disables_resume_when_temp_is_resume_tmp() {
+        let dir = env::temp_dir();
+        let input = dir.join("ffui_resume_plan_multi.mp4");
+        let base_tmp = build_video_tmp_output_path(&input);
+        let resume_tmp = build_video_resume_tmp_output_path(&input);
+
+        // 构造“再次继续”场景：WaitMetadata.tmp_output_path 已指向 resume 临时文件。
+        if let Some(parent) = resume_tmp.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        {
+            let mut file =
+                File::create(&resume_tmp).expect("create resume tmp segment for multi-resume test");
+            let _ = file.write_all(b"segment");
+        }
+
+        let meta = WaitMetadata {
+            last_progress_percent: Some(50.0),
+            processed_seconds: Some(50.0),
+            tmp_output_path: Some(resume_tmp.to_string_lossy().into_owned()),
+        };
+
+        let (resume_from, existing, tmp_output) =
+            plan_resume_paths(&input, Some(100.0), Some(&meta));
+
+        assert!(
+            resume_from.is_none(),
+            "多次继续时应回退为从 0% 重编码，不再使用 offset"
+        );
+        assert!(
+            existing.is_none(),
+            "多次继续时不应再尝试拼接旧的 resume 段"
+        );
+        assert_eq!(
+            tmp_output, base_tmp,
+            "多次继续时应回到基础 tmp 输出路径进行完整重编码"
+        );
+        assert!(
+            !resume_tmp.exists(),
+            "禁用继续时应尽量清理残留的 resume 临时文件，避免后续 concat 误用"
+        );
+
+        let _ = fs::remove_file(&base_tmp);
+    }
 }

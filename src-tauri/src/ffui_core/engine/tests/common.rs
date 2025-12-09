@@ -58,6 +58,7 @@ pub(super) fn make_test_preset() -> FFmpegPreset {
         },
         advanced_enabled: Some(false),
         ffmpeg_template: None,
+        is_smart_preset: None,
     }
 }
 

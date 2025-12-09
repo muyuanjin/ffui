@@ -34,4 +34,6 @@ pub struct FFmpegPreset {
     pub stats: PresetStats,
     pub advanced_enabled: Option<bool>,
     pub ffmpeg_template: Option<String>,
+    /// 标记该预设是否为智能推荐预设（用户修改参数后会被清除）
+    pub is_smart_preset: Option<bool>,
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { GlobalConfig, LogLevel } from "@/types";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,6 +20,17 @@ const props = defineProps<{
 const globalConfig = props.globalConfig as any;
 
 const { t } = useI18n();
+
+// 计算当前覆盖策略的显示文字，用于 title 提示
+const overwriteBehaviorTitle = computed(() => {
+  const value = globalConfig.overwriteBehavior ?? "ask";
+  const map: Record<string, string> = {
+    ask: t("presetEditor.panel.overwriteAsk"),
+    overwrite: t("presetEditor.panel.overwriteYes"),
+    noOverwrite: t("presetEditor.panel.overwriteNo"),
+  };
+  return map[value] ?? "";
+});
 </script>
 
 <template>
@@ -36,7 +48,7 @@ const { t } = useI18n();
           :model-value="globalConfig.overwriteBehavior ?? 'ask'"
           @update:model-value="(value) => { globalConfig.overwriteBehavior = value as any; }"
         >
-          <SelectTrigger class="h-9 text-xs">
+          <SelectTrigger class="h-9 text-xs" :title="overwriteBehaviorTitle">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

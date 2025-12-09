@@ -191,6 +191,10 @@ const copyToClipboard = async (value: string | undefined | null) => {
 };
 
 const isSmartPreset = (preset: FFmpegPreset): boolean => {
+  // 优先使用显式的 isSmartPreset 字段，兼容旧数据使用 ID 前缀判断
+  if (typeof preset.isSmartPreset === "boolean") {
+    return preset.isSmartPreset;
+  }
   return typeof preset.id === "string" && preset.id.startsWith("smart-");
 };
 
@@ -283,12 +287,16 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset) }}</p>
           </div>
 
-          <!-- 命令预览 -->
-          <div class="flex-1 min-w-0 overflow-hidden">
-            <pre
-              class="rounded bg-background/80 border border-border/30 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-hidden text-ellipsis whitespace-nowrap select-text"
-              v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
-            />
+          <!-- 命令预览（紧凑视图：限制宽度，超长命令在内部横向滚动，避免撑开整行） -->
+          <div class="flex-1 min-w-0">
+            <div
+              class="w-full max-w-full rounded bg-background/80 border border-border/30 px-2 py-1 overflow-x-auto overflow-y-hidden scrollbar-thin"
+            >
+              <pre
+                class="text-[9px] font-mono text-muted-foreground whitespace-nowrap select-text"
+                v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
+              />
+            </div>
           </div>
 
           <!-- 统计信息 -->

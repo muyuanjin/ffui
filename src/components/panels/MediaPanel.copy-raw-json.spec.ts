@@ -92,3 +92,39 @@ describe("MediaPanel raw JSON actions", () => {
     expect(innerHtml).toContain("text-emerald-200"); // string 高亮
   });
 });
+
+describe("MediaPanel empty state interactions", () => {
+  const emptyProps = {
+    inspecting: false,
+    error: null,
+    inspectedPath: null,
+    previewUrl: null,
+    isImage: false,
+    analysis: null,
+    rawJson: null,
+  };
+
+  it("emits inspectRequested when clicking the empty state", async () => {
+    const wrapper = mount(MediaPanel, {
+      props: emptyProps,
+      global: { plugins: [i18n] },
+    });
+
+    const emptyState = wrapper.get("[data-testid='media-empty-state']");
+    await emptyState.trigger("click");
+
+    expect(wrapper.emitted("inspectRequested")).toBeTruthy();
+  });
+
+  it("emits inspectRequested when pressing Enter on the empty state", async () => {
+    const wrapper = mount(MediaPanel, {
+      props: emptyProps,
+      global: { plugins: [i18n] },
+    });
+
+    const emptyState = wrapper.get("[data-testid='media-empty-state']");
+    await emptyState.trigger("keydown.enter");
+
+    expect(wrapper.emitted("inspectRequested")).toBeTruthy();
+  });
+});
