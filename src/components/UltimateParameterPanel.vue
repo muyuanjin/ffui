@@ -3,6 +3,7 @@ import { ref } from "vue";
 import type { FFmpegPreset } from "../types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -64,10 +65,7 @@ const {
   handleParseTemplateFromCommand,
 } = usePresetEditor({ initialPreset: props.initialPreset, t });
 
-// Note: name and description are used internally by buildPresetFromState()
-// but not directly in the template, hence the void usage to satisfy TypeScript.
-void name;
-void description;
+// name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
 
 const handleSave = () => {
   emit("save", buildPresetFromState());
@@ -84,33 +82,54 @@ const handleSwitchToWizard = () => {
       class="bg-background w-full max-w-5xl rounded-xl shadow-2xl border border-border flex flex-col h-[min(640px,90vh)]"
       data-ffui-parameter-panel="root"
     >
-      <div class="p-6 border-b border-border flex justify-between items-center">
-        <div>
-          <h2 class="text-xl font-bold text-white">
-            {{ t("presetEditor.panel.title") }}
-          </h2>
-          <p class="text-muted-foreground text-xs mt-1">
-            {{ t("presetEditor.panel.subtitle") }}
-          </p>
+      <div class="p-6 border-b border-border">
+        <div class="flex justify-between items-start gap-4">
+          <!-- 左侧：可编辑的名称和描述 -->
+          <div class="flex-1 min-w-0 space-y-2">
+            <div class="flex items-center gap-3">
+              <Label class="text-xs text-muted-foreground whitespace-nowrap w-12">
+                {{ t("presetEditor.nameLabel") }}
+              </Label>
+              <Input
+                v-model="name"
+                :placeholder="t('presetEditor.namePlaceholder')"
+                class="h-8 text-base font-semibold flex-1"
+              />
+            </div>
+            <div class="flex items-center gap-3">
+              <Label class="text-xs text-muted-foreground whitespace-nowrap w-12">
+                {{ t("presetEditor.descriptionLabel") }}
+              </Label>
+              <Input
+                v-model="description"
+                :placeholder="t('presetEditor.descriptionPlaceholder')"
+                class="h-8 text-xs flex-1"
+              />
+            </div>
+          </div>
+          <!-- 右侧：操作按钮 -->
+          <div class="flex items-center gap-2 flex-shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-8 px-3 text-[11px]"
+              @click="handleSwitchToWizard"
+            >
+              {{ t("presetEditor.actions.backToWizard") }}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="text-muted-foreground hover:text-foreground"
+              @click="emit('cancel')"
+            >
+              ✕
+            </Button>
+          </div>
         </div>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-8 px-3 text-[11px]"
-            @click="handleSwitchToWizard"
-          >
-            {{ t("presetEditor.actions.backToWizard") }}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="text-muted-foreground hover:text-foreground"
-            @click="emit('cancel')"
-          >
-            ✕
-          </Button>
-        </div>
+        <p class="text-muted-foreground text-xs mt-3">
+          {{ t("presetEditor.panel.subtitle") }}
+        </p>
       </div>
 
       <Tabs

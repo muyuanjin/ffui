@@ -151,12 +151,42 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
   // ----- Methods -----
 
+  /**
+   * 检测编码参数是否被修改（不包括名称、描述等元数据）
+   * 用于判断是否应该清除智能推荐标记
+   */
+  const hasParametersChanged = (): boolean => {
+    const stringify = (obj: unknown) => JSON.stringify(obj ?? {});
+    // 比较各个参数配置是否与初始值相同
+    if (stringify(global) !== stringify(initialPreset.global ?? {})) return true;
+    if (stringify(input) !== stringify(initialPreset.input ?? {})) return true;
+    if (stringify(mapping) !== stringify(initialPreset.mapping ?? {})) return true;
+    if (stringify(video) !== stringify(initialPreset.video)) return true;
+    if (stringify(audio) !== stringify(initialPreset.audio)) return true;
+    if (stringify(filters) !== stringify(initialPreset.filters)) return true;
+    if (stringify(subtitles) !== stringify(initialPreset.subtitles ?? {})) return true;
+    if (stringify(container) !== stringify(initialPreset.container ?? {})) return true;
+    if (stringify(hardware) !== stringify(initialPreset.hardware ?? {})) return true;
+    if (advancedEnabled.value !== (initialPreset.advancedEnabled ?? false)) return true;
+    if (ffmpegTemplate.value.trim() !== (initialPreset.ffmpegTemplate ?? "").trim()) return true;
+    return false;
+  };
+
   const buildPresetFromState = (): FFmpegPreset => {
     const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
     // Remove libx264-specific 'tune' field when using other encoders.
     if (normalizedVideo.encoder !== "libx264") {
       delete (normalizedVideo as any).tune;
     }
+
+    // 判断是否保留智能推荐标记：
+    // - 如果原始预设是智能预设且参数未被修改，保留标记
+    // - 如果参数被修改了，清除标记（设为 false）
+    // - 名称和描述的修改不影响智能推荐标记
+    const wasSmartPreset = initialPreset.isSmartPreset === true ||
+      (typeof initialPreset.id === "string" && initialPreset.id.startsWith("smart-"));
+    const parametersChanged = hasParametersChanged();
+    const isSmartPreset = wasSmartPreset && !parametersChanged ? true : undefined;
 
     return {
       id: initialPreset.id,
@@ -174,6 +204,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
       advancedEnabled: advancedEnabled.value && ffmpegTemplate.value.trim().length > 0,
       ffmpegTemplate: ffmpegTemplate.value.trim() || undefined,
       stats: initialPreset.stats,
+      isSmartPreset,
     };
   };
 

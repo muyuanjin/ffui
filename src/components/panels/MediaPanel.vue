@@ -209,7 +209,13 @@ const copyRawJson = async () => {
 
     <div
       v-else
-      class="border border-dashed border-border/60 rounded-lg py-10 flex flex-col items-center justify-center text-sm text-muted-foreground"
+      class="border border-dashed border-border/60 rounded-lg py-10 flex flex-col items-center justify-center text-sm text-muted-foreground cursor-pointer transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      role="button"
+      tabindex="0"
+      @click="emit('inspectRequested')"
+      @keydown.enter.stop.prevent="emit('inspectRequested')"
+      @keydown.space.stop.prevent="emit('inspectRequested')"
+      data-testid="media-empty-state"
     >
       <p class="text-sm font-medium mb-1">
         {{ t("media.emptyTitle") }}

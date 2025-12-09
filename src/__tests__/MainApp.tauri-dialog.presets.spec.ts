@@ -114,6 +114,90 @@ describe("MainApp Tauri presets", () => {
     wrapper.unmount();
   });
 
+  it("replaces legacy defaults when smart preset onboarding imports a pack", async () => {
+    const backendPresets: FFmpegPreset[] = [
+      {
+        id: "p1",
+        name: "Universal 1080p",
+        description: "x264 Medium CRF 23. Standard for web.",
+        video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+        audio: { codec: "copy" },
+        filters: { scale: "-2:1080" },
+        stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      },
+      {
+        id: "p2",
+        name: "Archive Master",
+        description: "x264 Slow CRF 18. Near lossless.",
+        video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
+        audio: { codec: "copy" },
+        filters: {},
+        stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      },
+    ];
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_presets: () => backendPresets,
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      save_app_settings: ({ settings } = {}) => settings,
+      delete_preset: ({ presetId } = {}) => {
+        const id = (presetId as string) ?? "";
+        const idx = backendPresets.findIndex((p) => p.id === id);
+        if (idx >= 0) backendPresets.splice(idx, 1);
+        return [...backendPresets];
+      },
+      save_preset: ({ preset } = {}) => {
+        const next = (preset ?? {}) as FFmpegPreset;
+        const idx = backendPresets.findIndex((p) => p.id === next.id);
+        if (idx >= 0) backendPresets[idx] = next; else backendPresets.push(next);
+        return [...backendPresets];
+      },
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
+
+    const imported: FFmpegPreset[] = [
+      {
+        id: "smart-hevc-fast",
+        name: "H.265 Fast NVENC",
+        description: "快速分享预设",
+        video: { encoder: "hevc_nvenc", rateControl: "cq", qualityValue: 28, preset: "p5" },
+        audio: { codec: "copy" },
+        filters: {},
+        stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      },
+    ];
+
+    await vm.handleImportSmartPackConfirmed(imported);
+    await nextTick();
+
+    const presetIds: string[] = (vm.presets ?? vm.presets?.value ?? []).map((p: FFmpegPreset) => p.id);
+    expect(presetIds).toEqual(["smart-hevc-fast"]);
+    expect(backendPresets.map((p) => p.id)).toEqual(["smart-hevc-fast"]);
+    expect(vm.manualJobPresetId).toBe("smart-hevc-fast");
+
+    const deleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_preset");
+    const deletedIds = deleteCalls.map(([, payload]) => {
+      const p = (payload ?? {}) as Record<string, unknown>;
+      return (p.presetId as string) ?? (p.preset_id as string);
+    });
+    expect(deletedIds.sort()).toEqual(["p1", "p2"]);
+
+    const saveCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "save_preset");
+    expect(saveCalls.length).toBe(1);
+
+    wrapper.unmount();
+  });
+
   it("restores and persists the queue default preset via AppSettings in Tauri mode", async () => {
     const backendPresets: FFmpegPreset[] = [
       {

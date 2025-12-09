@@ -182,6 +182,8 @@ impl From<SerializablePreset> for FFmpegPreset {
             stats: value.stats,
             advanced_enabled: value.advanced_enabled,
             ffmpeg_template: value.ffmpeg_template,
+            // 从 JSON 加载的智能预设默认标记为智能推荐
+            is_smart_preset: Some(true),
         }
     }
 }

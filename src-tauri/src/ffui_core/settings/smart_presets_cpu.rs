@@ -68,6 +68,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
             stats: empty_stats(),
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: Some(true),
         },
         FFmpegPreset {
             id: "smart-hevc-archive".to_string(),
@@ -121,6 +122,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
             stats: empty_stats(),
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: Some(true),
         },
         FFmpegPreset {
             id: "smart-av1-fast".to_string(),
@@ -176,6 +178,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
             stats: empty_stats(),
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: Some(true),
         },
         FFmpegPreset {
             id: "smart-av1-archive".to_string(),
@@ -231,6 +234,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
             stats: empty_stats(),
             advanced_enabled: Some(false),
             ffmpeg_template: None,
+            is_smart_preset: Some(true),
         },
     ]
 }

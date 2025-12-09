@@ -26,7 +26,10 @@ export interface UseMainAppPresetsReturn {
   presetPendingDelete: Ref<FFmpegPreset | null>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
-  handleImportSmartPackConfirmed: (presetsToImport: FFmpegPreset[]) => Promise<void>;
+  handleImportSmartPackConfirmed: (
+    presetsToImport: FFmpegPreset[],
+    options?: { replaceExisting?: boolean },
+  ) => Promise<void>;
   updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
@@ -66,6 +69,8 @@ const INITIAL_PRESETS: FFmpegPreset[] = [
     },
   },
 ];
+
+const LEGACY_DEFAULT_PRESET_IDS = new Set(INITIAL_PRESETS.map((preset) => preset.id));
 
 /**
  * Preset list, default preset selection, and delete-confirm dialog wiring.
@@ -285,8 +290,68 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     }
   };
 
-  const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
+  const handleImportSmartPackConfirmed = async (
+    presetsToImport: FFmpegPreset[],
+    options?: { replaceExisting?: boolean },
+  ) => {
     if (!Array.isArray(presetsToImport) || presetsToImport.length === 0) return;
+
+    const dedupedById = new Map<string, FFmpegPreset>();
+    for (const preset of presetsToImport) {
+      if (!dedupedById.has(preset.id)) {
+        // 导入时标记为智能推荐预设
+        dedupedById.set(preset.id, { ...preset, isSmartPreset: true });
+      }
+    }
+    const selectedPresets = Array.from(dedupedById.values());
+    const selectedIds = new Set(selectedPresets.map((preset) => preset.id));
+
+    const onlyLegacyDefaults =
+      presets.value.length === LEGACY_DEFAULT_PRESET_IDS.size &&
+      presets.value.every((preset) => LEGACY_DEFAULT_PRESET_IDS.has(preset.id));
+
+    const shouldReplaceExisting = options?.replaceExisting || onlyLegacyDefaults;
+
+    if (shouldReplaceExisting) {
+      const idsToRemove = presets.value
+        .filter((preset) => !selectedIds.has(preset.id))
+        .map((preset) => preset.id);
+
+      let latestPresets = selectedPresets;
+
+      if (hasTauri()) {
+        // 先删掉旧的（尤其是 legacy 默认），再保存用户选择的，保持后端状态一致。
+        for (const id of idsToRemove) {
+          try {
+            const updated = await deletePresetOnBackend(id);
+            if (Array.isArray(updated) && updated.length > 0) {
+              latestPresets = updated.filter((preset) => selectedIds.has(preset.id));
+            }
+          } catch (e) {
+            console.error("Failed to delete legacy preset on backend:", e);
+          }
+        }
+
+        for (const preset of selectedPresets) {
+          try {
+            const updated = await savePresetOnBackend(preset);
+            if (Array.isArray(updated) && updated.length > 0) {
+              latestPresets = updated;
+            }
+          } catch (e) {
+            console.error("Failed to save smart-pack preset to backend:", e);
+          }
+        }
+      }
+
+      presets.value = latestPresets;
+      ensureManualPresetId();
+
+      if (shell) {
+        shell.activeTab.value = "presets";
+      }
+      return;
+    }
 
     for (const preset of presetsToImport) {
       const idx = presets.value.findIndex((p) => p.id === preset.id);

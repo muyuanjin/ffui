@@ -87,6 +87,17 @@ fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
 }
 
 #[test]
+fn default_presets_ids_remain_stable_for_onboarding_replacement() {
+    let presets = default_presets();
+    let ids: Vec<&str> = presets.iter().map(|p| p.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        vec!["p1", "p2"],
+        "legacy defaults (p1/p2) must keep stable ids so onboarding can replace them safely"
+    );
+}
+
+#[test]
 fn app_settings_default_uses_preview_capture_percent_25() {
     let settings = AppSettings::default();
     assert_eq!(

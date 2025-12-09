@@ -162,7 +162,10 @@ export function useMainAppSetup() {
   };
 
   const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
-    await presetsModule.handleImportSmartPackConfirmed(presetsToImport);
+    const shouldReplaceExisting = !settings.appSettings.value?.onboardingCompleted;
+    await presetsModule.handleImportSmartPackConfirmed(presetsToImport, {
+      replaceExisting: shouldReplaceExisting,
+    });
     await markOnboardingCompleted();
   };
 
