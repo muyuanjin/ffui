@@ -174,9 +174,27 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
   const buildPresetFromState = (): FFmpegPreset => {
     const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
-    // Remove libx264-specific 'tune' field when using other encoders.
+    // 只在可以确定是 x264 专用取值时，才在非 x264 编码器上清理 tune，避免误删 NVENC/AV1 的 hq 等合法调优参数。
     if (normalizedVideo.encoder !== "libx264") {
-      delete (normalizedVideo as any).tune;
+      const rawTune = (normalizedVideo as any).tune as string | undefined;
+      if (typeof rawTune === "string" && rawTune.trim().length > 0) {
+        const x264OnlyTunes = [
+          "film",
+          "animation",
+          "grain",
+          "stillimage",
+          "psnr",
+          "ssim",
+          "fastdecode",
+          "zerolatency",
+        ];
+        if (x264OnlyTunes.includes(rawTune)) {
+          delete (normalizedVideo as any).tune;
+        }
+      } else if (rawTune === undefined) {
+        // 避免把 value 为 undefined 的 tune 透传给后端，保持结构简洁。
+        delete (normalizedVideo as any).tune;
+      }
     }
 
     // 判断是否保留智能推荐标记：

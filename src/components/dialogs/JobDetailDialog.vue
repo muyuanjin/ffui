@@ -356,6 +356,9 @@ const unknownPresetLabel = computed(() => {
                   </Button>
                 </div>
               </div>
+              <p class="text-[10px] text-muted-foreground">
+                {{ t("taskDetail.commandHint") }}
+              </p>
               <div v-if="jobDetailEffectiveCommand" data-testid="task-detail-command">
                 <pre
                   class="max-h-32 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"

@@ -164,8 +164,10 @@ export const buildFfmpegCommandFromStructured = (
   } else {
     args.push("-c:v", v.encoder);
 
-    // 速率控制：质量优先（CRF/CQ）与码率优先（CBR/VBR + two-pass）互斥。
-    if (v.rateControl === "crf" || v.rateControl === "cq") {
+    // 速率控制：质量优先（CRF/CQ/ConstQP）与码率优先（CBR/VBR + two-pass）互斥。
+    if (v.rateControl === "constqp") {
+      args.push("-rc", "constqp", "-qp", String(v.qualityValue));
+    } else if (v.rateControl === "crf" || v.rateControl === "cq") {
       args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
     } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
       if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
@@ -202,6 +204,18 @@ export const buildFfmpegCommandFromStructured = (
     }
     if (typeof v.pixFmt === "string" && v.pixFmt.trim().length > 0) {
       args.push("-pix_fmt", v.pixFmt.trim());
+    }
+    if (typeof v.bRefMode === "string" && v.bRefMode.trim().length > 0) {
+      args.push("-b_ref_mode", v.bRefMode.trim());
+    }
+    if (typeof v.rcLookahead === "number" && Number.isFinite(v.rcLookahead) && v.rcLookahead > 0) {
+      args.push("-rc-lookahead", String(v.rcLookahead));
+    }
+    if (v.spatialAq === true) {
+      args.push("-spatial-aq", "1");
+    }
+    if (v.temporalAq === true) {
+      args.push("-temporal-aq", "1");
     }
   }
 

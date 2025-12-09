@@ -67,6 +67,38 @@
       "defaultSelected": true
     },
     {
+      "id": "smart-av1-nvenc-hq-constqp18-copy",
+      "name": "AV1 NVENC HQ ConstQP18 (Copy Audio)",
+      "description": "RTX40+/Ada 视觉无损（音频复制版）：AV1 NVENC constqp18 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频流原样复制。",
+      "descriptionI18n": {
+        "zh-CN": "RTX40+/Ada 视觉无损（音频复制版）：AV1 NVENC constqp18 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频流原样复制。",
+        "en": "RTX 40+/Ada near-lossless (audio copy): AV1 NVENC constqp18 p7 HQ, 10-bit, B-ref each, rc-lookahead 32, AQ on; audio stream copied without re-encode."
+      },
+      "video": {
+        "encoder": "av1_nvenc",
+        "rateControl": "constqp",
+        "qualityValue": 18,
+        "preset": "p7",
+        "tune": "hq",
+        "pixFmt": "p010le",
+        "bRefMode": "each",
+        "rcLookahead": 32,
+        "bf": 3,
+        "spatialAq": true,
+        "temporalAq": true
+      },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "match": { "gpu": { "available": true, "vendor": "nvidia" } },
+      "priority": 97,
+      "defaultSelected": false
+    },
+    {
       "id": "smart-hevc-nvenc-hq-constqp19",
       "name": "H.265 NVENC HQ ConstQP19",
       "description": "RTX 有 NVENC 时的高质量 HEVC：constqp19 p7 HQ，10-bit，B-ref each，rc-lookahead 32，AQ 开，音频复制。",
