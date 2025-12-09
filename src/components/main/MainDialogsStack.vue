@@ -51,6 +51,9 @@ const emit = defineEmits<{
   (e: "copyToClipboard", value: string): void;
   (e: "openJobPreviewFromQueue", job: TranscodeJob): void;
   (e: "handleCancelJob", jobId: string): void;
+  (e: "handleWaitJob", jobId: string): void;
+  (e: "handleResumeJob", jobId: string): void;
+  (e: "handleRestartJob", jobId: string): void;
   (e: "closeBatchDetail"): void;
   (e: "handleExpandedPreviewError"): void;
   (e: "handleExpandedImagePreviewError"): void;
@@ -113,6 +116,9 @@ const emit = defineEmits<{
     @inspect-job="emit('openJobPreviewFromQueue', $event)"
     @preview-job="emit('openJobPreviewFromQueue', $event)"
     @cancel-job="emit('handleCancelJob', $event)"
+    @wait-job="emit('handleWaitJob', $event)"
+    @resume-job="emit('handleResumeJob', $event)"
+    @restart-job="emit('handleRestartJob', $event)"
   />
 
   <ExpandedPreviewDialog

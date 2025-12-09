@@ -11,7 +11,7 @@ fn execute_transcode_job(
         preset_id,
         output_path,
         resume_from_seconds,
-        existing_segment,
+        existing_segments,
         tmp_output,
         mut total_duration,
         ffmpeg_path,
@@ -50,6 +50,10 @@ fn execute_transcode_job(
         .stdout(Stdio::null())
         .spawn()
         .with_context(|| format!("failed to spawn ffmpeg for {}", input_path.display()))?;
+
+    // 将 ffmpeg 子进程添加到 Job Object，确保父进程退出时子进程也会被终止
+    // 这对于用户强制关闭 FFUI 的场景尤为重要
+    assign_child_to_job(child.id());
 
     let start_time = SystemTime::now();
 
@@ -231,18 +235,21 @@ fn execute_transcode_job(
 
     let final_output_size_bytes: u64;
 
-    if let Some(existing) = existing_segment {
-        // Resumed job: concat the previous partial segment with the new
+    if !existing_segments.is_empty() {
+        // Resumed job: concat all previous partial segments with the new
         // segment produced in this run into a temporary target, then atomically
-        // move it into place. This avoids corrupting the previous partial when
-        // concat fails.
+        // move it into place. This avoids corrupting any existing partial when
+        // concat fails。
         let ext = output_path
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("mp4");
         let concat_tmp = output_path.with_extension(format!("concat.tmp.{ext}"));
 
-        if let Err(err) = concat_video_segments(&ffmpeg_path, &existing, &tmp_output, &concat_tmp) {
+        let mut all_segments = existing_segments.clone();
+        all_segments.push(tmp_output.clone());
+
+        if let Err(err) = concat_video_segments(&ffmpeg_path, &all_segments, &concat_tmp) {
             {
                 let mut state = inner.state.lock().expect("engine state poisoned");
                 if let Some(job) = state.jobs.get_mut(job_id) {
@@ -272,8 +279,9 @@ fn execute_transcode_job(
             });
         }
 
-        let _ = fs::remove_file(&existing);
-        let _ = fs::remove_file(&tmp_output);
+        for seg in all_segments {
+            let _ = fs::remove_file(&seg);
+        }
 
         final_output_size_bytes = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
     } else {

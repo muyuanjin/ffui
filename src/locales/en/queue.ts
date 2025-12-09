@@ -70,6 +70,8 @@ const queue = {
     invert: "Invert selection",
     clear: "Clear selection",
     selectedCount: "Selected {count} job(s)",
+    pin: "Pin toolbar",
+    unpin: "Unpin toolbar",
   },
   sort: {
     label: "Sort",

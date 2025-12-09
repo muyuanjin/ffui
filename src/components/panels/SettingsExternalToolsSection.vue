@@ -236,7 +236,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
             <div
               v-for="candidate in currentCandidates"
               :key="candidate.path"
-              class="flex items-center gap-1.5"
+              class="flex items-center gap-1.5 py-0.5 border-t border-border/20 first:border-t-0"
             >
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-1">

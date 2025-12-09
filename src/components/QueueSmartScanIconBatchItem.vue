@@ -9,11 +9,24 @@ const props = defineProps<{
   batch: CompositeSmartScanTask;
   size: "small" | "medium" | "large";
   progressStyle?: QueueProgressStyle;
+  /**
+   * 是否可以选中该复合任务卡片，用于批量操作
+   */
+  canSelect?: boolean;
+  /**
+   * 选中状态，由父组件驱动
+   */
+  selected?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "open-detail", batch: CompositeSmartScanTask): void;
+  (e: "toggle-select", batchId: string): void;
+  (e: "contextmenu-batch", payload: { batch: CompositeSmartScanTask; event: MouseEvent }): void;
 }>();
+
+const isSelectable = computed(() => props.canSelect === true);
+const isSelected = computed(() => !!props.selected);
 
 const { t } = useI18n();
 
@@ -116,16 +129,30 @@ const firstPreviewUrl = computed<string | null>(() => {
 const progressLabel = computed(() => `${Math.round(clampedProgress.value)}%`);
 
 const onClick = () => {
-  emit("open-detail", props.batch);
+  if (isSelectable.value) {
+    emit("toggle-select", props.batch.batchId);
+  } else {
+    emit("open-detail", props.batch);
+  }
+};
+
+const onContextMenu = (event: MouseEvent) => {
+  emit("contextmenu-batch", { batch: props.batch, event });
 };
 </script>
 
 <template>
   <div
-    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-colors cursor-pointer"
-    :class="rootSizeClass"
+    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-all cursor-pointer ring-0"
+    :class="[
+      rootSizeClass,
+      isSelectable && isSelected
+        ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5'
+        : '',
+    ]"
     data-testid="queue-icon-batch-item"
     @click="onClick"
+    @contextmenu.prevent.stop="onContextMenu"
   >
     <div
       class="relative w-full bg-muted/40"
@@ -164,7 +191,29 @@ const onClick = () => {
         </span>
       </div>
 
+      <!-- 选中指示器 -->
       <div
+        v-if="isSelectable"
+        class="absolute top-1 right-1 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all z-10"
+        :class="isSelected
+          ? 'bg-amber-500 border-amber-500 text-white'
+          : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'"
+        @click.stop="emit('toggle-select', batch.batchId)"
+      >
+        <svg
+          v-if="isSelected"
+          class="h-3 w-3"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="3"
+        >
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+
+      <div
+        v-else
         class="absolute top-1 right-1 text-[10px] font-mono text-muted-foreground bg-background/80 rounded-full px-1.5 py-0.5"
       >
         {{ progressLabel }}
@@ -218,7 +267,7 @@ const onClick = () => {
       </p>
       <p class="relative mt-0.5 text-[10px] text-muted-foreground truncate">
         {{ videosCount }} {{ t("queue.typeVideo") }} / {{ imagesCount }} {{ t("queue.typeImage") }} ·
-        {{ t("queue.status.completed") }} {{ batch.completedCount }} / {{ batch.totalCount }}
+        {{ t("queue.status.completed") }} {{ batch.completedCount }} / {{ batch.totalCount - batch.skippedCount }}
       </p>
     </div>
   </div>

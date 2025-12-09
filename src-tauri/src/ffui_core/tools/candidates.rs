@@ -17,6 +17,13 @@ pub fn tool_candidates(
     let runtime = snapshot_download_state(kind);
 
     let mut candidates: Vec<(String, String)> = Vec::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let mut push_candidate = |path: String, source: &str| {
+        if seen.insert(path.clone()) {
+            candidates.push((path, source.to_string()));
+        }
+    };
 
     if let Some(custom_raw) = custom_path_for(kind, settings) {
         let expanded = if looks_like_bare_program_name(&custom_raw) {
@@ -26,33 +33,28 @@ pub fn tool_candidates(
         } else {
             custom_raw
         };
-        candidates.push((expanded, "custom".to_string()));
+        push_candidate(expanded, "custom");
     }
 
     if !runtime.download_arch_incompatible
         && let Some(downloaded) = downloaded_tool_path(kind)
     {
-        candidates.push((
-            downloaded.to_string_lossy().into_owned(),
-            "download".to_string(),
-        ));
+        push_candidate(downloaded.to_string_lossy().into_owned(), "download");
     }
 
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or(bin.clone());
-    candidates.push((path_candidate.clone(), "path".to_string()));
+    push_candidate(path_candidate.clone(), "path");
 
     // Add additional discovered paths (env overrides, registry, indexers).
-    // We mark them as "path" source for UI consistency.
-    let mut seen = std::collections::HashSet::new();
-    seen.insert(path_candidate);
+    // 这里通过 `seen` 集合与上面已经加入的 custom/download/path 做统一去重，
+    // 避免 Everything SDK 把同一个 exe 再次作为 "everything" 来源插入，导致
+    // 前端候选列表出现“同一路径多次重复”的情况。
     for discovered in discover_candidates(&bin, kind) {
         let s = discovered.path.to_string_lossy().into_owned();
-        if seen.insert(s.clone()) {
-            candidates.push((s, discovered.source.to_string()));
-        }
+        push_candidate(s, discovered.source);
     }
 
     let mut result: Vec<ExternalToolCandidate> = Vec::new();

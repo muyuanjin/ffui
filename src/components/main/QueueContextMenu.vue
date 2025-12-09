@@ -6,8 +6,9 @@
     @contextmenu.prevent
   >
     <div
+      ref="menuRef"
       class="absolute z-50 min-w-[180px] rounded-md border border-border bg-popover text-xs shadow-md py-1"
-      :style="{ left: `${x}px`, top: `${y}px` }"
+      :style="{ left: `${displayX}px`, top: `${displayY}px` }"
       @click.stop
       data-testid="queue-context-menu"
     >
@@ -294,7 +295,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { JobStatus, QueueMode } from "@/types";
 
@@ -326,6 +327,36 @@ const emit = defineEmits<{
 void emit;
 
 const { t } = useI18n();
+const menuRef = ref<HTMLElement | null>(null);
+const displayX = ref(props.x);
+const displayY = ref(props.y);
+
+const clampToViewport = () => {
+  const padding = 8;
+  const menuEl = menuRef.value;
+  const rect = menuEl?.getBoundingClientRect();
+  const menuWidth = rect?.width || menuEl?.offsetWidth || 0;
+  const menuHeight = rect?.height || menuEl?.offsetHeight || 0;
+
+  const maxLeft = Math.max(padding, window.innerWidth - menuWidth - padding);
+  const maxTop = Math.max(padding, window.innerHeight - menuHeight - padding);
+
+  displayX.value = Math.min(Math.max(props.x, padding), maxLeft);
+  displayY.value = Math.min(Math.max(props.y, padding), maxTop);
+};
+
+watch(
+  () => [props.visible, props.x, props.y],
+  async ([visible]) => {
+    displayX.value = props.x;
+    displayY.value = props.y;
+
+    if (!visible) return;
+    await nextTick();
+    clampToViewport();
+  },
+  { immediate: true },
+);
 
 const isQueueMode = computed(() => props.queueMode === "queue");
 const status = computed<JobStatus | undefined>(() => props.jobStatus);

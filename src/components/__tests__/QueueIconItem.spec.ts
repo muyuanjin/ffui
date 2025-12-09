@@ -269,6 +269,31 @@ describe("QueueIconItem", () => {
     expect(aboveEl.style.width).toBe("100%");
   });
 
+  it("keeps the progress bar in normal flow to avoid overlapping caption text", () => {
+    const job = makeJob({
+      status: "completed",
+      progress: 100,
+      previewPath: "C:/app-data/previews/icon.jpg",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const progressContainer = wrapper.get(
+      "[data-testid='queue-icon-item-progress-container']",
+    );
+    expect(progressContainer.classes()).toContain("mt-1.5");
+    expect(progressContainer.classes()).not.toContain("absolute");
+  });
+
   it("treats cancelled jobs as fully progressed for icon cards to match aggregated header progress", () => {
     const cancelledJob = makeJob({
       status: "cancelled",

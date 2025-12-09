@@ -153,6 +153,14 @@ describe("MainApp queue delete behaviour", () => {
     expect(deletedIds).toContain("job-completed");
     expect(deletedIds).not.toContain("job-processing");
 
+    // When some selected jobs are still active,已经完成的任务会被删除，
+    // 但应提示用户“正在运行或排队中的任务不能直接从列表删除”而不是“部分任务删除失败”。
+    const error =
+      (vm.queueError ?? vm.queueError?.value) ??
+      null;
+    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    expect(error).toBe(expected);
+
     wrapper.unmount();
   });
 });

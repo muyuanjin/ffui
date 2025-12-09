@@ -28,7 +28,21 @@ export function recomputeJobsFromBackend(
   backendJobs: TranscodeJob[],
   deps: Pick<StateSyncDeps, "jobs" | "smartScanJobs">,
 ) {
-  deps.jobs.value = [...deps.smartScanJobs.value, ...backendJobs];
+  const smartScanJobs = deps.smartScanJobs.value ?? [];
+
+  // 为了兼容早期“前端临时 Smart Scan 队列 + 后端队列合并”的设计，这里仍然
+  // 会把 smartScanJobs 拼在后端快照前面，但必须按 id 去重：
+  // - 如果某个 Smart Scan 任务已经出现在 backendJobs 中，就以后端快照为准，
+  //   避免在每次队列事件到来时成倍复制同一批任务（导致“任务数量无限增长”）。
+  if (!smartScanJobs.length) {
+    deps.jobs.value = [...backendJobs];
+    return;
+  }
+
+  const backendIds = new Set(backendJobs.map((job) => job.id));
+  const localOnlySmartScanJobs = smartScanJobs.filter((job) => !backendIds.has(job.id));
+
+  deps.jobs.value = [...localOnlySmartScanJobs, ...backendJobs];
 }
 
 /**

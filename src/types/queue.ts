@@ -53,6 +53,11 @@ export interface WaitMetadata {
   processedSeconds?: number;
   /** Path to a partial or temporary output file captured during processing. */
   tmpOutputPath?: string;
+  /**
+   * Ordered list of partial output segment paths accumulated across pauses.
+   * 对于仅有一次暂停的旧任务，该字段可能缺失，此时仍需回退到 tmpOutputPath。
+   */
+  segments?: string[];
 }
 
 export interface TranscodeJob {

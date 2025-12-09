@@ -203,7 +203,7 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
 </script>
 
 <template>
-  <div class="w-full max-w-6xl mx-auto px-4">
+  <div class="w-full max-w-6xl mx-auto px-4 overflow-x-hidden">
     <!-- Header with hint and actions -->
     <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0 flex-shrink">
@@ -299,8 +299,10 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             </div>
           </div>
 
-          <!-- 统计信息 -->
-          <div class="flex items-center gap-2 text-[10px] text-muted-foreground flex-shrink-0">
+          <!-- 统计信息（固定宽度，保证命令预览区域在各行之间宽度一致） -->
+          <div
+            class="flex items-center justify-end gap-2 text-[10px] text-muted-foreground flex-shrink-0 w-32"
+          >
             <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
             <span v-if="getPresetAvgRatio(preset) !== null" class="text-primary font-medium">
               {{ getPresetAvgRatio(preset)?.toFixed(0) }}%
@@ -435,15 +437,20 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             />
           </div>
 
-          <!-- Stats Row -->
+          <!-- Stats Row：强制单行显示，防止部分卡片因长统计文本换行导致高度不一致 -->
           <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30">
             <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
-            <div class="flex gap-2 items-center">
-              <span>{{ t("presets.totalIn", { gb: (preset.stats.totalInputSizeMB / 1024).toFixed(1) }) }}</span>
-              <span v-if="getPresetAvgRatio(preset) !== null" class="text-primary font-medium">
+            <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
+              <span class="truncate">
+                {{ t("presets.totalIn", { gb: (preset.stats.totalInputSizeMB / 1024).toFixed(1) }) }}
+              </span>
+              <span
+                v-if="getPresetAvgRatio(preset) !== null"
+                class="text-primary font-medium truncate"
+              >
                 {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
               </span>
-              <span v-if="getPresetAvgSpeed(preset) !== null">
+              <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
                 {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
               </span>
             </div>

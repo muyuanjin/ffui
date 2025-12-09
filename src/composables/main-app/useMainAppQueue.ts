@@ -388,10 +388,16 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
       }
     }
 
-    if (anyFailed || nonTerminalJobs.length > 0) {
+    if (anyFailed) {
+      // 仅在真正的后端删除失败（返回 false 或抛异常）时，提示“部分任务删除失败”。
       queueError.value =
         (t("queue.error.deleteFailed") as string) ??
         "Failed to delete some jobs from queue.";
+    } else if (nonTerminalJobs.length > 0) {
+      // 当存在仍在运行/排队中的任务时，删除已完成任务，但提示用户这些活动任务不能直接删除。
+      queueError.value =
+        (t("queue.error.deleteActiveNotAllowed") as string) ??
+        "Cannot delete jobs that are still running; please stop them first.";
     } else {
       queueError.value = null;
     }

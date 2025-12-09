@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
@@ -132,5 +133,51 @@ describe("QueueContextMenu", () => {
 
     expect(wrapper.emitted("wait")).toBeTruthy();
     expect(wrapper.emitted("close")).toBeTruthy();
+  });
+
+  it("clamps menu position to keep it inside the viewport", async () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 200 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 200 });
+
+    try {
+      const wrapper = mount(QueueContextMenu, {
+        props: {
+          visible: true,
+          x: 190,
+          y: 190,
+          mode: "single",
+          jobStatus: "processing",
+          queueMode: "queue",
+          hasSelection: true,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      const menuEl = wrapper.get("[data-testid='queue-context-menu']").element as HTMLElement;
+      vi.spyOn(menuEl, "getBoundingClientRect").mockReturnValue({
+        width: 120,
+        height: 120,
+        top: 0,
+        left: 0,
+        right: 120,
+        bottom: 120,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      });
+
+      await nextTick();
+      await nextTick();
+
+      expect(menuEl.style.left).toBe("72px");
+      expect(menuEl.style.top).toBe("72px");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
+    }
   });
 });
