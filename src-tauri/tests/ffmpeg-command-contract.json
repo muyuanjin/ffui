@@ -220,6 +220,130 @@
       "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel warning -hide_banner -i INPUT -map 0 -c:v libsvtav1 -crf 34 -preset 6 -g 240 -bf 3 -pix_fmt yuv420p10le -c:a aac -b:a 160k -ar 48000 -ac 2 -channel_layout stereo -vf scale=-2:1080,fps=30 -f matroska OUTPUT"
     },
     {
+      "id": "av1-nvenc-constqp18-hq-aq",
+      "preset": {
+        "id": "contract-av1-nvenc-constqp18-hq-aq",
+        "name": "Contract AV1 NVENC constqp18 HQ with AQ",
+        "description": "AV1 NVENC constqp18 p7 HQ, 10-bit, B-ref each, rc-lookahead 32, spatial/temporal AQ on, audio AAC 320k with EBU loudness.",
+        "global": null,
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "av1_nvenc",
+          "rateControl": "constqp",
+          "qualityValue": 18,
+          "preset": "p7",
+          "tune": "hq",
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": null,
+          "bf": 3,
+          "pixFmt": "p010le",
+          "bRefMode": "each",
+          "rcLookahead": 32,
+          "spatialAq": true,
+          "temporalAq": true
+        },
+        "audio": {
+          "codec": "aac",
+          "bitrate": 320,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "ebuR128",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": -1.0
+        },
+        "filters": {
+          "scale": null,
+          "crop": null,
+          "fps": null,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": null,
+        "container": null,
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -i INPUT -map 0 -c:v av1_nvenc -rc constqp -qp 18 -preset p7 -tune hq -bf 3 -pix_fmt p010le -b_ref_mode each -rc-lookahead 32 -spatial-aq 1 -temporal-aq 1 -c:a aac -b:a 320k -af loudnorm=I=-23:LRA=7:TP=-1:print_format=summary OUTPUT"
+    },
+    {
+      "id": "hevc-nvenc-constqp19-hq-aq-copy",
+      "preset": {
+        "id": "contract-hevc-nvenc-constqp19-hq-aq-copy",
+        "name": "Contract HEVC NVENC constqp19 HQ with AQ (audio copy)",
+        "description": "HEVC NVENC constqp19 p7 HQ, 10-bit, B-ref each, rc-lookahead 32, spatial/temporal AQ on; audio stream copy.",
+        "global": null,
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "hevc_nvenc",
+          "rateControl": "constqp",
+          "qualityValue": 19,
+          "preset": "p7",
+          "tune": "hq",
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": 120,
+          "bf": 3,
+          "pixFmt": "yuv420p10le",
+          "bRefMode": "each",
+          "rcLookahead": 32,
+          "spatialAq": true,
+          "temporalAq": true
+        },
+        "audio": {
+          "codec": "copy",
+          "bitrate": null,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": null,
+          "crop": null,
+          "fps": null,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": null,
+        "container": null,
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -i INPUT -map 0 -c:v hevc_nvenc -rc constqp -qp 19 -preset p7 -tune hq -g 120 -bf 3 -pix_fmt yuv420p10le -b_ref_mode each -rc-lookahead 32 -spatial-aq 1 -temporal-aq 1 -c:a copy OUTPUT"
+    },
+    {
       "id": "stream-copy-remux",
       "preset": {
         "id": "contract-stream-copy-remux",

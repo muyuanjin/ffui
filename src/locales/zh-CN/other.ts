@@ -97,6 +97,8 @@ const other = {
       showFull: "显示完整命令",
       showTemplate: "显示模板视图",
     },
+    commandHint:
+      "「模板视图」保留 INPUT/OUTPUT 占位符和标准化的程序名；「完整命令」展示后端实际执行的调用。二者除了输入/输出路径和进度参数外，其余编码参数应与所选预设保持一致。",
     copyCommand: "复制命令",
     copyTemplateCommand: "复制模板命令",
     commandFallback: "该任务没有可用的完整命令行。",
@@ -151,9 +153,13 @@ const other = {
     audioLabel: "音频",
     audioCopy: "复制",
     audioAac: "AAC {kbps}k",
+    audioAacLoudnormEbu: "AAC {kbps}k + EBU 响度",
+    audioAacLoudnormCn: "AAC {kbps}k + 广电响度",
     avgRatio: "压缩率：{percent}%",
     avgSpeed: "速度：{mbps} MB/s",
     commandPreviewLabel: "命令预览",
+    commandPreviewHint:
+      "基于预设字段生成，并使用 INPUT/OUTPUT 占位符，仅展示参数与策略；每个任务实际执行的完整命令可在对应的任务详情中查看。",
     filtersLabel: "滤镜",
     hardwareLabel: "硬件",
     subtitlesLabel: "字幕",

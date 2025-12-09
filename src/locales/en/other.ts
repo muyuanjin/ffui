@@ -97,6 +97,8 @@ const other = {
       showFull: "Show full command",
       showTemplate: "Show template view",
     },
+    commandHint:
+      "Template view keeps INPUT/OUTPUT placeholders and a normalized program name; the full command shows the exact invocation used for this job. Both should match your preset apart from paths and progress flags.",
     copyCommand: "Copy command",
     copyTemplateCommand: "Copy template command",
     commandFallback: "Command line is not available for this job.",
@@ -154,9 +156,13 @@ const other = {
     audioLabel: "Audio",
     audioCopy: "Copy",
     audioAac: "AAC {kbps}k",
+    audioAacLoudnormEbu: "AAC {kbps}k + EBU loudness",
+    audioAacLoudnormCn: "AAC {kbps}k + CN broadcast loudness",
     avgRatio: "Ratio: {percent}%",
     avgSpeed: "Speed: {mbps} MB/s",
     commandPreviewLabel: "Command preview",
+    commandPreviewHint:
+      "Generated from preset fields with INPUT/OUTPUT placeholders. The actual running command for each job is available in its task details.",
     filtersLabel: "Filters",
     hardwareLabel: "Hardware",
     subtitlesLabel: "Subtitles",

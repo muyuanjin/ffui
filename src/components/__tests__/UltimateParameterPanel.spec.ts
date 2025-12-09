@@ -191,4 +191,79 @@ describe("UltimateParameterPanel", () => {
 
     expect(container.format).toBeUndefined();
   });
+
+  it("preserves NVENC/AV1 smart preset HQ tuning and AQ fields when saving without parameter changes", async () => {
+    const smartPreset: FFmpegPreset = {
+      id: "smart-av1-nvenc-hq-constqp18",
+      name: "AV1 NVENC HQ ConstQP18",
+      description: "RTX 40+/Ada near-lossless AV1 NVENC preset",
+      video: {
+        encoder: "av1_nvenc",
+        rateControl: "constqp",
+        qualityValue: 18,
+        preset: "p7",
+        tune: "hq",
+        pixFmt: "p010le",
+        bRefMode: "each",
+        rcLookahead: 32,
+        bf: 3,
+        spatialAq: true,
+        temporalAq: true,
+      } as any,
+      audio: {
+        codec: "aac",
+        bitrate: 320,
+        loudnessProfile: "ebuR128",
+        truePeakDb: -1.0,
+      } as any,
+      filters: {},
+      container: null as any,
+      subtitles: null as any,
+      hardware: null as any,
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+      isSmartPreset: true,
+    };
+
+    const emitted: FFmpegPreset[] = [];
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: smartPreset,
+        onSave: (preset: FFmpegPreset) => emitted.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // 直接点击“更新”按钮，不修改任何编码参数。
+    const saveButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Update Preset"));
+    expect(saveButton).toBeTruthy();
+    await saveButton!.trigger("click");
+
+    expect(emitted.length).toBe(1);
+    const saved = emitted[0];
+
+    // 编码器与速率控制模式保持不变。
+    expect(saved.video.encoder).toBe("av1_nvenc");
+    expect(saved.video.rateControl).toBe("constqp");
+    expect(saved.video.qualityValue).toBe(18);
+
+    // 关键调优参数不会在“仅打开并保存”时被弱化或丢弃。
+    expect((saved.video as any).tune).toBe("hq");
+    expect((saved.video as any).bRefMode).toBe("each");
+    expect((saved.video as any).rcLookahead).toBe(32);
+    expect((saved.video as any).spatialAq).toBe(true);
+    expect((saved.video as any).temporalAq).toBe(true);
+
+    // 智能预设标记在参数未变动的情况下应继续保留。
+    expect(saved.isSmartPreset).toBe(true);
+  });
 });
