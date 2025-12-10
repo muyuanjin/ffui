@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, nextTick } from "vue";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
@@ -167,8 +167,26 @@ const savedLabel = computed(() => {
   const input = props.job.originalSizeMB;
   if (typeof output !== "number" || !Number.isFinite(output) || output <= 0) return "";
   if (typeof input !== "number" || !Number.isFinite(input) || input <= 0) return "";
-  const percent = ((1 - output / input) * 100).toFixed(0);
-  return t("queue.savedShort", { percent });
+  if (output <= input) {
+    // 体积缩小或不变，显示"节省 X%"
+    const percent = ((1 - output / input) * 100).toFixed(0);
+    return t("queue.savedShort", { percent });
+  } else {
+    // 体积增大，显示"增大 X%"
+    const percent = ((output / input - 1) * 100).toFixed(0);
+    return t("queue.increasedShort", { percent });
+  }
+});
+
+// 判断转码后体积变化程度：'decreased' 缩小, 'slight' 轻微增大(<100%), 'severe' 翻倍增大(≥100%)
+const sizeChangeLevel = computed<"decreased" | "slight" | "severe">(() => {
+  const output = props.job.outputSizeMB;
+  const input = props.job.originalSizeMB;
+  if (typeof output !== "number" || !Number.isFinite(output) || output <= 0) return "decreased";
+  if (typeof input !== "number" || !Number.isFinite(input) || input <= 0) return "decreased";
+  if (output <= input) return "decreased";
+  const increaseRatio = (output - input) / input;
+  return increaseRatio >= 1 ? "severe" : "slight";
 });
 
 const {
@@ -300,6 +318,7 @@ const handlePreviewError = async () => {
     const url = await loadPreviewDataUrl(path);
     previewUrl.value = url;
     previewFallbackLoaded.value = true;
+    await nextTick();
   } catch (error) {
     console.error("QueueItem: failed to load preview via data URL fallback", error);
   }
@@ -382,6 +401,7 @@ const onCardContextMenu = (event: MouseEvent) => {
       :display-original-size="displayOriginalSize"
       :display-output-size="displayOutputSize"
       :saved-label="savedLabel"
+      :size-change-level="sizeChangeLevel"
       :source-label="sourceLabel"
       :status-text-class="statusTextClass"
       :localized-status="localizedStatus"

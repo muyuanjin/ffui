@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, toRef } from "vue";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -182,6 +183,43 @@ const displayFilename = computed(() => {
 const isSelectable = computed(() => props.canSelect === true);
 const isSelected = computed(() => !!props.selected);
 
+// 使用时间显示组合式函数
+const {
+  elapsedTimeDisplay,
+  estimatedTotalTimeDisplay,
+  shouldShowTimeInfo,
+  isTerminalState,
+  isProcessing,
+} = useJobTimeDisplay(toRef(props, "job"));
+
+// 时间显示文本（简短版本，适合图标视图）
+const timeDisplayText = computed(() => {
+  if (!shouldShowTimeInfo.value) return null;
+  
+  if (isTerminalState.value) {
+    // 终态：显示总耗时
+    if (elapsedTimeDisplay.value !== "-") {
+      return elapsedTimeDisplay.value;
+    }
+    return null;
+  }
+  
+  if (isProcessing.value || props.job.status === "paused") {
+    // 处理中或暂停：显示已用时间 / 预估总时间
+    const elapsed = elapsedTimeDisplay.value;
+    const total = estimatedTotalTimeDisplay.value;
+    
+    if (elapsed !== "-" && total !== "-") {
+      return `${elapsed}/${total}`;
+    }
+    if (elapsed !== "-") {
+      return elapsed;
+    }
+  }
+  
+  return null;
+});
+
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
 
@@ -312,12 +350,19 @@ const onCardContextMenu = (event: MouseEvent) => {
         {{ displayFilename }}
       </p>
       <div class="mt-0.5 flex items-center justify-between gap-2">
-        <p class="text-[10px] text-muted-foreground truncate">
-          {{ statusLabel }}
-        </p>
+        <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
+          <span>{{ statusLabel }}</span>
+          <span
+            v-if="timeDisplayText"
+            class="font-mono"
+            data-testid="queue-icon-item-time-display"
+          >
+            {{ timeDisplayText }}
+          </span>
+        </div>
         <button
           type="button"
-          class="text-[10px] text-primary hover:underline"
+          class="text-[10px] text-primary hover:underline flex-shrink-0"
           data-testid="queue-icon-item-detail-button"
           @click.stop="onInspect"
         >

@@ -21,6 +21,7 @@ mod domain_contract_tests {
             progress: 0.0,
             start_time: Some(1),
             end_time: Some(2),
+            elapsed_ms: Some(12345),
             output_size_mb: Some(45.0),
             logs: Vec::new(),
             skip_reason: None,
@@ -149,6 +150,15 @@ mod domain_contract_tests {
             "auto-compress-batch-1"
         );
 
+        // elapsedMs 字段用于追踪累计转码时间
+        assert_eq!(
+            value
+                .get("elapsedMs")
+                .and_then(Value::as_u64)
+                .expect("elapsedMs present"),
+            12345
+        );
+
         // Legacy JSON using *Mb fields must still deserialize correctly.
         let legacy_json = json!({
             "id": "legacy",
@@ -224,6 +234,7 @@ mod domain_contract_tests {
             progress: 100.0,
             start_time: Some(1),
             end_time: Some(2),
+            elapsed_ms: None,
             output_size_mb: Some(5.0),
             logs: Vec::new(),
             skip_reason: None,

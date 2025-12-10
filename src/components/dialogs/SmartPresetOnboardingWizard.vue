@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { loadSmartDefaultPresets } from "@/lib/backend";
 import { resolvePresetDescription } from "@/lib/presetLocalization";
+import { computePresetInsights } from "@/lib/presetInsights";
 import type { FFmpegPreset } from "@/types";
 
 const props = defineProps<{
@@ -39,11 +40,12 @@ const useCasePreference = ref<UseCasePreference>("daily");
 const selectedIds = ref<Set<string>>(new Set());
 
 // 硬件检测结果
+// 仅当存在 NVENC 编码器（*_nvenc）时，才认为 NVENC 可用，避免把 QSV/AMF 之类误判为“支持 NVENC”
 const nvencAvailable = computed(() =>
   allPresets.value.some(
     (p) =>
       typeof p.video?.encoder === "string" &&
-      (p.video.encoder as string).toLowerCase().includes("hevc"),
+      (p.video.encoder as string).toLowerCase().includes("nvenc"),
   ),
 );
 
@@ -128,6 +130,30 @@ const classifyUseCase = (preset: FFmpegPreset): UseCasePreference => {
   return "daily";
 };
 
+// 识别“高阶/实验性”预设：例如 AV1 constqp18、SVT-AV1、QSV/AMF 等
+const isAdvancedPreset = (preset: FFmpegPreset): boolean => {
+  const encoder = String(preset.video?.encoder ?? "").toLowerCase();
+  const rc = preset.video?.rateControl ?? "crf";
+  const q = preset.video?.qualityValue ?? 0;
+  const text = `${preset.id} ${preset.name} ${resolveDescription(preset)}`.toLowerCase();
+
+  // Intel QSV / AMD AMF 目前在大部分环境下属于“进阶/特定硬件”
+  if (encoder.includes("qsv") || encoder.includes("amf")) return true;
+
+  // CPU AV1（libsvtav1）通常极慢，默认视为高阶
+  if (encoder.includes("libsvtav1")) return true;
+
+  // constqp + 极低 QP（例如 18/19）属于视觉无损档，体积可能比原片更大
+  if (rc === "constqp" && q <= 22) return true;
+
+  // 文案里明确标注“视觉无损 / 实验性”等，也视为高阶
+  if (text.includes("无损") || text.includes("visually") || text.includes("实验") || text.includes("experimental")) {
+    return true;
+  }
+
+  return false;
+};
+
 // 根据用户选择筛选预设
 const filteredPresets = computed(() => {
   if (allPresets.value.length === 0) return [];
@@ -170,7 +196,10 @@ watch([codecPreference, useCasePreference], () => {
 // 当进入预设选择步骤时，默认全选
 watch(currentStep, (step) => {
   if (step === "presets" && selectedIds.value.size === 0) {
-    selectedIds.value = new Set(filteredPresets.value.map((p) => p.id));
+    const candidates = filteredPresets.value;
+    const primary = candidates.filter((p) => !isAdvancedPreset(p));
+    const base = primary.length > 0 ? primary : candidates;
+    selectedIds.value = new Set(base.map((p) => p.id));
   }
 });
 
@@ -263,6 +292,17 @@ const handleCancel = () => {
 const selectedPresets = computed(() =>
   allPresets.value.filter((p) => selectedIds.value.has(p.id)),
 );
+
+// 为智能向导中的预设卡片提供简化版“场景标签”和“体积风险”提示
+const getPresetScenarioLabel = (preset: FFmpegPreset): string => {
+  const insights = computePresetInsights(preset);
+  return t(`presetEditor.panel.scenario.${insights.scenario}`);
+};
+
+const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
+  const insights = computePresetInsights(preset);
+  return insights.mayIncreaseSize ? t("presets.mayIncreaseSizeShort") : null;
+};
 </script>
 
 <template>
@@ -392,6 +432,20 @@ const selectedPresets = computed(() =>
                   <p class="text-xs text-muted-foreground truncate mt-0.5">
                     {{ resolveDescription(preset) }}
                   </p>
+                  <div class="mt-0.5 flex items-center flex-wrap gap-1">
+                    <span class="text-[10px] text-muted-foreground">
+                      {{ t("presetEditor.panel.scenarioLabel") }}：
+                      <span class="text-[10px] text-foreground">
+                        {{ getPresetScenarioLabel(preset) }}
+                      </span>
+                    </span>
+                    <span
+                      v-if="getPresetRiskBadge(preset)"
+                      class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
+                    >
+                      {{ getPresetRiskBadge(preset) }}
+                    </span>
+                  </div>
                 </div>
                 <div class="text-xs text-muted-foreground text-right shrink-0">
                   <div>{{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}</div>

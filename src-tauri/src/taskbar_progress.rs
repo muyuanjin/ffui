@@ -252,6 +252,7 @@ mod tests {
             progress,
             start_time: Some(0),
             end_time: None,
+            elapsed_ms: None,
             output_size_mb: None,
             logs: Vec::new(),
             skip_reason: None,

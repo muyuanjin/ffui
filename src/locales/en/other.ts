@@ -206,6 +206,7 @@ const other = {
     hardwareSummaryCpuOnly:
       "No NVIDIA NVENC detected: smart pack will use H.264 / AV1 (SVT) software presets.",
     hardwareSummaryAv1: "AV1 encoding support detected.",
+    mayIncreaseSizeShort: "May increase size",
   },
   stats: {
     empty: "Run some jobs first; stats will show up here.",

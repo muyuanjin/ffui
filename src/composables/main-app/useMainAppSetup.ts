@@ -310,6 +310,7 @@ export function useMainAppSetup() {
     selectedJobIds: queue.selectedJobIds,
     expandedBatchIds: smartScan.expandedBatchIds,
     queueError,
+    sortCompareFn: queue.compareJobsForDisplay,
   });
 
   const queueContextMenu = useQueueContextMenu({

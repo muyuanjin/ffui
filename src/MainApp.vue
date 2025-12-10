@@ -173,6 +173,9 @@ const {
   // 选择操作栏固定状态
   selectionBarPinned,
   setSelectionBarPinned,
+
+  // 排序比较函数（用于批次子任务排序）
+  compareJobsForDisplay,
 } = mainApp as any;
 
 const manualJobPresetId = computed<string | null>({
@@ -380,6 +383,7 @@ defineExpose({
       :presets="presets"
       :preset-pending-delete="presetPendingDelete"
       :smart-config="smartConfig"
+      :default-video-preset-id="manualJobPresetId"
       :queue-progress-style="queueProgressStyle"
       :progress-update-interval-ms="progressUpdateIntervalMs"
       :selected-job-preset="selectedJobPreset"
@@ -388,6 +392,7 @@ defineExpose({
       :preview-is-image="previewIsImage"
       :preview-error="previewError"
       :ffmpeg-resolved-path="ffmpegResolvedPath"
+      :sort-compare-fn="compareJobsForDisplay"
       @savePreset="handleSavePreset"
       @closeWizard="dialogManager.closeWizard()"
       @closeParameterPanel="dialogManager.closeParameterPanel()"

@@ -78,6 +78,11 @@ export interface TranscodeJob {
   progress: number;
   startTime?: number;
   endTime?: number;
+  /**
+   * 累计已用转码时间（毫秒）。用于处理暂停/恢复场景，在暂停时保存当前累计时间，
+   * 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - startTime) 计算。
+   */
+  elapsedMs?: number;
   outputSizeMB?: number;
   logs?: string[];
   skipReason?: string;

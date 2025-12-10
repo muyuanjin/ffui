@@ -357,7 +357,22 @@ fn execute_transcode_job(
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Completed;
             job.progress = 100.0;
-            job.end_time = Some(current_time_millis());
+            let now_ms = current_time_millis();
+            job.end_time = Some(now_ms);
+            // 设置最终的累计已用时间（毫秒）
+            // 如果之前有暂停过，elapsed_ms 已经包含了之前的累计时间
+            // 这里需要加上最后一段的时间
+            if let Some(start) = job.start_time {
+                let current_segment_ms = now_ms.saturating_sub(start);
+                let previous_elapsed = job.elapsed_ms.unwrap_or(0);
+                // 如果 previous_elapsed 已经包含了当前段（在 update_job_progress 中更新），
+                // 则直接使用；否则需要加上当前段
+                if previous_elapsed >= current_segment_ms {
+                    // elapsed_ms 已经是最新的
+                } else {
+                    job.elapsed_ms = Some(previous_elapsed + current_segment_ms);
+                }
+            }
             if original_size_bytes > 0 && final_output_size_bytes > 0 {
                 job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
             }

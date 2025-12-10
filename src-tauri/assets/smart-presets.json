@@ -507,7 +507,8 @@
       "ffmpegTemplate": null,
       "match": { "gpu": { "available": true } },
       "priority": 58,
-      "defaultSelected": false
+      "defaultSelected": false,
+      "expose": false
     },
     {
       "id": "smart-av1-qsv-balanced",
@@ -533,7 +534,8 @@
       "ffmpegTemplate": null,
       "match": { "gpu": { "available": true } },
       "priority": 57,
-      "defaultSelected": false
+      "defaultSelected": false,
+      "expose": false
     },
     {
       "id": "smart-hevc-amf-balanced",
@@ -559,7 +561,8 @@
       "ffmpegTemplate": null,
       "match": { "gpu": { "available": true } },
       "priority": 55,
-      "defaultSelected": false
+      "defaultSelected": false,
+      "expose": false
     },
     {
       "id": "smart-av1-amf-balanced",
@@ -585,7 +588,8 @@
       "ffmpegTemplate": null,
       "match": { "gpu": { "available": true } },
       "priority": 54,
-      "defaultSelected": false
+      "defaultSelected": false,
+      "expose": false
     }
   ]
 }

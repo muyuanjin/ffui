@@ -1,0 +1,102 @@
+import { computed, ref, onMounted, onUnmounted, type Ref } from "vue";
+import type { TranscodeJob } from "@/types";
+import {
+  formatElapsedTime,
+  estimateTotalTime,
+  estimateRemainingTime,
+  computeJobElapsedMs,
+} from "@/lib/timeUtils";
+
+/**
+ * 用于显示任务时间信息的组合式函数
+ * 提供实时更新的已用时间、预估总时间和预估剩余时间
+ */
+export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
+  const nowMs = ref(Date.now());
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+
+  // 每秒更新当前时间，用于实时计算正在处理的任务的已用时间
+  onMounted(() => {
+    intervalId = setInterval(() => {
+      nowMs.value = Date.now();
+    }, 1000);
+  });
+
+  onUnmounted(() => {
+    if (intervalId != null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  });
+
+  // 计算已用时间（毫秒）
+  const elapsedMs = computed(() => {
+    return computeJobElapsedMs(job.value, nowMs.value);
+  });
+
+  // 格式化的已用时间
+  const elapsedTimeDisplay = computed(() => {
+    return formatElapsedTime(elapsedMs.value);
+  });
+
+  // 预估总时间（毫秒）
+  const estimatedTotalMs = computed(() => {
+    return estimateTotalTime(elapsedMs.value, job.value.progress);
+  });
+
+  // 格式化的预估总时间
+  const estimatedTotalTimeDisplay = computed(() => {
+    return formatElapsedTime(estimatedTotalMs.value);
+  });
+
+  // 预估剩余时间（毫秒）
+  const estimatedRemainingMs = computed(() => {
+    return estimateRemainingTime(elapsedMs.value, job.value.progress);
+  });
+
+  // 格式化的预估剩余时间
+  const estimatedRemainingTimeDisplay = computed(() => {
+    return formatElapsedTime(estimatedRemainingMs.value);
+  });
+
+  // 是否应该显示时间信息
+  const shouldShowTimeInfo = computed(() => {
+    const status = job.value.status;
+    // 对于正在处理、暂停、已完成、失败的任务显示时间信息
+    return (
+      status === "processing" ||
+      status === "paused" ||
+      status === "completed" ||
+      status === "failed" ||
+      status === "cancelled"
+    );
+  });
+
+  // 是否是终态（已完成/失败/取消/跳过）
+  const isTerminalState = computed(() => {
+    const status = job.value.status;
+    return (
+      status === "completed" ||
+      status === "failed" ||
+      status === "cancelled" ||
+      status === "skipped"
+    );
+  });
+
+  // 是否正在处理
+  const isProcessing = computed(() => {
+    return job.value.status === "processing";
+  });
+
+  return {
+    elapsedMs,
+    elapsedTimeDisplay,
+    estimatedTotalMs,
+    estimatedTotalTimeDisplay,
+    estimatedRemainingMs,
+    estimatedRemainingTimeDisplay,
+    shouldShowTimeInfo,
+    isTerminalState,
+    isProcessing,
+  };
+}

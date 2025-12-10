@@ -58,6 +58,7 @@ export interface UseMainAppQueueReturn
     | "resetQueueFilters"
     | "toggleFilterRegexMode"
     | "toggleJobSelected"
+    | "compareJobsForDisplay"
   > {
   queueViewMode: Ref<QueueViewMode>;
   queueProgressStyle: Ref<QueueProgressStyle>;
@@ -403,6 +404,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     filteredJobs: filteredJobsForTests,
     visibleQueueItems,
     iconViewItems,
+    compareJobsForDisplay,
 
     refreshQueueFromBackend,
     handleWaitJob,

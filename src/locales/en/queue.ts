@@ -46,6 +46,13 @@ const queue = {
     cancelled: "cancelled",
   },
   savedShort: "saved {percent}%",
+  increasedShort: "increased {percent}%",
+  time: {
+    totalElapsed: "took {time}",
+    elapsed: "elapsed",
+    estimated: "estimated",
+    remaining: "remaining",
+  },
   source: {
     manual: "Manual",
     smartScan: "Smart Scan",

@@ -1,7 +1,37 @@
 <script setup lang="ts">
+import { computed, toRef, toRefs } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
+import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
+
+const props = withDefaults(
+  defineProps<{
+    job: TranscodeJob;
+    preset: FFmpegPreset;
+    isSelectable: boolean;
+    isSelected: boolean;
+    isSkipped: boolean;
+    typeLabel: string | unknown;
+    displayFilename: string;
+    displayOriginalSize: string;
+    displayOutputSize: string;
+    savedLabel: string;
+    sizeChangeLevel?: "decreased" | "slight" | "severe";
+    sourceLabel: string | unknown;
+    statusTextClass: string;
+    localizedStatus: string | unknown;
+    isWaitable: boolean;
+    isResumable: boolean;
+    isRestartable: boolean;
+    isCancellable: boolean;
+    previewUrl: string | null;
+    t: (key: string, params?: any) => string | unknown;
+  }>(),
+  {
+    sizeChangeLevel: "decreased",
+  },
+);
 
 const {
   job,
@@ -14,6 +44,7 @@ const {
   displayOriginalSize,
   displayOutputSize,
   savedLabel,
+  sizeChangeLevel,
   sourceLabel,
   statusTextClass,
   localizedStatus,
@@ -23,27 +54,44 @@ const {
   isCancellable,
   previewUrl,
   t,
-} = defineProps<{
-  job: TranscodeJob;
-  preset: FFmpegPreset;
-  isSelectable: boolean;
-  isSelected: boolean;
-  isSkipped: boolean;
-  typeLabel: string | unknown;
-  displayFilename: string;
-  displayOriginalSize: string;
-  displayOutputSize: string;
-  savedLabel: string;
-  sourceLabel: string | unknown;
-  statusTextClass: string;
-  localizedStatus: string | unknown;
-  isWaitable: boolean;
-  isResumable: boolean;
-  isRestartable: boolean;
-  isCancellable: boolean;
-  previewUrl: string | null;
-  t: (key: string, params?: any) => string | unknown;
-}>();
+} = toRefs(props);
+
+// 使用时间显示组合式函数
+const {
+  elapsedTimeDisplay,
+  estimatedTotalTimeDisplay,
+  shouldShowTimeInfo,
+  isTerminalState,
+  isProcessing,
+} = useJobTimeDisplay(toRef(props, "job"));
+
+// 时间显示文本
+const timeDisplayText = computed(() => {
+  if (!shouldShowTimeInfo.value) return null;
+  
+  if (isTerminalState.value) {
+    // 终态：显示总耗时
+    if (elapsedTimeDisplay.value !== "-") {
+      return props.t("queue.time.totalElapsed", { time: elapsedTimeDisplay.value });
+    }
+    return null;
+  }
+  
+  if (isProcessing.value || props.job.status === "paused") {
+    // 处理中或暂停：显示已用时间 / 预估总时间
+    const elapsed = elapsedTimeDisplay.value;
+    const total = estimatedTotalTimeDisplay.value;
+    
+    if (elapsed !== "-" && total !== "-") {
+      return `${elapsed} / ${total}`;
+    }
+    if (elapsed !== "-") {
+      return elapsed;
+    }
+  }
+  
+  return null;
+});
 
 const emit = defineEmits<{
   (e: "toggle-select", id: string): void;
@@ -136,10 +184,22 @@ const emit = defineEmits<{
 
           <template v-if="job.status === 'completed' && job.outputSizeMB">
             <span>→</span>
-            <span class="text-emerald-400 font-bold">
+            <span
+              class="font-bold"
+              :class="{
+                'text-emerald-400': sizeChangeLevel === 'decreased',
+                'text-amber-400': sizeChangeLevel === 'slight',
+                'text-red-400': sizeChangeLevel === 'severe',
+              }"
+            >
               {{ displayOutputSize }} MB
             </span>
-            <span>({{ savedLabel }})</span>
+            <span
+              :class="{
+                'text-amber-400': sizeChangeLevel === 'slight',
+                'text-red-400': sizeChangeLevel === 'severe',
+              }"
+            >({{ savedLabel }})</span>
           </template>
 
           <span v-if="isSkipped && job.skipReason" class="text-amber-400 italic ml-2">
@@ -158,6 +218,14 @@ const emit = defineEmits<{
   <div class="text-right flex flex-col items-end gap-1.5">
       <span class="text-xs font-bold uppercase tracking-wide" :class="statusTextClass">
         {{ localizedStatus }}
+      </span>
+      <!-- 时间显示 -->
+      <span
+        v-if="timeDisplayText"
+        class="text-[11px] text-muted-foreground font-mono"
+        data-testid="queue-item-time-display"
+      >
+        {{ timeDisplayText }}
       </span>
       <div class="flex flex-wrap justify-end items-center gap-1.5">
         <Button

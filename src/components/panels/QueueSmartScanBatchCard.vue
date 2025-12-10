@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import type { CheckboxRootProps } from "reka-ui";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 
-defineProps<{
+const props = defineProps<{
   batch: CompositeSmartScanTask;
   presets: FFmpegPreset[];
   ffmpegResolvedPath?: string | null;
@@ -19,7 +21,18 @@ defineProps<{
   selectedJobIds: Set<string>;
   isExpanded: boolean;
   canCancelJob: (job: TranscodeJob) => boolean;
+  /** 排序比较函数，用于对子任务进行排序 */
+  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }>();
+
+/** 根据排序函数对子任务进行排序后的列表 */
+const sortedJobs = computed<TranscodeJob[]>(() => {
+  const jobs = props.batch.jobs.filter((j) => j.status !== "skipped");
+  if (!props.sortCompareFn) {
+    return jobs;
+  }
+  return jobs.slice().sort(props.sortCompareFn);
+});
 
 const emit = defineEmits<{
   toggleBatchExpanded: [batchId: string];
@@ -35,6 +48,49 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/**
+ * 计算批次级选中状态：true=全选，false=未选，"indeterminate"=部分选中
+ */
+const batchSelectionState = computed<CheckboxRootProps["modelValue"]>(() => {
+  const jobs = props.batch.jobs ?? [];
+  if (!jobs.length) return false;
+  let selectedCount = 0;
+  for (const job of jobs) {
+    if (props.selectedJobIds.has(job.id)) {
+      selectedCount += 1;
+    }
+  }
+  if (selectedCount === 0) return false;
+  if (selectedCount === jobs.length) return true;
+  return "indeterminate";
+});
+
+/**
+ * 批量选中/取消选中当前批次的子任务。
+ */
+const toggleBatchSelection = () => {
+  const jobs = props.batch.jobs ?? [];
+  if (!jobs.length) return;
+
+  const fullySelected = batchSelectionState.value === true;
+
+  if (fullySelected) {
+    // 已全选则全部取消
+    for (const job of jobs) {
+      if (props.selectedJobIds.has(job.id)) {
+        emit("toggleJobSelected", job.id);
+      }
+    }
+  } else {
+    // 未全选则补齐未选中的子任务
+    for (const job of jobs) {
+      if (!props.selectedJobIds.has(job.id)) {
+        emit("toggleJobSelected", job.id);
+      }
+    }
+  }
+};
 
 /** 计算批次整体进度条颜色 */
 const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant => {
@@ -59,6 +115,12 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
     <CardHeader class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer" @click="emit('toggleBatchExpanded', batch.batchId)">
       <div class="space-y-1">
         <div class="flex items-center gap-2">
+          <Checkbox
+            :checked="batchSelectionState"
+            class="h-4 w-4"
+            @click.stop
+            @update:checked="toggleBatchSelection"
+          />
           <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
             {{ t("queue.source.smartScan") }}
           </Badge>
@@ -97,7 +159,7 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
       </div>
       <div v-if="isExpanded" data-testid="smart-scan-batch-children" class="mt-2 space-y-2">
         <QueueItem
-          v-for="child in batch.jobs.filter((j) => j.status !== 'skipped')"
+          v-for="child in sortedJobs"
           :key="child.id"
           :job="child"
           :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"

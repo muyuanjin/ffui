@@ -22,7 +22,19 @@ const props = defineProps<{
   progressStyle: QueueProgressStyle;
   /** Progress update interval */
   progressUpdateIntervalMs: number;
+  /** 排序比较函数，用于对子任务进行排序 */
+  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }>();
+
+/** 根据排序函数对子任务进行排序后的列表 */
+const sortedJobs = computed<TranscodeJob[]>(() => {
+  if (!props.batch) return [];
+  const jobs = props.batch.jobs.filter((j) => j.status !== "skipped");
+  if (!props.sortCompareFn) {
+    return jobs;
+  }
+  return jobs.slice().sort(props.sortCompareFn);
+});
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -285,7 +297,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         <ScrollArea class="flex-1 min-h-[200px]">
           <div class="space-y-2 pr-3">
             <QueueItem
-              v-for="job in batch.jobs.filter((j) => j.status !== 'skipped')"
+              v-for="job in sortedJobs"
               :key="job.id"
               :job="job"
               :preset="getPresetForJob(job)"

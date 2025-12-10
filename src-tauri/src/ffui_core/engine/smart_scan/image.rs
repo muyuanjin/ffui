@@ -51,6 +51,7 @@ pub(crate) fn handle_image_file(
         progress: 0.0,
         start_time: None,
         end_time: None,
+        elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
         skip_reason: None,
