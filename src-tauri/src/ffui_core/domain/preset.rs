@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 use super::config::*;
@@ -22,6 +24,7 @@ pub struct FFmpegPreset {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub description_i18n: Option<HashMap<String, String>>,
     pub global: Option<GlobalConfig>,
     pub input: Option<InputTimelineConfig>,
     pub mapping: Option<MappingConfig>,

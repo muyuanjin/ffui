@@ -200,6 +200,14 @@ export const deleteTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
+export const deleteSmartScanBatchOnBackend = async (batchId: string): Promise<boolean> => {
+  return invoke<boolean>("delete_smart_scan_batch", {
+    // 同时传递 camelCase 与 snake_case，避免后端参数名调整导致调用失效。
+    batchId,
+    batch_id: batchId,
+  });
+};
+
 export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
   return invoke<boolean>("reorder_queue", {
     orderedIds,

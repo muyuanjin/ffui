@@ -271,6 +271,15 @@ impl TranscodingEngine {
         worker::delete_job(&self.inner, job_id)
     }
 
+    /// Permanently delete all Smart Scan child jobs that belong to the given batch.
+    ///
+    /// This is used by前端在“复合任务（Smart Scan 批次）→ 从列表删除”场景下，一次性
+    /// 清理该批次的所有终态子任务以及对应的批次元数据，避免逐个 delete_transcode_job
+    /// 调用在某些边缘状态下失败导致复合任务残留。
+    pub fn delete_smart_scan_batch(&self, batch_id: &str) -> bool {
+        worker::delete_smart_scan_batch(&self.inner, batch_id)
+    }
+
     /// Reorder the waiting jobs in the queue.
     pub fn reorder_waiting_jobs(&self, ordered_ids: Vec<String>) -> bool {
         worker::reorder_waiting_jobs(&self.inner, ordered_ids)

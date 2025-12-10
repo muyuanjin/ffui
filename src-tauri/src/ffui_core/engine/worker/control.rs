@@ -238,3 +238,67 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
     notify_queue_listeners(inner);
     true
 }
+
+/// Permanently delete all Smart Scan child jobs for a given batch id.
+///
+/// 语义约定：
+/// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且
+///   当前没有处于 active_job 状态时才执行删除；否则直接返回 false，不做任何修改；
+/// - 删除成功后会同时清理队列中的相关 bookkeeping（queue / cancelled / wait / restart）；
+/// - 当该批次所有子任务都被移除后，连同 smart_scan_batches 中的批次元数据一并移除，
+///   这样前端复合任务卡片也会从队列中消失。
+pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
+    inner: &Arc<Inner>,
+    batch_id: &str,
+) -> bool {
+    use crate::ffui_core::engine::state::SmartScanBatchStatus;
+
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+
+        let batch = match state.smart_scan_batches.get(batch_id) {
+            Some(b) => b.clone(),
+            None => return false,
+        };
+
+        // 如果批次仍处于 Scanning/Running 等非终态，则拒绝删除，交由前端提示。
+        if !matches!(batch.status, SmartScanBatchStatus::Completed) {
+            return false;
+        }
+
+        // 先遍历一遍，确保所有子任务都处于终态且不是当前 active_job。
+        for job_id in &batch.child_job_ids {
+            if let Some(job) = state.jobs.get(job_id) {
+                match job.status {
+                    JobStatus::Completed
+                    | JobStatus::Failed
+                    | JobStatus::Skipped
+                    | JobStatus::Cancelled => {
+                        if state.active_job.as_deref() == Some(job_id.as_str()) {
+                            return false;
+                        }
+                    }
+                    _ => {
+                        // Smart Scan 批次中仍存在非终态子任务，保持与单个 delete_job 一致的保护行为。
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // 所有校验通过后，真正删除该批次的所有子任务以及批次元数据。
+        for job_id in &batch.child_job_ids {
+            state.queue.retain(|id| id != job_id);
+            state.cancelled_jobs.remove(job_id);
+            state.wait_requests.remove(job_id);
+            state.restart_requests.remove(job_id);
+            state.jobs.remove(job_id);
+        }
+
+        // 子任务删除后，清理批次记录，这样前端不会再渲染空壳的“复合任务”卡片。
+        state.smart_scan_batches.remove(batch_id);
+    }
+
+    notify_queue_listeners(inner);
+    true
+}

@@ -393,5 +393,43 @@ describe("QueueSmartScanIconBatchItem", () => {
       const toggleSelect = wrapper.emitted("toggle-select");
       expect(toggleSelect).toBeUndefined();
     });
+
+    it("当部分子任务缺失预览时，九宫格中不应重复展示同一子任务的缩略图", async () => {
+      // 构造一个批次：只有部分子任务带有 previewPath，其余子任务没有预览。
+      // 之前的实现会因为同时使用 withPreview[index] 和 jobs[index] 导致同一个
+      // job 出现在多个槽位中，从而九宫格内出现重复缩略图。
+      const jobs: TranscodeJob[] = [
+        createMockJob("job-1", "waiting"), // 有预览
+        { ...createMockJob("job-2", "waiting"), previewPath: undefined },
+        { ...createMockJob("job-3", "waiting"), previewPath: undefined },
+        createMockJob("job-4", "waiting"), // 有预览
+        { ...createMockJob("job-5", "waiting"), previewPath: undefined },
+        createMockJob("job-6", "waiting"), // 有预览
+      ];
+      const batch = createMockBatch(jobs);
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const grid = wrapper.find(".grid.grid-cols-3.grid-rows-3");
+      expect(grid.exists()).toBe(true);
+
+      // 只统计真实图片槽位，确保每个预览只出现一次。
+      const imgs = grid.findAll("img");
+      const srcs = imgs.map((img) => img.attributes("src"));
+
+      expect(srcs.length).toBeGreaterThan(0);
+      expect(new Set(srcs).size).toBe(srcs.length);
+    });
   });
 });
