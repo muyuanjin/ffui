@@ -30,10 +30,25 @@ pub(super) fn update_job_progress(
     _speed: Option<f64>,
 ) {
     let mut should_notify = false;
+    let now_ms = super::worker_utils::current_time_millis();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get_mut(job_id) {
+            // 更新累计已用时间：基于 start_time 计算当前段的时间，加上之前暂停时累积的时间
+            if job.status == JobStatus::Processing && let Some(start) = job.start_time {
+                // 计算当前段的已用时间
+                let current_segment_ms = now_ms.saturating_sub(start);
+                // 如果有之前暂停时保存的累计时间（存储在 wait_metadata 中），则加上
+                let previous_elapsed = job
+                    .wait_metadata
+                    .as_ref()
+                    .and_then(|m| m.processed_seconds)
+                    .map(|s| (s * 1000.0) as u64)
+                    .unwrap_or(0);
+                job.elapsed_ms = Some(previous_elapsed + current_segment_ms);
+            }
+
             if let Some(p) = percent {
                 // Clamp progress into [0, 100] and ensure it never regresses so
                 // the UI sees a monotonic percentage.

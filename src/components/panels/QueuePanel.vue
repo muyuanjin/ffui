@@ -61,6 +61,9 @@ const props = defineProps<{
 
   // Error state
   queueError: string | null;
+
+  /** 排序比较函数，用于对批次子任务进行排序 */
+  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }>();
 
 const emit = defineEmits<{
@@ -339,6 +342,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               :selected-job-ids="selectedJobIds"
               :is-expanded="isBatchExpanded(item.batch.batchId)"
               :can-cancel-job="canCancelJob"
+              :sort-compare-fn="sortCompareFn"
               @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
               @cancel-job="emit('cancelJob', $event)"
               @wait-job="emit('waitJob', $event)"
@@ -388,6 +392,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               :selected-job-ids="selectedJobIds"
               :is-expanded="isBatchExpanded(item.batch.batchId)"
               :can-cancel-job="canCancelJob"
+              :sort-compare-fn="sortCompareFn"
               @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
               @cancel-job="emit('cancelJob', $event)"
               @wait-job="emit('waitJob', $event)"

@@ -199,4 +199,102 @@ describe("MainApp Smart Scan integration", () => {
 
     wrapper.unmount();
   });
+
+  it("renders all Smart Scan children immediately when queue snapshot arrives", async () => {
+    const batchId = "auto-compress-bulk-batch";
+    const rootPath = "C:/videos/bulk";
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      run_auto_compress: () =>
+        buildAutoCompressResult(rootPath, {
+          completedAtMs: 0,
+          batchId,
+          totalFilesScanned: 0,
+          totalCandidates: 0,
+          totalProcessed: 0,
+        }),
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    vm.lastDroppedRoot = rootPath;
+
+    const config = {
+      rootPath,
+      replaceOriginal: true,
+      minImageSizeKB: 0,
+      minVideoSizeMB: 0,
+      minAudioSizeKB: 0,
+      savingConditionType: "ratio" as const,
+      minSavingRatio: 0.8,
+      minSavingAbsoluteMB: 0,
+      imageTargetFormat: "avif" as const,
+      videoPresetId: "preset-1",
+      audioPresetId: "",
+      videoFilter: { enabled: true, extensions: ["mp4", "mkv"] },
+      imageFilter: { enabled: false, extensions: [] },
+      audioFilter: { enabled: false, extensions: [] },
+    };
+
+    await vm.runSmartScan(config);
+    await nextTick();
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-1",
+        filename: "C:/videos/bulk1.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+        batchId,
+      } as any,
+      {
+        id: "job-2",
+        filename: "C:/videos/bulk2.mkv",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 15,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+        batchId,
+      } as any,
+    ];
+
+    setQueueJobs(jobs);
+    emitQueueState(getQueueJobs());
+    await nextTick();
+
+    let tasks: any[] = vm.compositeSmartScanTasks;
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].jobs.length).toBe(2);
+    expect(tasks[0].totalCount).toBe(2);
+
+    emitSmartScanProgress({
+      rootPath,
+      totalFilesScanned: 2,
+      totalCandidates: 2,
+      totalProcessed: 0,
+      batchId,
+    });
+    await nextTick();
+
+    tasks = vm.compositeSmartScanTasks;
+    expect(tasks[0].totalCandidates).toBe(2);
+
+    wrapper.unmount();
+  });
 });

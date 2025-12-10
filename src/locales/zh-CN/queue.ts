@@ -46,6 +46,13 @@ const queue = {
     cancelled: "已取消",
   },
   savedShort: "节省 {percent}%",
+  increasedShort: "增大 {percent}%",
+  time: {
+    totalElapsed: "耗时 {time}",
+    elapsed: "已用",
+    estimated: "预估",
+    remaining: "剩余",
+  },
   source: {
     manual: "手动添加",
     smartScan: "智能压缩",

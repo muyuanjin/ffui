@@ -196,6 +196,90 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
 }
 
 #[test]
+fn smart_scan_pushes_full_batch_snapshot_after_detection() {
+    let dir = env::temp_dir().join("ffui_smart_scan_full_snapshot");
+    let _ = fs::create_dir_all(&dir);
+
+    let video1 = dir.join("full-1.mp4");
+    let video2 = dir.join("full-2.mkv");
+
+    for path in [&video1, &video2] {
+        let mut file =
+            File::create(&path).unwrap_or_else(|_| panic!("create test file {}", path.display()));
+        let data = vec![0u8; 4 * 1024];
+        file.write_all(&data)
+            .unwrap_or_else(|_| panic!("write data for {}", path.display()));
+    }
+
+    let engine = make_engine_with_preset();
+
+    let snapshots: TestArc<TestMutex<Vec<QueueState>>> = TestArc::new(TestMutex::new(Vec::new()));
+    let snapshots_clone = TestArc::clone(&snapshots);
+
+    engine.register_queue_listener(move |state: QueueState| {
+        snapshots_clone
+            .lock()
+            .expect("queue snapshots lock poisoned")
+            .push(state);
+    });
+
+    let config = SmartScanConfig {
+        min_image_size_kb: 0,
+        min_video_size_mb: 10_000,
+        min_saving_ratio: 0.95,
+        image_target_format: ImageTargetFormat::Avif,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+
+    let root_path = dir.to_string_lossy().into_owned();
+    let descriptor = engine
+        .run_auto_compress(root_path.clone(), config)
+        .expect("run_auto_compress should succeed for full snapshot test");
+
+    let batch_id = descriptor.batch_id.clone();
+
+    // 等待监听器接收到包含所有子任务的快照，最多轮询约 5 秒。
+    let mut attempts = 0;
+    loop {
+        let (has_partial, has_full) = {
+            let states = snapshots.lock().expect("queue snapshots lock poisoned");
+            let mut partial = false;
+            let mut full = false;
+            for state in states.iter() {
+                let count = state
+                    .jobs
+                    .iter()
+                    .filter(|j| j.batch_id.as_deref() == Some(batch_id.as_str()))
+                    .count();
+                if count > 0 && count < 2 {
+                    partial = true;
+                } else if count >= 2 {
+                    full = true;
+                }
+            }
+            (partial, full)
+        };
+
+        if has_full {
+            assert!(
+                !has_partial,
+                "Smart Scan 队列快照应一次性包含该批次的全部子任务，而不是逐个追加"
+            );
+            break;
+        }
+
+        attempts += 1;
+        if attempts > 100 {
+            panic!("Smart Scan queue snapshot did not include all children within timeout");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn smart_scan_video_output_naming_avoids_overwrites() {
     let dir = env::temp_dir().join("ffui_smart_scan_safe_outputs");
     let _ = fs::create_dir_all(&dir);

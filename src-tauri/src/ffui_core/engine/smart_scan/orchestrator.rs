@@ -121,6 +121,9 @@ fn run_auto_compress_background(
     presets: Vec<FFmpegPreset>,
     batch_id: String,
 ) {
+    let mut queue_dirty = false;
+    let mut waiting_jobs_enqueued = false;
+
     // 第一阶段：在任何压缩工作开始之前，对目录结构做一次完整快照。
     // 这样本轮 Smart Scan 过程中生成的输出文件（例如 *.compressed.mp4）
     // 就不会再次被扫描并加入同一批任务，避免"自己压出来的结果又被当成新任务"。
@@ -183,6 +186,11 @@ fn run_auto_compress_background(
                         JobStatus::Completed | JobStatus::Skipped | JobStatus::Failed
                     );
 
+                    queue_dirty = true;
+                    if matches!(job.status, JobStatus::Waiting) {
+                        waiting_jobs_enqueued = true;
+                    }
+
                     // 每个图像候选都立即视为"已处理"：压缩逻辑在当前线程同步完成。
                     update_smart_scan_batch_with_inner(inner, &batch_id, true, |batch| {
                         batch.total_candidates = batch.total_candidates.saturating_add(1);
@@ -199,9 +207,6 @@ fn run_auto_compress_background(
                             register_known_smart_scan_output_with_inner(inner, &output);
                         }
                     }
-
-                    // 通知前端队列状态发生了变化。
-                    notify_queue_listeners(inner);
                 }
                 Err(err) => {
                     eprintln!(
@@ -224,7 +229,13 @@ fn run_auto_compress_background(
                     &settings_snapshot,
                     &preset,
                     &batch_id,
+                    false,
                 );
+
+                queue_dirty = true;
+                if matches!(job.status, JobStatus::Waiting) {
+                    waiting_jobs_enqueued = true;
+                }
 
                 update_smart_scan_batch_with_inner(inner, &batch_id, true, |batch| {
                     batch.total_candidates = batch.total_candidates.saturating_add(1);
@@ -263,6 +274,16 @@ fn run_auto_compress_background(
             batch.status = SmartScanBatchStatus::Running;
         }
     });
+
+    // 扫描结束后统一广播队列快照，使前端一次性看到所有子任务。
+    if queue_dirty {
+        notify_queue_listeners(inner);
+    }
+
+    // 扫描完成后再唤醒 worker，避免在检测尚未完成时任务逐个启动。
+    if waiting_jobs_enqueued {
+        inner.cv.notify_all();
+    }
 }
 
 #[allow(dead_code)]

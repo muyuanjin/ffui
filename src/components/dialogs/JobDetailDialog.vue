@@ -135,6 +135,15 @@ const jobDetailLogText = computed(() => {
   return full || tail;
 });
 
+// 任务耗时（秒），优先使用结束时间，否则基于当前时间粗略估算
+const jobProcessingSeconds = computed(() => {
+  const job = props.job;
+  if (!job?.startTime) return null;
+  const endMs = job.endTime ?? Date.now();
+  if (endMs <= job.startTime) return null;
+  return (endMs - job.startTime) / 1000;
+});
+
 const unknownPresetLabel = computed(() => {
   const id = props.job?.presetId;
   if (!id) return "";
@@ -224,14 +233,14 @@ const unknownPresetLabel = computed(() => {
                       {{ unknownPresetLabel }}
                     </span>
                   </div>
+                    <div v-if="jobProcessingSeconds != null" class="text-foreground" data-testid="task-detail-processing-time">
+                      {{ t("taskDetail.durationLabel") }}: {{ jobProcessingSeconds.toFixed(1) }} s
+                    </div>
                     <div v-if="job.originalSizeMB" class="text-foreground">
                       {{ t("taskDetail.sizeLabel") }}: {{ job.originalSizeMB.toFixed(2) }} MB
                     </div>
                     <div v-if="job.outputSizeMB" class="text-foreground">
                       {{ t("taskDetail.outputSizeLabel") }}: {{ job.outputSizeMB.toFixed(2) }} MB
-                    </div>
-                    <div v-if="job.mediaInfo?.durationSeconds" class="text-foreground">
-                      {{ t("taskDetail.durationLabel") }}: {{ job.mediaInfo.durationSeconds.toFixed(1) }} s
                     </div>
                   </div>
                 </div>

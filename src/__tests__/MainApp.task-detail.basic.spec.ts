@@ -214,6 +214,60 @@ describe("MainApp task detail surface - basics", () => {
     expect(titleEl?.textContent?.trim()).toBe("sample.mp4");
   });
 
+  it("shows real processing time based on start/end instead of media duration", async () => {
+    const job: TranscodeJob = {
+      id: "job-processing-time",
+      filename: "C:/videos/elapsed.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: 1_000,
+      endTime: 5_200,
+      mediaInfo: {
+        durationSeconds: 120,
+        width: 1920,
+        height: 1080,
+      },
+    } as any;
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const selectedJob =
+      vm.selectedJobForDetail && "value" in vm.selectedJobForDetail
+        ? vm.selectedJobForDetail.value
+        : vm.selectedJobForDetail;
+    const expectedSeconds =
+      selectedJob?.startTime && selectedJob?.endTime
+        ? ((selectedJob.endTime - selectedJob.startTime) / 1000).toFixed(1)
+        : null;
+
+    const processingEls = document.querySelectorAll(
+      "[data-testid='task-detail-processing-time']",
+    );
+    const processingEl = processingEls[processingEls.length - 1] as HTMLElement | undefined;
+    expect(processingEl).toBeTruthy();
+    const text = processingEl?.textContent || "";
+    expect(text).toContain("Processing time");
+    expect(expectedSeconds).not.toBeNull();
+    expect(text).toContain(expectedSeconds || "");
+    expect(text).not.toContain("120");
+
+    wrapper.unmount();
+  });
+
   it("highlights failure reason and log tail for failed jobs", async () => {
     const job: TranscodeJob = {
       id: "job-2",

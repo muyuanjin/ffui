@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { FFmpegPreset } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
 import { usePresetEditor } from "@/composables";
+import { computePresetInsights } from "@/lib/presetInsights";
 import PresetGlobalTab from "@/components/preset-editor/PresetGlobalTab.vue";
 import PresetInputTab from "@/components/preset-editor/PresetInputTab.vue";
 import PresetMappingTab from "@/components/preset-editor/PresetMappingTab.vue";
@@ -22,6 +23,7 @@ import PresetAudioTab from "@/components/preset-editor/PresetAudioTab.vue";
 import PresetFiltersTab from "@/components/preset-editor/PresetFiltersTab.vue";
 import PresetContainerTab from "@/components/preset-editor/PresetContainerTab.vue";
 import PresetHardwareTab from "@/components/preset-editor/PresetHardwareTab.vue";
+import PresetRadarChart from "@/components/preset-editor/PresetRadarChart.vue";
 
 const props = defineProps<{
   /** Preset being edited in the full parameter panel. */
@@ -74,6 +76,10 @@ const handleSave = () => {
 const handleSwitchToWizard = () => {
   emit("switchToWizard", buildPresetFromState());
 };
+
+// 基于当前编辑状态构建洞察数据（雷达图 + 用途标签等）
+const currentPresetSnapshot = computed<FFmpegPreset>(() => buildPresetFromState());
+const currentInsights = computed(() => computePresetInsights(currentPresetSnapshot.value));
 </script>
 
 <template>
@@ -256,19 +262,67 @@ const handleSwitchToWizard = () => {
             </TabsContent>
           </div>
 
-          <div class="w-80 border-l border-border/60 bg-muted/40 p-4 flex flex-col gap-3">
-            <h3 class="text-xs font-semibold text-foreground border-b border-border/60 pb-2">
+          <div class="w-80 border-l border-border/60 bg-muted/40 p-4 flex flex-col gap-3 min-h-0 overflow-y-auto">
+            <!-- 效果雷达图 + 简要说明 -->
+            <div class="space-y-2 flex-shrink-0">
+              <PresetRadarChart
+                :metrics="currentInsights.radar"
+                :has-stats="currentInsights.hasStats"
+              />
+              <div class="text-[11px] text-muted-foreground space-y-1">
+                <div>
+                  <span class="font-medium text-foreground">
+                    {{ t("presetEditor.panel.scenarioLabel") }}:
+                  </span>
+                  <span class="ml-1">
+                    {{ t(`presetEditor.panel.scenario.${currentInsights.scenario}`) }}
+                  </span>
+                </div>
+                <div>
+                  <span class="font-medium text-foreground">
+                    {{ t("presetEditor.panel.encoderFamilyLabel") }}:
+                  </span>
+                  <span class="ml-1">
+                    {{
+                      t(
+                        `presetEditor.panel.encoderFamily.${currentInsights.encoderFamily}`,
+                      )
+                    }}
+                  </span>
+                </div>
+                <div>
+                  <span class="font-medium text-foreground">
+                    {{ t("presetEditor.panel.beginnerFriendlyLabel") }}:
+                  </span>
+                  <span class="ml-1">
+                    {{
+                      currentInsights.isBeginnerFriendly
+                        ? t("presetEditor.panel.beginnerFriendlyYes")
+                        : t("presetEditor.panel.beginnerFriendlyNo")
+                    }}
+                  </span>
+                </div>
+                <p
+                  v-if="currentInsights.mayIncreaseSize"
+                  class="text-[11px] text-amber-400"
+                >
+                  {{ t("presetEditor.panel.mayIncreaseSizeWarning") }}
+                </p>
+              </div>
+            </div>
+
+            <h3 class="text-xs font-semibold text-foreground border-b border-border/60 pb-2 mt-2 flex-shrink-0">
               {{ t("presetEditor.advanced.previewTitle") }}
             </h3>
             <pre
-              class="flex-1 rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
+              class="flex-1 min-h-[80px] rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
               :data-active-group="activeTab"
               v-html="highlightedCommandHtml"
             />
-            <p :class="parseHintClass">
+            <p :class="[parseHintClass, 'flex-shrink-0']">
               {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
             </p>
-            <div class="space-y-1 mt-2">
+            <div class="space-y-1 mt-2 flex-shrink-0">
               <Label class="text-[11px]">
                 {{ t("presetEditor.advanced.templateLabel") }}
               </Label>

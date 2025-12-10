@@ -20,6 +20,8 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 const props = defineProps<{
   presets: FFmpegPreset[];
   initialConfig?: SmartScanConfig;
+  /** 主界面默认视频预设，用于同步默认选择 */
+  defaultVideoPresetId?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -33,7 +35,11 @@ const { t } = useI18n();
 const config = ref<SmartScanConfig>({
   ...DEFAULT_SMART_SCAN_CONFIG,
   ...props.initialConfig,
-  videoPresetId: props.initialConfig?.videoPresetId || props.presets[0]?.id || "",
+  videoPresetId:
+    props.initialConfig?.videoPresetId ||
+    props.defaultVideoPresetId ||
+    props.presets[0]?.id ||
+    "",
   videoFilter: {
     enabled: props.initialConfig?.videoFilter?.enabled ?? true,
     extensions: [...(props.initialConfig?.videoFilter?.extensions ?? VIDEO_EXTENSIONS)],
@@ -57,6 +63,45 @@ watch(
     }
   },
   { immediate: true },
+);
+
+// 当默认预设或预设列表变化时，若当前选择无效则回落到主界面默认预设
+watch(
+  () => [props.defaultVideoPresetId, props.presets.map((p) => p.id).join(",")],
+  () => {
+    const hasValidSelection =
+      !!config.value.videoPresetId && props.presets.some((p) => p.id === config.value.videoPresetId);
+    if (hasValidSelection) return;
+    config.value.videoPresetId = props.defaultVideoPresetId || props.presets[0]?.id || "";
+  },
+);
+
+// 监听媒体类型启用状态，启用时自动勾选所有对应的文件类型
+watch(
+  () => config.value.videoFilter.enabled,
+  (enabled) => {
+    if (enabled) {
+      config.value.videoFilter.extensions = [...VIDEO_EXTENSIONS];
+    }
+  },
+);
+
+watch(
+  () => config.value.imageFilter.enabled,
+  (enabled) => {
+    if (enabled) {
+      config.value.imageFilter.extensions = [...IMAGE_EXTENSIONS];
+    }
+  },
+);
+
+watch(
+  () => config.value.audioFilter.enabled,
+  (enabled) => {
+    if (enabled) {
+      config.value.audioFilter.extensions = [...AUDIO_EXTENSIONS];
+    }
+  },
 );
 
 // 选择文件夹

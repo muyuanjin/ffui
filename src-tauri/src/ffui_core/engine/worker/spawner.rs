@@ -12,6 +12,13 @@ use super::selection::next_job_for_worker_locked;
 
 /// Spawn worker threads with a bounded count derived from cores/settings.
 pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
+    #[cfg(test)]
+    {
+        if std::env::var_os("FFUI_ENABLE_WORKERS_IN_TESTS").is_none() {
+            return;
+        }
+    }
+
     let logical_cores = std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(1)

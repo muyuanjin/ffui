@@ -146,6 +146,7 @@ pub(crate) fn handle_video_file(
         progress: 0.0,
         start_time: None,
         end_time: None,
+        elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
         skip_reason: None,
@@ -310,6 +311,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
     settings: &AppSettings,
     preset: &FFmpegPreset,
     batch_id: &str,
+    notify_queue: bool,
 ) -> TranscodeJob {
     let original_size_bytes = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     let original_size_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
@@ -333,6 +335,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
         progress: 0.0,
         start_time: Some(now_ms),
         end_time: None,
+        elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
         skip_reason: None,
@@ -367,7 +370,9 @@ pub(crate) fn enqueue_smart_scan_video_job(
         state.jobs.insert(id, job.clone());
         drop(state);
 
-        super::helpers::notify_queue_listeners(inner);
+        if notify_queue {
+            super::helpers::notify_queue_listeners(inner);
+        }
         return job;
     }
 
@@ -387,7 +392,9 @@ pub(crate) fn enqueue_smart_scan_video_job(
             state.jobs.insert(id, job.clone());
             drop(state);
 
-            super::helpers::notify_queue_listeners(inner);
+            if notify_queue {
+                super::helpers::notify_queue_listeners(inner);
+            }
             return job;
         }
     }
@@ -403,8 +410,10 @@ pub(crate) fn enqueue_smart_scan_video_job(
     state.jobs.insert(id.clone(), job.clone());
     drop(state);
 
-    inner.cv.notify_one();
-    super::helpers::notify_queue_listeners(inner);
+    if notify_queue {
+        inner.cv.notify_one();
+        super::helpers::notify_queue_listeners(inner);
+    }
 
     job
 }
