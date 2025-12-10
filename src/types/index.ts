@@ -58,10 +58,11 @@ export type {
   DownloadedToolInfo,
   DownloadedToolState,
   TaskbarProgressMode,
+  TaskbarProgressScope,
   ExternalToolSettings,
   ExternalToolKind,
   ExternalToolStatus,
-   ExternalToolCandidate,
+  ExternalToolCandidate,
 } from "./tools";
 
 // Smart scan types

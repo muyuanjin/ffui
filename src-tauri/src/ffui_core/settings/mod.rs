@@ -22,5 +22,6 @@ pub use app_settings::{load_settings, save_settings};
 pub use presets::{load_presets, save_presets};
 pub use smart_presets::hardware_smart_default_presets;
 pub use types::{
-    AppSettings, DownloadedToolInfo, DownloadedToolState, ExternalToolSettings, TaskbarProgressMode,
+    AppSettings, DownloadedToolInfo, DownloadedToolState, ExternalToolSettings,
+    TaskbarProgressMode, TaskbarProgressScope,
 };

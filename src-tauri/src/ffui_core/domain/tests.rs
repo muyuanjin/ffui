@@ -21,6 +21,7 @@ mod domain_contract_tests {
             progress: 0.0,
             start_time: Some(1),
             end_time: Some(2),
+            processing_started_ms: Some(10),
             elapsed_ms: Some(12345),
             output_size_mb: Some(45.0),
             logs: Vec::new(),
@@ -74,6 +75,13 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("outputPath present"),
             "C:/videos/output.mp4"
+        );
+        assert_eq!(
+            value
+                .get("processingStartedMs")
+                .and_then(Value::as_u64)
+                .expect("processingStartedMs present"),
+            10
         );
         assert_eq!(
             value
@@ -234,6 +242,7 @@ mod domain_contract_tests {
             progress: 100.0,
             start_time: Some(1),
             end_time: Some(2),
+            processing_started_ms: None,
             elapsed_ms: None,
             output_size_mb: Some(5.0),
             logs: Vec::new(),

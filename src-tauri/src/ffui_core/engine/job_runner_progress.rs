@@ -35,10 +35,13 @@ pub(super) fn update_job_progress(
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get_mut(job_id) {
-            // 更新累计已用时间：基于 start_time 计算当前段的时间，加上之前暂停时累积的时间
-            if job.status == JobStatus::Processing && let Some(start) = job.start_time {
-                // 计算当前段的已用时间
-                let current_segment_ms = now_ms.saturating_sub(start);
+            // 更新累计已用时间：基于 processing_started_ms 计算当前段的时间，加上之前暂停时累积的时间
+            if job.status == JobStatus::Processing {
+                let baseline = job
+                    .processing_started_ms
+                    .or(job.start_time)
+                    .unwrap_or(now_ms);
+                let current_segment_ms = now_ms.saturating_sub(baseline);
                 // 如果有之前暂停时保存的累计时间（存储在 wait_metadata 中），则加上
                 let previous_elapsed = job
                     .wait_metadata

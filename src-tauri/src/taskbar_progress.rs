@@ -1,10 +1,23 @@
-use crate::ffui_core::{JobStatus, QueueState, TaskbarProgressMode, TranscodeJob};
+use crate::ffui_core::{
+    JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope, TranscodeJob,
+};
+
+fn is_terminal(status: &JobStatus) -> bool {
+    matches!(
+        status,
+        JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
+    )
+}
 
 fn normalized_job_progress(job: &TranscodeJob) -> f64 {
-    match job.status {
-        JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled => 1.0,
-        JobStatus::Processing | JobStatus::Paused => (job.progress.clamp(0.0, 100.0)) / 100.0,
-        JobStatus::Waiting | JobStatus::Queued => 0.0,
+    if is_terminal(&job.status) {
+        1.0
+    } else {
+        match job.status {
+            JobStatus::Processing | JobStatus::Paused => (job.progress.clamp(0.0, 100.0)) / 100.0,
+            JobStatus::Waiting | JobStatus::Queued => 0.0,
+            _ => 0.0,
+        }
     }
 }
 
@@ -65,19 +78,36 @@ fn job_weight(job: &TranscodeJob, mode: TaskbarProgressMode) -> f64 {
 /// the current queue state and the configured aggregation mode. The returned
 /// value is in the range [0.0, 1.0] when progress should be shown, or `None`
 /// when the taskbar progress bar should be cleared.
-pub fn compute_taskbar_progress(state: &QueueState, mode: TaskbarProgressMode) -> Option<f64> {
+pub fn compute_taskbar_progress(
+    state: &QueueState,
+    mode: TaskbarProgressMode,
+    scope: TaskbarProgressScope,
+) -> Option<f64> {
     if state.jobs.is_empty() {
         return None;
     }
 
+    let has_non_terminal = state.jobs.iter().any(|job| !is_terminal(&job.status));
+
     let mut weighted_total = 0.0f64;
     let mut total_weight = 0.0f64;
 
-    for job in &state.jobs {
-        let w = job_weight(job, mode);
-        let p = normalized_job_progress(job);
-        weighted_total += w * p;
-        total_weight += w;
+    let use_non_terminal_only = scope == TaskbarProgressScope::ActiveAndQueued && has_non_terminal;
+
+    if use_non_terminal_only {
+        for job in state.jobs.iter().filter(|job| !is_terminal(&job.status)) {
+            let w = job_weight(job, mode);
+            let p = normalized_job_progress(job);
+            weighted_total += w * p;
+            total_weight += w;
+        }
+    } else {
+        for job in &state.jobs {
+            let w = job_weight(job, mode);
+            let p = normalized_job_progress(job);
+            weighted_total += w * p;
+            total_weight += w;
+        }
     }
 
     if total_weight <= 0.0 {
@@ -94,12 +124,7 @@ fn is_terminal_only_queue(state: &QueueState) -> bool {
         return false;
     }
 
-    state.jobs.iter().all(|job| {
-        matches!(
-            job.status,
-            JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
-        )
-    })
+    state.jobs.iter().all(|job| is_terminal(&job.status))
 }
 
 /// Update the Windows taskbar progress bar for the main window. On non-Windows
@@ -109,6 +134,7 @@ pub fn update_taskbar_progress(
     app: &tauri::AppHandle,
     state: &QueueState,
     mode: TaskbarProgressMode,
+    scope: TaskbarProgressScope,
 ) {
     use tauri::window::{ProgressBarState, ProgressBarStatus};
     use tauri::{Manager, UserAttentionType};
@@ -116,7 +142,7 @@ pub fn update_taskbar_progress(
     if let Some(window) = app.get_webview_window("main") {
         let completed_queue = is_terminal_only_queue(state);
 
-        match compute_taskbar_progress(state, mode) {
+        match compute_taskbar_progress(state, mode, scope) {
             Some(progress) => {
                 let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
 
@@ -193,6 +219,7 @@ pub fn update_taskbar_progress(
     _app: &tauri::AppHandle,
     _state: &QueueState,
     _mode: TaskbarProgressMode,
+    _scope: TaskbarProgressScope,
 ) {
     // No-op on non-Windows platforms.
 }
@@ -206,12 +233,13 @@ pub fn acknowledge_taskbar_completion(
     app: &tauri::AppHandle,
     state: &QueueState,
     mode: TaskbarProgressMode,
+    scope: TaskbarProgressScope,
 ) {
     use tauri::Manager;
     use tauri::window::{ProgressBarState, ProgressBarStatus};
 
     // Only clear when the logical taskbar progress is a completed bar.
-    if let Some(progress) = compute_taskbar_progress(state, mode) {
+    if let Some(progress) = compute_taskbar_progress(state, mode, scope) {
         if (progress - 1.0).abs() > f64::EPSILON {
             return;
         }
@@ -252,6 +280,7 @@ mod tests {
             progress,
             start_time: Some(0),
             end_time: None,
+            processing_started_ms: None,
             elapsed_ms: None,
             output_size_mb: None,
             logs: Vec::new(),
@@ -273,7 +302,11 @@ mod tests {
     fn no_jobs_clears_progress() {
         let state = QueueState { jobs: Vec::new() };
         assert_eq!(
-            compute_taskbar_progress(&state, TaskbarProgressMode::BySize),
+            compute_taskbar_progress(
+                &state,
+                TaskbarProgressMode::BySize,
+                TaskbarProgressScope::AllJobs
+            ),
             None
         );
     }
@@ -284,8 +317,12 @@ mod tests {
             jobs: vec![make_job("1", JobStatus::Processing, 50.0)],
         };
 
-        let progress = compute_taskbar_progress(&state, TaskbarProgressMode::BySize)
-            .expect("progress expected");
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress expected");
         assert!((progress - 0.5).abs() < f64::EPSILON);
     }
 
@@ -298,8 +335,12 @@ mod tests {
             ],
         };
 
-        let progress = compute_taskbar_progress(&state, TaskbarProgressMode::BySize)
-            .expect("progress expected");
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress expected");
         // Average of 25% and 75% is 50%.
         assert!((progress - 0.5).abs() < f64::EPSILON);
     }
@@ -313,8 +354,12 @@ mod tests {
             ],
         };
 
-        let progress = compute_taskbar_progress(&state, TaskbarProgressMode::BySize)
-            .expect("progress expected");
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress expected");
         assert_eq!(progress, 0.0);
     }
 
@@ -327,9 +372,56 @@ mod tests {
             ],
         };
 
-        let progress = compute_taskbar_progress(&state, TaskbarProgressMode::BySize)
-            .expect("progress expected");
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress expected");
         assert!((progress - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn active_scope_excludes_terminal_jobs_when_non_terminal_present() {
+        let state = QueueState {
+            jobs: vec![
+                make_job("1", JobStatus::Completed, 100.0),
+                make_job("2", JobStatus::Failed, 100.0),
+                make_job("3", JobStatus::Waiting, 0.0),
+            ],
+        };
+
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::ActiveAndQueued,
+        )
+        .expect("progress expected");
+        assert_eq!(
+            progress, 0.0,
+            "active scope should ignore terminal jobs when non-terminal jobs exist"
+        );
+    }
+
+    #[test]
+    fn active_scope_falls_back_to_all_jobs_when_queue_completed() {
+        let state = QueueState {
+            jobs: vec![
+                make_job("1", JobStatus::Completed, 100.0),
+                make_job("2", JobStatus::Failed, 100.0),
+            ],
+        };
+
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::ActiveAndQueued,
+        )
+        .expect("progress expected");
+        assert!(
+            (progress - 1.0).abs() < f64::EPSILON,
+            "even in active scope a fully completed queue should report 100%"
+        );
     }
 
     #[test]
@@ -369,10 +461,18 @@ mod tests {
             ],
         };
 
-        let p_before =
-            compute_taskbar_progress(&before, TaskbarProgressMode::BySize).expect("progress");
-        let p_after =
-            compute_taskbar_progress(&after, TaskbarProgressMode::BySize).expect("progress");
+        let p_before = compute_taskbar_progress(
+            &before,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress");
+        let p_after = compute_taskbar_progress(
+            &after,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::AllJobs,
+        )
+        .expect("progress");
 
         assert!(
             p_after + f64::EPSILON >= p_before,

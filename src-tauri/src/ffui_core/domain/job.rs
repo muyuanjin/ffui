@@ -87,6 +87,9 @@ pub struct TranscodeJob {
     pub progress: f64,
     pub start_time: Option<u64>,
     pub end_time: Option<u64>,
+    /// 实际开始处理的时间戳（毫秒），用于计算纯处理耗时（不含排队）。
+    #[serde(rename = "processingStartedMs")]
+    pub processing_started_ms: Option<u64>,
     /// 累计已用转码时间（毫秒）。用于处理暂停/恢复场景，在暂停时保存当前累计时间，
     /// 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - start_time) 计算。
     pub elapsed_ms: Option<u64>,
@@ -168,6 +171,9 @@ pub struct TranscodeJobLite {
     pub progress: f64,
     pub start_time: Option<u64>,
     pub end_time: Option<u64>,
+    /// 实际开始处理的时间戳（毫秒），用于计算纯处理耗时（不含排队）。
+    #[serde(rename = "processingStartedMs")]
+    pub processing_started_ms: Option<u64>,
     /// 累计已用转码时间（毫秒）。
     pub elapsed_ms: Option<u64>,
     // Align with TS field name `outputSizeMB` but accept legacy
@@ -227,6 +233,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             progress: job.progress,
             start_time: job.start_time,
             end_time: job.end_time,
+            processing_started_ms: job.processing_started_ms,
             elapsed_ms: job.elapsed_ms,
             output_size_mb: job.output_size_mb,
             input_path: job.input_path.clone(),

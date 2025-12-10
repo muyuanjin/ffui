@@ -11,6 +11,7 @@ pub use engine::init_child_process_job;
 // (such as system_metrics) can reuse the same NVML-based logic.
 pub use monitor::{CpuUsageSnapshot, GpuUsageSnapshot, sample_gpu_usage};
 pub use settings::{
-    AppSettings, DEFAULT_METRICS_INTERVAL_MS, TaskbarProgressMode, hardware_smart_default_presets,
+    AppSettings, DEFAULT_METRICS_INTERVAL_MS, TaskbarProgressMode, TaskbarProgressScope,
+    hardware_smart_default_presets,
 };
 pub use tools::{ExternalToolCandidate, ExternalToolStatus};

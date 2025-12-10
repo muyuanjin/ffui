@@ -1,6 +1,11 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import gsap from "gsap";
-import type { TranscodeJob, AppSettings, TaskbarProgressMode } from "@/types";
+import type {
+  TranscodeJob,
+  AppSettings,
+  TaskbarProgressMode,
+  TaskbarProgressScope,
+} from "@/types";
 
 // ----- Constants -----
 
@@ -15,12 +20,7 @@ const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS = 250;
  * Waiting/queued jobs count as 0.
  */
 export const normalizedJobProgressForAggregate = (job: TranscodeJob): number => {
-  if (
-    job.status === "completed" ||
-    job.status === "failed" ||
-    job.status === "skipped" ||
-    job.status === "cancelled"
-  ) {
+  if (isTerminalStatus(job.status)) {
     return 1;
   }
   if (job.status === "processing" || job.status === "paused") {
@@ -77,6 +77,12 @@ export const taskbarJobWeightForAggregate = (
   // Ensure each job has at least a tiny weight to avoid division by zero.
   return Math.max(weight, 1e-3);
 };
+
+const isTerminalStatus = (status: TranscodeJob["status"]) =>
+  status === "completed" ||
+  status === "failed" ||
+  status === "skipped" ||
+  status === "cancelled";
 
 // ----- Composable -----
 
@@ -140,11 +146,20 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
 
     const mode: TaskbarProgressMode =
       appSettings.value?.taskbarProgressMode ?? "byEstimatedTime";
+    const scope: TaskbarProgressScope =
+      appSettings.value?.taskbarProgressScope ?? "allJobs";
+
+    const hasNonTerminal = list.some((job) => !isTerminalStatus(job.status));
+    const eligibleJobs =
+      scope === "activeAndQueued" && hasNonTerminal
+        ? list.filter((job) => !isTerminalStatus(job.status))
+        : list;
+    if (eligibleJobs.length === 0) return null;
 
     let totalWeight = 0;
     let weighted = 0;
 
-    for (const job of list) {
+    for (const job of eligibleJobs) {
       const w = taskbarJobWeightForAggregate(job, mode);
       const p = normalizedJobProgressForAggregate(job);
       totalWeight += w;

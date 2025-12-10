@@ -216,6 +216,8 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // WaitMetadata was recorded (for example due to a power loss),
             // attach the path so a later resume can attempt concat-based
             // continuation instead of always restarting from 0%.
+            // 处理耗时基线属于运行期信息，恢复时清空，待重新进入 Processing 时再设置。
+            job.processing_started_ms = None;
             if matches!(job.job_type, JobType::Video)
                 && matches!(
                     job.status,

@@ -35,7 +35,12 @@ pub fn register_queue_stream(handle: &AppHandle) {
         {
             let engine = taskbar_handle.state::<TranscodingEngine>();
             let settings = engine.settings();
-            update_taskbar_progress(&taskbar_handle, &state, settings.taskbar_progress_mode);
+            update_taskbar_progress(
+                &taskbar_handle,
+                &state,
+                settings.taskbar_progress_mode,
+                settings.taskbar_progress_scope,
+            );
         }
     });
 }

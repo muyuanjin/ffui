@@ -58,7 +58,10 @@ export const getFiltersSummary = (preset: FFmpegPreset, t: TranslateFn): string 
 };
 
 export const getSubtitleSummary = (preset: FFmpegPreset, t: TranslateFn): string => {
-  if (!preset.subtitles || preset.subtitles.strategy === "keep") return t("presets.subtitleKeep");
+  // 兼容旧预设：存在 subtitles 对象但未显式设置 strategy 时，视为“保留”
+  if (!preset.subtitles || !preset.subtitles.strategy || preset.subtitles.strategy === "keep") {
+    return t("presets.subtitleKeep");
+  }
   if (preset.subtitles.strategy === "drop") return t("presets.subtitleDrop");
   return t("presets.subtitleBurnIn");
 };

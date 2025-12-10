@@ -79,6 +79,17 @@ pub enum TaskbarProgressMode {
     ByEstimatedTime,
 }
 
+/// 控制任务栏进度计算时纳入哪些任务。
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskbarProgressScope {
+    /// 与现有行为一致：所有任务（含已结束）都会参与聚合。
+    #[default]
+    AllJobs,
+    /// 仅统计仍在排队或进行中的任务；若队列全部终态则回退为全部任务以显示 100%。
+    ActiveAndQueued,
+}
+
 fn is_false(value: &bool) -> bool {
     !*value
 }
@@ -132,6 +143,8 @@ pub struct AppSettings {
     /// omitted in existing settings.json files, this defaults to an
     /// estimated-time based mode for better weighting of heavy presets.
     pub taskbar_progress_mode: TaskbarProgressMode,
+    /// 控制任务栏进度计算是否包含已结束任务。缺省保持历史行为。
+    pub taskbar_progress_scope: TaskbarProgressScope,
     /// Queue persistence strategy. When omitted in existing settings.json
     /// files this defaults to `None` so older installs keep the previous
     /// behaviour of not restoring queue state unless explicitly enabled.
@@ -206,6 +219,7 @@ impl Default for AppSettings {
             progress_update_interval_ms: None,
             metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),
+            taskbar_progress_scope: TaskbarProgressScope::default(),
             queue_persistence_mode: QueuePersistenceMode::default(),
             onboarding_completed: false,
         }

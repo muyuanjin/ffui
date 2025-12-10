@@ -109,6 +109,13 @@ const app = {
     byDuration: "按媒体时长加权",
     byEstimatedTime: "按预估耗时加权（推荐）",
   },
+  taskbarProgressScopeLabel: "任务栏进度统计范围",
+  taskbarProgressScopeHelp:
+    "可选择忽略已结束的任务，避免新一批任务加入时进度条起点过高；若队列全部结束仍会显示 100%；仅统计进行中/排队任务时，多任务并行完成可能出现小幅回落，属于预期行为。",
+  taskbarProgressScopes: {
+    allJobs: "包含全部任务（含已结束，默认）",
+    activeAndQueued: "仅统计进行中与排队中的任务",
+  },
   openDevtools: "打开开发者工具",
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",
   actions: {

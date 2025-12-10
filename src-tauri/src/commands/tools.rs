@@ -122,6 +122,7 @@ pub fn ack_taskbar_progress(app: AppHandle, engine: State<TranscodingEngine>) {
             &app,
             &state,
             settings.taskbar_progress_mode,
+            settings.taskbar_progress_scope,
         );
     }
 

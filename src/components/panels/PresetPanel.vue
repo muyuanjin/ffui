@@ -301,11 +301,11 @@ useSortable(containerRef, localPresets, {
       </div>
     </div>
 
-    <div v-else ref="containerRef" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div v-else ref="containerRef" class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
       <Card
         v-for="preset in sortedPresets"
         :key="preset.id"
-        class="relative group overflow-hidden border border-border/50 bg-card/95 backdrop-blur hover:shadow-md transition-all duration-200"
+        class="relative group overflow-hidden border border-border/50 bg-card/95 backdrop-blur hover:shadow-md transition-all duration-200 h-full flex flex-col"
       >
         <CardHeader class="pb-3 pt-3 px-4">
           <div class="flex items-start gap-2">
@@ -359,59 +359,77 @@ useSortable(containerRef, localPresets, {
           </div>
         </CardHeader>
 
-        <CardContent class="px-4 pb-3 pt-0 space-y-2.5">
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
-              <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.videoLabel") }}</div>
-              <div class="font-mono text-[11px] text-foreground leading-tight">{{ preset.video.encoder }}</div>
-              <div class="font-mono text-[10px] text-primary mt-0.5">
-                {{ getVideoRateControlSummary(preset.video) }}
-                <span v-if="preset.video.pass" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
+        <CardContent class="px-4 pb-3 pt-0 flex-1 flex flex-col space-y-2.5">
+          <div class="flex-1 flex flex-col space-y-2.5">
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
+                <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.videoLabel") }}</div>
+                <div class="font-mono text-[11px] text-foreground leading-tight">{{ preset.video.encoder }}</div>
+                <div class="font-mono text-[10px] text-primary mt-0.5">
+                  {{ getVideoRateControlSummary(preset.video) }}
+                  <span v-if="preset.video.pass" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
+                </div>
+              </div>
+              <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
+                <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.audioLabel") }}</div>
+                <div class="font-mono text-[11px] text-foreground leading-tight">{{ getAudioSummary(preset.audio, t) }}</div>
               </div>
             </div>
-            <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
-              <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.audioLabel") }}</div>
-              <div class="font-mono text-[11px] text-foreground leading-tight">{{ getAudioSummary(preset.audio, t) }}</div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+                <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.filtersLabel") }}:</span>
+                <span class="text-[10px] text-foreground ml-1">{{ getFiltersSummary(preset, t) }}</span>
+              </div>
+              <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+                <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.subtitlesLabel") }}:</span>
+                <span class="text-[10px] text-foreground ml-1">{{ getSubtitleSummary(preset, t) }}</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+                <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.hardwareLabel") }}:</span>
+                <span
+                  class="text-[10px] ml-1"
+                  :class="preset.hardware?.hwaccel ? 'text-amber-500 font-mono' : 'text-muted-foreground'"
+                >
+                  {{ preset.hardware?.hwaccel || t("presets.hardwarePlaceholder") }}
+                </span>
+              </div>
+              <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+                <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.containerLabel") }}:</span>
+                <span
+                  class="text-[10px] ml-1"
+                  :class="preset.container?.format || preset.container?.movflags?.length ? 'text-foreground font-mono' : 'text-muted-foreground'"
+                >
+                  {{
+                    preset.container?.format
+                      || (preset.container?.movflags?.length ? preset.container.movflags.join("+") : t("presets.containerPlaceholder"))
+                  }}
+                </span>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{ t("presets.commandPreviewLabel") }}</span>
+                <Button variant="ghost" size="sm" class="h-5 px-1.5 text-[9px] hover:bg-muted" @click="copyToClipboard(getPresetCommandPreview(preset))">
+                  <Copy class="h-3 w-3 mr-1" />
+                  {{ t("presetEditor.advanced.copyButton") }}
+                </Button>
+              </div>
+              <p class="text-[9px] text-muted-foreground">
+                {{ t("presets.commandPreviewHint") }}
+              </p>
+              <pre
+                class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
+                v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
+              />
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
-              <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.filtersLabel") }}:</span>
-              <span class="text-[10px] text-foreground ml-1">{{ getFiltersSummary(preset, t) }}</span>
-            </div>
-            <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
-              <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.subtitlesLabel") }}:</span>
-              <span class="text-[10px] text-foreground ml-1">{{ getSubtitleSummary(preset, t) }}</span>
-            </div>
-            <div v-if="preset.hardware?.hwaccel" class="bg-background/50 rounded px-2 py-1 border border-border/20">
-              <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.hardwareLabel") }}:</span>
-              <span class="text-[10px] text-amber-500 ml-1 font-mono">{{ preset.hardware.hwaccel }}</span>
-            </div>
-            <div v-if="preset.container?.format || preset.container?.movflags?.length" class="bg-background/50 rounded px-2 py-1 border border-border/20">
-              <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.containerLabel") }}:</span>
-              <span class="text-[10px] text-foreground ml-1 font-mono">{{ preset.container.format || preset.container.movflags?.join("+") }}</span>
-            </div>
-          </div>
-
-          <div class="space-y-1">
-            <div class="flex items-center justify-between">
-              <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{ t("presets.commandPreviewLabel") }}</span>
-              <Button variant="ghost" size="sm" class="h-5 px-1.5 text-[9px] hover:bg-muted" @click="copyToClipboard(getPresetCommandPreview(preset))">
-                <Copy class="h-3 w-3 mr-1" />
-                {{ t("presetEditor.advanced.copyButton") }}
-              </Button>
-            </div>
-            <p class="text-[9px] text-muted-foreground">
-              {{ t("presets.commandPreviewHint") }}
-            </p>
-            <pre
-              class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
-              v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
-            />
-          </div>
-
-          <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30">
+          <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto">
             <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
             <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
               <span class="truncate">
@@ -422,10 +440,10 @@ useSortable(containerRef, localPresets, {
                 class="font-medium truncate"
                 :class="getRatioColorClass(getPresetAvgRatio(preset))"
               >
-                {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
+                {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? '0.0' }) }}
               </span>
               <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
-                {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
+                {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? '0.0' }) }}
               </span>
             </div>
           </div>

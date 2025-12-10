@@ -114,6 +114,13 @@ const app = {
     byDuration: "Weight by media duration",
     byEstimatedTime: "Weight by estimated processing time (recommended)",
   },
+  taskbarProgressScopeLabel: "Taskbar progress scope",
+  taskbarProgressScopeHelp:
+    "Ignore completed jobs when new work starts to avoid a high starting percentage; still shows 100% when everything is done; when counting only active/queued jobs, taskbar progress may dip slightly as parallel jobs finish—this is expected.",
+  taskbarProgressScopes: {
+    allJobs: "Include all jobs (default, completed included)",
+    activeAndQueued: "Only active and queued jobs",
+  },
   openDevtools: "Open Devtools",
   openDevtoolsUnavailable:
     "Running in pure web mode; use your browser's devtools instead.",

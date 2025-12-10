@@ -15,6 +15,8 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         if job.start_time.is_none() {
             job.start_time = Some(current_time_millis());
         }
+        // 记录实际进入 Processing 的时间，用于计算纯处理耗时（不含排队）。
+        job.processing_started_ms = Some(current_time_millis());
         // For fresh jobs we start from 0%, but for resumed jobs that already
         // have meaningful progress and wait metadata we keep the existing
         // percentage so the UI does not jump backwards when continuing from

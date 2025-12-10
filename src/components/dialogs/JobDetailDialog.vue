@@ -135,13 +135,23 @@ const jobDetailLogText = computed(() => {
   return full || tail;
 });
 
-// 任务耗时（秒），优先使用结束时间，否则基于当前时间粗略估算
+// 任务耗时（秒）：优先使用后端累计的 elapsedMs（仅统计实际处理时间），
+// 若缺失则退回到 startTime/endTime 差值（近似总耗时），并在处理中时用当前时间估算。
 const jobProcessingSeconds = computed(() => {
   const job = props.job;
-  if (!job?.startTime) return null;
+  if (!job) return null;
+
+  // 1) 优先采用后端提供的累计处理时间（毫秒）
+  if (job.elapsedMs != null && job.elapsedMs > 0 && Number.isFinite(job.elapsedMs)) {
+    return job.elapsedMs / 1000;
+  }
+
+  // 2) 回退到基于开始/结束时间的近似值（优先使用 processingStartedMs）
+  const fallbackStart = job.processingStartedMs ?? job.startTime;
+  if (!fallbackStart) return null;
   const endMs = job.endTime ?? Date.now();
-  if (endMs <= job.startTime) return null;
-  return (endMs - job.startTime) / 1000;
+  if (endMs <= fallbackStart) return null;
+  return (endMs - fallbackStart) / 1000;
 });
 
 const unknownPresetLabel = computed(() => {

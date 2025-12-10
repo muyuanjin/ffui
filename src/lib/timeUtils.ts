@@ -78,6 +78,7 @@ export function computeJobElapsedMs(
     status: string;
     startTime?: number;
     endTime?: number;
+    processingStartedMs?: number;
     elapsedMs?: number;
   },
   nowMs: number
@@ -92,8 +93,9 @@ export function computeJobElapsedMs(
     if (job.elapsedMs != null && job.elapsedMs > 0) {
       return job.elapsedMs;
     }
-    if (job.startTime != null && job.endTime != null && job.endTime > job.startTime) {
-      return job.endTime - job.startTime;
+    const fallbackStart = job.processingStartedMs ?? job.startTime;
+    if (fallbackStart != null && job.endTime != null && job.endTime > fallbackStart) {
+      return job.endTime - fallbackStart;
     }
     return null;
   }
@@ -109,8 +111,9 @@ export function computeJobElapsedMs(
     if (job.elapsedMs != null && job.elapsedMs > 0) {
       return job.elapsedMs;
     }
-    if (job.startTime != null && nowMs > job.startTime) {
-      return nowMs - job.startTime;
+    const fallbackStart = job.processingStartedMs ?? job.startTime;
+    if (fallbackStart != null && nowMs > fallbackStart) {
+      return nowMs - fallbackStart;
     }
   }
   

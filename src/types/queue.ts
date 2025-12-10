@@ -78,6 +78,8 @@ export interface TranscodeJob {
   progress: number;
   startTime?: number;
   endTime?: number;
+  /** 实际开始处理的时间戳（毫秒），用于计算纯处理耗时（不含排队）。 */
+  processingStartedMs?: number;
   /**
    * 累计已用转码时间（毫秒）。用于处理暂停/恢复场景，在暂停时保存当前累计时间，
    * 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - startTime) 计算。
