@@ -1,8 +1,10 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::ffui_core::domain::{FFmpegPreset, JobStatus, TranscodeJob};
+use crate::ffui_core::domain::{AutoCompressProgress, FFmpegPreset, JobStatus, TranscodeJob};
 
-use super::state::{Inner, SmartScanBatchStatus, notify_queue_listeners};
+use super::state::{
+    Inner, SmartScanBatchStatus, notify_queue_listeners, notify_smart_scan_listeners,
+};
 
 pub(super) const MAX_LOG_TAIL_BYTES: usize = 16 * 1024;
 
@@ -85,7 +87,7 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
 /// Mark a Smart Scan child job as processed and update batch status if all
 /// children are complete.
 pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
-    let batch_id_opt = {
+    let (batch_id_opt, progress_opt) = {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let job = match state.jobs.get(job_id) {
             Some(job) => job.clone(),
@@ -118,11 +120,33 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
         {
             batch.status = SmartScanBatchStatus::Completed;
             batch.completed_at_ms = Some(current_time_millis());
-            Some(batch_id)
+            (
+                Some(batch_id.clone()),
+                Some(AutoCompressProgress {
+                    root_path: batch.root_path.clone(),
+                    total_files_scanned: batch.total_files_scanned,
+                    total_candidates: batch.total_candidates,
+                    total_processed: batch.total_processed,
+                    batch_id: batch.batch_id.clone(),
+                }),
+            )
         } else {
-            None
+            (
+                None,
+                Some(AutoCompressProgress {
+                    root_path: batch.root_path.clone(),
+                    total_files_scanned: batch.total_files_scanned,
+                    total_candidates: batch.total_candidates,
+                    total_processed: batch.total_processed,
+                    batch_id: batch.batch_id.clone(),
+                }),
+            )
         }
     };
+
+    if let Some(progress) = progress_opt {
+        notify_smart_scan_listeners(inner, progress);
+    }
 
     if batch_id_opt.is_some() {
         notify_queue_listeners(inner);

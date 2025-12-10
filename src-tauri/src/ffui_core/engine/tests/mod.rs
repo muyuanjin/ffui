@@ -35,5 +35,6 @@ mod queue_basic;
 mod queue_delete;
 mod queue_wait_and_restart;
 mod smart_scan_audio_tests;
+mod smart_scan_name_tests;
 mod smart_scan_tests;
 mod tools_download_metadata;
