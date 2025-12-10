@@ -30,6 +30,21 @@ pub(crate) fn is_video_file(path: &Path) -> bool {
     )
 }
 
+pub(crate) fn is_audio_file(path: &Path) -> bool {
+    let ext = match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase())
+    {
+        Some(ext) => ext,
+        None => return false,
+    };
+    matches!(
+        ext.as_str(),
+        "mp3" | "wav" | "flac" | "aac" | "ogg" | "m4a" | "wma" | "opus"
+    )
+}
+
 pub(crate) fn is_smart_scan_style_output(path: &Path) -> bool {
     let file_name = match path.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_ascii_lowercase(),

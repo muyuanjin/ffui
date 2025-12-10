@@ -7,7 +7,7 @@ export type JobStatus =
   | "failed"
   | "skipped"
   | "cancelled";
-export type JobType = "video" | "image";
+export type JobType = "video" | "image" | "audio";
 export type JobSource = "manual" | "smart_scan";
 
 /**

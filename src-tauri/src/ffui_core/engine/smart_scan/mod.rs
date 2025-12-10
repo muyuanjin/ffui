@@ -4,6 +4,7 @@
 //! (images and videos) that are candidates for compression, applying filters
 //! based on size, codec, and savings ratio.
 
+mod audio;
 mod detection;
 mod helpers;
 mod image;

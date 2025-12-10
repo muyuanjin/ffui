@@ -103,7 +103,7 @@
               <SelectValue>{{ secondarySortByText || '无' }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">无</SelectItem>
+              <SelectItem value="none">无</SelectItem>
               <SelectItem value="fileName">按文件名</SelectItem>
               <SelectItem value="fileSize">按文件大小</SelectItem>
               <SelectItem value="duration">按时长</SelectItem>
@@ -180,7 +180,8 @@ withDefaults(defineProps<Props>(), {
 const queueMode = ref('view')
 const sortBy = ref('addedTime')
 const sortDirection = ref<'asc' | 'desc'>('asc')
-const secondarySortBy = ref('')
+// 使用明确的字符串而不是空字符串，避免 SelectItem value 为空导致的运行时错误
+const secondarySortBy = ref<'none' | 'fileName' | 'fileSize' | 'duration'>('none')
 const showSecondarySort = ref(false)
 const showFilters = ref(false)
 

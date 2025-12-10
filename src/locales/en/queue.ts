@@ -1,6 +1,7 @@
 const queue = {
   typeVideo: "VIDEO",
   typeImage: "IMAGE",
+  typeAudio: "AUDIO",
   skippedPrefix: "Skipped:",
   dropTitle: "Drop files to enqueue",
   dropSubtitle: "Release to create manual jobs in the transcode queue",

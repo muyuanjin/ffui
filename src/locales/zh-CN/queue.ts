@@ -1,6 +1,7 @@
 const queue = {
   typeVideo: "视频",
   typeImage: "图片",
+  typeAudio: "音频",
   skippedPrefix: "已跳过：",
   dropTitle: "拖拽文件到窗口以加入队列",
   dropSubtitle: "释放鼠标即可为这些文件创建转码任务",

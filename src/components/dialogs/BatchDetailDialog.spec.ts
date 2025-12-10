@@ -34,6 +34,23 @@ describe("BatchDetailDialog", () => {
       const contentDiv = wrapper.find('.flex.flex-col');
       expect(contentDiv.exists()).toBe(true);
     });
+
+    it("ScrollArea 应该有 overflow-hidden 类以确保滚动正常工作", async () => {
+      const jobs = Array.from({ length: 20 }, (_, i) =>
+        createMockJob(`job-${i}`, "waiting"),
+      );
+      const batch = createMockBatch(jobs);
+
+      const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
+
+      await flushPromises();
+      await nextTick();
+
+      // 检查 ScrollArea 有 overflow-hidden 类
+      const scrollArea = wrapper.find('[data-testid="scroll-area"]');
+      expect(scrollArea.exists()).toBe(true);
+      expect(scrollArea.classes()).toContain("overflow-hidden");
+    });
   });
 
   describe("子任务操作按钮", () => {

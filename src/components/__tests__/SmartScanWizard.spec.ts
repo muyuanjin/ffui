@@ -6,6 +6,8 @@ import SmartScanWizard from "@/components/SmartScanWizard.vue";
 import zhCN from "@/locales/zh-CN";
 import type { FFmpegPreset, SmartScanConfig } from "@/types";
 import { buildSmartScanDefaults } from "../../__tests__/helpers/smartScanDefaults";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 // Slider 依赖 ResizeObserver，测试环境补齐最小 polyfill
 if (typeof (globalThis as any).ResizeObserver === "undefined") {
@@ -70,5 +72,13 @@ describe("SmartScanWizard 默认预设", () => {
 
     const emitted = wrapper.emitted("run") as Array<[SmartScanConfig]> | undefined;
     expect(emitted?.[0]?.[0].videoPresetId).toBe("p1");
+  });
+
+  it("音频预设 SelectItem 不使用空字符串 value（静态模板校验，兼容 reka-ui 校验）", () => {
+    const source = readFileSync(
+      resolve(__dirname, "../SmartScanWizard.vue"),
+      "utf8",
+    );
+    expect(source).not.toContain('<SelectItem value="">');
   });
 });
