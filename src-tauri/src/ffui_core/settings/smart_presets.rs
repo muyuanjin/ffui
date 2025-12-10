@@ -282,8 +282,7 @@ mod tests {
 
         let en = dict.get("en").expect("English description should exist");
         assert_ne!(
-            en,
-            &preset.description,
+            en, &preset.description,
             "English description should not fall back to the default Chinese string"
         );
         assert!(
