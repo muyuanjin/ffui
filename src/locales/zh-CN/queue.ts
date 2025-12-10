@@ -56,7 +56,7 @@ const queue = {
   },
   source: {
     manual: "手动添加",
-    smartScan: "智能压缩",
+    smartScan: "批量压缩",
   },
   filters: {
     label: "筛选",
@@ -128,7 +128,7 @@ const queue = {
     cancelRejected: "后台拒绝取消该任务，可能已经完成或处于不可取消状态。",
     cancelFailed: "取消任务时出现错误，请稍后重试或检查设置。",
     autoCompressFailed:
-      "智能压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在「软件设置」中启用自动下载。",
+      "批量压缩调用后端失败，已回退到前端模拟结果。请检查外部工具是否可用，或在「软件设置」中启用自动下载。",
     waitRejected: "后台拒绝对该任务执行等待，可能已完成或不在运行中。",
     waitFailed: "执行等待操作时出现错误，请稍后重试或检查设置。",
     resumeRejected: "后台拒绝继续该任务，可能状态已发生变化。",

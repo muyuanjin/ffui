@@ -93,6 +93,70 @@ export function useMainAppSetup() {
     startupIdleReady,
   });
 
+  // Smart Scan 运行期间，如果后台已经为某个批次生成了子任务，但 Tauri 端尚未推送
+  // 队列事件（队列监听只在检测结束后一次性广播），队列面板会出现“批次卡片存在但
+  // 子任务列表长期为空”的错觉。为缓解这种体验，这里在收到 Smart Scan 进度快照且
+  // 发现某个批次的 totalCandidates 大于当前前端已知的子任务数量时，触发一次
+  // 基于命令的轻量队列刷新（get_queue_state_lite），以提前拉取后台正在处理的压缩
+  // 任务列表。
+  const lastSmartScanQueueRefreshAtMs = ref(0);
+  const SMART_SCAN_QUEUE_REFRESH_MIN_INTERVAL_MS = 1000;
+
+  watch(
+    [smartScan.smartScanBatchMeta, jobs],
+    async () => {
+      if (!hasTauri()) return;
+
+      const metaById = smartScan.smartScanBatchMeta.value;
+      const batchIds = Object.keys(metaById);
+      if (batchIds.length === 0) return;
+
+      const jobCountByBatch = new Map<string, number>();
+      for (const job of jobs.value) {
+        const batchId = job.batchId;
+        if (!batchId) continue;
+        jobCountByBatch.set(batchId, (jobCountByBatch.get(batchId) ?? 0) + 1);
+      }
+
+      let shouldRefresh = false;
+      for (const batchId of batchIds) {
+        const meta = metaById[batchId];
+        if (!meta) continue;
+
+        // 仅在批次已经产生候选（或已处理数量增加）但前端尚未看到足够多的子任务时触发刷新，
+        // 避免在纯扫描但无候选的目录上产生无谓请求。
+        const totalCandidates = meta.totalCandidates ?? 0;
+        const totalProcessed = meta.totalProcessed ?? 0;
+        if (totalCandidates <= 0 && totalProcessed <= 0) continue;
+
+        const currentCount = jobCountByBatch.get(batchId) ?? 0;
+        if (currentCount < totalCandidates) {
+          shouldRefresh = true;
+          break;
+        }
+      }
+
+      if (!shouldRefresh) return;
+
+      const now = Date.now();
+      if (
+        lastSmartScanQueueRefreshAtMs.value &&
+        now - lastSmartScanQueueRefreshAtMs.value < SMART_SCAN_QUEUE_REFRESH_MIN_INTERVAL_MS
+      ) {
+        return;
+      }
+
+      lastSmartScanQueueRefreshAtMs.value = now;
+
+      try {
+        await queue.refreshQueueFromBackend();
+      } catch (error) {
+        console.error("Failed to refresh queue state after Smart Scan progress", error);
+      }
+    },
+    { flush: "post" },
+  );
+
   const settings = useMainAppSettings({
     jobs,
     manualJobPresetId,

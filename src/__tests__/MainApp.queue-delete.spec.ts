@@ -112,6 +112,8 @@ describe("MainApp queue delete behaviour", () => {
       delete_transcode_job: (payload) => {
         const id = (payload?.jobId ?? payload?.job_id) as string;
         deletedIds.push(id);
+        // 模拟后端在返回 true 时从队列中移除对应任务。
+        setQueueJobs(getQueueJobs().filter((job) => job.id !== id));
         return true;
       },
     });
@@ -143,6 +145,14 @@ describe("MainApp queue delete behaviour", () => {
     ).toBe(true);
     expect(deletedIds).toContain("job-completed");
     expect(deletedIds).not.toContain("job-processing");
+
+    // UI 队列中应只剩下仍在 processing 的任务。
+    const uiJobs = (vm.queueJobsForDisplay ?? vm.queueJobsForDisplay?.value) as
+      | TranscodeJob[]
+      | undefined;
+    const remainingIds = (uiJobs ?? []).map((job) => job.id);
+    expect(remainingIds).toContain("job-processing");
+    expect(remainingIds).not.toContain("job-completed");
 
     // When some selected jobs are still active,已经完成的任务会被删除，
     // 但应提示用户“正在运行或排队中的任务不能直接从列表删除”而不是“部分任务删除失败”。

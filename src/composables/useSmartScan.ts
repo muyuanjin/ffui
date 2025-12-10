@@ -209,14 +209,15 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
 
       const hasQueuedChildren = batchJobs.length > 0;
       const batchComplete =
-        totalCandidates > 0 && totalProcessed >= totalCandidates;
+        // 有候选时：processed 覆盖所有候选视为完成
+        (totalCandidates > 0 && totalProcessed >= totalCandidates) ||
+        // 无候选时：仅依据 completedAtMs 是否存在来判断是否“空批次已跑完”
+        (totalCandidates === 0 && !!meta?.completedAtMs);
 
       if (!hasQueuedChildren && batchComplete) {
-        // 当该批次的所有子任务都已经处理完并且从队列中移除时，不再渲染空的复合任务卡片，
-        // 这样“从列表中删除”在包含智能压缩批次时也能真正清空队列视图。
-        // （Smart Scan 元数据仍保留在前端状态中，用于后续统计或调试。）
-        // 这里仅在 totalCandidates > 0 的情况下隐藏，避免影响纯扫描但无候选的边界情况。
-        // 这也避免了仅靠批次元数据就让队列面板看起来“还有任务没删干净”的错觉。
+        // 当该批次的所有子任务都已经处理完并且从队列中移除，或者这是一个“空候选但已完成”的批次时，
+        // 不再渲染空的复合任务卡片，避免队列中出现无法选中/删除的“空压缩任务”。
+        // Smart Scan 元数据仍保留在前端状态中，用于后续统计或调试。
         continue;
       }
 
@@ -425,7 +426,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
       smartConfig.value.rootPath = lastDroppedRoot.value;
     }
 
-    // 直接打开智能压缩面板，让用户在面板内选择路径和配置
+    // 直接打开批量压缩面板，让用户在面板内选择路径和配置
     showSmartScan.value = true;
   };
 

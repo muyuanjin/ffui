@@ -10,6 +10,7 @@ import {
   getSmartScanProgressHandler,
   getQueueJobs,
   i18n,
+  invokeMock,
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
@@ -29,7 +30,7 @@ if (typeof (globalThis as any).ResizeObserver === "undefined") {
 
 describe("MainApp Smart Scan integration", () => {
   it("opens Smart Scan wizard directly without directory dialog", async () => {
-    // 新行为：点击智能压缩按钮直接打开面板，用户在面板内选择路径
+    // 新行为：点击批量压缩按钮直接打开面板，用户在面板内选择路径
     useBackendMock({
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
@@ -51,7 +52,7 @@ describe("MainApp Smart Scan integration", () => {
     // 不再调用文件夹选择对话框
     expect(dialogOpenMock).not.toHaveBeenCalled();
 
-    // 直接打开智能压缩面板
+    // 直接打开批量压缩面板
     expect(vm.showSmartScan).toBe(true);
     expect(vm.activeTab).toBe("queue");
 
@@ -294,6 +295,88 @@ describe("MainApp Smart Scan integration", () => {
 
     tasks = vm.compositeSmartScanTasks;
     expect(tasks[0].totalCandidates).toBe(2);
+
+    wrapper.unmount();
+  });
+
+  it("refreshes queue snapshot from backend when Smart Scan progress arrives without a queue event", async () => {
+    const batchId = "auto-compress-progress-refresh";
+    const rootPath = "C:/videos/progress-refresh";
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      run_auto_compress: () =>
+        buildAutoCompressResult(rootPath, {
+          completedAtMs: 0,
+          batchId,
+        }),
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    vm.lastDroppedRoot = rootPath;
+
+    const config = {
+      rootPath,
+      replaceOriginal: true,
+      minImageSizeKB: 0,
+      minVideoSizeMB: 0,
+      minAudioSizeKB: 0,
+      savingConditionType: "ratio" as const,
+      minSavingRatio: 0.8,
+      minSavingAbsoluteMB: 0,
+      imageTargetFormat: "avif" as const,
+      videoPresetId: "preset-1",
+      audioPresetId: "",
+      videoFilter: { enabled: true, extensions: ["mp4", "mkv"] },
+      imageFilter: { enabled: false, extensions: [] },
+      audioFilter: { enabled: false, extensions: [] },
+    };
+
+    await vm.runSmartScan(config);
+    await nextTick();
+
+    const callsBefore = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "get_queue_state_lite",
+    ).length;
+
+    const job: TranscodeJob = {
+      id: "job-progress-1",
+      filename: "C:/videos/progress-refresh.mp4",
+      type: "video",
+      source: "smart_scan",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+      batchId,
+    } as any;
+
+    setQueueJobs([job]);
+
+    const progress: AutoCompressProgress = {
+      rootPath,
+      totalFilesScanned: 1,
+      totalCandidates: 1,
+      totalProcessed: 0,
+      batchId,
+    };
+    emitSmartScanProgress(progress);
+
+    await nextTick();
+    await nextTick();
+
+    const callsAfter = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "get_queue_state_lite",
+    ).length;
+    expect(callsAfter).toBeGreaterThan(callsBefore);
 
     wrapper.unmount();
   });

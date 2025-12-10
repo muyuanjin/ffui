@@ -41,7 +41,7 @@ describe("queue operations state sync", () => {
     loadQueueStateMock.mockReset();
   });
 
-  it("applyQueueStateFromBackend merges smart scan jobs with backend jobs and updates timestamp", () => {
+  it("applyQueueStateFromBackend applies backend jobs snapshot and updates timestamp", () => {
     const smartScanJob: TranscodeJob = {
       id: "scan-1",
       filename: "C:/videos/scan.mp4",
@@ -76,10 +76,8 @@ describe("queue operations state sync", () => {
     const before = deps.lastQueueSnapshotAtMs.value;
     applyQueueStateFromBackend({ jobs: [backendJob] }, deps);
 
-    expect(deps.jobs.value.map((j) => j.id)).toEqual([
-      smartScanJob.id,
-      backendJob.id,
-    ]);
+    // 现在后端快照是唯一事实来源，应直接覆盖本地 Smart Scan 队列，防止“后端已删但前端仍残留”。
+    expect(deps.jobs.value.map((j) => j.id)).toEqual([backendJob.id]);
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
   });
 
