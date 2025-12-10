@@ -39,6 +39,7 @@ pub enum JobStatus {
 pub enum JobType {
     Video,
     Image,
+    Audio,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

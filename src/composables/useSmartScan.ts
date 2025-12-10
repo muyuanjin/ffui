@@ -4,6 +4,7 @@ import type {
   SmartScanConfig,
   CompositeSmartScanTask,
   JobStatus,
+  JobType,
   FFmpegPreset,
 } from "@/types";
 import { DEFAULT_SMART_SCAN_CONFIG, EXTENSIONS } from "@/constants";
@@ -278,15 +279,22 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
     const count = 5 + Math.floor(Math.random() * 5);
     const batchId = `mock-batch-${Date.now().toString(36)}`;
 
+    const enabledKinds: JobType[] = [];
+    if (config.videoFilter.enabled) enabledKinds.push("video");
+    if (config.imageFilter.enabled) enabledKinds.push("image");
+    if (config.audioFilter.enabled) enabledKinds.push("audio");
+    const kinds: JobType[] =
+      enabledKinds.length > 0 ? enabledKinds : (["video", "image"] as JobType[]);
+
     for (let i = 0; i < count; i += 1) {
-      const isVideo = Math.random() > 0.4;
+      const kind: JobType = kinds[Math.floor(Math.random() * kinds.length)];
       let filename = "";
       let size = 0;
       let codec = "";
       let status: JobStatus = "waiting";
       let skipReason = "";
 
-      if (isVideo) {
+      if (kind === "video") {
         const ext = EXTENSIONS.videos[Math.floor(Math.random() * EXTENSIONS.videos.length)];
         filename = `video_scanned_${Math.floor(Math.random() * 1000)}${ext}`;
         size = 10 + Math.random() * 200;
@@ -299,7 +307,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
           status = "skipped";
           skipReason = `Size < ${config.minVideoSizeMB}MB`;
         }
-      } else {
+      } else if (kind === "image") {
         const ext = EXTENSIONS.images[Math.floor(Math.random() * EXTENSIONS.images.length)];
         const isAvif = Math.random() > 0.9;
         filename = `photo_scan_${Math.floor(Math.random() * 1000)}${isAvif ? ".avif" : ext}`;
@@ -313,16 +321,31 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
           status = "skipped";
           skipReason = `Size < ${config.minImageSizeKB}KB`;
         }
+      } else {
+        const ext = EXTENSIONS.audios[Math.floor(Math.random() * EXTENSIONS.audios.length)];
+        filename = `audio_scan_${Math.floor(Math.random() * 1000)}${ext}`;
+        size = (500 + Math.random() * 9500) / 1024; // 粗略模拟 KB → MB
+        codec = ext.replace(".", "");
+
+        if (size * 1024 < config.minAudioSizeKB) {
+          status = "skipped";
+          skipReason = `Size < ${config.minAudioSizeKB}KB`;
+        }
       }
+
+      const presetIdForKind =
+        kind === "audio"
+          ? config.audioPresetId || ""
+          : config.videoPresetId;
 
       found.push({
         id: `${Date.now().toString()}-${i}`,
         filename,
-        type: isVideo ? "video" : "image",
+        type: kind,
         source: "smart_scan",
         originalSizeMB: size,
         originalCodec: codec,
-        presetId: config.videoPresetId,
+        presetId: presetIdForKind,
         status,
         progress: 0,
         logs: [],

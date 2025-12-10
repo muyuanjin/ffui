@@ -1,6 +1,11 @@
 import { defineConfig } from "vitest/config";
 import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
+import os from "node:os";
+
+// 适度并行：根据 CPU 核心数动态分配 2-4 个 worker，加速运行同时避免 jsdom 过度并发。
+const cpuCount = os.cpus()?.length ?? 4;
+const parallelWorkers = Math.min(Math.max(2, Math.floor(cpuCount / 2)), 4);
 
 export default defineConfig({
   // Keep Vue SFC support for tests, but avoid pulling Tailwind/Vite CSS
@@ -17,10 +22,9 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["src/**/*.{test,spec}.ts"],
-    // Run tests in a single worker process to avoid many heavy jsdom suites
-    // running at once and exhausting memory.
-    maxWorkers: 1,
-    fileParallelism: false,
+    // 允许有限并行（2-4 个 worker），在多数机器上可显著缩短整体耗时。
+    maxWorkers: parallelWorkers,
+    minWorkers: 1,
     // Use separate Node processes instead of threads so memory can be fully
     // reclaimed between runs of heavy test files.
     pool: "forks",

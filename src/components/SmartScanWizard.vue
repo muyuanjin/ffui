@@ -54,6 +54,24 @@ const config = ref<SmartScanConfig>({
   },
 });
 
+// 为了兼容 reka-ui Select 的约束（选项 value 不能为 ""），在音频预设选择上使用哨兵值
+const AUDIO_PRESET_DEFAULT_VALUE = "__ffui__audio_default__";
+
+const audioPresetSelectValue = computed<string>({
+  get() {
+    const id = config.value.audioPresetId;
+    return id && id.length > 0 ? id : AUDIO_PRESET_DEFAULT_VALUE;
+  },
+  set(value: string) {
+    if (value === AUDIO_PRESET_DEFAULT_VALUE) {
+      // 保持对外语义不变：空字符串/未定义表示使用默认音频压缩
+      config.value.audioPresetId = "";
+    } else {
+      config.value.audioPresetId = value;
+    }
+  },
+});
+
 // 监听 initialConfig 变化
 watch(
   () => props.initialConfig,
@@ -345,12 +363,14 @@ const handleRun = () => {
             <div v-if="config.audioFilter.enabled" class="space-y-3">
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.audioPreset") }}</Label>
-                <Select v-model="config.audioPresetId">
+                <Select v-model="audioPresetSelectValue">
                   <SelectTrigger class="h-7 text-xs">
                     <SelectValue :placeholder="t('smartScan.audioPresetPlaceholder') as string" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">{{ t("smartScan.audioDefaultCompress") }}</SelectItem>
+                    <SelectItem :value="AUDIO_PRESET_DEFAULT_VALUE">
+                      {{ t("smartScan.audioDefaultCompress") }}
+                    </SelectItem>
                     <SelectItem v-for="p in presets" :key="p.id" :value="p.id">{{ p.name }}</SelectItem>
                   </SelectContent>
                 </Select>
