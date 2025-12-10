@@ -130,16 +130,17 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       }
     }
 
-    if (failedJobIds.length > 0) {
-      try {
-        await refreshQueueFromBackend();
-      } catch {
-        queueError.value =
-          (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
-        selectedJobIds.value = new Set();
-        return;
-      }
+    // 不论删除是否全部成功，都刷新一次队列快照，让前端 UI 与后端状态保持一致。
+    try {
+      await refreshQueueFromBackend();
+    } catch {
+      queueError.value =
+        (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
+      selectedJobIds.value = new Set();
+      return;
+    }
 
+    if (failedJobIds.length > 0) {
       const currentJobs = jobs.value;
       const failedStillPresent = currentJobs.filter((job) => failedJobIds.includes(job.id));
 

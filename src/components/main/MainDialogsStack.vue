@@ -120,7 +120,7 @@ const emit = defineEmits<{
     :progress-update-interval-ms="progressUpdateIntervalMs"
     :sort-compare-fn="sortCompareFn"
     @update:open="(val) => { if (!val) emit('closeBatchDetail'); }"
-    @inspect-job="emit('openJobPreviewFromQueue', $event)"
+    @inspect-job="dialogManager.openJobDetail($event)"
     @preview-job="emit('openJobPreviewFromQueue', $event)"
     @cancel-job="emit('handleCancelJob', $event)"
     @wait-job="emit('handleWaitJob', $event)"

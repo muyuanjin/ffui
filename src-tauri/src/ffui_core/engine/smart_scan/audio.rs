@@ -19,7 +19,11 @@ use super::video_paths::ensure_progress_args;
 
 /// 为音频 Smart Scan 生成输出与临时输出路径，并在 EngineState 中登记为“已知输出”，
 /// 避免后续批次再次将其作为候选文件。
-fn reserve_unique_smart_scan_audio_output_paths(inner: &Inner, input: &Path) -> (PathBuf, PathBuf) {
+fn reserve_unique_smart_scan_audio_output_paths(
+    inner: &Inner,
+    input: &Path,
+    target_ext: &str,
+) -> (PathBuf, PathBuf) {
     use std::path::Path;
 
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
@@ -27,11 +31,11 @@ fn reserve_unique_smart_scan_audio_output_paths(inner: &Inner, input: &Path) -> 
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
-    let input_ext = input
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase())
-        .unwrap_or_else(|| "m4a".to_string());
+    let safe_ext = if target_ext.is_empty() {
+        "m4a".to_string()
+    } else {
+        target_ext.to_ascii_lowercase()
+    };
 
     let mut index: u32 = 0;
 
@@ -39,20 +43,36 @@ fn reserve_unique_smart_scan_audio_output_paths(inner: &Inner, input: &Path) -> 
 
     loop {
         let output = if index == 0 {
-            parent.join(format!("{stem}.compressed.{input_ext}"))
+            parent.join(format!("{stem}.compressed.{safe_ext}"))
         } else {
-            parent.join(format!("{stem}.compressed ({index}).{input_ext}"))
+            parent.join(format!("{stem}.compressed ({index}).{safe_ext}"))
         };
 
         let output_str = output.to_string_lossy().into_owned();
         if !output.exists() && !state.known_smart_scan_outputs.contains(&output_str) {
             state.known_smart_scan_outputs.insert(output_str);
 
-            let tmp_output = parent.join(format!("{stem}.compressed.tmp.{input_ext}"));
+            let tmp_output = parent.join(format!("{stem}.compressed.tmp.{safe_ext}"));
             return (output, tmp_output);
         }
 
         index = index.saturating_add(1);
+    }
+}
+
+/// 根据输入扩展名与目标音频编码，选择与容器兼容的输出扩展名。
+///
+/// - AAC 输出默认使用 m4a（mp4 容器），除非输入已是 m4a/m4b/aac/mp4。
+/// - Copy 输出延用原始扩展；若缺失则回退 m4a。
+fn choose_audio_output_extension(input_ext: Option<&str>, codec: &AudioCodecType) -> String {
+    let ext = input_ext.map(|s| s.to_ascii_lowercase());
+
+    match codec {
+        AudioCodecType::Aac => match ext.as_deref() {
+            Some("m4a" | "m4b" | "aac" | "mp4") => ext.unwrap_or_else(|| "m4a".to_string()),
+            _ => "m4a".to_string(),
+        },
+        AudioCodecType::Copy => ext.unwrap_or_else(|| "m4a".to_string()),
     }
 }
 
@@ -146,9 +166,6 @@ pub(crate) fn handle_audio_file(
         ));
         record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
     }
-
-    let (output_path, tmp_output) = reserve_unique_smart_scan_audio_output_paths(inner, path);
-    job.output_path = Some(output_path.to_string_lossy().into_owned());
 
     // 构建 ffmpeg 参数：音频-only，禁用视频流，使用 Smart Scan 默认或预设音频配置。
     let mut args: Vec<String> = Vec::new();
@@ -254,6 +271,12 @@ pub(crate) fn handle_audio_file(
             None,
         )
     };
+
+    let target_ext = choose_audio_output_extension(ext.as_deref(), &codec_type);
+
+    let (output_path, tmp_output) =
+        reserve_unique_smart_scan_audio_output_paths(inner, path, &target_ext);
+    job.output_path = Some(output_path.to_string_lossy().into_owned());
 
     match codec_type {
         AudioCodecType::Copy => {
@@ -392,4 +415,33 @@ pub(crate) fn handle_audio_file(
     recompute_log_tail(&mut job);
 
     Ok(job)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn choose_audio_output_extension_prefers_m4a_for_aac_on_mp3_input() {
+        let ext = choose_audio_output_extension(Some("mp3"), &AudioCodecType::Aac);
+        assert_eq!(ext, "m4a");
+    }
+
+    #[test]
+    fn choose_audio_output_extension_keeps_m4a_when_already_compatible() {
+        let ext = choose_audio_output_extension(Some("m4a"), &AudioCodecType::Aac);
+        assert_eq!(ext, "m4a");
+    }
+
+    #[test]
+    fn choose_audio_output_extension_preserves_original_for_copy() {
+        let ext = choose_audio_output_extension(Some("flac"), &AudioCodecType::Copy);
+        assert_eq!(ext, "flac");
+    }
+
+    #[test]
+    fn choose_audio_output_extension_falls_back_to_m4a_when_unknown() {
+        let ext = choose_audio_output_extension(None, &AudioCodecType::Copy);
+        assert_eq!(ext, "m4a");
+    }
 }

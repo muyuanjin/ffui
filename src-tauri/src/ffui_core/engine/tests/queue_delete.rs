@@ -249,8 +249,12 @@ fn delete_smart_scan_batch_deletes_all_terminal_children_and_batch_metadata() {
             wait_metadata: None,
         };
 
-        state.jobs.insert(job1_id.clone(), base_job(&job1_id, JobStatus::Completed));
-        state.jobs.insert(job2_id.clone(), base_job(&job2_id, JobStatus::Skipped));
+        state
+            .jobs
+            .insert(job1_id.clone(), base_job(&job1_id, JobStatus::Completed));
+        state
+            .jobs
+            .insert(job2_id.clone(), base_job(&job2_id, JobStatus::Skipped));
     }
 
     // 调用批次级删除接口，应该返回 true。
@@ -261,7 +265,10 @@ fn delete_smart_scan_batch_deletes_all_terminal_children_and_batch_metadata() {
 
     let snapshot_after = engine.queue_state();
     assert!(
-        !snapshot_after.jobs.iter().any(|j| j.id == job1_id || j.id == job2_id),
+        !snapshot_after
+            .jobs
+            .iter()
+            .any(|j| j.id == job1_id || j.id == job2_id),
         "all Smart Scan children should be removed from queue state after batch delete",
     );
 
@@ -339,8 +346,12 @@ fn delete_smart_scan_batch_rejects_when_children_are_not_terminal() {
             }
         };
 
-        state.jobs.insert(job1_id.clone(), base_job(&job1_id, JobStatus::Completed));
-        state.jobs.insert(job2_id.clone(), base_job(&job2_id, JobStatus::Processing));
+        state
+            .jobs
+            .insert(job1_id.clone(), base_job(&job1_id, JobStatus::Completed));
+        state
+            .jobs
+            .insert(job2_id.clone(), base_job(&job2_id, JobStatus::Processing));
     }
 
     assert!(
