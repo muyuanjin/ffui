@@ -159,9 +159,6 @@ export const createMountOptions = (batch: CompositeSmartScanTask, presets: FFmpe
       DialogDescription: {
         template: '<div data-testid="dialog-description"><slot /></div>',
       },
-      ScrollArea: {
-        template: '<div data-testid="scroll-area" class="flex-1 min-h-0 overflow-hidden"><slot /></div>',
-      },
       Progress: {
         template: '<div data-testid="progress"></div>',
       },

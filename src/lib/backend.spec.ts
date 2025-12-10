@@ -19,6 +19,8 @@ import {
   waitTranscodeJob,
   resumeTranscodeJob,
   restartTranscodeJob,
+  deleteTranscodeJob,
+  deleteSmartScanBatchOnBackend,
   reorderQueue,
   loadPreviewDataUrl,
   inspectMedia,
@@ -245,6 +247,38 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       jobId,
       job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("deleteTranscodeJob sends delete_transcode_job with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobId = "job-delete";
+
+    const result = await deleteTranscodeJob(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("delete_transcode_job");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("deleteSmartScanBatchOnBackend sends delete_smart_scan_batch with both id name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const batchId = "batch-123";
+
+    const result = await deleteSmartScanBatchOnBackend(batchId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("delete_smart_scan_batch");
+    expect(payload).toMatchObject({
+      batchId,
+      batch_id: batchId,
     });
     expect(result).toBe(true);
   });

@@ -78,4 +78,20 @@ describe("QueueFiltersBar secondary sort visibility", () => {
 
     wrapper.unmount();
   });
+
+  it("renders primary and secondary sort labels without wrapping to keep Chinese text horizontal", () => {
+    const wrapper = mountBar(true);
+
+    const primaryLabel = wrapper.get(
+      "[data-testid='queue-sort-primary-label']",
+    );
+    expect(primaryLabel.classes()).toContain("whitespace-nowrap");
+
+    const secondaryLabel = wrapper.get(
+      "[data-testid='queue-sort-secondary-label']",
+    );
+    expect(secondaryLabel.classes()).toContain("whitespace-nowrap");
+
+    wrapper.unmount();
+  });
 });

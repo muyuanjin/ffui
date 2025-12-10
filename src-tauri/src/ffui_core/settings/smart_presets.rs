@@ -141,6 +141,8 @@ struct SerializablePreset {
     name: String,
     description: String,
     #[serde(default)]
+    description_i18n: Option<HashMap<String, String>>,
+    #[serde(default)]
     global: Option<GlobalConfig>,
     #[serde(default)]
     input: Option<InputTimelineConfig>,
@@ -170,6 +172,7 @@ impl From<SerializablePreset> for FFmpegPreset {
             id: value.id,
             name: value.name,
             description: value.description,
+            description_i18n: value.description_i18n,
             global: value.global,
             input: value.input,
             mapping: value.mapping,
@@ -261,6 +264,31 @@ mod tests {
                     | crate::ffui_core::domain::EncoderType::LibSvtAv1
             )),
             "CPU smart presets should include at least one CPU encoder"
+        );
+    }
+
+    #[test]
+    fn smart_presets_preserve_description_i18n() {
+        let nvidia = hardware_smart_default_presets(true);
+        let preset = nvidia
+            .iter()
+            .find(|p| p.id == "smart-hevc-fast")
+            .expect("smart-hevc-fast should exist for NVIDIA");
+
+        let dict = preset
+            .description_i18n
+            .as_ref()
+            .expect("description_i18n should be preserved from JSON");
+
+        let en = dict.get("en").expect("English description should exist");
+        assert_ne!(
+            en,
+            &preset.description,
+            "English description should not fall back to the default Chinese string"
+        );
+        assert!(
+            dict.contains_key("zh-CN"),
+            "Chinese translation should also be available"
         );
     }
 }

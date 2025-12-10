@@ -15,7 +15,7 @@ describe("BatchDetailDialog", () => {
   const presets = [createMockPreset("p1")];
 
   describe("滚动功能", () => {
-    it("ScrollArea 应该有正确的 flex 布局类以支持滚动", async () => {
+    it("对话框主体使用单一垂直布局容器承载批次详情内容", async () => {
       const jobs = Array.from({ length: 20 }, (_, i) =>
         createMockJob(`job-${i}`, "waiting"),
       );
@@ -26,16 +26,14 @@ describe("BatchDetailDialog", () => {
       await flushPromises();
       await nextTick();
 
-      // 检查 ScrollArea 存在
-      const scrollArea = wrapper.find('[data-testid="scroll-area"]');
-      expect(scrollArea.exists()).toBe(true);
-
-      // 检查内容容器有正确的 flex 布局
-      const contentDiv = wrapper.find('.flex.flex-col');
-      expect(contentDiv.exists()).toBe(true);
+      // 对话框内容主体容器应存在，并采用垂直 flex 布局
+      const body = wrapper.find('[data-testid="batch-detail-body"]');
+      expect(body.exists()).toBe(true);
+      expect(body.classes()).toContain("flex");
+      expect(body.classes()).toContain("flex-col");
     });
 
-    it("ScrollArea 应该有 overflow-hidden 类以确保滚动正常工作", async () => {
+    it("批次详情不再嵌套内部 ScrollArea，避免只有子任务列表可以滚动", async () => {
       const jobs = Array.from({ length: 20 }, (_, i) =>
         createMockJob(`job-${i}`, "waiting"),
       );
@@ -46,10 +44,9 @@ describe("BatchDetailDialog", () => {
       await flushPromises();
       await nextTick();
 
-      // 检查 ScrollArea 有 overflow-hidden 类
-      const scrollArea = wrapper.find('[data-testid="scroll-area"]');
-      expect(scrollArea.exists()).toBe(true);
-      expect(scrollArea.classes()).toContain("overflow-hidden");
+      // 不应再渲染内部 ScrollArea 视口节点，防止“双层滚动”导致整体窗口无法滚动的错觉
+      const scrollViewport = wrapper.find("[data-reka-scroll-area-viewport]");
+      expect(scrollViewport.exists()).toBe(false);
     });
   });
 
@@ -316,6 +313,32 @@ describe("BatchDetailDialog", () => {
       expect(firstImg.exists()).toBe(true);
       // 在测试环境中 buildPreviewUrl 会直接返回原始路径，因此应等于 outputPath。
       expect(firstImg.attributes("src")).toBe(imageJob.outputPath);
+    });
+
+    it("当部分子任务缺失预览时，九宫格中不应重复展示同一子任务的缩略图", async () => {
+      const jobs: TranscodeJob[] = [
+        { ...createMockJob("job-1", "completed"), previewPath: "/preview/job-1.jpg" },
+        { ...createMockJob("job-2", "completed"), previewPath: undefined },
+        { ...createMockJob("job-3", "completed"), previewPath: undefined },
+        { ...createMockJob("job-4", "completed"), previewPath: "/preview/job-4.jpg" },
+        { ...createMockJob("job-5", "completed"), previewPath: undefined },
+        { ...createMockJob("job-6", "completed"), previewPath: "/preview/job-6.jpg" },
+      ];
+      const batch = createMockBatch(jobs);
+
+      const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
+
+      await flushPromises();
+      await nextTick();
+
+      const previewGrid = wrapper.find(".grid.grid-cols-3");
+      expect(previewGrid.exists()).toBe(true);
+
+      const imgs = previewGrid.findAll("img");
+      const srcs = imgs.map((img) => img.attributes("src"));
+
+      expect(srcs.length).toBeGreaterThan(0);
+      expect(new Set(srcs).size).toBe(srcs.length);
     });
   });
 });

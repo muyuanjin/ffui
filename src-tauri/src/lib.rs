@@ -53,6 +53,7 @@ pub fn run() {
             commands::queue::resume_transcode_job,
             commands::queue::restart_transcode_job,
             commands::queue::delete_transcode_job,
+            commands::queue::delete_smart_scan_batch,
             commands::queue::reorder_queue,
             commands::queue::get_job_detail,
             commands::presets::get_presets,

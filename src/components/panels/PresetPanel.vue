@@ -5,11 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
-import { resolvePresetDescription } from "@/lib/presetLocalization";
 import { sortPresets, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useI18n } from "vue-i18n";
-import { computePresetInsights } from "@/lib/presetInsights";
+import {
+  getAudioSummary,
+  getFiltersSummary,
+  getPresetDescription,
+  getPresetRiskBadge,
+  getPresetScenarioLabel,
+  getRatioColorClass,
+  getSubtitleSummary,
+  getVideoRateControlSummary,
+  isSmartPreset,
+} from "./presetHelpers";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "reka-ui";
@@ -79,6 +88,14 @@ const sortOptions: { value: PresetSortMode; labelKey: string }[] = [
 // 计算排序后的预设列表
 const sortedPresets = computed(() => sortPresets(localPresets.value, localSortMode.value));
 
+// 当前排序方式的本地化文案（SelectValue 将使用自定义插槽展示，避免切换语言后仍显示旧文本）
+const currentSortLabel = computed(() => {
+  // 读取 locale 以建立响应式依赖，切换语言后触发重算
+  locale.value;
+  const option = sortOptions.find((o) => o.value === localSortMode.value);
+  return option ? t(option.labelKey) : "";
+});
+
 // 当上游预设列表内容发生变化时，同步到本地副本
 watch(
   () => props.presets,
@@ -129,89 +146,6 @@ useSortable(containerRef, localPresets, {
   },
 });
 
-// 根据压缩率返回对应的颜色类：<100% 绿色，100-200% 黄色，≥200% 红色
-const getRatioColorClass = (ratio: number | null): string => {
-  if (ratio === null) return "text-primary";
-  if (ratio < 100) return "text-emerald-400";
-  if (ratio < 200) return "text-amber-400";
-  return "text-red-400";
-};
-
-const getVideoRateControlSummary = (video: FFmpegPreset["video"]): string => {
-  const mode = video.rateControl;
-  if (mode === "crf") return `CRF ${video.qualityValue}`;
-  if (mode === "cq") return `CQ ${video.qualityValue}`;
-  if (mode === "constqp") return `ConstQP ${video.qualityValue}`;
-  if (mode === "cbr") {
-    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0
-      ? `CBR ${video.bitrateKbps}k` : "CBR";
-  }
-  if (mode === "vbr") {
-    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0
-      ? `VBR ${video.bitrateKbps}k` : "VBR";
-  }
-  return String(mode).toUpperCase();
-};
-
-const getFiltersSummary = (preset: FFmpegPreset): string => {
-  const parts: string[] = [];
-  if (preset.filters.scale) parts.push(`${t("presets.scale")}: ${preset.filters.scale}`);
-  if (preset.filters.crop) parts.push(`${t("presets.crop")}: ${preset.filters.crop}`);
-  if (preset.filters.fps) parts.push(`${t("presets.fps")}: ${preset.filters.fps}`);
-  return parts.length > 0 ? parts.join(", ") : t("presets.noFilters");
-};
-
-const getSubtitleSummary = (preset: FFmpegPreset): string => {
-  if (!preset.subtitles || preset.subtitles.strategy === "keep") return t("presets.subtitleKeep");
-  if (preset.subtitles.strategy === "drop") return t("presets.subtitleDrop");
-  return t("presets.subtitleBurnIn");
-};
-
-const getAudioSummary = (audio: FFmpegPreset["audio"]) => {
-  if (audio.codec === "copy") return t("presets.audioCopy");
-
-  const bitrateValue =
-    typeof audio.bitrate === "number" && audio.bitrate > 0 ? audio.bitrate : null;
-
-  if (audio.codec === "aac") {
-    const profile = (audio as any).loudnessProfile as string | undefined;
-    if (bitrateValue != null) {
-      if (profile === "ebuR128") {
-        return t("presets.audioAacLoudnormEbu", { kbps: bitrateValue });
-      }
-      if (profile === "cnBroadcast") {
-        return t("presets.audioAacLoudnormCn", { kbps: bitrateValue });
-      }
-      return t("presets.audioAac", { kbps: bitrateValue });
-    }
-    return "AAC";
-  }
-
-  const name = String(audio.codec).toUpperCase();
-  return bitrateValue != null ? `${name} ${bitrateValue}k` : name;
-};
-
-const isSmartPreset = (preset: FFmpegPreset): boolean => {
-  // 优先使用显式的 isSmartPreset 字段，兼容旧数据使用 ID 前缀判断
-  if (typeof preset.isSmartPreset === "boolean") {
-    return preset.isSmartPreset;
-  }
-  return typeof preset.id === "string" && preset.id.startsWith("smart-");
-};
-
-const getPresetDescription = (preset: FFmpegPreset): string =>
-  resolvePresetDescription(preset, locale.value);
-
-// 为列表视图提供简化版“场景标签”和“体积风险”提示，复用完整面板中的解释逻辑
-const getPresetScenarioLabel = (preset: FFmpegPreset): string => {
-  const insights = computePresetInsights(preset);
-  return t(`presetEditor.panel.scenario.${insights.scenario}`);
-};
-
-const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
-  const insights = computePresetInsights(preset);
-  return insights.mayIncreaseSize ? t("presets.mayIncreaseSizeShort") : null;
-};
 </script>
 
 <template>
@@ -224,9 +158,15 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
         </span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
+        <Select
+          :key="locale"
+          :model-value="localSortMode"
+          @update:model-value="handleSortModeChange"
+        >
           <SelectTrigger class="h-7 w-[100px] text-[11px]">
-            <SelectValue />
+            <SelectValue>
+              {{ currentSortLabel }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">
@@ -290,19 +230,19 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
                 {{ t("presets.recommendedSmart") }}
               </span>
             </div>
-            <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset) }}</p>
+            <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset, locale) }}</p>
             <div class="mt-0.5 flex items-center flex-wrap gap-1">
               <span class="text-[9px] text-muted-foreground">
                 {{ t("presetEditor.panel.scenarioLabel") }}：
                 <span class="text-[9px] text-foreground">
-                  {{ getPresetScenarioLabel(preset) }}
+                  {{ getPresetScenarioLabel(preset, t) }}
                 </span>
               </span>
               <span
-                v-if="getPresetRiskBadge(preset)"
+                v-if="getPresetRiskBadge(preset, t)"
                 class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
               >
-                {{ getPresetRiskBadge(preset) }}
+                {{ getPresetRiskBadge(preset, t) }}
               </span>
             </div>
           </div>
@@ -376,19 +316,19 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-base leading-tight truncate">{{ preset.name }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ getPresetDescription(preset) }}</p>
+              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ getPresetDescription(preset, locale) }}</p>
               <div class="mt-1 flex items-center flex-wrap gap-1">
                 <span class="text-[10px] text-muted-foreground">
                   {{ t("presetEditor.panel.scenarioLabel") }}：
                   <span class="text-[10px] text-foreground">
-                    {{ getPresetScenarioLabel(preset) }}
+                    {{ getPresetScenarioLabel(preset, t) }}
                   </span>
                 </span>
                 <span
-                  v-if="getPresetRiskBadge(preset)"
+                  v-if="getPresetRiskBadge(preset, t)"
                   class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
                 >
-                  {{ getPresetRiskBadge(preset) }}
+                  {{ getPresetRiskBadge(preset, t) }}
                 </span>
               </div>
             </div>
@@ -431,18 +371,18 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
             </div>
             <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
               <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.audioLabel") }}</div>
-              <div class="font-mono text-[11px] text-foreground leading-tight">{{ getAudioSummary(preset.audio) }}</div>
+              <div class="font-mono text-[11px] text-foreground leading-tight">{{ getAudioSummary(preset.audio, t) }}</div>
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
               <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.filtersLabel") }}:</span>
-              <span class="text-[10px] text-foreground ml-1">{{ getFiltersSummary(preset) }}</span>
+              <span class="text-[10px] text-foreground ml-1">{{ getFiltersSummary(preset, t) }}</span>
             </div>
             <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
               <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.subtitlesLabel") }}:</span>
-              <span class="text-[10px] text-foreground ml-1">{{ getSubtitleSummary(preset) }}</span>
+              <span class="text-[10px] text-foreground ml-1">{{ getSubtitleSummary(preset, t) }}</span>
             </div>
             <div v-if="preset.hardware?.hwaccel" class="bg-background/50 rounded px-2 py-1 border border-border/20">
               <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.hardwareLabel") }}:</span>
