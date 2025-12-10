@@ -76,18 +76,14 @@ fn choose_audio_output_extension(input_ext: Option<&str>, codec: &AudioCodecType
     }
 }
 
-/// 处理单个音频文件的 Smart Scan 压缩逻辑。
-///
-/// 与图片类似，音频任务在 Smart Scan 专用线程中同步完成：创建 TranscodeJob
-/// 并立即执行 ffmpeg，一次性返回 Completed/Skipped/Failed 状态；不会进入
-/// 通用 ffmpeg worker 队列，也不支持暂停/继续。
-pub(crate) fn handle_audio_file(
+pub(crate) fn handle_audio_file_with_id(
     inner: &Inner,
     path: &Path,
     config: &SmartScanConfig,
     settings: &AppSettings,
     presets: &[FFmpegPreset],
     batch_id: &str,
+    job_id: Option<String>,
 ) -> Result<TranscodeJob> {
     let metadata = fs::metadata(path)
         .with_context(|| format!("failed to stat audio file {}", path.display()))?;
@@ -111,7 +107,7 @@ pub(crate) fn handle_audio_file(
     let preset = presets.iter().find(|p| p.id == audio_preset_id).cloned();
 
     let mut job = TranscodeJob {
-        id: next_job_id(inner),
+        id: job_id.unwrap_or_else(|| next_job_id(inner)),
         filename,
         job_type: JobType::Audio,
         source: JobSource::SmartScan,

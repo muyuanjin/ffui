@@ -9,6 +9,7 @@ mod detection;
 mod helpers;
 mod image;
 mod orchestrator;
+mod orchestrator_helpers;
 mod video;
 mod video_paths;
 
