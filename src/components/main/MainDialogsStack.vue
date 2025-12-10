@@ -15,6 +15,7 @@ const {
   presets,
   presetPendingDelete,
   smartConfig,
+  defaultVideoPresetId,
   queueProgressStyle,
   progressUpdateIntervalMs,
   selectedJobPreset,
@@ -23,11 +24,13 @@ const {
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
+  sortCompareFn,
 } = defineProps<{
   dialogManager: UseDialogManagerReturn;
   presets: FFmpegPreset[];
   presetPendingDelete: FFmpegPreset | null;
   smartConfig: any;
+  defaultVideoPresetId: string | null;
   queueProgressStyle: QueueProgressStyle;
   progressUpdateIntervalMs: number;
   selectedJobPreset: FFmpegPreset | null;
@@ -36,6 +39,8 @@ const {
   previewIsImage: boolean;
   previewError: string | null;
   ffmpegResolvedPath: string | null;
+  /** 排序比较函数，用于对批次子任务进行排序 */
+  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }>();
 
 const emit = defineEmits<{
@@ -83,6 +88,7 @@ const emit = defineEmits<{
     v-if="dialogManager.smartScanOpen.value"
     :initial-config="smartConfig"
     :presets="presets"
+    :default-video-preset-id="defaultVideoPresetId"
     @run="emit('runSmartScan', $event)"
     @cancel="emit('closeSmartScanWizard')"
   />
@@ -112,6 +118,7 @@ const emit = defineEmits<{
     :presets="presets"
     :progress-style="queueProgressStyle"
     :progress-update-interval-ms="progressUpdateIntervalMs"
+    :sort-compare-fn="sortCompareFn"
     @update:open="(val) => { if (!val) emit('closeBatchDetail'); }"
     @inspect-job="emit('openJobPreviewFromQueue', $event)"
     @preview-job="emit('openJobPreviewFromQueue', $event)"

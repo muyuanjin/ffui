@@ -42,6 +42,7 @@ describe("QueueItemHeaderRow tooltips", () => {
         displayOriginalSize: "10",
         displayOutputSize: "",
         savedLabel: "",
+        isSizeIncreased: false,
         sourceLabel: "Manual",
         statusTextClass: "",
         localizedStatus: "processing",

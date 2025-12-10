@@ -9,6 +9,7 @@ import { resolvePresetDescription } from "@/lib/presetLocalization";
 import { sortPresets, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { useI18n } from "vue-i18n";
+import { computePresetInsights } from "@/lib/presetInsights";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "reka-ui";
@@ -128,6 +129,14 @@ useSortable(containerRef, localPresets, {
   },
 });
 
+// 根据压缩率返回对应的颜色类：<100% 绿色，100-200% 黄色，≥200% 红色
+const getRatioColorClass = (ratio: number | null): string => {
+  if (ratio === null) return "text-primary";
+  if (ratio < 100) return "text-emerald-400";
+  if (ratio < 200) return "text-amber-400";
+  return "text-red-400";
+};
+
 const getVideoRateControlSummary = (video: FFmpegPreset["video"]): string => {
   const mode = video.rateControl;
   if (mode === "crf") return `CRF ${video.qualityValue}`;
@@ -192,11 +201,21 @@ const isSmartPreset = (preset: FFmpegPreset): boolean => {
 
 const getPresetDescription = (preset: FFmpegPreset): string =>
   resolvePresetDescription(preset, locale.value);
+
+// 为列表视图提供简化版“场景标签”和“体积风险”提示，复用完整面板中的解释逻辑
+const getPresetScenarioLabel = (preset: FFmpegPreset): string => {
+  const insights = computePresetInsights(preset);
+  return t(`presetEditor.panel.scenario.${insights.scenario}`);
+};
+
+const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
+  const insights = computePresetInsights(preset);
+  return insights.mayIncreaseSize ? t("presets.mayIncreaseSizeShort") : null;
+};
 </script>
 
 <template>
   <div class="w-full max-w-6xl mx-auto px-4 overflow-x-hidden">
-    <!-- Header with hint and actions -->
     <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0 flex-shrink">
         <GripVertical class="w-4 h-4 flex-shrink-0" />
@@ -205,7 +224,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
         </span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <!-- 排序下拉选择 -->
         <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
           <SelectTrigger class="h-7 w-[100px] text-[11px]">
             <SelectValue />
@@ -217,7 +235,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
           </SelectContent>
         </Select>
 
-        <!-- 视图切换按钮 -->
         <div class="flex border rounded-md flex-shrink-0">
           <Button
             variant="ghost"
@@ -250,21 +267,18 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
       </div>
     </div>
 
-    <!-- 紧凑视图 -->
     <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
       <div
         v-for="preset in sortedPresets"
         :key="preset.id"
         class="group flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-card/95 hover:bg-accent/50 transition-colors"
       >
-        <!-- 拖拽把手 -->
         <div
           class="drag-handle cursor-grab active:cursor-grabbing text-muted-foreground/40 hover:text-muted-foreground transition-colors flex-shrink-0"
         >
           <GripVertical class="w-4 h-4" />
         </div>
 
-        <!-- 名称和描述 -->
         <div class="flex-1 min-w-0 flex items-center gap-3">
           <div class="min-w-0 flex-shrink-0" style="width: 160px">
             <div class="flex items-center gap-1.5">
@@ -277,9 +291,22 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
               </span>
             </div>
             <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset) }}</p>
+            <div class="mt-0.5 flex items-center flex-wrap gap-1">
+              <span class="text-[9px] text-muted-foreground">
+                {{ t("presetEditor.panel.scenarioLabel") }}：
+                <span class="text-[9px] text-foreground">
+                  {{ getPresetScenarioLabel(preset) }}
+                </span>
+              </span>
+              <span
+                v-if="getPresetRiskBadge(preset)"
+                class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
+              >
+                {{ getPresetRiskBadge(preset) }}
+              </span>
+            </div>
           </div>
 
-          <!-- 命令预览（紧凑视图：限制宽度，超长命令在内部横向滚动，避免撑开整行） -->
           <div class="flex-1 min-w-0">
             <div
               class="w-full max-w-full rounded bg-background/80 border border-border/30 px-2 py-1 overflow-x-auto overflow-y-hidden scrollbar-thin"
@@ -291,18 +318,20 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             </div>
           </div>
 
-          <!-- 统计信息（固定宽度，保证命令预览区域在各行之间宽度一致） -->
           <div
             class="flex items-center justify-end gap-2 text-[10px] text-muted-foreground flex-shrink-0 w-32"
           >
             <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
-            <span v-if="getPresetAvgRatio(preset) !== null" class="text-primary font-medium">
+            <span
+              v-if="getPresetAvgRatio(preset) !== null"
+              class="font-medium"
+              :class="getRatioColorClass(getPresetAvgRatio(preset))"
+            >
               {{ getPresetAvgRatio(preset)?.toFixed(0) }}%
             </span>
           </div>
         </div>
 
-        <!-- 操作按钮 -->
         <div class="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
             variant="ghost"
@@ -332,7 +361,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
       </div>
     </div>
 
-    <!-- 卡片视图 -->
     <div v-else ref="containerRef" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card
         v-for="preset in sortedPresets"
@@ -349,6 +377,20 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-base leading-tight truncate">{{ preset.name }}</h3>
               <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ getPresetDescription(preset) }}</p>
+              <div class="mt-1 flex items-center flex-wrap gap-1">
+                <span class="text-[10px] text-muted-foreground">
+                  {{ t("presetEditor.panel.scenarioLabel") }}：
+                  <span class="text-[10px] text-foreground">
+                    {{ getPresetScenarioLabel(preset) }}
+                  </span>
+                </span>
+                <span
+                  v-if="getPresetRiskBadge(preset)"
+                  class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
+                >
+                  {{ getPresetRiskBadge(preset) }}
+                </span>
+              </div>
             </div>
             <div class="flex items-center gap-1.5 flex-shrink-0">
               <span
@@ -378,7 +420,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
         </CardHeader>
 
         <CardContent class="px-4 pb-3 pt-0 space-y-2.5">
-          <!-- Primary Parameters Grid -->
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
               <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.videoLabel") }}</div>
@@ -394,7 +435,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             </div>
           </div>
 
-          <!-- Secondary Parameters Grid -->
           <div class="grid grid-cols-2 gap-2 text-xs">
             <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
               <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.filtersLabel") }}:</span>
@@ -414,7 +454,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             </div>
           </div>
 
-          <!-- Command Preview -->
           <div class="space-y-1">
             <div class="flex items-center justify-between">
               <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{ t("presets.commandPreviewLabel") }}</span>
@@ -432,7 +471,6 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
             />
           </div>
 
-          <!-- Stats Row：强制单行显示，防止部分卡片因长统计文本换行导致高度不一致 -->
           <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30">
             <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
             <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
@@ -441,7 +479,8 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
               </span>
               <span
                 v-if="getPresetAvgRatio(preset) !== null"
-                class="text-primary font-medium truncate"
+                class="font-medium truncate"
+                :class="getRatioColorClass(getPresetAvgRatio(preset))"
               >
                 {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
               </span>
@@ -456,26 +495,4 @@ const getPresetDescription = (preset: FFmpegPreset): string =>
   </div>
 </template>
 
-<style scoped>
-.scrollbar-thin::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: hsl(var(--border));
-  border-radius: 2px;
-}
-
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
-}
-
-.is-chosen {
-  box-shadow: 0 0 0 2px hsl(var(--primary));
-}
-</style>
+<style scoped src="./PresetPanel.css"></style>

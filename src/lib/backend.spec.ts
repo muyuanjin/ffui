@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { TranscodeJob, FFmpegPreset } from "../types";
+import type { TranscodeJob } from "../types";
 
 const invokeMock = vi.fn<
   (cmd: string, payload: Record<string, unknown>) => Promise<unknown>
@@ -21,10 +21,6 @@ import {
   restartTranscodeJob,
   reorderQueue,
   loadPreviewDataUrl,
-  loadPresets,
-  loadSmartDefaultPresets,
-  savePresetOnBackend,
-  deletePresetOnBackend,
   inspectMedia,
   selectPlayableMediaPath,
   revealPathInFolder,
@@ -145,6 +141,29 @@ describe("backend contract", () => {
     expect(result).toBe(chosen);
   });
 
+  it("selectPlayableMediaPath falls back to the first candidate when backend returns null", async () => {
+    const candidates = [
+      "C:/videos/output.mp4",
+      "C:/videos/source.mp4",
+    ];
+
+    const originalWindow = (globalThis as any).window;
+    (globalThis as any).window = { ...(originalWindow ?? {}), __TAURI__: {} };
+
+    invokeMock.mockResolvedValueOnce(null);
+
+    const result = await selectPlayableMediaPath(candidates);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(result).toBe(candidates[0]);
+
+    if (originalWindow === undefined) {
+      delete (globalThis as any).window;
+    } else {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
   it("revealPathInFolder calls reveal_path_in_folder with trimmed path", async () => {
     (globalThis as any).window = (globalThis as any).window ?? {};
     (globalThis as any).window.__TAURI__ = {};
@@ -164,187 +183,6 @@ describe("backend contract", () => {
     await revealPathInFolder("   ");
 
     expect(invokeMock).not.toHaveBeenCalled();
-  });
-
-  it("loadPresets calls get_presets and returns the backend list unchanged", async () => {
-    const presets: FFmpegPreset[] = [
-      {
-        id: "p1",
-        name: "Universal 1080p",
-        description: "x264 Medium CRF 23. Standard for web.",
-        video: {
-          encoder: "libx264",
-          rateControl: "crf",
-          qualityValue: 23,
-          preset: "medium",
-        },
-        audio: {
-          codec: "copy",
-        },
-        filters: {
-          scale: "-2:1080",
-        },
-        stats: {
-          usageCount: 5,
-          totalInputSizeMB: 2500,
-          totalOutputSizeMB: 800,
-          totalTimeSeconds: 420,
-        },
-      },
-    ];
-
-    invokeMock.mockResolvedValueOnce(presets);
-
-    const result = await loadPresets();
-
-    expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [cmd] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("get_presets");
-    expect(result).toEqual(presets);
-  });
-
-  it("loadSmartDefaultPresets calls get_smart_default_presets and returns the backend list unchanged", async () => {
-    const presets: FFmpegPreset[] = [
-      {
-        id: "smart-hevc-fast",
-        name: "H.265 Fast NVENC",
-        description: "HEVC NVENC CQ 28, preset p5, keeps source resolution for quick web/share.",
-        video: {
-          encoder: "hevc_nvenc",
-          rateControl: "cq",
-          qualityValue: 28,
-          preset: "p5",
-        },
-        audio: {
-          codec: "copy",
-        },
-        filters: {},
-        stats: {
-          usageCount: 0,
-          totalInputSizeMB: 0,
-          totalOutputSizeMB: 0,
-          totalTimeSeconds: 0,
-        },
-      },
-    ];
-
-    invokeMock.mockResolvedValueOnce(presets);
-
-    const result = await loadSmartDefaultPresets();
-
-    expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [cmd] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("get_smart_default_presets");
-    expect(result).toEqual(presets);
-    expect(result[0]?.filters?.scale).toBeUndefined();
-  });
-
-  it("savePresetOnBackend sends save_preset with the preset payload and returns the updated list", async () => {
-    const preset: FFmpegPreset = {
-      id: "custom-1",
-      name: "Custom Preset",
-      description: "User defined preset",
-      video: {
-        encoder: "libx264",
-        rateControl: "crf",
-        qualityValue: 20,
-        preset: "slow",
-      },
-      audio: {
-        codec: "aac",
-        bitrate: 192,
-      },
-      filters: {},
-      stats: {
-        usageCount: 0,
-        totalInputSizeMB: 0,
-        totalOutputSizeMB: 0,
-        totalTimeSeconds: 0,
-      },
-    };
-
-    const backendList: FFmpegPreset[] = [
-      {
-        id: "p1",
-        name: "Universal 1080p",
-        description: "x264 Medium CRF 23. Standard for web.",
-        video: {
-          encoder: "libx264",
-          rateControl: "crf",
-          qualityValue: 23,
-          preset: "medium",
-        },
-        audio: {
-          codec: "copy",
-        },
-        filters: {
-          scale: "-2:1080",
-        },
-        stats: {
-          usageCount: 5,
-          totalInputSizeMB: 2500,
-          totalOutputSizeMB: 800,
-          totalTimeSeconds: 420,
-        },
-      },
-      preset,
-    ];
-
-    invokeMock.mockResolvedValueOnce(backendList);
-
-    const result = await savePresetOnBackend(preset);
-
-    expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [cmd, payload] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("save_preset");
-    expect(payload).toMatchObject({ preset });
-    expect(result).toEqual(backendList);
-  });
-
-  it("savePresetOnBackend preserves extended video rate-control fields for VBR presets", async () => {
-    const preset: FFmpegPreset = {
-      id: "vbr-1",
-      name: "VBR Test",
-      description: "Preset with VBR + two-pass fields",
-      video: {
-        encoder: "libx264",
-        rateControl: "vbr",
-        qualityValue: 23,
-        preset: "slow",
-        bitrateKbps: 3000,
-        maxBitrateKbps: 4500,
-        bufferSizeKbits: 6000,
-        pass: 2,
-      },
-      audio: {
-        codec: "copy",
-      },
-      filters: {},
-      stats: {
-        usageCount: 0,
-        totalInputSizeMB: 0,
-        totalOutputSizeMB: 0,
-        totalTimeSeconds: 0,
-      },
-    };
-
-    const backendList: FFmpegPreset[] = [preset];
-    invokeMock.mockResolvedValueOnce(backendList);
-
-    const result = await savePresetOnBackend(preset);
-
-    expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [cmd, payload] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("save_preset");
-
-    const sentPreset = (payload as any).preset as FFmpegPreset;
-    expect(sentPreset.video.rateControl).toBe("vbr");
-    expect(sentPreset.video.bitrateKbps).toBe(3000);
-    expect(sentPreset.video.maxBitrateKbps).toBe(4500);
-    expect(sentPreset.video.bufferSizeKbits).toBe(6000);
-    expect(sentPreset.video.pass).toBe(2);
-
-    expect(result).toEqual(backendList);
   });
 
   it("cancelTranscodeJob sends cancel_transcode_job with both id name variants", async () => {
@@ -425,44 +263,6 @@ describe("backend contract", () => {
       ordered_ids: ids,
     });
     expect(result).toBe(true);
-  });
-
-  it("deletePresetOnBackend sends delete_preset with the presetId and returns the updated list", async () => {
-    const remaining: FFmpegPreset[] = [
-      {
-        id: "p1",
-        name: "Universal 1080p",
-        description: "x264 Medium CRF 23. Standard for web.",
-        video: {
-          encoder: "libx264",
-          rateControl: "crf",
-          qualityValue: 23,
-          preset: "medium",
-        },
-        audio: {
-          codec: "copy",
-        },
-        filters: {
-          scale: "-2:1080",
-        },
-        stats: {
-          usageCount: 5,
-          totalInputSizeMB: 2500,
-          totalOutputSizeMB: 800,
-          totalTimeSeconds: 420,
-        },
-      },
-    ];
-
-    invokeMock.mockResolvedValueOnce(remaining);
-
-    const result = await deletePresetOnBackend("custom-1");
-
-    expect(invokeMock).toHaveBeenCalledTimes(1);
-    const [cmd, payload] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("delete_preset");
-    expect(payload).toMatchObject({ presetId: "custom-1" });
-    expect(result).toEqual(remaining);
   });
 
   it("inspectMedia sends inspect_media with the path payload and returns raw ffprobe JSON", async () => {

@@ -8,20 +8,11 @@ import {
   invokeMock,
   defaultAppSettings,
 } from "./helpers/mainAppTauriDialog";
+import { setSelectedJobIds } from "./helpers/queueSelection";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
-
-function setSelectedJobIds(vm: any, ids: string[]) {
-  const value = vm.selectedJobIds;
-  const next = new Set(ids);
-  if (value instanceof Set) {
-    vm.selectedJobIds = next;
-  } else if (value && "value" in value) {
-    value.value = next;
-  }
-}
 
 describe("MainApp queue delete behaviour", () => {
   it("does not call backend delete for non-terminal jobs and surfaces an error", async () => {
@@ -228,4 +219,5 @@ describe("MainApp queue delete behaviour", () => {
 
     wrapper.unmount();
   });
+
 });

@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
 import QueuePanel from "./QueuePanel.vue";
+import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { FFmpegPreset, TranscodeJob, CompositeSmartScanTask } from "@/types";
@@ -58,6 +59,11 @@ const queueIconItemStub = {
 const queueSmartScanIconBatchStub = {
   props: ["batch", "size", "progressStyle"],
   template: `<div data-testid="queue-icon-batch-stub">{{ batch.batchId }}</div>`,
+};
+
+const checkboxStub = {
+  emits: ["update:checked"],
+  template: `<div data-testid="batch-checkbox" @click="$emit('update:checked', true)"></div>`,
 };
 
 const basePreset: FFmpegPreset = {
@@ -159,6 +165,7 @@ describe("QueuePanel Smart Scan batch children interactions", () => {
           QueueItem: queueItemStub,
           QueueIconItem: queueIconItemStub,
           QueueSmartScanIconBatchItem: queueSmartScanIconBatchStub,
+          Checkbox: checkboxStub,
         },
       },
     });
@@ -279,5 +286,88 @@ describe("QueuePanel Smart Scan batch children interactions", () => {
     const bulkEvents = wrapper.emitted("openBulkContextMenu");
     expect(bulkEvents).toBeTruthy();
     expect(bulkEvents?.[0]?.[0]).toMatchObject({ clientX: 15, clientY: 25 });
+  });
+
+  it("列表视图的批次复选框支持全选与全不选", async () => {
+    const childJob1: TranscodeJob = {
+      id: "job-child-1",
+      filename: "C:/videos/child-1.mp4",
+      type: "video",
+      source: "smart_scan",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: basePreset.id,
+      status: "waiting",
+      progress: 0,
+      logs: [],
+      batchId: "batch-1",
+    } as TranscodeJob;
+
+    const childJob2: TranscodeJob = {
+      id: "job-child-2",
+      filename: "C:/videos/child-2.mp4",
+      type: "video",
+      source: "smart_scan",
+      originalSizeMB: 12,
+      originalCodec: "h264",
+      presetId: basePreset.id,
+      status: "completed",
+      progress: 100,
+      logs: [],
+      batchId: "batch-1",
+    } as TranscodeJob;
+
+    const batch: CompositeSmartScanTask = {
+      batchId: "batch-1",
+      rootPath: "C:/videos",
+      jobs: [childJob1, childJob2],
+      totalFilesScanned: 2,
+      totalCandidates: 2,
+      totalProcessed: 1,
+      startedAtMs: Date.now(),
+      completedAtMs: undefined,
+      overallProgress: 50,
+      currentJob: null,
+      completedCount: 1,
+      skippedCount: 0,
+      failedCount: 0,
+      cancelledCount: 0,
+      totalCount: 2,
+    };
+
+    const wrapper = mount(QueueSmartScanBatchCard, {
+      props: {
+        batch,
+        presets: [basePreset],
+        ffmpegResolvedPath: null,
+        queueRowVariant: "detail",
+        queueProgressStyle: "bar",
+        progressUpdateIntervalMs: 500,
+        selectedJobIds: new Set<string>(),
+        isExpanded: true,
+        canCancelJob: () => false,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+          Checkbox: checkboxStub,
+        },
+      },
+    });
+
+    const checkbox = wrapper.get("[data-testid='batch-checkbox']");
+    await checkbox.trigger("click");
+
+    const togglesAfterSelect = wrapper.emitted("toggleJobSelected") ?? [];
+    const toggledIds = togglesAfterSelect.map((e) => e[0]);
+    expect(new Set(toggledIds)).toEqual(new Set([childJob1.id, childJob2.id]));
+
+    await wrapper.setProps({ selectedJobIds: new Set<string>([childJob1.id, childJob2.id]) });
+    await checkbox.trigger("click");
+
+    const togglesAfterUnselect = wrapper.emitted("toggleJobSelected") ?? [];
+    const lastTwo = togglesAfterUnselect.slice(-2).map((e) => e[0]);
+    expect(new Set(lastTwo)).toEqual(new Set([childJob1.id, childJob2.id]));
   });
 });

@@ -155,7 +155,7 @@ const other = {
     audioAac: "AAC {kbps}k",
     audioAacLoudnormEbu: "AAC {kbps}k + EBU 响度",
     audioAacLoudnormCn: "AAC {kbps}k + 广电响度",
-    avgRatio: "压缩率：{percent}%",
+    avgRatio: "平均大小：{percent}%",
     avgSpeed: "速度：{mbps} MB/s",
     commandPreviewLabel: "命令预览",
     commandPreviewHint:
@@ -200,6 +200,7 @@ const other = {
     hardwareSummaryNvenc: "检测到 NVIDIA / NVENC：将优先推荐 H.265 硬件编码智能预设。",
     hardwareSummaryCpuOnly: "未检测到 NVIDIA NVENC：将提供基于 H.264 / AV1 (SVT) 的智能预设。",
     hardwareSummaryAv1: "已检测到 AV1 编码支持。",
+    mayIncreaseSizeShort: "体积可能变大",
   },
   stats: {
     empty: "先跑一些任务，这里会显示统计信息",

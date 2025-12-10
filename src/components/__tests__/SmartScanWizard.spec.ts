@@ -1,0 +1,74 @@
+// @vitest-environment jsdom
+import { describe, it, expect } from "vitest";
+import { mount } from "@vue/test-utils";
+import { createI18n } from "vue-i18n";
+import SmartScanWizard from "@/components/SmartScanWizard.vue";
+import zhCN from "@/locales/zh-CN";
+import type { FFmpegPreset, SmartScanConfig } from "@/types";
+import { buildSmartScanDefaults } from "../../__tests__/helpers/smartScanDefaults";
+
+// Slider 依赖 ResizeObserver，测试环境补齐最小 polyfill
+if (typeof (globalThis as any).ResizeObserver === "undefined") {
+  (globalThis as any).ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
+const createPreset = (id: string, name: string): FFmpegPreset => ({
+  id,
+  name,
+  description: `${name} desc`,
+  video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+  audio: { codec: "copy" },
+  filters: {},
+  stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+});
+
+const createI18nInstance = () =>
+  createI18n({
+    legacy: false,
+    locale: "zh-CN",
+    messages: { "zh-CN": zhCN as any },
+  });
+
+describe("SmartScanWizard 默认预设", () => {
+  const presets = [createPreset("p1", "预设一"), createPreset("p2", "预设二")];
+
+  it("未显式指定时使用主界面默认视频预设", async () => {
+    const wrapper = mount(SmartScanWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildSmartScanDefaults({ rootPath: "C:/videos" }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[SmartScanConfig]> | undefined;
+    expect(emitted?.[0]?.[0].videoPresetId).toBe("p2");
+  });
+
+  it("保留 initialConfig 中已指定的视频预设", async () => {
+    const wrapper = mount(SmartScanWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildSmartScanDefaults({ rootPath: "C:/videos", videoPresetId: "p1" }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[SmartScanConfig]> | undefined;
+    expect(emitted?.[0]?.[0].videoPresetId).toBe("p1");
+  });
+});

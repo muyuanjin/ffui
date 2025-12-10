@@ -250,11 +250,14 @@ export const selectPlayableMediaPath = async (
   }
 
   try {
-    return await invoke<string | null>("select_playable_media_path", {
+    const selected = await invoke<string | null>("select_playable_media_path", {
       // Accept both camelCase and snake_case to stay resilient to Rust-side renames.
       candidatePaths: filtered,
       candidate_paths: filtered,
     });
+
+    // 后端可能因为路径过长/权限问题返回 null，这里回退到首个候选，避免上层拿到空值后出现“无可播放视频”。
+    return selected ?? filtered[0] ?? null;
   } catch (error) {
     console.error("selectPlayableMediaPath: falling back to first candidate after error", error);
     return filtered[0] ?? null;

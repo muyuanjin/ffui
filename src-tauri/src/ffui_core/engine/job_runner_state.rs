@@ -25,11 +25,19 @@ pub(super) fn mark_job_waiting(
 ) -> Result<()> {
     let tmp_str = tmp_output.to_string_lossy().into_owned();
     let output_str = output_path.to_string_lossy().into_owned();
+    let now_ms = current_time_millis();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Paused;
+
+            // 保存暂停时的累计已用时间
+            // elapsed_ms 在 update_job_progress 中已经被更新，这里确保它被保留
+            // 如果 elapsed_ms 为空，则基于 start_time 计算
+            if job.elapsed_ms.is_none() && let Some(start) = job.start_time {
+                job.elapsed_ms = Some(now_ms.saturating_sub(start));
+            }
 
             let percent = if job.progress.is_finite() && job.progress >= 0.0 {
                 Some(job.progress)

@@ -38,6 +38,8 @@ interface QueuePanelBindingsInput {
   selectedJobIds: Ref<Set<string>>;
   expandedBatchIds: Ref<Set<string>>;
   queueError: Ref<string | null>;
+  /** 排序比较函数，用于对批次子任务进行排序 */
+  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }
 
 export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
@@ -71,4 +73,5 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     selectedCount: input.selectedJobIds.value?.size ?? 0,
     expandedBatchIds: input.expandedBatchIds.value,
     queueError: input.queueError.value,
+    sortCompareFn: input.sortCompareFn,
   }));

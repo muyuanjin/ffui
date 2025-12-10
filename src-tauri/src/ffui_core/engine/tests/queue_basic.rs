@@ -338,6 +338,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 progress: 30.0,
                 start_time: Some(current_time_millis()),
                 end_time: None,
+                elapsed_ms: None,
                 output_size_mb: None,
                 logs: Vec::new(),
                 skip_reason: None,

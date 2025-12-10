@@ -100,6 +100,8 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
 
   // ----- Batch Meta Methods -----
   const applySmartScanBatchMetaSnapshot = (snapshot: SmartScanBatchSnapshot) => {
+    if (!snapshot.batchId) return;
+
     const prev = smartScanBatchMeta.value[snapshot.batchId];
 
     const next: SmartScanBatchMeta = {
@@ -124,6 +126,12 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
       ...smartScanBatchMeta.value,
       [snapshot.batchId]: next,
     };
+
+    if (!prev && !expandedBatchIds.value.has(snapshot.batchId)) {
+      const expanded = new Set(expandedBatchIds.value);
+      expanded.add(snapshot.batchId);
+      expandedBatchIds.value = expanded;
+    }
   };
 
   // ----- Computed -----

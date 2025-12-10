@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
-import { createI18n } from "vue-i18n";
-import type { FFmpegPreset, TranscodeJob } from "@/types";
 import en from "@/locales/en";
-import zhCN from "@/locales/zh-CN";
+import { i18n, basePreset, makeJob } from "./queueItemDisplayTestUtils";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
@@ -37,57 +35,6 @@ vi.mock("@/lib/ffmpegCommand", async () => {
 
 import { hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItem from "@/components/QueueItem.vue";
-
-const i18n = createI18n({
-  legacy: false,
-  locale: "en",
-  messages: {
-    en: en as any,
-    "zh-CN": zhCN as any,
-  },
-});
-
-const basePreset: FFmpegPreset = {
-  id: "preset-1",
-  name: "Test Preset",
-  description: "Preset used in QueueItem tests",
-  video: {
-    encoder: "libx264",
-    rateControl: "crf",
-    qualityValue: 23,
-    preset: "medium",
-  },
-  audio: {
-    codec: "copy",
-  },
-  filters: {},
-  stats: {
-    usageCount: 0,
-    totalInputSizeMB: 0,
-    totalOutputSizeMB: 0,
-    totalTimeSeconds: 0,
-  },
-};
-
-function makeJob(overrides: Partial<TranscodeJob> = {}): TranscodeJob {
-  return {
-    id: "job-1",
-    filename: "C:/videos/sample.mp4",
-    type: "video",
-    source: "manual",
-    originalSizeMB: 10,
-    originalCodec: "h264",
-    presetId: basePreset.id,
-    status: "completed",
-    progress: 100,
-    startTime: Date.now(),
-    endTime: Date.now(),
-    outputSizeMB: 5,
-    logs: [],
-    skipReason: undefined,
-    ...overrides,
-  };
-}
 
 describe("QueueItem display basics", () => {
   beforeEach(() => {
@@ -423,5 +370,88 @@ describe("QueueItem display basics", () => {
     const pre = wrapper.find("pre");
     expect(pre.exists()).toBe(true);
     expect(pre.text()).toContain("avifenc");
+  });
+
+  it("shows green color for output size when file size decreased after transcoding", () => {
+    // 体积缩小：10MB -> 5MB
+    const job = makeJob({
+      originalSizeMB: 10,
+      outputSizeMB: 5,
+      status: "completed",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // 查找输出体积的 span（包含 "5.00 MB"）
+    const outputSizeSpan = wrapper.find("span.text-emerald-400.font-bold");
+    expect(outputSizeSpan.exists()).toBe(true);
+    expect(outputSizeSpan.text()).toContain("5.00 MB");
+  });
+
+  it("shows amber color for output size when file size slightly increased (<100%)", () => {
+    // 体积轻微增大：10MB -> 15MB（增大50%，未翻倍）
+    const job = makeJob({
+      originalSizeMB: 10,
+      outputSizeMB: 15,
+      status: "completed",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // 查找输出体积的 span（应该是黄色）
+    const outputSizeSpan = wrapper.find("span.text-amber-400.font-bold");
+    expect(outputSizeSpan.exists()).toBe(true);
+    expect(outputSizeSpan.text()).toContain("15.00 MB");
+
+    // 确保没有绿色或红色
+    expect(wrapper.find("span.text-emerald-400.font-bold").exists()).toBe(false);
+    expect(wrapper.find("span.text-red-400.font-bold").exists()).toBe(false);
+  });
+
+  it("shows red color for output size when file size doubled or more (≥100%)", () => {
+    // 体积翻倍：10MB -> 20MB（增大100%）
+    const job = makeJob({
+      originalSizeMB: 10,
+      outputSizeMB: 20,
+      status: "completed",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    // 查找输出体积的 span（应该是红色）
+    const outputSizeSpan = wrapper.find("span.text-red-400.font-bold");
+    expect(outputSizeSpan.exists()).toBe(true);
+    expect(outputSizeSpan.text()).toContain("20.00 MB");
+
+    // 确保没有绿色或黄色
+    expect(wrapper.find("span.text-emerald-400.font-bold").exists()).toBe(false);
+    expect(wrapper.find("span.text-amber-400.font-bold").exists()).toBe(false);
   });
 });

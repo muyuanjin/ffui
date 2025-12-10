@@ -91,6 +91,7 @@ fn delete_smart_scan_child_job_is_deletable() {
                 progress: 100.0,
                 start_time: Some(current_time_millis()),
                 end_time: Some(current_time_millis()),
+                elapsed_ms: None,
                 output_size_mb: Some(5.0),
                 logs: Vec::new(),
                 skip_reason: None,
@@ -118,5 +119,76 @@ fn delete_smart_scan_child_job_is_deletable() {
     assert!(
         !snapshot.jobs.iter().any(|j| j.id == job_id),
         "Smart Scan child job must be removed from queue state after delete",
+    );
+}
+
+#[test]
+fn delete_smart_scan_non_terminal_job_is_rejected() {
+    let engine = make_engine_with_preset();
+
+    let batch_id = "smart-scan-batch-reject-test".to_string();
+    let job_id = "smart-scan-job-reject-test".to_string();
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+
+        state.smart_scan_batches.insert(
+            batch_id.clone(),
+            SmartScanBatch {
+                batch_id: batch_id.clone(),
+                root_path: "C:/videos".to_string(),
+                replace_original: false,
+                status: SmartScanBatchStatus::Running,
+                total_files_scanned: 1,
+                total_candidates: 1,
+                total_processed: 0,
+                child_job_ids: vec![job_id.clone()],
+                started_at_ms: current_time_millis(),
+                completed_at_ms: None,
+            },
+        );
+
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: "C:/videos/input.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::SmartScan,
+                queue_order: None,
+                original_size_mb: 10.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Processing,
+                progress: 50.0,
+                start_time: Some(current_time_millis()),
+                end_time: None,
+                elapsed_ms: None,
+                output_size_mb: None,
+                logs: Vec::new(),
+                skip_reason: None,
+                input_path: Some("C:/videos/input.mp4".to_string()),
+                output_path: None,
+                ffmpeg_command: None,
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                log_tail: None,
+                failure_reason: None,
+                batch_id: Some(batch_id.clone()),
+                wait_metadata: None,
+            },
+        );
+    }
+
+    assert!(
+        !engine.delete_job(&job_id),
+        "non-terminal Smart Scan child job should not be deletable",
+    );
+
+    let snapshot = engine.queue_state();
+    assert!(
+        snapshot.jobs.iter().any(|j| j.id == job_id),
+        "non-terminal Smart Scan child job must remain in queue state after failed delete",
     );
 }
