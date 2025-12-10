@@ -17,25 +17,8 @@ import type {
 } from "@/composables";
 import type { QueueMode } from "@/types";
 import QueueFiltersPanel from "./QueueFiltersPanel.vue";
-import {
-  ArrowDownUp,
-  ArrowUpDown,
-  Filter,
-  ListOrdered,
-  ChevronUp,
-  X,
-  CheckSquare,
-  Square,
-  Trash2,
-  Hourglass,
-  Play,
-  RefreshCw,
-  ArrowUp,
-  ArrowDown,
-  XCircle,
-  Pin,
-  PinOff,
-} from "lucide-vue-next";
+import { ArrowDownUp, ArrowUpDown, Filter, ListOrdered, ChevronUp, X } from "lucide-vue-next";
+import QueueSelectionBar from "./QueueSelectionBar.vue";
 
 const props = defineProps<{
   activeStatusFilters: Set<QueueFilterStatus>;
@@ -161,7 +144,12 @@ const toggleSecondarySortDirection = () => {
 
           <!-- 主排序 -->
           <div class="flex items-center gap-1">
-            <span class="text-xs text-muted-foreground">{{ t("queue.sort.label") }}</span>
+            <span
+              class="text-xs text-muted-foreground whitespace-nowrap"
+              data-testid="queue-sort-primary-label"
+            >
+              {{ t("queue.sort.label") }}
+            </span>
             <Select
               :model-value="props.sortPrimary"
               @update:model-value="(v) => emit('update:sortPrimary', v as QueueSortField)"
@@ -227,7 +215,12 @@ const toggleSecondarySortDirection = () => {
               data-testid="queue-secondary-sort-row"
             >
               <div class="h-4 w-px bg-border/40" />
-              <span class="text-xs text-muted-foreground">{{ t("queue.sort.secondaryLabel") }}</span>
+              <span
+                class="text-xs text-muted-foreground whitespace-nowrap"
+                data-testid="queue-sort-secondary-label"
+              >
+                {{ t("queue.sort.secondaryLabel") }}
+              </span>
               <Select
                 :model-value="props.sortSecondary"
                 @update:model-value="(v) => emit('update:sortSecondary', v as QueueSortField)"
@@ -320,161 +313,23 @@ const toggleSecondarySortDirection = () => {
 
     <!-- 选择操作栏 (有选中项或固定时显示) -->
     <Transition name="slide">
-      <div v-if="props.hasSelection || selectionBarPinned" class="border-t border-border/60 px-3 py-1.5 bg-accent/5">
-        <div class="flex items-center justify-between gap-2">
-          <!-- 选择信息 -->
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-medium text-foreground">
-              {{ t("queue.selection.selectedCount", { count: props.selectedCount }) }}
-            </span>
-
-            <div class="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 gap-1 text-xs"
-                @click="emit('select-all-visible-jobs')"
-              >
-                <CheckSquare class="h-3 w-3" />
-                <span class="hidden sm:inline">{{ t("queue.selection.selectAll") }}</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 gap-1 text-xs"
-                @click="emit('invert-selection')"
-              >
-                <Square class="h-3 w-3" />
-                <span class="hidden sm:inline">{{ t("queue.selection.invert") }}</span>
-              </Button>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                class="h-6 px-2 gap-1 text-xs text-muted-foreground"
-                @click="emit('clear-selection')"
-              >
-                <X class="h-3 w-3" />
-                <span class="hidden sm:inline">{{ t("queue.selection.clear") }}</span>
-              </Button>
-            </div>
-          </div>
-
-          <!-- 批量操作 -->
-          <div class="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              @click="emit('bulk-wait')"
-              :title="t('queue.actions.bulkWait')"
-            >
-              <Hourglass class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkWait") }}</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              @click="emit('bulk-resume')"
-              :title="t('queue.actions.bulkResume')"
-            >
-              <Play class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkResume") }}</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              @click="emit('bulk-cancel')"
-              :title="t('queue.actions.bulkCancel')"
-            >
-              <XCircle class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkCancel") }}</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              :disabled="props.queueMode !== 'queue'"
-              @click="emit('bulk-restart')"
-              :title="t('queue.actions.bulkRestart')"
-            >
-              <RefreshCw class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkRestart") }}</span>
-            </Button>
-
-            <div class="h-4 w-px bg-border/40 mx-1" />
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              :disabled="props.queueMode !== 'queue'"
-              @click="emit('bulk-move-to-top')"
-              :title="t('queue.actions.bulkMoveToTop')"
-            >
-              <ArrowUp class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkMoveToTop") }}</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              :disabled="props.queueMode !== 'queue'"
-              @click="emit('bulk-move-to-bottom')"
-              :title="t('queue.actions.bulkMoveToBottom')"
-            >
-              <ArrowDown class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkMoveToBottom") }}</span>
-            </Button>
-
-            <div class="h-4 w-px bg-border/40 mx-1" />
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs text-destructive/80 hover:text-destructive"
-              @click="emit('bulk-delete')"
-              :title="t('queue.actions.bulkDelete')"
-            >
-              <Trash2 class="h-3 w-3" />
-              <span class="hidden lg:inline">{{ t("queue.actions.bulkDelete") }}</span>
-            </Button>
-
-            <div class="h-4 w-px bg-border/40 mx-1" />
-
-            <!-- 固定/取消固定按钮 -->
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="h-6 px-2 gap-1 text-xs"
-              :class="{ 'text-primary': selectionBarPinned }"
-              @click="toggleSelectionBarPinned"
-              :title="selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
-            >
-              <PinOff v-if="selectionBarPinned" class="h-3 w-3" />
-              <Pin v-else class="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      </div>
+      <QueueSelectionBar
+        v-if="props.hasSelection || selectionBarPinned"
+        :selection-bar-pinned="selectionBarPinned"
+        :selected-count="props.selectedCount"
+        :queue-mode="props.queueMode"
+        @select-all-visible-jobs="emit('select-all-visible-jobs')"
+        @invert-selection="emit('invert-selection')"
+        @clear-selection="emit('clear-selection')"
+        @bulk-wait="emit('bulk-wait')"
+        @bulk-resume="emit('bulk-resume')"
+        @bulk-cancel="emit('bulk-cancel')"
+        @bulk-restart="emit('bulk-restart')"
+        @bulk-move-to-top="emit('bulk-move-to-top')"
+        @bulk-move-to-bottom="emit('bulk-move-to-bottom')"
+        @bulk-delete="emit('bulk-delete')"
+        @toggle-selection-bar-pinned="toggleSelectionBarPinned"
+      />
     </Transition>
 
     <!-- 筛选面板 -->

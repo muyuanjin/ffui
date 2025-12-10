@@ -205,7 +205,7 @@ fn smart_scan_pushes_full_batch_snapshot_after_detection() {
 
     for path in [&video1, &video2] {
         let mut file =
-            File::create(&path).unwrap_or_else(|_| panic!("create test file {}", path.display()));
+            File::create(path).unwrap_or_else(|_| panic!("create test file {}", path.display()));
         let data = vec![0u8; 4 * 1024];
         file.write_all(&data)
             .unwrap_or_else(|_| panic!("write data for {}", path.display()));

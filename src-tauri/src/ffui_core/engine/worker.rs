@@ -7,7 +7,14 @@ mod selection;
 mod spawner;
 mod worker_reorder;
 
-pub(super) use control::{cancel_job, delete_job, restart_job, resume_job, wait_job};
+pub(super) use control::{
+    cancel_job,
+    delete_job,
+    delete_smart_scan_batch,
+    restart_job,
+    resume_job,
+    wait_job,
+};
 pub(super) use enqueue::enqueue_transcode_job;
 #[cfg(test)]
 pub(super) use selection::next_job_for_worker_locked;

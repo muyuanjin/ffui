@@ -3,7 +3,6 @@ import { computed, defineAsyncComponent, ref } from "vue";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useI18n } from "vue-i18n";
 import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
@@ -154,34 +153,68 @@ type PreviewSlot = {
 const previewSlots = computed<PreviewSlot[]>(() => {
   if (!props.batch) return [];
   const jobs = props.batch.jobs ?? [];
-  const withPreview = jobs.filter((job) => !!job.previewPath);
-
   const slots: PreviewSlot[] = [];
+  const usedJobIds = new Set<string>();
 
-  for (let index = 0; index < 9; index += 1) {
-    const job = withPreview[index] ?? jobs[index] ?? null;
-
-    if (job) {
-      // 对于图片任务，在缺失 previewPath 时回退到 outputPath 或 inputPath，
-      // 避免 Smart Scan 图片子任务在“替换原文件”后 9 宫格中完全没有缩略图。
-      const effectivePreviewPath =
-        job.previewPath ||
-        (job.type === "image"
-          ? job.outputPath || job.inputPath || null
-          : job.previewPath || null);
-
-      slots.push({
-        key: job.id ?? `slot-${index}`,
-        previewPath: effectivePreviewPath,
-        job,
-      });
-    } else {
-      slots.push({
-        key: `placeholder-${index}`,
-        previewPath: null,
-        job: null,
-      });
+  // 统一计算有效预览路径：图片缺失 previewPath 时回退到 outputPath/inputPath。
+  const getEffectivePreviewPath = (job: TranscodeJob): string | null => {
+    if (job.previewPath) return job.previewPath;
+    if (job.type === "image") {
+      return job.outputPath || job.inputPath || null;
     }
+    return job.previewPath ?? null;
+  };
+
+  type SlotSource = {
+    job: TranscodeJob;
+    previewPath: string | null;
+  };
+
+  const jobsWithPreview: SlotSource[] = [];
+  const jobsWithoutPreview: SlotSource[] = [];
+
+  for (const job of jobs) {
+    const previewPath = getEffectivePreviewPath(job);
+    if (previewPath) {
+      jobsWithPreview.push({ job, previewPath });
+    } else {
+      jobsWithoutPreview.push({ job, previewPath: null });
+    }
+  }
+
+  const pushJobSlot = (source: SlotSource) => {
+    if (slots.length >= 9) return;
+    const id = source.job.id;
+    if (usedJobIds.has(id)) return;
+    usedJobIds.add(id);
+
+    slots.push({
+      key: id,
+      previewPath: source.previewPath,
+      job: source.job,
+    });
+  };
+
+  // 优先填充有预览的子任务，保证每个子任务最多出现一次，避免重复缩略图。
+  for (const source of jobsWithPreview) {
+    if (slots.length >= 9) break;
+    pushJobSlot(source);
+  }
+
+  // 其余槽位用没有预览的子任务占位（可显示文件名），同样保证不重复。
+  for (const source of jobsWithoutPreview) {
+    if (slots.length >= 9) break;
+    pushJobSlot(source);
+  }
+
+  // 不足 9 个时补齐占位槽，保持九宫格稳定布局。
+  while (slots.length < 9) {
+    const index = slots.length;
+    slots.push({
+      key: `placeholder-${index}`,
+      previewPath: null,
+      job: null,
+    });
   }
 
   return slots;
@@ -196,7 +229,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col overflow-y-auto">
       <DialogHeader>
         <DialogTitle class="flex items-center gap-3">
           <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
@@ -209,7 +242,11 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         </DialogDescription>
       </DialogHeader>
 
-      <div v-if="batch" class="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden h-full">
+      <div
+        v-if="batch"
+        class="flex flex-col gap-4 flex-1 min-h-0"
+        data-testid="batch-detail-body"
+      >
         <!-- 9宫格预览图 -->
         <div class="flex-shrink-0">
           <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden bg-muted/40 max-h-36">
@@ -294,31 +331,29 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           <span>{{ batch.jobs.filter((j) => j.status !== 'skipped').length }} {{ t("smartScan.subtitle") }}</span>
         </div>
 
-        <!-- Job list - 使用 flex-1 和 overflow-hidden 确保滚动区域正确工作 -->
-        <ScrollArea class="flex-1 min-h-[200px] overflow-hidden">
-          <div class="space-y-2 pr-3">
-            <QueueItem
-              v-for="job in sortedJobs"
-              :key="job.id"
-              :job="job"
-              :preset="getPresetForJob(job)"
-              :can-cancel="canCancelJob(job)"
-              :can-wait="canWaitJob(job)"
-              :can-resume="canResumeJob(job)"
-              :can-restart="canRestartJob(job)"
-              view-mode="compact"
-              :progress-style="progressStyle"
-              :progress-update-interval-ms="progressUpdateIntervalMs"
-              @cancel="emit('cancelJob', $event)"
-              @wait="emit('waitJob', $event)"
-              @resume="emit('resumeJob', $event)"
-              @restart="emit('restartJob', $event)"
-              @inspect="emit('inspectJob', $event)"
-              @preview="emit('previewJob', $event)"
-              @contextmenu-job="onJobContextMenu"
-            />
-          </div>
-        </ScrollArea>
+        <!-- Job list - 依赖整个对话框的垂直滚动，不再单独嵌套一层 ScrollArea，避免只有内层列表可以滚动的体验问题。 -->
+        <div class="space-y-2 pr-3">
+          <QueueItem
+            v-for="job in sortedJobs"
+            :key="job.id"
+            :job="job"
+            :preset="getPresetForJob(job)"
+            :can-cancel="canCancelJob(job)"
+            :can-wait="canWaitJob(job)"
+            :can-resume="canResumeJob(job)"
+            :can-restart="canRestartJob(job)"
+            view-mode="compact"
+            :progress-style="progressStyle"
+            :progress-update-interval-ms="progressUpdateIntervalMs"
+            @cancel="emit('cancelJob', $event)"
+            @wait="emit('waitJob', $event)"
+            @resume="emit('resumeJob', $event)"
+            @restart="emit('restartJob', $event)"
+            @inspect="emit('inspectJob', $event)"
+            @preview="emit('previewJob', $event)"
+            @contextmenu-job="onJobContextMenu"
+          />
+        </div>
 
         <!-- Skipped items -->
         <div v-if="batch.skippedCount > 0" class="text-xs text-muted-foreground flex-shrink-0">

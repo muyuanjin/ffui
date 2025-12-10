@@ -24,6 +24,15 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const CANDIDATE_SOURCE_I18N_KEYS: Partial<Record<string, string>> = {
+  custom: "app.settings.candidateSources.custom",
+  download: "app.settings.candidateSources.download",
+  path: "app.settings.candidateSources.path",
+  env: "app.settings.candidateSources.env",
+  registry: "app.settings.candidateSources.registry",
+  everything: "app.settings.candidateSources.everything",
+};
+
 const getToolDisplayName = (kind: ExternalToolKind): string => {
   if (kind === "ffmpeg") return "FFmpeg";
   if (kind === "ffprobe") return "FFprobe";
@@ -110,13 +119,8 @@ const loadCandidates = async (kind: ExternalToolKind) => {
 };
 
 const formatCandidateSource = (source: string): string => {
-  if (source === "custom") return "自定义路径";
-  if (source === "download") return "自动下载";
-  if (source === "path") return "系统 PATH";
-  if (source === "env") return "环境变量";
-  if (source === "registry") return "系统注册表";
-  if (source === "everything") return "Everything SDK";
-  return source;
+  const key = CANDIDATE_SOURCE_I18N_KEYS[source];
+  return key ? t(key) : source;
 };
 
 const copyToClipboard = async (value: string | undefined | null) => {
@@ -219,13 +223,13 @@ const formatSpeed = (bytesPerSecond?: number): string => {
               class="text-[9px] text-primary hover:underline focus:outline-none"
               @click="loadCandidates(tool.kind)"
             >
-              选择已检测路径…
+              {{ t("app.settings.selectDetectedPath") }}
             </button>
             <span
               v-if="candidatesLoadingKind === tool.kind"
               class="text-muted-foreground"
             >
-              加载中…
+              {{ t("app.settings.loadingCandidates") }}
             </span>
           </div>
 
@@ -257,7 +261,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
                 v-if="candidate.isCurrent"
                 class="text-[9px] text-emerald-600 whitespace-nowrap mr-1"
               >
-                当前
+                {{ t("app.settings.candidateCurrentLabel") }}
               </span>
               <Button
                 v-else
@@ -266,7 +270,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
                 class="h-5 px-2 text-[9px]"
                 @click="setToolCustomPath(candidate.kind, candidate.path)"
               >
-                使用
+                {{ t("app.settings.useDetectedPath") }}
               </Button>
             </div>
           </div>
@@ -304,7 +308,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
             class="h-5 px-2 text-[9px]"
             @click="emit('downloadTool', tool.kind)"
           >
-            {{ tool.updateAvailable ? "更新" : "下载" }}
+            {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
           </Button>
         </div>
 

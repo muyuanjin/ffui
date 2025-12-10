@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /**
  * 测试：通过右键菜单删除复合任务（Smart Scan 批次）
- * 
- * 场景：用户右键点击复合任务卡片，选择"从列表删除"，
- * 前端应该为该批次的所有终态子任务发送删除请求，后端应该返回 true。
+ *
+ * 场景：用户右键点击复合任务卡片，选择“从列表删除”，
+ * 前端应该调用新的 delete_smart_scan_batch 批量删除命令，后端成功时
+ * 视为该批次所有终态子任务已从队列中移除。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
@@ -25,7 +26,7 @@ describe("MainApp 复合任务删除", () => {
     vi.clearAllMocks();
   });
 
-  it("右键复合任务卡片后删除，应该成功删除所有终态子任务", async () => {
+  it("右键复合任务卡片后删除，应该调用 delete_smart_scan_batch 并视为整批成功删除", async () => {
     const batchId = "batch-composite-delete";
     
     // 模拟一个复合任务，包含多个已完成的子任务
@@ -73,18 +74,13 @@ describe("MainApp 复合任务删除", () => {
 
     setQueueJobs(jobs);
 
-    const deletedIds: string[] = [];
-    const deleteCallPayloads: any[] = [];
-
     useBackendMock({
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: (payload) => {
-        deleteCallPayloads.push(payload);
-        const id = (payload?.jobId ?? payload?.job_id) as string;
-        deletedIds.push(id);
-        // 模拟后端成功删除
+      delete_smart_scan_batch: (payload) => {
+        // 模拟后端批量删除成功
+        expect((payload?.batchId ?? payload?.batch_id) as string).toBe(batchId);
         return true;
       },
     });
@@ -106,20 +102,23 @@ describe("MainApp 复合任务删除", () => {
     // （这是 handleBatchContextMenu 的行为）
     setSelectedJobIds(vm, jobs.map((job) => job.id));
 
-    // 触发批量删除
+    // 触发批量删除（复合任务右键菜单 → 从列表删除）
     if (typeof vm.bulkDelete === "function") {
       await vm.bulkDelete();
     }
     await nextTick();
 
-    // 验证：应该为所有终态子任务发送删除请求
-    const deleteCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "delete_transcode_job"
+    // 验证：应调用一次 delete_smart_scan_batch，而不是对每个子任务逐个 delete_transcode_job。
+    const deleteBatchCalls = invokeMock.mock.calls.filter(
+      ([cmd]) => cmd === "delete_smart_scan_batch",
     );
-    
-    // 所有 3 个任务都是终态（completed 或 failed），应该都被删除
-    expect(deleteCalls.length).toBe(3);
-    expect(new Set(deletedIds)).toEqual(new Set(jobs.map((job) => job.id)));
+    expect(deleteBatchCalls.length).toBe(1);
+
+    const singlePayload = deleteBatchCalls[0]?.[1] as any;
+    expect(singlePayload).toMatchObject({
+      batchId,
+      batch_id: batchId,
+    });
 
     // 验证：不应该有错误
     const error = (vm.queueError ?? vm.queueError?.value) ?? null;
@@ -153,8 +152,8 @@ describe("MainApp 复合任务删除", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: () => {
-        // 模拟后端返回 false（删除失败）
+      delete_smart_scan_batch: () => {
+        // 模拟后端批次删除返回 false（删除失败）
         return false;
       },
     });

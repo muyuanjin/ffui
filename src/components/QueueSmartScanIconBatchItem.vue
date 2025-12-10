@@ -122,27 +122,66 @@ type PreviewSlot = {
 
 const previewSlots = computed<PreviewSlot[]>(() => {
   const jobs = props.batch.jobs ?? [];
-  const withPreview = jobs.filter((job) => !!job.previewPath);
-
   const slots: PreviewSlot[] = [];
+  const usedJobIds = new Set<string>();
 
-  for (let index = 0; index < 9; index += 1) {
-    const job =
-      withPreview[index] ??
-      jobs[index] ??
-      null;
-
-    if (job) {
-      slots.push({
-        key: job.id ?? `slot-${index}`,
-        previewPath: job.previewPath ?? null,
-      });
-    } else {
-      slots.push({
-        key: `placeholder-${index}`,
-        previewPath: null,
-      });
+  // 统一处理图片/视频的有效预览路径：图片缺失 previewPath 时回退到 outputPath/inputPath。
+  const getEffectivePreviewPath = (job: (typeof jobs)[number]): string | null => {
+    if (job.previewPath) return job.previewPath;
+    if (job.type === "image") {
+      return job.outputPath || job.inputPath || null;
     }
+    return job.previewPath ?? null;
+  };
+
+  type SlotSource = {
+    job: (typeof jobs)[number];
+    previewPath: string | null;
+  };
+
+  const jobsWithPreview: SlotSource[] = [];
+  const jobsWithoutPreview: SlotSource[] = [];
+
+  for (const job of jobs) {
+    const previewPath = getEffectivePreviewPath(job);
+    if (previewPath) {
+      jobsWithPreview.push({ job, previewPath });
+    } else {
+      jobsWithoutPreview.push({ job, previewPath: null });
+    }
+  }
+
+  const pushJobSlot = (source: SlotSource) => {
+    if (slots.length >= 9) return;
+    const id = source.job.id;
+    if (usedJobIds.has(id)) return;
+    usedJobIds.add(id);
+
+    slots.push({
+      key: id,
+      previewPath: source.previewPath,
+    });
+  };
+
+  // 优先填充有预览的子任务，且每个子任务最多出现一次，避免重复缩略图。
+  for (const source of jobsWithPreview) {
+    if (slots.length >= 9) break;
+    pushJobSlot(source);
+  }
+
+  // 其余槽位用没有预览的子任务占位（会显示灰色占位块），同样保证不重复。
+  for (const source of jobsWithoutPreview) {
+    if (slots.length >= 9) break;
+    pushJobSlot(source);
+  }
+
+  // 不足 9 个时补齐占位槽，保持九宫格稳定布局。
+  while (slots.length < 9) {
+    const index = slots.length;
+    slots.push({
+      key: `placeholder-${index}`,
+      previewPath: null,
+    });
   }
 
   return slots;
