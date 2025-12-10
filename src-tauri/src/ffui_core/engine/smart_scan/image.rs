@@ -17,12 +17,24 @@ use super::super::worker_utils::recompute_log_tail;
 use super::detection::build_image_avif_paths;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 
+#[cfg(test)]
 pub(crate) fn handle_image_file(
     inner: &Inner,
     path: &Path,
     config: &SmartScanConfig,
     settings: &AppSettings,
     batch_id: &str,
+) -> Result<TranscodeJob> {
+    handle_image_file_with_id(inner, path, config, settings, batch_id, None)
+}
+
+pub(crate) fn handle_image_file_with_id(
+    inner: &Inner,
+    path: &Path,
+    config: &SmartScanConfig,
+    settings: &AppSettings,
+    batch_id: &str,
+    job_id: Option<String>,
 ) -> Result<TranscodeJob> {
     let metadata = fs::metadata(path)
         .with_context(|| format!("failed to stat image file {}", path.display()))?;
@@ -36,7 +48,7 @@ pub(crate) fn handle_image_file(
         .to_string();
 
     let mut job = TranscodeJob {
-        id: next_job_id(inner),
+        id: job_id.unwrap_or_else(|| next_job_id(inner)),
         filename,
         job_type: JobType::Image,
         source: JobSource::SmartScan,

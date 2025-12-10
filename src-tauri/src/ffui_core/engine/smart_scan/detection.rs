@@ -45,6 +45,7 @@ pub(crate) fn is_audio_file(path: &Path) -> bool {
     )
 }
 
+#[cfg(test)]
 pub(crate) fn is_smart_scan_style_output(path: &Path) -> bool {
     let file_name = match path.file_name().and_then(|n| n.to_str()) {
         Some(name) => name.to_ascii_lowercase(),
