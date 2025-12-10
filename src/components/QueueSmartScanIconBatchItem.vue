@@ -57,9 +57,9 @@ const progressColorClass = computed(() => {
   const hasProcessing = jobs.some(j => j.status === "processing");
   const hasPaused = jobs.some(j => j.status === "paused" || j.status === "waiting" || j.status === "queued");
   
-  // 全部完成
+  // 全部完成 - 使用与普通任务一致的绿色
   if (completedCount === totalCount && totalCount > 0) {
-    return "bg-emerald-500/40";
+    return "bg-emerald-500";
   }
   // 有失败
   if (failedCount > 0) {
@@ -154,6 +154,10 @@ const videosCount = computed(
 
 const imagesCount = computed(
   () => props.batch.jobs.filter((job) => job.type === "image").length,
+);
+
+const audioCount = computed(
+  () => props.batch.jobs.filter((job) => job.type === "audio").length,
 );
 
 const folderName = computed(() => {
@@ -324,7 +328,9 @@ const onContextMenu = (event: MouseEvent) => {
         {{ folderName }}
       </p>
       <p class="relative mt-0.5 text-[10px] text-muted-foreground truncate">
-        {{ videosCount }} {{ t("queue.typeVideo") }} / {{ imagesCount }} {{ t("queue.typeImage") }} ·
+        {{ videosCount }} {{ t("queue.typeVideo") }} /
+        {{ imagesCount }} {{ t("queue.typeImage") }} /
+        {{ audioCount }} {{ t("queue.typeAudio") }} ·
         {{ t("queue.status.completed") }} {{ batch.completedCount }} / {{ batch.totalCount - batch.skippedCount }}
       </p>
     </div>

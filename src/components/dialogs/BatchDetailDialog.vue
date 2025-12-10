@@ -209,7 +209,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         </DialogDescription>
       </DialogHeader>
 
-      <div v-if="batch" class="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden">
+      <div v-if="batch" class="flex flex-col gap-4 flex-1 min-h-0 overflow-hidden h-full">
         <!-- 9宫格预览图 -->
         <div class="flex-shrink-0">
           <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden bg-muted/40 max-h-36">
@@ -285,6 +285,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           <span v-if="compressionRatio">{{ t("jobDetail.ratio") }}: {{ compressionRatio }}%</span>
           <span>{{ t("queue.typeVideo") }}: {{ batch.jobs.filter((j) => j.type === "video").length }}</span>
           <span>{{ t("queue.typeImage") }}: {{ batch.jobs.filter((j) => j.type === "image").length }}</span>
+          <span>{{ t("queue.typeAudio") }}: {{ batch.jobs.filter((j) => j.type === "audio").length }}</span>
         </div>
 
         <!-- Job list header -->
@@ -293,8 +294,8 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           <span>{{ batch.jobs.filter((j) => j.status !== 'skipped').length }} {{ t("smartScan.subtitle") }}</span>
         </div>
 
-        <!-- Job list - 使用 flex-1 和 min-h-[200px] 确保有足够空间显示任务 -->
-        <ScrollArea class="flex-1 min-h-[200px]">
+        <!-- Job list - 使用 flex-1 和 overflow-hidden 确保滚动区域正确工作 -->
+        <ScrollArea class="flex-1 min-h-[200px] overflow-hidden">
           <div class="space-y-2 pr-3">
             <QueueItem
               v-for="job in sortedJobs"

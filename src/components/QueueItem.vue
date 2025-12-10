@@ -99,9 +99,15 @@ const displayStatusKey = computed(() =>
 
 const localizedStatus = computed(() => t(`queue.status.${displayStatusKey.value}`));
 
-const typeLabel = computed(() =>
-  props.job.type === "image" ? t("queue.typeImage") : t("queue.typeVideo"),
-);
+const typeLabel = computed(() => {
+  if (props.job.type === "image") {
+    return t("queue.typeImage");
+  }
+  if (props.job.type === "audio") {
+    return t("queue.typeAudio");
+  }
+  return t("queue.typeVideo");
+});
 
 const sourceLabel = computed(() => {
   if (props.job.source === "smart_scan") {

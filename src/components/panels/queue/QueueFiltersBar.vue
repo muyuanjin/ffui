@@ -132,10 +132,10 @@ const toggleSecondarySortDirection = () => {
     class="shrink-0 border-b border-border bg-card/60 backdrop-blur"
   >
     <!-- 主控制栏 - 单行布局 -->
-    <div class="px-3 py-1.5">
-      <div class="flex items-center justify-between gap-3">
+    <div class="px-3 py-1.5 overflow-x-auto">
+      <div class="flex items-center justify-between gap-3 min-w-max">
         <!-- 左侧：模式和排序控制 -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <!-- 队列模式 -->
           <div class="flex items-center gap-1">
             <span class="text-xs text-muted-foreground">{{ t("queue.modeLabel") }}</span>

@@ -213,6 +213,124 @@ describe("QueueSmartScanIconBatchItem", () => {
     });
   });
 
+  describe("进度条颜色", () => {
+    it("全部任务完成时进度条应该显示绿色（与普通任务一致）", async () => {
+      const jobs = [
+        createMockJob("job-1", "completed"),
+        createMockJob("job-2", "completed"),
+      ];
+      const batch = createMockBatch(jobs);
+      // 设置100%进度和正确的完成计数
+      batch.overallProgress = 100;
+      batch.completedCount = 2;
+      batch.totalCount = 2;
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
+      expect(progressBar.exists()).toBe(true);
+      // 验证使用完整的绿色而不是透明度版本
+      expect(progressBar.classes()).toContain('bg-emerald-500');
+      expect(progressBar.classes()).not.toContain('bg-emerald-500/40');
+    });
+
+    it("有失败任务时进度条应该显示红色", async () => {
+      const jobs = [
+        createMockJob("job-1", "completed"),
+        createMockJob("job-2", "failed"),
+      ];
+      const batch = createMockBatch(jobs);
+      batch.overallProgress = 50;
+      batch.completedCount = 1;
+      batch.failedCount = 1;
+      batch.totalCount = 2;
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
+      expect(progressBar.exists()).toBe(true);
+      expect(progressBar.classes()).toContain('bg-red-500/40');
+    });
+
+    it("有暂停任务时进度条应该显示黄色", async () => {
+      const jobs = [
+        createMockJob("job-1", "completed"),
+        createMockJob("job-2", "paused"),
+      ];
+      const batch = createMockBatch(jobs);
+      batch.overallProgress = 50;
+      batch.completedCount = 1;
+      batch.totalCount = 2;
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
+      expect(progressBar.exists()).toBe(true);
+      expect(progressBar.classes()).toContain('bg-amber-500/40');
+    });
+
+    it("处理中任务时进度条应该显示默认蓝色", async () => {
+      const jobs = [
+        createMockJob("job-1", "completed"),
+        createMockJob("job-2", "processing"),
+      ];
+      const batch = createMockBatch(jobs);
+      batch.overallProgress = 75;
+      batch.completedCount = 1;
+      batch.totalCount = 2;
+
+      const wrapper = mount(QueueSmartScanIconBatchItem, {
+        props: {
+          batch,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+
+      const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
+      expect(progressBar.exists()).toBe(true);
+      expect(progressBar.classes()).toContain('bg-primary/40');
+    });
+  });
+
   describe("9宫格预览", () => {
     it("应该渲染9个预览槽位", async () => {
       const jobs = Array.from({ length: 5 }, (_, i) =>

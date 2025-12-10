@@ -17,7 +17,8 @@ use super::super::state::{
     notify_smart_scan_listeners, register_known_smart_scan_output_with_inner,
     update_smart_scan_batch_with_inner,
 };
-use super::detection::{is_image_file, is_smart_scan_style_output, is_video_file};
+use super::audio::handle_audio_file;
+use super::detection::{is_audio_file, is_image_file, is_smart_scan_style_output, is_video_file};
 use super::helpers::{current_time_millis, notify_queue_listeners};
 use super::image::handle_image_file;
 use super::video::enqueue_smart_scan_video_job;
@@ -211,6 +212,72 @@ fn run_auto_compress_background(
                 Err(err) => {
                     eprintln!(
                         "auto-compress: failed to handle image file {}: {err:#}",
+                        path.display()
+                    );
+                }
+            }
+        } else if is_audio_file(&path) {
+            // 仅在音频过滤启用且扩展名命中时才作为 Smart Scan 候选。
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+                .unwrap_or_default();
+
+            let audio_filter = &config.audio_filter;
+            let mut passes_filter = audio_filter.enabled;
+            if passes_filter
+                && !audio_filter.extensions.is_empty()
+                && !audio_filter
+                    .extensions
+                    .iter()
+                    .any(|e| e.eq_ignore_ascii_case(&ext))
+            {
+                passes_filter = false;
+            }
+
+            if !passes_filter {
+                continue;
+            }
+
+            match handle_audio_file(
+                inner,
+                &path,
+                &config,
+                &settings_snapshot,
+                &presets,
+                &batch_id,
+            ) {
+                Ok(job) => {
+                    {
+                        let mut state = inner.state.lock().expect("engine state poisoned");
+                        state.jobs.insert(job.id.clone(), job.clone());
+                    }
+
+                    let is_terminal = matches!(
+                        job.status,
+                        JobStatus::Completed
+                            | JobStatus::Skipped
+                            | JobStatus::Failed
+                            | JobStatus::Cancelled
+                    );
+
+                    queue_dirty = true;
+                    if matches!(job.status, JobStatus::Waiting) {
+                        waiting_jobs_enqueued = true;
+                    }
+
+                    update_smart_scan_batch_with_inner(inner, &batch_id, true, |batch| {
+                        batch.total_candidates = batch.total_candidates.saturating_add(1);
+                        batch.child_job_ids.push(job.id.clone());
+                        if is_terminal {
+                            batch.total_processed = batch.total_processed.saturating_add(1);
+                        }
+                    });
+                }
+                Err(err) => {
+                    eprintln!(
+                        "auto-compress: failed to handle audio file {}: {err:#}",
                         path.display()
                     );
                 }
