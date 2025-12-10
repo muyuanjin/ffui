@@ -377,6 +377,32 @@ const toolsMode = computed<ExternalToolsMode>({
           <p class="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
             {{ t("app.taskbarProgressModeHelp") }}
           </p>
+          <div class="mt-3 space-y-1">
+            <p class="text-[10px] font-medium text-foreground">
+              {{ t("app.taskbarProgressScopeLabel") }}
+            </p>
+            <Select
+              :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
+              @update:model-value="
+                (v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])
+              "
+            >
+              <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="allJobs" class="text-[10px]">
+                  {{ t("app.taskbarProgressScopes.allJobs") }}
+                </SelectItem>
+                <SelectItem value="activeAndQueued" class="text-[10px]">
+                  {{ t("app.taskbarProgressScopes.activeAndQueued") }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <p class="text-[9px] text-muted-foreground leading-relaxed">
+              {{ t("app.taskbarProgressScopeHelp") }}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -460,16 +486,7 @@ const toolsMode = computed<ExternalToolsMode>({
 </template>
 
 <style scoped>
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 1; }
-}
-
-.animation-delay-200 {
-  animation-delay: 200ms;
-}
-
-.animation-delay-400 {
-  animation-delay: 400ms;
-}
+@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+.animation-delay-200 { animation-delay: 200ms; }
+.animation-delay-400 { animation-delay: 400ms; }
 </style>

@@ -149,9 +149,10 @@ fn preview_root_dir() -> PathBuf {
     dir.join("previews")
 }
 
-pub(super) fn build_preview_output_path(input: &Path) -> PathBuf {
+pub(super) fn build_preview_output_path(input: &Path, capture_percent: u8) -> PathBuf {
     let mut hasher = DefaultHasher::new();
     input.to_string_lossy().hash(&mut hasher);
+    capture_percent.hash(&mut hasher);
     let hash = hasher.finish();
     preview_root_dir().join(format!("{hash:016x}.jpg"))
 }
@@ -189,7 +190,7 @@ pub(super) fn generate_preview_for_video(
     total_duration: Option<f64>,
     capture_percent: u8,
 ) -> Option<PathBuf> {
-    let preview_path = build_preview_output_path(input);
+    let preview_path = build_preview_output_path(input, capture_percent);
 
     if preview_path.exists() {
         return Some(preview_path);

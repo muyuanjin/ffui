@@ -167,6 +167,8 @@ const other = {
     hardwareLabel: "Hardware",
     subtitlesLabel: "Subtitles",
     containerLabel: "Container",
+    hardwarePlaceholder: "No hardware accel configured",
+    containerPlaceholder: "No container options set",
     noFilters: "None",
     scale: "Scale",
     crop: "Crop",

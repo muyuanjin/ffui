@@ -341,7 +341,7 @@ const mediaSummary = computed(() => {
     const totalSeconds = Math.floor(duration);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = totalSeconds % 60;
-    parts.push(`${minutes}:${seconds.toString().padStart(2, "0")}`);
+    parts.push(`时长 ${minutes}:${seconds.toString().padStart(2, "0")}`);
   }
 
   if (typeof info.width === "number" && typeof info.height === "number") {

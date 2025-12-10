@@ -362,7 +362,7 @@ fn execute_transcode_job(
             // 设置最终的累计已用时间（毫秒）
             // 如果之前有暂停过，elapsed_ms 已经包含了之前的累计时间
             // 这里需要加上最后一段的时间
-            if let Some(start) = job.start_time {
+            if let Some(start) = job.processing_started_ms.or(job.start_time) {
                 let current_segment_ms = now_ms.saturating_sub(start);
                 let previous_elapsed = job.elapsed_ms.unwrap_or(0);
                 // 如果 previous_elapsed 已经包含了当前段（在 update_job_progress 中更新），

@@ -214,7 +214,7 @@ describe("MainApp task detail surface - basics", () => {
     expect(titleEl?.textContent?.trim()).toBe("sample.mp4");
   });
 
-  it("shows real processing time based on start/end instead of media duration", async () => {
+  it("prefers backend elapsedMs for processing time and ignores media duration", async () => {
     const job: TranscodeJob = {
       id: "job-processing-time",
       filename: "C:/videos/elapsed.mp4",
@@ -225,8 +225,10 @@ describe("MainApp task detail surface - basics", () => {
       presetId: "p1",
       status: "completed",
       progress: 100,
+      // 刻意让 elapsedMs 与 start/end 差值不一致：以便验证优先使用 elapsedMs。
       startTime: 1_000,
       endTime: 5_200,
+      elapsedMs: 6_600,
       mediaInfo: {
         durationSeconds: 120,
         width: 1920,
@@ -245,11 +247,13 @@ describe("MainApp task detail surface - basics", () => {
 
     await nextTick();
 
-    const selectedJob =
+    const selectedJob: TranscodeJob | null =
       vm.selectedJobForDetail && "value" in vm.selectedJobForDetail
         ? vm.selectedJobForDetail.value
         : vm.selectedJobForDetail;
     const expectedSeconds =
+      selectedJob?.elapsedMs != null ? (selectedJob.elapsedMs / 1000).toFixed(1) : null;
+    const fallbackSeconds =
       selectedJob?.startTime && selectedJob?.endTime
         ? ((selectedJob.endTime - selectedJob.startTime) / 1000).toFixed(1)
         : null;
@@ -262,7 +266,13 @@ describe("MainApp task detail surface - basics", () => {
     const text = processingEl?.textContent || "";
     expect(text).toContain("Processing time");
     expect(expectedSeconds).not.toBeNull();
+    // 应显示 elapsedMs 对应的秒数
     expect(text).toContain(expectedSeconds || "");
+    // 不应退回到 start/end 差值
+    if (fallbackSeconds) {
+      expect(text).not.toContain(fallbackSeconds);
+    }
+    // 也不应错误地展示媒体总时长
     expect(text).not.toContain("120");
 
     wrapper.unmount();

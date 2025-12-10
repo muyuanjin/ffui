@@ -121,6 +121,11 @@ fn app_settings_default_uses_preview_capture_percent_25() {
         TaskbarProgressMode::ByEstimatedTime,
         "default taskbar_progress_mode should prefer estimated-time weighting"
     );
+    assert_eq!(
+        settings.taskbar_progress_scope,
+        TaskbarProgressScope::AllJobs,
+        "default taskbar_progress_scope must keep legacy behaviour of including completed jobs"
+    );
 }
 
 #[test]
@@ -168,6 +173,14 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
     assert_eq!(
         mode, "byEstimatedTime",
         "taskbarProgressMode must serialize as a camelCase string"
+    );
+    let scope = value
+        .get("taskbarProgressScope")
+        .and_then(Value::as_str)
+        .expect("taskbarProgressScope present as string");
+    assert_eq!(
+        scope, "allJobs",
+        "taskbarProgressScope must serialize as a camelCase string and default to allJobs"
     );
 
     // When no tools have been auto-downloaded yet, the nested metadata
@@ -223,6 +236,11 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
         decoded.taskbar_progress_mode,
         TaskbarProgressMode::ByEstimatedTime,
         "missing taskbarProgressMode must default to ByEstimatedTime for backwards compatibility"
+    );
+    assert_eq!(
+        decoded.taskbar_progress_scope,
+        TaskbarProgressScope::AllJobs,
+        "missing taskbarProgressScope must default to AllJobs for backwards compatibility"
     );
 
     // Legacy JSON without progressUpdateIntervalMs should transparently

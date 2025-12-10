@@ -164,6 +164,8 @@ const other = {
     hardwareLabel: "硬件",
     subtitlesLabel: "字幕",
     containerLabel: "容器",
+    hardwarePlaceholder: "未配置硬件加速",
+    containerPlaceholder: "未配置容器",
     noFilters: "无",
     scale: "缩放",
     crop: "裁剪",

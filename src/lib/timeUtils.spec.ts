@@ -64,6 +64,7 @@ describe("timeUtils", () => {
 
   describe("computeJobElapsedMs", () => {
     const nowMs = 1700000000000;
+    const processingStart = nowMs - 20000;
 
     it("returns elapsedMs for completed jobs", () => {
       const job = {
@@ -108,6 +109,25 @@ describe("timeUtils", () => {
         startTime: nowMs - 30000,
       };
       expect(computeJobElapsedMs(job, nowMs)).toBe(30000);
+    });
+
+    it("prefers processingStartedMs over startTime when elapsedMs is missing", () => {
+      const job = {
+        status: "processing",
+        startTime: nowMs - 60000,
+        processingStartedMs: processingStart,
+      };
+      expect(computeJobElapsedMs(job, nowMs)).toBe(20000);
+    });
+
+    it("uses processingStartedMs for completed jobs when elapsedMs is missing", () => {
+      const job = {
+        status: "completed",
+        startTime: nowMs - 60000,
+        endTime: nowMs,
+        processingStartedMs: processingStart,
+      };
+      expect(computeJobElapsedMs(job, nowMs)).toBe(20000);
     });
 
     it("returns null for waiting jobs", () => {

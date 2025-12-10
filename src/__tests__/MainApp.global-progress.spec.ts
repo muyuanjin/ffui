@@ -106,4 +106,68 @@ describe("MainApp global aggregated progress", () => {
 
     wrapper.unmount();
   });
+
+  it("ignores completed jobs when scope is activeAndQueued and non-terminal jobs exist", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const settings: AppSettings = {
+      tools: {
+        ffmpegPath: undefined,
+        ffprobePath: undefined,
+        avifencPath: undefined,
+        autoDownload: false,
+        autoUpdate: false,
+        downloaded: undefined,
+      },
+      smartScanDefaults: buildSmartScanDefaults(),
+      previewCapturePercent: 25,
+      defaultQueuePresetId: undefined,
+      maxParallelJobs: undefined,
+      taskbarProgressMode: "bySize",
+      taskbarProgressScope: "activeAndQueued",
+    };
+
+    vm.appSettings = settings;
+
+    const completedJob: TranscodeJob = {
+      id: "1",
+      filename: "done.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      estimatedSeconds: 10,
+    };
+
+    const waitingJob: TranscodeJob = {
+      id: "2",
+      filename: "new.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 5,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+      estimatedSeconds: 10,
+    };
+
+    setJobs(vm, [completedJob, waitingJob]);
+    await nextTick();
+
+    expect(vm.globalTaskbarProgressPercent).toBe(0);
+
+    wrapper.unmount();
+  });
 });

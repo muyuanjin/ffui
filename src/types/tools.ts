@@ -16,6 +16,7 @@ export interface DownloadedToolState {
 }
 
 export type TaskbarProgressMode = "bySize" | "byDuration" | "byEstimatedTime";
+export type TaskbarProgressScope = "allJobs" | "activeAndQueued";
 
 export interface ExternalToolSettings {
   ffmpegPath?: string;

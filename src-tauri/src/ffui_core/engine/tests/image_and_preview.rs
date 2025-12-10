@@ -4,8 +4,8 @@ fn build_preview_output_path_is_stable_for_same_input() {
     let dir = env::temp_dir();
     let path = dir.join("preview_target.mp4");
 
-    let first = build_preview_output_path(&path);
-    let second = build_preview_output_path(&path);
+    let first = build_preview_output_path(&path, 25);
+    let second = build_preview_output_path(&path, 25);
 
     assert_eq!(
         first, second,
@@ -20,6 +20,25 @@ fn build_preview_output_path_is_stable_for_same_input() {
     assert!(
         filename.ends_with(".jpg"),
         "preview path should use a .jpg extension, got {filename}"
+    );
+}
+
+#[test]
+fn build_preview_output_path_changes_when_capture_percent_differs() {
+    let dir = env::temp_dir();
+    let path = dir.join("preview_target_percent.mp4");
+
+    let twenty_five = build_preview_output_path(&path, 25);
+    let fifty = build_preview_output_path(&path, 50);
+
+    assert_ne!(
+        twenty_five, fifty,
+        "preview path should differ when capture percent differs for the same input"
+    );
+
+    assert!(
+        !twenty_five.exists() && !fifty.exists(),
+        "path computation tests should not accidentally create files"
     );
 }
 
