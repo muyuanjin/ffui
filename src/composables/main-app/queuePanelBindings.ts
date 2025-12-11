@@ -14,7 +14,8 @@ interface QueuePanelBindingsInput {
   visibleQueueItems: Ref<QueueListItem[]> | ComputedRef<QueueListItem[]>;
   iconViewItems: Ref<QueueListItem[]> | ComputedRef<QueueListItem[]>;
   queueModeProcessingJobs: Ref<TranscodeJob[]> | ComputedRef<TranscodeJob[]>;
-  queueModeWaitingJobs: Ref<TranscodeJob[]> | ComputedRef<TranscodeJob[]>;
+  queueModeWaitingItems: Ref<QueueListItem[]> | ComputedRef<QueueListItem[]>;
+  queueModeWaitingBatchIds: Ref<Set<string>> | ComputedRef<Set<string>>;
   presets: Ref<FFmpegPreset[]>;
   queueViewMode: Ref<QueueViewMode>;
   ffmpegResolvedPath: Ref<string | null> | ComputedRef<string | null>;
@@ -48,7 +49,8 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     visibleQueueItems: unref(input.visibleQueueItems),
     iconViewItems: unref(input.iconViewItems),
     queueModeProcessingJobs: unref(input.queueModeProcessingJobs),
-    queueModeWaitingJobs: unref(input.queueModeWaitingJobs),
+    queueModeWaitingItems: unref(input.queueModeWaitingItems),
+    queueModeWaitingBatchIds: unref(input.queueModeWaitingBatchIds),
     presets: unref(input.presets),
     queueViewMode: input.queueViewMode.value,
     ffmpegResolvedPath: unref(input.ffmpegResolvedPath),

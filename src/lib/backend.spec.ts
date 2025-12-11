@@ -23,6 +23,7 @@ import {
   deleteSmartScanBatchOnBackend,
   reorderQueue,
   loadPreviewDataUrl,
+  ensureJobPreview,
   inspectMedia,
   selectPlayableMediaPath,
   revealPathInFolder,
@@ -158,6 +159,34 @@ describe("backend contract", () => {
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(result).toBe(candidates[0]);
+
+    if (originalWindow === undefined) {
+      delete (globalThis as any).window;
+    } else {
+      (globalThis as any).window = originalWindow;
+    }
+  });
+
+  it("ensureJobPreview delegates to ensure_job_preview with both name variants", async () => {
+    const originalWindow = (globalThis as any).window;
+    (globalThis as any).window = { ...(originalWindow ?? {}), __TAURI__: {} };
+
+    const jobId = "job-1";
+    const previewPath = "C:/app-data/previews/regenerated.jpg";
+
+    invokeMock.mockResolvedValueOnce(previewPath);
+
+    const result = await ensureJobPreview(jobId);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+
+    expect(cmd).toBe("ensure_job_preview");
+    expect(payload).toMatchObject({
+      jobId,
+      job_id: jobId,
+    });
+    expect(result).toBe(previewPath);
 
     if (originalWindow === undefined) {
       delete (globalThis as any).window;

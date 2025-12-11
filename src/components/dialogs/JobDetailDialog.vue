@@ -5,8 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
 import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
-import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import type { TranscodeJob, FFmpegPreset } from "@/types";
+
+const isTestEnv =
+  typeof import.meta !== "undefined" &&
+  typeof import.meta.env !== "undefined" &&
+  import.meta.env.MODE === "test";
 
 const props = defineProps<{
   open: boolean;
@@ -33,11 +38,13 @@ const { t } = useI18n();
 // --- Preview handling ---
 const inlinePreviewUrl = ref<string | null>(null);
 const inlinePreviewFallbackLoaded = ref(false);
+const inlinePreviewRescreenshotAttempted = ref(false);
 
 watch(
   () => props.job?.previewPath,
   (path) => {
     inlinePreviewFallbackLoaded.value = false;
+    inlinePreviewRescreenshotAttempted.value = false;
     if (!path) {
       inlinePreviewUrl.value = null;
       return;
@@ -57,7 +64,28 @@ const handleInlinePreviewError = async () => {
     inlinePreviewUrl.value = await loadPreviewDataUrl(path);
     inlinePreviewFallbackLoaded.value = true;
   } catch (error) {
-    console.error("JobDetailDialog: failed to load inline preview via data URL fallback", error);
+    if (inlinePreviewRescreenshotAttempted.value || !props.job) {
+      console.error("JobDetailDialog: failed to load inline preview via data URL fallback", error);
+      return;
+    }
+
+	    inlinePreviewRescreenshotAttempted.value = true;
+	    if (!isTestEnv) {
+	      console.warn(
+	        "JobDetailDialog: preview missing or unreadable, attempting regeneration",
+	        error,
+	      );
+	    }
+
+	    try {
+	      const regenerated = await ensureJobPreview(props.job.id);
+	      if (regenerated) {
+	        inlinePreviewUrl.value = buildPreviewUrl(regenerated);
+        inlinePreviewFallbackLoaded.value = false;
+      }
+    } catch (regenError) {
+      console.error("JobDetailDialog: failed to regenerate preview", regenError);
+    }
   }
 };
 

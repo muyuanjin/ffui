@@ -12,11 +12,13 @@ vi.mock("@/lib/backend", () => {
   const loadPreviewDataUrl = vi.fn(
     async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
   );
+  const ensureJobPreview = vi.fn(async () => null);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
+    ensureJobPreview,
     selectPlayableMediaPath: vi.fn(
       async (candidates: string[]) => candidates[0] ?? null,
     ),
@@ -36,7 +38,7 @@ vi.mock("@/lib/ffmpegCommand", async () => {
   };
 });
 
-import { hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItem from "@/components/QueueItem.vue";
 
 const i18n = createI18n({
@@ -174,6 +176,40 @@ describe("QueueItem display preview & command view", () => {
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const img = thumb.find("img");
     expect(img.attributes("src")).toBe("data:image/jpeg;base64,FALLBACK=");
+  });
+
+  it("regenerates preview when thumbnail is missing in Tauri mode", async () => {
+    const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
+
+    (hasTauri as any).mockReturnValue(true);
+    (loadPreviewDataUrl as any).mockRejectedValueOnce(
+      new Error("preview missing"),
+    );
+    (ensureJobPreview as any).mockResolvedValueOnce(
+      "C:/app-data/previews/regenerated.jpg",
+    );
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    await vm.handlePreviewError();
+
+    expect(loadPreviewDataUrl).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.attributes("src")).toBe("C:/app-data/previews/regenerated.jpg");
   });
 
   it("renders a stable thumbnail placeholder when previewPath is missing", () => {

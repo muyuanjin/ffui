@@ -348,7 +348,8 @@ export function useMainAppSetup() {
     visibleQueueItems: queue.visibleQueueItems,
     iconViewItems: queue.iconViewItems,
     queueModeProcessingJobs: queue.queueModeProcessingJobs,
-    queueModeWaitingJobs: queue.queueModeWaitingJobs,
+    queueModeWaitingItems: queue.queueModeWaitingItems,
+    queueModeWaitingBatchIds: queue.queueModeWaitingBatchIds,
     presets,
     queueViewMode: queue.queueViewMode,
     // Expand bare `ffmpeg` tokens in the "full command" view using the

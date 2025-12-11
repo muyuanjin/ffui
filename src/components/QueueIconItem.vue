@@ -2,8 +2,13 @@
 import { computed, ref, watch, toRef } from "vue";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
-import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
+
+const isTestEnv =
+  typeof import.meta !== "undefined" &&
+  typeof import.meta.env !== "undefined" &&
+  import.meta.env.MODE === "test";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -222,11 +227,13 @@ const timeDisplayText = computed(() => {
 
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
+const previewRescreenshotAttempted = ref(false);
 
 watch(
   () => props.job.previewPath,
   (path) => {
     previewFallbackLoaded.value = false;
+    previewRescreenshotAttempted.value = false;
     if (!path) {
       previewUrl.value = null;
       return;
@@ -247,10 +254,31 @@ const handlePreviewError = async () => {
     previewUrl.value = url;
     previewFallbackLoaded.value = true;
   } catch (error) {
-    console.error(
-      "QueueIconItem: failed to load preview via data URL fallback",
-      error,
-    );
+    if (previewRescreenshotAttempted.value) {
+      console.error(
+        "QueueIconItem: failed to load preview via data URL fallback",
+        error,
+      );
+      return;
+    }
+
+	    previewRescreenshotAttempted.value = true;
+	    if (!isTestEnv) {
+	      console.warn(
+	        "QueueIconItem: preview missing or unreadable, attempting regeneration",
+	        error,
+	      );
+	    }
+
+	    try {
+	      const regenerated = await ensureJobPreview(props.job.id);
+	      if (regenerated) {
+	        previewUrl.value = buildPreviewUrl(regenerated);
+        previewFallbackLoaded.value = false;
+      }
+    } catch (regenError) {
+      console.error("QueueIconItem: failed to regenerate preview", regenError);
+    }
   }
 };
 

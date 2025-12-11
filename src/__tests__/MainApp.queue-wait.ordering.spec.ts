@@ -91,6 +91,7 @@ describe("MainApp queue ordering helpers", () => {
         status: "waiting",
         progress: 0,
         logs: [],
+        queueOrder: 0,
       } as TranscodeJob,
       {
         id: "waiting-2",
@@ -103,6 +104,7 @@ describe("MainApp queue ordering helpers", () => {
         status: "waiting",
         progress: 0,
         logs: [],
+        queueOrder: 1,
       } as TranscodeJob,
     ];
 
@@ -116,7 +118,7 @@ describe("MainApp queue ordering helpers", () => {
       if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
       if (cmd === "reorder_queue") {
         const ids = payload?.jobIds ?? payload?.job_ids;
-        expect(ids).toEqual(["waiting-2", "waiting-1"]);
+        expect(ids).toEqual(["waiting-1", "waiting-2"]);
         return Promise.resolve(true);
       }
       return Promise.resolve(null);
@@ -132,7 +134,7 @@ describe("MainApp queue ordering helpers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
-      expect.objectContaining({ jobIds: ["waiting-2", "waiting-1"] }),
+      expect.objectContaining({ jobIds: ["waiting-1", "waiting-2"] }),
     );
   });
 
@@ -190,6 +192,166 @@ describe("MainApp queue ordering helpers", () => {
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
       expect.objectContaining({ jobIds: ["waiting-2", "waiting-1"] }),
+    );
+  });
+
+  it("single Smart Scan child move-to-top reorders within batch only", async () => {
+    queueJobs = [
+      {
+        id: "manual-1",
+        filename: "m1.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        queueOrder: 0,
+      } as TranscodeJob,
+      {
+        id: "batch1-a",
+        filename: "a.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        batchId: "batch-1",
+        queueOrder: 1,
+      } as TranscodeJob,
+      {
+        id: "batch1-b",
+        filename: "b.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        batchId: "batch-1",
+        queueOrder: 2,
+      } as TranscodeJob,
+      {
+        id: "manual-2",
+        filename: "m2.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        queueOrder: 3,
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      if (cmd === "get_queue_state" || cmd === "get_queue_state_lite") {
+        return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      }
+      if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
+      if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
+      if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
+      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "reorder_queue") {
+        const ids = payload?.jobIds ?? payload?.job_ids;
+        expect(ids).toEqual(["manual-1", "batch1-b", "batch1-a", "manual-2"]);
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(null);
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+
+    vm.jobs = queueJobs;
+    vm.selectedJobIds = new Set(["batch1-b"]);
+    await vm.bulkMoveSelectedJobsToTop();
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "reorder_queue",
+      expect.objectContaining({ jobIds: ["manual-1", "batch1-b", "batch1-a", "manual-2"] }),
+    );
+  });
+
+  it("Smart Scan batch move-to-top moves the whole batch globally", async () => {
+    queueJobs = [
+      {
+        id: "manual-1",
+        filename: "m1.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        queueOrder: 0,
+      } as TranscodeJob,
+      {
+        id: "batch1-a",
+        filename: "a.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        batchId: "batch-1",
+        queueOrder: 1,
+      } as TranscodeJob,
+      {
+        id: "batch1-b",
+        filename: "b.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        batchId: "batch-1",
+        queueOrder: 2,
+      } as TranscodeJob,
+      {
+        id: "manual-2",
+        filename: "m2.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        presetId: "preset-1",
+        status: "waiting",
+        progress: 0,
+        queueOrder: 3,
+      } as TranscodeJob,
+    ];
+
+    invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>): Promise<unknown> => {
+      if (cmd === "get_queue_state" || cmd === "get_queue_state_lite") {
+        return Promise.resolve({ jobs: queueJobs } satisfies QueueState);
+      }
+      if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
+      if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
+      if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
+      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "reorder_queue") {
+        const ids = payload?.jobIds ?? payload?.job_ids;
+        expect(ids).toEqual(["batch1-a", "batch1-b", "manual-1", "manual-2"]);
+        return Promise.resolve(true);
+      }
+      return Promise.resolve(null);
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+
+    vm.jobs = queueJobs;
+    vm.selectedJobIds = new Set(["batch1-a", "batch1-b"]);
+    await vm.bulkMoveSelectedJobsToTop();
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "reorder_queue",
+      expect.objectContaining({ jobIds: ["batch1-a", "batch1-b", "manual-1", "manual-2"] }),
     );
   });
 });

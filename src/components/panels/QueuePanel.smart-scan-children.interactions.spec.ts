@@ -130,7 +130,8 @@ describe("QueuePanel Smart Scan batch children interactions", () => {
         visibleQueueItems: items,
         iconViewItems: items,
         queueModeProcessingJobs: [],
-        queueModeWaitingJobs: [],
+        queueModeWaitingItems: [],
+        queueModeWaitingBatchIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "detail",
@@ -232,7 +233,8 @@ describe("QueuePanel Smart Scan batch children interactions", () => {
         visibleQueueItems: items,
         iconViewItems: items,
         queueModeProcessingJobs: [],
-        queueModeWaitingJobs: [],
+        queueModeWaitingItems: [],
+        queueModeWaitingBatchIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "detail",

@@ -232,6 +232,21 @@ export const loadPreviewDataUrl = async (previewPath: string): Promise<string> =
   });
 };
 
+/**
+ * Ensure a job has a readable preview image on disk. If the preview image was
+ * deleted or cannot be read, the backend will regenerate it using the latest
+ * previewCapturePercent setting and update the job's previewPath.
+ *
+ * Returns the resolved preview path when a preview is available, otherwise null.
+ */
+export const ensureJobPreview = async (jobId: string): Promise<string | null> => {
+  if (!hasTauri()) return null;
+  return invoke<string | null>("ensure_job_preview", {
+    jobId,
+    job_id: jobId,
+  });
+};
+
 export const inspectMedia = async (path: string): Promise<string> => {
   return invoke<string>("inspect_media", {
     path,

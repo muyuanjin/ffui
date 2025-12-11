@@ -75,6 +75,7 @@ pub fn run() {
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
             commands::tools::get_preview_data_url,
+            commands::tools::ensure_job_preview,
             commands::tools::select_playable_media_path,
             commands::tools::reveal_path_in_folder,
             commands::tools::metrics_subscribe,
@@ -190,14 +191,15 @@ mod tests {
         use std::fs;
         use std::time::{SystemTime, UNIX_EPOCH};
 
-        // Write a small dummy JPEG-like payload into the temp directory and
+        // Write a small dummy JPEG-like payload into the previews directory and
         // ensure the helper returns a data URL with the expected prefix.
-        let tmp_dir = std::env::temp_dir();
+        let preview_root = crate::commands::tools::preview_root_dir_for_tests();
+        let _ = fs::create_dir_all(&preview_root);
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let path = tmp_dir.join(format!("ffui_test_preview_{timestamp}.jpg"));
+        let path = preview_root.join(format!("ffui_test_preview_{timestamp}.jpg"));
 
         fs::write(&path, b"dummy-preview-bytes").expect("failed to write preview test file");
 

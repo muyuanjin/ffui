@@ -112,7 +112,8 @@ describe("QueuePanel display mode actions", () => {
         visibleQueueItems: items,
         iconViewItems: items,
         queueModeProcessingJobs: [],
-        queueModeWaitingJobs: [],
+        queueModeWaitingItems: [],
+        queueModeWaitingBatchIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "detail",

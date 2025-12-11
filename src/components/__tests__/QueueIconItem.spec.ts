@@ -10,15 +10,17 @@ vi.mock("@/lib/backend", () => {
   const loadPreviewDataUrl = vi.fn(
     async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
   );
+  const ensureJobPreview = vi.fn(async () => null);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
+    ensureJobPreview,
   };
 });
 
-import { hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueIconItem from "@/components/QueueIconItem.vue";
 
 const i18n = createI18n({
@@ -156,6 +158,42 @@ describe("QueueIconItem", () => {
     expect(card.element).toBeTruthy();
     const imgs = card.findAll("img");
     expect(imgs.length).toBe(0);
+  });
+
+  it("regenerates preview when thumbnail is missing in Tauri mode", async () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      status: "completed",
+    });
+
+    (hasTauri as any).mockReturnValue(true);
+    (loadPreviewDataUrl as any).mockRejectedValueOnce(
+      new Error("preview missing"),
+    );
+    (ensureJobPreview as any).mockResolvedValueOnce(
+      "C:/app-data/previews/regenerated.jpg",
+    );
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "card-fill",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    await vm.handlePreviewError();
+
+    expect(loadPreviewDataUrl).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
+
+    const img = wrapper.get("img");
+    expect(img.attributes("src")).toBe("C:/app-data/previews/regenerated.jpg");
   });
 
   it("maps bar progress style to horizontal fill width", () => {
