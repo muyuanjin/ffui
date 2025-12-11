@@ -5,11 +5,13 @@ import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
-import { buildPreviewUrl, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
+
+const isTestEnv = typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -277,6 +279,8 @@ const highlightedCommand = computed(() =>
 
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
+const previewRescreenshotAttempted = ref(false);
+const lastPreviewPath = ref<string | null>(null);
 
 /**
  * 为队列项计算缩略图路径：
@@ -294,6 +298,10 @@ watch(
   }),
   ({ previewPath, type, inputPath, outputPath }) => {
     previewFallbackLoaded.value = false;
+    if ((previewPath ?? null) !== lastPreviewPath.value) {
+      previewRescreenshotAttempted.value = false;
+      lastPreviewPath.value = previewPath ?? null;
+    }
 
     let path: string | null = null;
 
@@ -326,7 +334,29 @@ const handlePreviewError = async () => {
     previewFallbackLoaded.value = true;
     await nextTick();
   } catch (error) {
-    console.error("QueueItem: failed to load preview via data URL fallback", error);
+    if (previewRescreenshotAttempted.value) {
+      console.error("QueueItem: failed to load preview via data URL fallback", error);
+      return;
+    }
+
+	    previewRescreenshotAttempted.value = true;
+	    if (!isTestEnv) {
+	      console.warn(
+	        "QueueItem: preview missing or unreadable, attempting regeneration",
+	        error,
+	      );
+	    }
+
+	    try {
+	      const regenerated = await ensureJobPreview(props.job.id);
+	      if (regenerated) {
+	        previewUrl.value = buildPreviewUrl(regenerated);
+        previewFallbackLoaded.value = false;
+        await nextTick();
+      }
+    } catch (regenError) {
+      console.error("QueueItem: failed to regenerate preview", regenError);
+    }
   }
 };
 

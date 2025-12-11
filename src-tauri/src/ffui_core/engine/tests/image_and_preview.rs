@@ -133,3 +133,199 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
     let _ = fs::remove_file(&avif);
     let _ = fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
+    if !ffmpeg_available() {
+        eprintln!("skipping ensure_job_preview integration test because ffmpeg is not available");
+        return;
+    }
+
+    let dir = env::temp_dir();
+    let input = dir.join("ffui_it_preview_regen_in.mp4");
+
+    if !generate_test_input_video(&input) {
+        eprintln!("skipping ensure_job_preview integration test because test input generation failed");
+        return;
+    }
+
+    let engine = make_engine_with_preset();
+    let old_preview = build_preview_output_path(&input, 25);
+    let new_percent = 50u8;
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        state.settings.preview_capture_percent = new_percent;
+
+        let job = TranscodeJob {
+            id: "job-1".to_string(),
+            filename: input.to_string_lossy().into_owned(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: None,
+            original_size_mb: 1.0,
+            original_codec: None,
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Completed,
+            progress: 100.0,
+            start_time: None,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: vec![],
+            skip_reason: None,
+            input_path: Some(input.to_string_lossy().into_owned()),
+            output_path: None,
+            ffmpeg_command: None,
+            media_info: Some(MediaInfo {
+                duration_seconds: Some(0.5),
+                width: None,
+                height: None,
+                frame_rate: None,
+                video_codec: None,
+                audio_codec: None,
+                size_mb: None,
+            }),
+            estimated_seconds: None,
+            preview_path: Some(old_preview.to_string_lossy().into_owned()),
+            log_tail: None,
+            failure_reason: None,
+            batch_id: None,
+            wait_metadata: None,
+        };
+
+        state.jobs.insert(job.id.clone(), job);
+    }
+
+    let regenerated = engine.ensure_job_preview("job-1");
+    let expected_preview = build_preview_output_path(&input, new_percent);
+
+    assert_eq!(
+        regenerated.as_deref(),
+        expected_preview.to_str(),
+        "ensure_job_preview should return the preview path computed with the latest percent"
+    );
+    assert!(
+        expected_preview.exists(),
+        "regenerated preview file should exist on disk"
+    );
+
+    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let stored = state
+        .jobs
+        .get("job-1")
+        .and_then(|j| j.preview_path.clone())
+        .unwrap_or_default();
+    assert_eq!(
+        stored,
+        expected_preview.to_string_lossy(),
+        "job.preview_path should be updated in engine state"
+    );
+
+    let _ = fs::remove_file(&expected_preview);
+    let _ = fs::remove_file(&input);
+}
+
+#[test]
+fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
+    if !ffmpeg_available() {
+        eprintln!("skipping preview refresh integration test because ffmpeg is not available");
+        return;
+    }
+
+    let dir = env::temp_dir();
+    let input = dir.join("ffui_it_preview_refresh_in.mp4");
+
+    if !generate_test_input_video(&input) {
+        eprintln!("skipping preview refresh integration test because test input generation failed");
+        return;
+    }
+
+    let engine = make_engine_with_preset();
+    let old_percent = 25u8;
+    let new_percent = 50u8;
+    let old_preview = build_preview_output_path(&input, old_percent);
+
+    if let Some(parent) = old_preview.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(&old_preview, b"old-preview-bytes")
+        .expect("failed to create old preview placeholder");
+
+    let refresh_token = 1u64;
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        state.preview_refresh_token = refresh_token;
+        state.settings.preview_capture_percent = new_percent;
+
+        let job = TranscodeJob {
+            id: "job-1".to_string(),
+            filename: input.to_string_lossy().into_owned(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: None,
+            original_size_mb: 1.0,
+            original_codec: None,
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Completed,
+            progress: 100.0,
+            start_time: None,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: vec![],
+            skip_reason: None,
+            input_path: Some(input.to_string_lossy().into_owned()),
+            output_path: None,
+            ffmpeg_command: None,
+            media_info: Some(MediaInfo {
+                duration_seconds: Some(0.5),
+                width: None,
+                height: None,
+                frame_rate: None,
+                video_codec: None,
+                audio_codec: None,
+                size_mb: None,
+            }),
+            estimated_seconds: None,
+            preview_path: Some(old_preview.to_string_lossy().into_owned()),
+            log_tail: None,
+            failure_reason: None,
+            batch_id: None,
+            wait_metadata: None,
+        };
+
+        state.jobs.insert(job.id.clone(), job);
+    }
+
+    let tools = AppSettings::default().tools;
+    engine.refresh_video_previews_for_percent(new_percent, refresh_token, tools);
+
+    let expected_preview = build_preview_output_path(&input, new_percent);
+    assert!(
+        expected_preview.exists(),
+        "refreshed preview file should exist on disk"
+    );
+    assert!(
+        !old_preview.exists(),
+        "old preview should be removed after refresh"
+    );
+
+    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let stored = state
+        .jobs
+        .get("job-1")
+        .and_then(|j| j.preview_path.clone())
+        .unwrap_or_default();
+    assert_eq!(
+        stored,
+        expected_preview.to_string_lossy(),
+        "job.preview_path should be updated to the new percent path"
+    );
+
+    let _ = fs::remove_file(&expected_preview);
+    let _ = fs::remove_file(&input);
+}

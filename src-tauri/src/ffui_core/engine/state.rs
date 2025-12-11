@@ -49,6 +49,9 @@ pub(crate) struct EngineState {
     pub(crate) queue: VecDeque<String>,
     pub(crate) active_job: Option<String>,
     pub(crate) cancelled_jobs: HashSet<String>,
+    /// Monotonic token used to invalidate in-flight preview refresh tasks when
+    /// previewCapturePercent changes multiple times quickly.
+    pub(crate) preview_refresh_token: u64,
     // Jobs that have been asked to enter a "wait" state from the frontend.
     // The worker loop observes this and cooperatively pauses the job.
     pub(crate) wait_requests: HashSet<String>,
@@ -76,6 +79,7 @@ impl EngineState {
             queue: VecDeque::new(),
             active_job: None,
             cancelled_jobs: HashSet::new(),
+            preview_refresh_token: 0,
             wait_requests: HashSet::new(),
             restart_requests: HashSet::new(),
             media_info_cache: HashMap::new(),
@@ -163,15 +167,6 @@ pub(super) fn restore_jobs_from_persisted_queue(inner: &Inner) {
 }
 
 pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
-    {
-        let state = inner.state.lock().expect("engine state poisoned");
-        if !state.jobs.is_empty() || !state.queue.is_empty() {
-            // Do not clobber any in-memory jobs that were already enqueued by
-            // this process; recovery is only applied on a fresh engine.
-            return;
-        }
-    }
-
     // Ensure that newly enqueued jobs after recovery do not reuse IDs from the
     // restored snapshot. Otherwise inserting into the HashMap<String, TranscodeJob>
     // would overwrite existing entries and appear to "replace" existing tasks.
@@ -185,9 +180,13 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
     }
     if max_numeric_id > 0 {
-        inner
+        let current = inner
             .next_job_id
-            .store(max_numeric_id + 1, std::sync::atomic::Ordering::SeqCst);
+            .load(std::sync::atomic::Ordering::SeqCst);
+        inner.next_job_id.store(
+            current.max(max_numeric_id + 1),
+            std::sync::atomic::Ordering::SeqCst,
+        );
     }
 
     let mut waiting: Vec<(u64, String)> = Vec::new();
@@ -197,6 +196,12 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
         for mut job in snapshot.jobs {
             let id = job.id.clone();
+
+            // If a job with the same id was already enqueued in this run,
+            // keep the in-memory version and skip the persisted one.
+            if state.jobs.contains_key(&id) {
+                continue;
+            }
 
             // Jobs that were previously in Processing are treated as Paused so
             // they do not auto-resume on startup but remain recoverable.
@@ -248,11 +253,23 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
         waiting.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
 
-        for (_order, id) in waiting.drain(..) {
-            if !state.queue.contains(&id) {
-                state.queue.push_back(id);
+        let recovered_ids: Vec<String> = waiting.drain(..).map(|(_, id)| id).collect();
+        let recovered_set: HashSet<String> = recovered_ids.iter().cloned().collect();
+        let existing_ids: Vec<String> = state.queue.iter().cloned().collect();
+
+        let mut next_queue: VecDeque<String> = VecDeque::new();
+        for id in recovered_ids {
+            if !next_queue.contains(&id) {
+                next_queue.push_back(id);
             }
         }
+        for id in existing_ids {
+            if !recovered_set.contains(&id) && !next_queue.contains(&id) {
+                next_queue.push_back(id);
+            }
+        }
+
+        state.queue = next_queue;
     }
 
     // Emit a snapshot so the frontend sees the recovered queue without having

@@ -10,7 +10,10 @@ mod helpers;
 mod image;
 mod orchestrator;
 mod orchestrator_helpers;
+#[cfg(not(test))]
 mod video;
+#[cfg(test)]
+pub(crate) mod video;
 mod video_paths;
 
 #[cfg(test)]

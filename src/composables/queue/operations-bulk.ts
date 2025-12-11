@@ -86,14 +86,12 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
 
 /**
  * Build ordered IDs of waiting jobs (waiting/queued/paused).
- * Excludes batch jobs (jobs with batchId).
  * Sorts by queueOrder, then startTime, then id.
  */
 export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] {
   const waiting = deps.jobs.value
     .filter(
       (job) =>
-        !job.batchId &&
         (job.status === "waiting" ||
           job.status === "queued" ||
           job.status === "paused"),
@@ -109,6 +107,158 @@ export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] 
       return a.id.localeCompare(b.id);
     });
   return waiting.map((job) => job.id);
+}
+
+type WaitingGroupKind = "manual" | "batch";
+
+interface WaitingGroup {
+  kind: WaitingGroupKind;
+  /** Batch id for Smart Scan groups; undefined for manual jobs. */
+  batchId?: string;
+  /** Ordered waiting job ids in this group. */
+  ids: string[];
+}
+
+const isWaitingStatus = (status: TranscodeJob["status"]) =>
+  status === "waiting" || status === "queued" || status === "paused";
+
+function buildWaitingGroups(jobs: TranscodeJob[]): WaitingGroup[] {
+  const waitingJobs = jobs
+    .filter((job) => isWaitingStatus(job.status))
+    .slice()
+    .sort((a, b) => {
+      const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
+      const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
+      if (ao !== bo) return ao - bo;
+      const as = a.startTime ?? 0;
+      const bs = b.startTime ?? 0;
+      if (as !== bs) return as - bs;
+      return a.id.localeCompare(b.id);
+    });
+
+  const groups: WaitingGroup[] = [];
+  const batchIndexById = new Map<string, number>();
+
+  for (const job of waitingJobs) {
+    const batchId = job.batchId;
+    if (batchId) {
+      let index = batchIndexById.get(batchId);
+      if (index === undefined) {
+        index = groups.length;
+        groups.push({ kind: "batch", batchId, ids: [] });
+        batchIndexById.set(batchId, index);
+      }
+      groups[index].ids.push(job.id);
+      continue;
+    }
+    groups.push({ kind: "manual", ids: [job.id] });
+  }
+
+  return groups;
+}
+
+function flattenGroups(groups: WaitingGroup[]): string[] {
+  const result: string[] = [];
+  for (const group of groups) {
+    result.push(...group.ids);
+  }
+  return result;
+}
+
+async function moveSelectedGroupsToEdge(
+  deps: BulkOpsDeps,
+  edge: "top" | "bottom",
+) {
+  const byId = new Map(deps.jobs.value.map((job) => [job.id, job]));
+  const groups = buildWaitingGroups(deps.jobs.value);
+  const waitingIds = flattenGroups(groups);
+  if (waitingIds.length === 0) return;
+
+  const waitingSet = new Set(waitingIds);
+  const selectedWaitingIds = deps.selectedJobs.value
+    .map((job) => job.id)
+    .filter((id) => waitingSet.has(id));
+
+  if (selectedWaitingIds.length === 0) return;
+
+  const selectedWaitingSet = new Set(selectedWaitingIds);
+
+  const selectedBatchIds = new Set<string>();
+  let hasManualSelected = false;
+
+  for (const id of selectedWaitingIds) {
+    const job = byId.get(id);
+    if (!job) continue;
+    if (job.batchId) {
+      selectedBatchIds.add(job.batchId);
+    } else {
+      hasManualSelected = true;
+    }
+  }
+
+  const isSingleBatchOnly =
+    !hasManualSelected && selectedBatchIds.size === 1;
+
+  if (isSingleBatchOnly) {
+    const batchId = Array.from(selectedBatchIds)[0];
+    const batchGroup = groups.find(
+      (g) => g.kind === "batch" && g.batchId === batchId,
+    );
+    if (!batchGroup) return;
+
+    const selectedChildren = batchGroup.ids.filter((id) =>
+      selectedWaitingSet.has(id),
+    );
+
+    const fullBatchSelected = selectedChildren.length === batchGroup.ids.length;
+    if (!fullBatchSelected) {
+      const remaining = batchGroup.ids.filter(
+        (id) => !selectedWaitingSet.has(id),
+      );
+      batchGroup.ids =
+        edge === "top"
+          ? [...selectedChildren, ...remaining]
+          : [...remaining, ...selectedChildren];
+
+      const next = flattenGroups(groups);
+      await reorderWaitingQueue(next, deps);
+      return;
+    }
+  }
+
+  const selectedGroups: WaitingGroup[] = [];
+  const unselectedGroups: WaitingGroup[] = [];
+
+  for (const group of groups) {
+    if (group.kind === "manual") {
+      const id = group.ids[0];
+      if (id && selectedWaitingSet.has(id)) {
+        selectedGroups.push(group);
+      } else {
+        unselectedGroups.push(group);
+      }
+      continue;
+    }
+
+    const selectedAnyChild = group.ids.some((id) =>
+      selectedWaitingSet.has(id),
+    );
+    if (selectedAnyChild) {
+      selectedGroups.push(group);
+    } else {
+      unselectedGroups.push(group);
+    }
+  }
+
+  if (selectedGroups.length === 0) return;
+
+  const nextGroups =
+    edge === "top"
+      ? [...selectedGroups, ...unselectedGroups]
+      : [...unselectedGroups, ...selectedGroups];
+
+  const next = flattenGroups(nextGroups);
+  await reorderWaitingQueue(next, deps);
 }
 
 /**
@@ -165,18 +315,7 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
  * Selected jobs are placed first, followed by remaining waiting jobs.
  */
 export async function bulkMoveSelectedJobsToTop(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value
-    .filter((job) =>
-      ["waiting", "queued", "paused"].includes(job.status as string),
-    )
-    .map((job) => job.id);
-  if (ids.length === 0) return;
-
-  const waitingIds = buildWaitingQueueIds(deps);
-  const selectedSet = new Set(ids);
-  const remaining = waitingIds.filter((id) => !selectedSet.has(id));
-  const next = [...ids, ...remaining];
-  await reorderWaitingQueue(next, deps);
+  await moveSelectedGroupsToEdge(deps, "top");
 }
 
 /**
@@ -184,16 +323,5 @@ export async function bulkMoveSelectedJobsToTop(deps: BulkOpsDeps) {
  * Unselected jobs are placed first, followed by selected jobs.
  */
 export async function bulkMoveSelectedJobsToBottom(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value
-    .filter((job) =>
-      ["waiting", "queued", "paused"].includes(job.status as string),
-    )
-    .map((job) => job.id);
-  if (ids.length === 0) return;
-
-  const waitingIds = buildWaitingQueueIds(deps);
-  const selectedSet = new Set(ids);
-  const unselected = waitingIds.filter((id) => !selectedSet.has(id));
-  const next = [...unselected, ...ids];
-  await reorderWaitingQueue(next, deps);
+  await moveSelectedGroupsToEdge(deps, "bottom");
 }

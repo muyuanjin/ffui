@@ -14,7 +14,6 @@ import {
   useQueueOperations,
   type UseQueueFilteringReturn,
 } from "@/composables";
-import { buildWaitingQueueIds, reorderWaitingQueue } from "@/composables/queue/operations-bulk";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
 
@@ -99,8 +98,11 @@ export interface UseMainAppQueueReturn
   bulkMoveSelectedJobsToBottomInner: () => Promise<void>;
   moveJobToTop: (jobId: string) => Promise<void>;
   bulkDelete: () => Promise<void>;
+  /** Queue-mode waiting items (manual jobs + Smart Scan batches interleaved). */
+  queueModeWaitingItems: ComputedRef<QueueListItem[]>;
+  /** Batch ids already rendered in queueModeWaitingItems (for de-dupe). */
+  queueModeWaitingBatchIds: ComputedRef<Set<string>>;
 }
-
 const ICON_VIEW_MAX_VISIBLE_ITEMS = 200;
 
 /**
@@ -192,11 +194,9 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   };
 
   ensureManualPresetId();
-
   const smartScanJobs = computed<TranscodeJob[]>(() =>
     jobs.value.filter((job) => job.source === "smart_scan"),
   );
-
   const {
     selectedJobIds,
     activeStatusFilters,
@@ -276,11 +276,87 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     t: (key: string) => t(key),
     onJobCompleted,
   });
-
   void addManualJobMock;
+  const isWaitingStatus = (status: TranscodeJob["status"]) =>
+    status === "waiting" || status === "queued" || status === "paused";
+  const isTerminalStatus = (status: TranscodeJob["status"]) =>
+    status === "completed" ||
+    status === "failed" ||
+    status === "skipped" ||
+    status === "cancelled";
+
+  const compareJobsInWaitingGroup = (a: TranscodeJob, b: TranscodeJob): number => {
+    const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+
+    let result = compareJobsByConfiguredFields(a, b);
+    if (result !== 0) return result;
+
+    const as = a.startTime ?? 0;
+    const bs = b.startTime ?? 0;
+    if (as !== bs) return as - bs;
+
+    return a.id.localeCompare(b.id);
+  };
+
+  const queueModeWaitingItems = computed<QueueListItem[]>(() => {
+    if (queueMode.value !== "queue") return [];
+
+    const waitingJobs = filteredJobs.value
+      .filter((job) => isWaitingStatus(job.status))
+      .slice()
+      .sort(compareJobsInWaitingGroup);
+
+    const items: QueueListItem[] = [];
+    const renderedBatchIds = new Set<string>();
+
+    for (const job of waitingJobs) {
+      const batchId = job.batchId;
+      if (batchId) {
+        if (renderedBatchIds.has(batchId)) continue;
+        const batch = compositeTasksById.value.get(batchId);
+        if (batch && batchMatchesFilters(batch)) {
+          items.push({ kind: "batch", batch });
+          renderedBatchIds.add(batchId);
+        }
+        continue;
+      }
+      items.push({ kind: "job", job });
+    }
+
+    return items;
+  });
+
+  const queueModeWaitingBatchIds = computed<Set<string>>(() => {
+    const ids = new Set<string>();
+    for (const item of queueModeWaitingItems.value) {
+      if (item.kind === "batch") ids.add(item.batch.batchId);
+    }
+    return ids;
+  });
 
   const visibleQueueItems = computed<QueueListItem[]>(() => {
     const items: QueueListItem[] = [];
+
+    if (queueMode.value === "queue") {
+      const waitingItems = queueModeWaitingItems.value;
+      const waitingBatchIds = queueModeWaitingBatchIds.value;
+      items.push(...waitingItems);
+
+      for (const batch of compositeSmartScanTasks.value) {
+        if (waitingBatchIds.has(batch.batchId)) continue;
+        if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
+      }
+
+      for (const job of displayModeSortedJobs.value) {
+        if (job.batchId) continue;
+        if (isTerminalStatus(job.status)) items.push({ kind: "job", job });
+      }
+
+      return items;
+    }
+
     for (const batch of compositeSmartScanTasks.value) {
       if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
     }
@@ -322,21 +398,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
 
   const moveJobToTop = async (jobId: string) => {
     if (!jobId) return;
-    const waitingIds = buildWaitingQueueIds({ jobs });
-    if (!waitingIds.includes(jobId)) return;
-    const remaining = waitingIds.filter((id) => id !== jobId);
-    await reorderWaitingQueue([jobId, ...remaining], {
-      jobs,
-      selectedJobIds,
-      selectedJobs,
-      queueError,
-      t: (key: string) => t(key),
-      refreshQueueFromBackend,
-      handleCancelJob,
-      handleWaitJob,
-      handleResumeJob,
-      handleRestartJob,
-    });
+    selectedJobIds.value = new Set([jobId]);
+    await bulkMoveSelectedJobsToTopInner();
   };
 
   // Public helpers used directly in tests.
@@ -405,6 +468,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     visibleQueueItems,
     iconViewItems,
     compareJobsForDisplay,
+    queueModeWaitingItems,
+    queueModeWaitingBatchIds,
 
     refreshQueueFromBackend,
     handleWaitJob,

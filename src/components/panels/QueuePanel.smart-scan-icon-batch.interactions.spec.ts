@@ -127,7 +127,8 @@ describe("QueuePanel Smart Scan icon batch interactions", () => {
         visibleQueueItems: items,
         iconViewItems: items,
         queueModeProcessingJobs: [],
-        queueModeWaitingJobs: [],
+        queueModeWaitingItems: [],
+        queueModeWaitingBatchIds: new Set<string>(),
         presets: [basePreset],
 
         // View settings
@@ -236,4 +237,3 @@ describe("QueuePanel Smart Scan icon batch interactions", () => {
     expect(bulkMenuEvents?.[0]?.[0]).toMatchObject({ clientX: 10, clientY: 20 });
   });
 });
-
