@@ -34,6 +34,7 @@ const {
   queueProgressStyle: QueueProgressStyle;
   progressUpdateIntervalMs: number;
   selectedJobPreset: FFmpegPreset | null;
+  jobDetailLogText: string;
   highlightedLogHtml: string;
   previewUrl: string | null;
   previewIsImage: boolean;
@@ -105,6 +106,7 @@ const emit = defineEmits<{
     :open="dialogManager.jobDetailOpen.value"
     :job="dialogManager.selectedJob.value"
     :preset="selectedJobPreset"
+    :job-detail-log-text="jobDetailLogText"
     :highlighted-log-html="highlightedLogHtml"
     :ffmpeg-resolved-path="ffmpegResolvedPath"
     @update:open="(val) => { if (!val) emit('closeJobDetail'); }"

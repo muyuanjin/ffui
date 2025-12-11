@@ -6,7 +6,7 @@ use super::state::{
     Inner, SmartScanBatchStatus, notify_queue_listeners, notify_smart_scan_listeners,
 };
 
-pub(super) const MAX_LOG_TAIL_BYTES: usize = 16 * 1024;
+pub(super) const MAX_LOG_TAIL_BYTES: usize = 64 * 1024;
 
 /// Returns the current time in milliseconds since UNIX epoch.
 pub(super) fn current_time_millis() -> u64 {
@@ -128,6 +128,7 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
                     total_candidates: batch.total_candidates,
                     total_processed: batch.total_processed,
                     batch_id: batch.batch_id.clone(),
+                    completed_at_ms: batch.completed_at_ms.unwrap_or(0),
                 }),
             )
         } else {
@@ -139,6 +140,7 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
                     total_candidates: batch.total_candidates,
                     total_processed: batch.total_processed,
                     batch_id: batch.batch_id.clone(),
+                    completed_at_ms: batch.completed_at_ms.unwrap_or(0),
                 }),
             )
         }

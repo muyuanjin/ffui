@@ -266,4 +266,63 @@ describe("UltimateParameterPanel", () => {
     // 智能预设标记在参数未变动的情况下应继续保留。
     expect(saved.isSmartPreset).toBe(true);
   });
+
+  it("shows and edits GOP/B-frame/pix_fmt and NVENC AQ options in the command preview", async () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      video: {
+        encoder: "hevc_nvenc",
+        rateControl: "cq",
+        qualityValue: 28,
+        preset: "p5",
+        gopSize: 120,
+        bf: 3,
+        pixFmt: "yuv420p",
+        bRefMode: "each",
+        rcLookahead: 32,
+        spatialAq: true,
+        temporalAq: true,
+      } as any,
+      audio: {
+        codec: "copy",
+      },
+      filters: {},
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: { initialPreset: preset },
+      global: { plugins: [i18n] },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("-g 120");
+    expect(text).toContain("-bf 3");
+    expect(text).toContain("-pix_fmt yuv420p");
+    expect(text).toContain("-b_ref_mode each");
+    expect(text).toContain("-rc-lookahead 32");
+    expect(text).toContain("-spatial-aq 1");
+    expect(text).toContain("-temporal-aq 1");
+
+    const pixFmtInput = wrapper.find(
+      'input[placeholder="e.g. yuv420p, yuv420p10le, p010le"]',
+    );
+    expect(pixFmtInput.exists()).toBe(true);
+    await pixFmtInput.setValue("yuv420p10le");
+    const gopInput = wrapper.find(
+      'input[placeholder="e.g. 120 for NVENC, 240 for AV1"]',
+    );
+    expect(gopInput.exists()).toBe(true);
+    await gopInput.setValue("90");
+    await nextTick();
+
+    const updatedText = wrapper.text();
+    expect(updatedText).toContain("-pix_fmt yuv420p10le");
+    expect(updatedText).toContain("-g 90");
+  });
 });

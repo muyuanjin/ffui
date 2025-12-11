@@ -380,4 +380,83 @@ describe("MainApp Smart Scan integration", () => {
 
     wrapper.unmount();
   });
+
+  it("hides empty Smart Scan batches once zero-candidate progress marks the batch as completed", async () => {
+    const batchId = "auto-compress-empty-batch";
+    const rootPath = "C:/videos/empty-batch";
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      run_auto_compress: () =>
+        // 初始描述符：0 个候选且 completedAtMs=0，表示扫描已启动但尚未宣布完成。
+        buildAutoCompressResult(rootPath, {
+          batchId,
+          totalFilesScanned: 0,
+          totalCandidates: 0,
+          totalProcessed: 0,
+          completedAtMs: 0,
+        }),
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    vm.lastDroppedRoot = rootPath;
+
+    const config = {
+      rootPath,
+      replaceOriginal: true,
+      minImageSizeKB: 0,
+      minVideoSizeMB: 0,
+      minAudioSizeKB: 0,
+      savingConditionType: "ratio" as const,
+      minSavingRatio: 0.8,
+      minSavingAbsoluteMB: 0,
+      imageTargetFormat: "avif" as const,
+      videoPresetId: "preset-1",
+      audioPresetId: "",
+      videoFilter: { enabled: true, extensions: ["mp4", "mkv"] },
+      imageFilter: { enabled: false, extensions: [] },
+      audioFilter: { enabled: false, extensions: [] },
+    };
+
+    await vm.runSmartScan(config);
+    await nextTick();
+
+    // 初始状态：只有批次元数据，没有任何队列子任务，复合卡片会以“空批次”形式出现。
+    let tasks: any[] =
+      (vm.compositeSmartScanTasks &&
+        "value" in vm.compositeSmartScanTasks
+        ? vm.compositeSmartScanTasks.value
+        : vm.compositeSmartScanTasks) ?? [];
+    expect(tasks.length).toBe(1);
+    expect(tasks[0].batchId).toBe(batchId);
+    expect(tasks[0].jobs.length).toBe(0);
+
+    // 模拟后台在扫描结束时发出一次进度快照：仍然 0 个候选，但携带非零 completedAtMs。
+    const progress: AutoCompressProgress = {
+      rootPath,
+      totalFilesScanned: 10,
+      totalCandidates: 0,
+      totalProcessed: 0,
+      batchId,
+      completedAtMs: Date.now(),
+    };
+    emitSmartScanProgress(progress);
+    await nextTick();
+
+    // 修复后的 useSmartScan 应在“无候选且批次已完成”且队列中没有任何子任务时隐藏空的复合任务卡片。
+    tasks =
+      (vm.compositeSmartScanTasks &&
+        "value" in vm.compositeSmartScanTasks
+        ? vm.compositeSmartScanTasks.value
+        : vm.compositeSmartScanTasks) ?? [];
+    expect(tasks.length).toBe(0);
+
+    wrapper.unmount();
+  });
 });

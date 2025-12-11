@@ -7,6 +7,12 @@ pub struct WaitMetadata {
     /// wait operation. This is expressed in the same 0-100 range as the
     /// `progress` field exposed in queue snapshots.
     pub last_progress_percent: Option<f64>,
+    /// Accumulated wall-clock processing time in milliseconds across all
+    /// completed segments before the current pause. This is used to ensure
+    /// elapsed_ms reflects real time spent transcoding, instead of media
+    /// duration-derived estimates.
+    #[serde(rename = "processedWallMillis", alias = "processedWallMs")]
+    pub processed_wall_millis: Option<u64>,
     /// Approximate number of seconds already processed when the job was
     /// paused. When media duration is unknown this may be None.
     pub processed_seconds: Option<f64>,

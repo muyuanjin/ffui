@@ -32,12 +32,27 @@ pub(super) fn mark_job_waiting(
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Paused;
 
-            // 保存暂停时的累计已用时间
-            // elapsed_ms 在 update_job_progress 中已经被更新，这里确保它被保留
-            // 如果 elapsed_ms 为空，则基于 start_time 计算
-            if job.elapsed_ms.is_none() && let Some(start) = job.start_time {
-                job.elapsed_ms = Some(now_ms.saturating_sub(start));
-            }
+            // 保存暂停时的累计已用时间（墙钟毫秒），避免后续用媒体进度推导
+            //
+            // 对于第一次“暂停”（没有 wait_metadata）场景，elapsed_ms 通常已经由
+            // update_job_progress 基于 processing_started_ms 持续维护，直接作为
+            // 基线会和下面按 start_time/processing_started_ms 计算的 current_segment_ms
+            // 形成“双倍计时”（baseline + 当前段完整耗时）。为避免这种重复累加，
+            // 仅在存在历史 wait_metadata 时才回退到 elapsed_ms。
+            let previous_wall_ms = match job.wait_metadata.as_ref() {
+                Some(meta) => meta
+                    .processed_wall_millis
+                    .or(job.elapsed_ms)
+                    .unwrap_or(0),
+                None => 0,
+            };
+            let current_segment_ms = job
+                .processing_started_ms
+                .or(job.start_time)
+                .map(|start| now_ms.saturating_sub(start))
+                .unwrap_or(0);
+            let elapsed_wall_ms = previous_wall_ms + current_segment_ms;
+            job.elapsed_ms = Some(elapsed_wall_ms);
 
             let percent = if job.progress.is_finite() && job.progress >= 0.0 {
                 Some(job.progress)
@@ -86,6 +101,7 @@ pub(super) fn mark_job_waiting(
 
             job.wait_metadata = Some(WaitMetadata {
                 last_progress_percent: percent,
+                processed_wall_millis: Some(elapsed_wall_ms),
                 processed_seconds,
                 tmp_output_path: Some(tmp_str.clone()),
                 segments: Some(segments),

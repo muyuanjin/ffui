@@ -2,24 +2,66 @@
 // Progress tracking and logging
 // ============================================================================
 
-// Keep a compact textual tail of recent logs for each job so the UI can show
-// diagnostics without unbounded memory growth. The actual log lines live in
-// `job.logs`; this helper just materializes a truncated string view.
-const MAX_LOG_TAIL_BYTES: usize = 16 * 1024;
+use super::worker_utils::recompute_log_tail;
 
-pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
-    if job.logs.is_empty() {
-        job.log_tail = None;
+// Keep a bounded window of recent logs while prioritizing diagnostic lines.
+// MAX_LOG_LINES caps in-memory lines; recompute_log_tail (from worker_utils)
+// enforces the byte-level tail used by the UI.
+const MAX_LOG_LINES: usize = 500;
+
+fn is_critical_log_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("error")
+        || lower.contains("failed")
+        || lower.contains("exited with")
+        || lower.contains("invalid")
+        || lower.trim_start().starts_with("command:")
+}
+
+fn trim_logs_with_priority(logs: &mut Vec<String>) {
+    if logs.len() <= MAX_LOG_LINES {
         return;
     }
 
-    let joined = job.logs.join("\n");
-    if joined.len() > MAX_LOG_TAIL_BYTES {
-        let start = joined.len().saturating_sub(MAX_LOG_TAIL_BYTES);
-        job.log_tail = Some(joined[start..].to_string());
-    } else {
-        job.log_tail = Some(joined);
+    // Snapshot all critical lines before trimming so they can be re-inserted if needed.
+    let critical_lines: Vec<String> = logs
+        .iter()
+        .filter(|line| is_critical_log_line(line))
+        .cloned()
+        .collect();
+
+    // Start with a simple tail window to keep the most recent output.
+    let mut trimmed: Vec<String> = logs
+        .iter()
+        .rev()
+        .take(MAX_LOG_LINES)
+        .cloned()
+        .collect();
+    trimmed.reverse();
+
+    // Ensure every critical line survives trimming. When space is tight, evict
+    // the oldest non-critical lines first.
+    for critical in critical_lines {
+        if trimmed.contains(&critical) {
+            continue;
+        }
+
+        if trimmed.len() >= MAX_LOG_LINES {
+            if let Some(drop_idx) = trimmed
+                .iter()
+                .position(|line| !is_critical_log_line(line))
+            {
+                trimmed.remove(drop_idx);
+            } else {
+                // All remaining lines are critical; drop the oldest.
+                trimmed.remove(0);
+            }
+        }
+
+        trimmed.insert(0, critical);
     }
+
+    *logs = trimmed;
 }
 
 pub(super) fn update_job_progress(
@@ -30,7 +72,7 @@ pub(super) fn update_job_progress(
     _speed: Option<f64>,
 ) {
     let mut should_notify = false;
-    let now_ms = super::worker_utils::current_time_millis();
+    let now_ms = current_time_millis();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -42,14 +84,14 @@ pub(super) fn update_job_progress(
                     .or(job.start_time)
                     .unwrap_or(now_ms);
                 let current_segment_ms = now_ms.saturating_sub(baseline);
-                // 如果有之前暂停时保存的累计时间（存储在 wait_metadata 中），则加上
-                let previous_elapsed = job
+                // 使用暂停时记录的“墙钟累计耗时”作为基线，确保 elapsed_ms 始终表示真实跑 ffmpeg
+                // 的时间，而不是媒体进度（duration * progress）。
+                let previous_wall_ms = job
                     .wait_metadata
                     .as_ref()
-                    .and_then(|m| m.processed_seconds)
-                    .map(|s| (s * 1000.0) as u64)
+                    .and_then(|m| m.processed_wall_millis)
                     .unwrap_or(0);
-                job.elapsed_ms = Some(previous_elapsed + current_segment_ms);
+                job.elapsed_ms = Some(previous_wall_ms + current_segment_ms);
             }
 
             if let Some(p) = percent {
@@ -82,11 +124,8 @@ pub(super) fn update_job_progress(
                 // view hard to read without improving diagnostics, while also
                 // generating noisy queue snapshots with no useful content.
                 if !line.trim().is_empty() {
-                    // Keep only a small rolling window of logs to avoid unbounded growth.
-                    if job.logs.len() > 200 {
-                        job.logs.drain(0..job.logs.len() - 200);
-                    }
                     job.logs.push(line.to_string());
+                    trim_logs_with_priority(&mut job.logs);
                     recompute_log_tail(job);
 
                     // Even when ffmpeg does not emit the traditional "time=... speed=..."

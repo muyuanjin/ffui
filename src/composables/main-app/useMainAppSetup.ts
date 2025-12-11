@@ -417,7 +417,7 @@ export function useMainAppSetup() {
     handleQueueContextOpenOutputFolder,
   } = queueContextMenu;
 
-  const { highlightedLogHtml } = useJobLog({
+  const { jobDetailLogText, highlightedLogHtml } = useJobLog({
     selectedJob: dialogManager.selectedJob,
   });
 
@@ -449,6 +449,7 @@ export function useMainAppSetup() {
     globalTaskbarProgressPercent: settings.globalTaskbarProgressPercent,
     compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
     smartScanBatchMeta: smartScan.smartScanBatchMeta,
+    jobDetailLogText,
     highlightedLogHtml,
     copyToClipboard,
 
