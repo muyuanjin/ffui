@@ -142,6 +142,7 @@ const {
   queueProgressStyle,
   progressUpdateIntervalMs,
   selectedJobPreset,
+  jobDetailLogText,
   highlightedLogHtml,
   previewUrl,
   previewIsImage,
@@ -387,6 +388,7 @@ defineExpose({
       :queue-progress-style="queueProgressStyle"
       :progress-update-interval-ms="progressUpdateIntervalMs"
       :selected-job-preset="selectedJobPreset"
+      :job-detail-log-text="jobDetailLogText"
       :highlighted-log-html="highlightedLogHtml"
       :preview-url="previewUrl"
       :preview-is-image="previewIsImage"

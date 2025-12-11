@@ -12,6 +12,7 @@ const props = defineProps<{
   open: boolean;
   job: TranscodeJob | null;
   preset: FFmpegPreset | null;
+  jobDetailLogText: string;
   highlightedLogHtml: string;
   /**
    * Resolved FFmpeg executable path from backend/tool status (if known).
@@ -127,13 +128,7 @@ const highlightedCommandHtml = computed(() =>
   }),
 );
 
-const jobDetailLogText = computed(() => {
-  const job = props.job;
-  if (!job) return "";
-  const full = job.logs?.length ? job.logs.join("\n") : "";
-  const tail = job.logTail ?? "";
-  return full || tail;
-});
+const jobDetailLogText = computed(() => props.jobDetailLogText || "");
 
 // 任务耗时（秒）：优先使用后端累计的 elapsedMs（仅统计实际处理时间），
 // 若缺失则退回到 startTime/endTime 差值（近似总耗时），并在处理中时用当前时间估算。

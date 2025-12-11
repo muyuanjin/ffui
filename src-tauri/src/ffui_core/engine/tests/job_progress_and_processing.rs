@@ -328,3 +328,96 @@ fn process_transcode_job_marks_failure_when_preset_missing() {
         "logs should contain the missing preset message"
     );
 }
+
+#[test]
+fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
+    let settings = AppSettings::default();
+    let inner = Inner::new(Vec::new(), settings);
+    let job_id = "job-log-trim".to_string();
+
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: "C:/videos/trim-test.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::Manual,
+                queue_order: None,
+                original_size_mb: 50.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Processing,
+                progress: 0.0,
+                start_time: Some(0),
+                end_time: None,
+                processing_started_ms: None,
+                elapsed_ms: None,
+                output_size_mb: None,
+                logs: Vec::new(),
+                skip_reason: None,
+                input_path: None,
+                output_path: None,
+                ffmpeg_command: None,
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                log_tail: None,
+                failure_reason: None,
+                batch_id: None,
+                wait_metadata: None,
+            },
+        );
+    }
+
+    let command_line = "command: ffmpeg -i input -c:v libx264 output";
+    let error_line = "Error: encoder failed to initialize";
+
+    update_job_progress(&inner, &job_id, None, Some(command_line), None);
+    update_job_progress(&inner, &job_id, None, Some(error_line), None);
+
+    // Append enough noise lines to trigger trimming past the MAX_LOG_LINES bound.
+    for i in 0..520 {
+        let line = format!("noise-line-{i}");
+        update_job_progress(&inner, &job_id, None, Some(&line), None);
+    }
+
+    let state = inner.state.lock().expect("engine state poisoned");
+    let job = state
+        .jobs
+        .get(&job_id)
+        .expect("job must be present after log trimming");
+
+    assert!(
+        job.logs.len() <= 500,
+        "log vector must stay within the bounded window"
+    );
+
+    let joined = job.logs.join("\n");
+    assert!(
+        joined.contains(command_line),
+        "command line should be preserved even when trimming",
+    );
+    assert!(
+        joined.contains(error_line),
+        "error line should be preserved even when trimming",
+    );
+    assert!(
+        job.logs
+            .last()
+            .map(|l| l.contains("noise-line-519"))
+            .unwrap_or(false),
+        "most recent log lines should remain present after trimming",
+    );
+
+    let tail = job.log_tail.as_deref().unwrap_or("");
+    assert!(
+        tail.contains(error_line),
+        "log_tail must include critical error lines",
+    );
+    assert!(
+        tail.contains("noise-line-519"),
+        "log_tail should reflect the latest output",
+    );
+}

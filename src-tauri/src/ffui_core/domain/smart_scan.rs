@@ -171,4 +171,7 @@ pub struct AutoCompressProgress {
     pub total_candidates: u64,
     pub total_processed: u64,
     pub batch_id: String,
+    /// Milliseconds since UNIX epoch when this batch scan completed.
+    /// When 0, the batch is still in progress or completion time is unknown.
+    pub completed_at_ms: u64,
 }

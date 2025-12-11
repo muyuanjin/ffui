@@ -59,6 +59,8 @@ export interface AutoCompressProgress {
   totalCandidates: number;
   totalProcessed: number;
   batchId: string;
+  /** 批次完成时间（毫秒时间戳），为 0 或未提供时表示尚未完成或未知。 */
+  completedAtMs?: number;
 }
 
 /**

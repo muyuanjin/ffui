@@ -45,7 +45,13 @@ mod domain_contract_tests {
             log_tail: Some("last few lines".to_string()),
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
             batch_id: Some("auto-compress-batch-1".to_string()),
-            wait_metadata: None,
+            wait_metadata: Some(WaitMetadata {
+                last_progress_percent: Some(42.0),
+                processed_wall_millis: Some(3210),
+                processed_seconds: Some(12.5),
+                tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
+                segments: Some(vec!["C:/app-data/tmp/seg1.mp4".to_string()]),
+            }),
         };
 
         let value = serde_json::to_value(&job).expect("serialize TranscodeJob");
@@ -89,6 +95,22 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("ffmpegCommand present"),
             "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT"
+        );
+        let wait = value
+            .get("waitMetadata")
+            .and_then(Value::as_object)
+            .expect("waitMetadata object");
+        assert_eq!(
+            wait.get("processedWallMillis")
+                .and_then(Value::as_u64)
+                .expect("processedWallMillis present"),
+            3210
+        );
+        assert_eq!(
+            wait.get("processedSeconds")
+                .and_then(Value::as_f64)
+                .expect("processedSeconds present"),
+            12.5
         );
 
         let media = value
@@ -302,6 +324,7 @@ mod domain_contract_tests {
             total_candidates: 4,
             total_processed: 2,
             batch_id: "auto-compress-batch-1".to_string(),
+            completed_at_ms: 300,
         };
 
         let value = serde_json::to_value(&progress).expect("serialize AutoCompressProgress");
@@ -339,6 +362,13 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("batchId present"),
             "auto-compress-batch-1"
+        );
+        assert_eq!(
+            value
+                .get("completedAtMs")
+                .and_then(Value::as_u64)
+                .expect("completedAtMs present"),
+            300
         );
     }
 }

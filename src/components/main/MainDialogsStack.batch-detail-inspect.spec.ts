@@ -28,6 +28,7 @@ describe("MainDialogsStack 批次详情与子任务交互", () => {
         queueProgressStyle,
         progressUpdateIntervalMs: 500,
         selectedJobPreset: null,
+        jobDetailLogText: "",
         highlightedLogHtml: "",
         previewUrl: null,
         previewIsImage: false,
@@ -116,4 +117,3 @@ describe("MainDialogsStack 批次详情与子任务交互", () => {
     expect(previewEvents?.[0]?.[0]).toEqual(job);
   });
 });
-

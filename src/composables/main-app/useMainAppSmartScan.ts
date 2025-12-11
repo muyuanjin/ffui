@@ -113,8 +113,14 @@ export function useMainAppSmartScan(options: UseMainAppSmartScanOptions): UseMai
     if (!hasTauri()) return;
 
     void listen<AutoCompressProgress>("auto-compress://progress", (event) => {
-      const { batchId, totalFilesScanned, totalCandidates, totalProcessed, rootPath } =
-        event.payload;
+      const {
+        batchId,
+        totalFilesScanned,
+        totalCandidates,
+        totalProcessed,
+        rootPath,
+        completedAtMs,
+      } = event.payload;
       if (!batchId) return;
 
       applySmartScanBatchMetaSnapshot({
@@ -123,6 +129,7 @@ export function useMainAppSmartScan(options: UseMainAppSmartScanOptions): UseMai
         totalFilesScanned: totalFilesScanned ?? 0,
         totalCandidates: totalCandidates ?? 0,
         totalProcessed: totalProcessed ?? 0,
+        completedAtMs: completedAtMs ?? undefined,
       });
     })
       .then((unlisten) => {

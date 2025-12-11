@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 
-use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, TranscodeJob, WaitMetadata};
+use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, WaitMetadata};
 use crate::ffui_core::settings::{
     DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, DownloadedToolInfo, DownloadedToolState,
 };

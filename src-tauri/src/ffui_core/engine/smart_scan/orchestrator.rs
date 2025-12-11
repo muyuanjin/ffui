@@ -83,6 +83,7 @@ pub(crate) fn run_auto_compress(
             total_candidates: 0,
             total_processed: 0,
             batch_id: batch_id.clone(),
+            completed_at_ms: 0,
         },
     );
 
@@ -261,6 +262,10 @@ fn run_auto_compress_background(
                     }
                 });
             } else {
+                // When there is no matching preset for the configured videoPresetId,
+                // we still count the file as a scanned candidate and immediately
+                // mark it as "processed" so overall Smart Scan statistics remain
+                // consistent. No queue job is enqueued for such entries.
                 update_smart_scan_batch_with_inner(&inner, &batch_id, true, |batch| {
                     batch.total_candidates = batch.total_candidates.saturating_add(1);
                     batch.total_processed = batch.total_processed.saturating_add(1);
@@ -271,8 +276,27 @@ fn run_auto_compress_background(
 
     update_smart_scan_batch_with_inner(&inner, &batch_id, true, |batch| {
         if batch.total_candidates == 0 {
+            // Pure "scan only" batch with no eligible candidates: treat as
+            // completed once the directory walk finishes so the frontend can
+            // safely hide the empty composite card.
             batch.status = SmartScanBatchStatus::Completed;
             batch.completed_at_ms = Some(current_time_millis());
+        } else if batch.child_job_ids.is_empty()
+            && batch.total_processed >= batch.total_candidates
+            && !matches!(
+                batch.status,
+                SmartScanBatchStatus::Completed | SmartScanBatchStatus::Failed
+            )
+        {
+            // All candidates have been accounted for but no queue jobs were
+            // ever enqueued (e.g. missing preset). In this edge case the
+            // batch is logically complete even though there are no children,
+            // so mark it as Completed to keep delete_smart_scan_batch and
+            // UI semantics consistent.
+            batch.status = SmartScanBatchStatus::Completed;
+            if batch.completed_at_ms.is_none() {
+                batch.completed_at_ms = Some(current_time_millis());
+            }
         } else if matches!(batch.status, SmartScanBatchStatus::Scanning) {
             batch.status = SmartScanBatchStatus::Running;
         }

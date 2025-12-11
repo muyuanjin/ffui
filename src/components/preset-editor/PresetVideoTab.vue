@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { VideoConfig } from "@/types";
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "@/constants";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,16 @@ const props = defineProps<{
 const video = props.video as any;
 
 const { t } = useI18n();
+
+const AUTO_VALUE = "__auto__";
+
+const isNvencEncoder = computed(
+  () =>
+    typeof video.encoder === "string" &&
+    video.encoder.toLowerCase().includes("nvenc"),
+);
+
+const isX264Encoder = computed(() => video.encoder === "libx264");
 </script>
 
 <template>
@@ -236,6 +247,244 @@ const { t } = useI18n();
             </SelectItem>
           </SelectContent>
         </Select>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.gopLabel") }}</Label>
+          <Input
+            type="number"
+            min="1"
+            class="h-9 text-xs"
+            :model-value="video.gopSize ?? ''"
+            :placeholder="t('presetEditor.video.gopPlaceholder')"
+            @update:model-value="
+              (value) => {
+                const n = Number(value ?? '');
+                video.gopSize = Number.isFinite(n) && n > 0 ? n : undefined;
+              }
+            "
+          />
+          <p class="text-[10px] text-muted-foreground mt-1">
+            {{ t("presetEditor.video.gopHelp") }}
+          </p>
+        </div>
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.bfLabel") }}</Label>
+          <Input
+            type="number"
+            min="0"
+            class="h-9 text-xs"
+            :model-value="video.bf ?? ''"
+            :placeholder="t('presetEditor.video.bfPlaceholder')"
+            @update:model-value="
+              (value) => {
+                const n = Number(value ?? '');
+                video.bf = Number.isFinite(n) && n >= 0 ? n : undefined;
+              }
+            "
+          />
+          <p class="text-[10px] text-muted-foreground mt-1">
+            {{ t("presetEditor.video.bfHelp") }}
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.pixFmtLabel") }}</Label>
+          <Input
+            :model-value="video.pixFmt ?? ''"
+            :placeholder="t('presetEditor.video.pixFmtPlaceholder')"
+            class="h-9 text-xs font-mono"
+            @update:model-value="
+              (value) => {
+                const v = String(value ?? '').trim();
+                video.pixFmt = v || undefined;
+              }
+            "
+          />
+          <p class="text-[10px] text-muted-foreground mt-1">
+            {{ t("presetEditor.video.pixFmtHelp") }}
+          </p>
+        </div>
+
+        <div v-if="isNvencEncoder" class="space-y-1">
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.bRefModeLabel") }}</Label>
+          <Select
+            :model-value="video.bRefMode ?? AUTO_VALUE"
+            @update:model-value="
+              (value) => {
+                const v = String(value ?? '').trim();
+                video.bRefMode = v === AUTO_VALUE ? undefined : v;
+              }
+            "
+          >
+            <SelectTrigger class="h-9">
+              <SelectValue :placeholder="t('presetEditor.video.bRefModePlaceholder')" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem :value="AUTO_VALUE">
+                {{ t("presetEditor.video.autoOption") }}
+              </SelectItem>
+              <SelectItem value="each">each</SelectItem>
+              <SelectItem value="middle">middle</SelectItem>
+              <SelectItem value="disabled">disabled</SelectItem>
+            </SelectContent>
+          </Select>
+          <p class="text-[10px] text-muted-foreground">
+            {{ t("presetEditor.video.bRefModeHelp") }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="isNvencEncoder" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.rcLookaheadLabel") }}</Label>
+          <Input
+            type="number"
+            min="0"
+            class="h-9 text-xs"
+            :model-value="video.rcLookahead ?? ''"
+            :placeholder="t('presetEditor.video.rcLookaheadPlaceholder')"
+            @update:model-value="
+              (value) => {
+                const n = Number(value ?? '');
+                video.rcLookahead = Number.isFinite(n) && n >= 0 ? n : undefined;
+              }
+            "
+          />
+          <p class="text-[10px] text-muted-foreground mt-1">
+            {{ t("presetEditor.video.rcLookaheadHelp") }}
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.spatialAqLabel") }}</Label>
+            <Select
+              :model-value="video.spatialAq === true ? 'on' : 'auto'"
+              @update:model-value="
+                (value) => {
+                  if (value === 'on') {
+                    video.spatialAq = true;
+                  } else {
+                    video.spatialAq = undefined;
+                  }
+                }
+              "
+            >
+              <SelectTrigger class="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">{{ t("presetEditor.video.autoOption") }}</SelectItem>
+                <SelectItem value="on">{{ t("presetEditor.video.enableOption") }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.temporalAqLabel") }}</Label>
+            <Select
+              :model-value="video.temporalAq === true ? 'on' : 'auto'"
+              @update:model-value="
+                (value) => {
+                  if (value === 'on') {
+                    video.temporalAq = true;
+                  } else {
+                    video.temporalAq = undefined;
+                  }
+                }
+              "
+            >
+              <SelectTrigger class="h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="auto">{{ t("presetEditor.video.autoOption") }}</SelectItem>
+                <SelectItem value="on">{{ t("presetEditor.video.enableOption") }}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <p class="text-[10px] text-muted-foreground">
+          {{ t("presetEditor.video.aqHelp") }}
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.tuneLabel") }}</Label>
+          <div v-if="isX264Encoder">
+            <Select
+              :model-value="video.tune ?? AUTO_VALUE"
+              @update:model-value="
+                (value) => {
+                  const v = String(value ?? '').trim();
+                  video.tune = v === AUTO_VALUE ? undefined : v;
+                }
+              "
+            >
+              <SelectTrigger class="h-9">
+                <SelectValue :placeholder="t('presetEditor.video.tunePlaceholder')" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem :value="AUTO_VALUE">
+                  {{ t("presetEditor.video.autoOption") }}
+                </SelectItem>
+                <SelectItem value="film">film</SelectItem>
+                <SelectItem value="animation">animation</SelectItem>
+                <SelectItem value="grain">grain</SelectItem>
+                <SelectItem value="stillimage">stillimage</SelectItem>
+                <SelectItem value="fastdecode">fastdecode</SelectItem>
+                <SelectItem value="zerolatency">zerolatency</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div v-else>
+            <Input
+              :model-value="video.tune ?? ''"
+              :placeholder="t('presetEditor.video.tunePlaceholder')"
+              class="h-9 text-xs"
+              @update:model-value="
+                (value) => {
+                  const v = String(value ?? '').trim();
+                  video.tune = v || undefined;
+                }
+              "
+            />
+          </div>
+        </div>
+
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.profileLabel") }}</Label>
+          <Input
+            :model-value="video.profile ?? ''"
+            :placeholder="t('presetEditor.video.profilePlaceholder')"
+            class="h-9 text-xs"
+            @update:model-value="
+              (value) => {
+                const v = String(value ?? '').trim();
+                video.profile = v || undefined;
+              }
+            "
+          />
+        </div>
+
+        <div>
+          <Label class="text-xs mb-1 block">{{ t("presetEditor.video.levelLabel") }}</Label>
+          <Input
+            :model-value="video.level ?? ''"
+            :placeholder="t('presetEditor.video.levelPlaceholder')"
+            class="h-9 text-xs"
+            @update:model-value="
+              (value) => {
+                const v = String(value ?? '').trim();
+                video.level = v || undefined;
+              }
+            "
+          />
+        </div>
       </div>
     </div>
   </div>

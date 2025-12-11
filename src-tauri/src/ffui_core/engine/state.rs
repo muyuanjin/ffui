@@ -230,6 +230,7 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                     let tmp_str = tmp_output.to_string_lossy().into_owned();
                     job.wait_metadata = Some(WaitMetadata {
                         last_progress_percent: Some(job.progress),
+                        processed_wall_millis: job.elapsed_ms,
                         processed_seconds: None,
                         tmp_output_path: Some(tmp_str.clone()),
                         segments: Some(vec![tmp_str]),
@@ -302,6 +303,7 @@ pub(super) fn update_smart_scan_batch_with_inner<F>(
                 total_candidates: batch.total_candidates,
                 total_processed: batch.total_processed,
                 batch_id: batch.batch_id.clone(),
+                completed_at_ms: batch.completed_at_ms.unwrap_or(0),
             })
         } else {
             None

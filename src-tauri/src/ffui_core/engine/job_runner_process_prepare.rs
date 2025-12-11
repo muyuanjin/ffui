@@ -310,6 +310,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                     None => {
                         job.wait_metadata = Some(WaitMetadata {
                             last_progress_percent: None,
+                            processed_wall_millis: None,
                             processed_seconds: None,
                             tmp_output_path: Some(tmp_str.clone()),
                             segments: Some(vec![tmp_str.clone()]),
@@ -322,10 +323,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                 .insert(job_filename.clone(), media_info.clone());
         }
     }
-
-    // Broadcast an updated queue snapshot with media metadata and preview path
-    // before starting the heavy ffmpeg transcode so the UI can show thumbnails
-    // and basic info as soon as a job enters Processing.
+    // Broadcast an updated queue snapshot with media metadata and preview path before starting the heavy ffmpeg transcode.
     notify_queue_listeners(inner);
 
     // For resumed jobs, derive an effective preset that seeks into the input
@@ -418,6 +416,7 @@ mod process_prepare_tests {
 
         let meta = WaitMetadata {
             last_progress_percent: None,
+            processed_wall_millis: None,
             processed_seconds: Some(12.5),
             tmp_output_path: Some(base_tmp.to_string_lossy().into_owned()),
             segments: Some(vec![base_tmp.to_string_lossy().into_owned()]),
@@ -468,6 +467,7 @@ mod process_prepare_tests {
 
         let meta = WaitMetadata {
             last_progress_percent: Some(50.0),
+            processed_wall_millis: None,
             processed_seconds: Some(50.0),
             tmp_output_path: Some(resume_tmp.to_string_lossy().into_owned()),
             segments: Some(vec![

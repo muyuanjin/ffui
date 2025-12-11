@@ -49,6 +49,8 @@ export interface MediaInfo {
 export interface WaitMetadata {
   /** Last known overall progress percentage when the job was paused via wait. */
   lastProgressPercent?: number;
+  /** Accumulated wall-clock processing time in milliseconds at the moment of pause. */
+  processedWallMillis?: number;
   /** Approximate number of seconds already processed when the job was paused. */
   processedSeconds?: number;
   /** Path to a partial or temporary output file captured during processing. */
