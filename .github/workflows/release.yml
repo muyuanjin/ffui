@@ -8,6 +8,10 @@ on:
     tags:
       - "v*"
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   publish-tauri:
     permissions:
@@ -19,6 +23,7 @@ jobs:
         platform: [macos-latest, ubuntu-22.04, windows-latest]
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -53,7 +58,39 @@ jobs:
         # 项目使用 package-lock.json，因此优先使用 npm ci 以获得更稳定的依赖版本
         run: npm ci
 
+      - name: Validate release version and tag
+        shell: bash
+        run: |
+          tauri_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json','utf8')).version)")"
+          npm_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('package.json','utf8')).version)")"
+
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+              echo "Manual publish requires selecting a v* tag ref (got: ${GITHUB_REF})" >&2
+              exit 1
+            fi
+          fi
+
+          if [ -z "$tauri_version" ] || [ -z "$npm_version" ]; then
+            echo "Failed to read versions from src-tauri/tauri.conf.json and/or package.json" >&2
+            exit 1
+          fi
+
+          if [ "$tauri_version" != "$npm_version" ]; then
+            echo "Version mismatch: src-tauri/tauri.conf.json=$tauri_version, package.json=$npm_version" >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            expected="v${tauri_version}"
+            if [ "${GITHUB_REF_NAME}" != "$expected" ]; then
+              echo "Tag/version mismatch: ref=${GITHUB_REF_NAME}, expected=${expected}" >&2
+              exit 1
+            fi
+          fi
+
       - name: Build and release with Tauri
+        id: tauri
         uses: tauri-apps/tauri-action@v0
         env:
           # GitHub 默认提供的 token，用于创建 Release 与上传构建产物
@@ -66,3 +103,26 @@ jobs:
           releaseDraft: true
           prerelease: false
 
+      - name: Prepare Windows portable exe asset
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          mkdir -p dist-portable
+          src="src-tauri/target/release/ffui.exe"
+          if [ ! -f "$src" ]; then
+            echo "Portable exe not found: $src" >&2
+            exit 1
+          fi
+          out="dist-portable/FFUI-v${{ steps.tauri.outputs.appVersion }}-windows-x64-portable.exe"
+          cp "$src" "$out"
+          ls -la dist-portable
+
+      - name: Upload Windows portable exe to release
+        if: matrix.platform == 'windows-latest'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.tauri.outputs.appVersion }}
+          files: dist-portable/FFUI-v${{ steps.tauri.outputs.appVersion }}-windows-x64-portable.exe
+          fail_on_unmatched_files: true

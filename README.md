@@ -90,6 +90,10 @@ On platforms where the Tauri CLI is available you can also build a desktop bundl
 npm run build:exe
 ```
 
+### Release assets
+
+GitHub Releases include the standard Tauri bundles for each platform. In addition, Windows releases include a portable single-file executable named like `FFUI-v<version>-windows-x64-portable.exe`.
+
 ## Testing
 
 The repository contains unit tests for both the frontend and the Rust backend.
@@ -270,6 +274,10 @@ cargo build --release
 ```bash
 npm run build:exe
 ```
+
+### Release 产物
+
+GitHub Releases 会包含各平台的标准 Tauri 安装包/构建产物；此外，Windows 会额外上传一个绿色便携版单文件可执行程序，命名类似 `FFUI-v<version>-windows-x64-portable.exe`。
 
 ## 测试
 
