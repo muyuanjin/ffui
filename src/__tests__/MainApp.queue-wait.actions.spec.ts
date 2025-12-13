@@ -114,7 +114,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "wait_transcode_job":
           expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
           return Promise.resolve(true);
@@ -160,7 +163,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "resume_transcode_job") {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
         return Promise.resolve(true);
@@ -202,7 +208,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "restart_transcode_job") {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
         return Promise.resolve(true);
@@ -245,7 +254,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "restart_transcode_job") {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
         return Promise.resolve(true);
@@ -294,7 +306,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "wait_transcode_job":
           expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
           return Promise.resolve(true);
@@ -356,7 +371,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "resume_transcode_job":
           expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
           return Promise.resolve(true);
@@ -419,7 +437,10 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "reveal_path_in_folder":
           expect(payload?.path).toBeDefined();
           return Promise.resolve(null);

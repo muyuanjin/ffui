@@ -1,9 +1,11 @@
 use crate::ffui_core::domain::{
-    AutoCompressProgress, FFmpegPreset, JobStatus, JobType, MediaInfo, QueueState, TranscodeJob,
-    WaitMetadata,
+    AutoCompressProgress, FFmpegPreset, JobStatus, JobType, MediaInfo, QueueState, QueueStateLite,
+    TranscodeJob, TranscodeJobLite, WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU64;
@@ -109,8 +111,26 @@ impl Inner {
     }
 }
 
+#[cfg(test)]
+thread_local! {
+    static SNAPSHOT_QUEUE_STATE_CALLS: Cell<usize> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn reset_snapshot_queue_state_calls() {
+    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(0));
+}
+
+#[cfg(test)]
+pub(super) fn snapshot_queue_state_calls() -> usize {
+    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.get())
+}
+
 pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
     use std::collections::HashMap;
+
+    #[cfg(test)]
+    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(c.get() + 1));
 
     let state = inner.state.lock().expect("engine state poisoned");
 
@@ -130,6 +150,26 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
     }
 
     QueueState { jobs }
+}
+
+pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
+    use std::collections::HashMap;
+
+    let state = inner.state.lock().expect("engine state poisoned");
+
+    let mut order_by_id: HashMap<String, u64> = HashMap::new();
+    for (index, id) in state.queue.iter().enumerate() {
+        order_by_id.insert(id.clone(), index as u64);
+    }
+
+    let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
+    for (id, job) in state.jobs.iter() {
+        let mut lite = TranscodeJobLite::from(job);
+        lite.queue_order = order_by_id.get(id).copied();
+        jobs.push(lite);
+    }
+
+    QueueStateLite { jobs }
 }
 
 pub(super) fn notify_queue_listeners(inner: &Inner) {
@@ -180,9 +220,7 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
     }
     if max_numeric_id > 0 {
-        let current = inner
-            .next_job_id
-            .load(std::sync::atomic::Ordering::SeqCst);
+        let current = inner.next_job_id.load(std::sync::atomic::Ordering::SeqCst);
         inner.next_job_id.store(
             current.max(max_numeric_id + 1),
             std::sync::atomic::Ordering::SeqCst,
@@ -190,6 +228,7 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     }
 
     let mut waiting: Vec<(u64, String)> = Vec::new();
+    let mut tmp_output_candidates: Vec<(String, PathBuf, f64, Option<u64>)> = Vec::new();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -231,16 +270,7 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 && job.wait_metadata.is_none()
             {
                 let tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
-                if tmp_output.exists() {
-                    let tmp_str = tmp_output.to_string_lossy().into_owned();
-                    job.wait_metadata = Some(WaitMetadata {
-                        last_progress_percent: Some(job.progress),
-                        processed_wall_millis: job.elapsed_ms,
-                        processed_seconds: None,
-                        tmp_output_path: Some(tmp_str.clone()),
-                        segments: Some(vec![tmp_str]),
-                    });
-                }
+                tmp_output_candidates.push((id.clone(), tmp_output, job.progress, job.elapsed_ms));
             }
 
             if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
@@ -270,6 +300,35 @@ pub fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
 
         state.queue = next_queue;
+    }
+
+    // Perform any filesystem probes (e.g. temp output existence checks)
+    // outside the engine lock to avoid blocking concurrent queue snapshots.
+    if !tmp_output_candidates.is_empty() {
+        let mut recovered_tmp_outputs: Vec<(String, String, f64, Option<u64>)> = Vec::new();
+        for (id, tmp_output, progress, elapsed_ms) in tmp_output_candidates {
+            if tmp_output.exists() {
+                let tmp_str = tmp_output.to_string_lossy().into_owned();
+                recovered_tmp_outputs.push((id, tmp_str, progress, elapsed_ms));
+            }
+        }
+
+        if !recovered_tmp_outputs.is_empty() {
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            for (id, tmp_str, progress, elapsed_ms) in recovered_tmp_outputs {
+                if let Some(job) = state.jobs.get_mut(&id)
+                    && job.wait_metadata.is_none()
+                {
+                    job.wait_metadata = Some(WaitMetadata {
+                        last_progress_percent: Some(progress),
+                        processed_wall_millis: elapsed_ms,
+                        processed_seconds: None,
+                        tmp_output_path: Some(tmp_str.clone()),
+                        segments: Some(vec![tmp_str]),
+                    });
+                }
+            }
+        }
     }
 
     // Emit a snapshot so the frontend sees the recovered queue without having

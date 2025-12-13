@@ -426,7 +426,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
     }
 
     match last_sibling_index {
-        Some(idx) if idx + 1 <= queue_vec.len() => queue_vec.insert(idx + 1, id.clone()),
+        Some(idx) if idx < queue_vec.len() => queue_vec.insert(idx + 1, id.clone()),
         _ => queue_vec.push(id.clone()),
     }
 

@@ -23,9 +23,13 @@ export interface UseMainAppSettingsReturn {
   isSavingSettings: Ref<boolean>;
   settingsSaveError: Ref<string | null>;
   toolStatuses: ReturnType<typeof useAppSettings>["toolStatuses"];
+  toolStatusesFresh: ReturnType<typeof useAppSettings>["toolStatusesFresh"];
   ensureAppSettingsLoaded: () => Promise<void>;
   scheduleSaveSettings: () => void;
-  refreshToolStatuses: () => Promise<void>;
+  refreshToolStatuses: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+  }) => Promise<void>;
   downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
   fetchToolCandidates: (
     kind: ExternalToolKind,
@@ -56,6 +60,7 @@ export function useMainAppSettings(
     isSavingSettings,
     settingsSaveError,
     toolStatuses,
+    toolStatusesFresh,
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     refreshToolStatuses,
@@ -110,9 +115,18 @@ export function useMainAppSettings(
 
   // Best-effort load of app settings and external tools on mount.
   onMounted(async () => {
+    let warmupTriggered = false;
+
     const runStartupSettingsLoad = async () => {
       await ensureAppSettingsLoaded();
-      await refreshToolStatuses();
+      // Prewarm local external-tool probing once after the startup idle gate
+      // opens. This keeps the Settings → Tools panel from briefly showing a
+      // placeholder snapshot when the user opens it later, without blocking
+      // startup or performing any remote version checks.
+      if (!warmupTriggered) {
+        warmupTriggered = true;
+        void refreshToolStatuses({ remoteCheck: false });
+      }
     };
 
     // When no idle gate is provided, preserve the previous behaviour and run
@@ -155,6 +169,7 @@ export function useMainAppSettings(
     isSavingSettings,
     settingsSaveError,
     toolStatuses,
+    toolStatusesFresh,
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
     refreshToolStatuses,

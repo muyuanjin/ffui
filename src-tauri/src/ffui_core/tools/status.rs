@@ -1,10 +1,32 @@
 use super::discover::discover_candidates;
 use super::probe::{detect_local_tool_version, verify_tool_binary};
 use super::resolve::{custom_path_for, downloaded_tool_path, resolve_in_path, tool_binary_name};
-use super::runtime_state::{last_tool_download_metadata, snapshot_download_state};
+use super::runtime_state::{
+    cached_ffmpeg_release_version, last_tool_download_metadata, snapshot_download_state,
+};
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
 use std::collections::HashSet;
+
+fn parse_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
+    let normalized = input.trim().trim_start_matches('v');
+    let mut it = normalized.split('.').map(str::trim);
+    let major = it.next()?.parse::<u64>().ok()?;
+    let minor = it.next().unwrap_or("0").parse::<u64>().ok()?;
+    let patch = it.next().unwrap_or("0").parse::<u64>().ok()?;
+    Some((major, minor, patch))
+}
+
+fn version_is_newer(candidate: &str, baseline: &str) -> bool {
+    match (
+        parse_version_tuple(candidate),
+        parse_version_tuple(baseline),
+    ) {
+        (Some(candidate), Some(baseline)) => candidate > baseline,
+        (Some(_), None) => true,
+        _ => false,
+    }
+}
 
 pub(super) fn should_mark_update_available(
     source: &str,
@@ -21,15 +43,20 @@ pub(super) fn should_mark_update_available(
 pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<String> {
     match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
-            if let Some(latest) = super::download::latest_remote_version(kind) {
+            // Remote version checks are only refreshed asynchronously (e.g. from
+            // Settings → Tools) and MUST NOT happen on this synchronous code
+            // path. We only reuse the latest in-process snapshot here.
+            if let Some(latest) = cached_ffmpeg_release_version() {
                 return Some(latest);
             }
-            if let Some((_url, version, _tag)) = last_tool_download_metadata(kind)
-                && let Some(v) = version
-            {
-                return Some(v);
-            }
-            Some(FFMPEG_STATIC_VERSION.to_string())
+            let fallback = FFMPEG_STATIC_VERSION;
+            let persisted_version = last_tool_download_metadata(kind).and_then(|(_url, v, _tag)| v);
+            let remote = match persisted_version {
+                Some(v) if version_is_newer(v.as_str(), fallback) => v,
+                None => fallback.to_string(),
+                Some(_) => fallback.to_string(),
+            };
+            Some(remote)
         }
         ExternalToolKind::Avifenc => None,
     }

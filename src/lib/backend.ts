@@ -16,6 +16,7 @@ import type {
   QueueStateLite,
   TranscodeJob,
   SystemMetricsSnapshot,
+  TranscodeActivityToday,
 } from "../types";
 
 export const hasTauri = () => {
@@ -74,8 +75,33 @@ export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> =>
   return invoke<SystemMetricsSnapshot[]>("get_metrics_history");
 };
 
+export const fetchTranscodeActivityToday = async (): Promise<TranscodeActivityToday> => {
+  if (!hasTauri()) {
+    return { date: "1970-01-01", activeHours: Array.from({ length: 24 }, () => false) };
+  }
+  return invoke<TranscodeActivityToday>("get_transcode_activity_today");
+};
+
 export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]> => {
   return invoke<ExternalToolStatus[]>("get_external_tool_statuses");
+};
+
+export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolStatus[]> => {
+  return invoke<ExternalToolStatus[]>("get_external_tool_statuses_cached");
+};
+
+export const refreshExternalToolStatusesAsync = async (options?: {
+  remoteCheck?: boolean;
+  manualRemoteCheck?: boolean;
+}): Promise<boolean> => {
+  const remoteCheck = options?.remoteCheck ?? false;
+  const manualRemoteCheck = options?.manualRemoteCheck ?? false;
+  return invoke<boolean>("refresh_external_tool_statuses_async", {
+    remoteCheck,
+    remote_check: remoteCheck,
+    manualRemoteCheck,
+    manual_remote_check: manualRemoteCheck,
+  });
 };
 
 export const fetchExternalToolCandidates = async (

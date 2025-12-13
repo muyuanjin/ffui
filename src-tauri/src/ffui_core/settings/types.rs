@@ -36,6 +36,32 @@ pub struct DownloadedToolState {
     pub avifenc: Option<DownloadedToolInfo>,
 }
 
+/// Cached remote tool version metadata (for update hints) persisted across restarts.
+///
+/// All fields are optional so existing settings.json files remain valid and minimal.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RemoteToolVersionInfo {
+    /// Unix epoch timestamp in milliseconds when the remote check completed successfully.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checked_at_ms: Option<u64>,
+    /// Latest known remote version string, e.g. "6.1.1".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// Optional upstream tag/build identifier, e.g. "b6.1.1".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+}
+
+/// Remote version caches for tools that support remote update hints.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct RemoteToolVersionCache {
+    /// Cached remote release metadata for the ffmpeg-static upstream used by ffmpeg/ffprobe.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ffmpeg_static: Option<RemoteToolVersionInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ExternalToolSettings {
@@ -48,6 +74,9 @@ pub struct ExternalToolSettings {
     /// When absent, the app infers availability only from the filesystem.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub downloaded: Option<DownloadedToolState>,
+    /// Optional cached remote-version metadata (TTL-based) for update hints.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_version_cache: Option<RemoteToolVersionCache>,
 }
 
 pub fn default_preview_capture_percent() -> u8 {
@@ -110,10 +139,30 @@ pub enum QueuePersistenceMode {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeActivityDay {
+    pub date: String,
+    pub active_hours_mask: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_at_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct MonitorSettings {
+    /// Bounded recent activity days for the transcode heatmap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transcode_activity_days: Option<Vec<TranscodeActivityDay>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub tools: ExternalToolSettings,
     pub smart_scan_defaults: SmartScanConfig,
+    /// Optional Monitor-only persisted state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monitor: Option<MonitorSettings>,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
     /// When true, enable developer-focused features such as opening the
@@ -212,6 +261,7 @@ impl Default for AppSettings {
                     ],
                 },
             },
+            monitor: None,
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,

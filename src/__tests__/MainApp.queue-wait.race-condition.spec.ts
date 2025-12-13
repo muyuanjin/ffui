@@ -119,7 +119,10 @@ describe("MainApp rapid pause/resume race condition handling", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "resume_transcode_job":
           // 后端返回 true 表示成功取消了待处理的暂停请求
           expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
@@ -182,7 +185,10 @@ describe("MainApp rapid pause/resume race condition handling", () => {
         case "get_gpu_usage":
           return Promise.resolve({ available: false });
         case "get_external_tool_statuses":
+        case "get_external_tool_statuses_cached":
           return Promise.resolve([]);
+        case "refresh_external_tool_statuses_async":
+          return Promise.resolve(true);
         case "resume_transcode_job":
           // 后端返回 false 表示任务不是 Paused 状态且没有待处理的暂停请求
           expect(payload?.jobId ?? payload?.job_id).toBe(jobId);

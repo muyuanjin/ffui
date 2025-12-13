@@ -19,8 +19,10 @@ const app = {
     externalToolsDescription:
       "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动管理策略。",
     refreshToolsStatus: "刷新状态",
+    checkFfmpegUpdateButton: "检查更新",
     toolStatus: {
       ready: "已就绪",
+      detecting: "检测中",
       missing: "未找到",
     },
     currentToolPathLabel: "当前使用路径",
@@ -147,6 +149,8 @@ const app = {
     memory: "内存",
     gpu: "GPU",
     systemUptime: "系统运行时间",
+    transcodeHeatmapToday: "今日转码热力图",
+    transcodeHeatmapHint: "仅统计 Processing 状态（paused 不算）。",
     download: "↓",
     upload: "↑",
     reading: "读:",

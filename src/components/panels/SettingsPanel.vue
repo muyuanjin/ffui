@@ -13,27 +13,35 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
 } from "@/types";
-
-const props = defineProps<{
+const props = withDefaults(
+  defineProps<{
   /** Application settings */
   appSettings: AppSettings | null;
   /** External tool statuses */
   toolStatuses: ExternalToolStatus[];
+  /** Whether tool statuses have been refreshed at least once this session. */
+  toolStatusesFresh?: boolean;
+  /** Trigger an async tool status refresh (non-blocking). */
+  refreshToolStatuses?: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+  }) => Promise<void>;
   /** Whether settings are being saved */
   isSavingSettings: boolean;
   /** Settings save error message */
   settingsSaveError: string | null;
   /** Fetch available candidate binaries for a tool kind. */
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
-}>();
-
+  }>(),
+  {
+    toolStatusesFresh: true,
+  },
+);
 const emit = defineEmits<{
   "update:appSettings": [settings: AppSettings];
   downloadTool: [kind: ExternalToolKind];
 }>();
-
 const { t } = useI18n();
-
 // Defaults must stay in sync with the Rust engine constants:
 // - DEFAULT_PROGRESS_UPDATE_INTERVAL_MS in ffui_core::settings::types
 // - DEFAULT_METRICS_INTERVAL_MS in ffui_core::settings::types
@@ -42,13 +50,11 @@ const DEFAULT_METRICS_INTERVAL_MS = 1_000;
 // When unset, the engine derives concurrency automatically when maxParallelJobs
 // is None or 0. We surface this as an explicit "0 = 自动" default in the UI.
 const DEFAULT_MAX_PARALLEL_JOBS_AUTO = 0;
-
 const getMaxParallelJobsInputValue = () => {
   if (!props.appSettings) return DEFAULT_MAX_PARALLEL_JOBS_AUTO;
   const raw = props.appSettings.maxParallelJobs;
   return typeof raw === "number" && Number.isFinite(raw) ? raw : DEFAULT_MAX_PARALLEL_JOBS_AUTO;
 };
-
 const getProgressUpdateIntervalInputValue = () => {
   if (!props.appSettings) return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
   const raw = props.appSettings.progressUpdateIntervalMs;
@@ -57,7 +63,6 @@ const getProgressUpdateIntervalInputValue = () => {
   }
   return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
 };
-
 const getMetricsIntervalInputValue = () => {
   if (!props.appSettings) return DEFAULT_METRICS_INTERVAL_MS;
   const raw = props.appSettings.metricsIntervalMs;
@@ -66,14 +71,11 @@ const getMetricsIntervalInputValue = () => {
   }
   return DEFAULT_METRICS_INTERVAL_MS;
 };
-
 const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
   if (!props.appSettings) return;
   emit("update:appSettings", { ...props.appSettings, [key]: value });
 };
-
 type ExternalToolsMode = "autoManaged" | "installOnly" | "manual" | "custom";
-
 const toolsMode = computed<ExternalToolsMode>({
   get() {
     const tools = props.appSettings?.tools;
@@ -121,7 +123,9 @@ const toolsMode = computed<ExternalToolsMode>({
       <SettingsExternalToolsSection
         :app-settings="appSettings"
         :tool-statuses="toolStatuses"
+        :tool-statuses-fresh="toolStatusesFresh"
         :fetch-tool-candidates="fetchToolCandidates"
+        :refresh-tool-statuses="refreshToolStatuses"
         @update:app-settings="(settings) => emit('update:appSettings', settings)"
         @downloadTool="(kind) => emit('downloadTool', kind)"
       />

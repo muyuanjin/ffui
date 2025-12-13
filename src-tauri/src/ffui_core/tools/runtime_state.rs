@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -22,8 +23,65 @@ pub(super) static LATEST_TOOL_STATUS: once_cell::sync::Lazy<
     Mutex<Vec<super::types::ExternalToolStatus>>,
 > = once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
 
+static TOOL_STATUS_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
 pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
     let _ = APP_HANDLE.set(Arc::new(handle));
+}
+
+pub(crate) fn cached_tool_status_snapshot() -> Vec<super::types::ExternalToolStatus> {
+    let lock = LATEST_TOOL_STATUS
+        .lock()
+        .expect("LATEST_TOOL_STATUS lock poisoned");
+    lock.clone()
+}
+
+pub(crate) fn try_begin_tool_status_refresh() -> bool {
+    TOOL_STATUS_REFRESH_IN_PROGRESS
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+}
+
+pub(crate) fn finish_tool_status_refresh() {
+    TOOL_STATUS_REFRESH_IN_PROGRESS.store(false, Ordering::Release);
+}
+
+pub(crate) fn ttl_hit(now_ms: u64, checked_at_ms: Option<u64>, ttl_ms: u64) -> bool {
+    checked_at_ms
+        .map(|checked_at| now_ms.saturating_sub(checked_at) < ttl_ms)
+        .unwrap_or(false)
+}
+
+pub(crate) fn cached_ffmpeg_release_version() -> Option<String> {
+    let cache = FFMPEG_RELEASE_CACHE
+        .lock()
+        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    cache.as_ref().map(|info| info.version.clone())
+}
+
+/// Seed the in-process remote version cache from persisted settings so that
+/// update hints remain stable across restarts without requiring a network call
+/// on the synchronous tool status path.
+pub(crate) fn hydrate_remote_version_cache_from_settings(settings: &ExternalToolSettings) {
+    let Some(cache) = settings.remote_version_cache.as_ref() else {
+        return;
+    };
+    let Some(ffmpeg_static) = cache.ffmpeg_static.as_ref() else {
+        return;
+    };
+    let (Some(version), Some(tag)) = (ffmpeg_static.version.clone(), ffmpeg_static.tag.clone())
+    else {
+        return;
+    };
+
+    // Do not overwrite an already-populated cache (for example a successful
+    // refresh that happened earlier in this process).
+    let mut lock = FFMPEG_RELEASE_CACHE
+        .lock()
+        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    if lock.is_none() {
+        *lock = Some(FfmpegStaticRelease { version, tag });
+    }
 }
 
 pub(crate) fn update_latest_status_snapshot(statuses: Vec<super::types::ExternalToolStatus>) {

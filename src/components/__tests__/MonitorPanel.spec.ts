@@ -106,6 +106,7 @@ const i18n = createI18n({
 
 const makeSnapshot = (timestamp: number, cores: number, interfaces: number): SystemMetricsSnapshot => ({
   timestamp,
+  uptimeSeconds: 3600,
   cpu: {
     cores: Array.from({ length: cores }, (_, idx) => (idx * 3 + (timestamp % 100)) % 100),
     total: 50,

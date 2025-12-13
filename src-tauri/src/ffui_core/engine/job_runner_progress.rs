@@ -3,6 +3,7 @@
 // ============================================================================
 
 use super::worker_utils::recompute_log_tail;
+use super::transcode_activity;
 
 // Keep a bounded window of recent logs while prioritizing diagnostic lines.
 // MAX_LOG_LINES caps in-memory lines; recompute_log_tail (from worker_utils)
@@ -72,6 +73,7 @@ pub(super) fn update_job_progress(
     _speed: Option<f64>,
 ) {
     let mut should_notify = false;
+    let mut should_record_activity = false;
     let now_ms = current_time_millis();
 
     {
@@ -79,6 +81,7 @@ pub(super) fn update_job_progress(
         if let Some(job) = state.jobs.get_mut(job_id) {
             // 更新累计已用时间：基于 processing_started_ms 计算当前段的时间，加上之前暂停时累积的时间
             if job.status == JobStatus::Processing {
+                should_record_activity = true;
                 let baseline = job
                     .processing_started_ms
                     .or(job.start_time)
@@ -143,6 +146,10 @@ pub(super) fn update_job_progress(
                 }
             }
         }
+    }
+
+    if should_record_activity {
+        transcode_activity::record_processing_activity(inner);
     }
 
     // Emit queue snapshots only when progress actually moves forward so the

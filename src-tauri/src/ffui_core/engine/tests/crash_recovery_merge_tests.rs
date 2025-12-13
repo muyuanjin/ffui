@@ -62,4 +62,3 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
         "persisted waiting jobs should be restored ahead of newly enqueued jobs"
     );
 }
-

@@ -10,9 +10,8 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => true,
     loadAppSettings: vi.fn(),
     saveAppSettings: vi.fn(async (settings: AppSettings) => settings),
-    fetchExternalToolStatuses: vi.fn(
-      async () => [] as ExternalToolStatus[],
-    ),
+    fetchExternalToolStatusesCached: vi.fn(async () => [] as ExternalToolStatus[]),
+    refreshExternalToolStatusesAsync: vi.fn(async () => true),
     fetchExternalToolCandidates: vi.fn(async () => []),
     downloadExternalToolNow: vi.fn(),
   };
@@ -61,10 +60,10 @@ const TestHost = defineComponent({
 
 describe("useAppSettings auto-update behaviour", () => {
   it("propagates backend remoteVersion so the Settings panel shows the latest available release", async () => {
-    const mockFetchExternalToolStatuses = vi.mocked(
-      backend.fetchExternalToolStatuses,
+    const mockFetchExternalToolStatusesCached = vi.mocked(
+      backend.fetchExternalToolStatusesCached,
     );
-    mockFetchExternalToolStatuses.mockResolvedValueOnce([
+    mockFetchExternalToolStatusesCached.mockResolvedValueOnce([
       {
         kind: "ffmpeg",
         resolvedPath: "C:/tools/ffmpeg.exe",
@@ -90,12 +89,12 @@ describe("useAppSettings auto-update behaviour", () => {
     };
 
     await flushPromises();
-    expect(mockFetchExternalToolStatuses).toHaveBeenCalled();
+    expect(mockFetchExternalToolStatusesCached).toHaveBeenCalled();
     expect(vm.toolStatuses[0]?.remoteVersion).toBe("6.1.1");
 
     wrapper.unmount();
-    mockFetchExternalToolStatuses.mockReset();
-    mockFetchExternalToolStatuses.mockImplementation(
+    mockFetchExternalToolStatusesCached.mockReset();
+    mockFetchExternalToolStatusesCached.mockImplementation(
       async () => [] as ExternalToolStatus[],
     );
   });
