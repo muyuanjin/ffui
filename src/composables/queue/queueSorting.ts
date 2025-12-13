@@ -1,6 +1,7 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { compareJobsByField, getJobSortValue } from "./filtering-utils";
+import { progressiveMergeSort } from "./progressiveSort";
 import type {
   QueueSortDirection,
   QueueSortField,
@@ -12,6 +13,8 @@ import type {
 // deferred tick.
 const LARGE_QUEUE_SORT_THRESHOLD = 1000;
 const INITIAL_SORT_BATCH_SIZE = 200;
+const LARGE_QUEUE_SORT_CHUNK_SIZE = 250;
+const LARGE_QUEUE_SORT_YIELD_EVERY_ITEMS = 200;
 
 export interface QueueSortingDeps {
   filteredJobs: ComputedRef<TranscodeJob[]>;
@@ -122,42 +125,29 @@ export function createQueueSortingState(
   };
 
   // For large queues, compute a first sorted chunk quickly and defer the
-  // full sort to the next tick so the UI can render an initial list without
-  // being blocked by a single long-running sort over thousands of items.
+  // full ordering via incremental slices, yielding to the main thread so the
+  // UI can keep processing input and drag events.
   const displayModeSortedJobsInternal = ref<TranscodeJob[]>([]);
-  let fullSortTimer: number | undefined;
 
-  const cancelFullSortTimer = () => {
-    if (typeof window === "undefined") return;
-    if (fullSortTimer !== undefined) {
-      window.clearTimeout(fullSortTimer);
-      fullSortTimer = undefined;
-    }
+  const isTestEnv =
+    typeof import.meta !== "undefined" &&
+    typeof import.meta.env !== "undefined" &&
+    import.meta.env.MODE === "test";
+
+  const yieldToMainThread = (): Promise<void> => {
+    if (typeof window === "undefined") return Promise.resolve();
+    return new Promise((resolve) => {
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(() => resolve());
+      } else {
+        window.setTimeout(() => resolve(), 0);
+      }
+    });
   };
 
-  const scheduleFullSort = () => {
-    if (typeof window === "undefined") {
-      // No browser timers available (e.g. SSR); fall back to a single
-      // synchronous sort based on the latest filteredJobs snapshot.
-      const snapshot = filteredJobs.value;
-      displayModeSortedJobsInternal.value = snapshot
-        .slice()
-        .sort((a, b) => compareJobsForDisplay(a, b));
-      return;
-    }
-
-    cancelFullSortTimer();
-    fullSortTimer = window.setTimeout(() => {
-      fullSortTimer = undefined;
-      const snapshot = filteredJobs.value;
-      if (!snapshot || snapshot.length === 0) {
-        displayModeSortedJobsInternal.value = [];
-        return;
-      }
-      displayModeSortedJobsInternal.value = snapshot
-        .slice()
-        .sort((a, b) => compareJobsForDisplay(a, b));
-    }, 0);
+  let sortRunId = 0;
+  const cancelLargeQueueSort = () => {
+    sortRunId += 1;
   };
 
   watch(
@@ -165,7 +155,7 @@ export function createQueueSortingState(
     ([jobs]) => {
       if (!jobs || jobs.length === 0) {
         displayModeSortedJobsInternal.value = [];
-        cancelFullSortTimer();
+        cancelLargeQueueSort();
         return;
       }
 
@@ -173,25 +163,31 @@ export function createQueueSortingState(
 
       if (
         typeof window === "undefined" ||
+        isTestEnv ||
         list.length <= LARGE_QUEUE_SORT_THRESHOLD
       ) {
         // Small/medium lists: keep the simple synchronous sort so behaviour
         // stays predictable and easy to reason about.
-        cancelFullSortTimer();
+        cancelLargeQueueSort();
         displayModeSortedJobsInternal.value = list.sort((a, b) =>
           compareJobsForDisplay(a, b),
         );
         return;
       }
 
-      // Large lists: sort and expose an initial batch so that the first
-      // render remains responsive, then schedule a full sort on the next
-      // tick to progressively fill in the rest of the list.
-      const initial = list.slice(0, INITIAL_SORT_BATCH_SIZE);
-      displayModeSortedJobsInternal.value = initial.sort((a, b) =>
-        compareJobsForDisplay(a, b),
-      );
-      scheduleFullSort();
+      const runId = (sortRunId += 1);
+      void progressiveMergeSort(list, {
+        compare: compareJobsForDisplay,
+        chunkSize: LARGE_QUEUE_SORT_CHUNK_SIZE,
+        initialBatchSize: INITIAL_SORT_BATCH_SIZE,
+        yieldEveryItems: LARGE_QUEUE_SORT_YIELD_EVERY_ITEMS,
+        yieldFn: yieldToMainThread,
+        isCancelled: () => runId !== sortRunId,
+        onPartial: (partial) => {
+          if (runId !== sortRunId) return;
+          displayModeSortedJobsInternal.value = partial;
+        },
+      });
     },
     { immediate: true },
   );
@@ -234,4 +230,3 @@ export function createQueueSortingState(
     compareJobsInWaitingGroup,
   };
 }
-

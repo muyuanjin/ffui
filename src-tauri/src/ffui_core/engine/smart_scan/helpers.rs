@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::ffui_core::settings;
 use crate::ffui_core::tools::{ExternalToolKind, last_tool_download_metadata};
 
-use super::super::state::{Inner, snapshot_queue_state};
+use super::super::state::{Inner, notify_queue_listeners as notify_engine_queue_listeners};
 
 pub(crate) fn current_time_millis() -> u64 {
     SystemTime::now()
@@ -62,12 +62,5 @@ pub(crate) fn record_tool_download(inner: &Inner, kind: ExternalToolKind, binary
 }
 
 pub(crate) fn notify_queue_listeners(inner: &Inner) {
-    let snapshot = snapshot_queue_state(inner);
-    let listeners = inner
-        .queue_listeners
-        .lock()
-        .expect("queue listeners poisoned");
-    for listener in listeners.iter() {
-        listener(snapshot.clone());
-    }
+    notify_engine_queue_listeners(inner);
 }

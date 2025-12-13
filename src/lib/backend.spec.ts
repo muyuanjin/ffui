@@ -324,6 +324,8 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       orderedIds: ids,
       ordered_ids: ids,
+      jobIds: ids,
+      job_ids: ids,
     });
     expect(result).toBe(true);
   });

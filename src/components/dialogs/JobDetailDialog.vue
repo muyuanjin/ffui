@@ -4,9 +4,9 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollConte
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import type { TranscodeJob, FFmpegPreset } from "@/types";
+import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -128,33 +128,20 @@ const jobFileName = computed(() => {
 });
 
 const jobDetailRawCommand = computed(() => props.job?.ffmpegCommand ?? "");
-const jobDetailTemplateCommand = computed(() => normalizeFfmpegTemplate(jobDetailRawCommand.value).template);
-const showTemplateCommand = ref(true);
-const jobDetailEffectiveCommand = computed(() => {
-  const raw = jobDetailRawCommand.value;
-  const templ = jobDetailTemplateCommand.value;
-  return showTemplateCommand.value ? templ || raw : raw;
+const {
+  effectiveCommand: jobDetailEffectiveCommand,
+  hasDistinctTemplate: jobDetailHasDistinctTemplate,
+  highlightedHtml: highlightedCommandHtml,
+  templateCommand: jobDetailTemplateCommand,
+  toggle: toggleCommandView,
+  toggleLabel: commandViewToggleLabel,
+} = useFfmpegCommandView({
+  jobId: computed(() => props.job?.id),
+  status: computed(() => props.job?.status),
+  rawCommand: jobDetailRawCommand,
+  ffmpegResolvedPath: computed(() => props.ffmpegResolvedPath),
+  t: (key) => t(key) as string,
 });
-const jobDetailHasDistinctTemplate = computed(() => {
-  const raw = jobDetailRawCommand.value;
-  const templ = jobDetailTemplateCommand.value;
-  return !!raw && !!templ && templ !== raw;
-});
-const commandViewToggleLabel = computed(() => {
-  if (!jobDetailHasDistinctTemplate.value) return "";
-  return showTemplateCommand.value
-    ? (t("taskDetail.commandToggle.showFull") as string)
-    : (t("taskDetail.commandToggle.showTemplate") as string);
-});
-const highlightedCommandHtml = computed(() =>
-  highlightFfmpegCommand(jobDetailEffectiveCommand.value, {
-    programOverrides: {
-      // Only expand to the concrete ffmpeg path in the "full command" view;
-      // the template view should retain the normalized `ffmpeg` token.
-      ffmpeg: showTemplateCommand.value ? null : props.ffmpegResolvedPath ?? null,
-    },
-  }),
-);
 
 const jobDetailLogText = computed(() => props.jobDetailLogText || "");
 
@@ -370,7 +357,7 @@ const unknownPresetLabel = computed(() => {
                     v-if="jobDetailHasDistinctTemplate"
                     type="button"
                     class="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    @click="showTemplateCommand = !showTemplateCommand"
+                    @click="toggleCommandView"
                   >
                     {{ commandViewToggleLabel }}
                   </button>

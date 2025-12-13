@@ -1,7 +1,7 @@
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::ffui_core::{QueueState, QueueStateLite, TranscodingEngine};
-use crate::taskbar_progress::update_taskbar_progress;
+use crate::ffui_core::{QueueStateLite, TranscodingEngine};
+use crate::taskbar_progress::update_taskbar_progress_lite;
 
 fn parse_bool_env(value: Option<&str>, default: bool) -> bool {
     match value {
@@ -32,19 +32,20 @@ pub fn register_queue_stream(handle: &AppHandle) {
     let engine = handle.state::<TranscodingEngine>();
     let emit_full_events = full_queue_state_events_enabled();
 
-    engine.register_queue_listener(move |state: QueueState| {
+    engine.register_queue_lite_listener(move |state: QueueStateLite| {
         // Legacy full snapshot event for compatibility. In production builds
-        // this is opt-in to reduce startup IPC pressure.
-        if emit_full_events && let Err(err) = event_handle.emit("ffui://queue-state", state.clone())
-        {
-            eprintln!("failed to emit queue-state event: {err}");
+        // this is opt-in to reduce IPC pressure and queue hot-path cloning.
+        if emit_full_events {
+            let engine = taskbar_handle.state::<TranscodingEngine>();
+            let full = engine.queue_state();
+            if let Err(err) = event_handle.emit("ffui://queue-state", full) {
+                eprintln!("failed to emit queue-state event: {err}");
+            }
         }
 
-        // Lightweight snapshot event used by the queue UI. This strips heavy
-        // fields from the payload (e.g. full logs) while keeping list
-        // rendering fields intact.
-        if let Err(err) = event_handle.emit("ffui://queue-state-lite", QueueStateLite::from(&state))
-        {
+        // Lightweight snapshot event used by the queue UI. This is the steady-state
+        // path and MUST NOT require building a full QueueState clone of logs.
+        if let Err(err) = event_handle.emit("ffui://queue-state-lite", state.clone()) {
             eprintln!("failed to emit queue-state-lite event: {err}");
         }
 
@@ -55,7 +56,7 @@ pub fn register_queue_stream(handle: &AppHandle) {
         {
             let engine = taskbar_handle.state::<TranscodingEngine>();
             let settings = engine.settings();
-            update_taskbar_progress(
+            update_taskbar_progress_lite(
                 &taskbar_handle,
                 &state,
                 settings.taskbar_progress_mode,

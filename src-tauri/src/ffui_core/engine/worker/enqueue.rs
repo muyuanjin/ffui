@@ -6,6 +6,7 @@ use std::sync::atomic::Ordering;
 use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
 
 use super::super::ffmpeg_args::infer_output_extension;
+use super::super::ffmpeg_args::{build_ffmpeg_args, format_command_for_log};
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 
@@ -38,17 +39,14 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
 
     let job = {
         let mut state = inner.state.lock().expect("engine state poisoned");
-        let estimated_seconds = state
-            .presets
-            .iter()
-            .find(|p| p.id == preset_id)
+        let preset = state.presets.iter().find(|p| p.id == preset_id).cloned();
+        let estimated_seconds = preset
+            .as_ref()
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
         let output_path = if matches!(job_type, JobType::Video) {
             let path = PathBuf::from(&filename);
-            let container_format = state
-                .presets
-                .iter()
-                .find(|p| p.id == preset_id)
+            let container_format = preset
+                .as_ref()
                 .and_then(|p| p.container.as_ref())
                 .and_then(|c| c.format.as_deref());
             let input_ext = path.extension().and_then(|e| e.to_str());
@@ -68,6 +66,21 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
         } else {
             None
         };
+
+        let planned_command = if matches!(job_type, JobType::Video) {
+            match (preset.as_ref(), output_path.as_deref()) {
+                (Some(preset), Some(output_path)) => {
+                    let input_path_buf = PathBuf::from(&filename);
+                    let output_path_buf = PathBuf::from(output_path);
+                    let args = build_ffmpeg_args(preset, &input_path_buf, &output_path_buf, false);
+                    Some(format_command_for_log("ffmpeg", &args))
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let job = TranscodeJob {
             id: id.clone(),
             filename,
@@ -88,7 +101,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             skip_reason: None,
             input_path: Some(input_path),
             output_path,
-            ffmpeg_command: None,
+            ffmpeg_command: planned_command,
             media_info: Some(MediaInfo {
                 duration_seconds: None,
                 width: None,

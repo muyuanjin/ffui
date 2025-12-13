@@ -13,6 +13,7 @@ use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 use super::super::ffmpeg_args::configure_background_command;
+use super::super::ffmpeg_args::{build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log};
 use super::super::state::Inner;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 use super::video_paths::{
@@ -407,6 +408,8 @@ pub(crate) fn enqueue_smart_scan_video_job(
     let output_path = reserve_unique_smart_scan_video_output_path(&mut state, path, preset);
 
     job.output_path = Some(output_path.to_string_lossy().into_owned());
+    let planned_args = build_queue_ffmpeg_args(preset, path, &output_path, false);
+    job.ffmpeg_command = Some(format_command_for_log("ffmpeg", &planned_args));
     job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);
 
     // Insert the job into the waiting queue while keeping Smart Scan batch

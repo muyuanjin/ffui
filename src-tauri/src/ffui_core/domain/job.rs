@@ -263,3 +263,44 @@ impl From<&QueueState> for QueueStateLite {
         QueueStateLite { jobs }
     }
 }
+
+impl From<TranscodeJobLite> for TranscodeJob {
+    fn from(job: TranscodeJobLite) -> Self {
+        Self {
+            id: job.id,
+            filename: job.filename,
+            job_type: job.job_type,
+            source: job.source,
+            queue_order: job.queue_order,
+            original_size_mb: job.original_size_mb,
+            original_codec: job.original_codec,
+            preset_id: job.preset_id,
+            status: job.status,
+            progress: job.progress,
+            start_time: job.start_time,
+            end_time: job.end_time,
+            processing_started_ms: job.processing_started_ms,
+            elapsed_ms: job.elapsed_ms,
+            output_size_mb: job.output_size_mb,
+            logs: Vec::new(),
+            skip_reason: job.skip_reason,
+            input_path: job.input_path,
+            output_path: job.output_path,
+            ffmpeg_command: job.ffmpeg_command,
+            media_info: job.media_info,
+            estimated_seconds: job.estimated_seconds,
+            preview_path: job.preview_path,
+            log_tail: job.log_tail,
+            failure_reason: job.failure_reason,
+            batch_id: job.batch_id,
+            wait_metadata: job.wait_metadata,
+        }
+    }
+}
+
+impl From<QueueStateLite> for QueueState {
+    fn from(snapshot: QueueStateLite) -> Self {
+        let jobs = snapshot.jobs.into_iter().map(TranscodeJob::from).collect();
+        QueueState { jobs }
+    }
+}

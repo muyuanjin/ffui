@@ -7,7 +7,6 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
 import MainApp from "@/MainApp.vue";
-import { normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import { hasTauri, loadJobDetail } from "@/lib/backend";
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -75,7 +74,6 @@ describe("MainApp task detail surface - logs", () => {
 
   it("highlights command and logs while preserving exact text and copy semantics", async () => {
     const rawCommand = 'ffmpeg -i "in" -vf scale=1280:-2 -c:v libx264 out';
-    const normalized = normalizeFfmpegTemplate(rawCommand);
     const job: TranscodeJob = {
       id: "job-5",
       filename: "C:/videos/sample5.mp4",
@@ -105,8 +103,8 @@ describe("MainApp task detail surface - logs", () => {
     const commandText = document.querySelector(
       "[data-testid='task-detail-command']",
     )?.textContent;
-    // 文本内容必须包含规范化后的模板（确保高亮不改变可复制文本）
-    expect(commandText || "").toContain(normalized.template);
+    // 任务已开始过/已完成时，默认展示后端实际执行的完整命令（可复制复现）。
+    expect(commandText || "").toContain(rawCommand);
     // 高亮 HTML 中应包含若干 span，说明命令被 token 化着色
     expect(commandHtml || "").toContain("<span");
     expect(document.body.textContent || "").toContain("line1");

@@ -129,7 +129,9 @@ impl TranscodingEngine {
         state.jobs.get(job_id).cloned()
     }
 
-    /// Register a listener for queue state changes.
+    /// Register a listener for queue state changes (test-only; the production
+    /// hot path uses lightweight snapshots).
+    #[cfg(test)]
     pub fn register_queue_listener<F>(&self, listener: F)
     where
         F: Fn(QueueState) + Send + Sync + 'static,
@@ -139,6 +141,19 @@ impl TranscodingEngine {
             .queue_listeners
             .lock()
             .expect("queue listeners lock poisoned");
+        listeners.push(Arc::new(listener));
+    }
+
+    /// Register a listener for lightweight queue state changes.
+    pub fn register_queue_lite_listener<F>(&self, listener: F)
+    where
+        F: Fn(QueueStateLite) + Send + Sync + 'static,
+    {
+        let mut listeners = self
+            .inner
+            .queue_lite_listeners
+            .lock()
+            .expect("queue lite listeners lock poisoned");
         listeners.push(Arc::new(listener));
     }
 

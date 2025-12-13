@@ -6,10 +6,10 @@ import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
+import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 
 const isTestEnv = typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
@@ -229,53 +229,22 @@ const progressVariant = computed<ProgressVariant>(() => {
   }
 });
 
-const showTemplateCommand = ref(true);
-
 const rawCommand = computed(() => props.job.ffmpegCommand ?? "");
-
-const templateCommand = computed(() => {
-  const raw = rawCommand.value;
-  if (!raw) return "";
-  const result = normalizeFfmpegTemplate(raw);
-  return result.template;
+const {
+  hasDistinctTemplate,
+  highlightedHtml: highlightedCommand,
+  toggle: toggleCommandView,
+  toggleLabel: commandViewToggleLabel,
+} = useFfmpegCommandView({
+  jobId: computed(() => props.job.id),
+  status: computed(() => props.job.status),
+  rawCommand,
+  ffmpegResolvedPath: computed(() => props.ffmpegResolvedPath),
+  t: (key) => t(key) as string,
+  // Queue cards should default to template view so the user always sees the
+  // "Show full command" entry point when available.
+  defaultMode: "template",
 });
-
-const effectiveCommand = computed(() => {
-  const raw = rawCommand.value;
-  const templ = templateCommand.value;
-  if (showTemplateCommand.value) {
-    return templ || raw;
-  }
-  return raw;
-});
-
-const hasDistinctTemplate = computed(() => {
-  const raw = rawCommand.value;
-  const templ = templateCommand.value;
-  return !!raw && !!templ && templ !== raw;
-});
-
-const toggleCommandView = () => {
-  if (!hasDistinctTemplate.value) return;
-  showTemplateCommand.value = !showTemplateCommand.value;
-};
-
-const commandViewToggleLabel = computed(() => {
-  if (!hasDistinctTemplate.value) return "";
-  return showTemplateCommand.value
-    ? (t("taskDetail.commandToggle.showFull") as string)
-    : (t("taskDetail.commandToggle.showTemplate") as string);
-});
-
-const highlightedCommand = computed(() =>
-  highlightFfmpegCommand(effectiveCommand.value, {
-    programOverrides: {
-      // Only expand to the concrete ffmpeg path in the "full command" view;
-      // the template view should keep the normalized `ffmpeg` token.
-      ffmpeg: showTemplateCommand.value ? null : props.ffmpegResolvedPath ?? null,
-    },
-  }),
-);
 
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);

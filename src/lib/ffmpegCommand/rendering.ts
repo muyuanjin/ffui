@@ -38,11 +38,14 @@ const wrapWithSameQuotes = (original: string, replacement: string): string => {
 const commandTokenClass = (kind: CommandTokenKind): string => {
   switch (kind) {
     case "program":
-      return "text-emerald-400 font-semibold";
+      // Program + path tokens can be extremely long (absolute paths). Keep the
+      // underlying text intact for copy/select, but visually truncate and rely
+      // on the title tooltip to reveal the full value.
+      return "text-emerald-400 font-semibold inline-block max-w-[min(60vw,260px)] overflow-hidden text-ellipsis whitespace-nowrap align-bottom cursor-help";
     case "option":
       return "text-blue-400";
     case "path":
-      return "text-amber-400";
+      return "text-amber-400 inline-block max-w-[min(60vw,360px)] overflow-hidden text-ellipsis whitespace-nowrap align-bottom cursor-help";
     case "encoder":
       return "text-purple-300";
     case "placeholder":
@@ -50,6 +53,10 @@ const commandTokenClass = (kind: CommandTokenKind): string => {
     default:
       return "";
   }
+};
+
+const looksLikePath = (value: string) => {
+  return value.includes("/") || value.includes("\\") || value.includes(":");
 };
 
 /**
@@ -160,7 +167,11 @@ export const highlightFfmpegCommand = (
       const text = programOverride ?? token.text;
       const escaped = escapeHtml(text);
       if (!cls) return escaped;
-      const title = commandTokenTitle(token.kind, token.text);
+      const unquoted = stripQuotes(text);
+      let title = commandTokenTitle(token.kind, text);
+      if ((token.kind === "program" || token.kind === "path") && looksLikePath(unquoted)) {
+        title = title ? `${title}\n${unquoted}` : unquoted;
+      }
       const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
       const groupAttr = token.group ? ` data-group="${escapeHtml(token.group)}"` : "";
       const fieldAttr = token.field ? ` data-field="${escapeHtml(token.field)}"` : "";

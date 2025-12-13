@@ -2,6 +2,10 @@ use crate::ffui_core::{
     JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope, TranscodeJob,
 };
 
+mod lite;
+
+pub use lite::update_taskbar_progress_lite;
+
 fn is_terminal(status: &JobStatus) -> bool {
     matches!(
         status,
@@ -119,109 +123,13 @@ pub fn compute_taskbar_progress(
 
 /// Returns true when all jobs in the queue are in a terminal state
 /// (completed/failed/skipped/cancelled) and the queue is non-empty.
+#[cfg(test)]
 fn is_terminal_only_queue(state: &QueueState) -> bool {
     if state.jobs.is_empty() {
         return false;
     }
 
     state.jobs.iter().all(|job| is_terminal(&job.status))
-}
-
-/// Update the Windows taskbar progress bar for the main window. On non-Windows
-/// platforms this is a no-op so the rest of the app remains portable.
-#[cfg(windows)]
-pub fn update_taskbar_progress(
-    app: &tauri::AppHandle,
-    state: &QueueState,
-    mode: TaskbarProgressMode,
-    scope: TaskbarProgressScope,
-) {
-    use tauri::window::{ProgressBarState, ProgressBarStatus};
-    use tauri::{Manager, UserAttentionType};
-
-    if let Some(window) = app.get_webview_window("main") {
-        let completed_queue = is_terminal_only_queue(state);
-
-        match compute_taskbar_progress(state, mode, scope) {
-            Some(progress) => {
-                let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
-
-                // 队列全部进入终态且聚合进度为 100% 时，我们需要一个“完成提醒”而不是
-                // “卡住的绿色进度条”。如果此时窗口不在前台：使用黄色暂停条 + 闪烁；
-                // 如果此时用户本来就在窗口内：直接清除进度，不再强制用户切出/再切回来。
-                let is_completed_bar = completed_queue && (progress - 1.0).abs() < f64::EPSILON;
-
-                if is_completed_bar {
-                    let is_focused = window.is_focused().unwrap_or(false);
-
-                    if is_focused {
-                        // 用户已经在应用里，直接清空任务栏进度，不再额外打扰。
-                        let state = ProgressBarState {
-                            status: Some(ProgressBarStatus::None),
-                            progress: None,
-                        };
-                        if let Err(err) = window.set_progress_bar(state) {
-                            eprintln!(
-                                "failed to clear Windows taskbar progress for focused window: {err}"
-                            );
-                        }
-                    } else {
-                        // 应用在后台：显示黄色暂停条并请求用户注意，让任务栏图标闪烁。
-                        let state = ProgressBarState {
-                            status: Some(ProgressBarStatus::Paused),
-                            progress: Some(pct),
-                        };
-                        if let Err(err) = window.set_progress_bar(state) {
-                            eprintln!(
-                                "failed to set paused Windows taskbar progress for completed queue: {err}"
-                            );
-                        }
-
-                        if let Err(err) =
-                            window.request_user_attention(Some(UserAttentionType::Critical))
-                        {
-                            eprintln!(
-                                "failed to request user attention for taskbar completion: {err}"
-                            );
-                        }
-                    }
-                } else {
-                    // 正在进行中的情况保持绿色 Normal 进度条。
-                    let state = ProgressBarState {
-                        status: Some(ProgressBarStatus::Normal),
-                        progress: Some(pct),
-                    };
-                    if let Err(err) = window.set_progress_bar(state) {
-                        eprintln!("failed to set Windows taskbar progress: {err}");
-                    }
-                }
-            }
-            None => {
-                // Clear the taskbar progress indicator.
-                let state = ProgressBarState {
-                    // Use the dedicated "None" status so the underlying
-                    // runtime maps this to TBPF_NOPROGRESS on Windows and
-                    // actually hides the overlay instead of just leaving the
-                    // last value in place.
-                    status: Some(ProgressBarStatus::None),
-                    progress: None,
-                };
-                if let Err(err) = window.set_progress_bar(state) {
-                    eprintln!("failed to clear Windows taskbar progress: {err}");
-                }
-            }
-        }
-    }
-}
-
-#[cfg(not(windows))]
-pub fn update_taskbar_progress(
-    _app: &tauri::AppHandle,
-    _state: &QueueState,
-    _mode: TaskbarProgressMode,
-    _scope: TaskbarProgressScope,
-) {
-    // No-op on non-Windows platforms.
 }
 
 /// Clear the Windows taskbar progress bar if the aggregated queue progress

@@ -41,6 +41,10 @@ fn smart_scan_video_enqueue_keeps_batch_children_consecutive_even_when_manual_in
         batch_id,
         false,
     );
+    assert!(
+        job1.ffmpeg_command.as_deref().unwrap_or_default().contains("ffmpeg"),
+        "Smart Scan queued job should carry a planned ffmpeg command before processing"
+    );
 
     let manual_job = engine.enqueue_transcode_job(
         manual_input.to_string_lossy().into_owned(),
@@ -59,6 +63,10 @@ fn smart_scan_video_enqueue_keeps_batch_children_consecutive_even_when_manual_in
         &preset,
         batch_id,
         false,
+    );
+    assert!(
+        job2.ffmpeg_command.as_deref().unwrap_or_default().contains("libx264"),
+        "Smart Scan queued job planned command should reflect the selected preset"
     );
 
     let state = engine.inner.state.lock().expect("engine state poisoned");

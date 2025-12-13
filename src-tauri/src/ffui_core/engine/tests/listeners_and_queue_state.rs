@@ -203,6 +203,36 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
 }
 
 #[test]
+fn enqueue_sets_planned_ffmpeg_command_before_processing_starts() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/planned-command.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    let detail = engine
+        .job_detail(&job.id)
+        .expect("enqueued job should exist");
+    let cmd = detail
+        .ffmpeg_command
+        .as_deref()
+        .unwrap_or_default()
+        .to_string();
+
+    assert!(!cmd.is_empty(), "planned ffmpeg_command should be set on enqueue");
+    assert!(cmd.contains("ffmpeg"), "planned command should include ffmpeg program token");
+    assert!(
+        cmd.contains(".compressed."),
+        "planned command should reference the final compressed output path"
+    );
+}
+
+#[test]
 fn queue_state_lite_uses_dedicated_builder_without_full_snapshot() {
     reset_snapshot_queue_state_calls();
     let engine = make_engine_with_preset();
@@ -224,4 +254,38 @@ fn queue_state_lite_uses_dedicated_builder_without_full_snapshot() {
         before_calls,
         "queue_state_lite should not invoke the full snapshot path"
     );
+}
+
+#[test]
+fn queue_lite_listener_does_not_require_full_snapshot_builder() {
+    reset_snapshot_queue_state_calls();
+    let engine = make_engine_with_preset();
+
+    let snapshots: TestArc<TestMutex<Vec<QueueStateLite>>> = TestArc::new(TestMutex::new(Vec::new()));
+    let snapshots_clone = TestArc::clone(&snapshots);
+
+    engine.register_queue_lite_listener(move |state: QueueStateLite| {
+        snapshots_clone
+            .lock()
+            .expect("lite snapshots lock poisoned")
+            .push(state);
+    });
+
+    engine.enqueue_transcode_job(
+        "C:/videos/lite-listener.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    assert_eq!(
+        snapshot_queue_state_calls(),
+        0,
+        "lite listener hot path should not build full queue snapshots"
+    );
+
+    let states = snapshots.lock().expect("lite snapshots lock poisoned");
+    assert!(!states.is_empty(), "lite listener should receive updates");
 }

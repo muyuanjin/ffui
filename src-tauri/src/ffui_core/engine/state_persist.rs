@@ -1,15 +1,60 @@
 use std::fs;
-use std::io::BufReader;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 #[cfg(test)]
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(test)]
 use crate::ffui_core::domain::TranscodeJob;
-use crate::ffui_core::domain::{JobStatus, QueueState};
+use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite};
+
+#[cfg(test)]
+static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
+
+#[cfg(test)]
+struct QueueStateSidecarPathGuard;
+
+#[cfg(test)]
+impl Drop for QueueStateSidecarPathGuard {
+    fn drop(&mut self) {
+        let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
+            .lock()
+            .expect("queue state sidecar override lock poisoned");
+        *override_path = None;
+    }
+}
+
+#[cfg(test)]
+fn override_queue_state_sidecar_path_for_tests(path: PathBuf) -> QueueStateSidecarPathGuard {
+    let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
+        .lock()
+        .expect("queue state sidecar override lock poisoned");
+    *override_path = Some(path);
+    QueueStateSidecarPathGuard
+}
 
 /// Path to the sidecar JSON file used for crash-recovery queue snapshots.
 fn queue_state_sidecar_path() -> Option<PathBuf> {
+    #[cfg(test)]
+    {
+        let override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
+            .lock()
+            .expect("queue state sidecar override lock poisoned");
+        if let Some(path) = override_path.as_ref() {
+            return Some(path.clone());
+        }
+    }
+
+    if let Ok(raw) = std::env::var("FFUI_QUEUE_STATE_SIDECAR_PATH") {
+        let normalized = raw.trim();
+        if !normalized.is_empty() {
+            return Some(PathBuf::from(normalized));
+        }
+    }
+
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
     let stem = exe.file_stem()?.to_str()?;
@@ -22,33 +67,38 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
         return None;
     }
 
-    let file = match fs::File::open(&path) {
-        Ok(f) => f,
+    let data = match fs::read(&path) {
+        Ok(data) => data,
         Err(err) => {
             eprintln!(
-                "failed to open persisted queue state {}: {err:#}",
+                "failed to read persisted queue state {}: {err:#}",
                 path.display()
             );
             return None;
         }
     };
-    let reader = BufReader::new(file);
-    match serde_json::from_reader::<_, QueueState>(reader) {
-        Ok(state) => Some(state),
-        Err(err) => {
-            eprintln!(
-                "failed to parse persisted queue state from {}: {err:#}",
-                path.display()
-            );
-            None
-        }
+
+    // Backward-compatibility: older versions persisted the full QueueState
+    // including logs. Newer versions may persist QueueStateLite to avoid
+    // heavy log cloning on hot paths.
+    if let Ok(full) = serde_json::from_slice::<QueueState>(&data) {
+        return Some(full);
     }
+    if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(&data) {
+        return Some(QueueState::from(lite));
+    }
+
+    eprintln!(
+        "failed to parse persisted queue state from {}: unable to decode as full or lite schema",
+        path.display()
+    );
+    None
 }
 
 /// Actual on-disk writer for queue state snapshots. This performs a single
 /// compact JSON write without any debouncing semantics; callers should go
-/// through `persist_queue_state` instead.
-fn persist_queue_state_inner(snapshot: &QueueState) {
+/// through `persist_queue_state_lite` instead.
+fn persist_queue_state_inner(snapshot: &QueueStateLite) {
     let path = match queue_state_sidecar_path() {
         Some(p) => p,
         None => return,
@@ -91,12 +141,22 @@ fn persist_queue_state_inner(snapshot: &QueueState) {
             );
         }
     }
+
+    #[cfg(test)]
+    QUEUE_PERSIST_WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
 }
 
 /// Debounce window for queue persistence writes. This reduces disk I/O on
 /// hot paths (high-frequency progress updates) while still ensuring the first
 /// snapshot is written promptly.
-const QUEUE_PERSIST_DEBOUNCE_MS: u64 = 250;
+const QUEUE_PERSIST_DEBOUNCE_MS: u64 = if cfg!(test) { 40 } else { 250 };
+
+#[cfg(test)]
+static QUEUE_PERSIST_WRITE_COUNT: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(test)]
+static PERSIST_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
+    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 
 /// In-memory state used to coalesce queue persistence writes across rapid
 /// snapshots.
@@ -104,16 +164,34 @@ struct QueuePersistState {
     last_write_at: Option<Instant>,
     // Most recent snapshot observed since the last write. When the debounce
     // window elapses, this is the snapshot that will be persisted.
-    last_snapshot: Option<QueueState>,
+    last_snapshot: Option<QueueStateLite>,
+    dirty_since_write: bool,
+    next_flush_at: Option<Instant>,
+    worker_started: bool,
 }
 
-static QUEUE_PERSIST_STATE: once_cell::sync::Lazy<Mutex<QueuePersistState>> =
-    once_cell::sync::Lazy::new(|| {
-        Mutex::new(QueuePersistState {
-            last_write_at: None,
-            last_snapshot: None,
-        })
-    });
+struct QueuePersistCoordinator {
+    state: Mutex<QueuePersistState>,
+    cv: Condvar,
+}
+
+impl QueuePersistCoordinator {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(QueuePersistState {
+                last_write_at: None,
+                last_snapshot: None,
+                dirty_since_write: false,
+                next_flush_at: None,
+                worker_started: false,
+            }),
+            cv: Condvar::new(),
+        }
+    }
+}
+
+static QUEUE_PERSIST: once_cell::sync::Lazy<QueuePersistCoordinator> =
+    once_cell::sync::Lazy::new(QueuePersistCoordinator::new);
 
 fn is_terminal_status(status: &JobStatus) -> bool {
     matches!(
@@ -126,7 +204,7 @@ fn is_terminal_status(status: &JobStatus) -> bool {
 /// compared to the previous snapshot. This lets the debounced writer flush
 /// immediately when a job finishes so crash-recovery does not resurrect
 /// outdated paused/processing states on the next launch.
-fn has_newly_terminal_jobs(prev: Option<&QueueState>, current: &QueueState) -> bool {
+fn has_newly_terminal_jobs(prev: Option<&QueueStateLite>, current: &QueueStateLite) -> bool {
     use std::collections::HashMap;
 
     let mut prev_by_id: HashMap<&str, &JobStatus> = HashMap::new();
@@ -154,29 +232,84 @@ fn has_newly_terminal_jobs(prev: Option<&QueueState>, current: &QueueState) -> b
     false
 }
 
+fn ensure_worker_thread_started() {
+    let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
+    if state.worker_started {
+        return;
+    }
+    state.worker_started = true;
+    drop(state);
+
+    std::thread::Builder::new()
+        .name("ffui-queue-persist".to_string())
+        .spawn(|| loop {
+            let maybe_snapshot = {
+                let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
+                loop {
+                    let deadline = match state.next_flush_at {
+                        Some(deadline) => deadline,
+                        None => {
+                            state = QUEUE_PERSIST
+                                .cv
+                                .wait(state)
+                                .expect("queue persist condvar poisoned");
+                            continue;
+                        }
+                    };
+
+                    let now = Instant::now();
+                    if now >= deadline {
+                        break;
+                    }
+
+                    let timeout = deadline.saturating_duration_since(now);
+                    let (next, _) = QUEUE_PERSIST
+                        .cv
+                        .wait_timeout(state, timeout)
+                        .expect("queue persist condvar poisoned");
+                    state = next;
+                }
+
+                if !state.dirty_since_write {
+                    state.next_flush_at = None;
+                    None
+                } else {
+                    let snapshot = state.last_snapshot.clone();
+                    state.last_write_at = Some(Instant::now());
+                    state.dirty_since_write = false;
+                    state.next_flush_at = None;
+                    snapshot
+                }
+            };
+
+            if let Some(snapshot) = maybe_snapshot {
+                persist_queue_state_inner(&snapshot);
+            }
+        })
+        .expect("failed to spawn queue persistence thread");
+}
+
 /// Persist the given snapshot to disk using a debounced writer. The first
 /// snapshot is written immediately; subsequent snapshots within the debounce
 /// window are coalesced so that at most one write occurs per window while
-/// still keeping a recent snapshot durable.
-pub(super) fn persist_queue_state(snapshot: &QueueState) {
-    let mut state = QUEUE_PERSIST_STATE
-        .lock()
-        .expect("queue persist state lock poisoned");
+/// still keeping the latest snapshot durable.
+pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
+    ensure_worker_thread_started();
 
+    let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
     let now = Instant::now();
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);
     state.last_snapshot = Some(snapshot.clone());
+    state.dirty_since_write = true;
 
     match state.last_write_at {
         None => {
             // First snapshot: write immediately so there is always at least
             // one queue state persisted early in the session.
             state.last_write_at = Some(now);
-            let to_write = state
-                .last_snapshot
-                .as_ref()
-                .cloned()
-                .unwrap_or_else(|| snapshot.clone());
+            state.dirty_since_write = false;
+            state.next_flush_at = None;
+            let to_write = state.last_snapshot.as_ref().cloned().unwrap_or_else(|| snapshot.clone());
             drop(state);
             persist_queue_state_inner(&to_write);
         }
@@ -184,101 +317,26 @@ pub(super) fn persist_queue_state(snapshot: &QueueState) {
             let debounce = Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS);
             if has_newly_terminal || now.duration_since(last) >= debounce {
                 state.last_write_at = Some(now);
-                let to_write = state
-                    .last_snapshot
-                    .as_ref()
-                    .cloned()
-                    .unwrap_or_else(|| snapshot.clone());
+                state.dirty_since_write = false;
+                state.next_flush_at = None;
+                let to_write = state.last_snapshot.as_ref().cloned().unwrap_or_else(|| snapshot.clone());
                 drop(state);
                 persist_queue_state_inner(&to_write);
+                QUEUE_PERSIST.cv.notify_all();
+                return;
             }
-            // If still within the debounce window, we keep last_snapshot
-            // updated but avoid an immediate write; the next call after the
-            // window elapses will flush the latest snapshot.
+            // Still within the debounce window: schedule a background flush
+            // so the latest snapshot is persisted even if no more updates
+            // arrive after the burst ends.
+            let flush_at = last + debounce;
+            state.next_flush_at = match state.next_flush_at {
+                Some(existing) => Some(existing.min(flush_at)),
+                None => Some(flush_at),
+            };
+            QUEUE_PERSIST.cv.notify_all();
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ffui_core::domain::{JobSource, JobType};
-
-    fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
-        TranscodeJob {
-            id: id.to_string(),
-            filename: "C:/videos/test.mp4".to_string(),
-            job_type: JobType::Video,
-            source: JobSource::Manual,
-            queue_order: None,
-            original_size_mb: 10.0,
-            original_codec: None,
-            preset_id: "preset-1".to_string(),
-            status,
-            progress: 0.0,
-            start_time: None,
-            end_time: None,
-            processing_started_ms: None,
-            elapsed_ms: None,
-            output_size_mb: None,
-            logs: Vec::new(),
-            skip_reason: None,
-            input_path: None,
-            output_path: None,
-            ffmpeg_command: None,
-            media_info: None,
-            estimated_seconds: None,
-            preview_path: None,
-            log_tail: None,
-            failure_reason: None,
-            batch_id: None,
-            wait_metadata: None,
-        }
-    }
-
-    fn make_state(jobs: Vec<TranscodeJob>) -> QueueState {
-        QueueState { jobs }
-    }
-
-    #[test]
-    fn detects_newly_terminal_jobs_when_status_transitions_to_completed() {
-        let prev = make_state(vec![make_job("job-1", JobStatus::Processing)]);
-        let current = make_state(vec![make_job("job-1", JobStatus::Completed)]);
-
-        assert!(
-            has_newly_terminal_jobs(Some(&prev), &current),
-            "transition from Processing to Completed should be treated as newly terminal",
-        );
-    }
-
-    #[test]
-    fn ignores_jobs_that_were_already_terminal() {
-        let prev = make_state(vec![make_job("job-1", JobStatus::Completed)]);
-        let current = make_state(vec![make_job("job-1", JobStatus::Completed)]);
-
-        assert!(
-            !has_newly_terminal_jobs(Some(&prev), &current),
-            "terminal -> terminal transitions should not be treated as newly terminal",
-        );
-    }
-
-    #[test]
-    fn treats_terminal_jobs_as_new_when_no_previous_snapshot_exists() {
-        let current = make_state(vec![make_job("job-1", JobStatus::Completed)]);
-        assert!(
-            has_newly_terminal_jobs(None, &current),
-            "a terminal job in the first snapshot should be considered newly terminal",
-        );
-    }
-
-    #[test]
-    fn ignores_purely_non_terminal_changes() {
-        let prev = make_state(vec![make_job("job-1", JobStatus::Processing)]);
-        let current = make_state(vec![make_job("job-1", JobStatus::Processing)]);
-
-        assert!(
-            !has_newly_terminal_jobs(Some(&prev), &current),
-            "no change in non-terminal status should not trigger newly-terminal detection",
-        );
-    }
-}
+mod tests;

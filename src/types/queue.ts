@@ -112,11 +112,24 @@ export interface TranscodeJob {
   waitMetadata?: WaitMetadata;
 }
 
+/**
+ * Lightweight job snapshot used by `QueueStateLite`.
+ *
+ * The backend intentionally omits heavyweight fields (full logs, log tails) on
+ * the hot path to keep startup and high-frequency queue updates cheap.
+ */
+export type TranscodeJobLite = Omit<TranscodeJob, "logs" | "logTail">;
+
 export interface QueueState {
   jobs: TranscodeJob[];
 }
 
-// Lightweight queue snapshot shape used by startup and high-frequency
-// updates. It intentionally omits heavy fields (such as full logs) on the
-// backend side while keeping the TS surface compatible with QueueState.
-export type QueueStateLite = QueueState;
+/**
+ * Lightweight queue snapshot shape used by startup and high-frequency updates.
+ *
+ * Note: `QueueStateLite` intentionally does NOT include per-job `logs` so UI
+ * code does not accidentally treat lite events as a source of full log history.
+ */
+export interface QueueStateLite {
+  jobs: TranscodeJobLite[];
+}

@@ -398,7 +398,7 @@ describe("MainApp task detail surface - basics", () => {
 
     // Record baseline counts before mounting this MainApp instance to avoid
     // interference from other tests sharing the same jsdom document.
-    const baselineEnButtons = getButtonsWithText("Show full command").length;
+    const baselineEnButtons = getButtonsWithText("Show template view").length;
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
     const vm: any = wrapper.vm;
@@ -408,15 +408,15 @@ describe("MainApp task detail surface - basics", () => {
     await nextTick();
 
     // EN label should increase by at least one for this instance.
-    let enButtons = getButtonsWithText("Show full command");
+    let enButtons = getButtonsWithText("Show template view");
     expect(enButtons.length).toBeGreaterThanOrEqual(baselineEnButtons + 1);
 
     // Switch locale to zh-CN and ensure label updates (no EN labels should remain).
     (i18n.global.locale as any).value = "zh-CN";
     await nextTick();
 
-    const zhButtons = getButtonsWithText("显示完整命令");
-    enButtons = getButtonsWithText("Show full command");
+    const zhButtons = getButtonsWithText("显示模板视图");
+    enButtons = getButtonsWithText("Show template view");
 
     expect(zhButtons.length).toBeGreaterThanOrEqual(1);
     expect(enButtons.length).toBe(0);

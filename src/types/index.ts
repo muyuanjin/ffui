@@ -33,6 +33,7 @@ export type {
   MediaInfo,
   WaitMetadata,
   TranscodeJob,
+  TranscodeJobLite,
   QueueState,
   // Lightweight queue snapshot shape used for startup and high-frequency updates.
   // Kept as a separate alias so existing imports remain valid while sharing the

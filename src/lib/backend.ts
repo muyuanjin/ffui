@@ -49,7 +49,11 @@ export const runAutoCompress = async (
   rootPath: string,
   config: SmartScanConfig,
 ): Promise<AutoCompressResult> => {
-  return invoke<AutoCompressResult>("run_auto_compress", { rootPath, config });
+  return invoke<AutoCompressResult>("run_auto_compress", {
+    rootPath,
+    root_path: rootPath,
+    config,
+  });
 };
 
 export const fetchCpuUsage = async (): Promise<CpuUsageSnapshot> => {
@@ -149,7 +153,7 @@ export const savePresetOnBackend = async (
 export const deletePresetOnBackend = async (
   presetId: string,
 ): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("delete_preset", { presetId });
+  return invoke<FFmpegPreset[]>("delete_preset", { presetId, preset_id: presetId });
 };
 
 export const reorderPresetsOnBackend = async (

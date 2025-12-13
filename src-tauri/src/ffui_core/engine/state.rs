@@ -11,11 +11,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Condvar, Mutex};
 
-use super::state_persist::{load_persisted_queue_state, persist_queue_state};
+use super::state_persist::{load_persisted_queue_state, persist_queue_state_lite};
 
 const SMART_SCAN_PROGRESS_EVERY: u64 = 32;
 
 pub(super) type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
+pub(super) type QueueLiteListener = Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;
 pub(super) type SmartScanProgressListener =
     Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
 
@@ -96,6 +97,7 @@ pub(crate) struct Inner {
     pub(crate) cv: Condvar,
     pub(crate) next_job_id: AtomicU64,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
+    pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
     pub(crate) smart_scan_listeners: Mutex<Vec<SmartScanProgressListener>>,
 }
 
@@ -106,6 +108,7 @@ impl Inner {
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
             queue_listeners: Mutex::new(Vec::new()),
+            queue_lite_listeners: Mutex::new(Vec::new()),
             smart_scan_listeners: Mutex::new(Vec::new()),
         }
     }
@@ -126,13 +129,8 @@ pub(super) fn snapshot_queue_state_calls() -> usize {
     SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.get())
 }
 
-pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
+fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
     use std::collections::HashMap;
-
-    #[cfg(test)]
-    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(c.get() + 1));
-
-    let state = inner.state.lock().expect("engine state poisoned");
 
     // Build a stable mapping from job id -> queue index so snapshots can
     // surface a `queueOrder` field for waiting jobs without mutating the
@@ -152,10 +150,16 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
     QueueState { jobs }
 }
 
-pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
-    use std::collections::HashMap;
+pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
+    #[cfg(test)]
+    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(c.get() + 1));
 
     let state = inner.state.lock().expect("engine state poisoned");
+    snapshot_queue_state_from_locked_state(&state)
+}
+
+fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStateLite {
+    use std::collections::HashMap;
 
     let mut order_by_id: HashMap<String, u64> = HashMap::new();
     for (index, id) in state.queue.iter().enumerate() {
@@ -172,20 +176,47 @@ pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
     QueueStateLite { jobs }
 }
 
+pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
+    let state = inner.state.lock().expect("engine state poisoned");
+    snapshot_queue_state_lite_from_locked_state(&state)
+}
+
 pub(super) fn notify_queue_listeners(inner: &Inner) {
-    let snapshot = snapshot_queue_state(inner);
-    {
-        let state = inner.state.lock().expect("engine state poisoned");
-        if state.settings.queue_persistence_mode == QueuePersistenceMode::CrashRecovery {
-            persist_queue_state(&snapshot);
-        }
-    }
-    let listeners = inner
+    let full_listeners = inner
         .queue_listeners
         .lock()
-        .expect("queue listeners lock poisoned");
-    for listener in listeners.iter() {
-        listener(snapshot.clone());
+        .expect("queue listeners lock poisoned")
+        .clone();
+    let lite_listeners = inner
+        .queue_lite_listeners
+        .lock()
+        .expect("queue lite listeners lock poisoned")
+        .clone();
+
+    let (lite_snapshot, full_snapshot, persistence_mode) = {
+        let state = inner.state.lock().expect("engine state poisoned");
+        let lite = snapshot_queue_state_lite_from_locked_state(&state);
+        let full = if full_listeners.is_empty() {
+            None
+        } else {
+            #[cfg(test)]
+            SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(c.get() + 1));
+            Some(snapshot_queue_state_from_locked_state(&state))
+        };
+        (lite, full, state.settings.queue_persistence_mode)
+    };
+
+    if persistence_mode == QueuePersistenceMode::CrashRecovery {
+        persist_queue_state_lite(&lite_snapshot);
+    }
+
+    for listener in lite_listeners.iter() {
+        listener(lite_snapshot.clone());
+    }
+    if let Some(full_snapshot) = full_snapshot {
+        for listener in full_listeners.iter() {
+            listener(full_snapshot.clone());
+        }
     }
 }
 

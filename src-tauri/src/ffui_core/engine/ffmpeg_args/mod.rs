@@ -5,7 +5,6 @@ mod job_object;
 mod platform;
 mod progress;
 
-pub(super) use builder::{build_ffmpeg_args, format_command_for_log};
 pub(super) use container::{infer_output_extension, normalize_container_format};
 #[cfg(test)]
 pub(super) use detect::parse_ffprobe_frame_rate;
@@ -20,3 +19,7 @@ pub(super) use progress::{
     compute_progress_percent, is_ffmpeg_progress_end, parse_ffmpeg_duration_from_metadata_line,
     parse_ffmpeg_progress_line,
 };
+
+// Internal helpers that are safe and useful across engine sub-modules (enqueue,
+// Smart Scan queueing, etc).
+pub(crate) use builder::{build_ffmpeg_args, format_command_for_log};
