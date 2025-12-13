@@ -2,6 +2,16 @@
 
 > For the Chinese version, see [中文说明](#项目简介).
 
+<div align="center">
+  <a href="https://github.com/muyuanjin/ffui/releases"><img src="https://img.shields.io/github/v/release/muyuanjin/ffui?display_name=tag&sort=semver" alt="GitHub release" /></a>
+  <a href="https://github.com/muyuanjin/ffui/releases"><img src="https://img.shields.io/github/downloads/muyuanjin/ffui/total" alt="Downloads" /></a>
+  <a href="https://github.com/muyuanjin/ffui/actions/workflows/release.yml"><img src="https://github.com/muyuanjin/ffui/actions/workflows/release.yml/badge.svg" alt="Release workflow" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/muyuanjin/ffui" alt="License" /></a>
+</div>
+
+<div align="center">
+  <a href="https://github.com/muyuanjin/ffui/releases"><img src="https://img.shields.io/badge/Download-GitHub%20Releases-2ea44f?style=for-the-badge" alt="Download" /></a>
+</div>
 
 ## Overview
 
