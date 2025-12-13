@@ -103,12 +103,12 @@ jobs:
             exit 1
           fi
 
-          if ! grep -qE '^##[[:space:]]+English\\b' "$file"; then
+          if ! grep -qE '^##[[:space:]]+English([[:space:]]|$)' "$file"; then
             echo "Release notes must include a '## English' section: $file" >&2
             exit 1
           fi
 
-          if ! grep -qE '^##[[:space:]]+中文\\b' "$file"; then
+          if ! grep -qE '^##[[:space:]]+中文([[:space:]]|$)' "$file"; then
             echo "Release notes must include a '## 中文' section: $file" >&2
             exit 1
           fi
