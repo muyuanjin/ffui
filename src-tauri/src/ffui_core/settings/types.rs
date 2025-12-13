@@ -123,6 +123,14 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
+fn default_true() -> bool {
+    true
+}
+
 /// Queue persistence mode for crash-recovery. This controls whether the
 /// engine writes queue-state snapshots to disk and attempts to restore them
 /// on startup.
@@ -180,6 +188,21 @@ pub struct MonitorSettings {
     pub transcode_activity_days: Option<Vec<TranscodeActivityDay>>,
 }
 
+/// Persisted updater preferences and cached metadata.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AppUpdaterSettings {
+    /// When true (default), check for updates on startup (TTL-based).
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub auto_check: bool,
+    /// Unix epoch timestamp in milliseconds when the last update check completed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_checked_at_ms: Option<u64>,
+    /// Latest known available version when the last check found an update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub available_version: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -188,6 +211,9 @@ pub struct AppSettings {
     /// Optional Monitor-only persisted state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monitor: Option<MonitorSettings>,
+    /// Optional app updater settings and cached metadata.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updater: Option<AppUpdaterSettings>,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
     /// When true, enable developer-focused features such as opening the
@@ -291,6 +317,7 @@ impl Default for AppSettings {
                 },
             },
             monitor: None,
+            updater: None,
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,

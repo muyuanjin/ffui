@@ -53,6 +53,10 @@ const app = {
     autoDownloadSectionTitle: "Auto-download & global behaviour",
     autoDownloadSectionDescription:
       "Choose how the app manages external tools, and configure preview capture and queue limits.",
+    autoDownloadTitle: "Auto-download",
+    autoDownloadDescription: "Choose how the app manages external tools.",
+    globalParamsTitle: "Global parameters",
+    globalParamsDescription: "Configure queue persistence, preview capture, and performance intervals.",
     downloadStrategyLabel: "Management mode",
     toolModeAutoManagedLabel: "Full auto-manage",
     toolModeInstallOnlyLabel: "Install when missing",
@@ -92,11 +96,28 @@ const app = {
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
+    appUpdateTitle: "App updates",
+    appUpdateDescription:
+      "Check for new FFUI versions on GitHub Releases and install updates (desktop builds only).",
+    appUpdateUnavailableHint: "In-app updates are available only in the desktop app.",
+    appUpdateNotConfiguredHint:
+      "In-app updates are disabled for this build (missing updater public key).",
+    checkForUpdatesButton: "Check updates",
+    installUpdateButton: "Install",
+    autoCheckUpdatesLabel: "Auto-check on startup",
+    lastCheckedAtLabel: "Last checked:",
+    downloadProgressLabel: "Download:",
+    appUpdateCheckingHint: "Checking for updates…",
+    appUpdateInstallingHint: "Installing update…",
+    appUpdateAvailableHint: "Update available: {version} (current: {current})",
+    appUpToDateHint: "Up to date",
+    appUpdateErrorHint: "Update check failed: {error}",
     devtoolsSectionTitle: "Developer tools",
     devtoolsSectionDescription:
       "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
     devtoolsWindowHint:
       "Open Devtools.",
+    systemInfoTitle: "System info",
     loadingSettings: "Loading application settings from backend…",
   },
   emptyQueue: {

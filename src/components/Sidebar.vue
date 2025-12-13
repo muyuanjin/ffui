@@ -8,6 +8,8 @@ const { activeTab, jobs } = defineProps<{
   activeTab: "queue" | "presets" | "media" | "monitor" | "settings";
   /** List of all jobs (for processing indicator) */
   jobs: TranscodeJob[];
+  /** Whether an app update is currently available. */
+  appUpdateAvailable?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -91,7 +93,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
       </Button>
       <Button
         variant="ghost"
-        class="w-full justify-start px-4 h-11 rounded-lg text-sm font-medium"
+        class="w-full justify-between px-4 h-11 rounded-lg text-sm font-medium"
         :class="
           activeTab === 'settings'
             ? 'bg-sidebar-accent text-sidebar-foreground'
@@ -100,6 +102,12 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         @click="setActiveTab('settings')"
       >
         <span>{{ t("app.tabs.settings") }}</span>
+        <span
+          v-if="appUpdateAvailable"
+          class="ml-auto w-2 h-2 rounded-full bg-sky-400 animate-pulse"
+          aria-label="Update available"
+          title="Update available"
+        />
       </Button>
     </nav>
 

@@ -16,6 +16,8 @@ const props = defineProps<{
   toolStatuses: ExternalToolStatus[];
   /** Whether tool statuses have been refreshed at least once this session. */
   toolStatusesFresh?: boolean;
+  /** Extra bottom padding (px) to help balance SettingsPanel column heights on wide layouts. */
+  extraPadBottomPx?: number;
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   refreshToolStatuses?: (options?: {
     remoteCheck?: boolean;
@@ -39,6 +41,13 @@ const isAutoManaged = computed(() => {
 });
 
 const toolStatusesFresh = computed(() => props.toolStatusesFresh ?? true);
+const extraPadBottomStyle = computed(() => {
+  const px = props.extraPadBottomPx ?? 0;
+  if (px <= 0) return undefined;
+  return {
+    paddingBottom: `calc(0.5rem + ${px}px)`,
+  } as const;
+});
 
 const scheduleAutoRefresh = () => {
   if (refreshTimer !== undefined) {
@@ -228,7 +237,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
         {{ t("app.settings.externalToolsTitle") }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="p-2 space-y-1">
+    <CardContent class="p-2 space-y-1" :style="extraPadBottomStyle">
       <div
         v-for="tool in toolStatuses"
         :key="tool.kind"

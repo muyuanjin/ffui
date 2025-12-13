@@ -28,10 +28,10 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
 </script>
 
 <template>
-  <div class="flex items-start gap-2">
-    <label class="text-[10px] text-muted-foreground leading-snug">
+  <div class="py-1 space-y-1">
+    <p class="text-[9px] text-muted-foreground uppercase tracking-wider">
       {{ t("app.settings.queuePersistenceLabel") }}
-    </label>
+    </p>
     <div class="flex flex-col gap-1">
       <label class="flex items-center gap-1">
         <input
@@ -119,4 +119,3 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
     </div>
   </div>
 </template>
-

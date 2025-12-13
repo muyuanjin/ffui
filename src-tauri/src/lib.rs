@@ -61,6 +61,7 @@ pub fn run() {
         .manage(metrics_state.clone())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             commands::queue::get_queue_state,
             commands::queue::get_queue_state_lite,
@@ -83,6 +84,7 @@ pub fn run() {
             commands::settings::get_smart_scan_defaults,
             commands::settings::save_smart_scan_defaults,
             commands::settings::run_auto_compress,
+            commands::updater::get_app_updater_capabilities,
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,
             commands::tools::get_external_tool_statuses,
@@ -105,6 +107,18 @@ pub fn run() {
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
         // ensure the main window becomes visible after a short timeout so the app is not "dead".
         .setup(move |app| {
+            #[cfg(desktop)]
+            {
+                if commands::updater::updater_is_configured(app.config()) {
+                    app.handle()
+                        .plugin(tauri_plugin_updater::Builder::new().build())?;
+                } else {
+                    eprintln!(
+                        "tauri-plugin-updater disabled: missing/placeholder updater pubkey or endpoints"
+                    );
+                }
+            }
+
             if let Some(server) = focus_server.take() {
                 server.spawn(app.handle().clone());
             }

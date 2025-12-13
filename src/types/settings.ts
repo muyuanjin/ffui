@@ -14,6 +14,15 @@ export interface CrashRecoveryLogRetention {
   maxTotalMb?: number;
 }
 
+export interface AppUpdaterSettings {
+  /** When true (default), check for app updates on startup (TTL-based). */
+  autoCheck?: boolean;
+  /** Unix epoch timestamp in milliseconds when the last update check finished. */
+  lastCheckedAtMs?: number;
+  /** Latest known available version when the last check found an update. */
+  availableVersion?: string;
+}
+
 /** 预设排序方式 */
 export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
 
@@ -23,6 +32,8 @@ export type PresetViewMode = "grid" | "compact";
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
+  /** Optional app updater settings and cached metadata. */
+  updater?: AppUpdaterSettings;
   /** Global preview capture position as a percentage of video duration (0-100). */
   previewCapturePercent: number;
   /** When true, enable developer features such as opening devtools from the UI. */

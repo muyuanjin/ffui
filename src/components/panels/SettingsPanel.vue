@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
+import SettingsAppUpdatesSection from "@/components/panels/SettingsAppUpdatesSection.vue";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
 import type {
@@ -14,6 +15,19 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
 } from "@/types";
+type AppUpdateUiState = {
+  configured?: boolean | null;
+  autoCheckDefault?: boolean;
+  available: boolean;
+  checking: boolean;
+  installing: boolean;
+  availableVersion: string | null;
+  currentVersion: string | null;
+  lastCheckedAtMs: number | null;
+  downloadedBytes: number;
+  totalBytes: number | null;
+  error: string | null;
+};
 const props = withDefaults(
   defineProps<{
   /** Application settings */
@@ -27,6 +41,12 @@ const props = withDefaults(
     remoteCheck?: boolean;
     manualRemoteCheck?: boolean;
   }) => Promise<void>;
+  /** App updater UI state snapshot. */
+  appUpdate?: AppUpdateUiState;
+  /** Manually trigger an app update check. */
+  checkForAppUpdate?: (options?: { force?: boolean }) => Promise<void>;
+  /** Download and install the currently available update. */
+  installAppUpdate?: () => Promise<void>;
   /** Whether settings are being saved */
   isSavingSettings: boolean;
   /** Settings save error message */
@@ -36,12 +56,19 @@ const props = withDefaults(
   }>(),
   {
     toolStatusesFresh: true,
+    appUpdate: () => ({
+      available: false, checking: false, installing: false,
+      availableVersion: null, currentVersion: null, lastCheckedAtMs: null,
+      downloadedBytes: 0, totalBytes: null, error: null,
+    }),
   },
 );
+
 const emit = defineEmits<{
   "update:appSettings": [settings: AppSettings];
   downloadTool: [kind: ExternalToolKind];
 }>();
+
 const { t } = useI18n();
 // Defaults must stay in sync with the Rust engine constants:
 // - DEFAULT_PROGRESS_UPDATE_INTERVAL_MS in ffui_core::settings::types
@@ -51,11 +78,13 @@ const DEFAULT_METRICS_INTERVAL_MS = 1_000;
 // When unset, the engine derives concurrency automatically when maxParallelJobs
 // is None or 0. We surface this as an explicit "0 = 自动" default in the UI.
 const DEFAULT_MAX_PARALLEL_JOBS_AUTO = 0;
+
 const getMaxParallelJobsInputValue = () => {
   if (!props.appSettings) return DEFAULT_MAX_PARALLEL_JOBS_AUTO;
   const raw = props.appSettings.maxParallelJobs;
   return typeof raw === "number" && Number.isFinite(raw) ? raw : DEFAULT_MAX_PARALLEL_JOBS_AUTO;
 };
+
 const getProgressUpdateIntervalInputValue = () => {
   if (!props.appSettings) return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
   const raw = props.appSettings.progressUpdateIntervalMs;
@@ -64,6 +93,7 @@ const getProgressUpdateIntervalInputValue = () => {
   }
   return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
 };
+
 const getMetricsIntervalInputValue = () => {
   if (!props.appSettings) return DEFAULT_METRICS_INTERVAL_MS;
   const raw = props.appSettings.metricsIntervalMs;
@@ -72,10 +102,12 @@ const getMetricsIntervalInputValue = () => {
   }
   return DEFAULT_METRICS_INTERVAL_MS;
 };
+
 const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
   if (!props.appSettings) return;
   emit("update:appSettings", { ...props.appSettings, [key]: value });
 };
+
 type ExternalToolsMode = "autoManaged" | "installOnly" | "manual" | "custom";
 const toolsMode = computed<ExternalToolsMode>({
   get() {
@@ -117,10 +149,8 @@ const toolsMode = computed<ExternalToolsMode>({
 
 <template>
   <section class="max-w-7xl mx-auto px-3 py-2">
-    <!-- Two-column layout on large screens: left for dense settings, right for utility cards. -->
     <div class="grid gap-2 items-start lg:grid-cols-12">
       <div class="space-y-2 lg:col-span-8">
-        <!-- External Tools Section -->
         <SettingsExternalToolsSection
           :app-settings="appSettings"
           :tool-statuses="toolStatuses"
@@ -130,8 +160,6 @@ const toolsMode = computed<ExternalToolsMode>({
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
           @downloadTool="(kind) => emit('downloadTool', kind)"
         />
-
-        <!-- Core Settings Section -->
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -143,13 +171,11 @@ const toolsMode = computed<ExternalToolsMode>({
             {{ t("app.settings.autoDownloadSectionDescription") }}
           </p>
 
-          <!-- Download / update strategy -->
           <div class="space-y-1">
             <p class="text-[9px] text-muted-foreground uppercase tracking-wider">
               {{ t("app.settings.downloadStrategyLabel") }}
             </p>
 
-            <!-- Mode: app-managed (auto download + auto update) -->
             <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
               <input
                 type="radio"
@@ -175,7 +201,6 @@ const toolsMode = computed<ExternalToolsMode>({
               </div>
             </label>
 
-            <!-- Mode: install-only (auto download when missing, no auto update) -->
             <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
               <input
                 type="radio"
@@ -194,7 +219,6 @@ const toolsMode = computed<ExternalToolsMode>({
               </div>
             </label>
 
-            <!-- Mode: fully manual (no auto download / update) -->
             <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
               <input
                 type="radio"
@@ -213,7 +237,6 @@ const toolsMode = computed<ExternalToolsMode>({
               </div>
             </label>
 
-            <!-- Custom combination hint -->
             <div
               v-if="toolsMode === 'custom'"
               data-testid="tools-mode-custom-hint"
@@ -228,7 +251,6 @@ const toolsMode = computed<ExternalToolsMode>({
             </div>
           </div>
 
-          <!-- Numeric settings -->
           <div class="pt-1 space-y-0 divide-y divide-border/40">
             <SettingsQueuePersistenceSection
               :app-settings="appSettings"
@@ -271,7 +293,6 @@ const toolsMode = computed<ExternalToolsMode>({
                     class="w-20 h-6 text-[10px] font-mono text-center"
                     @update:model-value="(v) => updateSetting('maxParallelJobs', Number(v))"
                   />
-                  <!-- 占位以对齐右侧单位列 -->
                   <span class="w-6" aria-hidden="true"></span>
                 </div>
               </div>
@@ -329,7 +350,6 @@ const toolsMode = computed<ExternalToolsMode>({
         </CardContent>
       </Card>
 
-        <!-- Interface Settings -->
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -390,7 +410,14 @@ const toolsMode = computed<ExternalToolsMode>({
       </div>
 
       <div class="space-y-2 lg:col-span-4">
-        <!-- Developer Tools -->
+        <SettingsAppUpdatesSection
+          :app-settings="appSettings"
+          :app-update="appUpdate"
+          :check-for-app-update="checkForAppUpdate"
+          :install-app-update="installAppUpdate"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -416,11 +443,10 @@ const toolsMode = computed<ExternalToolsMode>({
           </CardContent>
         </Card>
 
-        <!-- System Info Panel (optional - adds technical flair) -->
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-              SYSTEM INFO
+              {{ t("app.settings.systemInfoTitle") }}
             </CardTitle>
           </CardHeader>
           <CardContent class="p-2">
@@ -444,8 +470,6 @@ const toolsMode = computed<ExternalToolsMode>({
         </Card>
       </div>
     </div>
-
-    <!-- Status bar at bottom -->
     <div v-if="appSettings" class="mt-3 px-2 py-1 bg-muted/30 rounded border border-border/30">
       <p class="text-[9px] font-mono text-muted-foreground text-center">
         <span v-if="isSavingSettings" class="text-yellow-500">● SAVING SETTINGS...</span>
@@ -454,7 +478,6 @@ const toolsMode = computed<ExternalToolsMode>({
       </p>
     </div>
 
-    <!-- Loading state -->
     <div v-if="!appSettings" class="flex items-center justify-center py-12">
       <div class="text-center space-y-2">
         <div class="inline-flex items-center gap-2">
@@ -469,7 +492,6 @@ const toolsMode = computed<ExternalToolsMode>({
     </div>
   </section>
 </template>
-
 <style scoped>
 @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
 .animation-delay-200 { animation-delay: 200ms; }

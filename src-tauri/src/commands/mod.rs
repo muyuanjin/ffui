@@ -10,3 +10,4 @@ pub mod presets;
 pub mod queue;
 pub mod settings;
 pub mod tools;
+pub mod updater;

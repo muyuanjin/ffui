@@ -9,6 +9,8 @@
     "core:event:allow-unlisten",
     "opener:default",
     "dialog:allow-open",
+    "process:default",
+    "updater:default",
     "core:window:default",
     "core:window:allow-close",
     "core:window:allow-minimize",

@@ -25,6 +25,11 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
+  updater: {
+    autoCheck: true,
+    lastCheckedAtMs: 1_735_000_000_000,
+    availableVersion: "0.2.0",
+  },
   smartScanDefaults: buildSmartScanDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
@@ -61,6 +66,11 @@ describe("backend settings contract", () => {
     expect(cmd).toBe("save_app_settings");
     expect(payload).toMatchObject({
       settings: {
+        updater: {
+          autoCheck: true,
+          lastCheckedAtMs: 1_735_000_000_000,
+          availableVersion: "0.2.0",
+        },
         queuePersistenceMode: "crashRecoveryFull",
         crashRecoveryLogRetention: {
           maxFiles: 10,
@@ -71,4 +81,3 @@ describe("backend settings contract", () => {
     expect(saved).toEqual(settings);
   });
 });
-

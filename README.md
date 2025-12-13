@@ -104,6 +104,19 @@ npm run build:exe
 
 GitHub Releases include the standard Tauri bundles for each platform. In addition, Windows releases include a portable single-file executable named like `FFUI-v<version>-windows-x64-portable.exe`.
 
+### In-app updates (desktop)
+
+FFUI can check for updates and install them in-app using Tauri's updater plugin. This requires signed updater artifacts.
+
+- The updater flow applies to standard Tauri bundles (MSI/NSIS/AppImage/dmg). The extra Windows portable single-file executable is not updated in-place.
+- Maintainers must configure signing keys:
+  - Generate keys: `npm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
+  - Set `src-tauri/tauri.conf.json` `plugins.updater.pubkey` to the generated public key string
+  - Set GitHub Actions secrets: `TAURI_SIGNING_PRIVATE_KEY` (and optional `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`)
+- Key storage & rotation:
+  - Store the private key securely (password manager / vault). Losing it permanently breaks future updates for existing installs.
+  - To rotate keys, ship a transitional release signed with the old key that embeds the new public key, then sign subsequent releases with the new key.
+
 ## Testing
 
 The repository contains unit tests for both the frontend and the Rust backend.
@@ -288,6 +301,19 @@ npm run build:exe
 ### Release 产物
 
 GitHub Releases 会包含各平台的标准 Tauri 安装包/构建产物；此外，Windows 会额外上传一个绿色便携版单文件可执行程序，命名类似 `FFUI-v<version>-windows-x64-portable.exe`。
+
+### 应用内更新（桌面）
+
+FFUI 支持使用 Tauri 官方 updater 插件在应用内检查更新并安装（需要签名）。
+
+- 仅适用于标准 Tauri 安装包/构建产物（MSI/NSIS/AppImage/dmg）；Windows 额外上传的绿色便携版单文件 exe 不支持原地自更新。
+- 维护者需要配置签名密钥：
+  - 生成密钥：`npm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
+  - 将生成的公钥内容填入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`
+  - 在 GitHub Actions 里配置 secrets：`TAURI_SIGNING_PRIVATE_KEY`（以及可选的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）
+- 密钥保管与轮换：
+  - 私钥务必安全保存（密码管理器/密钥库）。一旦丢失，已安装版本将无法继续接收更新。
+  - 轮换密钥需先发布一个“过渡版本”（用旧私钥签名、内置新公钥），随后再用新私钥签名后续版本。
 
 ## 测试
 

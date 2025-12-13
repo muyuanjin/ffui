@@ -35,6 +35,15 @@ export const saveAppSettings = async (settings: AppSettings): Promise<AppSetting
   return invoke<AppSettings>("save_app_settings", { settings });
 };
 
+export interface AppUpdaterCapabilities {
+  configured: boolean;
+}
+
+export const fetchAppUpdaterCapabilities = async (): Promise<AppUpdaterCapabilities> => {
+  if (!hasTauri()) return { configured: false };
+  return invoke<AppUpdaterCapabilities>("get_app_updater_capabilities");
+};
+
 export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {
   return invoke<SmartScanConfig>("get_smart_scan_defaults");
 };

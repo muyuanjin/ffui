@@ -11,6 +11,7 @@ import { useMainAppMedia } from "@/composables/main-app/useMainAppMedia";
 import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
 import { useMainAppDnDAndContextMenu } from "@/composables/main-app/useMainAppDnDAndContextMenu";
 import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu";
+import { useMainAppUpdater } from "@/composables/main-app/useMainAppUpdater";
 import { useJobLog } from "@/composables";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
@@ -18,7 +19,6 @@ import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { scheduleStartupIdle } from "./startupIdle";
 export function useMainAppSetup() {
   const { t } = useI18n();
-
   const jobs = ref<TranscodeJob[]>([]);
   const queueError = ref<string | null>(null);
   const lastQueueSnapshotAtMs = ref<number | null>(null);
@@ -28,9 +28,7 @@ export function useMainAppSetup() {
   const manualJobPresetId = ref<string | null>(null);
   const presetSortMode = ref<PresetSortMode>("manual");
   const presetViewMode = ref<PresetViewMode>("grid");
-  const completedCount = computed(() =>
-    jobs.value.filter((job) => job.status === "completed").length,
-  );
+  const completedCount = computed(() => jobs.value.filter((job) => job.status === "completed").length);
 
   // Startup idle gate: used to defer non-critical startup calls (settings,
   // tool status, initial queue poll) until after the first paint so the shell
@@ -98,12 +96,8 @@ export function useMainAppSetup() {
     startupIdleReady,
   });
 
-  // Smart Scan 运行期间，如果后台已经为某个批次生成了子任务，但 Tauri 端尚未推送
-  // 队列事件（队列监听只在检测结束后一次性广播），队列面板会出现“批次卡片存在但
-  // 子任务列表长期为空”的错觉。为缓解这种体验，这里在收到 Smart Scan 进度快照且
-  // 发现某个批次的 totalCandidates 大于当前前端已知的子任务数量时，触发一次
-  // 基于命令的轻量队列刷新（get_queue_state_lite），以提前拉取后台正在处理的压缩
-  // 任务列表。
+  // Smart Scan 运行期间，后台可能已生成子任务但队列事件尚未推送，导致前端“批次存在但列表为空”。
+  // 当进度快照显示 totalCandidates 超过当前已知子任务数时，触发一次轻量队列刷新以提前拉取任务列表。
   const lastSmartScanQueueRefreshAtMs = ref(0);
   const SMART_SCAN_QUEUE_REFRESH_MIN_INTERVAL_MS = 1000;
 
@@ -128,8 +122,7 @@ export function useMainAppSetup() {
         const meta = metaById[batchId];
         if (!meta) continue;
 
-        // 仅在批次已经产生候选（或已处理数量增加）但前端尚未看到足够多的子任务时触发刷新，
-        // 避免在纯扫描但无候选的目录上产生无谓请求。
+        // 仅在批次已产生候选/处理推进但前端子任务仍不足时刷新，避免无谓请求。
         const totalCandidates = meta.totalCandidates ?? 0;
         const totalProcessed = meta.totalProcessed ?? 0;
         if (totalCandidates <= 0 && totalProcessed <= 0) continue;
@@ -166,6 +159,12 @@ export function useMainAppSetup() {
     jobs,
     manualJobPresetId,
     smartConfig: smartScan.smartConfig,
+    startupIdleReady,
+  });
+
+  const updater = useMainAppUpdater({
+    appSettings: settings.appSettings,
+    scheduleSaveSettings: settings.scheduleSaveSettings,
     startupIdleReady,
   });
 
@@ -441,6 +440,7 @@ export function useMainAppSetup() {
     ...dialogs,
     ...smartScan,
     ...settings,
+    ...updater,
     ...presetsModule,
     ...queue,
     ...media,

@@ -104,6 +104,21 @@ const {
   handleUpdateAppSettings,
   settings,
 
+  // 应用更新
+  updaterConfigured,
+  updateAvailable,
+  availableVersion,
+  currentVersion,
+  lastCheckedAtMs,
+  downloadedBytes,
+  totalBytes,
+  isCheckingForUpdate,
+  isInstallingUpdate,
+  updateCheckError,
+  autoCheckDefault,
+  checkForAppUpdate,
+  downloadAndInstallUpdate,
+
   // 拖拽与等待任务右键菜单
   isDragging,
   handleDragOver,
@@ -224,6 +239,7 @@ defineExpose({
       <Sidebar
         :active-tab="activeTab"
         :jobs="jobs"
+        :app-update-available="updateAvailable"
         @update:active-tab="activeTab = $event"
         @add-job="addManualJob"
         @smart-scan="startSmartScan"
@@ -355,6 +371,21 @@ defineExpose({
               :refresh-tool-statuses="settings.refreshToolStatuses"
               :is-saving-settings="isSavingSettings"
               :settings-save-error="settingsSaveError"
+              :app-update="{
+                configured: updaterConfigured,
+                autoCheckDefault,
+                available: updateAvailable,
+                checking: isCheckingForUpdate,
+                installing: isInstallingUpdate,
+                availableVersion,
+                currentVersion,
+                lastCheckedAtMs,
+                downloadedBytes,
+                totalBytes,
+                error: updateCheckError,
+              }"
+              :check-for-app-update="checkForAppUpdate"
+              :install-app-update="downloadAndInstallUpdate"
               :fetch-tool-candidates="settings.fetchToolCandidates"
               @update:app-settings="handleUpdateAppSettings"
               @download-tool="settings.downloadToolNow"
