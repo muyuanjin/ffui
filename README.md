@@ -18,13 +18,13 @@ FFUI is a desktop user interface for FFmpeg-based transcoding, built with Tauri 
 
 ## Screenshots
 
-![Main window (English)](docs/images/main-en.png)
+![Main window (English)](docs/images/main-en.webp)
 
-![Presets panel (English)](docs/images/preset-en.png)
+![Presets panel (English)](docs/images/preset-en.webp)
 
-![Monitor panel (English)](docs/images/monitor-en.png)
+![Monitor panel (English)](docs/images/monitor-en.webp)
 
-![Settings panel (English)](docs/images/settings-en.png)
+![Settings panel (English)](docs/images/settings-en.webp)
 
 ## Technology stack
 
@@ -207,13 +207,13 @@ FFUI 是一个围绕 FFmpeg 的桌面转码界面，基于 Tauri 2（Rust）和 
 
 ## 界面截图
 
-![主界面（中文）](docs/images/main-zh-CN.png)
+![主界面（中文）](docs/images/main-zh-CN.webp)
 
-![预设面板（中文）](docs/images/preset-zh-CN.png)
+![预设面板（中文）](docs/images/preset-zh-CN.webp)
 
-![性能监控面板（中文）](docs/images/monitor-zh-CN.png)
+![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
 
-![设置面板（中文）](docs/images/settings-zh-CN.png)
+![设置面板（中文）](docs/images/settings-zh-CN.webp)
 
 ## 技术栈
 
