@@ -70,4 +70,3 @@ fn smart_scan_video_enqueue_keeps_batch_children_consecutive_even_when_manual_in
         "Smart Scan batch children should remain consecutive in waiting queue"
     );
 }
-

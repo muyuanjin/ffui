@@ -7,7 +7,7 @@ import {
   MINI_CHART_WINDOW,
   GPU_CHART_WINDOW,
   useGpuMetrics,
-  useMonitorUptime,
+  useTranscodeActivityToday,
 } from "@/composables/monitor";
 
 const CHART_ANIMATION = {
@@ -105,8 +105,19 @@ export function useMonitorPanelProState() {
     { immediate: true },
   );
 
-  const { monitorUptime, monitorUptimeProgressPercent } =
-    useMonitorUptime(snapshots);
+  const uptimeLabel = computed(() => {
+    const latest = snapshots.value[snapshots.value.length - 1];
+    if (!latest) return "--";
+    const totalSeconds = Math.max(0, Math.floor(latest.uptimeSeconds ?? 0));
+    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    const remMinutes = minutes % 60;
+    return `${days}d ${remHours}h ${remMinutes}m`;
+  });
+
+  const { activity: transcodeActivityToday } = useTranscodeActivityToday();
 
   const gpuChartLabels = Array.from({ length: GPU_CHART_WINDOW }, () => "");
 
@@ -444,8 +455,7 @@ export function useMonitorPanelProState() {
     cpuHeatmapOption,
     networkChartOption,
     diskChartOption,
-    monitorUptime,
-    monitorUptimeProgressPercent,
+    uptimeLabel,
+    transcodeActivityToday,
   };
 }
-

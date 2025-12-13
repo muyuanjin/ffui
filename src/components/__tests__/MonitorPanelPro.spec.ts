@@ -120,6 +120,7 @@ const makeSnapshot = (
   interfaces: number,
 ): SystemMetricsSnapshot => ({
   timestamp,
+  uptimeSeconds: 3600,
   cpu: {
     cores: Array.from(
       { length: cores },
@@ -186,6 +187,10 @@ describe("MonitorPanelPro", () => {
     expect(wrapper.text()).toContain("GPU STATUS");
     expect(wrapper.text()).toContain("NETWORK I/O");
     expect(wrapper.text()).toContain("DISK I/O");
+    expect(wrapper.text()).toContain("TODAY ACTIVITY");
+
+    // Heatmap ring should render 24 segments.
+    expect(wrapper.findAll("[data-testid=\"transcode-heatmap-segment\"]").length).toBe(24);
   });
 
   it("renders CPU / MEMORY / GPU summary as bar meters instead of plain numbers", () => {

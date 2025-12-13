@@ -19,8 +19,10 @@ const app = {
     externalToolsDescription:
       "Manage ffmpeg / ffprobe / avifenc availability, custom paths, and how the app manages these tools.",
     refreshToolsStatus: "Refresh status",
+    checkFfmpegUpdateButton: "Check ffmpeg update",
     toolStatus: {
       ready: "Ready",
+      detecting: "Detecting",
       missing: "Not found",
     },
     currentToolPathLabel: "Resolved path",
@@ -153,6 +155,8 @@ const app = {
     memory: "RAM",
     gpu: "GPU",
     systemUptime: "SYSTEM UPTIME",
+    transcodeHeatmapToday: "TODAY ACTIVITY",
+    transcodeHeatmapHint: "Today's transcode activity by hour (processing only; paused excluded).",
     download: "↓",
     upload: "↑",
     reading: "R:",

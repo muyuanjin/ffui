@@ -12,6 +12,27 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { UseMainAppShellReturn } from "./useMainAppShell";
 import type { UseMainAppDialogsReturn } from "./useMainAppDialogs";
 
+const isTestEnv =
+  typeof import.meta !== "undefined" &&
+  typeof import.meta.env !== "undefined" &&
+  import.meta.env.MODE === "test";
+
+const startupNowMs = () => {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+};
+
+const updateStartupMetrics = (patch: Record<string, unknown>) => {
+  if (typeof window === "undefined") return;
+  const w = window as any;
+  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
+  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+};
+
+let loggedPresetsLoad = false;
+
 export interface UseMainAppPresetsOptions {
   t: (key: string) => string;
   presets: Ref<FFmpegPreset[]>;
@@ -381,7 +402,18 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     if (presetsLoadedFromBackend.value) return;
 
     try {
+      const startedAt = startupNowMs();
       const loaded = await loadPresets();
+      const elapsedMs = startupNowMs() - startedAt;
+
+      if (!isTestEnv && (!loggedPresetsLoad || elapsedMs >= 200)) {
+        loggedPresetsLoad = true;
+        updateStartupMetrics({ loadPresetsMs: elapsedMs });
+        if (typeof performance !== "undefined" && "mark" in performance) {
+          performance.mark("presets_loaded");
+        }
+        console.log(`[perf] get_presets: ${elapsedMs.toFixed(1)}ms`);
+      }
       if (Array.isArray(loaded) && loaded.length > 0) {
         presets.value = loaded;
       }

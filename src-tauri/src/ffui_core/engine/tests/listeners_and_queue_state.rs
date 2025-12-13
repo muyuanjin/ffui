@@ -201,3 +201,27 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
         "lite snapshot must carry ffmpeg_command so the UI can render commands"
     );
 }
+
+#[test]
+fn queue_state_lite_uses_dedicated_builder_without_full_snapshot() {
+    reset_snapshot_queue_state_calls();
+    let engine = make_engine_with_preset();
+
+    engine.enqueue_transcode_job(
+        "C:/videos/lite-builder.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    let before_calls = snapshot_queue_state_calls();
+    let _ = engine.queue_state_lite();
+
+    assert_eq!(
+        snapshot_queue_state_calls(),
+        before_calls,
+        "queue_state_lite should not invoke the full snapshot path"
+    );
+}

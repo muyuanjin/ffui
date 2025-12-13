@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::Value;
+use std::time::Instant;
 
 #[test]
 fn ring_buffer_is_bounded() {
@@ -12,6 +13,7 @@ fn ring_buffer_is_bounded() {
     for i in 0..10 {
         state.push_snapshot(MetricsSnapshot {
             timestamp: i,
+            uptime_seconds: 0,
             cpu: CpuMetrics {
                 cores: vec![0.0],
                 total: 0.0,
@@ -110,6 +112,7 @@ fn sample_metrics_produces_sane_values() {
 fn metrics_snapshot_json_contract_matches_spec() {
     let snapshot = MetricsSnapshot {
         timestamp: 1710000000000,
+        uptime_seconds: 1234,
         cpu: CpuMetrics {
             cores: vec![12.0, 34.0],
             total: 23.0,
@@ -144,6 +147,10 @@ fn metrics_snapshot_json_contract_matches_spec() {
         serde_json::to_value(&snapshot).expect("metrics snapshot should serialize to JSON");
 
     assert!(value.get("timestamp").is_some(), "timestamp field missing");
+    assert!(
+        value.get("uptimeSeconds").is_some(),
+        "uptimeSeconds field missing"
+    );
     assert!(
         value["cpu"]["cores"].is_array(),
         "cpu.cores must be an array in JSON"
@@ -208,5 +215,41 @@ fn metrics_snapshot_json_contract_matches_spec() {
     assert!(
         value["gpu"]["memoryPercent"].is_number(),
         "gpu.memoryPercent must be a number when available"
+    );
+}
+
+#[test]
+fn sampling_mode_respects_subscriber_count() {
+    let config = MetricsConfig::default();
+
+    assert_eq!(
+        sampling_mode(0, &config),
+        SamplingMode::Idle(config.idle_interval)
+    );
+    assert_eq!(
+        sampling_mode(1, &config),
+        SamplingMode::Active(config.sampling_interval)
+    );
+}
+
+#[test]
+fn subscribe_wakes_waiters() {
+    let state = MetricsState::default();
+    let state_for_waiter = state.clone();
+
+    let started = Instant::now();
+    let handle = std::thread::spawn(move || {
+        // Use a long timeout and rely on subscribe() to wake the waiter quickly.
+        state_for_waiter.wait_for_wakeup_or_timeout(Duration::from_secs(5));
+        started.elapsed()
+    });
+
+    std::thread::sleep(Duration::from_millis(30));
+    state.subscribe();
+
+    let elapsed = handle.join().expect("waiter thread join must succeed");
+    assert!(
+        elapsed < Duration::from_secs(1),
+        "waiter should be woken quickly by subscribe(), elapsed={elapsed:?}"
     );
 }

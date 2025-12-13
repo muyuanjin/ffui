@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::{
-    Arc, Mutex,
+    Arc, Condvar, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -79,6 +79,8 @@ pub struct NetworkMetrics {
 pub struct MetricsSnapshot {
     /// UNIX timestamp in milliseconds.
     pub timestamp: u64,
+    /// OS uptime in seconds.
+    pub uptime_seconds: u64,
     pub cpu: CpuMetrics,
     pub memory: MemoryMetrics,
     pub disk: DiskMetrics,
@@ -136,6 +138,8 @@ struct InnerMetricsState {
     history: Mutex<VecDeque<MetricsSnapshot>>,
     config: MetricsConfig,
     subscribers: AtomicUsize,
+    wake_lock: Mutex<()>,
+    wake_cv: Condvar,
 }
 
 /// Shared metrics state stored in Tauri `State`.
@@ -152,6 +156,8 @@ impl MetricsState {
                 history: Mutex::new(VecDeque::with_capacity(capacity)),
                 config,
                 subscribers: AtomicUsize::new(0),
+                wake_lock: Mutex::new(()),
+                wake_cv: Condvar::new(),
             }),
         }
     }
@@ -188,6 +194,9 @@ impl MetricsState {
 
     pub fn subscribe(&self) {
         self.inner.subscribers.fetch_add(1, Ordering::Relaxed);
+        // Wake the sampler so that a newly opened monitor tab starts receiving
+        // snapshots immediately instead of waiting for the idle sleep timeout.
+        self.inner.wake_cv.notify_all();
     }
 
     pub fn unsubscribe(&self) {
@@ -197,6 +206,19 @@ impl MetricsState {
                 .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
                     Some(current.saturating_sub(1))
                 });
+    }
+
+    pub(crate) fn wait_for_wakeup_or_timeout(&self, timeout: Duration) {
+        let guard = self
+            .inner
+            .wake_lock
+            .lock()
+            .expect("system metrics wake lock poisoned");
+        let _ = self
+            .inner
+            .wake_cv
+            .wait_timeout(guard, timeout)
+            .expect("system metrics wake condvar wait failed");
     }
 
     #[allow(dead_code)]
@@ -216,6 +238,20 @@ fn apply_settings_overrides(config: &mut MetricsConfig, settings: &AppSettings) 
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SamplingMode {
+    Active(Duration),
+    Idle(Duration),
+}
+
+fn sampling_mode(subscribers: usize, config: &MetricsConfig) -> SamplingMode {
+    if subscribers == 0 {
+        SamplingMode::Idle(config.idle_interval)
+    } else {
+        SamplingMode::Active(config.sampling_interval)
+    }
+}
+
 /// Spawn the background sampler task on Tauri's async runtime.
 pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState) {
     tauri::async_runtime::spawn_blocking(move || {
@@ -228,30 +264,36 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
             // Prefer user-configured interval from AppSettings when available.
             let mut config = metrics_state.config();
             if let Some(engine_state) = app_handle.try_state::<TranscodingEngine>() {
-                // Pull a fresh snapshot of AppSettings from the shared engine
-                // state so runtime changes made via the Settings panel take
-                // effect without restarting the app.
                 let settings_snapshot = engine_state.settings();
                 apply_settings_overrides(&mut config, &settings_snapshot);
             }
-            let now = Instant::now();
-            let elapsed = now.saturating_duration_since(last_instant);
-            last_instant = now;
 
-            let dt = if elapsed.is_zero() {
-                config.sampling_interval
-            } else {
-                elapsed
-            };
+            match sampling_mode(metrics_state.subscriber_count(), &config) {
+                SamplingMode::Idle(idle_interval) => {
+                    metrics_state.wait_for_wakeup_or_timeout(idle_interval);
+                    continue;
+                }
+                SamplingMode::Active(sampling_interval) => {
+                    let now = Instant::now();
+                    let elapsed = now.saturating_duration_since(last_instant);
+                    last_instant = now;
 
-            let snapshot = sample_metrics(&mut sys, &mut networks, dt, &config);
-            metrics_state.push_snapshot(snapshot.clone());
+                    let dt = if elapsed.is_zero() {
+                        sampling_interval
+                    } else {
+                        elapsed
+                    };
 
-            if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
-                eprintln!("failed to emit system metrics event: {err}");
+                    let snapshot = sample_metrics(&mut sys, &mut networks, dt, &config);
+                    metrics_state.push_snapshot(snapshot.clone());
+
+                    if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
+                        eprintln!("failed to emit system metrics event: {err}");
+                    }
+
+                    std::thread::sleep(sampling_interval);
+                }
             }
-
-            std::thread::sleep(config.sampling_interval);
         }
     });
 }
@@ -262,6 +304,8 @@ fn sample_metrics(
     dt: Duration,
     config: &MetricsConfig,
 ) -> MetricsSnapshot {
+    let uptime_seconds = System::uptime();
+
     // Refresh CPU and memory.
     sys.refresh_cpu_usage();
     sys.refresh_memory();
@@ -347,6 +391,7 @@ fn sample_metrics(
 
     MetricsSnapshot {
         timestamp,
+        uptime_seconds,
         cpu,
         memory,
         disk,

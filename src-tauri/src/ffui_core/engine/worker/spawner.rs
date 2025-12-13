@@ -5,6 +5,7 @@ use crate::ffui_core::domain::JobStatus;
 
 use super::super::job_runner;
 use super::super::state::{Inner, notify_queue_listeners};
+use super::super::transcode_activity;
 use super::super::worker_utils::{
     current_time_millis, mark_smart_scan_child_processed, recompute_log_tail,
 };
@@ -66,6 +67,10 @@ fn worker_loop(inner: Arc<Inner>) {
                 None => continue,
             }
         };
+
+        // Mark today's transcode activity buckets as soon as a job enters
+        // processing state so sparse/no-progress jobs still show activity.
+        transcode_activity::record_processing_activity(&inner);
 
         // Notify listeners that a job has moved into processing state.
         notify_queue_listeners(&inner);

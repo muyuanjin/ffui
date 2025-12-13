@@ -144,6 +144,10 @@ export function defaultBackendResponse(cmd: string): unknown {
       return { available: false };
     case "get_external_tool_statuses":
       return [];
+    case "get_external_tool_statuses_cached":
+      return [];
+    case "refresh_external_tool_statuses_async":
+      return true;
     default:
       return null;
   }

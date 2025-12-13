@@ -51,6 +51,7 @@ export type {
   NetworkInterfaceMetrics,
   NetworkMetrics,
   SystemMetricsSnapshot,
+  TranscodeActivityToday,
 } from "./monitoring";
 
 // External tools types

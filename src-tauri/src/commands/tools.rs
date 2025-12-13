@@ -13,7 +13,7 @@ use tauri::{AppHandle, State, WebviewWindow};
 use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
 use crate::ffui_core::{
     CpuUsageSnapshot, ExternalToolCandidate, ExternalToolStatus, GpuUsageSnapshot,
-    TranscodingEngine,
+    TranscodeActivityToday, TranscodingEngine,
 };
 use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
@@ -35,6 +35,32 @@ pub fn get_gpu_usage(engine: State<TranscodingEngine>) -> GpuUsageSnapshot {
 #[tauri::command]
 pub fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
+}
+
+/// Get the latest cached snapshot of external tool statuses.
+///
+/// This is safe to call on the startup UI path and MUST NOT trigger any
+/// network I/O or external process probing.
+#[tauri::command]
+pub fn get_external_tool_statuses_cached(
+    engine: State<TranscodingEngine>,
+) -> Vec<ExternalToolStatus> {
+    engine.external_tool_statuses_cached()
+}
+
+/// Trigger an async refresh of external tool statuses.
+///
+/// Returns true when a new refresh task was started, false when deduped.
+#[tauri::command]
+pub fn refresh_external_tool_statuses_async(
+    engine: State<TranscodingEngine>,
+    remote_check: Option<bool>,
+    manual_remote_check: Option<bool>,
+) -> bool {
+    engine.refresh_external_tool_statuses_async(
+        remote_check.unwrap_or(false),
+        manual_remote_check.unwrap_or(false),
+    )
 }
 
 /// Enumerate all verified candidate binaries for a specific external tool.
@@ -156,8 +182,8 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
 
     let path = Path::new(trimmed);
 
-    let canonical = fs::canonicalize(path)
-        .map_err(|e| format!("preview_path is not a readable file: {e}"))?;
+    let canonical =
+        fs::canonicalize(path).map_err(|e| format!("preview_path is not a readable file: {e}"))?;
 
     let preview_root = preview_root_dir_for_security()?;
     let preview_root_canon = fs::canonicalize(&preview_root).unwrap_or(preview_root.clone());
@@ -180,7 +206,10 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     };
 
     // Only allow known preview image extensions.
-    if !matches!(ext.as_deref(), Some("jpg") | Some("jpeg") | Some("png") | Some("webp")) {
+    if !matches!(
+        ext.as_deref(),
+        Some("jpg") | Some("jpeg") | Some("png") | Some("webp")
+    ) {
         return Err("preview_path is not a supported preview image type".to_string());
     }
 
@@ -346,9 +375,14 @@ pub fn metrics_unsubscribe(metrics: State<MetricsState>) {
     metrics.unsubscribe();
 }
 
-
 /// Return the bounded history of system metrics snapshots for initial charting.
 #[tauri::command]
 pub fn get_metrics_history(metrics: State<MetricsState>) -> Vec<MetricsSnapshot> {
     metrics.history()
+}
+
+/// Return today's transcode activity buckets for the Monitor heatmap.
+#[tauri::command]
+pub fn get_transcode_activity_today(engine: State<TranscodingEngine>) -> TranscodeActivityToday {
+    engine.transcode_activity_today()
 }

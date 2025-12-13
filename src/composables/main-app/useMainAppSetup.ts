@@ -15,7 +15,7 @@ import { useJobLog } from "@/composables";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
-
+import { scheduleStartupIdle } from "./startupIdle";
 export function useMainAppSetup() {
   const { t } = useI18n();
 
@@ -45,17 +45,22 @@ export function useMainAppSetup() {
   if (isTestEnv || typeof window === "undefined") {
     startupIdleReady.value = true;
   } else {
-    const anyWindow = window as any;
-    const scheduleIdle = (cb: () => void) => {
-      if (typeof anyWindow.requestIdleCallback === "function") {
-        anyWindow.requestIdleCallback(cb);
-      } else {
-        window.setTimeout(cb, 0);
-      }
-    };
-    scheduleIdle(() => {
-      startupIdleReady.value = true;
-    });
+    const rawTimeoutMs =
+      typeof import.meta !== "undefined" &&
+      typeof import.meta.env !== "undefined"
+        ? Number(import.meta.env.VITE_STARTUP_IDLE_TIMEOUT_MS)
+        : NaN;
+    const idleTimeoutMs = Number.isFinite(rawTimeoutMs) ? rawTimeoutMs : 1200;
+
+    scheduleStartupIdle(
+      () => {
+        if (typeof performance !== "undefined" && "mark" in performance) {
+          performance.mark("startup_idle_ready");
+        }
+        startupIdleReady.value = true;
+      },
+      { timeoutMs: idleTimeoutMs },
+    );
   }
 
   const shell = useMainAppShell();

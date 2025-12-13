@@ -2,6 +2,31 @@ import { type Ref } from "vue";
 import type { TranscodeJob, QueueState, QueueStateLite } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 
+const isTestEnv =
+  typeof import.meta !== "undefined" &&
+  typeof import.meta.env !== "undefined" &&
+  import.meta.env.MODE === "test";
+
+const startupNowMs = () => {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+};
+
+const updateStartupMetrics = (patch: Record<string, unknown>) => {
+  if (typeof window === "undefined") return;
+  const w = window as any;
+  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
+  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+};
+
+let loggedQueueStateLiteApplied = false;
+let loggedQueueRefresh = false;
+
+let firstQueueStateLiteApplied = false;
+const FIRST_QUEUE_STATE_LITE_MARK = "first_queue_state_lite_applied";
+
 /**
  * State sync function dependencies.
  */
@@ -69,6 +94,21 @@ export function applyQueueStateFromBackend(
   deps: StateSyncDeps,
 ) {
   const backendJobs = state.jobs ?? [];
+
+  if (!firstQueueStateLiteApplied) {
+    firstQueueStateLiteApplied = true;
+    if (typeof performance !== "undefined" && "mark" in performance) {
+      performance.mark(FIRST_QUEUE_STATE_LITE_MARK);
+    }
+    if (!isTestEnv && !loggedQueueStateLiteApplied) {
+      loggedQueueStateLiteApplied = true;
+      updateStartupMetrics({ firstQueueStateLiteJobs: backendJobs.length });
+      console.log(
+        `[perf] first QueueStateLite applied: jobs=${backendJobs.length}`,
+      );
+    }
+  }
+
   const previousJobs = deps.jobs.value;
 
   detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
@@ -85,8 +125,16 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
   if (!hasTauri()) return;
   try {
     const previousJobs = deps.jobs.value;
+    const startedAt = startupNowMs();
     const state = await loadQueueStateLite();
+    const elapsedMs = startupNowMs() - startedAt;
     const backendJobs = (state as QueueStateLite).jobs ?? [];
+
+    if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {
+      loggedQueueRefresh = true;
+      updateStartupMetrics({ getQueueStateLiteMs: elapsedMs });
+      console.log(`[perf] get_queue_state_lite: ${elapsedMs.toFixed(1)}ms`);
+    }
 
     detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
     recomputeJobsFromBackend(backendJobs, deps);

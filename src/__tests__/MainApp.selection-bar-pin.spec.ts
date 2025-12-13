@@ -44,6 +44,8 @@ vi.mock("@/lib/backend", async () => {
     inspectMedia: vi.fn(async () => "{}"),
     fetchCpuUsage: vi.fn(async () => ({} as any)),
     fetchExternalToolStatuses: vi.fn(async () => []),
+    fetchExternalToolStatusesCached: vi.fn(async () => []),
+    refreshExternalToolStatusesAsync: vi.fn(async () => true),
     fetchGpuUsage: vi.fn(async () => ({} as any)),
     loadAppSettings,
     loadQueueState: vi.fn(async () => ({ jobs: [] })),

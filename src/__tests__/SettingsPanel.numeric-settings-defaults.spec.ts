@@ -13,6 +13,8 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => true,
     openDevtools: vi.fn(),
     fetchExternalToolStatuses: vi.fn(async () => [] as ExternalToolStatus[]),
+    fetchExternalToolStatusesCached: vi.fn(async () => [] as ExternalToolStatus[]),
+    refreshExternalToolStatusesAsync: vi.fn(async () => true),
   };
 });
 

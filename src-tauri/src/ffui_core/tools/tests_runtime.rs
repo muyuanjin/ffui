@@ -1,4 +1,7 @@
 #[cfg(test)]
+pub(crate) use tools_tests_runtime::TEST_MUTEX;
+
+#[cfg(test)]
 mod tools_tests_runtime {
     use crate::ffui_core::settings::ExternalToolSettings;
     use crate::ffui_core::tools::runtime_state::{
@@ -14,40 +17,30 @@ mod tools_tests_runtime {
     #[cfg(not(windows))]
     use std::fs::{self, File};
     use std::io::Write;
-    use std::sync::Mutex;
-    use tempfile::tempdir;
-
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-
-    static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
+    use std::sync::Mutex;
+    use tempfile::tempdir;
+    pub(crate) static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
     #[test]
     fn tool_status_exposes_download_state_defaults() {
         let _guard = TEST_MUTEX.lock().unwrap();
         use crate::ffui_core::tools::{tool_status, types::TOOL_DOWNLOAD_STATE};
-
-        // Start from a clean runtime state so earlier tests that touched the
-        // global download map do not leak into this assertion.
+        // Start from a clean runtime state so earlier tests do not leak.
         {
             let mut map = TOOL_DOWNLOAD_STATE
                 .lock()
                 .expect("TOOL_DOWNLOAD_STATE lock poisoned");
             map.clear();
         }
-
-        // Also clear cached snapshot to avoid leaking in-progress flags from
-        // other tests that may have emitted a snapshot previously.
+        // Also clear cached snapshot to avoid leaking in-progress flags.
         {
             let mut snapshot = super::super::runtime_state::LATEST_TOOL_STATUS
                 .lock()
                 .expect("LATEST_TOOL_STATUS lock poisoned");
             snapshot.clear();
         }
-
-        // When no download has been triggered, the runtime fields should be
-        // well-formed and defaulted so the frontend can rely on them without
-        // extra null checks.
+        // When no download has been triggered, runtime fields should be defaulted.
         let settings = ExternalToolSettings {
             ffmpeg_path: None,
             ffprobe_path: None,
@@ -55,6 +48,7 @@ mod tools_tests_runtime {
             auto_download: false,
             auto_update: false,
             downloaded: None,
+            remote_version_cache: None,
         };
 
         let status = tool_status(ExternalToolKind::Ffmpeg, &settings);
@@ -66,7 +60,6 @@ mod tools_tests_runtime {
         assert!(status.last_download_error.is_none());
         assert!(status.last_download_message.is_none());
     }
-
     #[test]
     fn effective_remote_version_prefers_latest_release_over_stale_cached_metadata() {
         let _guard = TEST_MUTEX.lock().unwrap();
@@ -103,7 +96,34 @@ mod tools_tests_runtime {
             map.clear();
         }
     }
+    #[test]
+    fn effective_remote_version_uses_newer_persisted_metadata_when_remote_unknown() {
+        let _guard = TEST_MUTEX.lock().unwrap();
 
+        super::super::runtime_state::record_last_tool_download(
+            ExternalToolKind::Ffmpeg,
+            "https://example.test/ffmpeg-new".to_string(),
+            Some("99.0.0".to_string()),
+            Some("b99.0.0".to_string()),
+        );
+
+        let remote =
+            crate::ffui_core::tools::status::effective_remote_version_for(ExternalToolKind::Ffmpeg);
+
+        assert_eq!(
+            remote.as_deref(),
+            Some("99.0.0"),
+            "when no remote cache is available, the newer persisted metadata should be used"
+        );
+
+        // Clean global state to avoid leaking into other tests.
+        {
+            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD
+                .lock()
+                .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+            map.clear();
+        }
+    }
     #[test]
     fn tool_status_uses_env_discovery_for_avifenc() {
         let _guard = TEST_MUTEX.lock().unwrap();
@@ -182,6 +202,7 @@ mod tools_tests_runtime {
             auto_download: false,
             auto_update: false,
             downloaded: None,
+            remote_version_cache: None,
         };
 
         let status = crate::ffui_core::tools::tool_status(ExternalToolKind::Avifenc, &settings);
@@ -267,9 +288,7 @@ mod tools_tests_runtime {
             last_download_message: None,
         };
         update_latest_status_snapshot(vec![base_ffmpeg, base_ffprobe]);
-
-        // Start a download for ffmpeg and simulate progress; this should update
-        // only the ffmpeg entry in the cached snapshot.
+        // Start a download for ffmpeg and simulate progress; only ffmpeg should change.
         mark_download_started(
             ExternalToolKind::Ffmpeg,
             "starting auto-download for ffmpeg".to_string(),
@@ -373,6 +392,7 @@ mod tools_tests_runtime {
                 }),
                 ..DownloadedToolState::default()
             }),
+            remote_version_cache: None,
         };
 
         super::super::runtime_state::hydrate_last_tool_download_from_settings(&settings);

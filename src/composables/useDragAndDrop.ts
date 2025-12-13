@@ -82,21 +82,32 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   onMounted(async () => {
     if (hasTauri()) {
       // Tauri 拖放监听
-      dragDropUnlisten = await listen<{ paths: string[] }>(
-        "tauri://drag-drop",
-        (event) => {
-          const paths = event.payload.paths;
-          if (paths && paths.length > 0 && onFilesDropped) {
-            onFilesDropped(paths);
-          }
-        }
-      );
+      try {
+        dragDropUnlisten = await listen<{ paths: string[] }>(
+          "tauri://drag-drop",
+          (event) => {
+            const paths = event.payload.paths;
+            if (paths && paths.length > 0 && onFilesDropped) {
+              onFilesDropped(paths);
+            }
+          },
+        );
+      } catch (error) {
+        console.error("Failed to listen for tauri drag-drop events:", error);
+        dragDropUnlisten = null;
+      }
     }
   });
 
   onUnmounted(() => {
     if (dragDropUnlisten) {
-      dragDropUnlisten();
+      try {
+        dragDropUnlisten();
+      } catch (error) {
+        console.error("Failed to unlisten tauri drag-drop events:", error);
+      } finally {
+        dragDropUnlisten = null;
+      }
     }
   });
 

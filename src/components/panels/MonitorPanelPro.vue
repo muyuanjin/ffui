@@ -3,7 +3,7 @@ import VChart from "vue-echarts";
 import "echarts";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useMonitorPanelProState } from "@/composables/monitor";
-import { GpuCard, CpuHeatmap, ResourceBar } from "./monitor";
+import { GpuCard, CpuHeatmap, ResourceBar, TranscodeHeatmapRing } from "./monitor";
 import { useI18n } from "vue-i18n";
 
 defineProps<{
@@ -25,8 +25,8 @@ const {
   cpuHeatmapOption,
   networkChartOption,
   diskChartOption,
-  monitorUptime,
-  monitorUptimeProgressPercent,
+  uptimeLabel,
+  transcodeActivityToday,
 } = useMonitorPanelProState();
 </script>
 
@@ -132,24 +132,13 @@ const {
       <!-- 系统运行时间 -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">{{ t('monitor.systemUptime') }}</span>
+          <span class="metric-title">{{ t('monitor.transcodeHeatmapToday') }}</span>
         </div>
-        <div class="uptime-display">
-          <div class="uptime-value">
-            <template v-if="monitorUptime">
-              {{ monitorUptime.days }}d {{ monitorUptime.hours }}h {{ monitorUptime.minutes }}m
-            </template>
-            <template v-else>
-              --
-            </template>
-          </div>
-          <div class="uptime-bar">
-            <div
-              class="uptime-progress"
-              :style="{ width: `${monitorUptimeProgressPercent}%` }"
-            ></div>
-          </div>
-        </div>
+        <TranscodeHeatmapRing
+          :active-hours="transcodeActivityToday?.activeHours"
+          :uptime-label="uptimeLabel"
+          :title="t('monitor.transcodeHeatmapHint')"
+        />
       </div>
     </div>
   </section>

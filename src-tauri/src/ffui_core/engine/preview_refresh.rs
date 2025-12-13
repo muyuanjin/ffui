@@ -1,10 +1,10 @@
 use crate::ffui_core::domain::JobType;
 use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::{ensure_tool_available, ExternalToolKind};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
+use super::TranscodingEngine;
 use super::job_runner;
 use super::state::notify_queue_listeners;
-use super::TranscodingEngine;
 
 impl TranscodingEngine {
     /// Ensure a video job has a readable preview image on disk.
@@ -145,10 +145,10 @@ impl TranscodingEngine {
                 }
             };
 
-            if let Some(old_path) = previous_preview {
-                if old_path != preview_str {
-                    old_paths.push(old_path);
-                }
+            if let Some(old_path) = previous_preview
+                && old_path != preview_str
+            {
+                old_paths.push(old_path);
             }
         }
 
@@ -193,4 +193,3 @@ impl TranscodingEngine {
         notify_queue_listeners(&self.inner);
     }
 }
-

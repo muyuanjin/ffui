@@ -15,6 +15,16 @@ export interface DownloadedToolState {
   avifenc?: DownloadedToolInfo;
 }
 
+export interface RemoteToolVersionInfo {
+  checkedAtMs?: number;
+  version?: string;
+  tag?: string;
+}
+
+export interface RemoteToolVersionCache {
+  ffmpegStatic?: RemoteToolVersionInfo;
+}
+
 export type TaskbarProgressMode = "bySize" | "byDuration" | "byEstimatedTime";
 export type TaskbarProgressScope = "allJobs" | "activeAndQueued";
 
@@ -26,6 +36,8 @@ export interface ExternalToolSettings {
   autoUpdate: boolean;
   /** Optional metadata about binaries that were auto-downloaded by the app. */
   downloaded?: DownloadedToolState;
+  /** Optional cached remote-version metadata (TTL-based) for update hints. */
+  remoteVersionCache?: RemoteToolVersionCache;
 }
 
 export type ExternalToolKind = "ffmpeg" | "ffprobe" | "avifenc";

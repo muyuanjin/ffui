@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "vue-i18n";
-import { computed, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -14,7 +14,13 @@ import type {
 const props = defineProps<{
   appSettings: AppSettings | null;
   toolStatuses: ExternalToolStatus[];
+  /** Whether tool statuses have been refreshed at least once this session. */
+  toolStatusesFresh?: boolean;
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
+  refreshToolStatuses?: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+  }) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -23,6 +29,62 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let refreshTimer: number | undefined;
+
+const isAutoManaged = computed(() => {
+  const tools = props.appSettings?.tools;
+  return !!tools?.autoDownload && !!tools?.autoUpdate;
+});
+
+const toolStatusesFresh = computed(() => props.toolStatusesFresh ?? true);
+
+const scheduleAutoRefresh = () => {
+  if (refreshTimer !== undefined) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
+  if (!props.refreshToolStatuses) return;
+
+  // Always refresh local probe work when the Tools panel is opened so the UI
+  // can reflect PATH/custom/downloaded binaries without blocking startup.
+  void props.refreshToolStatuses({ remoteCheck: isAutoManaged.value });
+
+  // Remote checks are opt-in: only run (and schedule) when auto-managed is enabled.
+  if (isAutoManaged.value) {
+    refreshTimer = window.setInterval(() => {
+      void props.refreshToolStatuses?.({ remoteCheck: true });
+    }, REFRESH_INTERVAL_MS);
+  }
+};
+
+onMounted(() => {
+  scheduleAutoRefresh();
+});
+
+watch(isAutoManaged, () => {
+  scheduleAutoRefresh();
+});
+
+onUnmounted(() => {
+  if (refreshTimer !== undefined) {
+    window.clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
+});
+
+const checkUpdateLoading = ref(false);
+const handleCheckFfmpegUpdate = async () => {
+  if (!props.refreshToolStatuses) return;
+  if (checkUpdateLoading.value) return;
+  checkUpdateLoading.value = true;
+  try {
+    await props.refreshToolStatuses({ remoteCheck: true, manualRemoteCheck: true });
+  } finally {
+    checkUpdateLoading.value = false;
+  }
+};
 
 const CANDIDATE_SOURCE_I18N_KEYS: Partial<Record<string, string>> = {
   custom: "app.settings.candidateSources.custom",
@@ -182,10 +244,18 @@ const formatSpeed = (bytesPerSecond?: number): string => {
               :class="
                 tool.resolvedPath
                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                  : 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
+                  : toolStatusesFresh
+                    ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
+                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
               "
             >
-              {{ tool.resolvedPath ? t("app.settings.toolStatus.ready") : t("app.settings.toolStatus.missing") }}
+              {{
+                tool.resolvedPath
+                  ? t("app.settings.toolStatus.ready")
+                  : toolStatusesFresh
+                    ? t("app.settings.toolStatus.missing")
+                    : t("app.settings.toolStatus.detecting")
+              }}
             </span>
           </div>
           <span
@@ -301,15 +371,28 @@ const formatSpeed = (bytesPerSecond?: number): string => {
           >
             {{ t("app.settings.toolUpToDateHint") }}
           </span>
-          <Button
-            v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
-            variant="outline"
-            size="sm"
-            class="h-5 px-2 text-[9px]"
-            @click="emit('downloadTool', tool.kind)"
-          >
-            {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
-          </Button>
+          <div class="flex items-center gap-1.5">
+            <Button
+              v-if="tool.kind === 'ffmpeg' && !tool.downloadInProgress"
+              variant="ghost"
+              size="sm"
+              class="h-5 px-2 text-[9px]"
+              :disabled="checkUpdateLoading"
+              @click="handleCheckFfmpegUpdate"
+            >
+              {{ t("app.settings.checkFfmpegUpdateButton") }}
+            </Button>
+            <Button
+              v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
+              data-testid="tool-download-action"
+              variant="outline"
+              size="sm"
+              class="h-5 px-2 text-[9px]"
+              @click="emit('downloadTool', tool.kind)"
+            >
+              {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
+            </Button>
+          </div>
         </div>
 
         <!-- Download error message -->

@@ -72,5 +72,56 @@ if (
       ].filter(Boolean);
       console.log(parts.join(" | "));
     }
+
+    if (typeof window !== "undefined") {
+      // Expose a helper to dump startup metrics and performance marks for
+      // copy/paste diagnostics in release builds.
+      (window as any).__FFUI_DUMP_STARTUP_METRICS__ = () => {
+        const metrics = (window as any).__FFUI_STARTUP_METRICS__ ?? {};
+        const markNames = [
+          "startup_idle_ready",
+          "first_queue_state_lite_applied",
+          "app_settings_loaded",
+          "tool_statuses_loaded",
+          "tools_refresh_requested",
+          "tools_refresh_received",
+          "presets_loaded",
+        ];
+        const marks: Record<string, number | null> = {};
+        if (typeof performance !== "undefined" && "getEntriesByName" in performance) {
+          for (const name of markNames) {
+            const entries = performance.getEntriesByName(name);
+            const lastEntry = entries[entries.length - 1];
+            marks[name] = lastEntry ? lastEntry.startTime : null;
+          }
+        } else {
+          for (const name of markNames) {
+            marks[name] = null;
+          }
+        }
+
+        const payload = { metrics, marks };
+        console.log("[startup] FFUI startup metrics:", payload);
+        return payload;
+      };
+
+      // Avoid hard-coded delayed work in production builds; keep the helper
+      // opt-in unless explicitly enabled.
+      const shouldAutoDump =
+        typeof import.meta !== "undefined" &&
+        typeof import.meta.env !== "undefined" &&
+        (import.meta.env.DEV ||
+          import.meta.env.VITE_AUTO_DUMP_STARTUP_METRICS === "1");
+
+      if (shouldAutoDump) {
+        window.setTimeout(() => {
+          try {
+            (window as any).__FFUI_DUMP_STARTUP_METRICS__?.();
+          } catch {
+            // Best-effort only.
+          }
+        }, 1000);
+      }
+    }
   }
 }
