@@ -64,6 +64,8 @@ fn execute_transcode_job(
     // 保留对子进程 stdin 的可选句柄，用于在“暂停”时写入 `q\n` 请求 ffmpeg
     // 优雅退出当前分段。这样生成的临时输出文件结构完整，便于后续多段 concat。
     let mut child_stdin = child.stdin.take();
+    let mut wait_requested = false;
+    let mut last_effective_elapsed_seconds: Option<f64> = None;
 
     if let Some(stderr) = child.stderr.take() {
         let reader = BufReader::new(stderr);
@@ -84,18 +86,18 @@ fn execute_transcode_job(
                 return Ok(());
             }
 
-            if is_job_wait_requested(inner, job_id) {
+            if !wait_requested && is_job_wait_requested(inner, job_id) {
                 // 暂停请求：通过 stdin 写入 `q\n`，请求 ffmpeg 优雅退出当前分段。
-                // 这里不区分退出码，统一视为“本段完成并进入等待状态”，由上层
-                // 通过 WaitMetadata 记录已完成分段路径与进度。
+                // 关键点：不要立刻 mark_job_waiting 并 return。必须继续 drain
+                // stderr，直到 ffmpeg 退出并输出最后一批 `-progress pipe:2`
+                // 行（尤其是 out_time_ms / progress=end），否则 processed_seconds
+                // 可能滞后，导致下一次 resume 的 -ss 偏小并产生段落重叠。
                 if let Some(mut stdin) = child_stdin.take() {
                     use std::io::Write as IoWrite;
                     let _ = stdin.write_all(b"q\n");
                     let _ = stdin.flush();
                 }
-                let _ = child.wait();
-                mark_job_waiting(inner, job_id, &tmp_output, &output_path, total_duration)?;
-                return Ok(());
+                wait_requested = true;
             }
 
             // When ffprobe is unavailable or fails, infer total duration from
@@ -177,6 +179,9 @@ fn execute_transcode_job(
                 } else {
                     elapsed
                 };
+                if effective_elapsed.is_finite() && effective_elapsed > 0.0 {
+                    last_effective_elapsed_seconds = Some(effective_elapsed);
+                }
 
                 let mut percent = compute_progress_percent(total_duration, effective_elapsed);
                 if percent >= 100.0 {
@@ -210,6 +215,23 @@ fn execute_transcode_job(
     if is_job_cancelled(inner, job_id) {
         mark_job_cancelled(inner, job_id)?;
         let _ = fs::remove_file(&tmp_output);
+        return Ok(());
+    }
+
+    if wait_requested {
+        // 暂停：无论退出码如何，都将当前 tmp_output 视为“已完成分段”，并将
+        // 最后一次看到的 out_time_ms/time= 作为 processed_seconds（叠加 resume 基线）。
+        //
+        // 这能避免“暂停后少读最后几行进度”导致 processed_seconds 偏小，从而在
+        // 下一次 resume 里使用 -ss 回退并产生重叠段，最终让输出体积异常增大。
+        mark_job_waiting(
+            inner,
+            job_id,
+            &tmp_output,
+            &output_path,
+            total_duration,
+            last_effective_elapsed_seconds,
+        )?;
         return Ok(());
     }
 

@@ -28,6 +28,7 @@ mod enqueue_and_logging;
 mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_tests;
 mod ffmpeg_integration;
+mod ffmpeg_pause_resume_integration;
 mod image_and_preview;
 mod job_progress_and_processing;
 mod job_progress_wall_clock;

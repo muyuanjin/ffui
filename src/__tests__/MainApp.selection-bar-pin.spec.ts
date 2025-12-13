@@ -67,6 +67,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, AppSettings } from "@/types";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { saveAppSettings as saveAppSettingsMock } from "@/lib/backend";
 
 const i18n = createI18n({
   legacy: false,
@@ -149,6 +150,7 @@ describe("MainApp queue selection toolbar pin", () => {
     // 在 AppSettings 真正加载完成之前先点击固定按钮。
     await pinButton.trigger("click");
     await nextTick();
+    await flushPromises();
 
     // UI 上应立即切换为“取消固定”。
     expect(
@@ -196,6 +198,11 @@ describe("MainApp queue selection toolbar pin", () => {
     const appSettings =
       (vm.settings?.appSettings?.value as AppSettings | null) ?? null;
     expect(appSettings?.selectionBarPinned).toBe(true);
+    expect(
+      (saveAppSettingsMock as any).mock.calls.some(
+        (call: any[]) => call?.[0]?.selectionBarPinned === true,
+      ),
+    ).toBe(true);
 
     wrapper.unmount();
   });

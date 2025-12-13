@@ -33,6 +33,7 @@ const makeAppSettings = (): AppSettings => ({
   smartScanDefaults: buildSmartScanDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
+  selectionBarPinned: true,
   taskbarProgressMode: "byEstimatedTime",
   queuePersistenceMode: "crashRecoveryFull",
   crashRecoveryLogRetention: {
@@ -66,6 +67,7 @@ describe("backend settings contract", () => {
     expect(cmd).toBe("save_app_settings");
     expect(payload).toMatchObject({
       settings: {
+        selectionBarPinned: true,
         updater: {
           autoCheck: true,
           lastCheckedAtMs: 1_735_000_000_000,

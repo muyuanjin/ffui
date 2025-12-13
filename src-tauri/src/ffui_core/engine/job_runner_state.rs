@@ -22,6 +22,7 @@ pub(super) fn mark_job_waiting(
     tmp_output: &Path,
     output_path: &Path,
     total_duration: Option<f64>,
+    processed_seconds_override: Option<f64>,
 ) -> Result<()> {
     let tmp_str = tmp_output.to_string_lossy().into_owned();
     let output_str = output_path.to_string_lossy().into_owned();
@@ -66,13 +67,20 @@ pub(super) fn mark_job_waiting(
                 .and_then(|m| m.duration_seconds)
                 .or(total_duration);
 
-            let processed_seconds = match (percent, media_duration) {
-                (Some(p), Some(total))
-                    if p.is_finite() && total.is_finite() && p > 0.0 && total > 0.0 =>
-                {
-                    Some((p / 100.0) * total)
+            let processed_seconds = if let Some(v) = processed_seconds_override
+                && v.is_finite()
+                && v > 0.0
+            {
+                Some(v)
+            } else {
+                match (percent, media_duration) {
+                    (Some(p), Some(total))
+                        if p.is_finite() && total.is_finite() && p > 0.0 && total > 0.0 =>
+                    {
+                        Some((p / 100.0) * total)
+                    }
+                    _ => None,
                 }
-                _ => None,
             };
 
             // 累积所有暂停产生的分段路径，支持多次“暂停→继续”后进行多段 concat。

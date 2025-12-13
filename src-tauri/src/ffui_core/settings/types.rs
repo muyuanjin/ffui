@@ -257,6 +257,10 @@ pub struct AppSettings {
     /// tools onboarding flow will not auto-run again on startup.
     #[serde(default, skip_serializing_if = "is_false")]
     pub onboarding_completed: bool,
+    /// Whether the queue selection toolbar should remain visible even when no
+    /// jobs are selected. This powers the "Pin toolbar" UI toggle.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub selection_bar_pinned: bool,
 }
 
 impl Default for AppSettings {
@@ -329,6 +333,7 @@ impl Default for AppSettings {
             queue_persistence_mode: QueuePersistenceMode::default(),
             crash_recovery_log_retention: None,
             onboarding_completed: false,
+            selection_bar_pinned: false,
         }
     }
 }

@@ -240,7 +240,7 @@ fn multi_worker_wait_resume_respects_queue_order() {
     // Apply the wait cooperatively as the worker loop would.
     let tmp = PathBuf::from("C:/videos/multi-worker-wait.compressed.tmp.mp4");
     let out = PathBuf::from("C:/videos/multi-worker-wait.compressed.mp4");
-    mark_job_waiting(&engine.inner, &job_ids[0], &tmp, &out, Some(100.0))
+    mark_job_waiting(&engine.inner, &job_ids[0], &tmp, &out, Some(100.0), None)
         .expect("mark_job_waiting must succeed");
 
     {

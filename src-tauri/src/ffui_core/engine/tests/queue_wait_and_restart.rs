@@ -40,7 +40,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
     // Cooperatively apply the wait in the worker loop.
     let tmp = PathBuf::from("C:/videos/wait-resume.compressed.tmp.mp4");
     let out = PathBuf::from("C:/videos/wait-resume.compressed.mp4");
-    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0))
+    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0), None)
         .expect("mark_job_waiting must succeed");
 
     {
@@ -452,7 +452,7 @@ fn rapid_pause_resume_pause_sequence_handles_correctly() {
     // 模拟协作式暂停完成
     let tmp = PathBuf::from("C:/videos/rapid-sequence.compressed.tmp.mp4");
     let out = PathBuf::from("C:/videos/rapid-sequence.compressed.mp4");
-    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0))
+    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0), None)
         .expect("mark_job_waiting must succeed");
 
     // 验证任务现在是 Paused 状态

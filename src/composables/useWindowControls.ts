@@ -29,9 +29,7 @@ export function useWindowControls() {
   const toggleMaximizeWindow = async () => {
     try {
       const win = appWindow.value ?? (await getCurrentWindow());
-      const isMaximized = await win.isMaximized();
-      if (isMaximized) await win.unmaximize();
-      else await win.maximize();
+      await win.toggleMaximize();
     } catch (e) {
       console.error("Failed to toggle maximize:", e);
     }

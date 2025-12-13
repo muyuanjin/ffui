@@ -74,7 +74,9 @@ mod tests {
         assert!(!is_pubkey_configured(Some(PLACEHOLDER_PUBKEY)));
         assert!(!is_pubkey_configured(Some("")));
         assert!(!is_pubkey_configured(Some("   ")));
-        assert!(!is_pubkey_configured(Some("{{ env.TAURI_UPDATER_PUBKEY }}")));
+        assert!(!is_pubkey_configured(Some(
+            "{{ env.TAURI_UPDATER_PUBKEY }}"
+        )));
     }
 
     #[test]

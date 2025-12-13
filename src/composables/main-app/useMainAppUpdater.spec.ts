@@ -9,8 +9,8 @@ import { useMainAppUpdater } from "./useMainAppUpdater";
 
 const relaunchMock = vi.fn(async (..._args: any[]) => {});
 const checkMock = vi.fn(async (..._args: any[]) => null as any);
-const fetchCapabilitiesMock = vi.fn(async () => ({ configured: true }));
-const saveAppSettingsMock = vi.fn(async (settings: AppSettings) => settings);
+const fetchCapabilitiesMock = vi.fn(async (..._args: any[]) => ({ configured: true }));
+const saveAppSettingsMock = vi.fn(async (...args: any[]) => args[0] as AppSettings);
 
 vi.mock("@tauri-apps/plugin-process", () => ({
   relaunch: relaunchMock,
