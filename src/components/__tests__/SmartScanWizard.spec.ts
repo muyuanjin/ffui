@@ -38,6 +38,23 @@ const createI18nInstance = () =>
 describe("SmartScanWizard 默认预设", () => {
   const presets = [createPreset("p1", "预设一"), createPreset("p2", "预设二")];
 
+  it("点击遮罩空白处会触发 cancel，点击内容不会", async () => {
+    const wrapper = mount(SmartScanWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildSmartScanDefaults({ rootPath: "C:/videos" }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await wrapper.find(".bg-background").trigger("click");
+    expect(wrapper.emitted("cancel")).toBeFalsy();
+
+    await wrapper.find(".fixed.inset-0").trigger("click");
+    expect(wrapper.emitted("cancel")?.length).toBe(1);
+  });
+
   it("未显式指定时使用主界面默认视频预设", async () => {
     const wrapper = mount(SmartScanWizard, {
       props: {
