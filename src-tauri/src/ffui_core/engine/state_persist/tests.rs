@@ -92,6 +92,7 @@ fn debounced_persistence_flushes_after_burst_ends() {
     let _guard = PERSIST_TEST_MUTEX
         .lock()
         .expect("PERSIST_TEST_MUTEX poisoned");
+    reset_queue_persist_state_for_tests();
 
     let tmp =
         std::env::temp_dir().join(format!("ffui-test-queue-state-{}.json", std::process::id()));
@@ -129,6 +130,7 @@ fn debounced_persistence_limits_write_frequency_under_bursts() {
     let _guard = PERSIST_TEST_MUTEX
         .lock()
         .expect("PERSIST_TEST_MUTEX poisoned");
+    reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
         "ffui-test-queue-state-burst-{}.json",
@@ -192,6 +194,7 @@ fn queue_state_json_contains_slim_logs_only() {
     let _guard = PERSIST_TEST_MUTEX
         .lock()
         .expect("PERSIST_TEST_MUTEX poisoned");
+    reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
         "ffui-test-queue-state-slim-{}.json",

@@ -95,7 +95,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     }
 
     let mut waiting: Vec<(u64, String)> = Vec::new();
-    let mut tmp_output_candidates: Vec<(String, PathBuf, f64, Option<u64>)> = Vec::new();
+    let mut tmp_output_candidates: Vec<(String, PathBuf, PathBuf, f64, Option<u64>)> = Vec::new();
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -138,8 +138,20 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 )
                 && job.wait_metadata.is_none()
             {
-                let tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
-                tmp_output_candidates.push((id.clone(), tmp_output, job.progress, job.elapsed_ms));
+                let legacy_tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
+                let job_tmp_output = super::super::job_runner::build_video_job_segment_tmp_output_path(
+                    Path::new(&job.filename),
+                    None,
+                    &id,
+                    0,
+                );
+                tmp_output_candidates.push((
+                    id.clone(),
+                    job_tmp_output,
+                    legacy_tmp_output,
+                    job.progress,
+                    job.elapsed_ms,
+                ));
             }
 
             if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
@@ -175,8 +187,16 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     // outside the engine lock to avoid blocking concurrent queue snapshots.
     if !tmp_output_candidates.is_empty() {
         let mut recovered_tmp_outputs: Vec<(String, String, f64, Option<u64>)> = Vec::new();
-        for (id, tmp_output, progress, elapsed_ms) in tmp_output_candidates {
-            if tmp_output.exists() {
+        for (id, job_tmp_output, legacy_tmp_output, progress, elapsed_ms) in tmp_output_candidates {
+            let chosen = if job_tmp_output.exists() {
+                Some(job_tmp_output)
+            } else if legacy_tmp_output.exists() {
+                Some(legacy_tmp_output)
+            } else {
+                None
+            };
+
+            if let Some(tmp_output) = chosen {
                 let tmp_str = tmp_output.to_string_lossy().into_owned();
                 recovered_tmp_outputs.push((id, tmp_str, progress, elapsed_ms));
             }

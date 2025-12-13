@@ -76,6 +76,14 @@ fn execute_transcode_job(
             // Cooperative wait/cancel handling: if the frontend has requested
             // a wait or cancel for this job, terminate the ffmpeg child
             // process and transition the job into the appropriate state.
+            if is_job_cancelled(inner, job_id) {
+                let _ = child.kill();
+                let _ = child.wait();
+                mark_job_cancelled(inner, job_id)?;
+                let _ = fs::remove_file(&tmp_output);
+                return Ok(());
+            }
+
             if is_job_wait_requested(inner, job_id) {
                 // 暂停请求：通过 stdin 写入 `q\n`，请求 ffmpeg 优雅退出当前分段。
                 // 这里不区分退出码，统一视为“本段完成并进入等待状态”，由上层
@@ -87,22 +95,6 @@ fn execute_transcode_job(
                 }
                 let _ = child.wait();
                 mark_job_waiting(inner, job_id, &tmp_output, &output_path, total_duration)?;
-                return Ok(());
-            }
-
-            if is_job_cancelled(inner, job_id) {
-                let _ = child.kill();
-                let _ = child.wait();
-                mark_job_cancelled(inner, job_id)?;
-                let _ = fs::remove_file(&tmp_output);
-                return Ok(());
-            }
-
-            if is_job_cancelled(inner, job_id) {
-                let _ = child.kill();
-                let _ = child.wait();
-                mark_job_cancelled(inner, job_id)?;
-                let _ = fs::remove_file(&tmp_output);
                 return Ok(());
             }
 

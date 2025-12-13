@@ -61,7 +61,11 @@ pub(crate) struct EngineState {
     pub(crate) settings: AppSettings,
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
-    pub(crate) active_job: Option<String>,
+    pub(crate) active_jobs: HashSet<String>,
+    /// Input paths (filenames) currently being processed by active workers.
+    /// This is used to prevent concurrent transcodes of the same input from
+    /// deadlocking on temp output collisions or platform file locks.
+    pub(crate) active_inputs: HashSet<String>,
     pub(crate) cancelled_jobs: HashSet<String>,
     /// Monotonic token used to invalidate in-flight preview refresh tasks when
     /// previewCapturePercent changes multiple times quickly.
@@ -91,7 +95,8 @@ impl EngineState {
             settings,
             jobs: HashMap::new(),
             queue: VecDeque::new(),
-            active_job: None,
+            active_jobs: HashSet::new(),
+            active_inputs: HashSet::new(),
             cancelled_jobs: HashSet::new(),
             preview_refresh_token: 0,
             wait_requests: HashSet::new(),

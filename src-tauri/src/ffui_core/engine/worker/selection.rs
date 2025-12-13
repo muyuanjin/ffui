@@ -7,10 +7,26 @@ use super::super::worker_utils::current_time_millis;
 pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
     state: &mut EngineState,
 ) -> Option<String> {
-    let job_id = state.queue.pop_front()?;
-    state.active_job = Some(job_id.clone());
+    // Find the first job that is eligible to run. Jobs can be temporarily
+    // ineligible when another worker is already processing the same input
+    // file (e.g. duplicate enqueues for the same path).
+    let index = state.queue.iter().position(|id| {
+        let Some(job) = state.jobs.get(id) else {
+            return false;
+        };
+        matches!(job.status, JobStatus::Waiting | JobStatus::Queued)
+            && !state.active_inputs.contains(&job.filename)
+    })?;
+
+    let job_id = if index == 0 {
+        state.queue.pop_front()?
+    } else {
+        state.queue.remove(index)?
+    };
 
     if let Some(job) = state.jobs.get_mut(&job_id) {
+        state.active_jobs.insert(job_id.clone());
+        state.active_inputs.insert(job.filename.clone());
         job.status = JobStatus::Processing;
         if job.start_time.is_none() {
             job.start_time = Some(current_time_millis());

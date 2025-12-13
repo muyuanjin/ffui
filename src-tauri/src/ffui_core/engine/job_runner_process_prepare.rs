@@ -1,15 +1,20 @@
-fn plan_resume_paths(
+pub(super) fn plan_resume_paths(
+    job_id: &str,
     input_path: &Path,
     media_duration: Option<f64>,
     wait_meta: Option<&WaitMetadata>,
     container_format: Option<&str>,
 ) -> (Option<f64>, Vec<PathBuf>, PathBuf) {
-    let base_tmp_output = build_video_tmp_output_path(input_path, container_format);
-    let resume_tmp_output = build_video_resume_tmp_output_path(input_path, container_format);
+    // Use a per-job, per-segment temp output path so multiple pauses/resumes (or
+    // duplicate enqueues for the same input) never collide on disk.
+    let build_tmp = |idx: u64| {
+        build_video_job_segment_tmp_output_path(input_path, container_format, job_id, idx)
+    };
 
     // 根据 WaitMetadata 计算“已处理秒数”和历史分段列表，以支撑多次暂停/继续。
     let mut resume_from_seconds: Option<f64> = None;
     let mut existing_segments: Vec<PathBuf> = Vec::new();
+    let mut recorded_segment_count: u64 = 0;
 
     if let Some(meta) = wait_meta {
         // 1) 计算当前已经处理到的时间位置，用于构建下一轮的 -ss。
@@ -31,6 +36,7 @@ fn plan_resume_paths(
 
         // 2) 构建历史分段列表：优先使用 segments，回退到单一 tmp_output_path。
         if let Some(ref segs) = meta.segments {
+            recorded_segment_count = segs.len() as u64;
             for s in segs {
                 let path = PathBuf::from(s);
                 if path.exists() {
@@ -42,6 +48,7 @@ fn plan_resume_paths(
         if existing_segments.is_empty()
             && let Some(tmp) = meta.tmp_output_path.as_ref()
         {
+            recorded_segment_count = recorded_segment_count.max(1);
             let path = PathBuf::from(tmp);
             if path.exists() {
                 existing_segments.push(path);
@@ -51,12 +58,28 @@ fn plan_resume_paths(
 
     // 无有效历史分段或缺乏位置信息时，回退为从 0% 开始的新一次转码。
     if existing_segments.is_empty() || resume_from_seconds.is_none() {
-        return (None, Vec::new(), base_tmp_output);
+        // Even for a fresh run, ensure we pick a non-existent segment path in
+        // case this job id previously crashed and left stale tmp files behind.
+        let mut idx: u64 = recorded_segment_count;
+        loop {
+            let candidate = build_tmp(idx);
+            if !candidate.exists() {
+                return (None, Vec::new(), candidate);
+            }
+            idx = idx.saturating_add(1);
+        }
     }
 
-    let tmp_output = resume_tmp_output;
-
-    (resume_from_seconds, existing_segments, tmp_output)
+    // Resumed run: pick the next available segment index (starting at the
+    // recorded count) and skip any stale files that may exist from crashes.
+    let mut idx: u64 = recorded_segment_count.max(existing_segments.len() as u64);
+    loop {
+        let candidate = build_tmp(idx);
+        if !candidate.exists() {
+            return (resume_from_seconds, existing_segments, candidate);
+        }
+        idx = idx.saturating_add(1);
+    }
 }
 
 /// 为 mp4/mov 输出启用 fragmented MP4 相关 movflags，提升在崩溃或异常中断时
@@ -271,6 +294,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         }
     };
     let (mut resume_from_seconds, mut existing_segments, tmp_output) = plan_resume_paths(
+        job_id,
         &input_path,
         media_info.duration_seconds,
         job_wait_metadata.as_ref(),
@@ -303,9 +327,14 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                 let tmp_str = tmp_output.to_string_lossy().into_owned();
                 match job.wait_metadata.as_mut() {
                     Some(meta) => {
-                        if meta.tmp_output_path.is_none() {
-                            meta.tmp_output_path = Some(tmp_str.clone());
+                        // Record the temp output path for the current run so crash
+                        // recovery can pick it up even if ffmpeg is interrupted.
+                        meta.tmp_output_path = Some(tmp_str.clone());
+                        let mut segs = meta.segments.clone().unwrap_or_default();
+                        if segs.last().map(|s| s != &tmp_str).unwrap_or(true) {
+                            segs.push(tmp_str.clone());
                         }
+                        meta.segments = Some(segs);
                     }
                     None => {
                         job.wait_metadata = Some(WaitMetadata {
@@ -388,113 +417,4 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         ffmpeg_path: ffmpeg_path.clone(),
         ffmpeg_source: ffmpeg_source.clone(),
     }))
-}
-
-#[cfg(test)]
-mod process_prepare_tests {
-    use super::*;
-    use std::env;
-    use std::fs::{self, File};
-    use std::io::Write;
-
-    #[test]
-    fn plan_resume_paths_uses_first_tmp_segment_for_initial_resume() {
-        let dir = env::temp_dir();
-        let input = dir.join("ffui_resume_plan_first.mp4");
-        let base_tmp = build_video_tmp_output_path(&input, None);
-        let resume_tmp = build_video_resume_tmp_output_path(&input, None);
-
-        // 构造一次“首次暂停”的场景：存在基础临时输出段，并在 WaitMetadata 中记录。
-        if let Some(parent) = base_tmp.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        {
-            let mut file =
-                File::create(&base_tmp).expect("create base tmp segment for first resume test");
-            let _ = file.write_all(b"segment");
-        }
-
-        let meta = WaitMetadata {
-            last_progress_percent: None,
-            processed_wall_millis: None,
-            processed_seconds: Some(12.5),
-            tmp_output_path: Some(base_tmp.to_string_lossy().into_owned()),
-            segments: Some(vec![base_tmp.to_string_lossy().into_owned()]),
-        };
-
-        let (resume_from, existing, tmp_output) =
-            plan_resume_paths(&input, Some(100.0), Some(&meta), None);
-
-        assert!(
-            (resume_from.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
-            "首次继续时应复用 WaitMetadata 中记录的 processed_seconds"
-        );
-        assert_eq!(
-            existing,
-            vec![base_tmp.clone()],
-            "existing_segments 必须包含基础临时输出段"
-        );
-        assert_eq!(
-            tmp_output, resume_tmp,
-            "首次继续时应将新的输出写入 resume 临时路径"
-        );
-
-        let _ = fs::remove_file(&base_tmp);
-        let _ = fs::remove_file(&resume_tmp);
-    }
-
-    #[test]
-    fn plan_resume_paths_builds_existing_segments_from_metadata() {
-        let dir = env::temp_dir();
-        let input = dir.join("ffui_resume_plan_multi.mp4");
-        let base_tmp = build_video_tmp_output_path(&input, None);
-        let resume_tmp = build_video_resume_tmp_output_path(&input, None);
-
-        // 构造“再次继续”场景：已经存在两段历史分段文件，WaitMetadata.segments 中记录其路径。
-        if let Some(parent) = base_tmp.parent() {
-            let _ = fs::create_dir_all(parent);
-        }
-        {
-            let mut file = File::create(&base_tmp)
-                .expect("create base tmp segment for multi-resume test");
-            let _ = file.write_all(b"segment1");
-        }
-        {
-            let mut file = File::create(&resume_tmp)
-                .expect("create resume tmp segment for multi-resume test");
-            let _ = file.write_all(b"segment2");
-        }
-
-        let meta = WaitMetadata {
-            last_progress_percent: Some(50.0),
-            processed_wall_millis: None,
-            processed_seconds: Some(50.0),
-            tmp_output_path: Some(resume_tmp.to_string_lossy().into_owned()),
-            segments: Some(vec![
-                base_tmp.to_string_lossy().into_owned(),
-                resume_tmp.to_string_lossy().into_owned(),
-            ]),
-        };
-
-        let (resume_from, existing, tmp_output) =
-            plan_resume_paths(&input, Some(100.0), Some(&meta), None);
-
-        assert!(
-            (resume_from.unwrap_or(0.0) - 50.0).abs() < f64::EPSILON,
-            "应从 WaitMetadata.processed_seconds 计算继续位置"
-        );
-        assert_eq!(
-            existing,
-            vec![base_tmp.clone(), resume_tmp.clone()],
-            "existing_segments 必须按顺序包含所有历史分段"
-        );
-        assert_eq!(
-            tmp_output,
-            build_video_resume_tmp_output_path(&input, None),
-            "存在历史分段时应将新输出写入 resume 临时路径"
-        );
-
-        let _ = fs::remove_file(&base_tmp);
-        let _ = fs::remove_file(&resume_tmp);
-    }
 }

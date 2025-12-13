@@ -133,6 +133,10 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite) {
                 let _ = fs::remove_file(&tmp_path);
                 return;
             }
+            // Ensure the file handle is closed before attempting an atomic rename.
+            // On Windows, renaming an open file will fail (and tests may observe
+            // the sidecar as missing).
+            drop(file);
             if let Err(err) = fs::rename(&tmp_path, &path) {
                 eprintln!(
                     "failed to atomically rename {} -> {}: {err:#}",
@@ -200,6 +204,20 @@ impl QueuePersistCoordinator {
 
 static QUEUE_PERSIST: once_cell::sync::Lazy<QueuePersistCoordinator> =
     once_cell::sync::Lazy::new(QueuePersistCoordinator::new);
+
+#[cfg(test)]
+pub(super) fn reset_queue_persist_state_for_tests() {
+    let mut state = QUEUE_PERSIST
+        .state
+        .lock()
+        .expect("queue persist lock poisoned");
+    state.last_write_at = None;
+    state.last_snapshot = None;
+    state.dirty_since_write = false;
+    state.next_flush_at = None;
+    // Keep worker_started as-is; stopping/spawning threads is intentionally
+    // avoided in unit tests. The mutex above serializes test access.
+}
 
 pub(super) fn peek_last_persisted_queue_state_lite() -> Option<QueueStateLite> {
     let state = QUEUE_PERSIST

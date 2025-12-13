@@ -8,10 +8,12 @@ use super::super::worker_utils::{current_time_millis, recompute_log_tail};
 /// Cancel a job by ID.
 ///
 /// If the job is waiting/queued, removes it from the queue and marks as cancelled.
+/// If the job is paused, transitions it directly into Cancelled so it can be deleted.
 /// If the job is processing, marks it for cooperative cancellation by the worker.
 /// Returns true if the job was successfully cancelled or marked for cancellation.
 pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     let mut should_notify = false;
+    let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
     let result = {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -32,12 +34,52 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     job.log_head = None;
                     recompute_log_tail(job);
                 }
+                // Any stale flags become irrelevant.
+                state.cancelled_jobs.remove(job_id);
+                state.wait_requests.remove(job_id);
+                state.restart_requests.remove(job_id);
+                should_notify = true;
+                true
+            }
+            JobStatus::Paused => {
+                state.queue.retain(|id| id != job_id);
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    // Best-effort cleanup: when cancelling a paused job, remove any
+                    // partial output segments that were produced by previous runs.
+                    if let Some(meta) = job.wait_metadata.as_ref() {
+                        if let Some(ref segs) = meta.segments {
+                            for s in segs {
+                                if !s.trim().is_empty() {
+                                    cleanup_paths.push(std::path::PathBuf::from(s));
+                                }
+                            }
+                        }
+                        if let Some(tmp) = meta.tmp_output_path.as_ref()
+                            && !tmp.trim().is_empty()
+                        {
+                            cleanup_paths.push(std::path::PathBuf::from(tmp));
+                        }
+                    }
+
+                    job.status = JobStatus::Cancelled;
+                    job.progress = 0.0;
+                    job.end_time = Some(current_time_millis());
+                    job.logs.push("Cancelled while paused".to_string());
+                    job.log_head = None;
+                    job.wait_metadata = None;
+                    recompute_log_tail(job);
+                }
+                state.cancelled_jobs.remove(job_id);
+                state.wait_requests.remove(job_id);
+                state.restart_requests.remove(job_id);
                 should_notify = true;
                 true
             }
             JobStatus::Processing => {
                 // Mark for cooperative cancellation; the worker thread will
                 // observe this and terminate the underlying ffmpeg process.
+                // If a wait request is pending, cancel takes precedence.
+                state.wait_requests.remove(job_id);
                 state.cancelled_jobs.insert(job_id.to_string());
                 should_notify = true;
                 true
@@ -48,6 +90,11 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 
     if should_notify {
         notify_queue_listeners(inner);
+    }
+
+    // Perform filesystem cleanup outside of the engine lock.
+    for path in cleanup_paths {
+        let _ = std::fs::remove_file(path);
     }
 
     result
@@ -217,7 +264,7 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
                 // Guard against deleting the currently active job even if the
                 // status somehow appears terminal; this should not normally
                 // happen but keeps the behaviour defensive.
-                if state.active_job.as_deref() == Some(job_id) {
+                if state.active_jobs.contains(job_id) {
                     return false;
                 }
 
@@ -245,7 +292,7 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
 ///
 /// 语义约定：
 /// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且
-///   当前没有处于 active_job 状态时才执行删除；否则直接返回 false，不做任何修改；
+///   当前没有处于 active_jobs 状态时才执行删除；否则直接返回 false，不做任何修改；
 /// - 删除成功后会同时清理队列中的相关 bookkeeping（queue / cancelled / wait / restart）；
 /// - 当该批次所有子任务都被移除后，连同 smart_scan_batches 中的批次元数据一并移除，
 ///   这样前端复合任务卡片也会从队列中消失。
@@ -268,7 +315,7 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
             return false;
         }
 
-        // 先遍历一遍，确保所有子任务都处于终态且不是当前 active_job。
+        // 先遍历一遍，确保所有子任务都处于终态且不是当前 active_jobs。
         for job_id in &batch.child_job_ids {
             if let Some(job) = state.jobs.get(job_id) {
                 match job.status {
@@ -276,7 +323,7 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
                     | JobStatus::Failed
                     | JobStatus::Skipped
                     | JobStatus::Cancelled => {
-                        if state.active_job.as_deref() == Some(job_id.as_str()) {
+                        if state.active_jobs.contains(job_id.as_str()) {
                             return false;
                         }
                     }

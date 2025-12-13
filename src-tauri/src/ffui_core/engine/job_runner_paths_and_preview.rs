@@ -21,6 +21,7 @@ pub(super) fn build_video_output_path(input: &Path, container_format: Option<&st
 // Temporary output path for video transcodes. We keep an extension that matches
 // the target container (when known) so工具与用户都能从文件名推断大致类型，同时仅在
 // 扩展名前插入 `.tmp`。成功转码后再重命名到稳定输出路径，以保证“原子替换”。
+#[allow(dead_code)]
 pub(super) fn build_video_tmp_output_path(
     input: &Path,
     container_format: Option<&str>,
@@ -35,6 +36,7 @@ pub(super) fn build_video_tmp_output_path(
     parent.join(format!("{stem}.compressed.tmp.{ext}"))
 }
 
+#[allow(dead_code)]
 pub(super) fn build_video_resume_tmp_output_path(
     input: &Path,
     container_format: Option<&str>,
@@ -47,6 +49,29 @@ pub(super) fn build_video_resume_tmp_output_path(
     let input_ext = input.extension().and_then(|e| e.to_str());
     let ext = infer_output_extension(container_format, input_ext);
     parent.join(format!("{stem}.compressed.resume.tmp.{ext}"))
+}
+
+/// Temporary output path for a specific job segment.
+///
+/// Unlike the legacy `*.compressed.tmp.*` path, this includes the stable job id
+/// (and a monotonic segment index) so multiple pauses/resumes or duplicate
+/// enqueues for the same input file cannot collide on disk.
+pub(super) fn build_video_job_segment_tmp_output_path(
+    input: &Path,
+    container_format: Option<&str>,
+    job_id: &str,
+    segment_index: u64,
+) -> PathBuf {
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let ext = infer_output_extension(container_format, input_ext);
+    parent.join(format!(
+        "{stem}.compressed.{job_id}.seg{segment_index}.tmp.{ext}"
+    ))
 }
 
 pub(super) fn concat_video_segments(

@@ -58,13 +58,19 @@ fn worker_loop(inner: Arc<Inner>) {
     loop {
         let job_id = {
             let mut state = inner.state.lock().expect("engine state poisoned");
-            while state.queue.is_empty() {
-                state = inner.cv.wait(state).expect("engine state poisoned");
-            }
+            loop {
+                while state.queue.is_empty() {
+                    state = inner.cv.wait(state).expect("engine state poisoned");
+                }
 
-            match next_job_for_worker_locked(&mut state) {
-                Some(id) => id,
-                None => continue,
+                if let Some(id) = next_job_for_worker_locked(&mut state) {
+                    break id;
+                }
+
+                // Queue is non-empty but no job is currently eligible (e.g. all
+                // jobs are blocked behind an active input). Wait until either a
+                // worker finishes or a queue mutation makes progress possible.
+                state = inner.cv.wait(state).expect("engine state poisoned");
             }
         };
 
@@ -94,11 +100,17 @@ fn worker_loop(inner: Arc<Inner>) {
 
         {
             let mut state = inner.state.lock().expect("engine state poisoned");
-            state.active_job = None;
+            let input = state.jobs.get(&job_id).map(|j| j.filename.clone());
+            state.active_jobs.remove(&job_id);
+            if let Some(input) = input {
+                state.active_inputs.remove(&input);
+            }
             state.cancelled_jobs.remove(&job_id);
         }
 
         // Broadcast final state for the completed / failed / skipped job.
         notify_queue_listeners(&inner);
+        // Wake any worker threads waiting for a previously blocked input.
+        inner.cv.notify_all();
     }
 }
