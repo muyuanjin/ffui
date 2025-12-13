@@ -117,28 +117,28 @@ const toolsMode = computed<ExternalToolsMode>({
 
 <template>
   <section class="max-w-7xl mx-auto px-3 py-2">
-    <!-- Compact grid layout for high information density -->
-    <div class="grid gap-2 xl:grid-cols-3 lg:grid-cols-2">
+    <!-- Two-column layout on large screens: left for dense settings, right for utility cards. -->
+    <div class="grid gap-2 items-start lg:grid-cols-12">
+      <div class="space-y-2 lg:col-span-8">
+        <!-- External Tools Section -->
+        <SettingsExternalToolsSection
+          :app-settings="appSettings"
+          :tool-statuses="toolStatuses"
+          :tool-statuses-fresh="toolStatusesFresh"
+          :fetch-tool-candidates="fetchToolCandidates"
+          :refresh-tool-statuses="refreshToolStatuses"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+          @downloadTool="(kind) => emit('downloadTool', kind)"
+        />
 
-      <!-- External Tools Section -->
-      <SettingsExternalToolsSection
-        :app-settings="appSettings"
-        :tool-statuses="toolStatuses"
-        :tool-statuses-fresh="toolStatusesFresh"
-        :fetch-tool-candidates="fetchToolCandidates"
-        :refresh-tool-statuses="refreshToolStatuses"
-        @update:app-settings="(settings) => emit('update:appSettings', settings)"
-        @downloadTool="(kind) => emit('downloadTool', kind)"
-      />
-
-      <!-- Core Settings Section -->
-      <Card class="border-border/50 bg-card/95 shadow-sm">
-        <CardHeader class="py-2 px-3 border-b border-border/30">
-          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-            {{ t("app.settings.autoDownloadSectionTitle") }}
-          </CardTitle>
-        </CardHeader>
-      <CardContent v-if="appSettings" class="p-2 space-y-2">
+        <!-- Core Settings Section -->
+        <Card class="border-border/50 bg-card/95 shadow-sm">
+          <CardHeader class="py-2 px-3 border-b border-border/30">
+            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              {{ t("app.settings.autoDownloadSectionTitle") }}
+            </CardTitle>
+          </CardHeader>
+        <CardContent v-if="appSettings" class="p-2 space-y-2">
           <p class="text-[10px] text-muted-foreground leading-snug">
             {{ t("app.settings.autoDownloadSectionDescription") }}
           </p>
@@ -329,117 +329,120 @@ const toolsMode = computed<ExternalToolsMode>({
         </CardContent>
       </Card>
 
-      <!-- Interface Settings -->
-      <Card class="border-border/50 bg-card/95 shadow-sm">
-        <CardHeader class="py-2 px-3 border-b border-border/30">
-          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-            {{ t("app.taskbarProgressModeLabel") }}
-          </CardTitle>
-        </CardHeader>
-        <CardContent v-if="appSettings" class="p-2">
-          <Select
-            :model-value="appSettings.taskbarProgressMode"
-            @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
-          >
-            <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="bySize" class="text-[10px]">
-                {{ t("app.taskbarProgressModes.bySize") }}
-              </SelectItem>
-              <SelectItem value="byDuration" class="text-[10px]">
-                {{ t("app.taskbarProgressModes.byDuration") }}
-              </SelectItem>
-              <SelectItem value="byEstimatedTime" class="text-[10px]">
-                {{ t("app.taskbarProgressModes.byEstimatedTime") }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <p class="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
-            {{ t("app.taskbarProgressModeHelp") }}
-          </p>
-          <div class="mt-3 space-y-1">
-            <p class="text-[10px] font-medium text-foreground">
-              {{ t("app.taskbarProgressScopeLabel") }}
-            </p>
+        <!-- Interface Settings -->
+        <Card class="border-border/50 bg-card/95 shadow-sm">
+          <CardHeader class="py-2 px-3 border-b border-border/30">
+            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              {{ t("app.taskbarProgressModeLabel") }}
+            </CardTitle>
+          </CardHeader>
+          <CardContent v-if="appSettings" class="p-2">
             <Select
-              :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
-              @update:model-value="
-                (v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])
-              "
+              :model-value="appSettings.taskbarProgressMode"
+              @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
             >
               <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="allJobs" class="text-[10px]">
-                  {{ t("app.taskbarProgressScopes.allJobs") }}
+                <SelectItem value="bySize" class="text-[10px]">
+                  {{ t("app.taskbarProgressModes.bySize") }}
                 </SelectItem>
-                <SelectItem value="activeAndQueued" class="text-[10px]">
-                  {{ t("app.taskbarProgressScopes.activeAndQueued") }}
+                <SelectItem value="byDuration" class="text-[10px]">
+                  {{ t("app.taskbarProgressModes.byDuration") }}
+                </SelectItem>
+                <SelectItem value="byEstimatedTime" class="text-[10px]">
+                  {{ t("app.taskbarProgressModes.byEstimatedTime") }}
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p class="text-[9px] text-muted-foreground leading-relaxed">
-              {{ t("app.taskbarProgressScopeHelp") }}
+            <p class="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
+              {{ t("app.taskbarProgressModeHelp") }}
             </p>
-          </div>
-        </CardContent>
-      </Card>
+            <div class="mt-3 space-y-1">
+              <p class="text-[10px] font-medium text-foreground">
+                {{ t("app.taskbarProgressScopeLabel") }}
+              </p>
+              <Select
+                :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
+                @update:model-value="
+                  (v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])
+                "
+              >
+                <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="allJobs" class="text-[10px]">
+                    {{ t("app.taskbarProgressScopes.allJobs") }}
+                  </SelectItem>
+                  <SelectItem value="activeAndQueued" class="text-[10px]">
+                    {{ t("app.taskbarProgressScopes.activeAndQueued") }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <p class="text-[9px] text-muted-foreground leading-relaxed">
+                {{ t("app.taskbarProgressScopeHelp") }}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <!-- Developer Tools -->
-      <Card class="border-border/50 bg-card/95 shadow-sm">
-        <CardHeader class="py-2 px-3 border-b border-border/30">
-          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-            {{ t("app.settings.devtoolsSectionTitle") }}
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="p-2">
-          <div class="flex items-center justify-between">
-            <p class="text-[10px] text-muted-foreground">
-              {{ hasTauri() ? t("app.settings.devtoolsWindowHint") : t("app.openDevtoolsUnavailable") }}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-6 px-2 text-[10px]"
-              data-testid="settings-open-devtools"
-              :disabled="!hasTauri()"
-              @click="openDevtools"
-            >
-              {{ t("app.openDevtools") }}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div class="space-y-2 lg:col-span-4">
+        <!-- Developer Tools -->
+        <Card class="border-border/50 bg-card/95 shadow-sm">
+          <CardHeader class="py-2 px-3 border-b border-border/30">
+            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              {{ t("app.settings.devtoolsSectionTitle") }}
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="p-2">
+            <div class="flex items-center justify-between">
+              <p class="text-[10px] text-muted-foreground">
+                {{ hasTauri() ? t("app.settings.devtoolsWindowHint") : t("app.openDevtoolsUnavailable") }}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                class="h-6 px-2 text-[10px]"
+                data-testid="settings-open-devtools"
+                :disabled="!hasTauri()"
+                @click="openDevtools"
+              >
+                {{ t("app.openDevtools") }}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-      <!-- System Info Panel (optional - adds technical flair) -->
-      <Card class="border-border/50 bg-card/95 shadow-sm lg:col-span-2 xl:col-span-1">
-        <CardHeader class="py-2 px-3 border-b border-border/30">
-          <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-            SYSTEM INFO
-          </CardTitle>
-        </CardHeader>
-        <CardContent class="p-2">
-          <div class="space-y-1 font-mono text-[9px] text-muted-foreground">
-            <div class="flex justify-between">
-              <span class="opacity-60">PLATFORM:</span>
-              <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
+        <!-- System Info Panel (optional - adds technical flair) -->
+        <Card class="border-border/50 bg-card/95 shadow-sm">
+          <CardHeader class="py-2 px-3 border-b border-border/30">
+            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
+              SYSTEM INFO
+            </CardTitle>
+          </CardHeader>
+          <CardContent class="p-2">
+            <div class="space-y-1 font-mono text-[9px] text-muted-foreground">
+              <div class="flex justify-between">
+                <span class="opacity-60">PLATFORM:</span>
+                <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="opacity-60">SETTINGS:</span>
+                <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
+              </div>
+              <div v-if="isSavingSettings || settingsSaveError" class="flex justify-between">
+                <span class="opacity-60">STATUS:</span>
+                <span :class="settingsSaveError ? 'text-red-500' : 'text-yellow-500'">
+                  {{ isSavingSettings ? 'SAVING...' : 'ERROR' }}
+                </span>
+              </div>
             </div>
-            <div class="flex justify-between">
-              <span class="opacity-60">SETTINGS:</span>
-              <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
-            </div>
-            <div v-if="isSavingSettings || settingsSaveError" class="flex justify-between">
-              <span class="opacity-60">STATUS:</span>
-              <span :class="settingsSaveError ? 'text-red-500' : 'text-yellow-500'">
-                {{ isSavingSettings ? 'SAVING...' : 'ERROR' }}
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
 
     <!-- Status bar at bottom -->

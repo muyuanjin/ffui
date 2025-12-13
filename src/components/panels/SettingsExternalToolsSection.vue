@@ -222,8 +222,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
 </script>
 
 <template>
-  <!-- 在大屏上占两列宽度，但不再强制占两行高度，避免被右侧更高的卡片“拖高”造成大块空白。 -->
-  <Card class="xl:col-span-2 border-border/50 bg-card/95 shadow-sm">
+  <Card class="border-border/50 bg-card/95 shadow-sm">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.externalToolsTitle") }}
