@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies (Ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -89,6 +91,25 @@ jobs:
             fi
           fi
 
+      - name: Generate release notes
+        id: release_notes
+        shell: bash
+        run: |
+          current="${GITHUB_REF_NAME}"
+          previous="$(git tag --list 'v*' --sort=-version:refname | grep -Fxv "$current" | head -n 1 || true)"
+          notes="$(node scripts/generate-release-notes.mjs "$current" "$previous")"
+
+          if [ -z "$notes" ]; then
+            echo "Generated release notes are empty." >&2
+            exit 1
+          fi
+
+          {
+            echo "body<<EOF"
+            echo "$notes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and release with Tauri
         id: tauri
         uses: tauri-apps/tauri-action@v0
@@ -99,7 +120,7 @@ jobs:
           # __VERSION__ 会自动替换为 src-tauri/tauri.conf.json 中的 version 字段
           tagName: v__VERSION__
           releaseName: "FFUI v__VERSION__"
-          releaseBody: "Automated release for FFUI v__VERSION__."
+          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: true
           prerelease: false
 
