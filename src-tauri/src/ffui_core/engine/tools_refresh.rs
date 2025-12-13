@@ -1,0 +1,204 @@
+use crate::ffui_core::settings;
+use crate::ffui_core::tools::{
+    ExternalToolKind, ExternalToolStatus, cached_ffmpeg_release_version,
+    cached_tool_status_snapshot, finish_tool_status_refresh,
+    hydrate_remote_version_cache_from_settings, try_begin_tool_status_refresh,
+    try_refresh_ffmpeg_static_release_from_github, ttl_hit,
+};
+
+use super::TranscodingEngine;
+
+impl TranscodingEngine {
+    /// Fast cached snapshot read for external tool statuses.
+    ///
+    /// This MUST NOT perform any blocking work (no network I/O, no spawning
+    /// external processes). It is safe to call on the startup UI path.
+    pub fn external_tool_statuses_cached(&self) -> Vec<ExternalToolStatus> {
+        let tools = {
+            let state = self.inner.state.lock().expect("engine state poisoned");
+            state.settings.tools.clone()
+        };
+        hydrate_remote_version_cache_from_settings(&tools);
+        let cached_remote = cached_ffmpeg_release_version();
+
+        // Best-effort: reuse the latest cached snapshot when available.
+        let snapshot = cached_tool_status_snapshot();
+        if !snapshot.is_empty() {
+            return snapshot
+                .into_iter()
+                .map(|mut status| {
+                    status.auto_download_enabled = tools.auto_download;
+                    status.auto_update_enabled = tools.auto_update;
+                    status
+                })
+                .collect();
+        }
+
+        // Fallback: emit a minimal placeholder snapshot so the UI can render
+        // without waiting on heavy probing.
+        vec![
+            ExternalToolStatus {
+                kind: ExternalToolKind::Ffmpeg,
+                resolved_path: None,
+                source: None,
+                version: None,
+                remote_version: cached_remote.clone(),
+                update_available: false,
+                auto_download_enabled: tools.auto_download,
+                auto_update_enabled: tools.auto_update,
+                download_in_progress: false,
+                download_progress: None,
+                downloaded_bytes: None,
+                total_bytes: None,
+                bytes_per_second: None,
+                last_download_error: None,
+                last_download_message: None,
+            },
+            ExternalToolStatus {
+                kind: ExternalToolKind::Ffprobe,
+                resolved_path: None,
+                source: None,
+                version: None,
+                remote_version: cached_remote.clone(),
+                update_available: false,
+                auto_download_enabled: tools.auto_download,
+                auto_update_enabled: tools.auto_update,
+                download_in_progress: false,
+                download_progress: None,
+                downloaded_bytes: None,
+                total_bytes: None,
+                bytes_per_second: None,
+                last_download_error: None,
+                last_download_message: None,
+            },
+            ExternalToolStatus {
+                kind: ExternalToolKind::Avifenc,
+                resolved_path: None,
+                source: None,
+                version: None,
+                remote_version: None,
+                update_available: false,
+                auto_download_enabled: tools.auto_download,
+                auto_update_enabled: tools.auto_update,
+                download_in_progress: false,
+                download_progress: None,
+                downloaded_bytes: None,
+                total_bytes: None,
+                bytes_per_second: None,
+                last_download_error: None,
+                last_download_message: None,
+            },
+        ]
+    }
+
+    /// Trigger an async external tool refresh (local probe + optional remote check).
+    ///
+    /// Returns true when a new refresh task was started; false when the request
+    /// was deduped because a refresh is already in flight.
+    pub fn refresh_external_tool_statuses_async(
+        &self,
+        remote_check: bool,
+        manual_remote_check: bool,
+    ) -> bool {
+        if !try_begin_tool_status_refresh() {
+            eprintln!("[tools_refresh] dedupe hit (already in progress)");
+            return false;
+        }
+
+        let engine_clone = self.clone();
+        let spawned = std::thread::Builder::new()
+            .name("ffui-tools-refresh".to_string())
+            .spawn(move || {
+                struct RefreshGuard;
+                impl Drop for RefreshGuard {
+                    fn drop(&mut self) {
+                        finish_tool_status_refresh();
+                    }
+                }
+                let _guard = RefreshGuard;
+
+                use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+                let started_at = Instant::now();
+                let now_ms = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+
+                let tools_settings = {
+                    let state = engine_clone.inner.state.lock().expect("engine state poisoned");
+                    state.settings.tools.clone()
+                };
+
+                // Seed in-process cache from persisted settings to avoid a network call on
+                // the synchronous status code path.
+                hydrate_remote_version_cache_from_settings(&tools_settings);
+
+                const TTL_MS: u64 = 24 * 60 * 60 * 1000;
+                let persisted = tools_settings
+                    .remote_version_cache
+                    .as_ref()
+                    .and_then(|c| c.ffmpeg_static.as_ref());
+                let remote_ttl_hit =
+                    ttl_hit(now_ms, persisted.and_then(|info| info.checked_at_ms), TTL_MS);
+
+                let should_check_remote = remote_check && (manual_remote_check || !remote_ttl_hit);
+                eprintln!(
+                    "[tools_refresh] start remote_check={remote_check} manual={manual_remote_check} ttl_hit={remote_ttl_hit}"
+                );
+
+                let mut remote_updated = false;
+                if should_check_remote {
+                    match try_refresh_ffmpeg_static_release_from_github() {
+                        Some((version, tag)) => {
+                            remote_updated = true;
+                            // Persist TTL cache so the 24h window survives restarts.
+                            let mut state = engine_clone
+                                .inner
+                                .state
+                                .lock()
+                                .expect("engine state poisoned");
+                            let tools = &mut state.settings.tools;
+                            let cache = tools
+                                .remote_version_cache
+                                .get_or_insert_with(Default::default);
+                            cache.ffmpeg_static = Some(
+                                crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                    checked_at_ms: Some(now_ms),
+                                    version: Some(version),
+                                    tag: Some(tag),
+                                },
+                            );
+                            if let Err(err) = settings::save_settings(&state.settings) {
+                                eprintln!(
+                                    "[tools_refresh] failed to persist remote TTL cache: {err:#}"
+                                );
+                            }
+                        }
+                        None => {
+                            eprintln!(
+                                "[tools_refresh] remote version check failed (best-effort)"
+                            );
+                        }
+                    }
+                }
+
+                // Always refresh local tool probing in the background, and push an event when
+                // a full snapshot becomes available.
+                let _ = engine_clone.external_tool_statuses();
+
+                let elapsed_ms = started_at.elapsed().as_millis();
+                eprintln!(
+                    "[tools_refresh] done remote_updated={remote_updated} elapsed_ms={elapsed_ms}"
+                );
+            });
+
+        if let Err(err) = spawned {
+            finish_tool_status_refresh();
+            eprintln!("[tools_refresh] failed to spawn refresh thread: {err}");
+            return false;
+        }
+
+        true
+    }
+}

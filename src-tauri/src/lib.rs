@@ -69,6 +69,8 @@ pub fn run() {
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,
             commands::tools::get_external_tool_statuses,
+            commands::tools::get_external_tool_statuses_cached,
+            commands::tools::refresh_external_tool_statuses_async,
             commands::tools::get_external_tool_candidates,
             commands::tools::download_external_tool_now,
             commands::tools::open_devtools,
@@ -80,7 +82,8 @@ pub fn run() {
             commands::tools::reveal_path_in_folder,
             commands::tools::metrics_subscribe,
             commands::tools::metrics_unsubscribe,
-            commands::tools::get_metrics_history
+            commands::tools::get_metrics_history,
+            commands::tools::get_transcode_activity_today
         ])
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
         // ensure the main window becomes visible after a short timeout so the app is not "dead".
@@ -133,12 +136,21 @@ pub fn run() {
             // download starts/progresses/completes/fails.
             //
             // 注意：这里刻意不在启动阶段调用 engine.external_tool_statuses()，
-            // 避免在 Tauri setup 阶段做同步网络请求（latest_remote_version →
-            // GitHub API），否则在网络不通/延迟很高时会阻塞应用启动，看起来像
-            // “程序卡死”。初始快照仍按需由前端通过 get_external_tool_statuses
-            // 命令拉取，再由 tools::update_latest_status_snapshot 进行缓存。
+            // 避免在 Tauri setup 阶段做同步网络请求或外部进程探测，从而在网络
+            // 不通/磁盘慢时阻塞应用启动，看起来像“程序卡死”。
+            //
+            // 初始快照由前端通过 get_external_tool_statuses_cached 快速读取，
+            // 真正的刷新由 refresh_external_tool_statuses_async 在后台执行，
+            // 完成后通过 ffui://external-tool-status 事件推送更新。
             {
                 crate::ffui_core::tools::set_tool_event_app_handle(app.handle().clone());
+            }
+
+            // Wire the monitor activity emitter with the global AppHandle so
+            // the transcoding engine can push ffui://transcode-activity-today
+            // events when hourly buckets flip.
+            {
+                crate::ffui_core::set_transcode_activity_app_handle(app.handle().clone());
             }
 
             // Stream queue state changes from the Rust engine to the frontend via

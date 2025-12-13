@@ -23,6 +23,7 @@ mod common;
 
 use common::*;
 
+mod crash_recovery_merge_tests;
 mod enqueue_and_logging;
 mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_tests;
@@ -34,13 +35,13 @@ mod job_wait_wall_clock;
 mod listeners_and_queue_state;
 mod progress_parsing_and_utils;
 mod queue_basic;
-mod crash_recovery_merge_tests;
-mod queue_recovery_tests;
 mod queue_delete;
+mod queue_recovery_tests;
 mod queue_wait_and_restart;
 mod smart_scan_audio_tests;
 mod smart_scan_delete_no_children;
+mod smart_scan_enqueue_tests;
 mod smart_scan_name_tests;
 mod smart_scan_tests;
-mod smart_scan_enqueue_tests;
+mod transcode_activity_tests;
 mod tools_download_metadata;

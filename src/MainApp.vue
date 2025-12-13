@@ -96,6 +96,7 @@ const {
   // 设置与外部工具
   appSettings,
   toolStatuses,
+  toolStatusesFresh,
   isSavingSettings,
   settingsSaveError,
   handleUpdateAppSettings,
@@ -339,6 +340,8 @@ defineExpose({
               v-else-if="activeTab === 'settings'"
               :app-settings="appSettings"
               :tool-statuses="toolStatuses"
+              :tool-statuses-fresh="toolStatusesFresh"
+              :refresh-tool-statuses="settings.refreshToolStatuses"
               :is-saving-settings="isSavingSettings"
               :settings-save-error="settingsSaveError"
               :fetch-tool-candidates="settings.fetchToolCandidates"

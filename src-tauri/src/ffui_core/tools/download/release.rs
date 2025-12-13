@@ -9,6 +9,26 @@ pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
     tag[idx..].to_string()
 }
 
+/// Best-effort remote check against GitHub Releases.
+///
+/// Returns None when the network request fails. When it succeeds, this also
+/// updates the in-process `FFMPEG_RELEASE_CACHE` so subsequent status snapshots
+/// can reuse the latest remote version without repeating network calls.
+pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<FfmpegStaticRelease> {
+    let tag = fetch_ffmpeg_release_from_github()?;
+    let version = semantic_version_from_tag(&tag);
+    let info = FfmpegStaticRelease {
+        version: version.clone(),
+        tag: tag.clone(),
+    };
+
+    let mut cache = FFMPEG_RELEASE_CACHE
+        .lock()
+        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    *cache = Some(info.clone());
+    Some(info)
+}
+
 pub(crate) fn current_ffmpeg_release() -> FfmpegStaticRelease {
     {
         let cache = FFMPEG_RELEASE_CACHE

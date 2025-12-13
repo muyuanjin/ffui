@@ -115,7 +115,10 @@ describe("MainApp queue ordering helpers", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
         const ids = payload?.jobIds ?? payload?.job_ids;
         expect(ids).toEqual(["waiting-1", "waiting-2"]);
@@ -173,7 +176,10 @@ describe("MainApp queue ordering helpers", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
         const ids = payload?.jobIds ?? payload?.job_ids;
         expect(ids).toEqual(["waiting-2", "waiting-1"]);
@@ -252,7 +258,10 @@ describe("MainApp queue ordering helpers", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
         const ids = payload?.jobIds ?? payload?.job_ids;
         expect(ids).toEqual(["manual-1", "batch1-b", "batch1-a", "manual-2"]);
@@ -332,7 +341,10 @@ describe("MainApp queue ordering helpers", () => {
       if (cmd === "get_app_settings") return Promise.resolve(makeDefaultSettings());
       if (cmd === "get_cpu_usage") return Promise.resolve({ overall: 0, perCore: [] });
       if (cmd === "get_gpu_usage") return Promise.resolve({ available: false });
-      if (cmd === "get_external_tool_statuses") return Promise.resolve([]);
+      if (cmd === "get_external_tool_statuses" || cmd === "get_external_tool_statuses_cached") {
+        return Promise.resolve([]);
+      }
+      if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
         const ids = payload?.jobIds ?? payload?.job_ids;
         expect(ids).toEqual(["batch1-a", "batch1-b", "manual-1", "manual-2"]);

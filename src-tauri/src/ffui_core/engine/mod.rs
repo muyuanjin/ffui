@@ -14,6 +14,8 @@ mod preview_refresh;
 mod smart_scan;
 mod state;
 mod state_persist;
+mod tools_refresh;
+mod transcode_activity;
 mod worker;
 mod worker_utils;
 
@@ -42,11 +44,12 @@ use crate::ffui_core::monitor::{
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::ffui_core::tools::{
     ExternalToolKind, ExternalToolStatus, clear_tool_runtime_error,
-    hydrate_last_tool_download_from_settings, tool_status,
+    hydrate_last_tool_download_from_settings, hydrate_remote_version_cache_from_settings,
+    tool_status,
 };
 
 use state::{
-    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state,
+    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
 };
 
 /// The main transcoding engine facade.
@@ -72,6 +75,7 @@ impl TranscodingEngine {
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
         hydrate_last_tool_download_from_settings(&settings.tools);
+        hydrate_remote_version_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
         {
             use std::sync::atomic::Ordering;
@@ -116,11 +120,7 @@ impl TranscodingEngine {
     /// Get a lightweight snapshot of the current queue state for high-
     /// frequency updates and startup payloads.
     pub fn queue_state_lite(&self) -> QueueStateLite {
-        // For now we reuse the full snapshot and convert it into the lite
-        // representation, which strips heavy fields like the full logs vector
-        // from the serialized payload.
-        let full = snapshot_queue_state(&self.inner);
-        QueueStateLite::from(&full)
+        snapshot_queue_state_lite(&self.inner)
     }
 
     /// Fetch full details for a single job from the in-memory engine state.
@@ -360,12 +360,17 @@ impl TranscodingEngine {
 
     /// Get the status of all external tools.
     pub fn external_tool_statuses(&self) -> Vec<ExternalToolStatus> {
-        let state = self.inner.state.lock().expect("engine state poisoned");
-        let tools = &state.settings.tools;
+        // Snapshot tool settings while holding the engine lock, then perform any
+        // filesystem/probing work outside the lock to avoid blocking other
+        // startup commands and queue snapshots.
+        let tools = {
+            let state = self.inner.state.lock().expect("engine state poisoned");
+            state.settings.tools.clone()
+        };
         let statuses = vec![
-            tool_status(ExternalToolKind::Ffmpeg, tools),
-            tool_status(ExternalToolKind::Ffprobe, tools),
-            tool_status(ExternalToolKind::Avifenc, tools),
+            tool_status(ExternalToolKind::Ffmpeg, &tools),
+            tool_status(ExternalToolKind::Ffprobe, &tools),
+            tool_status(ExternalToolKind::Avifenc, &tools),
         ];
 
         // Cache a snapshot for event-based updates so the tools module can
@@ -408,5 +413,10 @@ impl TranscodingEngine {
     /// Inspect media file metadata using ffprobe.
     pub fn inspect_media(&self, path: String) -> Result<String> {
         job_runner::inspect_media(&self.inner, path)
+    }
+
+    /// Return today's transcode activity buckets for the Monitor heatmap.
+    pub fn transcode_activity_today(&self) -> crate::ffui_core::TranscodeActivityToday {
+        transcode_activity::get_transcode_activity_today(&self.inner)
     }
 }

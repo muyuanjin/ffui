@@ -145,7 +145,9 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
     let input = dir.join("ffui_it_preview_regen_in.mp4");
 
     if !generate_test_input_video(&input) {
-        eprintln!("skipping ensure_job_preview integration test because test input generation failed");
+        eprintln!(
+            "skipping ensure_job_preview integration test because test input generation failed"
+        );
         return;
     }
 

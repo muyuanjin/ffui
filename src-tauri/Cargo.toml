@@ -27,6 +27,7 @@ anyhow = "1"
 thiserror = "1"
 sysinfo = "0.30"
 nvml-wrapper = "0.9"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 zip = { version = "0.6", default-features = false, features = ["deflate"] }
 base64 = "0.22.1"

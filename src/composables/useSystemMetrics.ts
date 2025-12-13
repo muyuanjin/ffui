@@ -86,6 +86,7 @@ export function useSystemMetrics(
 
   let metricsUnlisten: UnlistenFn | null = null;
   let mockTimer: number | null = null;
+  let mockBootAtMs: number | null = null;
   let lastPushedAt = 0;
 
   const pushSnapshot = (snapshot: SystemMetricsSnapshot) => {
@@ -99,9 +100,13 @@ export function useSystemMetrics(
   const startMockStream = () => {
     if (typeof window === "undefined") return;
     if (mockTimer !== null) return;
+    if (mockBootAtMs === null) {
+      mockBootAtMs = Date.now();
+    }
 
     mockTimer = window.setInterval(() => {
       const now = Date.now();
+      const uptimeSeconds = Math.max(0, Math.floor((now - (mockBootAtMs ?? now)) / 1000));
       const t = (now / 1000) % 60;
       const cpuBase = 30 + 20 * Math.sin(t / 3);
 
@@ -118,6 +123,7 @@ export function useSystemMetrics(
 
       const snapshot: SystemMetricsSnapshot = {
         timestamp: now,
+        uptimeSeconds,
         cpu: {
           cores,
           total,
@@ -176,20 +182,23 @@ export function useSystemMetrics(
     lastPushedAt = 0;
 
     if (hasTauri()) {
-      try {
-        await metricsSubscribe();
-      } catch (error) {
-        console.error("Failed to subscribe to system metrics:", error);
-      }
-
-      try {
-        const history = await fetchMetricsHistory();
-        for (const snapshot of history) {
-          pushSnapshot(snapshot);
+      const mergeHistory = (history: SystemMetricsSnapshot[]) => {
+        if (!Array.isArray(history) || history.length === 0) return;
+        const combined = [...history, ...snapshots.value];
+        combined.sort((a, b) => a.timestamp - b.timestamp);
+        // Deduplicate by timestamp (good enough for our sampling contract).
+        const deduped: SystemMetricsSnapshot[] = [];
+        for (const snapshot of combined) {
+          const last = deduped[deduped.length - 1];
+          if (last && last.timestamp === snapshot.timestamp) continue;
+          deduped.push(snapshot);
         }
-      } catch (error) {
-        console.error("Failed to fetch system metrics history:", error);
-      }
+        if (deduped.length > historyLimit) {
+          snapshots.value = deduped.slice(deduped.length - historyLimit);
+        } else {
+          snapshots.value = deduped;
+        }
+      };
 
       try {
         const throttleMs = viewUpdateMinIntervalMs;
@@ -205,6 +214,19 @@ export function useSystemMetrics(
         );
       } catch (error) {
         console.error("Failed to listen for system metrics events:", error);
+      }
+
+      try {
+        await metricsSubscribe();
+      } catch (error) {
+        console.error("Failed to subscribe to system metrics:", error);
+      }
+
+      try {
+        const history = await fetchMetricsHistory();
+        mergeHistory(history);
+      } catch (error) {
+        console.error("Failed to fetch system metrics history:", error);
       }
     } else {
       startMockStream();

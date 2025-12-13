@@ -44,10 +44,16 @@ export interface NetworkMetrics {
 
 export interface SystemMetricsSnapshot {
   timestamp: number;
+  uptimeSeconds: number;
   cpu: CpuMetrics;
   memory: MemoryMetrics;
   disk: DiskMetrics;
   network: NetworkMetrics;
   /** Optional NVIDIA GPU usage snapshot sampled alongside system metrics. */
   gpu?: GpuUsageSnapshot;
+}
+
+export interface TranscodeActivityToday {
+  date: string;
+  activeHours: boolean[];
 }

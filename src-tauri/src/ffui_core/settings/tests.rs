@@ -193,6 +193,13 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
         !tools.contains_key("downloaded"),
         "tools.downloaded should be omitted when no download metadata is recorded"
     );
+
+    // When there is no persisted monitor state, the object should be omitted
+    // so settings.json stays minimal.
+    assert!(
+        value.get("monitor").is_none(),
+        "monitor should be absent when unset"
+    );
 }
 
 #[test]

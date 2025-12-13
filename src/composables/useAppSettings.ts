@@ -10,11 +10,34 @@ import {
   hasTauri,
   loadAppSettings,
   saveAppSettings,
-  fetchExternalToolStatuses,
+  fetchExternalToolStatusesCached,
+  refreshExternalToolStatusesAsync,
   fetchExternalToolCandidates,
   downloadExternalToolNow,
 } from "@/lib/backend";
 import { listen } from "@tauri-apps/api/event";
+
+const isTestEnv =
+  typeof import.meta !== "undefined" &&
+  typeof import.meta.env !== "undefined" &&
+  import.meta.env.MODE === "test";
+
+const startupNowMs = () => {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+};
+
+const updateStartupMetrics = (patch: Record<string, unknown>) => {
+  if (typeof window === "undefined") return;
+  const w = window as any;
+  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
+  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+};
+
+let loggedAppSettingsLoad = false;
+let loggedToolStatusLoad = false;
 
 // ----- Composable -----
 
@@ -37,6 +60,8 @@ export interface UseAppSettingsReturn {
   settingsSaveError: Ref<string | null>;
   /** External tool statuses. */
   toolStatuses: Ref<ExternalToolStatus[]>;
+  /** Whether tool statuses have been refreshed at least once this session. */
+  toolStatusesFresh: Ref<boolean>;
 
   // ----- Methods -----
   /** Ensure app settings are loaded. */
@@ -44,7 +69,10 @@ export interface UseAppSettingsReturn {
   /** Schedule settings save (with debouncing). */
   scheduleSaveSettings: () => void;
   /** Refresh external tool statuses. */
-  refreshToolStatuses: () => Promise<void>;
+  refreshToolStatuses: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+  }) => Promise<void>;
   /** Manually trigger download/update for a given tool kind. */
   downloadToolNow: (kind: ExternalToolKind) => Promise<void>;
   /** Enumerate available candidate binaries for a tool. */
@@ -70,9 +98,11 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const isSavingSettings = ref(false);
   const settingsSaveError = ref<string | null>(null);
   const toolStatuses = ref<ExternalToolStatus[]>([]);
+  const toolStatusesFresh = ref(false);
   let settingsSaveTimer: number | undefined;
   let toolStatusUnlisten: (() => void) | undefined;
   let lastSavedSettingsSnapshot: string | null = null;
+  let awaitingToolsRefreshEvent = false;
 
   // ----- Auto-save Watch -----
   watch(
@@ -90,7 +120,18 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     if (!hasTauri()) return;
     if (appSettings.value) return;
     try {
+      const startedAt = startupNowMs();
       const settings = await loadAppSettings();
+      const elapsedMs = startupNowMs() - startedAt;
+
+      if (!isTestEnv && (!loggedAppSettingsLoad || elapsedMs >= 200)) {
+        loggedAppSettingsLoad = true;
+        updateStartupMetrics({ loadAppSettingsMs: elapsedMs });
+        if (typeof performance !== "undefined" && "mark" in performance) {
+          performance.mark("app_settings_loaded");
+        }
+        console.log(`[perf] loadAppSettings: ${elapsedMs.toFixed(1)}ms`);
+      }
 
       // 若在等待后端返回期间，前端已经基于空设置写入了临时 appSettings
       //（例如用户在设置加载完成前就点击了“固定操作栏”等开关），
@@ -139,7 +180,6 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         // 避免在保存过程中引入旧快照把用户刚刚修改的字段（例如 selectionBarPinned）改回去。
         await saveAppSettings(current);
         lastSavedSettingsSnapshot = serialized;
-        await refreshToolStatuses();
       } catch (error) {
         console.error("Failed to save settings", error);
         settingsSaveError.value =
@@ -151,12 +191,26 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }, 0);
   };
 
-  const refreshToolStatuses = async () => {
+  const refreshToolStatuses = async (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+  }) => {
     if (!hasTauri()) return;
     try {
-      toolStatuses.value = await fetchExternalToolStatuses();
+      const remoteCheck = options?.remoteCheck ?? false;
+      const manualRemoteCheck = options?.manualRemoteCheck ?? false;
+      updateStartupMetrics({ toolsRefreshRequestedAtMs: startupNowMs() });
+      if (typeof performance !== "undefined" && "mark" in performance) {
+        performance.mark("tools_refresh_requested");
+      }
+      const started = await refreshExternalToolStatusesAsync({
+        remoteCheck,
+        manualRemoteCheck,
+      });
+      awaitingToolsRefreshEvent = started;
     } catch (error) {
-      console.error("Failed to load external tool statuses", error);
+      awaitingToolsRefreshEvent = false;
+      console.error("Failed to trigger external tool status refresh", error);
     }
   };
 
@@ -167,7 +221,19 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
     try {
       // Initial snapshot (best-effort).
-      toolStatuses.value = await fetchExternalToolStatuses();
+      const startedAt = startupNowMs();
+      const snapshot = await fetchExternalToolStatusesCached();
+      toolStatuses.value = Array.isArray(snapshot) ? snapshot : [];
+      const elapsedMs = startupNowMs() - startedAt;
+
+      if (!isTestEnv && (!loggedToolStatusLoad || elapsedMs >= 200)) {
+        loggedToolStatusLoad = true;
+        updateStartupMetrics({ fetchExternalToolStatusesCachedMs: elapsedMs });
+        if (typeof performance !== "undefined" && "mark" in performance) {
+          performance.mark("tool_statuses_loaded");
+        }
+        console.log(`[perf] get_external_tool_statuses_cached: ${elapsedMs.toFixed(1)}ms`);
+      }
     } catch (error) {
       console.error("Failed to load initial external tool statuses", error);
     }
@@ -178,6 +244,14 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         (event) => {
           if (Array.isArray(event.payload)) {
             toolStatuses.value = event.payload;
+            toolStatusesFresh.value = true;
+            if (awaitingToolsRefreshEvent) {
+              awaitingToolsRefreshEvent = false;
+              updateStartupMetrics({ toolsRefreshReceivedAtMs: startupNowMs() });
+              if (typeof performance !== "undefined" && "mark" in performance) {
+                performance.mark("tools_refresh_received");
+              }
+            }
           }
         },
       );
@@ -330,6 +404,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     isSavingSettings,
     settingsSaveError,
     toolStatuses,
+    toolStatusesFresh,
 
     // Methods
     ensureAppSettingsLoaded,

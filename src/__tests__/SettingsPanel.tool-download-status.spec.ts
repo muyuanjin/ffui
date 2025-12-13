@@ -13,6 +13,8 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => true,
     openDevtools: vi.fn(),
     fetchExternalToolStatuses: vi.fn(async () => []),
+    fetchExternalToolStatusesCached: vi.fn(async () => []),
+    refreshExternalToolStatusesAsync: vi.fn(async () => true),
   };
 });
 
@@ -222,13 +224,7 @@ describe("SettingsPanel external tool download status", () => {
     const text = wrapper.text();
     expect(text).toContain("已是最新版本");
 
-    const buttons = wrapper.findAll("button");
-    const hasDownloadOrUpdateButton = buttons.some((btn) => {
-      const label = btn.text();
-      return label.includes("更新") || label.includes("下载");
-    });
-
-    expect(hasDownloadOrUpdateButton).toBe(false);
+    expect(wrapper.find("[data-testid=\"tool-download-action\"]").exists()).toBe(false);
 
     wrapper.unmount();
   });
