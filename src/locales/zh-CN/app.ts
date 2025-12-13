@@ -78,7 +78,13 @@ const app = {
     metricsIntervalHelp:
       "控制系统性能监控采样频率。数值越小，监控越连贯，但开销略高；数值越大，刷新更平滑但不够实时。",
     queuePersistenceLabel: "任务队列持久化",
-    queuePersistenceCrashRecoveryOption: "保存队列状态，重启后仍能恢复任务",
+    queuePersistenceNoneOption: "关闭（不恢复队列）",
+    queuePersistenceCrashRecoveryLiteOption: "恢复队列（仅保留精简日志，推荐）",
+    queuePersistenceCrashRecoveryFullOption: "恢复队列 + 终态任务保留全量日志（更占磁盘）",
+    queuePersistenceCrashRecoveryFullHint:
+      "全量日志仅在任务结束时写入，并会生成每个任务一份 .log 文件。建议设置保留上限，避免磁盘占用增长。",
+    crashRecoveryMaxLogFilesLabel: "最多保留日志文件",
+    crashRecoveryMaxLogTotalMbLabel: "日志总大小上限（MB）",
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",

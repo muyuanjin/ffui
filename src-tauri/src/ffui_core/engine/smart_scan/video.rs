@@ -13,7 +13,9 @@ use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 use super::super::ffmpeg_args::configure_background_command;
-use super::super::ffmpeg_args::{build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log};
+use super::super::ffmpeg_args::{
+    build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log,
+};
 use super::super::state::Inner;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 use super::video_paths::{
@@ -152,6 +154,7 @@ pub(crate) fn handle_video_file(
         elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
+        log_head: None,
         skip_reason: None,
         input_path: Some(input_path.clone()),
         output_path: Some(
@@ -342,6 +345,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
         elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
+        log_head: None,
         skip_reason: None,
         input_path: Some(input_path.clone()),
         output_path: None,

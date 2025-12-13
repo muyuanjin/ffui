@@ -29,6 +29,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     job.progress = 0.0;
                     job.end_time = Some(current_time_millis());
                     job.logs.push("Cancelled before start".to_string());
+                    job.log_head = None;
                     recompute_log_tail(job);
                 }
                 should_notify = true;
@@ -171,6 +172,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
                 job.wait_metadata = None;
                 job.logs
                     .push("Restart requested from UI; job will re-run from 0%".to_string());
+                job.log_head = None;
                 recompute_log_tail(job);
 
                 if !state.queue.iter().any(|id| id == job_id) {

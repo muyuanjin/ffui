@@ -98,6 +98,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             elapsed_ms: None,
             output_size_mb: None,
             logs: Vec::new(),
+            log_head: None,
             skip_reason: None,
             input_path: Some(input_path),
             output_path,

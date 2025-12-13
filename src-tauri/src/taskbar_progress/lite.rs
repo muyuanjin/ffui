@@ -74,7 +74,10 @@ fn compute_taskbar_progress_lite(
         return None;
     }
 
-    let has_non_terminal = state.jobs.iter().any(|job| !super::is_terminal(&job.status));
+    let has_non_terminal = state
+        .jobs
+        .iter()
+        .any(|job| !super::is_terminal(&job.status));
 
     let mut weighted_total = 0.0f64;
     let mut total_weight = 0.0f64;
@@ -120,11 +123,8 @@ pub fn update_taskbar_progress_lite(
     use tauri::{Manager, UserAttentionType};
 
     if let Some(window) = app.get_webview_window("main") {
-        let completed_queue = state
-            .jobs
-            .iter()
-            .all(|job| super::is_terminal(&job.status))
-            && !state.jobs.is_empty();
+        let completed_queue =
+            state.jobs.iter().all(|job| super::is_terminal(&job.status)) && !state.jobs.is_empty();
 
         match compute_taskbar_progress_lite(state, mode, scope) {
             Some(progress) => {

@@ -5,7 +5,14 @@ import type {
 } from "./tools";
 import type { SmartScanConfig } from "./smart-scan";
 
-export type QueuePersistenceMode = "none" | "crashRecovery";
+export type QueuePersistenceMode = "none" | "crashRecoveryLite" | "crashRecoveryFull";
+
+export interface CrashRecoveryLogRetention {
+  /** Maximum number of per-job terminal log files to keep on disk. */
+  maxFiles?: number;
+  /** Maximum total size in MB for all terminal log files. */
+  maxTotalMb?: number;
+}
 
 /** 预设排序方式 */
 export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
@@ -38,6 +45,8 @@ export interface AppSettings {
   taskbarProgressScope?: TaskbarProgressScope;
   /** Queue persistence strategy for crash recovery. */
   queuePersistenceMode?: QueuePersistenceMode;
+  /** Retention limits for per-job terminal log files under CrashRecoveryFull. */
+  crashRecoveryLogRetention?: CrashRecoveryLogRetention;
   /** One-time onboarding flag; when true, the smart preset/tool onboarding will not auto-run again. */
   onboardingCompleted?: boolean;
   /** Whether the queue selection bar should remain visible even when no jobs are selected. */

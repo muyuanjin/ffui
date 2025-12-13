@@ -133,9 +133,34 @@ pub enum QueuePersistenceMode {
     /// treats the queue as an in-memory session without crash recovery.
     #[default]
     None,
-    /// Persist queue snapshots to a sidecar JSON file and restore them on
-    /// startup for crash recovery. This may keep large logs on disk.
-    CrashRecovery,
+    /// Persist lightweight queue snapshots (no full logs) for crash recovery.
+    #[serde(alias = "crashRecovery")]
+    CrashRecoveryLite,
+    /// Persist lightweight queue snapshots plus per-job full logs for terminal
+    /// jobs, so users can still inspect full logs after a restart.
+    CrashRecoveryFull,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashRecoveryLogRetention {
+    /// Maximum number of per-job terminal log files to keep on disk. When None,
+    /// a conservative default will be applied.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_files: Option<u16>,
+    /// Maximum total size in megabytes for all terminal log files. When None,
+    /// a conservative default will be applied.
+    #[serde(skip_serializing_if = "Option::is_none", alias = "maxTotalMB")]
+    pub max_total_mb: Option<u16>,
+}
+
+impl Default for CrashRecoveryLogRetention {
+    fn default() -> Self {
+        Self {
+            max_files: Some(200),
+            max_total_mb: Some(512),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -198,6 +223,10 @@ pub struct AppSettings {
     /// files this defaults to `None` so older installs keep the previous
     /// behaviour of not restoring queue state unless explicitly enabled.
     pub queue_persistence_mode: QueuePersistenceMode,
+    /// Optional retention limits for per-job terminal log files when crash
+    /// recovery is enabled in full-log mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub crash_recovery_log_retention: Option<CrashRecoveryLogRetention>,
     /// One-time onboarding completion marker. When true, the smart preset /
     /// tools onboarding flow will not auto-run again on startup.
     #[serde(default, skip_serializing_if = "is_false")]
@@ -271,6 +300,7 @@ impl Default for AppSettings {
             taskbar_progress_mode: TaskbarProgressMode::default(),
             taskbar_progress_scope: TaskbarProgressScope::default(),
             queue_persistence_mode: QueuePersistenceMode::default(),
+            crash_recovery_log_retention: None,
             onboarding_completed: false,
         }
     }

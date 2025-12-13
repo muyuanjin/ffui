@@ -6,9 +6,17 @@ use std::time::{Duration, Instant};
 #[cfg(test)]
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[cfg(test)]
-use crate::ffui_core::domain::TranscodeJob;
 use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite};
+
+mod terminal_logs;
+
+pub(super) use terminal_logs::{load_persisted_terminal_job_logs, persist_terminal_logs_if_needed};
+
+#[cfg(test)]
+pub(super) use terminal_logs::{override_queue_logs_dir_for_tests, queue_job_log_path};
+
+#[cfg(test)]
+pub(super) use terminal_logs::TERMINAL_LOG_WRITE_COUNT;
 
 #[cfg(test)]
 static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =
@@ -193,11 +201,12 @@ impl QueuePersistCoordinator {
 static QUEUE_PERSIST: once_cell::sync::Lazy<QueuePersistCoordinator> =
     once_cell::sync::Lazy::new(QueuePersistCoordinator::new);
 
-fn is_terminal_status(status: &JobStatus) -> bool {
-    matches!(
-        status,
-        JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
-    )
+pub(super) fn peek_last_persisted_queue_state_lite() -> Option<QueueStateLite> {
+    let state = QUEUE_PERSIST
+        .state
+        .lock()
+        .expect("queue persist lock poisoned");
+    state.last_snapshot.clone()
 }
 
 /// Detect whether the latest snapshot introduces any new terminal-state jobs
@@ -215,14 +224,14 @@ fn has_newly_terminal_jobs(prev: Option<&QueueStateLite>, current: &QueueStateLi
     }
 
     for job in &current.jobs {
-        if !is_terminal_status(&job.status) {
+        if !terminal_logs::is_terminal_status(&job.status) {
             continue;
         }
 
         match prev_by_id.get(job.id.as_str()) {
             // Job was already terminal in the previous snapshot; no need to
             // treat it as "newly finished".
-            Some(prev_status) if is_terminal_status(prev_status) => {}
+            Some(prev_status) if terminal_logs::is_terminal_status(prev_status) => {}
             // Any terminal job that did not exist previously or has just
             // transitioned from a non-terminal state counts as newly terminal.
             _ => return true,
@@ -233,7 +242,10 @@ fn has_newly_terminal_jobs(prev: Option<&QueueStateLite>, current: &QueueStateLi
 }
 
 fn ensure_worker_thread_started() {
-    let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST
+        .state
+        .lock()
+        .expect("queue persist lock poisoned");
     if state.worker_started {
         return;
     }
@@ -242,48 +254,53 @@ fn ensure_worker_thread_started() {
 
     std::thread::Builder::new()
         .name("ffui-queue-persist".to_string())
-        .spawn(|| loop {
-            let maybe_snapshot = {
-                let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
-                loop {
-                    let deadline = match state.next_flush_at {
-                        Some(deadline) => deadline,
-                        None => {
-                            state = QUEUE_PERSIST
-                                .cv
-                                .wait(state)
-                                .expect("queue persist condvar poisoned");
-                            continue;
-                        }
-                    };
+        .spawn(|| {
+            loop {
+                let maybe_snapshot = {
+                    let mut state = QUEUE_PERSIST
+                        .state
+                        .lock()
+                        .expect("queue persist lock poisoned");
+                    loop {
+                        let deadline = match state.next_flush_at {
+                            Some(deadline) => deadline,
+                            None => {
+                                state = QUEUE_PERSIST
+                                    .cv
+                                    .wait(state)
+                                    .expect("queue persist condvar poisoned");
+                                continue;
+                            }
+                        };
 
-                    let now = Instant::now();
-                    if now >= deadline {
-                        break;
+                        let now = Instant::now();
+                        if now >= deadline {
+                            break;
+                        }
+
+                        let timeout = deadline.saturating_duration_since(now);
+                        let (next, _) = QUEUE_PERSIST
+                            .cv
+                            .wait_timeout(state, timeout)
+                            .expect("queue persist condvar poisoned");
+                        state = next;
                     }
 
-                    let timeout = deadline.saturating_duration_since(now);
-                    let (next, _) = QUEUE_PERSIST
-                        .cv
-                        .wait_timeout(state, timeout)
-                        .expect("queue persist condvar poisoned");
-                    state = next;
-                }
+                    if !state.dirty_since_write {
+                        state.next_flush_at = None;
+                        None
+                    } else {
+                        let snapshot = state.last_snapshot.clone();
+                        state.last_write_at = Some(Instant::now());
+                        state.dirty_since_write = false;
+                        state.next_flush_at = None;
+                        snapshot
+                    }
+                };
 
-                if !state.dirty_since_write {
-                    state.next_flush_at = None;
-                    None
-                } else {
-                    let snapshot = state.last_snapshot.clone();
-                    state.last_write_at = Some(Instant::now());
-                    state.dirty_since_write = false;
-                    state.next_flush_at = None;
-                    snapshot
+                if let Some(snapshot) = maybe_snapshot {
+                    persist_queue_state_inner(&snapshot);
                 }
-            };
-
-            if let Some(snapshot) = maybe_snapshot {
-                persist_queue_state_inner(&snapshot);
             }
         })
         .expect("failed to spawn queue persistence thread");
@@ -296,7 +313,10 @@ fn ensure_worker_thread_started() {
 pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
     ensure_worker_thread_started();
 
-    let mut state = QUEUE_PERSIST.state.lock().expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST
+        .state
+        .lock()
+        .expect("queue persist lock poisoned");
     let now = Instant::now();
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);
     state.last_snapshot = Some(snapshot.clone());
@@ -309,7 +329,11 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
             state.last_write_at = Some(now);
             state.dirty_since_write = false;
             state.next_flush_at = None;
-            let to_write = state.last_snapshot.as_ref().cloned().unwrap_or_else(|| snapshot.clone());
+            let to_write = state
+                .last_snapshot
+                .as_ref()
+                .cloned()
+                .unwrap_or_else(|| snapshot.clone());
             drop(state);
             persist_queue_state_inner(&to_write);
         }
@@ -319,7 +343,11 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                 state.last_write_at = Some(now);
                 state.dirty_since_write = false;
                 state.next_flush_at = None;
-                let to_write = state.last_snapshot.as_ref().cloned().unwrap_or_else(|| snapshot.clone());
+                let to_write = state
+                    .last_snapshot
+                    .as_ref()
+                    .cloned()
+                    .unwrap_or_else(|| snapshot.clone());
                 drop(state);
                 persist_queue_state_inner(&to_write);
                 QUEUE_PERSIST.cv.notify_all();

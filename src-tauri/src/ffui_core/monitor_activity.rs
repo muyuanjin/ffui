@@ -30,4 +30,3 @@ pub(crate) fn emit_transcode_activity_today_if_possible(payload: TranscodeActivi
         eprintln!("failed to emit transcode activity event: {err}");
     }
 }
-

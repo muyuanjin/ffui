@@ -224,8 +224,14 @@ fn enqueue_sets_planned_ffmpeg_command_before_processing_starts() {
         .unwrap_or_default()
         .to_string();
 
-    assert!(!cmd.is_empty(), "planned ffmpeg_command should be set on enqueue");
-    assert!(cmd.contains("ffmpeg"), "planned command should include ffmpeg program token");
+    assert!(
+        !cmd.is_empty(),
+        "planned ffmpeg_command should be set on enqueue"
+    );
+    assert!(
+        cmd.contains("ffmpeg"),
+        "planned command should include ffmpeg program token"
+    );
     assert!(
         cmd.contains(".compressed."),
         "planned command should reference the final compressed output path"
@@ -261,7 +267,8 @@ fn queue_lite_listener_does_not_require_full_snapshot_builder() {
     reset_snapshot_queue_state_calls();
     let engine = make_engine_with_preset();
 
-    let snapshots: TestArc<TestMutex<Vec<QueueStateLite>>> = TestArc::new(TestMutex::new(Vec::new()));
+    let snapshots: TestArc<TestMutex<Vec<QueueStateLite>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_lite_listener(move |state: QueueStateLite| {

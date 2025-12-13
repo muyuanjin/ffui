@@ -1,9 +1,9 @@
 use chrono::{Datelike, Local, TimeZone, Timelike};
 
-use crate::ffui_core::{TranscodeActivityToday, emit_transcode_activity_today_if_possible};
 use crate::ffui_core::settings;
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::{MonitorSettings, TranscodeActivityDay};
+use crate::ffui_core::{TranscodeActivityToday, emit_transcode_activity_today_if_possible};
 
 use super::state::Inner;
 use super::worker_utils::current_time_millis;
@@ -62,7 +62,10 @@ fn mask_for_date(settings: &AppSettings, date_key: &str) -> u32 {
         .unwrap_or(0)
 }
 
-pub(super) fn snapshot_transcode_activity_today(settings: &AppSettings, now_ms: u64) -> TranscodeActivityToday {
+pub(super) fn snapshot_transcode_activity_today(
+    settings: &AppSettings,
+    now_ms: u64,
+) -> TranscodeActivityToday {
     let date_key = local_date_key_and_hour(now_ms)
         .map(|(date, _)| date)
         .unwrap_or_else(|| "1970-01-01".to_string());
@@ -94,9 +97,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
             .settings
             .monitor
             .get_or_insert_with(MonitorSettings::default);
-        let days = monitor
-            .transcode_activity_days
-            .get_or_insert_with(Vec::new);
+        let days = monitor.transcode_activity_days.get_or_insert_with(Vec::new);
 
         let current_mask = days
             .iter()
@@ -142,4 +143,3 @@ mod tests {
         assert_eq!(days.last().unwrap().date, "2025-01-10");
     }
 }
-

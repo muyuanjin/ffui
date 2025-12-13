@@ -43,5 +43,5 @@ mod smart_scan_delete_no_children;
 mod smart_scan_enqueue_tests;
 mod smart_scan_name_tests;
 mod smart_scan_tests;
-mod transcode_activity_tests;
 mod tools_download_metadata;
+mod transcode_activity_tests;

@@ -67,6 +67,7 @@ pub(crate) fn handle_image_file_with_id(
         elapsed_ms: None,
         output_size_mb: None,
         logs: Vec::new(),
+        log_head: None,
         skip_reason: None,
         input_path: Some(path.to_string_lossy().into_owned()),
         output_path: None,

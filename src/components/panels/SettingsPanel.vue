@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
+import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -229,33 +230,10 @@ const toolsMode = computed<ExternalToolsMode>({
 
           <!-- Numeric settings -->
           <div class="pt-1 space-y-0 divide-y divide-border/40">
-            <div class="flex items-start gap-2">
-              <label class="text-[10px] text-muted-foreground leading-snug">
-                {{ t("app.settings.queuePersistenceLabel") }}
-              </label>
-              <div class="flex items-center gap-1">
-                <input
-                  v-if="appSettings"
-                  id="queue-persistence-crash-recovery"
-                  type="checkbox"
-                  class="w-3 h-3 rounded border-border/50"
-                  :checked="appSettings.queuePersistenceMode === 'crashRecovery'"
-                  @change="
-                    (e) =>
-                      updateSetting(
-                        'queuePersistenceMode',
-                        (e.target as HTMLInputElement).checked ? 'crashRecovery' : 'none',
-                      )
-                  "
-                />
-                <label
-                  for="queue-persistence-crash-recovery"
-                  class="text-[10px] text-muted-foreground cursor-pointer select-none"
-                >
-                  {{ t("app.settings.queuePersistenceCrashRecoveryOption") }}
-                </label>
-              </div>
-            </div>
+            <SettingsQueuePersistenceSection
+              :app-settings="appSettings"
+              @update:app-settings="(settings) => emit('update:appSettings', settings)"
+            />
 
             <div class="py-1">
               <div class="flex items-center justify-between gap-2">

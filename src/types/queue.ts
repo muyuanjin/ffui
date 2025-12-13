@@ -115,10 +115,14 @@ export interface TranscodeJob {
 /**
  * Lightweight job snapshot used by `QueueStateLite`.
  *
- * The backend intentionally omits heavyweight fields (full logs, log tails) on
- * the hot path to keep startup and high-frequency queue updates cheap.
+ * The backend intentionally omits heavyweight fields (full logs) on the hot
+ * path to keep startup and high-frequency queue updates cheap, but it may
+ * still carry bounded log head/tail snippets for crash recovery UX.
  */
-export type TranscodeJobLite = Omit<TranscodeJob, "logs" | "logTail">;
+export type TranscodeJobLite = Omit<TranscodeJob, "logs"> & {
+  /** Optional head snippet of logs (bounded) for crash recovery UX. */
+  logHead?: string[];
+};
 
 export interface QueueState {
   jobs: TranscodeJob[];

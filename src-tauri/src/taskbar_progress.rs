@@ -192,6 +192,7 @@ mod tests {
             elapsed_ms: None,
             output_size_mb: None,
             logs: Vec::new(),
+            log_head: None,
             skip_reason: None,
             input_path: None,
             output_path: None,

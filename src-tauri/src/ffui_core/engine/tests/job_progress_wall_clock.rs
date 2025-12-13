@@ -30,6 +30,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                 elapsed_ms: Some(3_000),
                 output_size_mb: None,
                 logs: Vec::new(),
+                log_head: None,
                 skip_reason: None,
                 input_path: None,
                 output_path: None,

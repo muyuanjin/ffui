@@ -80,8 +80,15 @@ const app = {
     metricsIntervalHelp:
       "Controls how frequently system performance metrics are sampled. Smaller values feel more continuous but cost more resources; larger values are cheaper but less real-time.",
     queuePersistenceLabel: "Queue crash-recovery persistence",
-    queuePersistenceCrashRecoveryOption:
-      "Persist queue state for crash recovery (may keep large logs on disk)",
+    queuePersistenceNoneOption: "Off (do not restore queue)",
+    queuePersistenceCrashRecoveryLiteOption:
+      "Restore queue (slim logs only, recommended)",
+    queuePersistenceCrashRecoveryFullOption:
+      "Restore queue + keep full logs for terminal jobs (more disk usage)",
+    queuePersistenceCrashRecoveryFullHint:
+      "Full logs are written only when jobs finish and stored as one .log file per job. Set retention limits to prevent unbounded disk usage.",
+    crashRecoveryMaxLogFilesLabel: "Max log files",
+    crashRecoveryMaxLogTotalMbLabel: "Max total log size (MB)",
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",

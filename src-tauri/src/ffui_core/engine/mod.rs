@@ -85,9 +85,11 @@ impl TranscodingEngine {
             // high watermark so any new enqueues happening before the recovery
             // thread finishes cannot collide with persisted job ids.
             let state = inner.state.lock().expect("engine state poisoned");
-            if state.settings.queue_persistence_mode
-                == crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecovery
-            {
+            if matches!(
+                state.settings.queue_persistence_mode,
+                crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
+                    | crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryFull
+            ) {
                 let baseline = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
@@ -286,6 +288,12 @@ impl TranscodingEngine {
                 eprintln!("failed to spawn preview refresh thread: {err}");
             }
         }
+
+        // Re-evaluate crash recovery persistence immediately when the user
+        // changes the persistence mode. This ensures queue-state.json and any
+        // terminal logs reflect the newly selected setting without waiting for
+        // the next queue update.
+        state::notify_queue_listeners(&self.inner);
 
         Ok(new_settings)
     }

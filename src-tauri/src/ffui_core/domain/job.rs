@@ -106,6 +106,11 @@ pub struct TranscodeJob {
     /// Rolling window of recent log lines for this job. The UI uses this to
     /// display progressive output and debugging details.
     pub logs: Vec<String>,
+    /// Optional pre-truncated head lines of logs for this job. This is used
+    /// for crash recovery persistence so users can still see important context
+    /// (ffmpeg version, stream info) after restart without storing full logs
+    /// in the queue snapshot.
+    pub log_head: Option<Vec<String>>,
     pub skip_reason: Option<String>,
     /// Absolute input path for this job. For newly created jobs this is
     /// always populated, but it is optional at the serde level to remain
@@ -209,6 +214,11 @@ pub struct TranscodeJobLite {
     /// detail view prefers the full in-memory logs when available and falls
     /// back to this tail for legacy snapshots.
     pub log_tail: Option<String>,
+    /// Optional pre-truncated head lines of logs from the backend. This is
+    /// used for crash recovery persistence so users can still see important
+    /// context lines (ffmpeg version, input streams) after restart without
+    /// storing the full logs on hot paths.
+    pub log_head: Option<Vec<String>>,
     /// Short structured description of why the job failed.
     pub failure_reason: Option<String>,
     /// Optional stable id for the Smart Scan batch this job belongs to.
@@ -226,6 +236,13 @@ pub struct QueueStateLite {
 
 impl From<&TranscodeJob> for TranscodeJobLite {
     fn from(job: &TranscodeJob) -> Self {
+        const LOG_HEAD_LINES: usize = 20;
+        let log_head = if job.logs.is_empty() {
+            None
+        } else {
+            Some(job.logs.iter().take(LOG_HEAD_LINES).cloned().collect())
+        };
+
         Self {
             id: job.id.clone(),
             filename: job.filename.clone(),
@@ -250,6 +267,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             estimated_seconds: job.estimated_seconds,
             preview_path: job.preview_path.clone(),
             log_tail: job.log_tail.clone(),
+            log_head,
             failure_reason: job.failure_reason.clone(),
             batch_id: job.batch_id.clone(),
             wait_metadata: job.wait_metadata.clone(),
@@ -266,6 +284,10 @@ impl From<&QueueState> for QueueStateLite {
 
 impl From<TranscodeJobLite> for TranscodeJob {
     fn from(job: TranscodeJobLite) -> Self {
+        // `QueueStateLite` intentionally does not restore full logs into memory.
+        // The optional `logHead` / `logTail` snippets are used for UI display,
+        // while full logs may be restored via per-job files in CrashRecoveryFull.
+
         Self {
             id: job.id,
             filename: job.filename,
@@ -283,6 +305,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             elapsed_ms: job.elapsed_ms,
             output_size_mb: job.output_size_mb,
             logs: Vec::new(),
+            log_head: job.log_head,
             skip_reason: job.skip_reason,
             input_path: job.input_path,
             output_path: job.output_path,

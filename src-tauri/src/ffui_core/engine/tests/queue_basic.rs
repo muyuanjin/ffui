@@ -342,6 +342,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 elapsed_ms: None,
                 output_size_mb: None,
                 logs: Vec::new(),
+                log_head: None,
                 skip_reason: None,
                 input_path: Some(input_path.to_string_lossy().into_owned()),
                 output_path: None,
