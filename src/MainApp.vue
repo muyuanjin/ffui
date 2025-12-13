@@ -15,6 +15,7 @@ import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
+import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 
@@ -61,6 +62,7 @@ const {
   // 队列视图与操作
   queueViewModeModel,
   queuePanelProps,
+  queueError,
   addManualJob,
   startSmartScan,
   setQueueViewMode,
@@ -242,6 +244,15 @@ defineExpose({
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
           @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
           @openPresetWizard="dialogManager.openWizard()"
+        />
+
+        <MainGlobalAlerts
+          :queue-error="queueError"
+          :media-inspect-error="mediaInspectError"
+          :settings-save-error="settingsSaveError"
+          @clearQueueError="queueError = null"
+          @clearMediaInspectError="mediaInspectError = null"
+          @clearSettingsSaveError="settingsSaveError = null"
         />
 
         <QueueFiltersBar

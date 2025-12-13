@@ -379,7 +379,6 @@ export function useMainAppSetup() {
     hasActiveFilters: queue.hasActiveFilters,
     selectedJobIds: queue.selectedJobIds,
     expandedBatchIds: smartScan.expandedBatchIds,
-    queueError,
     sortCompareFn: queue.compareJobsForDisplay,
   });
 

@@ -60,9 +60,6 @@ const props = defineProps<{
   // Batch expansion
   expandedBatchIds: Set<string>;
 
-  // Error state
-  queueError: string | null;
-
   /** 排序比较函数，用于对批次子任务进行排序 */
   sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
 }>();
@@ -178,15 +175,6 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
     data-testid="queue-panel"
     @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
   >
-    <!-- Error banner -->
-    <div
-      v-if="queueError"
-      class="mb-4 border border-destructive/60 bg-destructive/10 text-destructive text-xs rounded-md px-3 py-2 flex items-start gap-2"
-    >
-      <span class="mt-0.5">!</span>
-      <span>{{ queueError }}</span>
-    </div>
-
     <!-- Empty state
          Only show when the queue is truly empty (no jobs and no batches) and
          no filters are active. When filters hide all jobs, keep the secondary
