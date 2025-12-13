@@ -35,8 +35,15 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
         (resume_from.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
         "resume_from should use processed_seconds"
     );
-    assert_eq!(existing, vec![seg0.clone()], "existing_segments should contain seg0");
-    assert_eq!(tmp_output, seg1, "tmp_output should advance to the next segment");
+    assert_eq!(
+        existing,
+        vec![seg0.clone()],
+        "existing_segments should contain seg0"
+    );
+    assert_eq!(
+        tmp_output, seg1,
+        "tmp_output should advance to the next segment"
+    );
 
     let _ = fs::remove_file(&seg0);
     let _ = fs::remove_file(&seg1);
@@ -92,4 +99,3 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
     let _ = fs::remove_file(&seg1);
     let _ = fs::remove_file(&seg2);
 }
-

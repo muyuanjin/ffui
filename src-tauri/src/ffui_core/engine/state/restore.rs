@@ -139,12 +139,13 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 && job.wait_metadata.is_none()
             {
                 let legacy_tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
-                let job_tmp_output = super::super::job_runner::build_video_job_segment_tmp_output_path(
-                    Path::new(&job.filename),
-                    None,
-                    &id,
-                    0,
-                );
+                let job_tmp_output =
+                    super::super::job_runner::build_video_job_segment_tmp_output_path(
+                        Path::new(&job.filename),
+                        None,
+                        &id,
+                        0,
+                    );
                 tmp_output_candidates.push((
                     id.clone(),
                     job_tmp_output,

@@ -1,6 +1,7 @@
 mod commands;
 mod ffui_core;
 mod queue_events;
+mod single_instance;
 mod system_metrics;
 mod taskbar_progress;
 
@@ -27,6 +28,22 @@ pub fn run() {
             return;
         }
     }
+
+    let mut focus_server: Option<single_instance::FocusServer> = None;
+    let _single_instance_guard: Option<single_instance::SingleInstanceGuard> =
+        match single_instance::ensure_single_instance_or_focus_existing() {
+            Ok(single_instance::EnsureOutcome::Primary(primary)) => {
+                focus_server = Some(primary.focus_server);
+                Some(primary.guard)
+            }
+            Ok(single_instance::EnsureOutcome::Secondary) => {
+                return;
+            }
+            Err(err) => {
+                eprintln!("single-instance guard failed (continuing without enforcement): {err:#}");
+                None
+            }
+        };
 
     // 初始化 Job Object，确保子进程在父进程退出时被自动终止
     // 这对于 Windows 平台尤为重要，防止 ffmpeg 进程在 FFUI 被强制关闭后继续运行
@@ -88,6 +105,10 @@ pub fn run() {
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
         // ensure the main window becomes visible after a short timeout so the app is not "dead".
         .setup(move |app| {
+            if let Some(server) = focus_server.take() {
+                server.spawn(app.handle().clone());
+            }
+
             #[cfg(windows)]
             {
                 use windows::Win32::Foundation::HWND;

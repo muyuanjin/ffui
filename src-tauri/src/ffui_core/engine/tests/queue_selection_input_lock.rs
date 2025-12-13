@@ -51,4 +51,3 @@ fn worker_selection_skips_jobs_with_active_input_path() {
         );
     }
 }
-

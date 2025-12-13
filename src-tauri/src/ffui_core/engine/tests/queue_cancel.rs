@@ -36,7 +36,10 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
         });
     }
 
-    assert!(engine.cancel_job(&job.id), "cancel_job must accept Paused jobs");
+    assert!(
+        engine.cancel_job(&job.id),
+        "cancel_job must accept Paused jobs"
+    );
 
     {
         let state = engine.inner.state.lock().expect("engine state poisoned");
@@ -45,7 +48,10 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
         assert!(stored.wait_metadata.is_none());
     }
 
-    assert!(engine.delete_job(&job.id), "cancelled job should be deletable");
+    assert!(
+        engine.delete_job(&job.id),
+        "cancelled job should be deletable"
+    );
     assert!(
         !seg0.exists(),
         "cancelling a paused job should best-effort remove partial segments"
@@ -84,4 +90,3 @@ fn cancel_processing_job_clears_pending_wait_request() {
         assert!(state.cancelled_jobs.contains(&job.id));
     }
 }
-
