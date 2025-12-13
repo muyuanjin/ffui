@@ -184,7 +184,10 @@ const handleRun = () => {
 </script>
 
 <template>
-  <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+  <div
+    class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
+    @click.self="emit('cancel')"
+  >
     <div class="bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
       <!-- 标题栏 -->
       <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/60 rounded-t-xl shrink-0">
