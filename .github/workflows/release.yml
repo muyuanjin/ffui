@@ -156,3 +156,36 @@ jobs:
           tag_name: v${{ steps.tauri.outputs.appVersion }}
           files: dist-portable/FFUI-v${{ steps.tauri.outputs.appVersion }}-windows-x64-portable.exe
           fail_on_unmatched_files: true
+
+  sync-release-metadata:
+    name: sync-release-metadata
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: publish-tauri
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync release notes and target commitish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          file="releases/${tag}.md"
+          target="$(git rev-parse "${tag}^{commit}")"
+
+          if [ ! -f "$file" ]; then
+            echo "Missing release notes file: $file" >&2
+            exit 1
+          fi
+
+          gh release edit "$tag" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --notes-file "$file" \
+            --target "$target"
