@@ -91,22 +91,31 @@ jobs:
             fi
           fi
 
-      - name: Generate release notes
+      - name: Load curated release notes (bilingual)
         id: release_notes
         shell: bash
         run: |
-          current="${GITHUB_REF_NAME}"
-          previous="$(git tag --list 'v*' --sort=-version:refname | grep -Fxv "$current" | head -n 1 || true)"
-          notes="$(node scripts/generate-release-notes.mjs "$current" "$previous")"
+          file="releases/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$file" ]; then
+            echo "Missing release notes file: $file" >&2
+            echo "Create it (and rewrite it) before tagging, e.g.:" >&2
+            echo "  node scripts/generate-release-notes.mjs \"${GITHUB_REF_NAME}\" \"<previousTag>\" > \"$file\"" >&2
+            exit 1
+          fi
 
-          if [ -z "$notes" ]; then
-            echo "Generated release notes are empty." >&2
+          if ! grep -qE '^##[[:space:]]+English\\b' "$file"; then
+            echo "Release notes must include a '## English' section: $file" >&2
+            exit 1
+          fi
+
+          if ! grep -qE '^##[[:space:]]+中文\\b' "$file"; then
+            echo "Release notes must include a '## 中文' section: $file" >&2
             exit 1
           fi
 
           {
             echo "body<<EOF"
-            echo "$notes"
+            cat "$file"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 

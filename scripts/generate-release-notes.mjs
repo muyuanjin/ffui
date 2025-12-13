@@ -8,13 +8,50 @@ function runGit(args) {
 function usageAndExit() {
   // Keep output concise; this tool is primarily used in CI.
   // eslint-disable-next-line no-console
-  console.error("Usage: node scripts/generate-release-notes.mjs <currentTag> [previousTag]");
+  console.error(
+    "Usage: node scripts/generate-release-notes.mjs <currentTag> [previousTag] [--format=bilingual|plain]"
+  );
   process.exit(2);
 }
 
 function normalizeTag(tag) {
   if (!tag) return "";
   return tag.trim();
+}
+
+function parseFormat(argv) {
+  const formatArg = argv.find((arg) => arg.startsWith("--format="));
+  if (!formatArg) return "bilingual";
+  const value = formatArg.slice("--format=".length).trim();
+  if (value === "plain" || value === "bilingual") return value;
+  return "bilingual";
+}
+
+function groupSubjects(subjects) {
+  const groups = new Map();
+  for (const subject of subjects) {
+    const type = commitType(subject);
+    const section = sectionForType(type);
+    if (!groups.has(section)) groups.set(section, []);
+    groups.get(section).push(subject);
+  }
+  return groups;
+}
+
+function renderGroupedSections(groups, orderedSections, titleMapper, headingLevel) {
+  const lines = [];
+  for (const section of orderedSections) {
+    const items = groups.get(section);
+    if (!items || items.length === 0) continue;
+    const title = titleMapper(section);
+    lines.push(`${headingLevel} ${title}`);
+    for (const subject of items) {
+      lines.push(`- ${subject}`);
+    }
+    lines.push("");
+  }
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 function pickPreviousTag(currentTag) {
@@ -47,14 +84,20 @@ function sectionForType(type) {
   return "Other";
 }
 
-function buildNotes({ repo, currentTag, previousTag, subjects }) {
-  const groups = new Map();
-  for (const subject of subjects) {
-    const type = commitType(subject);
-    const section = sectionForType(type);
-    if (!groups.has(section)) groups.set(section, []);
-    groups.get(section).push(subject);
-  }
+function zhSectionForEn(enSection) {
+  if (enSection === "Features") return "新增";
+  if (enSection === "Fixes") return "修复";
+  if (enSection === "Performance") return "性能";
+  if (enSection === "Refactors") return "重构";
+  if (enSection === "Docs") return "文档";
+  if (enSection === "Tests") return "测试";
+  if (enSection === "CI") return "CI";
+  if (enSection === "Chores") return "杂项";
+  return "其他";
+}
+
+function buildNotesPlain({ repo, currentTag, previousTag, subjects }) {
+  const groups = groupSubjects(subjects);
 
   const orderedSections = [
     "Features",
@@ -82,25 +125,73 @@ function buildNotes({ repo, currentTag, previousTag, subjects }) {
     lines.push("");
   }
 
-  for (const section of orderedSections) {
-    const items = groups.get(section);
-    if (!items || items.length === 0) continue;
-    lines.push(`## ${section}`);
-    for (const subject of items) {
-      lines.push(`- ${subject}`);
-    }
-    lines.push("");
-  }
+  lines.push(
+    ...renderGroupedSections(groups, orderedSections, (s) => s, "##")
+  );
 
   // Trim trailing blank lines for clean Action output.
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");
 }
 
-const currentTag = normalizeTag(process.argv[2]);
+function buildNotesBilingual({ repo, currentTag, previousTag, subjects }) {
+  const compareUrl =
+    previousTag && repo
+      ? `https://github.com/${repo}/compare/${previousTag}...${currentTag}`
+      : "";
+
+  const groups = groupSubjects(subjects);
+  const orderedSections = [
+    "Features",
+    "Fixes",
+    "Performance",
+    "Refactors",
+    "Docs",
+    "Tests",
+    "CI",
+    "Chores",
+    "Other",
+  ];
+
+  const lines = [];
+  lines.push(`# FFUI ${currentTag}`);
+  lines.push("");
+
+  if (compareUrl) {
+    lines.push(`Full Changelog: ${compareUrl}`);
+    lines.push("");
+  }
+
+  lines.push("## English");
+  lines.push("");
+  lines.push("<!-- Replace this draft with user-facing release notes. -->");
+  lines.push("");
+  lines.push(
+    ...renderGroupedSections(groups, orderedSections, (s) => s, "###")
+  );
+  lines.push("");
+
+  lines.push("## 中文");
+  lines.push("");
+  lines.push("<!-- 请将下方草稿改写为面向用户的发布说明（与英文内容一致）。 -->");
+  lines.push("");
+
+  lines.push(
+    ...renderGroupedSections(groups, orderedSections, zhSectionForEn, "###")
+  );
+
+  while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines.join("\n");
+}
+
+const argv = process.argv.slice(2);
+const positional = argv.filter((arg) => !arg.startsWith("--"));
+const currentTag = normalizeTag(positional[0]);
 if (!currentTag) usageAndExit();
 
-let previousTag = normalizeTag(process.argv[3] || "");
+const format = parseFormat(argv);
+
+let previousTag = normalizeTag(positional[1] || "");
 if (!previousTag) previousTag = pickPreviousTag(currentTag);
 
 const range = previousTag ? `${previousTag}..${currentTag}` : currentTag;
@@ -113,8 +204,10 @@ const subjects = runGit(["log", "--pretty=%s", range])
   .filter((line) => !/^merge:/i.test(line));
 
 const repo = process.env.GITHUB_REPOSITORY || "";
-const notes = buildNotes({ repo, currentTag, previousTag, subjects });
+const notes =
+  format === "plain"
+    ? buildNotesPlain({ repo, currentTag, previousTag, subjects })
+    : buildNotesBilingual({ repo, currentTag, previousTag, subjects });
 
 // eslint-disable-next-line no-console
 console.log(notes);
-
