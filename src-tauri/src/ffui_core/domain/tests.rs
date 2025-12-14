@@ -46,6 +46,7 @@ mod domain_contract_tests {
             preview_path: Some("C:/app-data/previews/abc123.jpg".to_string()),
             log_tail: Some("last few lines".to_string()),
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
+            warnings: Vec::new(),
             batch_id: Some("auto-compress-batch-1".to_string()),
             wait_metadata: Some(WaitMetadata {
                 last_progress_percent: Some(42.0),
@@ -281,6 +282,7 @@ mod domain_contract_tests {
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            warnings: Vec::new(),
             batch_id: Some("auto-compress-batch-1".to_string()),
             wait_metadata: None,
         };

@@ -111,6 +111,26 @@ describe("QueueIconItem", () => {
     expect(selectEvents).toBeFalsy();
   });
 
+  it("renders a non-disappearing warning icon when job has warnings", () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      warnings: [{ code: "forcedContainerFallback", message: "fallback test" }],
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.find("button[aria-label='Warnings']").exists()).toBe(true);
+  });
+
   it("emits preview only (no inspect) when thumbnail image is clicked", async () => {
     const job = makeJob({
       previewPath: "C:/app-data/previews/icon.jpg",

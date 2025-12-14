@@ -64,6 +64,13 @@ export interface WaitMetadata {
   segments?: string[];
 }
 
+export interface JobWarning {
+  /** Stable machine-readable warning identifier. */
+  code: string;
+  /** User-facing description suitable for UI tooltips. */
+  message: string;
+}
+
 export interface TranscodeJob {
   id: string;
   filename: string;
@@ -110,6 +117,8 @@ export interface TranscodeJob {
   logTail?: string;
   /** Short structured description of why the job failed. */
   failureReason?: string;
+  /** Structured warnings that should remain visible on the task card. */
+  warnings?: JobWarning[];
   /** Optional stable id for the Smart Scan batch this job belongs to. */
   batchId?: string;
   /** Optional metadata captured when a job is paused via wait or restored after crash recovery. */

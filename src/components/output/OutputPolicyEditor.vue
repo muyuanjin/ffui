@@ -12,6 +12,8 @@ import { hasTauri, previewOutputPath } from "@/lib/backend";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputAppendOrderEditor from "@/components/output/OutputAppendOrderEditor.vue";
+import FormatSelect from "@/components/formats/FormatSelect.vue";
+import { FORMAT_CATALOG } from "@/lib/formatCatalog";
 const props = defineProps<{
   modelValue?: OutputPolicy;
   /** When true, disables directory + filename fields (used by Smart Scan replaceOriginal). */
@@ -56,6 +58,10 @@ const updateContainerMode = (mode: OutputPolicy["container"]["mode"]) => {
 const containerMode = computed(() => policy.value.container.mode);
 const forcedContainerFormat = computed(() =>
   policy.value.container.mode === "force" ? policy.value.container.format : "mkv",
+);
+
+const queueOutputContainerEntries = computed(() =>
+  FORMAT_CATALOG.filter((e) => e.kind !== "video" || !["mpegts", "hls", "dash"].includes(e.value)),
 );
 
 const directoryMode = computed(() => policy.value.directory.mode);
@@ -216,21 +222,13 @@ const pickPreviewFile = async () => {
             </SelectContent>
           </Select>
 
-          <Select
+          <FormatSelect
             v-if="containerMode === 'force'"
             :model-value="forcedContainerFormat"
+            :entries="queueOutputContainerEntries"
+            placeholder="选择格式"
             @update:model-value="(v) => updatePolicy({ container: { mode: 'force', format: String(v) } })"
-          >
-            <SelectTrigger class="h-8 text-xs w-[108px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="mkv">mkv</SelectItem>
-              <SelectItem value="mp4">mp4</SelectItem>
-              <SelectItem value="mov">mov</SelectItem>
-              <SelectItem value="webm">webm</SelectItem>
-            </SelectContent>
-          </Select>
+          />
         </div>
       </div>
 

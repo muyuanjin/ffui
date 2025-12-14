@@ -11,6 +11,7 @@ import {
   handleRestartJob as handleRestartJobImpl,
   handleCancelJob as handleCancelJobImpl,
   addManualJobMock as addManualJobMockImpl,
+  enqueueManualJobsFromPaths as enqueueManualJobsFromPathsImpl,
   enqueueManualJobFromPath as enqueueManualJobFromPathImpl,
 } from "./queue/operations-single";
 import {
@@ -75,6 +76,8 @@ export interface UseQueueOperationsReturn {
   addManualJobMock: () => void;
   /** Enqueue a manual job from a file path. */
   enqueueManualJobFromPath: (path: string) => Promise<void>;
+  /** Enqueue manual jobs from multiple input paths (files and/or directories). */
+  enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
 
   // ----- Bulk Operations -----
   /** Cancel all selected jobs. */
@@ -167,6 +170,9 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const enqueueManualJobFromPath = async (path: string) =>
     enqueueManualJobFromPathImpl(path, singleJobOpsDeps);
 
+  const enqueueManualJobsFromPaths = async (paths: string[]) =>
+    enqueueManualJobsFromPathsImpl(paths, singleJobOpsDeps);
+
   // ----- Bulk Operations -----
 
   const bulkOpsDeps = {
@@ -223,6 +229,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     // Enqueue Methods
     addManualJobMock,
     enqueueManualJobFromPath,
+    enqueueManualJobsFromPaths,
 
     // Bulk Operations
     bulkCancelSelectedJobs,

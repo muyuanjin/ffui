@@ -97,6 +97,7 @@ export interface UseMainAppQueueReturn
   handleCancelJob: (jobId: string) => Promise<void>;
   addManualJobMock: () => void;
   enqueueManualJobFromPath: (path: string) => Promise<void>;
+  enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
 
   bulkCancel: () => Promise<void>;
   bulkWait: () => Promise<void>;
@@ -275,6 +276,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     handleRestartJob,
     handleCancelJob,
     addManualJobMock,
+    enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
     bulkCancelSelectedJobs,
     bulkWaitSelectedJobs,
@@ -474,6 +476,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     handleRestartJob,
     handleCancelJob,
     addManualJobMock,
+    enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
 
     bulkCancel,

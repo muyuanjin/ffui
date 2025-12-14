@@ -36,10 +36,24 @@ const normalizeContainerFormat = (format: string): string => {
   const trimmed = format.trim();
   if (!trimmed) return trimmed;
 
-  // Matroska：扩展名常用 mkv，但 ffmpeg muxer 名称是 matroska。
-  if (trimmed === "mkv") return "matroska";
+  const lower = trimmed.toLowerCase();
 
-  return trimmed;
+  // Matroska：扩展名常用 mkv，但 ffmpeg muxer 名称是 matroska。
+  if (lower === "mkv" || lower === "matroska") return "matroska";
+
+  // MPEG-TS：ts/m2ts 都对应 mpegts muxer。
+  if (lower === "ts" || lower === "m2ts" || lower === "mpegts") return "mpegts";
+
+  // WMV：通常通过 ASF muxer 封装。
+  if (lower === "wmv" || lower === "asf") return "asf";
+
+  // M4A：属于 MP4 家族容器，muxer 使用 mp4。
+  if (lower === "m4a" || lower === "mp4") return "mp4";
+
+  // RM/RMVB：RealMedia muxer 名称为 rm。
+  if (lower === "rmvb" || lower === "rm") return "rm";
+
+  return lower;
 };
 
 /**

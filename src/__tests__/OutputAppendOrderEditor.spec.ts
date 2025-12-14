@@ -10,17 +10,6 @@ vi.mock("@vueuse/integrations/useSortable", () => ({
   useSortable: (_el: any, _list: any, options: any) => {
     lastSortableOptions = options;
   },
-  moveArrayElement: (list: any, oldIndex: number, newIndex: number) => {
-    if (typeof oldIndex !== "number" || typeof newIndex !== "number") return;
-    const arr = Array.isArray(list?.value) ? list.value : Array.isArray(list) ? list : null;
-    if (!arr) return;
-    if (oldIndex < 0 || oldIndex >= arr.length) return;
-    if (newIndex < 0 || newIndex >= arr.length) return;
-    const next = [...arr];
-    const [moved] = next.splice(oldIndex, 1);
-    next.splice(newIndex, 0, moved);
-    if (Array.isArray(list?.value)) list.value = next;
-  },
 }));
 
 import OutputAppendOrderEditor from "@/components/output/OutputAppendOrderEditor.vue";

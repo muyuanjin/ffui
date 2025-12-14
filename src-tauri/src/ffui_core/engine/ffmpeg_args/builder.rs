@@ -1,11 +1,12 @@
 use std::path::Path;
 
+use super::builder_webm::should_fallback_webm_forced_container;
 use super::normalize_container_format;
 use super::output_policy::{enforce_output_muxer_for_template, forced_muxer_for_policy};
 use super::utils::ensure_progress_args;
 use crate::ffui_core::domain::{
-    AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OutputPolicy, OverwriteBehavior,
-    RateControlMode, SeekMode, SubtitleStrategy,
+    AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OutputContainerPolicy, OutputPolicy,
+    OverwriteBehavior, RateControlMode, SeekMode, SubtitleStrategy,
 };
 
 /// 构建 ffmpeg 参数列表。
@@ -20,7 +21,14 @@ pub(crate) fn build_ffmpeg_args(
     non_interactive: bool,
     output_policy: Option<&OutputPolicy>,
 ) -> Vec<String> {
-    let forced_muxer = forced_muxer_for_policy(output_policy, input);
+    let mut forced_muxer = forced_muxer_for_policy(output_policy, input);
+    if forced_muxer.as_deref() == Some("webm")
+        && let Some(policy) = output_policy
+        && matches!(policy.container, OutputContainerPolicy::Force { .. })
+        && should_fallback_webm_forced_container(preset, input)
+    {
+        forced_muxer = Some("matroska".to_string());
+    }
 
     if preset.advanced_enabled.unwrap_or(false)
         && preset

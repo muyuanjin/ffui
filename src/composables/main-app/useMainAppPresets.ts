@@ -7,6 +7,7 @@ import {
   deletePresetOnBackend,
   reorderPresetsOnBackend,
   enqueueTranscodeJob,
+  enqueueTranscodeJobs,
   expandManualJobInputs,
 } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -298,15 +299,24 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       const preset = manualJobPreset.value ?? presets.value[0];
       if (!preset) return;
 
-      for (const path of expanded) {
+      if (expanded.length === 1) {
         await enqueueTranscodeJob({
-          filename: path,
+          filename: expanded[0],
           jobType: "video",
           source: "manual",
           originalSizeMb: 0,
           presetId: preset.id,
         });
+        return;
       }
+
+      await enqueueTranscodeJobs({
+        filenames: expanded,
+        jobType: "video",
+        source: "manual",
+        originalSizeMb: 0,
+        presetId: preset.id,
+      });
     } catch (e) {
       console.error("Failed to add manual job:", e);
     }

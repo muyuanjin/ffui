@@ -3,6 +3,7 @@ import type { TranscodeJob, JobStatus, FFmpegPreset } from "@/types";
 import {
   hasTauri,
   enqueueTranscodeJob,
+  enqueueTranscodeJobs,
   expandManualJobInputs,
   cancelTranscodeJob,
   waitTranscodeJob,
@@ -273,14 +274,17 @@ export function addManualJobMock(deps: Pick<SingleJobOpsDeps, "jobs" | "manualJo
 }
 
 /**
- * Enqueue a manual job from a file path.
- * Backend will compute accurate size and codec metadata based on the actual
- * file on disk.
- * Requires a valid preset; fails gracefully if none available.
+ * Enqueue manual jobs from a list of input paths (files and/or directories).
+ *
+ * This expands all inputs in a single backend call and batches the enqueue
+ * operation to avoid UI stalls when users drop many files at once.
  */
-export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsDeps) {
+export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJobOpsDeps) {
+  const normalized = (paths ?? []).filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+  if (normalized.length === 0) return;
+
   if (!hasTauri()) {
-    console.error("enqueueManualJobFromPath requires Tauri");
+    console.error("enqueueManualJobsFromPaths requires Tauri");
     deps.queueError.value =
       (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
     return;
@@ -295,16 +299,25 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
   }
 
   try {
-    const expanded = await expandManualJobInputs([path], { recursive: true });
+    const expanded = await expandManualJobInputs(normalized, { recursive: true });
     if (!Array.isArray(expanded) || expanded.length === 0) {
-      // Nothing to enqueue (e.g. dropped a folder with no transcodable files,
-      // or dropped a non-video file).
+      // Nothing to enqueue (e.g. folder has no transcodable files, or inputs
+      // contain only non-video files).
       return;
     }
 
-    for (const filename of expanded) {
+    if (expanded.length === 1) {
       await enqueueTranscodeJob({
-        filename,
+        filename: expanded[0],
+        jobType: "video",
+        source: "manual",
+        originalSizeMb: 0,
+        originalCodec: undefined,
+        presetId: preset.id,
+      });
+    } else {
+      await enqueueTranscodeJobs({
+        filenames: expanded,
         jobType: "video",
         source: "manual",
         originalSizeMb: 0,
@@ -317,8 +330,18 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
     await deps.refreshQueueFromBackend();
     deps.queueError.value = null;
   } catch (error) {
-    console.error("Failed to enqueue manual job from path", error);
+    console.error("Failed to enqueue manual jobs from paths", error);
     deps.queueError.value =
       (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
   }
+}
+
+/**
+ * Enqueue a manual job from a file path.
+ * Backend will compute accurate size and codec metadata based on the actual
+ * file on disk.
+ * Requires a valid preset; fails gracefully if none available.
+ */
+export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsDeps) {
+  return enqueueManualJobsFromPaths([path], deps);
 }

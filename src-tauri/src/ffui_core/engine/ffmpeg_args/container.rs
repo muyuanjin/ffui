@@ -12,9 +12,36 @@ pub(crate) fn normalize_container_format(format: &str) -> String {
         return String::new();
     }
 
-    match trimmed {
-        "mkv" => "matroska",
-        _ => trimmed,
+    // NOTE: This function maps user-facing extensions/aliases to ffmpeg muxer
+    // names. The caller is responsible for selecting the output filename
+    // extension separately.
+    match trimmed.to_ascii_lowercase().as_str() {
+        // Matroska: common extension is mkv but ffmpeg muxer is matroska.
+        "mkv" | "matroska" => "matroska",
+        // MPEG-TS: both ts and m2ts use the same muxer.
+        "ts" | "m2ts" | "mpegts" => "mpegts",
+        // WMV is typically muxed via ASF.
+        "wmv" | "asf" => "asf",
+        // M4A is an mp4-family container; ffmpeg expects mp4 as the muxer name.
+        "m4a" | "mp4" => "mp4",
+        // RealMedia family (rm/rmvb) is handled by the "rm" muxer.
+        "rm" | "rmvb" => "rm",
+        // Pass-through known muxers.
+        "mov" => "mov",
+        "webm" => "webm",
+        "flv" => "flv",
+        "avi" => "avi",
+        "mxf" => "mxf",
+        "3gp" => "3gp",
+        "ogg" => "ogg",
+        "opus" => "opus",
+        "mp3" => "mp3",
+        "wav" => "wav",
+        "aiff" => "aiff",
+        "ac3" => "ac3",
+        "flac" => "flac",
+        // Unknown: keep as-is (may already be a valid muxer name).
+        other => other,
     }
     .to_string()
 }
@@ -38,6 +65,22 @@ pub(crate) fn infer_output_extension(
                 "mkv" | "matroska" => "mkv",
                 "mov" => "mov",
                 "webm" => "webm",
+                "flv" => "flv",
+                "avi" => "avi",
+                "mxf" => "mxf",
+                "3gp" => "3gp",
+                "asf" | "wmv" => "wmv",
+                "rm" | "rmvb" => "rmvb",
+                // Audio-only containers / muxers
+                "m4a" => "m4a",
+                "mp3" => "mp3",
+                "aac" | "adts" => "aac",
+                "wav" => "wav",
+                "flac" => "flac",
+                "aiff" => "aiff",
+                "ac3" => "ac3",
+                "ogg" => "ogg",
+                "opus" => "opus",
                 // 传输流 / 直播
                 "mpegts" | "ts" => "ts",
                 "hls" => "m3u8",

@@ -31,6 +31,7 @@ export type {
   QueueMode,
   QueueProgressStyle,
   MediaInfo,
+  JobWarning,
   WaitMetadata,
   TranscodeJob,
   TranscodeJobLite,

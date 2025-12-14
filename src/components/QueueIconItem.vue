@@ -4,6 +4,7 @@ import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
+import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -373,12 +374,15 @@ const onCardContextMenu = (event: MouseEvent) => {
       class="relative border-t border-border/40 bg-card/80"
       :class="captionPaddingClass"
     >
-      <p
-        class="truncate text-[11px] font-medium text-foreground"
-        :title="job.filename"
-      >
-        {{ displayFilename }}
-      </p>
+      <div class="flex items-center gap-1">
+        <p
+          class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground"
+          :title="job.filename"
+        >
+          {{ displayFilename }}
+        </p>
+        <QueueJobWarnings :warnings="job.warnings" />
+      </div>
       <div class="mt-0.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
           <span>{{ statusLabel }}</span>

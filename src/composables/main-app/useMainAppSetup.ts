@@ -182,7 +182,7 @@ export function useMainAppSetup() {
   const dnd = useMainAppDnDAndContextMenu({
     activeTab: shell.activeTab,
     inspectMediaForPath: media.inspectMediaForPath,
-    enqueueManualJobFromPath: queue.enqueueManualJobFromPath,
+    enqueueManualJobsFromPaths: queue.enqueueManualJobsFromPaths,
     selectedJobIds: queue.selectedJobIds,
     bulkMoveSelectedJobsToTopInner: queue.bulkMoveSelectedJobsToTopInner,
   });

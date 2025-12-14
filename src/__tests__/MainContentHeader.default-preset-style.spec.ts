@@ -40,6 +40,9 @@ describe("MainContentHeader default preset select style", () => {
       global: {
         plugins: [i18n],
         stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
           Dialog: DialogStub,
           DialogContent: { template: `<div><slot /></div>` },
           DialogHeader: { template: `<div><slot /></div>` },

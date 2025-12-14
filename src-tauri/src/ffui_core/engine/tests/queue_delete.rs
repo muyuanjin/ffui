@@ -106,6 +106,7 @@ fn delete_smart_scan_child_job_is_deletable() {
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
+                warnings: Vec::new(),
                 batch_id: Some(batch_id.clone()),
                 wait_metadata: None,
             },
@@ -181,6 +182,7 @@ fn delete_smart_scan_non_terminal_job_is_rejected() {
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
+                warnings: Vec::new(),
                 batch_id: Some(batch_id.clone()),
                 wait_metadata: None,
             },
@@ -254,6 +256,7 @@ fn delete_smart_scan_batch_deletes_all_terminal_children_and_batch_metadata() {
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            warnings: Vec::new(),
             batch_id: Some(batch_id.clone()),
             wait_metadata: None,
         };
@@ -353,6 +356,7 @@ fn delete_smart_scan_batch_rejects_when_children_are_not_terminal() {
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
+                warnings: Vec::new(),
                 batch_id: Some(batch_id.clone()),
                 wait_metadata: None,
             }

@@ -22,8 +22,7 @@ fn normalize_os_path_string(raw: &str) -> String {
     }
 }
 
-/// Enqueue a new transcode job with computed metadata and queue it.
-pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
+fn enqueue_transcode_job_no_notify(
     inner: &Arc<Inner>,
     filename: String,
     job_type: JobType,
@@ -50,14 +49,14 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
 
     let codec_for_job = original_codec.clone();
 
-    let job = {
+    {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let preset = state.presets.iter().find(|p| p.id == preset_id).cloned();
         let estimated_seconds = preset
             .as_ref()
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
         let queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
-        let output_path = if matches!(job_type, JobType::Video) {
+        let (output_path, warnings) = if matches!(job_type, JobType::Video) {
             let path = PathBuf::from(&normalized_filename);
             let plan =
                 plan_video_output_path(&path, preset.as_ref(), &queue_output_policy, |candidate| {
@@ -68,9 +67,12 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
                         .any(|j| j.output_path.as_deref() == Some(c.as_ref()))
                         || state.known_smart_scan_outputs.contains(c.as_ref())
                 });
-            Some(plan.output_path.to_string_lossy().into_owned())
+            (
+                Some(plan.output_path.to_string_lossy().into_owned()),
+                plan.warnings,
+            )
         } else {
-            None
+            (None, Vec::new())
         };
 
         let planned_command = if matches!(job_type, JobType::Video) {
@@ -93,6 +95,11 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             None
         };
 
+        let mut logs: Vec<String> = Vec::new();
+        for w in &warnings {
+            logs.push(format!("warning: {}", w.message));
+        }
+
         let job = TranscodeJob {
             id: id.clone(),
             filename: normalized_filename,
@@ -109,7 +116,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             processing_started_ms: None,
             elapsed_ms: None,
             output_size_mb: None,
-            logs: Vec::new(),
+            logs,
             log_head: None,
             skip_reason: None,
             input_path: Some(input_path),
@@ -129,14 +136,69 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            warnings,
             batch_id: None,
             wait_metadata: None,
         };
         state.queue.push_back(id.clone());
         state.jobs.insert(id.clone(), job.clone());
         job
-    };
+    }
+}
+
+/// Enqueue a new transcode job with computed metadata and queue it.
+pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
+    inner: &Arc<Inner>,
+    filename: String,
+    job_type: JobType,
+    source: JobSource,
+    original_size_mb: f64,
+    original_codec: Option<String>,
+    preset_id: String,
+) -> TranscodeJob {
+    let job = enqueue_transcode_job_no_notify(
+        inner,
+        filename,
+        job_type,
+        source,
+        original_size_mb,
+        original_codec,
+        preset_id,
+    );
     inner.cv.notify_one();
     notify_queue_listeners(inner);
     job
+}
+
+/// Enqueue multiple jobs in a single batch and notify queue listeners once.
+pub(in crate::ffui_core::engine) fn enqueue_transcode_jobs(
+    inner: &Arc<Inner>,
+    filenames: Vec<String>,
+    job_type: JobType,
+    source: JobSource,
+    original_size_mb: f64,
+    original_codec: Option<String>,
+    preset_id: String,
+) -> Vec<TranscodeJob> {
+    if filenames.is_empty() {
+        return Vec::new();
+    }
+
+    let mut jobs = Vec::with_capacity(filenames.len());
+    for filename in filenames {
+        let job = enqueue_transcode_job_no_notify(
+            inner,
+            filename,
+            job_type.clone(),
+            source.clone(),
+            original_size_mb,
+            original_codec.clone(),
+            preset_id.clone(),
+        );
+        jobs.push(job);
+    }
+
+    inner.cv.notify_one();
+    notify_queue_listeners(inner);
+    jobs
 }

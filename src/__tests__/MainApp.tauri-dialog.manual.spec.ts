@@ -134,7 +134,7 @@ describe("MainApp Tauri manual job flow", () => {
         const paths = (payload?.paths as string[]) ?? [];
         return paths.filter((p) => p.endsWith(".mp4") || p.endsWith(".mkv"));
       },
-      enqueue_transcode_job: () => null,
+      enqueue_transcode_jobs: () => null,
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
@@ -146,10 +146,11 @@ describe("MainApp Tauri manual job flow", () => {
     await nextTick();
     await nextTick();
 
-    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
-    expect(enqueues.length).toBe(2);
-    expect(enqueues[0][1]).toMatchObject({ filename: "C:/videos/02.mp4" });
-    expect(enqueues[1][1]).toMatchObject({ filename: "C:/videos/03.mkv" });
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_jobs");
+    expect(enqueues.length).toBe(1);
+    expect(enqueues[0][1]).toMatchObject({
+      filenames: ["C:/videos/02.mp4", "C:/videos/03.mkv"],
+    });
 
     wrapper.unmount();
   });
@@ -173,7 +174,7 @@ describe("MainApp Tauri manual job flow", () => {
         },
       ],
       expand_manual_job_inputs: () => ["C:/videos/folder/a.mp4", "C:/videos/folder/b.mkv"],
-      enqueue_transcode_job: () => null,
+      enqueue_transcode_jobs: () => null,
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
@@ -188,13 +189,13 @@ describe("MainApp Tauri manual job flow", () => {
     expect(dialogOpenMock).toHaveBeenCalledTimes(1);
     expect(dialogOpenMock.mock.calls[0][0]).toMatchObject({ directory: true, recursive: true });
 
-    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
-    expect(enqueues.length).toBe(2);
-    expect(enqueues[0][1]).toMatchObject({ filename: "C:/videos/folder/a.mp4" });
-    expect(enqueues[1][1]).toMatchObject({ filename: "C:/videos/folder/b.mkv" });
-    for (const [, payload] of enqueues) {
-      expect((payload as any).filename).not.toBe(folder);
-    }
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_jobs");
+    expect(enqueues.length).toBe(1);
+    const [, payload] = enqueues[0];
+    expect(payload).toMatchObject({
+      filenames: ["C:/videos/folder/a.mp4", "C:/videos/folder/b.mkv"],
+    });
+    expect((payload as any).filenames).not.toContain(folder);
 
     wrapper.unmount();
   });
@@ -206,21 +207,25 @@ describe("MainApp Tauri manual job flow", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
       expand_manual_job_inputs: () => ["C:/dropped/a.mp4", "C:/dropped/b.mkv"],
-      enqueue_transcode_job: (payload) => {
-        appendQueueJob({
-          id: `job-${Date.now()}`,
-          filename: (payload?.filename as string) ?? "",
-          type: "video",
-          source: "manual",
-          originalSizeMB: 0,
-          originalCodec: "h264",
-          presetId: (payload?.presetId as string) ?? "p1",
-          status: "waiting",
-          progress: 0,
-          logs: [],
-        } as any);
+      enqueue_transcode_jobs: (payload) => {
+        const filenames = (payload?.filenames as string[]) ?? [];
+        const presetId = (payload?.presetId as string) ?? "p1";
+        for (const filename of filenames) {
+          appendQueueJob({
+            id: `job-${Date.now()}-${filename}`,
+            filename,
+            type: "video",
+            source: "manual",
+            originalSizeMB: 0,
+            originalCodec: "h264",
+            presetId,
+            status: "waiting",
+            progress: 0,
+            logs: [],
+          } as any);
+        }
         emitQueueState(getQueueJobs());
-        return true;
+        return [];
       },
     });
 
@@ -238,10 +243,11 @@ describe("MainApp Tauri manual job flow", () => {
       await Promise.resolve();
     }
 
-    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
-    expect(enqueues.length).toBe(2);
-    expect(enqueues[0][1]).toMatchObject({ filename: "C:/dropped/a.mp4" });
-    expect(enqueues[1][1]).toMatchObject({ filename: "C:/dropped/b.mkv" });
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_jobs");
+    expect(enqueues.length).toBe(1);
+    expect(enqueues[0][1]).toMatchObject({
+      filenames: ["C:/dropped/a.mp4", "C:/dropped/b.mkv"],
+    });
 
     wrapper.unmount();
   });

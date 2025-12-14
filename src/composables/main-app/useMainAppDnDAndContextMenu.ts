@@ -6,7 +6,7 @@ import type { MainAppTab } from "./useMainAppShell";
 export interface UseMainAppDnDAndContextMenuOptions {
   activeTab: Ref<MainAppTab>;
   inspectMediaForPath: (path: string) => Promise<void>;
-  enqueueManualJobFromPath: (path: string) => Promise<void>;
+  enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
   selectedJobIds: Ref<Set<string>>;
   bulkMoveSelectedJobsToTopInner: () => Promise<void>;
 }
@@ -33,7 +33,7 @@ export function useMainAppDnDAndContextMenu(
   const {
     activeTab,
     inspectMediaForPath,
-    enqueueManualJobFromPath,
+    enqueueManualJobsFromPaths,
     selectedJobIds,
     bulkMoveSelectedJobsToTopInner,
   } = options;
@@ -49,9 +49,7 @@ export function useMainAppDnDAndContextMenu(
       return;
     }
 
-    for (const path of paths) {
-      await enqueueManualJobFromPath(path);
-    }
+    await enqueueManualJobsFromPaths(paths);
   };
 
   const dragOptions: UseDragAndDropOptions = {
@@ -100,4 +98,3 @@ export function useMainAppDnDAndContextMenu(
 }
 
 export default useMainAppDnDAndContextMenu;
-

@@ -35,6 +35,7 @@ vi.mock("@tauri-apps/api/window", () => {
 vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const enqueueTranscodeJob = vi.fn(async () => ({} as any));
+  const enqueueTranscodeJobs = vi.fn(async () => ([] as any));
   const expandManualJobInputs = vi.fn(async (paths: string[]) => paths);
 
   return {
@@ -56,6 +57,7 @@ vi.mock("@/lib/backend", async () => {
     saveAppSettings: vi.fn(async (settings: any) => settings),
     expandManualJobInputs,
     enqueueTranscodeJob,
+    enqueueTranscodeJobs,
     cancelTranscodeJob: vi.fn(async () => true),
     selectPlayableMediaPath: vi.fn(
       async (candidates: string[]) => candidates[0] ?? null,
@@ -64,7 +66,7 @@ vi.mock("@/lib/backend", async () => {
 });
 
 import MainApp from "@/MainApp.vue";
-import { enqueueTranscodeJob } from "@/lib/backend";
+import { enqueueTranscodeJob, enqueueTranscodeJobs } from "@/lib/backend";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 
@@ -83,6 +85,7 @@ describe("MainApp Tauri drag & drop integration", () => {
     unlistenCalled = false;
     listenMock.mockReset();
     (enqueueTranscodeJob as any).mockClear?.();
+    (enqueueTranscodeJobs as any).mockClear?.();
     // Ensure hasTauri() sees a Tauri-like environment.
     (window as any).__TAURI__ = {};
 
@@ -128,6 +131,7 @@ describe("MainApp Tauri drag & drop integration", () => {
 
     // Ensure the backend enqueue call was triggered with the dropped path.
     expect(enqueueTranscodeJob).toHaveBeenCalledTimes(1);
+    expect(enqueueTranscodeJobs).not.toHaveBeenCalled();
     const [args] = (enqueueTranscodeJob as any).mock.calls[0];
     expect(args).toMatchObject({
       // In Tauri mode we now pass the full path through so the backend can
@@ -139,5 +143,37 @@ describe("MainApp Tauri drag & drop integration", () => {
 
     wrapper.unmount();
     expect(unlistenCalled).toBe(true);
+  });
+
+  it("batches multiple dropped files into a single enqueueTranscodeJobs call", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    await nextTick();
+    expect(typeof dragDropHandler).toBe("function");
+
+    vm.activeTab = "queue";
+    await nextTick();
+
+    const dropped = ["C:/videos/a.mp4", "C:/videos/b.mkv"];
+    dragDropHandler?.({ payload: { paths: dropped } });
+    await nextTick();
+    await Promise.resolve();
+
+    expect(enqueueTranscodeJob).not.toHaveBeenCalled();
+    expect(enqueueTranscodeJobs).toHaveBeenCalledTimes(1);
+    const [payload] = (enqueueTranscodeJobs as any).mock.calls[0];
+    expect(payload).toMatchObject({
+      filenames: dropped,
+      source: "manual",
+      jobType: "video",
+    });
+
+    wrapper.unmount();
   });
 });

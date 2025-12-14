@@ -119,6 +119,7 @@ pub(crate) fn handle_audio_file_with_id(
         preview_path: None,
         log_tail: None,
         failure_reason: None,
+        warnings: Vec::new(),
         batch_id: Some(batch_id.to_string()),
         wait_metadata: None,
     };

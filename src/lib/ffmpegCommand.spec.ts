@@ -428,4 +428,66 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     const joined = ` ${args.join(" ")} `;
     expect(joined).not.toContain(" -f mkv ");
   });
+
+  it("normalizes container.format=wmv to ffmpeg muxer name asf", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        container: {
+          format: "wmv",
+          movflags: [],
+        },
+      }),
+    );
+    const args = splitArgs(cmd);
+    const fIndex = args.indexOf("-f");
+    expect(fIndex).toBeGreaterThan(-1);
+    expect(args[fIndex + 1]).toBe("asf");
+  });
+
+  it("normalizes container.format=ts/m2ts to ffmpeg muxer name mpegts", () => {
+    for (const fmt of ["ts", "m2ts"] as const) {
+      const cmd = buildFfmpegCommandFromStructured(
+        makeInput({
+          container: {
+            format: fmt,
+            movflags: [],
+          },
+        }),
+      );
+      const args = splitArgs(cmd);
+      const fIndex = args.indexOf("-f");
+      expect(fIndex).toBeGreaterThan(-1);
+      expect(args[fIndex + 1]).toBe("mpegts");
+    }
+  });
+
+  it("normalizes container.format=m4a to ffmpeg muxer name mp4", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        container: {
+          format: "m4a",
+          movflags: [],
+        },
+      }),
+    );
+    const args = splitArgs(cmd);
+    const fIndex = args.indexOf("-f");
+    expect(fIndex).toBeGreaterThan(-1);
+    expect(args[fIndex + 1]).toBe("mp4");
+  });
+
+  it("normalizes container.format=rmvb to ffmpeg muxer name rm", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        container: {
+          format: "rmvb",
+          movflags: [],
+        },
+      }),
+    );
+    const args = splitArgs(cmd);
+    const fIndex = args.indexOf("-f");
+    expect(fIndex).toBeGreaterThan(-1);
+    expect(args[fIndex + 1]).toBe("rm");
+  });
 });

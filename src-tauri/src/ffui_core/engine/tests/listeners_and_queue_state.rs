@@ -58,6 +58,52 @@ fn queue_listener_observes_enqueue_and_cancel() {
 }
 
 #[test]
+fn queue_listener_observes_bulk_enqueue_as_single_snapshot() {
+    let engine = make_engine_with_preset();
+
+    let snapshots: TestArc<TestMutex<Vec<QueueState>>> = TestArc::new(TestMutex::new(Vec::new()));
+    let snapshots_clone = TestArc::clone(&snapshots);
+
+    engine.register_queue_listener(move |state: QueueState| {
+        snapshots_clone
+            .lock()
+            .expect("snapshots lock poisoned")
+            .push(state);
+    });
+
+    let jobs = engine.enqueue_transcode_jobs(
+        vec![
+            "C:/videos/bulk-1.mp4".to_string(),
+            "C:/videos/bulk-2.mkv".to_string(),
+            "C:/videos/bulk-3.mp4".to_string(),
+        ],
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    assert_eq!(jobs.len(), 3, "expected three enqueued jobs");
+
+    let states = snapshots.lock().expect("snapshots lock poisoned");
+    assert_eq!(
+        states.len(),
+        1,
+        "bulk enqueue should notify queue listeners once"
+    );
+
+    let state = &states[0];
+    for job in jobs {
+        assert!(
+            state.jobs.iter().any(|j| j.id == job.id),
+            "snapshot should include bulk-enqueued job {}",
+            job.id
+        );
+    }
+}
+
+#[test]
 fn queue_state_exposes_stable_queue_order_for_waiting_jobs() {
     let engine = make_engine_with_preset();
 

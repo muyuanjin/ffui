@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { moveArrayElement, useSortable } from "@vueuse/integrations/useSortable";
+import { useSortable } from "@vueuse/integrations/useSortable";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -113,8 +113,18 @@ useSortable(sortableRef, order, {
   fallbackOnBody: true,
   fallbackClass: "drag-fallback",
   onUpdate: (e: any) => {
-    moveArrayElement(order, e?.oldIndex, e?.newIndex, e);
-    emit("update", { appendOrder: [...order.value] });
+    const oldIndex = e?.oldIndex;
+    const newIndex = e?.newIndex;
+    if (typeof oldIndex !== "number" || typeof newIndex !== "number") return;
+    if (oldIndex === newIndex) return;
+    if (oldIndex < 0 || oldIndex >= order.value.length) return;
+    if (newIndex < 0 || newIndex >= order.value.length) return;
+
+    const next = [...order.value];
+    const [moved] = next.splice(oldIndex, 1);
+    next.splice(newIndex, 0, moved);
+    order.value = next;
+    emit("update", { appendOrder: next });
   },
 });
 </script>

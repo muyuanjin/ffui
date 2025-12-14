@@ -15,6 +15,7 @@ vi.mock("@tauri-apps/api/core", () => {
 
 import {
   enqueueTranscodeJob,
+  enqueueTranscodeJobs,
   cancelTranscodeJob,
   waitTranscodeJob,
   resumeTranscodeJob,
@@ -96,6 +97,53 @@ describe("backend contract", () => {
 
     // Ensure the returned job is passed through unchanged.
     expect(result).toEqual(fakeJob);
+  });
+
+  it("enqueueTranscodeJobs sends both camelCase and snake_case keys and preserves filename order", async () => {
+    const filenames = ["C:/videos/02.mp4", "C:/videos/03.mkv"];
+    const presetId = "preset-1";
+    const fakeJobs: TranscodeJob[] = filenames.map((filename, idx) => ({
+      id: `job-${idx + 1}`,
+      filename,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 0,
+      originalCodec: "h264",
+      presetId,
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    }));
+
+    invokeMock.mockResolvedValueOnce(fakeJobs);
+
+    const result = await enqueueTranscodeJobs({
+      filenames,
+      jobType: "video",
+      source: "manual",
+      originalSizeMb: 0,
+      originalCodec: "h264",
+      presetId,
+    });
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("enqueue_transcode_jobs");
+    expect(payload).toMatchObject({
+      filenames,
+      fileNames: filenames,
+      jobType: "video",
+      job_type: "video",
+      originalSizeMb: 0,
+      original_size_mb: 0,
+      originalCodec: "h264",
+      original_codec: "h264",
+      presetId,
+      preset_id: presetId,
+      source: "manual",
+    });
+
+    expect(result).toEqual(fakeJobs);
   });
 
   it("loadPreviewDataUrl uses the dedicated preview command with both name variants", async () => {

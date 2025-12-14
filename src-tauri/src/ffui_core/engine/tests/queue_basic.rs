@@ -361,6 +361,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 preview_path: None,
                 log_tail: None,
                 failure_reason: None,
+                warnings: Vec::new(),
                 batch_id: None,
                 wait_metadata: None,
             },

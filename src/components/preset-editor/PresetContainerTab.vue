@@ -9,7 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { useI18n } from "vue-i18n";
+import { computed, ref } from "vue";
+import { FORMAT_CATALOG, filterFormatCatalog, groupFormatCatalog } from "@/lib/formatCatalog";
 
 const props = defineProps<{
   container: ContainerConfig;
@@ -18,6 +21,11 @@ const props = defineProps<{
 const container = props.container as any;
 
 const { t } = useI18n();
+
+const query = ref("");
+const entries = computed(() => FORMAT_CATALOG);
+const filtered = computed(() => filterFormatCatalog(entries.value, query.value));
+const groups = computed(() => groupFormatCatalog(filtered.value));
 </script>
 
 <template>
@@ -46,16 +54,50 @@ const { t } = useI18n();
             />
           </SelectTrigger>
           <SelectContent>
+            <div class="p-1">
+              <Input
+                v-model="query"
+                class="h-8 text-xs"
+                placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..."
+              />
+            </div>
+            <Separator class="my-1" />
             <SelectItem value="__auto__">
               {{ t("presetEditor.panel.formatAutoOption") }}
             </SelectItem>
-            <SelectItem value="mp4">mp4</SelectItem>
-            <SelectItem value="mkv">mkv</SelectItem>
-            <SelectItem value="mov">mov</SelectItem>
-            <SelectItem value="webm">webm</SelectItem>
-            <SelectItem value="mpegts">mpegts</SelectItem>
-            <SelectItem value="hls">hls</SelectItem>
-            <SelectItem value="dash">dash</SelectItem>
+            <Separator class="my-1" />
+
+            <template v-if="groups.video.length">
+              <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">视频</div>
+              <SelectItem v-for="e in groups.video" :key="e.value" :value="e.value">
+                <div class="flex flex-col">
+                  <span class="text-sm">{{ e.label }}</span>
+                  <span v-if="e.note" class="text-[10px] text-muted-foreground leading-tight">{{ e.note }}</span>
+                </div>
+              </SelectItem>
+            </template>
+
+            <template v-if="groups.audio.length">
+              <Separator class="my-1" />
+              <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">音频</div>
+              <SelectItem v-for="e in groups.audio" :key="e.value" :value="e.value" :disabled="true">
+                <div class="flex flex-col">
+                  <span class="text-sm">{{ e.label }}</span>
+                  <span class="text-[10px] text-muted-foreground leading-tight">仅音频；当前结构化视频预设不启用</span>
+                </div>
+              </SelectItem>
+            </template>
+
+            <template v-if="groups.image.length">
+              <Separator class="my-1" />
+              <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">图片</div>
+              <SelectItem v-for="e in groups.image" :key="e.value" :value="e.value" :disabled="true">
+                <div class="flex flex-col">
+                  <span class="text-sm">{{ e.label }}</span>
+                  <span class="text-[10px] text-muted-foreground leading-tight">图片格式；当前容器设置不启用</span>
+                </div>
+              </SelectItem>
+            </template>
           </SelectContent>
         </Select>
       </div>

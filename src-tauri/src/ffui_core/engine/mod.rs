@@ -8,6 +8,7 @@
 //! - `smart_scan`: Smart Scan batch processing
 //! - `tests`: All test cases
 
+mod enqueue_bulk;
 mod ffmpeg_args;
 mod file_times;
 mod job_runner;

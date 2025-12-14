@@ -30,6 +30,15 @@ pub struct WaitMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JobWarning {
+    /// Stable machine-readable warning identifier.
+    pub code: String,
+    /// User-facing description suitable for UI tooltips.
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Waiting,
@@ -144,6 +153,9 @@ pub struct TranscodeJob {
     /// Short, structured reason string describing why a job failed. This is
     /// separate from raw logs so the UI can surface a concise headline.
     pub failure_reason: Option<String>,
+    /// Structured warnings that should remain visible on the task card.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<JobWarning>,
     /// Optional stable identifier for a Smart Scan batch this job belongs to.
     /// Manual / ad-hoc jobs do not carry a batch id.
     pub batch_id: Option<String>,
@@ -229,6 +241,9 @@ pub struct TranscodeJobLite {
     pub log_head: Option<Vec<String>>,
     /// Short structured description of why the job failed.
     pub failure_reason: Option<String>,
+    /// Structured warnings that should remain visible on the task card.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<JobWarning>,
     /// Optional stable id for the Smart Scan batch this job belongs to.
     pub batch_id: Option<String>,
     /// Optional metadata captured when a job is paused via wait or restored
@@ -278,6 +293,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             log_tail: job.log_tail.clone(),
             log_head,
             failure_reason: job.failure_reason.clone(),
+            warnings: job.warnings.clone(),
             batch_id: job.batch_id.clone(),
             wait_metadata: job.wait_metadata.clone(),
         }
@@ -325,6 +341,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             preview_path: job.preview_path,
             log_tail: job.log_tail,
             failure_reason: job.failure_reason,
+            warnings: job.warnings,
             batch_id: job.batch_id,
             wait_metadata: job.wait_metadata,
         }
@@ -372,6 +389,7 @@ mod tests {
                 log_tail: None,
                 log_head: Some(vec!["ffmpeg version ...".to_string()]),
                 failure_reason: None,
+                warnings: Vec::new(),
                 batch_id: None,
                 wait_metadata: None,
             }],

@@ -64,6 +64,7 @@ pub(super) fn insert_image_stub_job(
         preview_path: None,
         log_tail: None,
         failure_reason: None,
+        warnings: Vec::new(),
         batch_id: Some(batch_id.to_string()),
         wait_metadata: None,
     };
@@ -129,6 +130,7 @@ pub(super) fn insert_audio_stub_job(
         preview_path: None,
         log_tail: None,
         failure_reason: None,
+        warnings: Vec::new(),
         batch_id: Some(batch_id.to_string()),
         wait_metadata: None,
     };

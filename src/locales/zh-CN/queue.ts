@@ -81,7 +81,7 @@ const queue = {
     invertShort: "反选",
     clear: "清除选择",
     clearShort: "清除",
-    selectedCount: "已选中 {count} 个任务",
+    selectedCount: "已选中 {count} 个",
     selectedCountShort: "已选 {count}",
     moreActions: "更多操作",
     pin: "固定操作栏",

@@ -136,6 +136,17 @@ pub(crate) fn handle_video_file(
         .to_string();
     let input_path = path.to_string_lossy().into_owned();
 
+    let output_plan =
+        plan_video_output_path(path, preset.as_ref(), &config.output_policy, |candidate| {
+            super::super::state::is_known_smart_scan_output_with_inner(inner, candidate)
+        });
+    let output_path = output_plan.output_path.to_string_lossy().into_owned();
+    let warnings = output_plan.warnings;
+    let mut logs: Vec<String> = Vec::new();
+    for w in &warnings {
+        logs.push(format!("warning: {}", w.message));
+    }
+
     let mut job = TranscodeJob {
         id: next_job_id(inner),
         filename,
@@ -152,18 +163,11 @@ pub(crate) fn handle_video_file(
         processing_started_ms: None,
         elapsed_ms: None,
         output_size_mb: None,
-        logs: Vec::new(),
+        logs,
         log_head: None,
         skip_reason: None,
         input_path: Some(input_path.clone()),
-        output_path: Some(
-            plan_video_output_path(path, preset.as_ref(), &config.output_policy, |candidate| {
-                super::super::state::is_known_smart_scan_output_with_inner(inner, candidate)
-            })
-            .output_path
-            .to_string_lossy()
-            .into_owned(),
-        ),
+        output_path: Some(output_path),
         output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
@@ -179,6 +183,7 @@ pub(crate) fn handle_video_file(
         preview_path: None,
         log_tail: None,
         failure_reason: None,
+        warnings,
         batch_id: Some(batch_id.to_string()),
         wait_metadata: None,
     };
@@ -375,6 +380,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
         preview_path: None,
         log_tail: None,
         failure_reason: None,
+        warnings: Vec::new(),
         batch_id: Some(batch_id.to_string()),
         wait_metadata: None,
     };
@@ -426,6 +432,12 @@ pub(crate) fn enqueue_smart_scan_video_job(
         candidate.exists() || state.known_smart_scan_outputs.contains(s.as_ref())
     });
     let output_path = output_plan.output_path;
+    if !output_plan.warnings.is_empty() {
+        for w in &output_plan.warnings {
+            job.logs.push(format!("warning: {}", w.message));
+        }
+        job.warnings = output_plan.warnings;
+    }
     state
         .known_smart_scan_outputs
         .insert(output_path.to_string_lossy().into_owned());

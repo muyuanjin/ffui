@@ -39,6 +39,92 @@ fn plan_video_output_path_force_container_uses_correct_extension_and_muxer() {
 }
 
 #[test]
+fn plan_video_output_path_force_ts_and_m2ts_preserve_extension_and_use_mpegts_muxer() {
+    let input = PathBuf::from("C:/videos/sample.mp4");
+
+    for fmt in ["ts", "m2ts"] {
+        let policy = OutputPolicy {
+            container: OutputContainerPolicy::Force {
+                format: fmt.to_string(),
+            },
+            ..OutputPolicy::default()
+        };
+
+        let plan = plan_video_output_path(&input, None, &policy, |_| false);
+        assert!(
+            plan.output_path
+                .to_string_lossy()
+                .ends_with(&format!(".{fmt}")),
+            "force container {fmt} must preserve extension, got: {}",
+            plan.output_path.display()
+        );
+        assert_eq!(
+            plan.forced_muxer.as_deref(),
+            Some("mpegts"),
+            "{fmt} must map to mpegts muxer for ffmpeg"
+        );
+        assert!(plan.warnings.is_empty(), "no warnings expected for {fmt}");
+    }
+}
+
+#[test]
+fn plan_video_output_path_force_wmv_uses_asf_muxer_and_wmv_extension() {
+    let input = PathBuf::from("C:/videos/sample.mp4");
+    let policy = OutputPolicy {
+        container: OutputContainerPolicy::Force {
+            format: "wmv".to_string(),
+        },
+        ..OutputPolicy::default()
+    };
+
+    let plan = plan_video_output_path(&input, None, &policy, |_| false);
+    assert!(
+        plan.output_path.to_string_lossy().ends_with(".wmv"),
+        "force container wmv must produce .wmv extension, got: {}",
+        plan.output_path.display()
+    );
+    assert_eq!(
+        plan.forced_muxer.as_deref(),
+        Some("asf"),
+        "wmv must map to asf muxer for ffmpeg"
+    );
+    assert!(plan.warnings.is_empty(), "no warnings expected for wmv");
+}
+
+#[test]
+fn plan_video_output_path_force_webm_falls_back_to_mkv_when_incompatible() {
+    let mut preset = make_test_preset();
+    preset.video.encoder = EncoderType::HevcNvenc;
+    preset.audio.codec = crate::ffui_core::domain::AudioCodecType::Copy;
+
+    let input = PathBuf::from("C:/videos/sample.mp4");
+    let policy = OutputPolicy {
+        container: OutputContainerPolicy::Force {
+            format: "webm".to_string(),
+        },
+        ..OutputPolicy::default()
+    };
+
+    let plan = plan_video_output_path(&input, Some(&preset), &policy, |_| false);
+    assert!(
+        plan.output_path.to_string_lossy().ends_with(".mkv"),
+        "incompatible forced webm must fall back to .mkv, got: {}",
+        plan.output_path.display()
+    );
+    assert_eq!(
+        plan.forced_muxer.as_deref(),
+        Some("matroska"),
+        "fallback container must use matroska muxer"
+    );
+    assert!(
+        plan.warnings
+            .iter()
+            .any(|w| w.code == "forcedContainerFallback"),
+        "expected forcedContainerFallback warning"
+    );
+}
+
+#[test]
 fn plan_video_output_path_appends_timestamp_without_touching_extension() {
     let input = PathBuf::from("C:/videos/video.mp4");
     let policy = OutputPolicy {

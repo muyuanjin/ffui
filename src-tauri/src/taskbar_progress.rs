@@ -203,6 +203,7 @@ mod tests {
             preview_path: None,
             log_tail: None,
             failure_reason: None,
+            warnings: Vec::new(),
             batch_id: None,
             wait_metadata: None,
         }

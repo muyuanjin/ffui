@@ -29,23 +29,54 @@ pub fn get_queue_state_lite(engine: State<TranscodingEngine>) -> QueueStateLite 
 
 /// Enqueue a new transcoding job.
 #[tauri::command]
-pub fn enqueue_transcode_job(
-    engine: State<TranscodingEngine>,
+pub async fn enqueue_transcode_job(
+    engine: State<'_, TranscodingEngine>,
     filename: String,
     job_type: JobType,
     source: JobSource,
     original_size_mb: f64,
     original_codec: Option<String>,
     preset_id: String,
-) -> TranscodeJob {
-    engine.enqueue_transcode_job(
-        filename,
-        job_type,
-        source,
-        original_size_mb,
-        original_codec,
-        preset_id,
-    )
+) -> Result<TranscodeJob, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.enqueue_transcode_job(
+            filename,
+            job_type,
+            source,
+            original_size_mb,
+            original_codec,
+            preset_id,
+        )
+    })
+    .await
+    .map_err(|e| format!("failed to join enqueue_transcode_job task: {e}"))
+}
+
+/// Enqueue multiple transcoding jobs as a single batch.
+#[tauri::command]
+pub async fn enqueue_transcode_jobs(
+    engine: State<'_, TranscodingEngine>,
+    filenames: Vec<String>,
+    job_type: JobType,
+    source: JobSource,
+    original_size_mb: f64,
+    original_codec: Option<String>,
+    preset_id: String,
+) -> Result<Vec<TranscodeJob>, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.enqueue_transcode_jobs(
+            filenames,
+            job_type,
+            source,
+            original_size_mb,
+            original_codec,
+            preset_id,
+        )
+    })
+    .await
+    .map_err(|e| format!("failed to join enqueue_transcode_jobs task: {e}"))
 }
 
 /// Expand user-selected or dropped paths into an ordered list of transcodable
@@ -55,8 +86,13 @@ pub fn enqueue_transcode_job(
 /// invalid jobs while preserving the input order reported by the OS picker /
 /// drag-drop payload.
 #[tauri::command]
-pub fn expand_manual_job_inputs(paths: Vec<String>, recursive: bool) -> Vec<String> {
-    expand_manual_job_inputs_impl(&paths, recursive)
+pub async fn expand_manual_job_inputs(
+    paths: Vec<String>,
+    recursive: bool,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || expand_manual_job_inputs_impl(&paths, recursive))
+        .await
+        .map_err(|e| format!("failed to join expand_manual_job_inputs task: {e}"))
 }
 
 /// Cancel a transcode job by ID.

@@ -50,7 +50,12 @@ const classifyCommandToken = (segment: string, index: number): CommandTokenKind 
     return "option";
   }
 
-  if (/[\\/]/.test(unquoted) || /\.(mp4|mkv|mov|avi|webm|m4v|m4a|mp3)$/i.test(unquoted)) {
+  if (
+    /[\\/]/.test(unquoted) ||
+    /\.(mp4|mkv|flv|mov|webm|wmv|avi|rmvb|ts|m2ts|mxf|3gp|m4v|m4a|mp3|aac|wav|flac|alac|aiff|ac3|ogg|opus|png|jpg|jpeg|webp|avif|bmp)$/i.test(
+      unquoted,
+    )
+  ) {
     return "path";
   }
 

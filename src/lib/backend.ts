@@ -8,18 +8,32 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
   GpuUsageSnapshot,
-	  FFmpegPreset,
-	  JobSource,
-	  JobType,
-	  OutputPolicy,
-	  SmartScanConfig,
-	  QueueState,
-	  QueueStateLite,
-	  TranscodeJob,
-	  SystemMetricsSnapshot,
+		  FFmpegPreset,
+		  JobSource,
+		  JobType,
+		  OutputPolicy,
+		  SmartScanConfig,
+		  QueueState,
+		  QueueStateLite,
+		  TranscodeJob,
+		  SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
 import type { SystemFontFamily } from "./systemFontSearch";
+import type {
+  AppUpdaterCapabilities,
+  DownloadedFontInfo,
+  OpenSourceFontInfo,
+  UiFontDownloadSnapshot,
+} from "./backend.types";
+
+export type {
+  AppUpdaterCapabilities,
+  DownloadedFontInfo,
+  OpenSourceFontInfo,
+  UiFontDownloadStatus,
+  UiFontDownloadSnapshot,
+} from "./backend.types";
 
 export const hasTauri = () => {
   if (typeof window === "undefined") return false;
@@ -36,39 +50,6 @@ export const loadAppSettings = async (): Promise<AppSettings> => {
 export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
   return invoke<AppSettings>("save_app_settings", { settings });
 };
-
-export interface OpenSourceFontInfo {
-  id: string;
-  name: string;
-  familyName: string;
-  format: string;
-}
-
-export interface DownloadedFontInfo {
-  id: string;
-  familyName: string;
-  path: string;
-  format: string;
-}
-
-export type UiFontDownloadStatus =
-  | "starting"
-  | "downloading"
-  | "ready"
-  | "error"
-  | "canceled";
-
-export interface UiFontDownloadSnapshot {
-  sessionId: number;
-  fontId: string;
-  status: UiFontDownloadStatus;
-  receivedBytes: number;
-  totalBytes: number | null;
-  familyName: string;
-  format: string;
-  path: string | null;
-  error: string | null;
-}
 
 export const fetchSystemFontFamilies = async (): Promise<SystemFontFamily[]> => {
   if (!hasTauri()) return [];
@@ -135,10 +116,6 @@ export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFo
     source_path: normalized,
   });
 };
-
-export interface AppUpdaterCapabilities {
-  configured: boolean;
-}
 
 export const fetchAppUpdaterCapabilities = async (): Promise<AppUpdaterCapabilities> => {
   if (!hasTauri()) return { configured: false };
@@ -330,6 +307,31 @@ export const enqueueTranscodeJob = async (params: {
   return invoke<TranscodeJob>("enqueue_transcode_job", {
     // Accept both camelCase and snake_case keys to align with the Rust command
     filename,
+    jobType,
+    job_type: jobType,
+    source,
+    originalSizeMb,
+    original_size_mb: originalSizeMb,
+    originalCodec,
+    original_codec: originalCodec,
+    presetId,
+    preset_id: presetId,
+  });
+};
+
+export const enqueueTranscodeJobs = async (params: {
+  filenames: string[];
+  jobType: JobType;
+  source: JobSource;
+  originalSizeMb: number;
+  originalCodec?: string;
+  presetId: string;
+}): Promise<TranscodeJob[]> => {
+  const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
+  return invoke<TranscodeJob[]>("enqueue_transcode_jobs", {
+    // Accept both camelCase and snake_case keys to align with the Rust command
+    filenames,
+    fileNames: filenames,
     jobType,
     job_type: jobType,
     source,

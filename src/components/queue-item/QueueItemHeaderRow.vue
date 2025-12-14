@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
+import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 
 const props = withDefaults(
   defineProps<{
@@ -172,6 +173,7 @@ const emit = defineEmits<{
           >
             {{ displayFilename }}
           </h4>
+          <QueueJobWarnings :warnings="job.warnings" />
         </div>
 
         <div class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-1">
