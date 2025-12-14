@@ -219,7 +219,7 @@ defineExpose({
 
 <template>
   <div
-    class="h-screen w-screen flex flex-col overflow-hidden bg-background text-foreground m-0 p-0"
+    class="h-full w-full flex flex-col overflow-hidden bg-background text-foreground m-0 p-0"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
@@ -314,7 +314,7 @@ defineExpose({
         />
 
         <ScrollArea class="flex-1">
-          <div class="p-4">
+          <div class="p-4 min-h-full">
             <QueuePanel
               v-if="activeTab === 'queue'"
               v-bind="queuePanelProps"

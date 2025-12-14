@@ -183,17 +183,27 @@ fn execute_transcode_job(
                     last_effective_elapsed_seconds = Some(effective_elapsed);
                 }
 
-                let mut percent = compute_progress_percent(total_duration, effective_elapsed);
-                if percent >= 100.0 {
-                    // Keep a tiny numerical headroom so that the last step to
-                    // an exact 100% always comes from the terminal state
-                    // transition (Completed / Failed / Skipped) or an explicit
-                    // progress=end marker from ffmpeg, never from an in-flight
-                    // stderr sample.
-                    percent = 99.9;
-                }
+                if wait_requested {
+                    // Once a cooperative wait has been requested, freeze the
+                    // user-visible progress at its current value. We still
+                    // drain stderr so we can capture the final out_time sample
+                    // for accurate resume seeking, but we must not advance the
+                    // progress bar (especially to 100%) or resume would appear
+                    // stuck due to monotonic progress semantics.
+                    update_job_progress(inner, job_id, None, Some(&line), speed);
+                } else {
+                    let mut percent = compute_progress_percent(total_duration, effective_elapsed);
+                    if percent >= 100.0 {
+                        // Keep a tiny numerical headroom so that the last step to
+                        // an exact 100% always comes from the terminal state
+                        // transition (Completed / Failed / Skipped) or an explicit
+                        // progress=end marker from ffmpeg, never from an in-flight
+                        // stderr sample.
+                        percent = 99.9;
+                    }
 
-                update_job_progress(inner, job_id, Some(percent), Some(&line), speed);
+                    update_job_progress(inner, job_id, Some(percent), Some(&line), speed);
+                }
             } else {
                 // Non-progress lines are still useful as logs for debugging.
                 update_job_progress(inner, job_id, None, Some(&line), None);
@@ -204,7 +214,7 @@ fn execute_transcode_job(
             // final 100% update as soon as we see `progress=end` makes the UI
             // feel truly real-time, while still keeping "100%" reserved for
             // the moment ffmpeg itself declares that all work is done.
-            if is_ffmpeg_progress_end(&line) {
+            if !wait_requested && is_ffmpeg_progress_end(&line) {
                 update_job_progress(inner, job_id, Some(100.0), Some(&line), None);
             }
         }

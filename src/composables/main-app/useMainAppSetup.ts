@@ -17,6 +17,7 @@ import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { scheduleStartupIdle } from "./startupIdle";
+import { useUiAppearanceSync } from "./useUiAppearanceSync";
 export function useMainAppSetup() {
   const { t } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -29,11 +30,8 @@ export function useMainAppSetup() {
   const presetSortMode = ref<PresetSortMode>("manual");
   const presetViewMode = ref<PresetViewMode>("grid");
   const completedCount = computed(() => jobs.value.filter((job) => job.status === "completed").length);
-
-  // Startup idle gate: used to defer non-critical startup calls (settings,
-  // tool status, initial queue poll) until after the first paint so the shell
-  // can appear quickly. In test environments we flip this gate to true
-  // immediately to keep behaviour deterministic.
+  // Startup idle gate: defer non-critical startup calls until after first paint.
+  // In tests, the gate starts open for deterministic behaviour.
   const startupIdleReady = ref(false);
   const isTestEnv =
     typeof import.meta !== "undefined" &&
@@ -161,6 +159,7 @@ export function useMainAppSetup() {
     smartConfig: smartScan.smartConfig,
     startupIdleReady,
   });
+  useUiAppearanceSync(settings.appSettings);
 
   const updater = useMainAppUpdater({
     appSettings: settings.appSettings,
@@ -262,7 +261,6 @@ export function useMainAppSetup() {
     },
     { flush: "post" },
   );
-
   // 保存预设排序模式变化
   watch(
     presetSortMode,
@@ -287,7 +285,6 @@ export function useMainAppSetup() {
     },
     { flush: "post" },
   );
-
   // 保存预设视图模式变化
   watch(
     presetViewMode,
@@ -310,12 +307,10 @@ export function useMainAppSetup() {
     },
     { flush: "post" },
   );
-
   // 选择操作栏固定状态（从 AppSettings 读取）
   const selectionBarPinned = computed(
     () => settings.appSettings.value?.selectionBarPinned ?? false,
   );
-
   // 更新选择操作栏固定状态
   const setSelectionBarPinned = (pinned: boolean) => {
     // 即使 appSettings 尚未加载，也允许更新（会在内存中创建临时设置）
@@ -329,9 +324,7 @@ export function useMainAppSetup() {
     // 直接更新 appSettings，useAppSettings 的 watch 会自动触发持久化
     settings.appSettings.value = nextSettings;
   };
-
   const { dialogManager, selectedJobForDetail } = dialogs;
-
   // Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
   // Prefer the backend-probed resolvedPath (which already accounts for
   // auto-download and PATH lookup) and fall back to the custom path stored in
@@ -346,7 +339,6 @@ export function useMainAppSetup() {
       | undefined;
     return tools?.ffmpegPath ?? null;
   });
-
   const queuePanelProps = createQueuePanelProps({
     queueJobsForDisplay: queue.queueJobsForDisplay,
     visibleQueueItems: queue.visibleQueueItems,
@@ -354,6 +346,7 @@ export function useMainAppSetup() {
     queueModeProcessingJobs: queue.queueModeProcessingJobs,
     queueModeWaitingItems: queue.queueModeWaitingItems,
     queueModeWaitingBatchIds: queue.queueModeWaitingBatchIds,
+    pausingJobIds: queue.pausingJobIds,
     presets,
     queueViewMode: queue.queueViewMode,
     // Expand bare `ffmpeg` tokens in the "full command" view using the

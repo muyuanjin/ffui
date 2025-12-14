@@ -134,3 +134,12 @@ pub(super) static FFMPEG_RELEASE_CACHE: Lazy<Mutex<Option<FfmpegStaticRelease>>>
 
 /// Fixed libavif version for avifenc/avifdec CLI tools.
 pub(super) const LIBAVIF_VERSION: &str = "v1.3.0";
+
+#[derive(Debug, Clone)]
+pub(super) struct LibavifRelease {
+    pub(super) version: String,
+    pub(super) tag: String,
+}
+
+pub(super) static LIBAVIF_RELEASE_CACHE: Lazy<Mutex<Option<LibavifRelease>>> =
+    Lazy::new(|| Mutex::new(None));

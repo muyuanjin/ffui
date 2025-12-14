@@ -3,12 +3,13 @@ import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
 import SettingsAppUpdatesSection from "@/components/panels/SettingsAppUpdatesSection.vue";
+import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
+import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -148,9 +149,9 @@ const toolsMode = computed<ExternalToolsMode>({
 </script>
 
 <template>
-  <section class="max-w-7xl mx-auto px-3 py-2">
-    <div class="grid gap-2 items-start lg:grid-cols-12">
-      <div class="space-y-2 lg:col-span-8">
+  <section class="max-w-7xl mx-auto px-3 py-2 min-h-full flex flex-col" data-testid="settings-panel">
+    <div class="grid gap-2 items-stretch lg:grid-cols-12 flex-1 min-h-0">
+      <div class="lg:col-span-8 flex flex-col gap-2 min-h-0">
         <SettingsExternalToolsSection
           :app-settings="appSettings"
           :tool-statuses="toolStatuses"
@@ -160,13 +161,13 @@ const toolsMode = computed<ExternalToolsMode>({
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
           @downloadTool="(kind) => emit('downloadTool', kind)"
         />
-        <Card class="border-border/50 bg-card/95 shadow-sm">
+        <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col lg:flex-1 lg:min-h-0">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
               {{ t("app.settings.autoDownloadSectionTitle") }}
             </CardTitle>
           </CardHeader>
-        <CardContent v-if="appSettings" class="p-2 space-y-2">
+        <CardContent v-if="appSettings" class="p-2 flex flex-col gap-2 lg:flex-1 lg:min-h-0">
           <p class="text-[10px] text-muted-foreground leading-snug">
             {{ t("app.settings.autoDownloadSectionDescription") }}
           </p>
@@ -251,7 +252,7 @@ const toolsMode = computed<ExternalToolsMode>({
             </div>
           </div>
 
-          <div class="pt-1 space-y-0 divide-y divide-border/40">
+          <div class="pt-1 grid auto-rows-min content-evenly flex-1 min-h-0 divide-y divide-border/40">
             <SettingsQueuePersistenceSection
               :app-settings="appSettings"
               @update:app-settings="(settings) => emit('update:appSettings', settings)"
@@ -347,74 +348,26 @@ const toolsMode = computed<ExternalToolsMode>({
               </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-        <Card class="border-border/50 bg-card/95 shadow-sm">
-          <CardHeader class="py-2 px-3 border-b border-border/30">
-            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-              {{ t("app.taskbarProgressModeLabel") }}
-            </CardTitle>
-          </CardHeader>
-          <CardContent v-if="appSettings" class="p-2">
-            <Select
-              :model-value="appSettings.taskbarProgressMode"
-              @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
-            >
-              <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="bySize" class="text-[10px]">
-                  {{ t("app.taskbarProgressModes.bySize") }}
-                </SelectItem>
-                <SelectItem value="byDuration" class="text-[10px]">
-                  {{ t("app.taskbarProgressModes.byDuration") }}
-                </SelectItem>
-                <SelectItem value="byEstimatedTime" class="text-[10px]">
-                  {{ t("app.taskbarProgressModes.byEstimatedTime") }}
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p class="text-[9px] text-muted-foreground mt-1.5 leading-relaxed">
-              {{ t("app.taskbarProgressModeHelp") }}
-            </p>
-            <div class="mt-3 space-y-1">
-              <p class="text-[10px] font-medium text-foreground">
-                {{ t("app.taskbarProgressScopeLabel") }}
-              </p>
-              <Select
-                :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
-                @update:model-value="
-                  (v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])
-                "
-              >
-                <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="allJobs" class="text-[10px]">
-                    {{ t("app.taskbarProgressScopes.allJobs") }}
-                  </SelectItem>
-                  <SelectItem value="activeAndQueued" class="text-[10px]">
-                    {{ t("app.taskbarProgressScopes.activeAndQueued") }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p class="text-[9px] text-muted-foreground leading-relaxed">
-                {{ t("app.taskbarProgressScopeHelp") }}
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div class="space-y-2 lg:col-span-4">
+      <div class="lg:col-span-4 flex flex-col gap-2 min-h-0">
+        <SettingsAppearanceSection
+          :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
         <SettingsAppUpdatesSection
           :app-settings="appSettings"
           :app-update="appUpdate"
           :check-for-app-update="checkForAppUpdate"
           :install-app-update="installAppUpdate"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsTaskbarProgressSection
+          :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
 
@@ -443,14 +396,14 @@ const toolsMode = computed<ExternalToolsMode>({
           </CardContent>
         </Card>
 
-        <Card class="border-border/50 bg-card/95 shadow-sm">
+        <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col lg:flex-1 lg:min-h-0">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
               {{ t("app.settings.systemInfoTitle") }}
             </CardTitle>
           </CardHeader>
-          <CardContent class="p-2">
-            <div class="space-y-1 font-mono text-[9px] text-muted-foreground">
+          <CardContent class="p-2 flex flex-col lg:flex-1 lg:min-h-0">
+            <div class="grid auto-rows-min content-between flex-1 min-h-0 font-mono text-[9px] text-muted-foreground">
               <div class="flex justify-between">
                 <span class="opacity-60">PLATFORM:</span>
                 <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>

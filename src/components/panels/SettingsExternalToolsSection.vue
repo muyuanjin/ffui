@@ -16,8 +16,6 @@ const props = defineProps<{
   toolStatuses: ExternalToolStatus[];
   /** Whether tool statuses have been refreshed at least once this session. */
   toolStatusesFresh?: boolean;
-  /** Extra bottom padding (px) to help balance SettingsPanel column heights on wide layouts. */
-  extraPadBottomPx?: number;
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   refreshToolStatuses?: (options?: {
     remoteCheck?: boolean;
@@ -41,13 +39,6 @@ const isAutoManaged = computed(() => {
 });
 
 const toolStatusesFresh = computed(() => props.toolStatusesFresh ?? true);
-const extraPadBottomStyle = computed(() => {
-  const px = props.extraPadBottomPx ?? 0;
-  if (px <= 0) return undefined;
-  return {
-    paddingBottom: `calc(0.5rem + ${px}px)`,
-  } as const;
-});
 
 const scheduleAutoRefresh = () => {
   if (refreshTimer !== undefined) {
@@ -83,15 +74,17 @@ onUnmounted(() => {
   }
 });
 
-const checkUpdateLoading = ref(false);
-const handleCheckFfmpegUpdate = async () => {
+const checkUpdateLoadingKind = ref<ExternalToolKind | null>(null);
+const lastManualUpdateCheckAtMs = ref<Partial<Record<ExternalToolKind, number>>>({});
+const handleCheckToolUpdate = async (kind: ExternalToolKind) => {
   if (!props.refreshToolStatuses) return;
-  if (checkUpdateLoading.value) return;
-  checkUpdateLoading.value = true;
+  if (checkUpdateLoadingKind.value) return;
+  checkUpdateLoadingKind.value = kind;
   try {
     await props.refreshToolStatuses({ remoteCheck: true, manualRemoteCheck: true });
   } finally {
-    checkUpdateLoading.value = false;
+    checkUpdateLoadingKind.value = null;
+    lastManualUpdateCheckAtMs.value = { ...lastManualUpdateCheckAtMs.value, [kind]: Date.now() };
   }
 };
 
@@ -228,21 +221,28 @@ const formatSpeed = (bytesPerSecond?: number): string => {
   if (bytesPerSecond == null || !Number.isFinite(bytesPerSecond)) return "";
   return `${formatBytes(bytesPerSecond)}/s`;
 };
+
+const showRecentlyCheckedHint = (kind: ExternalToolKind): boolean => {
+  const ts = lastManualUpdateCheckAtMs.value[kind] ?? 0;
+  if (!ts) return false;
+  return Date.now() - ts < 3_000;
+};
 </script>
 
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm">
+  <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col min-h-0">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.externalToolsTitle") }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="p-2 space-y-1" :style="extraPadBottomStyle">
-      <div
-        v-for="tool in toolStatuses"
-        :key="tool.kind"
-        class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
-      >
+    <CardContent class="p-2 flex-1 min-h-0">
+      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3 content-between h-full">
+        <div
+          v-for="tool in toolStatuses"
+          :key="tool.kind"
+          class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
+        >
         <!-- Tool header with status -->
         <div class="flex items-center justify-between mb-1.5 gap-2 min-w-0">
           <div class="flex items-center gap-2 shrink-0">
@@ -381,15 +381,26 @@ const formatSpeed = (bytesPerSecond?: number): string => {
           </span>
           <div class="flex items-center gap-1.5">
             <Button
-              v-if="tool.kind === 'ffmpeg' && !tool.downloadInProgress"
+              v-if="!tool.downloadInProgress"
+              :data-testid="`tool-check-update-${tool.kind}`"
               variant="ghost"
               size="sm"
               class="h-5 px-2 text-[9px]"
-              :disabled="checkUpdateLoading"
-              @click="handleCheckFfmpegUpdate"
+              :disabled="!refreshToolStatuses || !!checkUpdateLoadingKind"
+              @click="handleCheckToolUpdate(tool.kind)"
             >
-              {{ t("app.settings.checkFfmpegUpdateButton") }}
+              {{
+                checkUpdateLoadingKind === tool.kind
+                  ? t("app.settings.checkToolUpdateCheckingButton")
+                  : t("app.settings.checkToolUpdateButton")
+              }}
             </Button>
+            <span
+              v-if="showRecentlyCheckedHint(tool.kind) && checkUpdateLoadingKind !== tool.kind"
+              class="text-muted-foreground"
+            >
+              {{ t("app.settings.checkToolUpdateDoneHint") }}
+            </span>
             <Button
               v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
               data-testid="tool-download-action"
@@ -442,6 +453,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
           <p class="text-[9px] text-muted-foreground mt-0.5 leading-snug">
             {{ tool.lastDownloadMessage || t("app.settings.downloadInProgress") }}
           </p>
+        </div>
         </div>
       </div>
     </CardContent>

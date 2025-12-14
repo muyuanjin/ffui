@@ -9,6 +9,8 @@ const props = withDefaults(
   defineProps<{
     job: TranscodeJob;
     preset: FFmpegPreset;
+    /** UI-only: true when a pause request is pending while the job is still processing. */
+    isPausing?: boolean;
     isSelectable: boolean;
     isSelected: boolean;
     isSkipped: boolean;
@@ -30,12 +32,14 @@ const props = withDefaults(
   }>(),
   {
     sizeChangeLevel: "decreased",
+    isPausing: false,
   },
 );
 
 const {
   job,
   preset,
+  isPausing,
   isSelectable,
   isSelected,
   isSkipped,
@@ -216,7 +220,11 @@ const emit = defineEmits<{
     </div>
 
   <div class="text-right flex flex-col items-end gap-1.5">
-      <span class="text-xs font-bold uppercase tracking-wide" :class="statusTextClass">
+      <span
+        class="text-xs font-bold uppercase tracking-wide"
+        :class="statusTextClass"
+        data-testid="queue-item-status-label"
+      >
         {{ localizedStatus }}
       </span>
       <!-- 时间显示 -->
@@ -249,6 +257,16 @@ const emit = defineEmits<{
           @click.stop="emit('wait', job.id)"
         >
           {{ t('queue.actions.wait') }}
+        </Button>
+        <Button
+          v-else-if="isPausing"
+          variant="outline"
+          size="sm"
+          class="h-7 px-2 text-[11px] border-amber-500/40 text-amber-400"
+          data-testid="queue-item-pausing-button"
+          disabled
+        >
+          {{ t("queue.status.pausing") }}
         </Button>
         <Button
           v-if="isResumable"

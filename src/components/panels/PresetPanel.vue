@@ -149,7 +149,7 @@ useSortable(containerRef, localPresets, {
 </script>
 
 <template>
-  <div class="w-full max-w-6xl mx-auto px-4 overflow-x-hidden">
+  <div class="w-full max-w-6xl mx-auto px-4 overflow-x-hidden" data-testid="preset-panel">
     <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0 flex-shrink">
         <GripVertical class="w-4 h-4 flex-shrink-0" />

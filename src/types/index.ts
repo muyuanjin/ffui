@@ -76,4 +76,4 @@ export type {
 } from "./smart-scan";
 
 // Application settings
-export type { AppSettings, PresetSortMode, PresetViewMode } from "./settings";
+export type { AppSettings, PresetSortMode, PresetViewMode, UiFontFamily } from "./settings";

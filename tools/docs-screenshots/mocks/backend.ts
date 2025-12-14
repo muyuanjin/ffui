@@ -1,0 +1,594 @@
+import type {
+  AppSettings,
+  AutoCompressResult,
+  CpuUsageSnapshot,
+  ExternalToolCandidate,
+  ExternalToolKind,
+  ExternalToolStatus,
+  FFmpegPreset,
+  GpuUsageSnapshot,
+  QueueStateLite,
+  SmartScanConfig,
+  SystemMetricsSnapshot,
+  TranscodeActivityToday,
+  TranscodeJob,
+} from "@/types";
+
+// The production app talks to a Tauri backend. For docs screenshots we replace
+// the backend module at build time (Vite alias) with this in-browser mock so
+// we do not need any screenshot-only code inside the app runtime.
+
+const readEnv = (key: string): string | undefined => {
+  try {
+    const env = (import.meta as any).env ?? {};
+    const v = env[key];
+    return typeof v === "string" && v.length > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const readEnvNumber = (key: string): number | null => {
+  const raw = readEnv(key);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+};
+
+const clampInt = (n: number | null, min: number, max: number, fallback: number): number => {
+  if (n == null) return fallback;
+  const rounded = Math.round(n);
+  return Math.min(max, Math.max(min, rounded));
+};
+
+const resolveUiScalePercent = (): number => {
+  return clampInt(readEnvNumber("VITE_DOCS_SCREENSHOT_UI_SCALE_PERCENT"), 80, 140, 100);
+};
+
+const resolveUiFontSizePercent = (): number => {
+  const percent = readEnvNumber("VITE_DOCS_SCREENSHOT_UI_FONT_SIZE_PERCENT");
+  if (percent != null) return clampInt(percent, 80, 140, 113);
+
+  const px = readEnvNumber("VITE_DOCS_SCREENSHOT_UI_FONT_SIZE_PX");
+  if (px != null) {
+    const p = Math.round((px / 16) * 100);
+    return clampInt(p, 80, 140, 113);
+  }
+
+  // 18px option => round(px/16*100) = 113
+  return 113;
+};
+
+const resolveUiFontName = (): string | null => {
+  const v = (readEnv("VITE_DOCS_SCREENSHOT_UI_FONT_NAME") ?? "").trim();
+  return v.length > 0 ? v : null;
+};
+
+export const hasTauri = () => true;
+
+export const buildPreviewUrl = (path: string | null | undefined): string | null => {
+  if (!path) return null;
+  return path;
+};
+
+export const selectPlayableMediaPath = async (candidates: string[]): Promise<string | null> => {
+  const trimmed = (candidates ?? []).map((c) => String(c ?? "").trim()).filter(Boolean);
+  return trimmed[0] ?? null;
+};
+
+let appSettingsSnapshot: AppSettings | null = null;
+
+const makeAppSettings = (): AppSettings => {
+  return {
+    tools: {
+      autoDownload: true,
+      autoUpdate: true,
+      ffmpegPath: "",
+      ffprobePath: "",
+      avifencPath: "",
+      downloaded: {
+        ffmpeg: {
+          version: "N-121700-g36e5576a44",
+          tag: "docs-screenshot",
+          sourceUrl: "https://github.com/BtbN/FFmpeg-Builds/releases",
+        },
+        ffprobe: {
+          version: "N-121700-g36e5576a44",
+          tag: "docs-screenshot",
+          sourceUrl: "https://github.com/BtbN/FFmpeg-Builds/releases",
+        },
+        avifenc: {
+          version: "1.0.0",
+          tag: "docs-screenshot",
+          sourceUrl: "https://github.com/AOMediaCodec/libavif",
+        },
+      },
+    },
+    smartScanDefaults: {
+      replaceOriginal: true,
+      minVideoSizeMB: 200,
+      minImageSizeKB: 512,
+      minAudioSizeKB: 1024,
+      savingConditionType: "ratio",
+      minSavingRatio: 0.2,
+      minSavingAbsoluteMB: 100,
+      imageTargetFormat: "avif",
+      videoPresetId: "p1",
+      audioPresetId: "p1",
+      videoFilter: { enabled: true, extensions: ["mp4", "mkv", "mov", "webm"] },
+      imageFilter: { enabled: true, extensions: ["jpg", "jpeg", "png", "webp"] },
+      audioFilter: { enabled: false, extensions: ["mp3", "aac", "flac"] },
+    } satisfies SmartScanConfig,
+    previewCapturePercent: 25,
+    uiScalePercent: resolveUiScalePercent(),
+    uiFontSizePercent: resolveUiFontSizePercent(),
+    uiFontFamily: "system",
+    uiFontName: resolveUiFontName() ?? undefined,
+    developerModeEnabled: true,
+    progressUpdateIntervalMs: 200,
+    metricsIntervalMs: 1000,
+    taskbarProgressMode: "byEstimatedTime",
+    taskbarProgressScope: "activeAndQueued",
+    queuePersistenceMode: "crashRecoveryLite",
+    crashRecoveryLogRetention: { maxFiles: 100, maxTotalMb: 1024 },
+    onboardingCompleted: true,
+    presetSortMode: "manual",
+    presetViewMode: "grid",
+    selectionBarPinned: false,
+  };
+};
+
+export const loadAppSettings = async (): Promise<AppSettings> => {
+  if (!appSettingsSnapshot) appSettingsSnapshot = makeAppSettings();
+  return appSettingsSnapshot;
+};
+
+export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
+  appSettingsSnapshot = settings;
+  return settings;
+};
+
+export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolStatus[]> => {
+  const settings = await loadAppSettings();
+  const base = {
+    updateAvailable: false,
+    autoDownloadEnabled: settings.tools.autoDownload,
+    autoUpdateEnabled: settings.tools.autoUpdate,
+    downloadInProgress: false,
+  } as const;
+
+  return [
+    {
+      kind: "ffmpeg",
+      resolvedPath: settings.tools.ffmpegPath || "ffmpeg",
+      source: "download",
+      version: settings.tools.downloaded?.ffmpeg?.version ?? "N/A",
+      ...base,
+    },
+    {
+      kind: "ffprobe",
+      resolvedPath: settings.tools.ffprobePath || "ffprobe",
+      source: "download",
+      version: settings.tools.downloaded?.ffprobe?.version ?? "N/A",
+      ...base,
+    },
+    {
+      kind: "avifenc",
+      resolvedPath: settings.tools.avifencPath || "avifenc",
+      source: "download",
+      version: settings.tools.downloaded?.avifenc?.version ?? "N/A",
+      ...base,
+    },
+  ];
+};
+
+export const refreshExternalToolStatusesAsync = async (_options?: {
+  remoteCheck?: boolean;
+  manualRemoteCheck?: boolean;
+}): Promise<boolean> => true;
+
+export const fetchExternalToolCandidates = async (_kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => [];
+
+export const downloadExternalToolNow = async (_kind: ExternalToolKind): Promise<ExternalToolStatus[]> => {
+  return fetchExternalToolStatusesCached();
+};
+
+let presetsSnapshot: FFmpegPreset[] | null = null;
+
+const makePresets = (): FFmpegPreset[] => {
+  return [
+    {
+      id: "p1",
+      name: "Universal 1080p",
+      description: "x264 Medium CRF 23. Standard for web.",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: { scale: "-2:1080" },
+      stats: { usageCount: 128, totalInputSizeMB: 86_500, totalOutputSizeMB: 42_200, totalTimeSeconds: 5_400 },
+    },
+    {
+      id: "p2",
+      name: "Archive Master",
+      description: "x264 Slow CRF 18. Near lossless.",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 37, totalInputSizeMB: 64_000, totalOutputSizeMB: 52_500, totalTimeSeconds: 9_200 },
+    },
+    {
+      id: "p3",
+      name: "AV1 Efficient",
+      description: "SVT-AV1 CRF 30. Best size savings.",
+      video: { encoder: "libsvtav1", rateControl: "crf", qualityValue: 30, preset: "6" },
+      audio: { codec: "copy" },
+      filters: { scale: "-2:1080" },
+      stats: { usageCount: 22, totalInputSizeMB: 51_200, totalOutputSizeMB: 20_600, totalTimeSeconds: 18_400 },
+    },
+    {
+      id: "p4",
+      name: "HEVC Balanced",
+      description: "x265 CRF 26. Balanced quality and speed.",
+      video: { encoder: "libx265", rateControl: "crf", qualityValue: 26, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: { scale: "-2:1080" },
+      stats: { usageCount: 54, totalInputSizeMB: 73_800, totalOutputSizeMB: 35_900, totalTimeSeconds: 11_200 },
+    },
+    {
+      id: "p5",
+      name: "Fast Preview",
+      description: "x264 Veryfast CRF 28. Quick iterations.",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 28, preset: "veryfast" },
+      audio: { codec: "aac", bitrateKbps: 192 },
+      filters: { scale: "-2:1080" },
+      stats: { usageCount: 76, totalInputSizeMB: 18_900, totalOutputSizeMB: 9_400, totalTimeSeconds: 1_250 },
+    },
+    {
+      id: "p6",
+      name: "Device Friendly",
+      description: "H.264 baseline-ish settings for compatibility.",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 24, preset: "fast", profile: "baseline" },
+      audio: { codec: "aac", bitrateKbps: 160 },
+      filters: { scale: "-2:720" },
+      stats: { usageCount: 19, totalInputSizeMB: 12_400, totalOutputSizeMB: 7_300, totalTimeSeconds: 980 },
+    },
+  ];
+};
+
+export const loadPresets = async (): Promise<FFmpegPreset[]> => {
+  if (!presetsSnapshot) presetsSnapshot = makePresets();
+  return presetsSnapshot;
+};
+
+export const savePresetOnBackend = async (preset: FFmpegPreset): Promise<FFmpegPreset[]> => {
+  const list = await loadPresets();
+  const idx = list.findIndex((p) => p.id === preset.id);
+  if (idx >= 0) list.splice(idx, 1, preset);
+  else list.push(preset);
+  return list;
+};
+
+export const deletePresetOnBackend = async (presetId: string): Promise<FFmpegPreset[]> => {
+  const list = await loadPresets();
+  presetsSnapshot = list.filter((p) => p.id !== presetId);
+  return presetsSnapshot;
+};
+
+export const reorderPresetsOnBackend = async (orderedIds: string[]): Promise<FFmpegPreset[]> => {
+  const list = await loadPresets();
+  const byId = new Map(list.map((p) => [p.id, p] as const));
+  const ordered: FFmpegPreset[] = [];
+  for (const id of orderedIds) {
+    const p = byId.get(id);
+    if (p) ordered.push(p);
+  }
+  for (const p of list) {
+    if (!orderedIds.includes(p.id)) ordered.push(p);
+  }
+  presetsSnapshot = ordered;
+  return ordered;
+};
+
+const resolveMediaEnv = (key: string, fallback: string): string => {
+  const v = readEnv(key);
+  return v ?? fallback;
+};
+
+const resolvePosterEnv = (key: string): string | undefined => {
+  const v = readEnv(key);
+  return v;
+};
+
+const buildQueueJobs = (): TranscodeJob[] => {
+  const now = 1_700_000_000_000;
+
+  const v1 = resolveMediaEnv("VITE_DOCS_SCREENSHOT_VIDEO_1", "C:/videos/feature_demo_processing.mp4");
+  const v2 = resolveMediaEnv("VITE_DOCS_SCREENSHOT_VIDEO_2", "C:/videos/big_buck_bunny_1080p.mp4");
+  const v3 = resolveMediaEnv("VITE_DOCS_SCREENSHOT_VIDEO_3", "C:/videos/archive_master_source.mkv");
+
+  const poster1 = resolvePosterEnv("VITE_DOCS_SCREENSHOT_POSTER_1");
+  const poster2 = resolvePosterEnv("VITE_DOCS_SCREENSHOT_POSTER_2") ?? poster1;
+  const poster3 = resolvePosterEnv("VITE_DOCS_SCREENSHOT_POSTER_3") ?? poster2 ?? poster1;
+
+  const o1 = `${v1}.compressed.mp4`;
+  const o2 = `${v2}.compressed.mp4`;
+  const o3 = `${v3}.archive.mp4`;
+
+  return [
+    {
+      id: "docs-job-completed",
+      filename: v3,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 2048,
+      originalCodec: "hevc",
+      presetId: "p2",
+      status: "completed",
+      progress: 100,
+      startTime: now - 1_200_000,
+      processingStartedMs: now - 1_180_000,
+      endTime: now - 900_000,
+      outputSizeMB: 740,
+      inputPath: v3,
+      outputPath: o3,
+      previewPath: poster3,
+      ffmpegCommand:
+        `ffmpeg -hide_banner -y -i \"${v3}\" -c:v libx264 -preset slow -crf 18 -vf \"scale=-2:1080\" -c:a copy \"${o3}\"`,
+      logs: [
+        "frame=  9012 fps= 78 q=-1.0 size=  740MiB time=00:05:00.00 bitrate=20200.0kbits/s speed=2.6x",
+        "video:720MiB audio:0MiB subtitle:0MiB other streams:0MiB global headers:0MiB muxing overhead: 2.345%",
+        "Transcode finished successfully",
+      ],
+      estimatedSeconds: 600,
+    },
+    {
+      id: "docs-job-processing",
+      filename: v1,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 1536,
+      originalCodec: "h264",
+      presetId: "p1",
+      status: "processing",
+      progress: 37,
+      startTime: now - 120_000,
+      processingStartedMs: now - 110_000,
+      inputPath: v1,
+      outputPath: o1,
+      previewPath: poster1,
+      ffmpegCommand:
+        `ffmpeg -hide_banner -y -i \"${v1}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o1}\"`,
+      logs: [
+        "ffmpeg version N-121700-g36e5576a44",
+        `Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '${v1}':`,
+        "Press [q] to stop, [?] for help",
+      ],
+      estimatedSeconds: 480,
+    },
+    {
+      id: "docs-job-waiting",
+      filename: v2,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 1024,
+      originalCodec: "h264",
+      presetId: "p1",
+      status: "waiting",
+      progress: 0,
+      inputPath: v2,
+      outputPath: o2,
+      previewPath: poster2,
+      ffmpegCommand:
+        `ffmpeg -hide_banner -y -i \"${v2}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o2}\"`,
+      logs: [],
+      estimatedSeconds: 300,
+    },
+  ];
+};
+
+export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
+  return { jobs: buildQueueJobs() };
+};
+
+export const loadPreviewDataUrl = async (_path: string): Promise<string> => {
+  throw new Error("loadPreviewDataUrl is not implemented in docs screenshot mode");
+};
+
+export const ensureJobPreview = async (_jobId: string): Promise<string | null> => null;
+
+export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null> => {
+  const state = await loadQueueStateLite();
+  const job = state.jobs.find((j) => j.id === jobId);
+  return (job as any) ?? null;
+};
+
+export const enqueueTranscodeJob = async (_inputPath: string, _presetId: string): Promise<boolean> => true;
+
+export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const cancelTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const waitTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const resumeTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+
+export const reorderQueue = async (_orderedJobIds: string[]): Promise<boolean> => true;
+
+export const deleteSmartScanBatchOnBackend = async (_batchId: string): Promise<boolean> => true;
+
+export const revealPathInFolder = async (_path: string): Promise<boolean> => true;
+
+export const openDevtools = async (): Promise<boolean> => true;
+
+export const acknowledgeTaskbarProgress = async (): Promise<boolean> => true;
+
+export const fetchCpuUsage = async (): Promise<CpuUsageSnapshot> => {
+  return { overall: 35, perCore: [22, 40, 33, 28, 45, 19, 37, 41] };
+};
+
+export const fetchGpuUsage = async (): Promise<GpuUsageSnapshot> => {
+  return { available: true, gpuPercent: 24, memoryPercent: 80 };
+};
+
+export const metricsSubscribe = async (): Promise<void> => {};
+export const metricsUnsubscribe = async (): Promise<void> => {};
+
+export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> => {
+  const now = Date.now();
+  const result: SystemMetricsSnapshot[] = [];
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+  const mbpsToBps = (mbps: number) => Math.round(mbps * 1024 * 1024);
+  const TWO_PI = Math.PI * 2;
+
+  // Seed a deterministic-but-lively history so charts have visible variation
+  // immediately (no empty/flat lines, no zero heatmap).
+  const samples = 80;
+  const stepMs = 500;
+
+  for (let i = 0; i < samples; i += 1) {
+    const t = now - (samples - i) * stepMs;
+    const phaseA = (i / 18) * TWO_PI;
+    const phaseB = (i / 11) * TWO_PI;
+    const spike = i % 23 === 0 ? 22 : 0;
+
+    const cpuTotal = clamp(35 + 18 * Math.sin(phaseA) + 8 * Math.sin(phaseB) + spike, 3, 98);
+    const cores = Array.from({ length: 8 }, (_, idx) => {
+      const corePhase = (i / (6 + idx)) * TWO_PI + idx * 0.65;
+      const coreSpike = (i + idx * 3) % 29 === 0 ? 18 : 0;
+      const v = cpuTotal + (idx - 3.5) * 2 + 10 * Math.sin(corePhase) + coreSpike;
+      return clamp(v, 1, 100);
+    });
+
+    const memBase = 9.6 * 1024 * 1024 * 1024;
+    const memSwing = 2.2 * 1024 * 1024 * 1024;
+    const usedBytes = Math.round(memBase + memSwing * (0.5 + 0.5 * Math.sin((i / 33) * TWO_PI)));
+
+    const diskRead = 18 + 10 * Math.abs(Math.sin(phaseA)) + (i % 17 === 0 ? 25 : 0);
+    const diskWrite = 6 + 6 * Math.abs(Math.cos(phaseB)) + (i % 19 === 0 ? 14 : 0);
+
+    const netRx = 22 + 14 * Math.abs(Math.sin((i / 9) * TWO_PI)) + (i % 21 === 0 ? 30 : 0);
+    const netTx = 5 + 7 * Math.abs(Math.cos((i / 13) * TWO_PI)) + (i % 27 === 0 ? 12 : 0);
+
+    const gpuUsage = clamp(28 + 26 * Math.sin((i / 20) * TWO_PI) + (i % 31 === 0 ? 20 : 0), 0, 100);
+    const gpuMem = clamp(52 + 22 * Math.sin((i / 26) * TWO_PI + 0.8), 0, 100);
+
+    result.push({
+      timestamp: t,
+      uptimeSeconds: 123456,
+      cpu: { total: cpuTotal, cores },
+      memory: { usedBytes, totalBytes: 16_000_000_000 },
+      disk: { io: [{ device: "C:", readBps: mbpsToBps(diskRead), writeBps: mbpsToBps(diskWrite) }] },
+      network: { interfaces: [{ name: "Ethernet", rxBps: mbpsToBps(netRx), txBps: mbpsToBps(netTx) }] },
+      gpu: { available: true, gpuPercent: gpuUsage, memoryPercent: gpuMem },
+    });
+  }
+  return result;
+};
+
+export const fetchTranscodeActivityToday = async (): Promise<TranscodeActivityToday> => {
+  const activeHours = Array.from({ length: 24 }, (_, i) => i >= 18 && i <= 23);
+  return { date: "2025-01-01", activeHours };
+};
+
+export const inspectMedia = async (_path: string): Promise<any> => {
+  return {
+    format: { filename: _path, format_name: "matroska,webm", duration: "3012.12" },
+    streams: [],
+  };
+};
+
+export const runAutoCompress = async (_rootPath: string, _config: SmartScanConfig): Promise<AutoCompressResult> => {
+  const startedAtMs = Date.now();
+  const completedAtMs = startedAtMs + 5000;
+  return {
+    rootPath: _rootPath,
+    jobs: buildQueueJobs(),
+    totalFilesScanned: 1234,
+    totalCandidates: 42,
+    totalProcessed: 42,
+    batchId: "docs-batch-1",
+    startedAtMs,
+    completedAtMs,
+  };
+};
+
+export const fetchAppUpdaterCapabilities = async (): Promise<{ configured: boolean }> => {
+  return { configured: false };
+};
+
+export interface OpenSourceFontInfo {
+  id: string;
+  name: string;
+  familyName: string;
+  format: string;
+}
+
+export interface DownloadedFontInfo {
+  id: string;
+  familyName: string;
+  path: string;
+  format: string;
+}
+
+export type UiFontDownloadStatus = "starting" | "downloading" | "ready" | "error" | "canceled";
+
+export interface UiFontDownloadSnapshot {
+  sessionId: number;
+  fontId: string;
+  status: UiFontDownloadStatus;
+  receivedBytes: number;
+  totalBytes: number | null;
+  familyName: string;
+  format: string;
+  path: string | null;
+  error: string | null;
+}
+
+export const fetchSystemFontFamilies = async (): Promise<string[]> => {
+  return ["Segoe UI", "Arial", "Noto Sans", "Consolas", "Microsoft YaHei"];
+};
+
+export const listOpenSourceFonts = async (): Promise<OpenSourceFontInfo[]> => {
+  return [
+    { id: "inter", name: "Inter", familyName: "Inter", format: "ttf" },
+    { id: "jetbrains-mono", name: "JetBrains Mono", familyName: "JetBrains Mono", format: "ttf" },
+  ];
+};
+
+export const startOpenSourceFontDownload = async (fontId: string): Promise<UiFontDownloadSnapshot> => {
+  return {
+    sessionId: 1,
+    fontId,
+    status: "ready",
+    receivedBytes: 1024,
+    totalBytes: 1024,
+    familyName: "Inter",
+    format: "ttf",
+    path: "C:/fake/fonts/inter.ttf",
+    error: null,
+  };
+};
+
+export const fetchOpenSourceFontDownloadSnapshot = async (fontId: string): Promise<UiFontDownloadSnapshot | null> => {
+  return {
+    sessionId: 1,
+    fontId,
+    status: "ready",
+    receivedBytes: 1024,
+    totalBytes: 1024,
+    familyName: "Inter",
+    format: "ttf",
+    path: "C:/fake/fonts/inter.ttf",
+    error: null,
+  };
+};
+
+export const cancelOpenSourceFontDownload = async (_fontId: string): Promise<boolean> => true;
+
+export const importUiFontFile = async (_sourcePath: string): Promise<DownloadedFontInfo> => {
+  return {
+    id: "imported",
+    familyName: "FFUI Imported",
+    path: _sourcePath,
+    format: "ttf",
+  };
+};
+
+export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => [];

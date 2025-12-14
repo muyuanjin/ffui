@@ -29,6 +29,8 @@ import {
 export interface UseQueueOperationsOptions {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
+  /** Job ids that have a pending "wait" request but are still processing. */
+  pausingJobIds: Ref<Set<string>>;
   /** Smart scan jobs to merge with backend jobs. */
   smartScanJobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
@@ -101,6 +103,7 @@ export interface UseQueueOperationsReturn {
 export function useQueueOperations(options: UseQueueOperationsOptions): UseQueueOperationsReturn {
   const {
     jobs,
+    pausingJobIds,
     smartScanJobs,
     manualJobPreset,
     presets,
@@ -136,6 +139,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
 
   const singleJobOpsDeps = {
     jobs,
+    pausingJobIds,
     manualJobPreset,
     presets,
     queueError,

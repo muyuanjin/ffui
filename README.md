@@ -36,6 +36,18 @@ FFUI is a desktop user interface for FFmpeg-based transcoding, built with Tauri 
 
 ![Settings panel (English)](docs/images/settings-en.webp)
 
+To refresh these after UI changes, run `npm run docs:screenshots`.
+
+The script can use your local media folder to populate real filenames and preview thumbnails:
+
+```bash
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+# Optional: override UI scale & text size for screenshots
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+# Optional: choose the frame timestamp for thumbnails (default: 00:05:00)
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+```
+
 ## Technology stack
 
 - Frontend: Vue 3, TypeScript, Vite, Tailwind-style styling, vue-i18n, charts via ApexCharts / ECharts.
@@ -237,6 +249,18 @@ FFUI 是一个围绕 FFmpeg 的桌面转码界面，基于 Tauri 2（Rust）和 
 ![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
 
 ![设置面板（中文）](docs/images/settings-zh-CN.webp)
+
+修改 UI 后可用 `npm run docs:screenshots` 自动重新生成以上截图。
+
+脚本可以读取你的本地影视目录来填充真实文件名，并从视频中截帧生成预览图：
+
+```bash
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+# 可选：覆盖截图用的界面缩放与字号
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+# 可选：指定截帧时间点（默认：00:05:00）
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+```
 
 ## 技术栈
 

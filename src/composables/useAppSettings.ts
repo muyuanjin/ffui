@@ -41,6 +41,35 @@ let loggedToolStatusLoad = false;
 
 // ----- Composable -----
 
+const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
+  const next: AppSettings = { ...settings };
+
+  // Font mode exclusivity (new UI): keep exactly one source active.
+  if (typeof next.uiFontFilePath === "string" && next.uiFontFilePath.trim().length > 0) {
+    next.uiFontDownloadId = undefined;
+    next.uiFontFamily = "system";
+    if (!next.uiFontName || !next.uiFontName.trim()) {
+      next.uiFontName = "FFUI Imported";
+    }
+  } else if (typeof next.uiFontDownloadId === "string" && next.uiFontDownloadId.trim().length > 0) {
+    next.uiFontFilePath = undefined;
+    next.uiFontFamily = "system";
+  }
+
+  // Legacy generic families (sans/mono) are no longer surfaced in Settings.
+  const family = next.uiFontFamily;
+  if (
+    (family === "sans" || family === "mono") &&
+    !next.uiFontName &&
+    !next.uiFontDownloadId &&
+    !next.uiFontFilePath
+  ) {
+    next.uiFontFamily = "system";
+  }
+
+  return next;
+};
+
 export interface UseAppSettingsOptions {
   /** Smart config ref (to restore from settings). */
   smartConfig?: Ref<SmartScanConfig>;
@@ -137,7 +166,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       //（例如用户在设置加载完成前就点击了“固定操作栏”等开关），
       //这里需要做一次合并，避免后到达的后端快照把用户刚刚的修改覆盖掉。
       const current = appSettings.value;
-      appSettings.value = Object.assign({}, settings, current ?? {});
+      appSettings.value = normalizeLoadedAppSettings(Object.assign({}, settings, current ?? {}));
       // lastSavedSettingsSnapshot 仍然记录“后端当前视角”的快照，
       //这样自动保存逻辑可以正确检测到前端合并后的差异并触发一次保存。
       lastSavedSettingsSnapshot = JSON.stringify(settings);

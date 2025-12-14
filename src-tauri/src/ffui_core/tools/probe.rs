@@ -297,7 +297,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
     }
 }
 
-pub(super) fn detect_local_tool_version(path: &str, _kind: ExternalToolKind) -> Option<String> {
+pub(super) fn detect_local_tool_version(path: &str, kind: ExternalToolKind) -> Option<String> {
     #[cfg(windows)]
     {
         if path.to_ascii_lowercase().ends_with(".exe") && !looks_like_pe_executable(path) {
@@ -307,9 +307,26 @@ pub(super) fn detect_local_tool_version(path: &str, _kind: ExternalToolKind) -> 
     }
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
-    cmd.arg("-version")
-        .output()
-        .ok()
-        .and_then(|out| String::from_utf8(out.stdout).ok())
-        .and_then(|s| s.lines().next().map(|l| l.trim().to_string()))
+    match kind {
+        ExternalToolKind::Avifenc => {
+            // avifenc uses GNU-style `--version` in upstream builds; some versions
+            // may print to stderr or exit non-zero, so we accept any output.
+            cmd.arg("--version").output().ok().and_then(|out| {
+                let stdout = String::from_utf8(out.stdout).ok().unwrap_or_default();
+                let stderr = String::from_utf8(out.stderr).ok().unwrap_or_default();
+                let first = stdout
+                    .lines()
+                    .map(str::trim)
+                    .find(|l| !l.is_empty())
+                    .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()));
+                first.map(|l| l.to_string())
+            })
+        }
+        _ => cmd
+            .arg("-version")
+            .output()
+            .ok()
+            .and_then(|out| String::from_utf8(out.stdout).ok())
+            .and_then(|s| s.lines().next().map(|l| l.trim().to_string())),
+    }
 }

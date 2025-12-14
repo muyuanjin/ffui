@@ -28,6 +28,8 @@ const props = defineProps<{
   queueModeProcessingJobs: TranscodeJob[];
   queueModeWaitingItems: QueueListItem[];
   queueModeWaitingBatchIds: Set<string>;
+  /** UI-only: jobs that have requested pause but are still processing. */
+  pausingJobIds: Set<string>;
   presets: FFmpegPreset[];
 
   // View settings
@@ -171,7 +173,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
 
 <template>
   <section
-    class="space-y-4 max-w-4xl mx-auto"
+    class="space-y-4 w-full min-w-0"
     data-testid="queue-panel"
     @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
   >
@@ -212,6 +214,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
             <QueueIconItem
               v-if="item.kind === 'job'"
               :job="item.job"
+              :is-pausing="pausingJobIds.has(item.job.id)"
               :size="iconViewSize"
               :progress-style="queueProgressStyle"
               :can-select="true"
@@ -254,6 +257,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                 v-for="job in queueModeProcessingJobs"
                 :key="job.id"
                 :job="job"
+                :is-pausing="pausingJobIds.has(job.id)"
                 :preset="presets.find((p) => p.id === job.presetId) ?? presets[0]"
                 :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                 :can-cancel="canCancelJob(job)"
@@ -317,6 +321,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                 <QueueItem
                   v-else
                   :job="item.job"
+                  :is-pausing="pausingJobIds.has(item.job.id)"
                   :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
                   :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                   :can-cancel="canCancelJob(item.job)"
@@ -373,6 +378,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
             <QueueItem
               v-else-if="item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)"
               :job="item.job"
+              :is-pausing="pausingJobIds.has(item.job.id)"
               :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
               :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="false"
@@ -423,6 +429,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
             <QueueItem
               v-else
               :job="item.job"
+              :is-pausing="pausingJobIds.has(item.job.id)"
               :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
               :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="canCancelJob(item.job)"

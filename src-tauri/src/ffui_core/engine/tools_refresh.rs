@@ -3,7 +3,8 @@ use crate::ffui_core::tools::{
     ExternalToolKind, ExternalToolStatus, cached_ffmpeg_release_version,
     cached_tool_status_snapshot, finish_tool_status_refresh,
     hydrate_remote_version_cache_from_settings, try_begin_tool_status_refresh,
-    try_refresh_ffmpeg_static_release_from_github, ttl_hit,
+    try_refresh_ffmpeg_static_release_from_github, try_refresh_libavif_release_from_github,
+    ttl_hit,
 };
 
 use super::TranscodingEngine;
@@ -20,6 +21,7 @@ impl TranscodingEngine {
         };
         hydrate_remote_version_cache_from_settings(&tools);
         let cached_remote = cached_ffmpeg_release_version();
+        let cached_libavif = crate::ffui_core::tools::cached_libavif_release_version();
 
         // Best-effort: reuse the latest cached snapshot when available.
         let snapshot = cached_tool_status_snapshot();
@@ -76,7 +78,7 @@ impl TranscodingEngine {
                 resolved_path: None,
                 source: None,
                 version: None,
-                remote_version: None,
+                remote_version: cached_libavif.clone(),
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,
@@ -142,17 +144,28 @@ impl TranscodingEngine {
                 let remote_ttl_hit =
                     ttl_hit(now_ms, persisted.and_then(|info| info.checked_at_ms), TTL_MS);
 
-                let should_check_remote = remote_check && (manual_remote_check || !remote_ttl_hit);
+                let persisted_libavif = tools_settings
+                    .remote_version_cache
+                    .as_ref()
+                    .and_then(|c| c.libavif.as_ref());
+                let libavif_ttl_hit =
+                    ttl_hit(now_ms, persisted_libavif.and_then(|info| info.checked_at_ms), TTL_MS);
+
+                let should_check_ffmpeg =
+                    remote_check && (manual_remote_check || !remote_ttl_hit);
+                let should_check_libavif =
+                    remote_check && (manual_remote_check || !libavif_ttl_hit);
                 eprintln!(
-                    "[tools_refresh] start remote_check={remote_check} manual={manual_remote_check} ttl_hit={remote_ttl_hit}"
+                    "[tools_refresh] start remote_check={remote_check} manual={manual_remote_check} ttl_hit_ffmpeg={remote_ttl_hit} ttl_hit_libavif={libavif_ttl_hit}"
                 );
 
                 let mut remote_updated = false;
-                if should_check_remote {
+                let mut should_persist_settings = false;
+                if should_check_ffmpeg {
                     match try_refresh_ffmpeg_static_release_from_github() {
                         Some((version, tag)) => {
                             remote_updated = true;
-                            // Persist TTL cache so the 24h window survives restarts.
+                            should_persist_settings = true;
                             let mut state = engine_clone
                                 .inner
                                 .state
@@ -169,17 +182,51 @@ impl TranscodingEngine {
                                     tag: Some(tag),
                                 },
                             );
-                            if let Err(err) = settings::save_settings(&state.settings) {
-                                eprintln!(
-                                    "[tools_refresh] failed to persist remote TTL cache: {err:#}"
-                                );
-                            }
                         }
                         None => {
                             eprintln!(
-                                "[tools_refresh] remote version check failed (best-effort)"
+                                "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
                         }
+                    }
+                }
+
+                if should_check_libavif {
+                    match try_refresh_libavif_release_from_github() {
+                        Some((version, tag)) => {
+                            remote_updated = true;
+                            should_persist_settings = true;
+                            let mut state = engine_clone
+                                .inner
+                                .state
+                                .lock()
+                                .expect("engine state poisoned");
+                            let tools = &mut state.settings.tools;
+                            let cache = tools
+                                .remote_version_cache
+                                .get_or_insert_with(Default::default);
+                            cache.libavif = Some(
+                                crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                    checked_at_ms: Some(now_ms),
+                                    version: Some(version),
+                                    tag: Some(tag),
+                                },
+                            );
+                        }
+                        None => {
+                            eprintln!(
+                                "[tools_refresh] libavif remote version check failed (best-effort)"
+                            );
+                        }
+                    }
+                }
+
+                if should_persist_settings {
+                    let state = engine_clone.inner.state.lock().expect("engine state poisoned");
+                    if let Err(err) = settings::save_settings(&state.settings) {
+                        eprintln!(
+                            "[tools_refresh] failed to persist remote TTL cache: {err:#}"
+                        );
                     }
                 }
 

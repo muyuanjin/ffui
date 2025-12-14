@@ -59,6 +59,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(engine)
         .manage(metrics_state.clone())
+        .manage(commands::ui_fonts::UiFontDownloadManager::default())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
@@ -84,6 +85,13 @@ pub fn run() {
             commands::settings::get_smart_scan_defaults,
             commands::settings::save_smart_scan_defaults,
             commands::settings::run_auto_compress,
+            commands::ui_fonts::get_system_font_families,
+            commands::ui_fonts::list_open_source_fonts,
+            commands::ui_fonts::start_open_source_font_download,
+            commands::ui_fonts::get_open_source_font_download_snapshot,
+            commands::ui_fonts::cancel_open_source_font_download,
+            commands::ui_fonts::ensure_open_source_font_downloaded,
+            commands::ui_fonts::import_ui_font_file,
             commands::updater::get_app_updater_capabilities,
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,

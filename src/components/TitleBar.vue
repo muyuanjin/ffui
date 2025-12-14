@@ -57,15 +57,16 @@ const currentLocale = computed<AppLocale>({
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
           <Select v-model="currentLocale">
             <SelectTrigger
+              data-testid="ffui-locale-trigger"
               class="h-7 px-3 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="zh-CN">
+              <SelectItem value="zh-CN" data-testid="ffui-locale-zh-CN">
                 {{ t("app.lang.zh") }}
               </SelectItem>
-              <SelectItem value="en">
+              <SelectItem value="en" data-testid="ffui-locale-en">
                 {{ t("app.lang.en") }}
               </SelectItem>
             </SelectContent>

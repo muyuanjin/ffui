@@ -60,6 +60,9 @@ pub struct RemoteToolVersionCache {
     /// Cached remote release metadata for the ffmpeg-static upstream used by ffmpeg/ffprobe.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ffmpeg_static: Option<RemoteToolVersionInfo>,
+    /// Cached remote release metadata for libavif upstream used by avifenc.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub libavif: Option<RemoteToolVersionInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -91,6 +94,28 @@ pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
 /// metrics interval is not explicitly configured via AppSettings.
 pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
 
+/// Default UI scale in percent (e.g. 100 = normal).
+pub const DEFAULT_UI_SCALE_PERCENT: u16 = 100;
+
+fn default_ui_scale_percent() -> u16 {
+    DEFAULT_UI_SCALE_PERCENT
+}
+
+fn is_default_ui_scale_percent(value: &u16) -> bool {
+    *value == DEFAULT_UI_SCALE_PERCENT
+}
+
+/// Default UI font size in percent (e.g. 100 = normal).
+pub const DEFAULT_UI_FONT_SIZE_PERCENT: u16 = 100;
+
+fn default_ui_font_size_percent() -> u16 {
+    DEFAULT_UI_FONT_SIZE_PERCENT
+}
+
+fn is_default_ui_font_size_percent(value: &u16) -> bool {
+    *value == DEFAULT_UI_FONT_SIZE_PERCENT
+}
+
 /// Aggregation modes for computing a single queue-level progress value that
 /// is surfaced to the Windows taskbar. This is configured via AppSettings and
 /// determines how individual jobs contribute to the overall progress bar.
@@ -117,6 +142,23 @@ pub enum TaskbarProgressScope {
     AllJobs,
     /// 仅统计仍在排队或进行中的任务；若队列全部终态则回退为全部任务以显示 100%。
     ActiveAndQueued,
+}
+
+/// Global UI font family preference.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum UiFontFamily {
+    /// Use platform default UI font stack.
+    #[default]
+    System,
+    /// Prefer sans-serif stack (still falls back to system defaults).
+    Sans,
+    /// Prefer monospace stack (useful for logs/commands).
+    Mono,
+}
+
+fn is_ui_font_family_system(value: &UiFontFamily) -> bool {
+    *value == UiFontFamily::System
 }
 
 fn is_false(value: &bool) -> bool {
@@ -214,6 +256,33 @@ pub struct AppSettings {
     /// Optional app updater settings and cached metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updater: Option<AppUpdaterSettings>,
+    /// Global UI scale in percent (e.g. 100 = default).
+    #[serde(
+        default = "default_ui_scale_percent",
+        skip_serializing_if = "is_default_ui_scale_percent"
+    )]
+    pub ui_scale_percent: u16,
+    /// Global base UI font size in percent (e.g. 100 = default).
+    #[serde(
+        default = "default_ui_font_size_percent",
+        skip_serializing_if = "is_default_ui_font_size_percent"
+    )]
+    pub ui_font_size_percent: u16,
+    /// Global UI font family preference.
+    #[serde(default, skip_serializing_if = "is_ui_font_family_system")]
+    pub ui_font_family: UiFontFamily,
+    /// Optional specific UI font family name (e.g. "Consolas", "Microsoft YaHei").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_font_name: Option<String>,
+    /// Optional open-source font id to download/cache and use globally.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_font_download_id: Option<String>,
+    /// Optional absolute path to an imported user font file under the app data directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_font_file_path: Option<String>,
+    /// Optional original filename of the imported UI font (display only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_font_file_source_name: Option<String>,
     #[serde(default = "default_preview_capture_percent")]
     pub preview_capture_percent: u8,
     /// When true, enable developer-focused features such as opening the
@@ -322,6 +391,13 @@ impl Default for AppSettings {
             },
             monitor: None,
             updater: None,
+            ui_scale_percent: default_ui_scale_percent(),
+            ui_font_size_percent: default_ui_font_size_percent(),
+            ui_font_family: UiFontFamily::default(),
+            ui_font_name: None,
+            ui_font_download_id: None,
+            ui_font_file_path: None,
+            ui_font_file_source_name: None,
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,

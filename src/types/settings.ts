@@ -29,11 +29,28 @@ export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
 /** 预设面板视图模式 */
 export type PresetViewMode = "grid" | "compact";
 
+/** UI font family preference (applies globally). */
+export type UiFontFamily = "system" | "sans" | "mono";
+
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
   /** Optional app updater settings and cached metadata. */
   updater?: AppUpdaterSettings;
+  /** Global UI scale in percent (e.g. 100 = default, 110 = larger). */
+  uiScalePercent?: number;
+  /** Global base UI font size in percent (e.g. 100 = default, 110 = larger). */
+  uiFontSizePercent?: number;
+  /** Global UI font family preference (system/sans/mono). */
+  uiFontFamily?: UiFontFamily;
+  /** Optional specific UI font family name (e.g. "Consolas", "Microsoft YaHei"). */
+  uiFontName?: string;
+  /** Optional open-source font id to download/cache and use globally. */
+  uiFontDownloadId?: string;
+  /** Absolute path to an imported user font file under the app data directory. */
+  uiFontFilePath?: string;
+  /** Optional original filename of the imported UI font (for display purposes). */
+  uiFontFileSourceName?: string;
   /** Global preview capture position as a percentage of video duration (0-100). */
   previewCapturePercent: number;
   /** When true, enable developer features such as opening devtools from the UI. */

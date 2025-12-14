@@ -15,6 +15,8 @@ import {
 export interface SingleJobOpsDeps {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
+  /** Job ids that have a pending "wait" request but are still processing. */
+  pausingJobIds: Ref<Set<string>>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   /** All available presets. */
@@ -50,8 +52,12 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
   }
 
   try {
+    deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, jobId]);
     const ok = await waitTranscodeJob(jobId);
     if (!ok) {
+      const next = new Set(deps.pausingJobIds.value);
+      next.delete(jobId);
+      deps.pausingJobIds.value = next;
       deps.queueError.value =
         (deps.t?.("queue.error.waitRejected") as string) ?? "";
       return;
@@ -63,10 +69,9 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
         const existingLogs = job.logs ?? [];
         return {
           ...job,
-          status: "paused" as JobStatus,
           logs: [
             ...existingLogs,
-            "Wait requested from UI; worker slot will be released when ffmpeg reaches a safe point",
+            "Wait requested from UI; job will pause when ffmpeg reaches a safe point",
           ],
         };
       }
@@ -75,6 +80,9 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to wait job", error);
+    const next = new Set(deps.pausingJobIds.value);
+    next.delete(jobId);
+    deps.pausingJobIds.value = next;
     deps.queueError.value =
       (deps.t?.("queue.error.waitFailed") as string) ?? "";
   }

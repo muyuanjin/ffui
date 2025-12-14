@@ -45,6 +45,11 @@
 :root {
   /* Base radius and color tokens for light theme */
   --radius: 0.625rem;
+  /* Global UI appearance (driven by AppSettings) */
+  --ffui-ui-scale: 1;
+  --ffui-ui-scale-inv: 1;
+  --ffui-ui-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  --ffui-ui-font-size-scale: 1;
   --background: #f9fafb;
   --foreground: #020617;
   --card: #ffffff;
@@ -127,6 +132,10 @@
   body {
     @apply bg-background text-foreground antialiased overflow-hidden;
     margin: 0;
+    font-family: var(--ffui-ui-font-family);
+    /* Keep layout sizing stable (rem stays 16px); text scaling is handled via
+       a CSS variable and utility overrides. */
+    font-size: calc(16px * var(--ffui-ui-font-size-scale));
     /* Default: disable text selection for chrome / controls, unless explicitly re-enabled */
     -webkit-user-select: none;
     -moz-user-select: none;
@@ -140,6 +149,11 @@
     width: 100%;
   }
 
+  html {
+    /* Keep rem-based layout stable; "Text size" scales typography only. */
+    font-size: 16px;
+  }
+
   /* After Vue mounts, #app should behave as a normal full-screen container,
      not keep the boot-shell's flex centering (which would clip the main UI
      when content gets taller, e.g. 软件设置外部工具状态很多时). */
@@ -149,6 +163,86 @@
     display: block;
     padding: 0;
     margin: 0;
+    position: relative;
+  }
+
+  /* Global UI scale wrapper (uses inverse sizing to avoid clipping). */
+  .ffui-ui-scale-root {
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Scale engine: prefer CSS zoom when supported; fall back to a transform-based scale.
+     Important: use multiplication with an explicit inverse value (set from JS) to avoid calc division
+     quirks that can cause blank gaps or clipping in some webviews. */
+  html[data-ffui-ui-scale-engine="transform"] .ffui-ui-scale-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* Add a tiny epsilon to avoid subpixel rounding gaps in some webviews. */
+    width: calc(100% * var(--ffui-ui-scale-inv) + 2px);
+    height: calc(100% * var(--ffui-ui-scale-inv) + 2px);
+    transform: scale(var(--ffui-ui-scale));
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+
+  /* Select option tones for UI scale / text size pickers. */
+  .ffui-select-option--default,
+  .ffui-select-option--recommended,
+  .ffui-select-option--extreme {
+    border-radius: 0 !important;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+
+  /* Use a subtle gradient so the default focus background can still show,
+     while leaving a clear cue about the range category. */
+  .ffui-select-option--default {
+    background-image: linear-gradient(90deg, rgba(56, 189, 248, 0.16), transparent 72%);
+  }
+  .ffui-select-option--recommended {
+    background-image: linear-gradient(90deg, rgba(34, 197, 94, 0.12), transparent 72%);
+  }
+  .ffui-select-option--extreme {
+    background-image: linear-gradient(90deg, rgba(245, 158, 11, 0.14), transparent 72%);
+  }
+
+  .dark .ffui-select-option--default {
+    background-image: linear-gradient(90deg, rgba(56, 189, 248, 0.22), transparent 72%);
+  }
+  .dark .ffui-select-option--recommended {
+    background-image: linear-gradient(90deg, rgba(34, 197, 94, 0.18), transparent 72%);
+  }
+  .dark .ffui-select-option--extreme {
+    background-image: linear-gradient(90deg, rgba(245, 158, 11, 0.2), transparent 72%);
+  }
+
+  /* Scale common Tailwind text size utilities so they follow the user's
+     "Text size" setting without changing rem-based layout sizing. */
+  .text-xs { font-size: clamp(10px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-sm { font-size: clamp(11px, calc(14px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-base { font-size: clamp(12px, calc(16px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-lg { font-size: clamp(13px, calc(18px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-xl { font-size: clamp(14px, calc(20px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-2xl { font-size: clamp(16px, calc(24px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-3xl { font-size: clamp(18px, calc(30px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-4xl { font-size: clamp(20px, calc(36px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-5xl { font-size: clamp(24px, calc(48px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+
+  /* Scale the small fixed-px Tailwind font-size utilities (text-[9px], etc.)
+     so they follow the user's "Text size" setting, while clamping the minimum
+     to keep them readable when the user scales down. */
+  .text-\[8px\] { font-size: clamp(7px, calc(8px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[9px\] { font-size: clamp(8px, calc(9px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[10px\] { font-size: clamp(9px, calc(10px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[11px\] { font-size: clamp(10px, calc(11px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[12px\] { font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[13px\] { font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+
+  @media (min-width: 768px) {
+    .md\:text-\[12px\] { font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+    .md\:text-\[13px\] { font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important; }
   }
 
   /* Allow text selection where it makes sense */

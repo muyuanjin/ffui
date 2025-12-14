@@ -110,6 +110,11 @@ fn ffmpeg_pause_resume_does_not_create_overlap_segments() {
             JobStatus::Paused,
             "job must be paused after wait"
         );
+        assert!(
+            stored.progress.is_finite() && stored.progress < 100.0,
+            "paused job progress must remain < 100% (it should freeze at the moment of wait); got {}",
+            stored.progress
+        );
         let meta = stored
             .wait_metadata
             .as_ref()

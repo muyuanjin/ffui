@@ -327,3 +327,55 @@ impl From<QueueStateLite> for QueueState {
         QueueState { jobs }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn queue_state_lite_json_omits_full_logs_vector() {
+        let snapshot = QueueStateLite {
+            jobs: vec![TranscodeJobLite {
+                id: "job-1".to_string(),
+                filename: "C:/videos/sample.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::Manual,
+                queue_order: None,
+                original_size_mb: 0.0,
+                original_codec: None,
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Waiting,
+                progress: 0.0,
+                start_time: None,
+                end_time: None,
+                processing_started_ms: None,
+                elapsed_ms: None,
+                output_size_mb: None,
+                input_path: None,
+                output_path: None,
+                ffmpeg_command: None,
+                skip_reason: None,
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                log_tail: None,
+                log_head: Some(vec!["ffmpeg version ...".to_string()]),
+                failure_reason: None,
+                batch_id: None,
+                wait_metadata: None,
+            }],
+        };
+
+        let json = serde_json::to_value(snapshot).expect("serialize QueueStateLite");
+        let job = &json["jobs"][0];
+
+        assert!(
+            job.get("logs").is_none(),
+            "QueueStateLite must not include logs"
+        );
+        assert!(
+            job.get("logHead").is_some(),
+            "QueueStateLite keeps lightweight log snippets"
+        );
+    }
+}

@@ -2,7 +2,8 @@ use super::discover::discover_candidates;
 use super::probe::{detect_local_tool_version, verify_tool_binary};
 use super::resolve::{custom_path_for, downloaded_tool_path, resolve_in_path, tool_binary_name};
 use super::runtime_state::{
-    cached_ffmpeg_release_version, last_tool_download_metadata, snapshot_download_state,
+    cached_ffmpeg_release_version, cached_libavif_release_version, last_tool_download_metadata,
+    snapshot_download_state,
 };
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
@@ -28,6 +29,28 @@ fn version_is_newer(candidate: &str, baseline: &str) -> bool {
     }
 }
 
+fn extract_semver_like(input: &str) -> Option<String> {
+    let trimmed = input.trim();
+    let start = trimmed.find(|c: char| c.is_ascii_digit())?;
+    let mut end = start;
+    for (idx, ch) in trimmed[start..].char_indices() {
+        if ch.is_ascii_digit() || ch == '.' {
+            end = start + idx + ch.len_utf8();
+            continue;
+        }
+        break;
+    }
+    if end <= start {
+        return None;
+    }
+    Some(trimmed[start..end].to_string())
+}
+
+fn extract_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
+    let semver = extract_semver_like(input)?;
+    parse_version_tuple(&semver)
+}
+
 pub(super) fn should_mark_update_available(
     source: &str,
     local_version: Option<&str>,
@@ -35,7 +58,12 @@ pub(super) fn should_mark_update_available(
 ) -> bool {
     let _ = source;
     match (local_version, remote_version) {
-        (Some(local), Some(remote)) => !local.contains(remote),
+        (Some(local), Some(remote)) => {
+            match (extract_version_tuple(local), extract_version_tuple(remote)) {
+                (Some(local_t), Some(remote_t)) => remote_t > local_t,
+                _ => !local.contains(remote),
+            }
+        }
         _ => false,
     }
 }
@@ -58,7 +86,12 @@ pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<Str
             };
             Some(remote)
         }
-        ExternalToolKind::Avifenc => None,
+        ExternalToolKind::Avifenc => {
+            if let Some(latest) = cached_libavif_release_version() {
+                return Some(latest);
+            }
+            Some(LIBAVIF_VERSION.to_string())
+        }
     }
 }
 

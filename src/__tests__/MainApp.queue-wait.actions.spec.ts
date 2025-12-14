@@ -19,7 +19,7 @@ function getJobsFromVm(vm: any): TranscodeJob[] {
 }
 
 describe("MainApp queue wait/resume/restart in Tauri mode", () => {
-  it("sends wait_transcode_job and marks the job as paused with a UI log entry", async () => {
+  it("sends wait_transcode_job and keeps the job processing while showing a UI log entry", async () => {
     const jobId = "job-wait-1";
     setQueueJobs([
       {
@@ -53,7 +53,8 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("paused");
+    expect(updatedJob?.status).toBe("processing");
+    expect(updatedJob?.logs?.join("\n") ?? "").toContain("Wait requested from UI");
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.any(Object));
   });
 
@@ -200,7 +201,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     expect(updatedJob?.progress).toBe(0);
   });
 
-  it("wires queue context menu wait action through to wait_transcode_job and updates job status", async () => {
+  it("wires queue context menu wait action through to wait_transcode_job and keeps job processing until backend pause completes", async () => {
     const jobId = "job-context-wait-1";
     setQueueJobs([
       {
@@ -241,7 +242,8 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("paused");
+    expect(updatedJob?.status).toBe("processing");
+    expect(updatedJob?.logs?.join("\n") ?? "").toContain("Wait requested from UI");
     expect(invokeMock).toHaveBeenCalledWith(
       "wait_transcode_job",
       expect.objectContaining({ jobId }),

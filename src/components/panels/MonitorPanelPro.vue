@@ -31,7 +31,7 @@ const {
 </script>
 
 <template>
-  <section class="monitor-pro">
+  <section class="monitor-pro" data-testid="monitor-panel">
     <!-- 顶部状态区域：只保留 GPU 状态，移除多余的仪表盘卡片以减少视觉噪音 -->
     <div class="gauge-section">
       <!-- GPU实时状态卡片 -->

@@ -35,6 +35,105 @@ export const saveAppSettings = async (settings: AppSettings): Promise<AppSetting
   return invoke<AppSettings>("save_app_settings", { settings });
 };
 
+export interface OpenSourceFontInfo {
+  id: string;
+  name: string;
+  familyName: string;
+  format: string;
+}
+
+export interface DownloadedFontInfo {
+  id: string;
+  familyName: string;
+  path: string;
+  format: string;
+}
+
+export type UiFontDownloadStatus =
+  | "starting"
+  | "downloading"
+  | "ready"
+  | "error"
+  | "canceled";
+
+export interface UiFontDownloadSnapshot {
+  sessionId: number;
+  fontId: string;
+  status: UiFontDownloadStatus;
+  receivedBytes: number;
+  totalBytes: number | null;
+  familyName: string;
+  format: string;
+  path: string | null;
+  error: string | null;
+}
+
+export const fetchSystemFontFamilies = async (): Promise<string[]> => {
+  if (!hasTauri()) return [];
+  return invoke<string[]>("get_system_font_families");
+};
+
+export const listOpenSourceFonts = async (): Promise<OpenSourceFontInfo[]> => {
+  if (!hasTauri()) return [];
+  return invoke<OpenSourceFontInfo[]>("list_open_source_fonts");
+};
+
+export const startOpenSourceFontDownload = async (
+  fontId: string,
+): Promise<UiFontDownloadSnapshot> => {
+  if (!hasTauri()) {
+    throw new Error("startOpenSourceFontDownload requires Tauri");
+  }
+  return invoke<UiFontDownloadSnapshot>("start_open_source_font_download", {
+    fontId,
+    font_id: fontId,
+  });
+};
+
+export const fetchOpenSourceFontDownloadSnapshot = async (
+  fontId: string,
+): Promise<UiFontDownloadSnapshot | null> => {
+  if (!hasTauri()) return null;
+  return invoke<UiFontDownloadSnapshot | null>("get_open_source_font_download_snapshot", {
+    fontId,
+    font_id: fontId,
+  });
+};
+
+export const cancelOpenSourceFontDownload = async (
+  fontId: string,
+): Promise<boolean> => {
+  if (!hasTauri()) return false;
+  return invoke<boolean>("cancel_open_source_font_download", {
+    fontId,
+    font_id: fontId,
+  });
+};
+
+export const ensureOpenSourceFontDownloaded = async (fontId: string): Promise<DownloadedFontInfo> => {
+  if (!hasTauri()) {
+    throw new Error("ensureOpenSourceFontDownloaded requires Tauri");
+  }
+  return invoke<DownloadedFontInfo>("ensure_open_source_font_downloaded", {
+    fontId,
+    font_id: fontId,
+  });
+};
+
+export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFontInfo> => {
+  if (!hasTauri()) {
+    throw new Error("importUiFontFile requires Tauri");
+  }
+  const normalized = sourcePath.trim();
+  if (!normalized) {
+    throw new Error("font file path is empty");
+  }
+  return invoke<DownloadedFontInfo>("import_ui_font_file", {
+    sourcePath: normalized,
+    source_path: normalized,
+  });
+};
+
 export interface AppUpdaterCapabilities {
   configured: boolean;
 }

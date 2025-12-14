@@ -25,6 +25,13 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
+  uiScalePercent: 110,
+  uiFontSizePercent: 120,
+  uiFontFamily: "system",
+  uiFontName: "Consolas",
+  uiFontDownloadId: "inter",
+  uiFontFilePath: "/tmp/ui-fonts/imported.ttf",
+  uiFontFileSourceName: "MyFont.ttf",
   updater: {
     autoCheck: true,
     lastCheckedAtMs: 1_735_000_000_000,

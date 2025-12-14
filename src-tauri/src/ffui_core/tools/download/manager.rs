@@ -14,7 +14,7 @@ use super::net::{
 };
 use super::release::{
     current_ffmpeg_release, default_avifenc_zip_url, default_ffmpeg_download_url,
-    default_ffprobe_download_url,
+    default_ffprobe_download_url, semantic_version_from_tag,
 };
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::discover::discover_candidates;
@@ -157,7 +157,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
         }
         ExternalToolKind::Avifenc => {
             let url = default_avifenc_zip_url()?;
-            let bytes = download_bytes_with_reqwest(url, |downloaded, total| {
+            let bytes = download_bytes_with_reqwest(&url, |downloaded, total| {
                 mark_download_progress(kind, downloaded, total);
             })?;
 
@@ -205,8 +205,8 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             }
             record_last_tool_download(
                 kind,
-                url.to_string(),
-                Some(LIBAVIF_VERSION.to_string()),
+                url,
+                Some(semantic_version_from_tag(LIBAVIF_VERSION)),
                 Some(LIBAVIF_VERSION.to_string()),
             );
 

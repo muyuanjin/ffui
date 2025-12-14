@@ -26,20 +26,21 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
 </script>
 
 <template>
-  <aside class="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+  <aside class="w-64 bg-sidebar border-r border-sidebar-border flex flex-col" data-testid="ffui-sidebar">
     <div class="shrink-0 px-5 py-4 border-b border-sidebar-border flex items-center gap-3">
       <div
         class="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden"
       >
         <img src="/ffui.svg" alt="FFUI" class="h-10 w-10" />
       </div>
-      <h1 class="font-semibold text-lg text-sidebar-foreground leading-none">
+      <h1 class="font-semibold text-lg text-sidebar-foreground leading-none" data-testid="ffui-sidebar-title">
         {{ t("app.controlPanel") }}
       </h1>
     </div>
 
     <nav class="flex-1 px-3 py-4 space-y-2">
       <Button
+        data-testid="ffui-tab-queue"
         variant="ghost"
         class="w-full justify-between px-4 h-11 rounded-lg text-sm font-medium"
         :class="
@@ -56,6 +57,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         />
       </Button>
       <Button
+        data-testid="ffui-tab-presets"
         variant="ghost"
         class="w-full justify-start px-4 h-11 rounded-lg text-sm font-medium"
         :class="
@@ -68,6 +70,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         <span>{{ t("app.tabs.presets") }}</span>
       </Button>
       <Button
+        data-testid="ffui-tab-media"
         variant="ghost"
         class="w-full justify-start px-4 h-11 rounded-lg text-sm font-medium"
         :class="
@@ -80,6 +83,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         <span>{{ t("app.tabs.media") }}</span>
       </Button>
       <Button
+        data-testid="ffui-tab-monitor"
         variant="ghost"
         class="w-full justify-start px-4 h-11 rounded-lg text-sm font-medium"
         :class="
@@ -92,6 +96,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         <span>{{ t("app.tabs.monitor") }}</span>
       </Button>
       <Button
+        data-testid="ffui-tab-settings"
         variant="ghost"
         class="w-full justify-between px-4 h-11 rounded-lg text-sm font-medium"
         :class="
@@ -113,6 +118,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
 
     <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
       <Button
+        data-testid="ffui-action-add-job"
         variant="default"
         size="lg"
         class="w-full justify-center"
@@ -121,6 +127,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         <span>{{ t("app.actions.addJob") }}</span>
       </Button>
       <Button
+        data-testid="ffui-action-smart-scan"
         variant="smartScan"
         size="lg"
         class="w-full justify-center"

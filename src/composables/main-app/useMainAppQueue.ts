@@ -1,4 +1,4 @@
-import { computed, type ComputedRef, type Ref } from "vue";
+import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import type {
   CompositeSmartScanTask,
   FFmpegPreset,
@@ -16,6 +16,18 @@ import {
 } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
+import {
+  ensureManualPresetId,
+  getQueueIconGridClass,
+  ICON_VIEW_MAX_VISIBLE_ITEMS,
+} from "./useMainAppQueue.ui";
+import {
+  compareJobsInWaitingGroup,
+  isTerminalStatus,
+  isWaitingStatus,
+} from "./useMainAppQueue.waiting";
+
+export { getQueueIconGridClass } from "./useMainAppQueue.ui";
 
 export interface UseMainAppQueueOptions {
   t: (key: string) => string;
@@ -102,8 +114,9 @@ export interface UseMainAppQueueReturn
   queueModeWaitingItems: ComputedRef<QueueListItem[]>;
   /** Batch ids already rendered in queueModeWaitingItems (for de-dupe). */
   queueModeWaitingBatchIds: ComputedRef<Set<string>>;
+  /** UI-only: jobs with a pending "wait" request while still processing. */
+  pausingJobIds: Ref<Set<string>>;
 }
-const ICON_VIEW_MAX_VISIBLE_ITEMS = 200;
 
 /**
  * Queue state, filtering, and operations wiring for MainApp.
@@ -165,13 +178,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   const iconGridClass = computed(() => {
-    if (queueViewMode.value === "icon-large") {
-      return "grid gap-3 grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3";
-    }
-    if (queueViewMode.value === "icon-medium") {
-      return "grid gap-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4";
-    }
-    return "grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5";
+    return getQueueIconGridClass(queueViewMode.value);
   });
 
   const manualJobPreset = computed<FFmpegPreset | null>(() => {
@@ -182,20 +189,31 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     return list.find((p) => p.id === id) ?? list[0];
   });
 
-  const ensureManualPresetId = () => {
-    const list = presets.value;
-    if (!list || list.length === 0) {
-      manualJobPresetId.value = null;
-      return;
-    }
-    if (!manualJobPresetId.value || !list.some((p) => p.id === manualJobPresetId.value)) {
-      manualJobPresetId.value = list[0].id;
-    }
-  };
-
-  ensureManualPresetId();
+  ensureManualPresetId(presets.value, manualJobPresetId);
   const smartScanJobs = computed<TranscodeJob[]>(() =>
     jobs.value.filter((job) => job.source === "smart_scan"),
+  );
+
+  // UI-only: track jobs that have requested "wait/pause" but remain in
+  // processing state until the backend reaches a safe point and marks them paused.
+  const pausingJobIds = ref<Set<string>>(new Set());
+  watch(
+    jobs,
+    (nextJobs) => {
+      if (pausingJobIds.value.size === 0) return;
+      const byId = new Map(nextJobs.map((job) => [job.id, job]));
+      const next = new Set<string>();
+      for (const id of pausingJobIds.value) {
+        const job = byId.get(id);
+        if (job && job.status === "processing") {
+          next.add(id);
+        }
+      }
+      if (next.size !== pausingJobIds.value.size) {
+        pausingJobIds.value = next;
+      }
+    },
+    { deep: false },
   );
   const {
     selectedJobIds,
@@ -266,6 +284,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkMoveSelectedJobsToBottom: bulkMoveSelectedJobsToBottomInner,
   } = useQueueOperations({
     jobs,
+    pausingJobIds,
     smartScanJobs,
     manualJobPreset,
     presets,
@@ -277,28 +296,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     onJobCompleted,
   });
   void addManualJobMock;
-  const isWaitingStatus = (status: TranscodeJob["status"]) =>
-    status === "waiting" || status === "queued" || status === "paused";
-  const isTerminalStatus = (status: TranscodeJob["status"]) =>
-    status === "completed" ||
-    status === "failed" ||
-    status === "skipped" ||
-    status === "cancelled";
-
-  const compareJobsInWaitingGroup = (a: TranscodeJob, b: TranscodeJob): number => {
-    const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    if (ao !== bo) return ao - bo;
-
-    let result = compareJobsByConfiguredFields(a, b);
-    if (result !== 0) return result;
-
-    const as = a.startTime ?? 0;
-    const bs = b.startTime ?? 0;
-    if (as !== bs) return as - bs;
-
-    return a.id.localeCompare(b.id);
-  };
 
   const queueModeWaitingItems = computed<QueueListItem[]>(() => {
     if (queueMode.value !== "queue") return [];
@@ -306,7 +303,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     const waitingJobs = filteredJobs.value
       .filter((job) => isWaitingStatus(job.status))
       .slice()
-      .sort(compareJobsInWaitingGroup);
+      .sort((a, b) => compareJobsInWaitingGroup(a, b, compareJobsByConfiguredFields));
 
     const items: QueueListItem[] = [];
     const renderedBatchIds = new Set<string>();
@@ -491,5 +488,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkMoveSelectedJobsToBottomInner,
     moveJobToTop,
     bulkDelete,
+    pausingJobIds,
   };
 }

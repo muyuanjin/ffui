@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TranscodeJob } from "../types";
 
 const invokeMock = vi.fn<
-  (cmd: string, payload: Record<string, unknown>) => Promise<unknown>
+  (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
 >();
 
 vi.mock("@tauri-apps/api/core", () => {
@@ -27,6 +27,8 @@ import {
   inspectMedia,
   selectPlayableMediaPath,
   revealPathInFolder,
+  loadQueueState,
+  loadQueueStateLite,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -193,6 +195,32 @@ describe("backend contract", () => {
     } else {
       (globalThis as any).window = originalWindow;
     }
+  });
+
+  it("loadQueueState calls get_queue_state without args", async () => {
+    const fake = { jobs: [] };
+    invokeMock.mockResolvedValueOnce(fake);
+
+    const result = await loadQueueState();
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("get_queue_state");
+    expect(payload).toBeUndefined();
+    expect(result).toEqual(fake);
+  });
+
+  it("loadQueueStateLite calls get_queue_state_lite without args", async () => {
+    const fake = { jobs: [] };
+    invokeMock.mockResolvedValueOnce(fake);
+
+    const result = await loadQueueStateLite();
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("get_queue_state_lite");
+    expect(payload).toBeUndefined();
+    expect(result).toEqual(fake);
   });
 
   it("revealPathInFolder calls reveal_path_in_folder with trimmed path", async () => {

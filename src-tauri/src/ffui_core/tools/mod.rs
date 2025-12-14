@@ -15,6 +15,8 @@ mod tests_probe;
 mod tests_runtime;
 #[cfg(test)]
 mod tests_runtime_clear_error;
+#[cfg(test)]
+mod tests_versioning;
 mod types;
 
 // Re-export API
@@ -30,11 +32,16 @@ pub(crate) use status::tool_status;
 pub use types::{ExternalToolCandidate, ExternalToolKind, ExternalToolStatus};
 
 pub(crate) use runtime_state::{
-    cached_ffmpeg_release_version, cached_tool_status_snapshot, finish_tool_status_refresh,
-    try_begin_tool_status_refresh, ttl_hit,
+    cached_ffmpeg_release_version, cached_libavif_release_version, cached_tool_status_snapshot,
+    finish_tool_status_refresh, try_begin_tool_status_refresh, ttl_hit,
 };
 
 pub(crate) fn try_refresh_ffmpeg_static_release_from_github() -> Option<(String, String)> {
     let info = download::try_refresh_ffmpeg_release_from_github()?;
+    Some((info.version, info.tag))
+}
+
+pub(crate) fn try_refresh_libavif_release_from_github() -> Option<(String, String)> {
+    let info = download::try_refresh_libavif_release_from_github()?;
     Some((info.version, info.tag))
 }

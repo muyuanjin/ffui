@@ -12,6 +12,8 @@ const isTestEnv =
 
 const props = defineProps<{
   job: TranscodeJob;
+  /** UI-only: true when a pause request is pending while the job is still processing. */
+  isPausing?: boolean;
   /**
    * Small/medium/large icon sizes map to slightly different typographic
    * scales but share the same structural layout.
@@ -132,7 +134,7 @@ const rippleProgressColorClass = computed(() => {
 
 // 与列表视图保持一致：内部 queued 状态在文案层统一视为 waiting。
 const displayStatusKey = computed(() =>
-  props.job.status === "queued" ? "waiting" : props.job.status,
+  props.isPausing ? "pausing" : props.job.status === "queued" ? "waiting" : props.job.status,
 );
 
 const statusLabel = computed(

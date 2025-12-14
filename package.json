@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:unit": "vitest",
+    "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "tauri": "tauri",
     "tauri:dev": "npm run build && tauri dev",
     "build:exe": "npm run tauri -- build --no-bundle"
@@ -48,6 +49,7 @@
     "autoprefixer": "^10.4.22",
     "happy-dom": "^20.0.11",
     "jsdom": "^27.2.0",
+    "playwright": "^1.55.0",
     "postcss": "^8.5.6",
     "shadcn-vue": "^2.4.0",
     "tailwindcss": "^4.1.17",

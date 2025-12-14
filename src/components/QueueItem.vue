@@ -13,9 +13,13 @@ import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandVi
 
 const isTestEnv = typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
+type UiJobStatus = TranscodeJob["status"] | "pausing";
+
 const props = defineProps<{
   job: TranscodeJob;
   preset: FFmpegPreset;
+  /** UI-only: true when a pause request is pending while the job is still processing. */
+  isPausing?: boolean;
   canCancel?: boolean;
   canWait?: boolean;
   canResume?: boolean;
@@ -71,12 +75,17 @@ const rowVariant = computed<"detail" | "compact">(
 );
 const isCompact = computed(() => rowVariant.value === "compact");
 
+const effectiveStatus = computed<UiJobStatus>(() =>
+  props.isPausing ? "pausing" : props.job.status,
+);
+
 const statusTextClass = computed(() => {
-  switch (props.job.status) {
+  switch (effectiveStatus.value) {
     case "completed":
       return "text-emerald-500";
     case "processing":
       return "text-blue-500";
+    case "pausing":
     case "paused":
       return "text-amber-500";
     case "cancelled":
@@ -96,7 +105,7 @@ const { t } = useI18n();
 
 // 将内部 queued 统一映射为 waiting，避免在文案中暴露裸 key。
 const displayStatusKey = computed(() =>
-  props.job.status === "queued" ? "waiting" : props.job.status,
+  effectiveStatus.value === "queued" ? "waiting" : effectiveStatus.value,
 );
 
 const localizedStatus = computed(() => t(`queue.status.${displayStatusKey.value}`));
@@ -128,7 +137,7 @@ const isCancellable = computed(
 );
 
 const isWaitable = computed(
-  () => props.canWait && props.job.status === "processing",
+  () => props.canWait && props.job.status === "processing" && !props.isPausing,
 );
 
 const isResumable = computed(
@@ -211,12 +220,13 @@ const {
 
 // 根据任务状态计算进度条颜色变体
 const progressVariant = computed<ProgressVariant>(() => {
-  switch (props.job.status) {
+  switch (effectiveStatus.value) {
     case "completed":
       return "success";
     case "failed":
       return "error";
     case "paused":
+    case "pausing":
     case "waiting":
     case "queued":
       return "warning";
@@ -398,6 +408,7 @@ const onCardContextMenu = (event: MouseEvent) => {
     <QueueItemHeaderRow
       :job="job"
       :preset="preset"
+      :is-pausing="props.isPausing === true"
       :is-selectable="isSelectable"
       :is-selected="isSelected"
       :is-skipped="isSkipped"

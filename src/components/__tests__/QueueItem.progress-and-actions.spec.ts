@@ -198,6 +198,28 @@ describe("QueueItem progress and actions", () => {
     expect(wrapper.emitted("restart")?.[0]).toEqual([job.id]);
   });
 
+  it("shows a pausing indicator and disables the wait button when isPausing is true", () => {
+    const job = makeJob({ status: "processing", progress: 50 });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: true,
+        canWait: true,
+        canResume: true,
+        canRestart: true,
+        isPausing: true,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.find("[data-testid='queue-item-wait-button']").exists()).toBe(false);
+    expect(wrapper.get("[data-testid='queue-item-status-label']").text()).toBe("pausing…");
+    const button = wrapper.get("[data-testid='queue-item-pausing-button']");
+    expect(button.attributes("disabled")).toBeDefined();
+  });
+
   it("renders a selection toggle when canSelect is true and emits toggle-select with job id", async () => {
     const job = makeJob({ status: "completed" });
 

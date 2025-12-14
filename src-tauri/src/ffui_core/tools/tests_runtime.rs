@@ -124,6 +124,7 @@ mod tools_tests_runtime {
             map.clear();
         }
     }
+
     #[test]
     fn tool_status_uses_env_discovery_for_avifenc() {
         let _guard = TEST_MUTEX.lock().unwrap();

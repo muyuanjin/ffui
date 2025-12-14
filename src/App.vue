@@ -5,5 +5,7 @@ import MainApp from "./MainApp.vue";
 </script>
 
 <template>
-  <MainApp />
+  <div class="ffui-ui-scale-root">
+    <MainApp />
+  </div>
 </template>

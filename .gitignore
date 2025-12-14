@@ -25,3 +25,10 @@ dist-ssr
 /openspec/
 /.serena/
 /.vscode/
+/.run/
+
+# Local docs screenshot media (copyrighted/user-provided)
+/public/docs-screenshots/__local_tmp/
+
+# Local docs screenshot captures (temporary, should not be committed)
+/tmp_*.png

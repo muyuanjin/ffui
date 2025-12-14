@@ -59,6 +59,13 @@ pub(crate) fn cached_ffmpeg_release_version() -> Option<String> {
     cache.as_ref().map(|info| info.version.clone())
 }
 
+pub(crate) fn cached_libavif_release_version() -> Option<String> {
+    let cache = LIBAVIF_RELEASE_CACHE
+        .lock()
+        .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+    cache.as_ref().map(|info| info.version.clone())
+}
+
 /// Seed the in-process remote version cache from persisted settings so that
 /// update hints remain stable across restarts without requiring a network call
 /// on the synchronous tool status path.
@@ -66,21 +73,30 @@ pub(crate) fn hydrate_remote_version_cache_from_settings(settings: &ExternalTool
     let Some(cache) = settings.remote_version_cache.as_ref() else {
         return;
     };
-    let Some(ffmpeg_static) = cache.ffmpeg_static.as_ref() else {
-        return;
-    };
-    let (Some(version), Some(tag)) = (ffmpeg_static.version.clone(), ffmpeg_static.tag.clone())
-    else {
-        return;
-    };
 
-    // Do not overwrite an already-populated cache (for example a successful
-    // refresh that happened earlier in this process).
-    let mut lock = FFMPEG_RELEASE_CACHE
-        .lock()
-        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
-    if lock.is_none() {
-        *lock = Some(FfmpegStaticRelease { version, tag });
+    if let Some(ffmpeg_static) = cache.ffmpeg_static.as_ref()
+        && let (Some(version), Some(tag)) =
+            (ffmpeg_static.version.clone(), ffmpeg_static.tag.clone())
+    {
+        // Do not overwrite an already-populated cache (for example a successful
+        // refresh that happened earlier in this process).
+        let mut lock = FFMPEG_RELEASE_CACHE
+            .lock()
+            .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+        if lock.is_none() {
+            *lock = Some(FfmpegStaticRelease { version, tag });
+        }
+    }
+
+    if let Some(libavif) = cache.libavif.as_ref()
+        && let (Some(version), Some(tag)) = (libavif.version.clone(), libavif.tag.clone())
+    {
+        let mut lock = LIBAVIF_RELEASE_CACHE
+            .lock()
+            .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+        if lock.is_none() {
+            *lock = Some(LibavifRelease { version, tag });
+        }
     }
 }
 

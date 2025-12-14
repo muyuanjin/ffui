@@ -1,12 +1,13 @@
+use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 use crate::ffui_core::settings::{io::write_json_file, presets::default_presets};
 use serde_json::{Value, json};
 use std::{fs, sync::Mutex};
-
 // Guard filesystem-based presets/settings sidecars so tests don't race on the
 // same {binary}.presets.json path.
 static PRESET_IO_MUTEX: Mutex<()> = Mutex::new(());
 
+mod tests_selection_bar_pinned;
 #[test]
 fn load_presets_provides_defaults_when_file_missing_or_empty() {
     let _guard = PRESET_IO_MUTEX.lock().expect("preset io mutex poisoned");
@@ -18,10 +19,8 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
         .and_then(|s| s.to_str())
         .expect("exe has valid UTF-8 stem");
     let path = dir.join(format!("{stem}.presets.json"));
-
     // Ensure we start from a clean state with no presets.json.
     let _ = fs::remove_file(&path);
-
     let presets = load_presets().expect("load_presets should succeed without file");
     assert!(
         !presets.is_empty(),
@@ -31,7 +30,6 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
         presets.iter().any(|p| p.id == "p1"),
         "defaults must include Universal 1080p with id 'p1'"
     );
-
     // If an empty presets.json exists, we should still fall back to defaults.
     fs::write(&path, "[]").expect("write empty presets file");
     let presets2 = load_presets().expect("load_presets should succeed with empty file");
@@ -43,10 +41,8 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
         presets2.iter().any(|p| p.id == "p1"),
         "defaults must still include id 'p1' when file is empty"
     );
-
     let _ = fs::remove_file(&path);
 }
-
 #[test]
 fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
     let _guard = PRESET_IO_MUTEX.lock().expect("preset io mutex poisoned");
@@ -58,10 +54,8 @@ fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
         .and_then(|s| s.to_str())
         .expect("exe has valid UTF-8 stem");
     let path = dir.join(format!("{stem}.presets.json"));
-
     // Start from a clean state.
     let _ = fs::remove_file(&path);
-
     // Simulate a user who deleted the built-in "Universal 1080p" preset (p1)
     // and only kept "Archive Master" (p2).
     let mut custom = default_presets();
@@ -71,7 +65,6 @@ fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
         "fixture must not contain the deleted builtin preset"
     );
     write_json_file(&path, &custom).expect("write custom presets fixture");
-
     let loaded = load_presets().expect("load_presets should respect user file");
     assert!(
         loaded.iter().all(|p| p.id != "p1"),
@@ -82,10 +75,8 @@ fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
         custom.len(),
         "loaded presets should match the persisted list size when file exists"
     );
-
     let _ = fs::remove_file(&path);
 }
-
 #[test]
 fn default_presets_ids_remain_stable_for_onboarding_replacement() {
     let presets = default_presets();
@@ -96,13 +87,21 @@ fn default_presets_ids_remain_stable_for_onboarding_replacement() {
         "legacy defaults (p1/p2) must keep stable ids so onboarding can replace them safely"
     );
 }
-
 #[test]
 fn app_settings_default_uses_preview_capture_percent_25() {
     let settings = AppSettings::default();
     assert_eq!(
         settings.preview_capture_percent, 25,
         "default preview_capture_percent must be 25"
+    );
+    assert_eq!(
+        settings.ui_scale_percent, DEFAULT_UI_SCALE_PERCENT,
+        "default ui_scale_percent must match DEFAULT_UI_SCALE_PERCENT"
+    );
+    assert_eq!(
+        settings.ui_font_family,
+        UiFontFamily::System,
+        "default ui_font_family must be System"
     );
     assert!(
         !settings.developer_mode_enabled,
@@ -127,25 +126,21 @@ fn app_settings_default_uses_preview_capture_percent_25() {
         "default taskbar_progress_scope must keep legacy behaviour of including completed jobs"
     );
 }
-
 #[test]
 fn app_settings_serializes_preview_capture_percent_as_camel_case() {
     let settings = AppSettings::default();
     let value = serde_json::to_value(&settings).expect("serialize AppSettings");
-
     let percent = value
         .get("previewCapturePercent")
         .and_then(Value::as_u64)
         .expect("previewCapturePercent field present as u64");
     assert_eq!(percent, 25);
-
     // When default_queue_preset_id is None it should be omitted from JSON
     // to keep settings.json minimal.
     assert!(
         value.get("defaultQueuePresetId").is_none(),
         "defaultQueuePresetId should be absent when unset"
     );
-
     // When max_parallel_jobs is None it should be omitted from JSON so
     // existing settings files remain minimal.
     assert!(
@@ -165,7 +160,6 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
         value.get("developerModeEnabled").is_none(),
         "developerModeEnabled should be absent when false"
     );
-
     let mode = value
         .get("taskbarProgressMode")
         .and_then(Value::as_str)
@@ -182,7 +176,6 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
         scope, "allJobs",
         "taskbarProgressScope must serialize as a camelCase string and default to allJobs"
     );
-
     // When no tools have been auto-downloaded yet, the nested metadata
     // object should be absent so existing settings.json files stay minimal.
     let tools = value
@@ -193,22 +186,49 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
         !tools.contains_key("downloaded"),
         "tools.downloaded should be omitted when no download metadata is recorded"
     );
-
     // When there is no persisted monitor state, the object should be omitted
     // so settings.json stays minimal.
     assert!(
         value.get("monitor").is_none(),
         "monitor should be absent when unset"
     );
-
     // When selection_bar_pinned is false it should be omitted so settings.json
     // stays minimal and legacy installs don't gain extra noise.
     assert!(
         value.get("selectionBarPinned").is_none(),
         "selectionBarPinned should be absent when false"
     );
+    // When UI appearance values are default, they should be omitted so the
+    // settings.json stays minimal.
+    assert!(
+        value.get("uiScalePercent").is_none(),
+        "uiScalePercent should be absent when at default"
+    );
+    assert!(
+        value.get("uiFontSizePercent").is_none(),
+        "uiFontSizePercent should be absent when at default"
+    );
+    assert!(
+        value.get("uiFontFamily").is_none(),
+        "uiFontFamily should be absent when at default"
+    );
+    assert!(
+        value.get("uiFontName").is_none(),
+        "uiFontName should be absent when unset"
+    );
+    assert!(
+        value.get("uiFontDownloadId").is_none(),
+        "uiFontDownloadId should be absent when unset"
+    );
+    assert!(
+        value.get("uiFontFilePath").is_none(),
+        "uiFontFilePath should be absent when unset"
+    );
+    assert!(
+        value.get("uiFontFileSourceName").is_none(),
+        "uiFontFileSourceName should be absent when unset"
+    );
 }
-
 #[test]
 fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
     // Simulate legacy JSON without the new previewCapturePercent field.
@@ -229,7 +249,6 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
         },
         "maxParallelJobs": 3
     });
-
     let decoded: AppSettings = serde_json::from_value(legacy)
         .expect("deserialize AppSettings without previewCapturePercent");
     assert_eq!(
@@ -245,7 +264,6 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
         Some(3),
         "maxParallelJobs must deserialize from camelCase JSON field"
     );
-
     assert_eq!(
         decoded.taskbar_progress_mode,
         TaskbarProgressMode::ByEstimatedTime,
@@ -256,19 +274,82 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
         TaskbarProgressScope::AllJobs,
         "missing taskbarProgressScope must default to AllJobs for backwards compatibility"
     );
-
     // Legacy JSON without progressUpdateIntervalMs should transparently
     // default to None so the engine can apply DEFAULT_PROGRESS_UPDATE_INTERVAL_MS.
     assert!(
         decoded.progress_update_interval_ms.is_none(),
         "legacy settings without progressUpdateIntervalMs must decode with progress_update_interval_ms = None"
     );
-
     // Legacy JSON without tools.downloaded should transparently default to
     // an empty metadata map.
     assert!(
         decoded.tools.downloaded.is_none(),
         "legacy settings without tools.downloaded must decode with downloaded = None"
+    );
+}
+#[test]
+fn app_settings_serializes_ui_appearance_when_non_default() {
+    let settings = AppSettings {
+        ui_scale_percent: 110,
+        ui_font_size_percent: 120,
+        ui_font_family: UiFontFamily::Mono,
+        ui_font_name: Some("Consolas".to_string()),
+        ui_font_download_id: Some("inter".to_string()),
+        ui_font_file_path: Some("/tmp/ui-fonts/imported.ttf".to_string()),
+        ui_font_file_source_name: Some("MyFont.ttf".to_string()),
+        ..AppSettings::default()
+    };
+    let value = serde_json::to_value(&settings).expect("serialize AppSettings with ui appearance");
+    assert_eq!(
+        value.get("uiScalePercent").and_then(Value::as_u64),
+        Some(110),
+        "uiScalePercent should serialize when non-default"
+    );
+    assert_eq!(
+        value.get("uiFontSizePercent").and_then(Value::as_u64),
+        Some(120),
+        "uiFontSizePercent should serialize when non-default"
+    );
+    assert_eq!(
+        value.get("uiFontFamily").and_then(Value::as_str),
+        Some("mono"),
+        "uiFontFamily should serialize as a camelCase string"
+    );
+    assert_eq!(
+        value.get("uiFontName").and_then(Value::as_str),
+        Some("Consolas"),
+        "uiFontName should serialize when set"
+    );
+    assert_eq!(
+        value.get("uiFontDownloadId").and_then(Value::as_str),
+        Some("inter"),
+        "uiFontDownloadId should serialize when set"
+    );
+    assert_eq!(
+        value.get("uiFontFilePath").and_then(Value::as_str),
+        Some("/tmp/ui-fonts/imported.ttf"),
+        "uiFontFilePath should serialize when set"
+    );
+    assert_eq!(
+        value.get("uiFontFileSourceName").and_then(Value::as_str),
+        Some("MyFont.ttf"),
+        "uiFontFileSourceName should serialize when set"
+    );
+
+    let decoded: AppSettings =
+        serde_json::from_value(value).expect("deserialize AppSettings with ui appearance");
+    assert_eq!(decoded.ui_scale_percent, 110);
+    assert_eq!(decoded.ui_font_size_percent, 120);
+    assert_eq!(decoded.ui_font_family, UiFontFamily::Mono);
+    assert_eq!(decoded.ui_font_name.as_deref(), Some("Consolas"));
+    assert_eq!(decoded.ui_font_download_id.as_deref(), Some("inter"));
+    assert_eq!(
+        decoded.ui_font_file_path.as_deref(),
+        Some("/tmp/ui-fonts/imported.ttf")
+    );
+    assert_eq!(
+        decoded.ui_font_file_source_name.as_deref(),
+        Some("MyFont.ttf")
     );
 }
 
@@ -403,25 +484,4 @@ fn app_settings_round_trips_updater_metadata() {
     );
     assert_eq!(decoded_updater.last_checked_at_ms, Some(1_735_000_000_000));
     assert_eq!(decoded_updater.available_version.as_deref(), Some("0.2.0"));
-}
-
-#[test]
-fn app_settings_round_trips_selection_bar_pinned() {
-    // Regression guard: the queue selection toolbar pin toggle must persist
-    // across restarts via settings.json.
-    let json = json!({
-        "selectionBarPinned": true,
-    });
-
-    let decoded: AppSettings =
-        serde_json::from_value(json).expect("deserialize AppSettings with selectionBarPinned");
-    let round_tripped = serde_json::to_value(&decoded).expect("serialize AppSettings after decode");
-
-    assert_eq!(
-        round_tripped
-            .get("selectionBarPinned")
-            .and_then(Value::as_bool),
-        Some(true),
-        "selectionBarPinned must survive a decode/encode round-trip",
-    );
 }

@@ -23,6 +23,7 @@ export interface RemoteToolVersionInfo {
 
 export interface RemoteToolVersionCache {
   ffmpegStatic?: RemoteToolVersionInfo;
+  libavif?: RemoteToolVersionInfo;
 }
 
 export type TaskbarProgressMode = "bySize" | "byDuration" | "byEstimatedTime";
