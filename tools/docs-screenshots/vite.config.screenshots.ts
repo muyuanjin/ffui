@@ -17,6 +17,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
   const aliasI18n = resolveFromRepo("tools/docs-screenshots/mocks/i18n.ts");
   const aliasTauriEvent = resolveFromRepo("tools/docs-screenshots/mocks/tauri-event.ts");
   const aliasTauriCore = resolveFromRepo("tools/docs-screenshots/mocks/tauri-core.ts");
+  const aliasTauriWindow = resolveFromRepo("tools/docs-screenshots/mocks/tauri-window.ts");
 
   const srcMainAbs = resolveFromRepo("src/main.ts");
   const srcDir = resolveFromRepo("src");
@@ -48,6 +49,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
         { find: "@/lib/backend", replacement: aliasBackend },
         { find: "@tauri-apps/api/event", replacement: aliasTauriEvent },
         { find: "@tauri-apps/api/core", replacement: aliasTauriCore },
+        { find: "@tauri-apps/api/window", replacement: aliasTauriWindow },
         // Keep the project's canonical "@/" path mapping, but avoid matching
         // scoped packages like "@tauri-apps/*".
         { find: /^@\//, replacement: `${srcDir}/` },

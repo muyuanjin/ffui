@@ -7,12 +7,15 @@ import type {
   ExternalToolStatus,
   FFmpegPreset,
   GpuUsageSnapshot,
+  OutputPolicy,
   QueueStateLite,
+  QueueState,
   SmartScanConfig,
   SystemMetricsSnapshot,
   TranscodeActivityToday,
   TranscodeJob,
 } from "@/types";
+import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 
 // The production app talks to a Tauri backend. For docs screenshots we replace
 // the backend module at build time (Vite alias) with this in-browser mock so
@@ -238,7 +241,7 @@ const makePresets = (): FFmpegPreset[] => {
       name: "Fast Preview",
       description: "x264 Veryfast CRF 28. Quick iterations.",
       video: { encoder: "libx264", rateControl: "crf", qualityValue: 28, preset: "veryfast" },
-      audio: { codec: "aac", bitrateKbps: 192 },
+      audio: { codec: "aac", bitrate: 192 },
       filters: { scale: "-2:1080" },
       stats: { usageCount: 76, totalInputSizeMB: 18_900, totalOutputSizeMB: 9_400, totalTimeSeconds: 1_250 },
     },
@@ -247,7 +250,7 @@ const makePresets = (): FFmpegPreset[] => {
       name: "Device Friendly",
       description: "H.264 baseline-ish settings for compatibility.",
       video: { encoder: "libx264", rateControl: "crf", qualityValue: 24, preset: "fast", profile: "baseline" },
-      audio: { codec: "aac", bitrateKbps: 160 },
+      audio: { codec: "aac", bitrate: 160 },
       filters: { scale: "-2:720" },
       stats: { usageCount: 19, totalInputSizeMB: 12_400, totalOutputSizeMB: 7_300, totalTimeSeconds: 980 },
     },
@@ -389,6 +392,10 @@ export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
   return { jobs: buildQueueJobs() };
 };
 
+export const loadQueueState = async (): Promise<QueueState> => {
+  return { jobs: buildQueueJobs() };
+};
+
 export const loadPreviewDataUrl = async (_path: string): Promise<string> => {
   throw new Error("loadPreviewDataUrl is not implemented in docs screenshot mode");
 };
@@ -401,7 +408,113 @@ export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null>
   return (job as any) ?? null;
 };
 
-export const enqueueTranscodeJob = async (_inputPath: string, _presetId: string): Promise<boolean> => true;
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter((item) => item.length > 0);
+};
+
+const inferFilename = (value: string): string => {
+  const normalized = String(value ?? "").replace(/\\/g, "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+};
+
+const makeEnqueuedJob = (params: {
+  filename: string;
+  presetId: string;
+  jobType?: string;
+  source?: string;
+  originalSizeMb?: number;
+  originalCodec?: string | undefined;
+}): TranscodeJob => {
+  const now = Date.now();
+  const id = `docs-enqueued-${now}-${Math.random().toString(16).slice(2, 8)}`;
+  const filename = params.filename.trim() || "input.mp4";
+  const outputPath = `C:/output/${filename.replace(/\.[^/.]+$/, "")}.out.mp4`;
+  return {
+    id,
+    filename,
+    type: (params.jobType as any) ?? "video",
+    source: (params.source as any) ?? "manual",
+    originalSizeMB: params.originalSizeMb ?? 0,
+    originalCodec: params.originalCodec,
+    presetId: params.presetId,
+    status: "waiting",
+    progress: 0,
+    inputPath: filename,
+    outputPath,
+    previewPath: undefined,
+    ffmpegCommand: `ffmpeg -hide_banner -y -i "${filename}" ... "${outputPath}"`,
+    logs: [],
+    estimatedSeconds: 60,
+  };
+};
+
+export const expandManualJobInputs = async (
+  paths: string[],
+  options?: { recursive?: boolean },
+): Promise<string[]> => {
+  const normalized = normalizeStringArray(paths);
+  if (normalized.length === 0) return [];
+  // In docs screenshot mode we don't touch the filesystem; return the inputs.
+  // (The production backend expands folders recursively.)
+  if (options?.recursive) return normalized;
+  return normalized;
+};
+
+export const enqueueTranscodeJob = async (
+  paramsOrPath: {
+    filename: string;
+    jobType: string;
+    source: string;
+    originalSizeMb: number;
+    originalCodec?: string;
+    presetId: string;
+  } | string,
+  maybePresetId?: string,
+): Promise<TranscodeJob> => {
+  if (typeof paramsOrPath === "string") {
+    const filename = inferFilename(paramsOrPath);
+    const presetId = String(maybePresetId ?? "p1");
+    return makeEnqueuedJob({ filename, presetId });
+  }
+
+  const presetId = String((paramsOrPath as any)?.presetId ?? "p1");
+  const filename = String((paramsOrPath as any)?.filename ?? "");
+  return makeEnqueuedJob({
+    filename: inferFilename(filename),
+    presetId,
+    jobType: (paramsOrPath as any)?.jobType,
+    source: (paramsOrPath as any)?.source,
+    originalSizeMb: Number((paramsOrPath as any)?.originalSizeMb ?? 0) || 0,
+    originalCodec: (paramsOrPath as any)?.originalCodec,
+  });
+};
+
+export const enqueueTranscodeJobs = async (params: {
+  filenames: string[];
+  jobType: string;
+  source: string;
+  originalSizeMb: number;
+  originalCodec?: string;
+  presetId: string;
+}): Promise<TranscodeJob[]> => {
+  const filenames = normalizeStringArray((params as any)?.filenames ?? (params as any)?.fileNames);
+  if (filenames.length === 0) return [];
+  const presetId = String((params as any)?.presetId ?? (params as any)?.preset_id ?? "p1");
+  return filenames.map((name) =>
+    makeEnqueuedJob({
+      filename: inferFilename(name),
+      presetId,
+      jobType: (params as any)?.jobType,
+      source: (params as any)?.source,
+      originalSizeMb: Number((params as any)?.originalSizeMb ?? 0) || 0,
+      originalCodec: (params as any)?.originalCodec,
+    }),
+  );
+};
 
 export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const cancelTranscodeJob = async (_jobId: string): Promise<boolean> => true;
@@ -412,6 +525,18 @@ export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => t
 export const reorderQueue = async (_orderedJobIds: string[]): Promise<boolean> => true;
 
 export const deleteSmartScanBatchOnBackend = async (_batchId: string): Promise<boolean> => true;
+
+export const previewOutputPath = async (params: {
+  inputPath: string;
+  presetId?: string | null;
+  outputPolicy: OutputPolicy;
+}): Promise<string | null> => {
+  const inputPath = String(params?.inputPath ?? "").trim();
+  if (!inputPath) return null;
+  const policy = params?.outputPolicy;
+  if (!policy) return null;
+  return previewOutputPathLocal(inputPath, policy);
+};
 
 export const revealPathInFolder = async (_path: string): Promise<boolean> => true;
 
@@ -480,6 +605,30 @@ export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> =>
     });
   }
   return result;
+};
+
+export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {
+  const settings = await loadAppSettings();
+  return settings.smartScanDefaults;
+};
+
+export const saveSmartScanDefaults = async (config: SmartScanConfig): Promise<SmartScanConfig> => {
+  const settings = await loadAppSettings();
+  appSettingsSnapshot = { ...settings, smartScanDefaults: config };
+  return config;
+};
+
+export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]> => {
+  return fetchExternalToolStatusesCached();
+};
+
+export const ensureOpenSourceFontDownloaded = async (_fontId: string): Promise<DownloadedFontInfo> => {
+  return {
+    id: "docs-font",
+    familyName: "FFUI Docs Font",
+    path: "C:/Windows/Fonts/ffui-docs-font.ttf",
+    format: "ttf",
+  } satisfies DownloadedFontInfo;
 };
 
 export const fetchTranscodeActivityToday = async (): Promise<TranscodeActivityToday> => {

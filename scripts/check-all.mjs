@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import path from "node:path";
 
 function stripAnsi(text) {
   return text.replaceAll(
@@ -58,6 +59,12 @@ function runNpmStep(label, npmArgs, options = {}) {
 
 runNpmStep("Frontend build (vue-tsc + vite)", ["run", "build"]);
 runNpmStep("Frontend tests (vitest --run)", ["run", "test", "--", "--run"]);
+
+{
+  const viteBin = path.join(process.cwd(), "node_modules", "vite", "bin", "vite.js");
+  const configPath = path.join(process.cwd(), "tools", "docs-screenshots", "vite.config.screenshots.ts");
+  runStep("Docs screenshots build (vite)", process.execPath, [viteBin, "build", "--config", configPath]);
+}
 
 runStep("Rust build (warnings as errors)", "cargo", ["build"], {
   cwd: "src-tauri",
