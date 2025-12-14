@@ -86,6 +86,7 @@ pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<Discove
 /// 简单基于路径字符串判断是否是 Windows Prefetch 生成的 .pf 文件。
 /// 这类文件并不是可执行文件，但 Everything 等索引工具可能会返回它们，
 /// 如果不加过滤就去执行，会得到类似“%1 不是有效的 Win32 应用程序”的错误。
+#[cfg_attr(not(windows), allow(dead_code))]
 fn is_prefetch_path(p: &Path) -> bool {
     let s = p.to_string_lossy().to_ascii_lowercase();
     s.ends_with(".pf") || s.contains("\\prefetch\\")
@@ -201,11 +202,6 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
     Some(results)
 }
 
-#[cfg(not(windows))]
-fn windows_registry_locations(_program: &str) -> Option<Vec<PathBuf>> {
-    None
-}
-
 #[cfg(windows)]
 fn everything_search(program: &str) -> Option<Vec<PathBuf>> {
     use everything_sdk::ergo::*;
@@ -239,11 +235,6 @@ fn everything_search(program: &str) -> Option<Vec<PathBuf>> {
         sort_by_proximity(list.as_mut_slice());
     }
     if list.is_empty() { None } else { Some(list) }
-}
-
-#[cfg(not(windows))]
-fn everything_search(_program: &str) -> Option<Vec<PathBuf>> {
-    None
 }
 
 #[cfg(windows)]

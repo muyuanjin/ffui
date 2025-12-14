@@ -175,18 +175,17 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
         let mut families = BTreeSet::new();
         for handle in handles {
             if let Ok(font) = handle.load() {
-                if let Ok(name) = font.family_name() {
-                    let trimmed = name.trim();
-                    if !trimmed.is_empty() {
-                        families.insert(trimmed.to_string());
-                    }
+                let name = font.family_name();
+                let trimmed = name.trim();
+                if !trimmed.is_empty() {
+                    families.insert(trimmed.to_string());
                 }
             }
         }
 
         Ok(families
             .into_iter()
-            .map(|name| SystemFontFamily {
+            .map(|name: String| SystemFontFamily {
                 primary: name.clone(),
                 names: vec![name],
             })

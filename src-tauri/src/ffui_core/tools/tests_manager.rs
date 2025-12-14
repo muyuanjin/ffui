@@ -35,10 +35,13 @@ mod tools_tests_manager {
         let bin = tools_dir.join("ffprobe");
 
         // 构造一个能通过 verify_tool_binary 的最小脚本/批处理。
-        let mut f = File::create(&bin).expect("create fake ffprobe script");
-        writeln!(f, "#!/usr/bin/env sh").ok();
-        writeln!(f, "[ \"$1\" = \"-version\" ] && exit 0").ok();
-        writeln!(f, "exit 1").ok();
+        // 注意：在 Linux 上如果文件仍处于写入打开状态，执行会触发 ETXTBSY。
+        {
+            let mut f = File::create(&bin).expect("create fake ffprobe script");
+            writeln!(f, "#!/usr/bin/env sh").ok();
+            writeln!(f, "[ \"$1\" = \"-version\" ] && exit 0").ok();
+            writeln!(f, "exit 1").ok();
+        }
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&bin).expect("meta").permissions();
         perms.set_mode(0o755);
@@ -85,10 +88,11 @@ mod tools_tests_manager {
             Some(10),
         );
 
-        // Simulate aria2c writing bytes in the background.
+        // Simulate aria2c writing bytes in the background (write exactly 4 bytes).
         {
             let mut f = File::create(&file_path).expect("create file");
-            writeln!(f, "1234").expect("write");
+            f.write_all(b"1234").expect("write");
+            f.flush().ok();
         }
 
         std::thread::sleep(Duration::from_millis(400));
@@ -102,6 +106,6 @@ mod tools_tests_manager {
 
         assert_eq!(state.downloaded_bytes, Some(4));
         assert_eq!(state.total_bytes, Some(10));
-        assert!(state.progress.unwrap_or_default().abs_sub(40.0).lt(&0.1));
+        assert!((state.progress.unwrap_or_default() - 40.0).abs() < 0.1);
     }
 }

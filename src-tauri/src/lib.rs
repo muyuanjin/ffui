@@ -3,7 +3,13 @@ mod ffui_core;
 mod queue_events;
 mod single_instance;
 mod system_metrics;
+
+// Taskbar progress APIs are Windows-only; on other platforms we keep the module
+// present but empty so `-D warnings` does not fail due to unused helpers.
+#[cfg(windows)]
 mod taskbar_progress;
+#[cfg(not(windows))]
+mod taskbar_progress {}
 
 use std::{thread, time::Duration};
 

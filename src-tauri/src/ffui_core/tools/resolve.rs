@@ -130,7 +130,7 @@ pub(super) fn looks_like_bare_program_name(program: &str) -> bool {
 pub(super) fn resolve_in_path_with_env(
     program: &str,
     path_var: Option<std::ffi::OsString>,
-    pathext_var: Option<std::ffi::OsString>,
+    _pathext_var: Option<std::ffi::OsString>,
 ) -> Option<PathBuf> {
     // Skip values that already look like explicit paths.
     if program.contains('/') || program.contains('\\') {
@@ -142,7 +142,7 @@ pub(super) fn resolve_in_path_with_env(
 
     #[cfg(windows)]
     let exts: Vec<String> = {
-        let pathext = pathext_var.unwrap_or_else(|| ".EXE;.BAT;.CMD;.COM".into());
+        let pathext = _pathext_var.unwrap_or_else(|| ".EXE;.BAT;.CMD;.COM".into());
         pathext
             .to_string_lossy()
             .split(';')
@@ -157,9 +157,6 @@ pub(super) fn resolve_in_path_with_env(
             })
             .collect()
     };
-
-    #[cfg(not(windows))]
-    let exts: Vec<String> = vec!["".to_string()];
 
     for dir in paths {
         #[cfg(windows)]

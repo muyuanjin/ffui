@@ -6,7 +6,10 @@
 //! - Media inspection and preview generation
 //! - Developer tools and taskbar progress management
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+#[cfg(windows)]
+use std::path::Path;
 
 use tauri::{AppHandle, State, WebviewWindow};
 
@@ -281,7 +284,11 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
 
         // We only treat existing regular files as playable targets; this
         // avoids accidentally returning directories or other special nodes.
+
+        #[cfg(windows)]
         let mut metadata = fs::metadata(path);
+        #[cfg(not(windows))]
+        let metadata = fs::metadata(path);
 
         // Windows 在超长路径或 UNC 路径下容易因为缺少 \\?\ 前缀导致 is_file 误判，
         // 失败时尝试一次扩展路径再检查，尽量减少“明明存在却判定不存在”的情况。

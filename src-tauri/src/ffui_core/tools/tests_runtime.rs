@@ -4,6 +4,8 @@ pub(crate) use tools_tests_runtime::TEST_MUTEX;
 #[cfg(test)]
 mod tools_tests_runtime {
     use crate::ffui_core::settings::ExternalToolSettings;
+    #[cfg(not(windows))]
+    use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
     use crate::ffui_core::tools::runtime_state::{
         LATEST_TOOL_STATUS, mark_download_finished, mark_download_progress, mark_download_started,
     };
@@ -175,21 +177,12 @@ mod tools_tests_runtime {
         let original_env_avifenc = std::env::var("FFUI_AVIFENC").ok();
         let original_env_tool = std::env::var("FFUI_TOOL").ok();
 
-        #[cfg(windows)]
         fn set_env<K: AsRef<std::ffi::OsStr>, V: AsRef<std::ffi::OsStr>>(k: K, v: V) {
             unsafe { std::env::set_var(k, v) }
         }
-        #[cfg(not(windows))]
-        fn set_env<K: AsRef<std::ffi::OsStr>, V: AsRef<std::ffi::OsStr>>(k: K, v: V) {
-            std::env::set_var(k, v);
-        }
-        #[cfg(windows)]
+
         fn remove_env<K: AsRef<std::ffi::OsStr>>(k: K) {
             unsafe { std::env::remove_var(k) }
-        }
-        #[cfg(not(windows))]
-        fn remove_env<K: AsRef<std::ffi::OsStr>>(k: K) {
-            std::env::remove_var(k);
         }
 
         set_env("PATH", "");
@@ -353,7 +346,7 @@ mod tools_tests_runtime {
             map.clear();
         }
         {
-            let mut map = super::super::runtime_state::LAST_TOOL_DOWNLOAD
+            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD
                 .lock()
                 .expect("LAST_TOOL_DOWNLOAD lock poisoned");
             map.clear();

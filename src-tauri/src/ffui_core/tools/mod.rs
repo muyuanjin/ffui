@@ -45,3 +45,15 @@ pub(crate) fn try_refresh_libavif_release_from_github() -> Option<(String, Strin
     let info = download::try_refresh_libavif_release_from_github()?;
     Some((info.version, info.tag))
 }
+
+#[cfg(all(test, not(windows)))]
+fn spawn_download_size_probe(
+    kind: ExternalToolKind,
+    tmp_path: std::path::PathBuf,
+    total: Option<u64>,
+) -> (
+    std::sync::Arc<std::sync::atomic::AtomicBool>,
+    std::thread::JoinHandle<()>,
+) {
+    download::manager::spawn_download_size_probe(kind, tmp_path, total)
+}

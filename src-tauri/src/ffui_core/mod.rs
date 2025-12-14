@@ -16,6 +16,7 @@ pub use monitor_activity::TranscodeActivityToday;
 pub(crate) use monitor_activity::{
     emit_transcode_activity_today_if_possible, set_app_handle as set_transcode_activity_app_handle,
 };
+#[cfg_attr(not(windows), allow(unused_imports))]
 pub use settings::{
     AppSettings, DEFAULT_METRICS_INTERVAL_MS, TaskbarProgressMode, TaskbarProgressScope,
     hardware_smart_default_presets,

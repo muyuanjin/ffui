@@ -1,6 +1,8 @@
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ffui_core::{QueueStateLite, TranscodingEngine};
+
+#[cfg(windows)]
 use crate::taskbar_progress::update_taskbar_progress_lite;
 
 fn parse_bool_env(value: Option<&str>, default: bool) -> bool {

@@ -1,8 +1,12 @@
 use std::collections::HashMap;
-use std::fs::{self, File};
-use std::io::{Read, Seek, SeekFrom};
+use std::fs;
 use std::process::Command;
 use std::time::{Duration, SystemTime};
+
+#[cfg(windows)]
+use std::fs::File;
+#[cfg(windows)]
+use std::io::{Read, Seek, SeekFrom};
 
 use super::runtime_state::mark_arch_incompatible_for_session;
 use super::types::*;
@@ -29,11 +33,6 @@ fn looks_like_pe_executable(path: &str) -> bool {
         return false;
     }
     mz == [b'M', b'Z']
-}
-
-#[cfg(not(windows))]
-fn looks_like_pe_executable(_path: &str) -> bool {
-    true
 }
 
 // 说明：通过前置 PE 头检查避免大多数系统弹窗，无需额外 Win32 调用。

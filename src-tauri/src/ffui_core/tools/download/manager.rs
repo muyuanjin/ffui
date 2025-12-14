@@ -33,7 +33,7 @@ use crate::ffui_core::tools::types::*;
 /// (notably aria2c), poll the temporary download file size and emit progress
 /// events so the frontend sees determinate progress instead of a long-lived
 /// indeterminate spinner.
-fn spawn_download_size_probe(
+pub(crate) fn spawn_download_size_probe(
     kind: ExternalToolKind,
     tmp_path: PathBuf,
     total: Option<u64>,

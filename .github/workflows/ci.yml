@@ -56,17 +56,22 @@ jobs:
         run: npm run build
 
       - name: Frontend tests (non-interactive)
-        run: CI=1 npm test -- --run
+        env:
+          CI: "1"
+        run: npm test -- --run
 
       - name: Rust fmt
         run: cargo fmt --check
         working-directory: src-tauri
 
       - name: Rust tests
-        run: RUSTFLAGS="-Dwarnings" cargo test --locked
+        env:
+          RUSTFLAGS: "-Dwarnings"
+        run: cargo test --locked
         working-directory: src-tauri
 
       - name: Rust clippy
-        run: RUSTFLAGS="-Dwarnings" cargo clippy --all-targets --locked -- -D warnings
+        env:
+          RUSTFLAGS: "-Dwarnings"
+        run: cargo clippy --all-targets --locked -- -D warnings
         working-directory: src-tauri
-

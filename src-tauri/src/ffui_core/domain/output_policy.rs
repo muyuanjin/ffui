@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 pub enum OutputContainerPolicy {
     /// Follow the preset (structured) or the advanced template when present.
     #[serde(rename = "default")]
+    #[default]
     Default,
     /// Force the output container to match the input file's extension.
     #[serde(rename = "keepInput")]
@@ -14,25 +15,14 @@ pub enum OutputContainerPolicy {
     Force { format: String },
 }
 
-impl Default for OutputContainerPolicy {
-    fn default() -> Self {
-        Self::Default
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 pub enum OutputDirectoryPolicy {
     #[serde(rename = "sameAsInput")]
+    #[default]
     SameAsInput,
     #[serde(rename = "fixed")]
     Fixed { directory: String },
-}
-
-impl Default for OutputDirectoryPolicy {
-    fn default() -> Self {
-        Self::SameAsInput
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
