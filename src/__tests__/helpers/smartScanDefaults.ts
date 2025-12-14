@@ -6,10 +6,12 @@ export function buildSmartScanDefaults(overrides: Partial<SmartScanConfig> = {})
   const videoFilter = overrides.videoFilter ?? DEFAULT_SMART_SCAN_CONFIG.videoFilter;
   const imageFilter = overrides.imageFilter ?? DEFAULT_SMART_SCAN_CONFIG.imageFilter;
   const audioFilter = overrides.audioFilter ?? DEFAULT_SMART_SCAN_CONFIG.audioFilter;
+  const outputPolicy = overrides.outputPolicy ?? DEFAULT_SMART_SCAN_CONFIG.outputPolicy;
 
   return {
     ...DEFAULT_SMART_SCAN_CONFIG,
     ...overrides,
+    outputPolicy: outputPolicy ? { ...outputPolicy } : outputPolicy,
     videoFilter: {
       enabled: videoFilter.enabled ?? DEFAULT_SMART_SCAN_CONFIG.videoFilter.enabled,
       extensions: [...(videoFilter.extensions ?? DEFAULT_SMART_SCAN_CONFIG.videoFilter.extensions)],

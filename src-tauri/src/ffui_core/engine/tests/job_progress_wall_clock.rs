@@ -34,6 +34,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                 skip_reason: None,
                 input_path: None,
                 output_path: None,
+                output_policy: None,
                 ffmpeg_command: None,
                 media_info: Some(MediaInfo {
                     duration_seconds: Some(120.0),

@@ -12,6 +12,7 @@ import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
 import { useMainAppDnDAndContextMenu } from "@/composables/main-app/useMainAppDnDAndContextMenu";
 import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu";
 import { useMainAppUpdater } from "@/composables/main-app/useMainAppUpdater";
+import { useQueueOutputPolicy } from "@/composables/main-app/useQueueOutputPolicy";
 import { useJobLog } from "@/composables";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
@@ -324,6 +325,8 @@ export function useMainAppSetup() {
     // 直接更新 appSettings，useAppSettings 的 watch 会自动触发持久化
     settings.appSettings.value = nextSettings;
   };
+
+  const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(settings.appSettings);
   const { dialogManager, selectedJobForDetail } = dialogs;
   // Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
   // Prefer the backend-probed resolvedPath (which already accounts for
@@ -458,6 +461,8 @@ export function useMainAppSetup() {
     presetViewMode,
     selectionBarPinned,
     setSelectionBarPinned,
+    queueOutputPolicy,
+    setQueueOutputPolicy,
     queuePanelProps,
     handleImportSmartPackConfirmed,
     ffmpegResolvedPath,

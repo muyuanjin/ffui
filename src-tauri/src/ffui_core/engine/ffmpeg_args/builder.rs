@@ -1,37 +1,12 @@
 use std::path::Path;
 
 use super::normalize_container_format;
+use super::output_policy::{enforce_output_muxer_for_template, forced_muxer_for_policy};
+use super::utils::ensure_progress_args;
 use crate::ffui_core::domain::{
-    AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OverwriteBehavior, RateControlMode,
-    SeekMode, SubtitleStrategy,
+    AudioCodecType, DurationMode, EncoderType, FFmpegPreset, OutputPolicy, OverwriteBehavior,
+    RateControlMode, SeekMode, SubtitleStrategy,
 };
-/// Build a human-readable command line for logging, quoting arguments that
-/// contain spaces to make it easier to copy/paste for debugging.
-pub(crate) fn format_command_for_log(program: &str, args: &[String]) -> String {
-    fn quote_arg(arg: &str) -> String {
-        if arg.contains(' ') {
-            format!("\"{arg}\"")
-        } else {
-            arg.to_string()
-        }
-    }
-
-    let mut parts = Vec::with_capacity(args.len() + 1);
-    parts.push(quote_arg(program));
-    for arg in args {
-        parts.push(quote_arg(arg));
-    }
-    parts.join(" ")
-}
-
-pub(crate) fn ensure_progress_args(args: &mut Vec<String>) {
-    if args.iter().any(|arg| arg == "-progress") {
-        return;
-    }
-
-    args.insert(0, "pipe:2".to_string());
-    args.insert(0, "-progress".to_string());
-}
 
 /// 构建 ffmpeg 参数列表。
 ///
@@ -43,7 +18,10 @@ pub(crate) fn build_ffmpeg_args(
     input: &Path,
     output: &Path,
     non_interactive: bool,
+    output_policy: Option<&OutputPolicy>,
 ) -> Vec<String> {
+    let forced_muxer = forced_muxer_for_policy(output_policy, input);
+
     if preset.advanced_enabled.unwrap_or(false)
         && preset
             .ffmpeg_template
@@ -61,6 +39,9 @@ pub(crate) fn build_ffmpeg_args(
         ensure_progress_args(&mut args);
         if non_interactive && !args.iter().any(|a| a == "-nostdin") {
             args.push("-nostdin".to_string());
+        }
+        if let Some(fmt) = forced_muxer.as_deref() {
+            enforce_output_muxer_for_template(&mut args, output, fmt);
         }
         return args;
     }
@@ -437,11 +418,15 @@ pub(crate) fn build_ffmpeg_args(
     }
 
     if let Some(container) = &preset.container {
-        if let Some(format) = &container.format
-            && !format.is_empty()
+        let muxer = forced_muxer
+            .as_deref()
+            .map(|s| s.to_string())
+            .or_else(|| container.format.as_deref().map(|s| s.to_string()));
+        if let Some(format) = muxer
+            && !format.trim().is_empty()
         {
             args.push("-f".to_string());
-            let normalized = normalize_container_format(format);
+            let normalized = normalize_container_format(&format);
             if !normalized.is_empty() {
                 args.push(normalized);
             }
@@ -457,6 +442,14 @@ pub(crate) fn build_ffmpeg_args(
                 args.push("-movflags".to_string());
                 args.push(joined);
             }
+        }
+    } else if let Some(format) = forced_muxer.as_deref() {
+        // Presets without an explicit container group still need to honor a
+        // forced output container policy.
+        args.push("-f".to_string());
+        let normalized = normalize_container_format(format);
+        if !normalized.is_empty() {
+            args.push(normalized);
         }
     }
 

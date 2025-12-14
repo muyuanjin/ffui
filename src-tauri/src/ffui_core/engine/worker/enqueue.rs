@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
+use crate::ffui_core::domain::OutputPolicy;
 use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
 
-use super::super::ffmpeg_args::infer_output_extension;
 use super::super::ffmpeg_args::{build_ffmpeg_args, format_command_for_log};
+use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 
@@ -43,26 +44,19 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
         let estimated_seconds = preset
             .as_ref()
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
+        let queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
         let output_path = if matches!(job_type, JobType::Video) {
             let path = PathBuf::from(&filename);
-            let container_format = preset
-                .as_ref()
-                .and_then(|p| p.container.as_ref())
-                .and_then(|c| c.format.as_deref());
-            let input_ext = path.extension().and_then(|e| e.to_str());
-            let ext = infer_output_extension(container_format, input_ext);
-
-            let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("output");
-            Some(
-                parent
-                    .join(format!("{stem}.compressed.{ext}"))
-                    .to_string_lossy()
-                    .into_owned(),
-            )
+            let plan =
+                plan_video_output_path(&path, preset.as_ref(), &queue_output_policy, |candidate| {
+                    let c = candidate.to_string_lossy();
+                    state
+                        .jobs
+                        .values()
+                        .any(|j| j.output_path.as_deref() == Some(c.as_ref()))
+                        || state.known_smart_scan_outputs.contains(c.as_ref())
+                });
+            Some(plan.output_path.to_string_lossy().into_owned())
         } else {
             None
         };
@@ -72,7 +66,13 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
                 (Some(preset), Some(output_path)) => {
                     let input_path_buf = PathBuf::from(&filename);
                     let output_path_buf = PathBuf::from(output_path);
-                    let args = build_ffmpeg_args(preset, &input_path_buf, &output_path_buf, false);
+                    let args = build_ffmpeg_args(
+                        preset,
+                        &input_path_buf,
+                        &output_path_buf,
+                        false,
+                        Some(&queue_output_policy),
+                    );
                     Some(format_command_for_log("ffmpeg", &args))
                 }
                 _ => None,
@@ -102,6 +102,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             skip_reason: None,
             input_path: Some(input_path),
             output_path,
+            output_policy: Some(queue_output_policy.clone()),
             ffmpeg_command: planned_command,
             media_info: Some(MediaInfo {
                 duration_seconds: None,

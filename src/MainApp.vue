@@ -193,9 +193,16 @@ const {
   selectionBarPinned,
   setSelectionBarPinned,
 
+  // 队列输出策略（手动入队）
+  queueOutputPolicy,
+  setQueueOutputPolicy,
+
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp as any;
+
+const addManualJobsFromFiles = async () => addManualJob("files");
+const addManualJobsFromFolder = async () => addManualJob("folder");
 
 const manualJobPresetId = computed<string | null>({
   get() {
@@ -241,7 +248,8 @@ defineExpose({
         :jobs="jobs"
         :app-update-available="updateAvailable"
         @update:active-tab="activeTab = $event"
-        @add-job="addManualJob"
+        @add-job-files="addManualJobsFromFiles"
+        @add-job-folder="addManualJobsFromFolder"
         @smart-scan="startSmartScan"
       />
 
@@ -257,8 +265,10 @@ defineExpose({
           :presets="presets"
           :queue-view-mode-model="queueViewModeModel"
           :preset-sort-mode="presetSortMode"
+          :queue-output-policy="queueOutputPolicy"
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
           @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
+          @update:queueOutputPolicy="(v) => setQueueOutputPolicy(v)"
           @openPresetWizard="dialogManager.openWizard()"
         />
 
@@ -321,7 +331,8 @@ defineExpose({
               @update:queue-view-mode="setQueueViewMode"
               @update:queue-mode="setQueueMode"
               @update:queue-progress-style="setQueueProgressStyle"
-              @add-job="addManualJob"
+              @add-job-files="addManualJobsFromFiles"
+              @add-job-folder="addManualJobsFromFolder"
               @cancel-job="handleCancelJob"
               @wait-job="handleWaitJob"
               @resume-job="handleResumeJob"

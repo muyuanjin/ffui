@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import type { FFmpegPreset, SmartScanConfig } from "../types";
 import {
-  DEFAULT_SMART_SCAN_CONFIG,
   VIDEO_EXTENSIONS,
   IMAGE_EXTENSIONS,
   AUDIO_EXTENSIONS,
@@ -16,6 +15,8 @@ import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
+import { buildSmartScanConfig } from "@/lib/smartScanConfig";
 
 const props = defineProps<{
   presets: FFmpegPreset[];
@@ -32,27 +33,13 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 // 深拷贝初始配置
-const config = ref<SmartScanConfig>({
-  ...DEFAULT_SMART_SCAN_CONFIG,
-  ...props.initialConfig,
-  videoPresetId:
-    props.initialConfig?.videoPresetId ||
-    props.defaultVideoPresetId ||
-    props.presets[0]?.id ||
-    "",
-  videoFilter: {
-    enabled: props.initialConfig?.videoFilter?.enabled ?? true,
-    extensions: [...(props.initialConfig?.videoFilter?.extensions ?? VIDEO_EXTENSIONS)],
-  },
-  imageFilter: {
-    enabled: props.initialConfig?.imageFilter?.enabled ?? true,
-    extensions: [...(props.initialConfig?.imageFilter?.extensions ?? IMAGE_EXTENSIONS)],
-  },
-  audioFilter: {
-    enabled: props.initialConfig?.audioFilter?.enabled ?? false,
-    extensions: [...(props.initialConfig?.audioFilter?.extensions ?? AUDIO_EXTENSIONS)],
-  },
-});
+const config = ref<SmartScanConfig>(
+  buildSmartScanConfig({
+    presets: props.presets,
+    initialConfig: props.initialConfig,
+    defaultVideoPresetId: props.defaultVideoPresetId,
+  }),
+);
 
 // 为了兼容 reka-ui Select 的约束（选项 value 不能为 ""），在音频预设选择上使用哨兵值
 const AUDIO_PRESET_DEFAULT_VALUE = "__ffui__audio_default__";
@@ -221,6 +208,19 @@ const handleRun = () => {
             <Button variant="outline" size="sm" class="h-9 px-3 shrink-0" @click="selectFolder">
               {{ t("smartScan.browse") }}
             </Button>
+          </div>
+        </div>
+
+        <!-- 输出设置（仅影响本次批量压缩任务） -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <Label class="text-xs font-medium text-foreground">{{ t("app.outputSettings") }}</Label>
+            <span class="text-[10px] text-muted-foreground">
+              {{ t("smartScan.replaceOriginalHint") }}
+            </span>
+          </div>
+          <div class="bg-card/40 border border-border/60 rounded-lg p-3">
+            <OutputPolicyEditor v-model="config.outputPolicy" :lock-location-and-name="config.replaceOriginal" />
           </div>
         </div>
 

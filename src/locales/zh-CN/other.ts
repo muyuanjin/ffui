@@ -74,6 +74,39 @@ const other = {
       "如果压缩后节省的空间小于 {size} MB，结果会被丢弃（不划算）。",
     scanButton: "扫描并压缩",
   },
+  outputPolicy: {
+    containerLabel: "输出容器",
+    container: {
+      default: "默认（走预设/模板）",
+      keepInput: "维持原文件容器",
+      force: "指定格式",
+    },
+    dirLabel: "输出目录",
+    dir: {
+      sameAsInput: "原文件目录",
+      fixed: "指定目录",
+      pick: "选择",
+      placeholder: "例如：D:/Outputs",
+    },
+    nameLabel: "文件名（不含扩展名）",
+    name: {
+      prefix: "头追加",
+      suffix: "尾追加",
+      timestamp: "附加时间戳（本地时间）",
+      encoderTag: "附加编码器+质量",
+      random: "附加随机字符",
+      randomHint: "长度",
+    },
+    regexLabel: "正则替换（Rust regex）",
+    regex: {
+      pattern: "Pattern",
+      replacement: "Replacement",
+    },
+    enabled: "启用",
+    preserveTimes: "输出后保留创建/修改/访问时间",
+    smartScanLockHint:
+      "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器/时间戳策略仍会生效。",
+  },
   taskDetail: {
     title: "任务详情",
     description: "查看该转码任务的媒体信息、路径、命令和日志。",

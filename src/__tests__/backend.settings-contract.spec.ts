@@ -42,6 +42,19 @@ const makeAppSettings = (): AppSettings => ({
   developerModeEnabled: false,
   selectionBarPinned: true,
   taskbarProgressMode: "byEstimatedTime",
+  queueOutputPolicy: {
+    container: { mode: "force", format: "mkv" },
+    directory: { mode: "fixed", directory: "D:/outputs" },
+    filename: {
+      prefix: "PRE_",
+      suffix: "_SUF",
+      appendTimestamp: true,
+      appendEncoderQuality: true,
+      randomSuffixLen: 6,
+      regexReplace: { pattern: "^video", replacement: "clip" },
+    },
+    preserveFileTimes: true,
+  },
   queuePersistenceMode: "crashRecoveryFull",
   crashRecoveryLogRetention: {
     maxFiles: 10,
@@ -75,6 +88,19 @@ describe("backend settings contract", () => {
     expect(payload).toMatchObject({
       settings: {
         selectionBarPinned: true,
+        queueOutputPolicy: {
+          container: { mode: "force", format: "mkv" },
+          directory: { mode: "fixed", directory: "D:/outputs" },
+          filename: {
+            prefix: "PRE_",
+            suffix: "_SUF",
+            appendTimestamp: true,
+            appendEncoderQuality: true,
+            randomSuffixLen: 6,
+            regexReplace: { pattern: "^video", replacement: "clip" },
+          },
+          preserveFileTimes: true,
+        },
         updater: {
           autoCheck: true,
           lastCheckedAtMs: 1_735_000_000_000,

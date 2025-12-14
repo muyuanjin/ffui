@@ -171,10 +171,18 @@ const app = {
   },
   emptyQueue: {
     title: "No active jobs",
-    subtitle: "Click Add transcode job or use the Smart Scan entry in the lower-left corner.",
+    subtitle: "Click Add files / Add folder, or use the Smart Scan entry in the lower-left corner.",
+  },
+  addManualJobDialog: {
+    title: "Add transcode jobs",
+    message: "Choose whether to select files or a folder.",
+    chooseFiles: "Select files",
+    chooseFolder: "Select folder",
+    cancel: "Cancel",
   },
   queueDefaultPresetLabel: "Default preset for new jobs",
   queueDefaultPresetPlaceholder: "Select preset used when adding jobs",
+  outputSettings: "Output settings",
   newPreset: "New Preset",
   lang: {
     label: "Language",
@@ -205,6 +213,8 @@ const app = {
     "Running in pure web mode; use your browser's devtools instead.",
   actions: {
     addJob: "Add transcode job",
+    addJobFiles: "Add files",
+    addJobFolder: "Add folder",
     smartScan: "Add compression task",
     deletePreset: "Delete",
     confirmDelete: "Confirm delete",

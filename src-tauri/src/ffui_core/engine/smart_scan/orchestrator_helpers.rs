@@ -49,6 +49,7 @@ pub(super) fn insert_image_stub_job(
         skip_reason: None,
         input_path: Some(path.to_string_lossy().into_owned()),
         output_path: None,
+        output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -113,6 +114,7 @@ pub(super) fn insert_audio_stub_job(
         skip_reason: None,
         input_path: Some(path.to_string_lossy().into_owned()),
         output_path: None,
+        output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,

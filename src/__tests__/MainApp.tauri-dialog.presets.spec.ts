@@ -95,7 +95,8 @@ describe("MainApp Tauri presets", () => {
     await vm.handleSavePreset(newPreset);
     vm.manualJobPresetId = newPreset.id;
 
-    await vm.addManualJob();
+    dialogOpenMock.mockResolvedValueOnce("C:/videos/sample.mp4");
+    await vm.addManualJob("files");
     await nextTick();
 
     const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];

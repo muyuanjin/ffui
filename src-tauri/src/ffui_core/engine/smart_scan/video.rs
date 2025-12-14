@@ -7,7 +7,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 
 use crate::ffui_core::domain::{
-    FFmpegPreset, JobSource, JobStatus, JobType, MediaInfo, SmartScanConfig, TranscodeJob,
+    FFmpegPreset, JobSource, JobStatus, JobType, MediaInfo, OutputDirectoryPolicy,
+    OutputFilenamePolicy, OutputPolicy, SmartScanConfig, TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
@@ -16,12 +17,10 @@ use super::super::ffmpeg_args::configure_background_command;
 use super::super::ffmpeg_args::{
     build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log,
 };
+use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
-use super::video_paths::{
-    build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path,
-    reserve_unique_smart_scan_video_output_path,
-};
+use super::video_paths::{build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path};
 
 fn detect_video_codec(path: &Path, settings: &AppSettings) -> Result<String> {
     let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
@@ -158,16 +157,14 @@ pub(crate) fn handle_video_file(
         skip_reason: None,
         input_path: Some(input_path.clone()),
         output_path: Some(
-            build_video_output_path(
-                path,
-                preset
-                    .as_ref()
-                    .and_then(|p| p.container.as_ref())
-                    .and_then(|c| c.format.as_deref()),
-            )
+            plan_video_output_path(path, preset.as_ref(), &config.output_policy, |candidate| {
+                super::super::state::is_known_smart_scan_output_with_inner(inner, candidate)
+            })
+            .output_path
             .to_string_lossy()
             .into_owned(),
         ),
+        output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -328,6 +325,20 @@ pub(crate) fn enqueue_smart_scan_video_job(
     let id = next_job_id(inner);
     let now_ms = current_time_millis();
 
+    // When Smart Scan is configured to replace the original video file, the output must be staged
+    // next to the input so the final rename stays within the same directory. In this mode we
+    // intentionally ignore directory/filename rules and keep the traditional `.compressed` naming.
+    let output_policy: OutputPolicy = if config.replace_original {
+        OutputPolicy {
+            container: config.output_policy.container.clone(),
+            directory: OutputDirectoryPolicy::SameAsInput,
+            filename: OutputFilenamePolicy::default(),
+            preserve_file_times: config.output_policy.preserve_file_times,
+        }
+    } else {
+        config.output_policy.clone()
+    };
+
     let mut job = TranscodeJob {
         id: id.clone(),
         filename,
@@ -349,6 +360,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
         skip_reason: None,
         input_path: Some(input_path.clone()),
         output_path: None,
+        output_policy: Some(output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -409,10 +421,18 @@ pub(crate) fn enqueue_smart_scan_video_job(
 
     // 为 Smart Scan 视频任务选择一个不会覆盖现有文件的输出路径，并记录到已知输出集合中。
     let mut state = inner.state.lock().expect("engine state poisoned");
-    let output_path = reserve_unique_smart_scan_video_output_path(&mut state, path, preset);
+    let output_plan = plan_video_output_path(path, Some(preset), &output_policy, |candidate| {
+        let s = candidate.to_string_lossy();
+        candidate.exists() || state.known_smart_scan_outputs.contains(s.as_ref())
+    });
+    let output_path = output_plan.output_path;
+    state
+        .known_smart_scan_outputs
+        .insert(output_path.to_string_lossy().into_owned());
 
     job.output_path = Some(output_path.to_string_lossy().into_owned());
-    let planned_args = build_queue_ffmpeg_args(preset, path, &output_path, false);
+    let planned_args =
+        build_queue_ffmpeg_args(preset, path, &output_path, false, Some(&output_policy));
     job.ffmpeg_command = Some(format_command_for_log("ffmpeg", &planned_args));
     job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);
 

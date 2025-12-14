@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::output_policy::OutputPolicy;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadata {
@@ -119,6 +121,10 @@ pub struct TranscodeJob {
     /// Planned or final output path for this job. For video transcodes this
     /// points at the `.compressed.*` target, even before the file exists.
     pub output_path: Option<String>,
+    /// Output policy snapshot captured at enqueue time so later changes to
+    /// defaults do not affect already-enqueued jobs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_policy: Option<OutputPolicy>,
     /// Human-readable ffmpeg command line used for this job, with quoted
     /// arguments so it can be copy/pasted from the UI.
     pub ffmpeg_command: Option<String>,
@@ -195,6 +201,8 @@ pub struct TranscodeJobLite {
     pub input_path: Option<String>,
     /// Planned or final output path for this job (e.g. .compressed.mp4).
     pub output_path: Option<String>,
+    /// Output policy snapshot captured at enqueue time.
+    pub output_policy: Option<OutputPolicy>,
     /// Human-readable ffmpeg command line used for this job. Unlike the full
     /// `logs` vector this is required for the UI to render task cards and
     /// details correctly, so it is preserved in the lite snapshot.
@@ -261,6 +269,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             output_size_mb: job.output_size_mb,
             input_path: job.input_path.clone(),
             output_path: job.output_path.clone(),
+            output_policy: job.output_policy.clone(),
             ffmpeg_command: job.ffmpeg_command.clone(),
             skip_reason: job.skip_reason.clone(),
             media_info: job.media_info.clone(),
@@ -309,6 +318,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             skip_reason: job.skip_reason,
             input_path: job.input_path,
             output_path: job.output_path,
+            output_policy: job.output_policy,
             ffmpeg_command: job.ffmpeg_command,
             media_info: job.media_info,
             estimated_seconds: job.estimated_seconds,
@@ -353,6 +363,7 @@ mod tests {
                 output_size_mb: None,
                 input_path: None,
                 output_path: None,
+                output_policy: None,
                 ffmpeg_command: None,
                 skip_reason: None,
                 media_info: None,

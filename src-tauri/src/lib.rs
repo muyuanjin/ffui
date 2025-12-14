@@ -67,6 +67,7 @@ pub fn run() {
             commands::queue::get_queue_state,
             commands::queue::get_queue_state_lite,
             commands::queue::enqueue_transcode_job,
+            commands::queue::expand_manual_job_inputs,
             commands::queue::cancel_transcode_job,
             commands::queue::wait_transcode_job,
             commands::queue::resume_transcode_job,

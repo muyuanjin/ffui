@@ -1,11 +1,13 @@
 use super::*;
+use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
+
 #[test]
 fn build_ffmpeg_args_injects_progress_flags_for_standard_preset() {
     let preset = make_test_preset();
     let input = PathBuf::from("C:/Videos/input file.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
 
-    let args = build_ffmpeg_args(&preset, &input, &output, true);
+    let args = build_ffmpeg_args(&preset, &input, &output, true, None);
     let joined = args.join(" ");
 
     assert!(
@@ -20,8 +22,8 @@ fn build_ffmpeg_args_can_enable_stdin_control_when_requested() {
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
 
-    let non_interactive = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
-    let interactive = build_ffmpeg_args(&preset, &input, &output, false).join(" ");
+    let non_interactive = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
+    let interactive = build_ffmpeg_args(&preset, &input, &output, false, None).join(" ");
 
     assert!(
         non_interactive.contains("-nostdin"),
@@ -42,7 +44,7 @@ fn build_ffmpeg_args_respects_existing_progress_flag_in_template() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let args = build_ffmpeg_args(&preset, &input, &output, true);
+    let args = build_ffmpeg_args(&preset, &input, &output, true, None);
 
     let progress_flags = args.iter().filter(|a| a.as_str() == "-progress").count();
     assert_eq!(
@@ -89,7 +91,7 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let args = build_ffmpeg_args(&preset, &input, &output, true);
+    let args = build_ffmpeg_args(&preset, &input, &output, true, None);
     let joined = args.join(" ");
 
     assert!(
@@ -163,7 +165,7 @@ fn build_ffmpeg_args_normalizes_mkv_container_to_matroska_muxer() {
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
 
-    let args = build_ffmpeg_args(&preset, &input, &output, true);
+    let args = build_ffmpeg_args(&preset, &input, &output, true, None);
     let joined = args.join(" ");
 
     assert!(
@@ -173,6 +175,44 @@ fn build_ffmpeg_args_normalizes_mkv_container_to_matroska_muxer() {
     assert!(
         !joined.contains("-f mkv"),
         "preset with container.format=mkv must NOT emit -f mkv (unsupported alias in some ffmpeg builds), got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_args_injects_forced_container_muxer_into_advanced_template() {
+    let mut preset = make_test_preset();
+    preset.advanced_enabled = Some(true);
+    preset.ffmpeg_template = Some("-hide_banner -i INPUT -c:v libx264 OUTPUT".to_string());
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/out.mkv");
+    let output_str = output.to_string_lossy().into_owned();
+
+    let policy = OutputPolicy {
+        container: OutputContainerPolicy::Force {
+            format: "mkv".to_string(),
+        },
+        ..OutputPolicy::default()
+    };
+
+    let args = build_ffmpeg_args(&preset, &input, &output, true, Some(&policy));
+    let idx_f = args
+        .iter()
+        .position(|a| a == "-f")
+        .expect("must inject -f for forced muxer");
+    assert_eq!(
+        args.get(idx_f + 1).map(String::as_str),
+        Some("matroska"),
+        "mkv must map to matroska muxer"
+    );
+
+    let idx_out = args
+        .iter()
+        .position(|a| a == &output_str)
+        .expect("output path must appear in args");
+    assert!(
+        idx_f < idx_out,
+        "injected -f must appear before OUTPUT (idx_f={idx_f}, idx_out={idx_out})"
     );
 }
 
@@ -206,7 +246,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
             preset.video.buffer_size_kbits = Some(6000);
             preset.video.pass = Some(2);
 
-            let args = build_ffmpeg_args(&preset, &input, &output, true);
+            let args = build_ffmpeg_args(&preset, &input, &output, true, None);
             let joined = args.join(" ");
 
             let has_crf = joined.contains(" -crf ");
@@ -280,7 +320,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 
     // copy mode: only -c:a copy, no re-encode flags.
     preset.audio.codec = AudioCodecType::Copy;
-    let copy_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let copy_args = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
     assert!(
         copy_args.contains("-c:a copy"),
         "audio copy mode must emit -c:a copy, got: {copy_args}"
@@ -295,7 +335,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 
     // aac mode: re-encode flags must be present.
     preset.audio.codec = AudioCodecType::Aac;
-    let aac_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let aac_args = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
     assert!(
         aac_args.contains("-c:a aac"),
         "audio aac mode must emit -c:a aac, got: {aac_args}"
@@ -324,7 +364,7 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
         burn_in_filter: Some("subtitles=INPUT:si=0".to_string()),
     });
 
-    let burn_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let burn_args = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
     assert!(
         burn_args.contains("-vf "),
         "burn-in subtitles must emit -vf chain, got: {burn_args}"
@@ -346,7 +386,7 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
         burn_in_filter: None,
     });
 
-    let drop_args = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let drop_args = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
     assert!(
         drop_args.contains(" -sn") || drop_args.ends_with("-sn"),
         "drop subtitles strategy must emit -sn, got: {drop_args}"
@@ -369,7 +409,7 @@ fn build_ffmpeg_args_skips_video_filters_when_encoder_is_copy() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
 
     assert!(
         joined.contains("-c:v copy"),
@@ -392,7 +432,7 @@ fn build_ffmpeg_args_skips_audio_filters_when_codec_is_copy() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
 
     assert!(
         joined.contains("-c:a copy"),
@@ -426,7 +466,7 @@ fn build_ffmpeg_args_supports_constqp_nvenc_hq_with_aac_loudness() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let joined = build_ffmpeg_args(&preset, &input, &output, true).join(" ");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
 
     assert!(
         joined.contains("-rc constqp") && joined.contains("-qp 18"),

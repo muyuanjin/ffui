@@ -1,5 +1,6 @@
 mod domain;
 mod engine;
+pub(crate) mod input_expand;
 mod monitor;
 mod monitor_activity;
 mod settings;

@@ -75,5 +75,14 @@ export type {
   CompositeSmartScanTask,
 } from "./smart-scan";
 
+// Output policy types
+export type {
+  OutputPolicy,
+  OutputContainerPolicy,
+  OutputDirectoryPolicy,
+  OutputFilenamePolicy,
+  OutputFilenameRegexReplace,
+} from "./output-policy";
+
 // Application settings
 export type { AppSettings, PresetSortMode, PresetViewMode, UiFontFamily } from "./settings";

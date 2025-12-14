@@ -9,7 +9,9 @@
 //! - `tests`: All test cases
 
 mod ffmpeg_args;
+mod file_times;
 mod job_runner;
+mod output_policy_paths;
 mod preview_refresh;
 mod smart_scan;
 mod state;
@@ -21,6 +23,8 @@ mod worker_utils;
 
 #[cfg(test)]
 mod tests;
+
+pub(crate) use smart_scan::is_video_file;
 
 // 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免多个单元测试
 // 并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。

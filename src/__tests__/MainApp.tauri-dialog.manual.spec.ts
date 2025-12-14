@@ -5,7 +5,9 @@ import {
   appendQueueJob,
   defaultAppSettings,
   dialogOpenMock,
+  listenMock,
   emitQueueState,
+  emitDragDrop,
   i18n,
   invokeMock,
   getQueueJobs,
@@ -82,7 +84,7 @@ describe("MainApp Tauri manual job flow", () => {
     const initialJobs = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
     expect(initialJobs.length).toBe(0);
 
-    await vm.addManualJob();
+    await vm.addManualJob("files");
     await nextTick();
     await nextTick();
     if (typeof vm.refreshQueueFromBackend === "function") {
@@ -96,7 +98,7 @@ describe("MainApp Tauri manual job flow", () => {
 
     expect(dialogOpenMock).toHaveBeenCalledTimes(1);
     const [options] = dialogOpenMock.mock.calls[0];
-    expect(options).toMatchObject({ multiple: false, directory: false });
+    expect(options).toMatchObject({ multiple: true, directory: false, recursive: false });
 
     const invokeCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
     expect(invokeCalls.length).toBe(1);
@@ -106,6 +108,140 @@ describe("MainApp Tauri manual job flow", () => {
       source: "manual",
       presetId: "p2",
     });
+
+    wrapper.unmount();
+  });
+
+  it("enqueues multiple selected files in picker order and filters non-video inputs", async () => {
+    const selectedPaths = ["C:/videos/02.mp4", "C:/videos/01.txt", "C:/videos/03.mkv"];
+    dialogOpenMock.mockResolvedValueOnce(selectedPaths);
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_app_settings: () => defaultAppSettings(),
+      get_presets: () => [
+        {
+          id: "p2",
+          name: "Archive Master",
+          description: "Test preset",
+          video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
+          audio: { codec: "copy" },
+          filters: {},
+          stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+        },
+      ],
+      expand_manual_job_inputs: (payload) => {
+        const paths = (payload?.paths as string[]) ?? [];
+        return paths.filter((p) => p.endsWith(".mp4") || p.endsWith(".mkv"));
+      },
+      enqueue_transcode_job: () => null,
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+    vm.manualJobPresetId = "p2";
+
+    await vm.addManualJob("files");
+    await nextTick();
+    await nextTick();
+
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
+    expect(enqueues.length).toBe(2);
+    expect(enqueues[0][1]).toMatchObject({ filename: "C:/videos/02.mp4" });
+    expect(enqueues[1][1]).toMatchObject({ filename: "C:/videos/03.mkv" });
+
+    wrapper.unmount();
+  });
+
+  it("supports selecting a folder and never enqueues the directory path itself", async () => {
+    const folder = "C:/videos/folder";
+    dialogOpenMock.mockResolvedValueOnce(folder);
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_app_settings: () => defaultAppSettings(),
+      get_presets: () => [
+        {
+          id: "p2",
+          name: "Archive Master",
+          description: "Test preset",
+          video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
+          audio: { codec: "copy" },
+          filters: {},
+          stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+        },
+      ],
+      expand_manual_job_inputs: () => ["C:/videos/folder/a.mp4", "C:/videos/folder/b.mkv"],
+      enqueue_transcode_job: () => null,
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+    vm.manualJobPresetId = "p2";
+
+    await vm.addManualJob("folder");
+    await nextTick();
+    await nextTick();
+
+    expect(dialogOpenMock).toHaveBeenCalledTimes(1);
+    expect(dialogOpenMock.mock.calls[0][0]).toMatchObject({ directory: true, recursive: true });
+
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
+    expect(enqueues.length).toBe(2);
+    expect(enqueues[0][1]).toMatchObject({ filename: "C:/videos/folder/a.mp4" });
+    expect(enqueues[1][1]).toMatchObject({ filename: "C:/videos/folder/b.mkv" });
+    for (const [, payload] of enqueues) {
+      expect((payload as any).filename).not.toBe(folder);
+    }
+
+    wrapper.unmount();
+  });
+
+  it("expands dropped directories into enqueued files", async () => {
+    setQueueJobs([]);
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: getQueueJobs() }),
+      get_app_settings: () => defaultAppSettings(),
+      expand_manual_job_inputs: () => ["C:/dropped/a.mp4", "C:/dropped/b.mkv"],
+      enqueue_transcode_job: (payload) => {
+        appendQueueJob({
+          id: `job-${Date.now()}`,
+          filename: (payload?.filename as string) ?? "",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 0,
+          originalCodec: "h264",
+          presetId: (payload?.presetId as string) ?? "p1",
+          status: "waiting",
+          progress: 0,
+          logs: [],
+        } as any);
+        emitQueueState(getQueueJobs());
+        return true;
+      },
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    await nextTick();
+    await nextTick();
+
+    const subscribed = listenMock.mock.calls.some(([event]) => event === "tauri://drag-drop");
+    expect(subscribed).toBe(true);
+
+    emitDragDrop(["C:/dropped"]);
+    await nextTick();
+    await nextTick();
+    for (let i = 0; i < 6; i += 1) {
+      await Promise.resolve();
+    }
+
+    const enqueues = invokeMock.mock.calls.filter(([cmd]) => cmd === "enqueue_transcode_job");
+    expect(enqueues.length).toBe(2);
+    expect(enqueues[0][1]).toMatchObject({ filename: "C:/dropped/a.mp4" });
+    expect(enqueues[1][1]).toMatchObject({ filename: "C:/dropped/b.mkv" });
 
     wrapper.unmount();
   });

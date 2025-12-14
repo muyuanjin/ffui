@@ -3,6 +3,7 @@ import { defineAsyncComponent } from "vue";
 import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
+import { Button } from "@/components/ui/button";
 import type {
   TranscodeJob,
   FFmpegPreset,
@@ -73,7 +74,8 @@ const emit = defineEmits<{
   "update:filterText": [value: string];
   "update:sortPrimary": [value: QueueSortField];
   "update:sortPrimaryDirection": [value: QueueSortDirection];
-  addJob: [];
+  addJobFiles: [];
+  addJobFolder: [];
   toggleStatusFilter: [status: QueueFilterStatus];
   toggleTypeFilter: [kind: QueueFilterKind];
   toggleFilterRegexMode: [];
@@ -184,8 +186,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
          "empty queue" screen. -->
     <div
       v-if="queueJobsForDisplay.length === 0 && !hasSmartScanBatches && !hasActiveFilters"
-      class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl cursor-pointer hover:border-sidebar-ring/70 hover:text-foreground transition-all"
-      @click="emit('addJob')"
+      class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl hover:border-sidebar-ring/70 hover:text-foreground transition-all"
     >
       <div
         class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70"
@@ -200,6 +201,21 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
       <p class="text-sm text-muted-foreground">
         {{ t("app.emptyQueue.subtitle") }}
       </p>
+      <div class="mt-6 flex items-center justify-center">
+        <div class="flex overflow-hidden rounded-md">
+          <Button size="lg" class="rounded-r-none" @click="emit('addJobFiles')">
+            {{ t("app.actions.addJobFiles") }}
+          </Button>
+          <Button
+            size="lg"
+            variant="secondary"
+            class="rounded-l-none border-l border-border/60"
+            @click="emit('addJobFolder')"
+          >
+            {{ t("app.actions.addJobFolder") }}
+          </Button>
+        </div>
+      </div>
     </div>
 
     <!-- Queue content -->

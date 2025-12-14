@@ -21,7 +21,29 @@ fn execute_transcode_job(
     // 队列转码任务需要支持“暂停 / 继续”，后端会通过 stdin 写入控制指令
     //（例如 `q\n`）来让 ffmpeg 优雅结束当前分段，因此这里显式关闭
     // `non_interactive`，避免自动注入 `-nostdin`。
-    let mut args = build_ffmpeg_args(&preset, &input_path, &tmp_output, false);
+    let job_output_policy = {
+        let state = inner.state.lock().expect("engine state poisoned");
+        state
+            .jobs
+            .get(job_id)
+            .and_then(|job| job.output_policy.clone())
+    };
+    let preserve_file_times = job_output_policy
+        .as_ref()
+        .map(|p| p.preserve_file_times)
+        .unwrap_or(false);
+    let input_times = if preserve_file_times {
+        Some(super::file_times::read_file_times(&input_path))
+    } else {
+        None
+    };
+    let mut args = build_ffmpeg_args(
+        &preset,
+        &input_path,
+        &tmp_output,
+        false,
+        job_output_policy.as_ref(),
+    );
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
@@ -397,54 +419,12 @@ fn execute_transcode_job(
             job.wait_metadata = None;
 
             if let Some((input_path_buf, output_path_buf)) = replace_plan {
-                let final_dir = input_path_buf
-                    .parent()
-                    .map(std::path::Path::to_path_buf)
-                    .unwrap_or_else(|| std::path::PathBuf::from("."));
-                let stem = input_path_buf
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("output");
-                let ext = output_path_buf
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .unwrap_or("mp4");
-                let candidate_final = final_dir.join(format!("{stem}.{ext}"));
-
-                // 1）将源文件移入系统回收站（最佳努力）。
-                match trash::delete(&input_path_buf) {
-                    Ok(()) => job.logs.push(format!(
-                        "replace original: moved source video {} to recycle bin",
-                        input_path_buf.display()
-                    )),
-                    Err(err) => job.logs.push(format!(
-                        "replace original: failed to move source video {} to recycle bin: {err}",
-                        input_path_buf.display()
-                    )),
-                }
-
-                // 2）将压缩结果重命名为“去掉 .compressed”的最终路径。
-                if output_path_buf != candidate_final {
-                    match fs::rename(&output_path_buf, &candidate_final) {
-                        Ok(()) => {
-                            job.logs.push(format!(
-                                "replace original: renamed compressed output to {}",
-                                candidate_final.display()
-                            ));
-                            job.output_path =
-                                Some(candidate_final.to_string_lossy().into_owned());
-                            final_output_path = candidate_final;
-                        }
-                        Err(err) => job.logs.push(format!(
-                            "replace original: failed to rename output {} -> {}: {err}",
-                            output_path_buf.display(),
-                            candidate_final.display()
-                        )),
-                    }
-                } else {
-                    // 输出路径本身已经是最终形态。
-                    final_output_path = candidate_final;
-                }
+                apply_replace_original_video_output(
+                    job,
+                    &input_path_buf,
+                    &output_path_buf,
+                    &mut final_output_path,
+                );
             }
 
             job.logs.push(format!(
@@ -467,6 +447,20 @@ fn execute_transcode_job(
             }
             // Persist updated presets.
             let _ = crate::ffui_core::settings::save_presets(&state.presets);
+        }
+    }
+
+    if preserve_file_times
+        && let Some(times) = input_times.as_ref()
+        && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
+    {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        if let Some(job) = state.jobs.get_mut(job_id) {
+            job.logs.push(format!(
+                "preserve file times: failed to apply timestamps to {}: {err}",
+                final_output_path.display()
+            ));
+            recompute_log_tail(job);
         }
     }
 

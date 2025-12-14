@@ -3,6 +3,7 @@ import type { TranscodeJob, JobStatus, FFmpegPreset } from "@/types";
 import {
   hasTauri,
   enqueueTranscodeJob,
+  expandManualJobInputs,
   cancelTranscodeJob,
   waitTranscodeJob,
   resumeTranscodeJob,
@@ -278,6 +279,13 @@ export function addManualJobMock(deps: Pick<SingleJobOpsDeps, "jobs" | "manualJo
  * Requires a valid preset; fails gracefully if none available.
  */
 export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsDeps) {
+  if (!hasTauri()) {
+    console.error("enqueueManualJobFromPath requires Tauri");
+    deps.queueError.value =
+      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
+    return;
+  }
+
   const preset = deps.manualJobPreset.value ?? deps.presets.value[0];
   if (!preset) {
     console.error("No preset available for manual job");
@@ -287,20 +295,23 @@ export async function enqueueManualJobFromPath(path: string, deps: SingleJobOpsD
   }
 
   try {
-    // Let the backend compute accurate size and codec from the real file
-    // path; we pass the full path through so the engine can call fs::metadata
-    // and build output paths correctly. The UI derives a display-friendly
-    // name from this path (e.g. last segment) where needed.
-    const filename = path;
+    const expanded = await expandManualJobInputs([path], { recursive: true });
+    if (!Array.isArray(expanded) || expanded.length === 0) {
+      // Nothing to enqueue (e.g. dropped a folder with no transcodable files,
+      // or dropped a non-video file).
+      return;
+    }
 
-    await enqueueTranscodeJob({
-      filename,
-      jobType: "video",
-      source: "manual",
-      originalSizeMb: 0,
-      originalCodec: undefined,
-      presetId: preset.id,
-    });
+    for (const filename of expanded) {
+      await enqueueTranscodeJob({
+        filename,
+        jobType: "video",
+        source: "manual",
+        originalSizeMb: 0,
+        originalCodec: undefined,
+        presetId: preset.id,
+      });
+    }
 
     // Avoid racing with queue stream events; let backend be the single source of truth.
     await deps.refreshQueueFromBackend();

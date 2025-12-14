@@ -35,6 +35,7 @@ vi.mock("@tauri-apps/api/window", () => {
 vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const enqueueTranscodeJob = vi.fn(async () => ({} as any));
+  const expandManualJobInputs = vi.fn(async (paths: string[]) => paths);
 
   return {
     ...actual,
@@ -53,6 +54,7 @@ vi.mock("@/lib/backend", async () => {
     loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
+    expandManualJobInputs,
     enqueueTranscodeJob,
     cancelTranscodeJob: vi.fn(async () => true),
     selectPlayableMediaPath: vi.fn(

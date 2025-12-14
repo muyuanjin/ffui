@@ -280,6 +280,24 @@ export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
   return invoke<QueueStateLite>("get_queue_state_lite");
 };
 
+export const expandManualJobInputs = async (
+  paths: string[],
+  options?: { recursive?: boolean },
+): Promise<string[]> => {
+  if (!hasTauri()) return [];
+  const normalized = (paths ?? []).filter((p): p is string => typeof p === "string" && p.trim().length > 0);
+  if (normalized.length === 0) return [];
+
+  const recursive = options?.recursive ?? true;
+  return invoke<string[]>("expand_manual_job_inputs", {
+    paths: normalized,
+    recursive,
+    // Resilience to backend param naming changes.
+    inputPaths: normalized,
+    input_paths: normalized,
+  });
+};
+
 export const enqueueTranscodeJob = async (params: {
   filename: string;
   jobType: JobType;

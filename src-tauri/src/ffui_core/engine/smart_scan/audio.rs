@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 
 use anyhow::{Context, Result};
@@ -12,53 +12,11 @@ use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
+use super::super::output_policy_paths::plan_output_path_with_extension;
 use super::super::state::{Inner, register_known_smart_scan_output_with_inner};
 use super::super::worker_utils::recompute_log_tail;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 use super::video_paths::ensure_progress_args;
-
-/// 为音频 Smart Scan 生成输出与临时输出路径，并在 EngineState 中登记为“已知输出”，
-/// 避免后续批次再次将其作为候选文件。
-fn reserve_unique_smart_scan_audio_output_paths(
-    inner: &Inner,
-    input: &Path,
-    target_ext: &str,
-) -> (PathBuf, PathBuf) {
-    use std::path::Path;
-
-    let parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let safe_ext = if target_ext.is_empty() {
-        "m4a".to_string()
-    } else {
-        target_ext.to_ascii_lowercase()
-    };
-
-    let mut index: u32 = 0;
-
-    let mut state = inner.state.lock().expect("engine state poisoned");
-
-    loop {
-        let output = if index == 0 {
-            parent.join(format!("{stem}.compressed.{safe_ext}"))
-        } else {
-            parent.join(format!("{stem}.compressed ({index}).{safe_ext}"))
-        };
-
-        let output_str = output.to_string_lossy().into_owned();
-        if !output.exists() && !state.known_smart_scan_outputs.contains(&output_str) {
-            state.known_smart_scan_outputs.insert(output_str);
-
-            let tmp_output = parent.join(format!("{stem}.compressed.tmp.{safe_ext}"));
-            return (output, tmp_output);
-        }
-
-        index = index.saturating_add(1);
-    }
-}
 
 /// 根据输入扩展名与目标音频编码，选择与容器兼容的输出扩展名。
 ///
@@ -106,6 +64,13 @@ pub(crate) fn handle_audio_file_with_id(
 
     let preset = presets.iter().find(|p| p.id == audio_preset_id).cloned();
 
+    let preserve_file_times = config.output_policy.preserve_file_times;
+    let input_times = if preserve_file_times {
+        Some(super::super::file_times::read_file_times(path))
+    } else {
+        None
+    };
+
     let mut job = TranscodeJob {
         id: job_id.unwrap_or_else(|| next_job_id(inner)),
         filename,
@@ -129,6 +94,7 @@ pub(crate) fn handle_audio_file_with_id(
         skip_reason: None,
         input_path: Some(path.to_string_lossy().into_owned()),
         output_path: None,
+        output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -272,8 +238,37 @@ pub(crate) fn handle_audio_file_with_id(
 
     let target_ext = choose_audio_output_extension(ext.as_deref(), &codec_type);
 
-    let (output_path, tmp_output) =
-        reserve_unique_smart_scan_audio_output_paths(inner, path, &target_ext);
+    let output_path = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let out = plan_output_path_with_extension(
+            path,
+            &target_ext,
+            preset.as_ref(),
+            &config.output_policy,
+            |candidate| {
+                let s = candidate.to_string_lossy();
+                candidate.exists() || state.known_smart_scan_outputs.contains(s.as_ref())
+            },
+        );
+        state
+            .known_smart_scan_outputs
+            .insert(out.to_string_lossy().into_owned());
+        out
+    };
+    let tmp_output = {
+        let stem = output_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output");
+        let ext = output_path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("m4a");
+        output_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(format!("{stem}.tmp.{ext}"))
+    };
     job.output_path = Some(output_path.to_string_lossy().into_owned());
 
     match codec_type {
@@ -387,6 +382,16 @@ pub(crate) fn handle_audio_file_with_id(
             output_path.display()
         )
     })?;
+
+    if preserve_file_times
+        && let Some(times) = input_times.as_ref()
+        && let Err(err) = super::super::file_times::apply_file_times(&output_path, times)
+    {
+        job.logs.push(format!(
+            "preserve file times: failed to apply timestamps to {}: {err}",
+            output_path.display()
+        ));
+    }
 
     // 将最终输出注册为 Smart Scan 已知输出，避免后续批次重复压缩。
     register_known_smart_scan_output_with_inner(inner, &output_path);

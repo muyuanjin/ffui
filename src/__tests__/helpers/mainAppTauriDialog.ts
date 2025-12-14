@@ -6,6 +6,7 @@ import zhCN from "@/locales/zh-CN";
 import { buildSmartScanDefaults } from "./smartScanDefaults";
 
 export const dialogOpenMock = vi.fn();
+export const dialogMessageMock = vi.fn();
 export const invokeMock = vi.fn<
   (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
 >();
@@ -18,10 +19,13 @@ export const listenMock = vi.fn<
 
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
 let smartScanProgressHandler: ((event: { payload: unknown }) => void) | null = null;
+let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 let queueJobs: TranscodeJob[] = [];
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: (options: Record<string, unknown>) => dialogOpenMock(options),
+  message: (message: string, options?: Record<string, unknown>) =>
+    dialogMessageMock(message, options),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -123,6 +127,10 @@ export function emitSmartScanProgress(progress: unknown): void {
   smartScanProgressHandler?.({ payload: progress });
 }
 
+export function emitDragDrop(paths: string[]): void {
+  dragDropHandler?.({ payload: { paths } });
+}
+
 export function getQueueStateHandler() {
   return queueStateHandler;
 }
@@ -165,6 +173,14 @@ export function useBackendMock(
     if (handler) {
       return Promise.resolve(handler(payload));
     }
+    if (cmd === "expand_manual_job_inputs") {
+      const raw =
+        (payload?.paths ?? payload?.inputPaths ?? payload?.input_paths) as unknown;
+      if (Array.isArray(raw)) {
+        return Promise.resolve(raw.filter((p) => typeof p === "string" && p.length > 0));
+      }
+      return Promise.resolve([]);
+    }
     return Promise.resolve(defaultBackendResponse(cmd));
   });
 }
@@ -172,11 +188,13 @@ export function useBackendMock(
 beforeEach(() => {
   (window as any).__TAURI_IPC__ = {};
   dialogOpenMock.mockReset();
+  dialogMessageMock.mockReset();
   invokeMock.mockReset();
   listenMock.mockReset();
   queueJobs = [];
   queueStateHandler = null;
   smartScanProgressHandler = null;
+  dragDropHandler = null;
 
   listenMock.mockImplementation(
     async (event: string, handler: (event: { payload: unknown }) => void) => {
@@ -184,6 +202,8 @@ beforeEach(() => {
         queueStateHandler = handler;
       } else if (event === "auto-compress://progress") {
         smartScanProgressHandler = handler;
+      } else if (event === "tauri://drag-drop") {
+        dragDropHandler = handler as any;
       }
       return () => {};
     },

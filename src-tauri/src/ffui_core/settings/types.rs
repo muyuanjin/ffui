@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::ffui_core::domain::{
-    FileTypeFilter, ImageTargetFormat, SavingConditionType, SmartScanConfig,
+    FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType, SmartScanConfig,
 };
 
 /// Human-readable metadata for a downloaded tool binary.
@@ -330,6 +330,13 @@ pub struct AppSettings {
     /// jobs are selected. This powers the "Pin toolbar" UI toggle.
     #[serde(default, skip_serializing_if = "is_false")]
     pub selection_bar_pinned: bool,
+    /// Output policy for manual queue enqueues (container/dir/name/timestamps).
+    #[serde(default, skip_serializing_if = "is_default_output_policy")]
+    pub queue_output_policy: OutputPolicy,
+}
+
+fn is_default_output_policy(policy: &OutputPolicy) -> bool {
+    *policy == OutputPolicy::default()
 }
 
 impl Default for AppSettings {
@@ -388,6 +395,7 @@ impl Default for AppSettings {
                         "opus".to_string(),
                     ],
                 },
+                output_policy: OutputPolicy::default(),
             },
             monitor: None,
             updater: None,
@@ -410,6 +418,7 @@ impl Default for AppSettings {
             crash_recovery_log_retention: None,
             onboarding_completed: false,
             selection_bar_pinned: false,
+            queue_output_policy: OutputPolicy::default(),
         }
     }
 }

@@ -34,36 +34,34 @@ const makeWrapper = (locale: "zh-CN" | "en") => {
 describe("MainApp sidebar primary actions", () => {
   it("uses updated zh-CN labels for Add transcode / Add compression actions", () => {
     const { wrapper } = makeWrapper("zh-CN");
-    const text = wrapper.text();
 
-    expect(text).toContain("添加转码任务");
-    expect(text).toContain("添加压缩任务");
+    const addFilesButton = wrapper.find('[data-testid="ffui-action-add-job-files"]');
+    const addCompressionButton = wrapper.find('[data-testid="ffui-action-smart-scan"]');
+
+    expect(addFilesButton.exists()).toBe(true);
+    expect(addCompressionButton.exists()).toBe(true);
+    expect(addFilesButton.text()).toContain("添加文件");
+    expect(addCompressionButton.text()).toContain("添加压缩任务");
   });
 
   it("uses updated EN labels and distinct button styles for the two CTAs", () => {
     const { wrapper } = makeWrapper("en");
 
-    const buttons = wrapper.findAll("button");
-    const addTranscodeButton = buttons.find((btn) =>
-      btn.text().includes("Add transcode job"),
-    );
-    const addCompressionButton = buttons.find((btn) =>
-      btn.text().includes("Add compression task"),
-    );
+    const addFilesButton = wrapper.find('[data-testid="ffui-action-add-job-files"]');
+    const addCompressionButton = wrapper.find('[data-testid="ffui-action-smart-scan"]');
 
-    expect(addTranscodeButton, "Add transcode job button should exist").toBeTruthy();
-    expect(
-      addCompressionButton,
-      "Add compression task button should exist",
-    ).toBeTruthy();
+    expect(addFilesButton.exists(), "Add files button should exist").toBe(true);
+    expect(addCompressionButton.exists(), "Add compression task button should exist").toBe(true);
+    expect(addFilesButton.text()).toContain("Add files");
+    expect(addCompressionButton.text()).toContain("Add compression task");
 
-    const addTranscodeClass = addTranscodeButton?.attributes("class") ?? "";
-    const addCompressionClass = addCompressionButton?.attributes("class") ?? "";
+    const addFilesClass = addFilesButton.attributes("class") ?? "";
+    const addCompressionClass = addCompressionButton.attributes("class") ?? "";
 
-    expect(addTranscodeClass.length).toBeGreaterThan(0);
+    expect(addFilesClass.length).toBeGreaterThan(0);
     expect(addCompressionClass.length).toBeGreaterThan(0);
     // Distinct shadcn-vue variants should result in different class strings.
-    expect(addTranscodeClass).not.toEqual(addCompressionClass);
+    expect(addFilesClass).not.toEqual(addCompressionClass);
   });
 
   it("shows a New Preset CTA on the presets tab and opens the preset wizard when clicked", async () => {
@@ -93,23 +91,21 @@ describe("MainApp sidebar primary actions", () => {
   it("updates sidebar CTA labels when locale changes at runtime without duplicating buttons", async () => {
     const { wrapper, i18n } = makeWrapper("zh-CN");
 
-    const findButtonsByText = (text: string) =>
-      wrapper
-        .findAll("button")
-        .filter((btn) => btn.text().includes(text));
+    const addFilesButton = () => wrapper.find('[data-testid="ffui-action-add-job-files"]');
+    const addCompressionButton = () => wrapper.find('[data-testid="ffui-action-smart-scan"]');
 
-    // Initial zh-CN labels appear exactly once.
-    expect(findButtonsByText("添加转码任务").length).toBe(1);
-    expect(findButtonsByText("添加压缩任务").length).toBe(1);
+    expect(addFilesButton().exists()).toBe(true);
+    expect(addCompressionButton().exists()).toBe(true);
+    expect(addFilesButton().text()).toContain("添加文件");
+    expect(addCompressionButton().text()).toContain("添加压缩任务");
 
     // Switch locale via the i18n instance used to mount the app.
     (i18n.global.locale as any).value = "en";
     await nextTick();
 
-    // After switching to EN, zh-CN labels disappear and EN labels appear once.
-    expect(findButtonsByText("添加转码任务").length).toBe(0);
-    expect(findButtonsByText("添加压缩任务").length).toBe(0);
-    expect(findButtonsByText("Add transcode job").length).toBe(1);
-    expect(findButtonsByText("Add compression task").length).toBe(1);
+    expect(addFilesButton().exists()).toBe(true);
+    expect(addCompressionButton().exists()).toBe(true);
+    expect(addFilesButton().text()).toContain("Add files");
+    expect(addCompressionButton().text()).toContain("Add compression task");
   });
 });

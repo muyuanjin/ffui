@@ -32,6 +32,12 @@ describe("backend smart scan contract", () => {
       videoFilter: { enabled: true, extensions: ["mp4"] },
       imageFilter: { enabled: true, extensions: ["jpg"] },
       audioFilter: { enabled: true, extensions: ["mp3"] },
+      outputPolicy: {
+        container: { mode: "keepInput" },
+        directory: { mode: "fixed", directory: "D:/smart-scan-out" },
+        filename: { suffix: ".compressed", appendTimestamp: true },
+        preserveFileTimes: true,
+      },
     };
 
     await runAutoCompress(rootPath, config);

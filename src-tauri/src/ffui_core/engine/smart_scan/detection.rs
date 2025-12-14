@@ -1,4 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+
+#[cfg(test)]
+use std::path::PathBuf;
 
 pub(crate) fn is_image_file(path: &Path) -> bool {
     let ext = match path
@@ -26,7 +29,7 @@ pub(crate) fn is_video_file(path: &Path) -> bool {
     };
     matches!(
         ext.as_str(),
-        "mp4" | "mkv" | "mov" | "avi" | "flv" | "ts" | "m2ts" | "wmv"
+        "mp4" | "mkv" | "mov" | "avi" | "flv" | "ts" | "m2ts" | "wmv" | "webm" | "m4v"
     )
 }
 
@@ -67,6 +70,7 @@ pub(crate) fn is_smart_scan_style_output(path: &Path) -> bool {
     false
 }
 
+#[cfg(test)]
 pub(crate) fn build_image_avif_paths(path: &Path) -> (PathBuf, PathBuf) {
     // 最终 AVIF 目标始终使用 .avif 扩展名，以便系统和工具能够正确识别格式。
     let avif_target = path.with_extension("avif");

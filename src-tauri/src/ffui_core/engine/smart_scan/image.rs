@@ -11,10 +11,10 @@ use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
+use super::super::output_policy_paths::plan_output_path_with_extension;
 use super::super::state::Inner;
 use super::super::state::register_known_smart_scan_output_with_inner;
 use super::super::worker_utils::recompute_log_tail;
-use super::detection::build_image_avif_paths;
 use super::helpers::{current_time_millis, next_job_id, record_tool_download};
 
 #[cfg(test)]
@@ -71,6 +71,7 @@ pub(crate) fn handle_image_file_with_id(
         skip_reason: None,
         input_path: Some(path.to_string_lossy().into_owned()),
         output_path: None,
+        output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
         media_info: Some(MediaInfo {
             duration_seconds: None,
@@ -95,6 +96,13 @@ pub(crate) fn handle_image_file_with_id(
         .map(|s| s.to_ascii_lowercase())
         .unwrap_or_default();
 
+    let preserve_file_times = config.output_policy.preserve_file_times;
+    let input_times = if preserve_file_times {
+        Some(super::super::file_times::read_file_times(path))
+    } else {
+        None
+    };
+
     if ext == "avif" {
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
@@ -109,8 +117,50 @@ pub(crate) fn handle_image_file_with_id(
         return Ok(job);
     }
 
-    // Example.png -> Example.avif in same directory.
-    let (avif_target, tmp_output) = build_image_avif_paths(path);
+    // Back-compat: when an `input-stem.avif` sibling already exists next to the source image,
+    // treat it as already-compressed and skip regardless of output naming policy.
+    let sibling_avif = path.with_extension("avif");
+    if sibling_avif.exists() {
+        register_known_smart_scan_output_with_inner(inner, &sibling_avif);
+        job.output_path = Some(sibling_avif.to_string_lossy().into_owned());
+        job.preview_path = Some(sibling_avif.to_string_lossy().into_owned());
+        job.status = JobStatus::Skipped;
+        job.progress = 100.0;
+        job.skip_reason = Some("Existing .avif sibling".to_string());
+        return Ok(job);
+    }
+
+    // Compute output path based on Smart Scan output policy (extension is driven by image target format).
+    // Note: current Smart Scan image pipeline encodes AVIF; `imageTargetFormat` may be extended later.
+    let (avif_target, tmp_output) = {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        let target = plan_output_path_with_extension(
+            path,
+            "avif",
+            None,
+            &config.output_policy,
+            |candidate| {
+                let s = candidate.to_string_lossy();
+                candidate.exists() || state.known_smart_scan_outputs.contains(s.as_ref())
+            },
+        );
+        state
+            .known_smart_scan_outputs
+            .insert(target.to_string_lossy().into_owned());
+        let stem = target
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output");
+        let ext = target
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("avif");
+        let tmp = target
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(format!("{stem}.tmp.{ext}"));
+        (target, tmp)
+    };
     if avif_target.exists() {
         // Treat existing AVIF as a known Smart Scan output so future
         // batches can reliably skip it as a candidate.
@@ -198,6 +248,17 @@ pub(crate) fn handle_image_file_with_id(
                             avif_target.display()
                         )
                     })?;
+
+                    if preserve_file_times
+                        && let Some(times) = input_times.as_ref()
+                        && let Err(err) =
+                            super::super::file_times::apply_file_times(&avif_target, times)
+                    {
+                        job.logs.push(format!(
+                            "preserve file times: failed to apply timestamps to {}: {err}",
+                            avif_target.display()
+                        ));
+                    }
 
                     register_known_smart_scan_output_with_inner(inner, &avif_target);
 
@@ -347,6 +408,16 @@ pub(crate) fn handle_image_file_with_id(
             avif_target.display()
         )
     })?;
+
+    if preserve_file_times
+        && let Some(times) = input_times.as_ref()
+        && let Err(err) = super::super::file_times::apply_file_times(&avif_target, times)
+    {
+        job.logs.push(format!(
+            "preserve file times: failed to apply timestamps to {}: {err}",
+            avif_target.display()
+        ));
+    }
 
     register_known_smart_scan_output_with_inner(inner, &avif_target);
 

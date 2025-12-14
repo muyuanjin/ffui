@@ -29,6 +29,7 @@ mod domain_contract_tests {
             skip_reason: None,
             input_path: Some("C:/videos/input.mp4".to_string()),
             output_path: Some("C:/videos/output.mp4".to_string()),
+            output_policy: None,
             ffmpeg_command: Some(
                 "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT".to_string(),
             ),
@@ -273,6 +274,7 @@ mod domain_contract_tests {
             skip_reason: None,
             input_path: Some("C:/videos/input.mp4".to_string()),
             output_path: Some("C:/videos/output.mp4".to_string()),
+            output_policy: None,
             ffmpeg_command: None,
             media_info: None,
             estimated_seconds: None,

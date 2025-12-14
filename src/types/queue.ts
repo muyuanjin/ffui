@@ -1,3 +1,5 @@
+import type { OutputPolicy } from "./output-policy";
+
 export type JobStatus =
   | "waiting"
   | "queued"
@@ -94,6 +96,8 @@ export interface TranscodeJob {
   inputPath?: string;
   /** Planned or final output path for this job (e.g. .compressed.mp4). */
   outputPath?: string;
+  /** Output policy snapshot captured at enqueue time. */
+  outputPolicy?: OutputPolicy;
   /** Human-readable ffmpeg command used for this job. */
   ffmpegCommand?: string;
   /** Compact media metadata for the job's input file. */

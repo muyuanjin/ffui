@@ -2,8 +2,10 @@ mod builder;
 mod container;
 mod detect;
 mod job_object;
+mod output_policy;
 mod platform;
 mod progress;
+mod utils;
 
 pub(super) use container::{infer_output_extension, normalize_container_format};
 #[cfg(test)]
@@ -22,4 +24,5 @@ pub(super) use progress::{
 
 // Internal helpers that are safe and useful across engine sub-modules (enqueue,
 // Smart Scan queueing, etc).
-pub(crate) use builder::{build_ffmpeg_args, format_command_for_log};
+pub(crate) use builder::build_ffmpeg_args;
+pub(crate) use utils::format_command_for_log;

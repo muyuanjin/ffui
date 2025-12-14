@@ -1,4 +1,5 @@
 import type { TranscodeJob } from "./queue";
+import type { OutputPolicy } from "./output-policy";
 
 /** 保留结果的条件类型 */
 export type SavingConditionType = "ratio" | "absoluteSize";
@@ -40,6 +41,8 @@ export interface SmartScanConfig {
   imageFilter: FileTypeFilter;
   /** 音频文件类型筛选 */
   audioFilter: FileTypeFilter;
+  /** Output policy for this Smart Scan run (container/dir/name/timestamps). */
+  outputPolicy?: OutputPolicy;
 }
 
 export interface AutoCompressResult {

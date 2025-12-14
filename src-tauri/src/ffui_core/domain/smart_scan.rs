@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::job::TranscodeJob;
+use super::output_policy::OutputPolicy;
 
 /// 保留结果的条件类型
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
@@ -91,6 +92,10 @@ pub struct SmartScanConfig {
     /// 音频文件类型筛选
     #[serde(default = "default_audio_filter")]
     pub audio_filter: FileTypeFilter,
+
+    /// Output policy for this Smart Scan run (container/dir/name/timestamps).
+    #[serde(default)]
+    pub output_policy: OutputPolicy,
 }
 
 impl Default for SmartScanConfig {
@@ -110,6 +115,7 @@ impl Default for SmartScanConfig {
             video_filter: FileTypeFilter::default(),
             image_filter: FileTypeFilter::default(),
             audio_filter: default_audio_filter(),
+            output_policy: OutputPolicy::default(),
         }
     }
 }

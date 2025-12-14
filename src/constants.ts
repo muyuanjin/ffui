@@ -1,4 +1,5 @@
 import type { EncoderType, SmartScanConfig } from "./types";
+import { DEFAULT_OUTPUT_POLICY } from "./types/output-policy";
 
 export const ENCODER_OPTIONS: { value: EncoderType; label: string; hardware: boolean }[] = [
   { value: "libx264", label: "H.264 Software (libx264) - Best Compatibility", hardware: false },
@@ -26,12 +27,12 @@ export const GUIDE_TIPS = {
 
 export const EXTENSIONS = {
   images: [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"],
-  videos: [".mp4", ".mkv", ".mov", ".avi", ".flv", ".ts", ".m2ts", ".wmv"],
+  videos: [".mp4", ".mkv", ".mov", ".avi", ".flv", ".ts", ".m2ts", ".wmv", ".webm", ".m4v"],
   audios: [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma", ".opus"],
 };
 
 /** 视频文件扩展名（不含点号） */
-export const VIDEO_EXTENSIONS = ["mp4", "mkv", "mov", "avi", "flv", "ts", "m2ts", "wmv", "webm"];
+export const VIDEO_EXTENSIONS = ["mp4", "mkv", "mov", "avi", "flv", "ts", "m2ts", "wmv", "webm", "m4v"];
 
 /** 图片文件扩展名（不含点号） */
 export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "gif"];
@@ -51,6 +52,7 @@ export const DEFAULT_SMART_SCAN_CONFIG: SmartScanConfig = {
   imageTargetFormat: "avif",
   videoPresetId: "",
   audioPresetId: "",
+  outputPolicy: DEFAULT_OUTPUT_POLICY,
   videoFilter: {
     enabled: true,
     extensions: [...VIDEO_EXTENSIONS],
@@ -64,4 +66,3 @@ export const DEFAULT_SMART_SCAN_CONFIG: SmartScanConfig = {
     extensions: [...AUDIO_EXTENSIONS],
   },
 };
-

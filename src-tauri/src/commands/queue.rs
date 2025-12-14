@@ -8,6 +8,7 @@
 
 use tauri::State;
 
+use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
 use crate::ffui_core::{
     JobSource, JobType, QueueState, QueueStateLite, TranscodeJob, TranscodingEngine,
 };
@@ -45,6 +46,17 @@ pub fn enqueue_transcode_job(
         original_codec,
         preset_id,
     )
+}
+
+/// Expand user-selected or dropped paths into an ordered list of transcodable
+/// input files for manual queue enqueuing.
+///
+/// This prevents directory paths (or unsupported files) from being enqueued as
+/// invalid jobs while preserving the input order reported by the OS picker /
+/// drag-drop payload.
+#[tauri::command]
+pub fn expand_manual_job_inputs(paths: Vec<String>, recursive: bool) -> Vec<String> {
+    expand_manual_job_inputs_impl(&paths, recursive)
 }
 
 /// Cancel a transcode job by ID.

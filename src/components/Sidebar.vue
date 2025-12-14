@@ -14,7 +14,8 @@ const { activeTab, jobs } = defineProps<{
 
 const emit = defineEmits<{
   "update:activeTab": [tab: "queue" | "presets" | "media" | "monitor" | "settings"];
-  addJob: [];
+  addJobFiles: [];
+  addJobFolder: [];
   smartScan: [];
 }>();
 
@@ -117,15 +118,29 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
     </nav>
 
     <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
-      <Button
-        data-testid="ffui-action-add-job"
-        variant="default"
-        size="lg"
-        class="w-full justify-center"
-        @click="emit('addJob')"
+      <div
+        class="flex w-full overflow-hidden rounded-md"
+        data-testid="ffui-action-add-job-split"
       >
-        <span>{{ t("app.actions.addJob") }}</span>
-      </Button>
+        <Button
+          data-testid="ffui-action-add-job-files"
+          variant="default"
+          size="lg"
+          class="flex-1 justify-center rounded-r-none"
+          @click="emit('addJobFiles')"
+        >
+          <span>{{ t("app.actions.addJobFiles") }}</span>
+        </Button>
+        <Button
+          data-testid="ffui-action-add-job-folder"
+          variant="secondary"
+          size="lg"
+          class="shrink-0 justify-center rounded-l-none border-l border-border/60 px-4"
+          @click="emit('addJobFolder')"
+        >
+          <span class="whitespace-nowrap">{{ t("app.actions.addJobFolder") }}</span>
+        </Button>
+      </div>
       <Button
         data-testid="ffui-action-smart-scan"
         variant="smartScan"

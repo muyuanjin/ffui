@@ -74,6 +74,25 @@ pub(super) fn build_video_job_segment_tmp_output_path(
     ))
 }
 
+/// Temporary output segment path derived from a *final output path*.
+///
+/// This is used when outputs are routed to a different directory than the
+/// input file (e.g. via output policy fixed directory). Keeping segments next
+/// to the final output keeps renames atomic and avoids cross-filesystem moves.
+pub(super) fn build_video_job_segment_tmp_output_path_for_output(
+    output_path: &Path,
+    job_id: &str,
+    segment_index: u64,
+) -> PathBuf {
+    let parent = output_path.parent().unwrap_or_else(|| Path::new("."));
+    let stem = output_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let ext = output_path.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
+    parent.join(format!("{stem}.{job_id}.seg{segment_index}.tmp.{ext}"))
+}
+
 pub(super) fn concat_video_segments(
     ffmpeg_path: &str,
     segments: &[PathBuf],

@@ -25,6 +25,7 @@ fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
         skip_reason: None,
         input_path: None,
         output_path: None,
+        output_policy: None,
         ffmpeg_command: None,
         media_info: None,
         estimated_seconds: None,

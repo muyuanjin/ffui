@@ -16,6 +16,7 @@ import {
   downloadExternalToolNow,
 } from "@/lib/backend";
 import { listen } from "@tauri-apps/api/event";
+import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -65,6 +66,17 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
     !next.uiFontFilePath
   ) {
     next.uiFontFamily = "system";
+  }
+
+  // Output policy defaults (queue + Smart Scan).
+  if (!next.queueOutputPolicy) {
+    next.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY };
+  }
+  if (next.smartScanDefaults && !next.smartScanDefaults.outputPolicy) {
+    next.smartScanDefaults = {
+      ...next.smartScanDefaults,
+      outputPolicy: { ...DEFAULT_OUTPUT_POLICY },
+    };
   }
 
   return next;

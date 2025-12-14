@@ -163,10 +163,18 @@ const app = {
   },
   emptyQueue: {
     title: "当前没有任务",
-    subtitle: "点击左侧的添加转码任务，或者使用左下角的智能扫描入口。",
+    subtitle: "点击添加文件/添加文件夹，或者使用左下角的智能扫描入口。",
+  },
+  addManualJobDialog: {
+    title: "添加转码任务",
+    message: "请选择要添加多个文件，或选择一个文件夹批量添加。",
+    chooseFiles: "选择文件（可多选）",
+    chooseFolder: "选择文件夹",
+    cancel: "取消",
   },
   queueDefaultPresetLabel: "默认参数预设",
   queueDefaultPresetPlaceholder: "选择用于添加任务的预设",
+  outputSettings: "输出设置",
   newPreset: "新建预设",
   lang: {
     label: "语言",
@@ -196,6 +204,8 @@ const app = {
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",
   actions: {
     addJob: "添加转码任务",
+    addJobFiles: "添加文件",
+    addJobFolder: "添加文件夹",
     smartScan: "添加压缩任务",
     deletePreset: "删除",
     confirmDelete: "确认删除",

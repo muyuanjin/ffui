@@ -44,7 +44,7 @@ fn build_ffmpeg_args_matches_frontend_contract_fixtures() {
 
         let input = std::path::Path::new("INPUT");
         let output = std::path::Path::new("OUTPUT");
-        let args = build_ffmpeg_args(&case.preset, input, output, true);
+        let args = build_ffmpeg_args(&case.preset, input, output, true, None);
         let joined = format!("ffmpeg {}", args.join(" "));
 
         assert_eq!(

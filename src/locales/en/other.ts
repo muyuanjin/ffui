@@ -74,6 +74,39 @@ const other = {
       "If saved space is less than {size} MB, result will be discarded (not worth it).",
     scanButton: "Scan & Compress",
   },
+  outputPolicy: {
+    containerLabel: "Output Container",
+    container: {
+      default: "Default (follow preset/template)",
+      keepInput: "Keep input container",
+      force: "Force format",
+    },
+    dirLabel: "Output Directory",
+    dir: {
+      sameAsInput: "Same as input directory",
+      fixed: "Fixed directory",
+      pick: "Pick",
+      placeholder: "e.g. D:/Outputs",
+    },
+    nameLabel: "Filename (stem only)",
+    name: {
+      prefix: "Prefix",
+      suffix: "Suffix",
+      timestamp: "Append timestamp (local time)",
+      encoderTag: "Append encoder + quality",
+      random: "Append random characters",
+      randomHint: "Len",
+    },
+    regexLabel: "Regex Replace (Rust regex)",
+    regex: {
+      pattern: "Pattern",
+      replacement: "Replacement",
+    },
+    enabled: "Enabled",
+    preserveTimes: "Preserve created/modified/accessed times",
+    smartScanLockHint:
+      'When "Replace original" is enabled, output directory and filename follow the original; container/timestamp policies still apply.',
+  },
   taskDetail: {
     title: "Task details",
     description: "Inspect media, paths, command, and logs for this transcoding job.",

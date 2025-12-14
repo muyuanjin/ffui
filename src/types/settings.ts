@@ -4,6 +4,7 @@ import type {
   TaskbarProgressScope,
 } from "./tools";
 import type { SmartScanConfig } from "./smart-scan";
+import type { OutputPolicy } from "./output-policy";
 
 export type QueuePersistenceMode = "none" | "crashRecoveryLite" | "crashRecoveryFull";
 
@@ -79,4 +80,6 @@ export interface AppSettings {
   onboardingCompleted?: boolean;
   /** Whether the queue selection bar should remain visible even when no jobs are selected. */
   selectionBarPinned?: boolean;
+  /** Output policy for manual queue enqueues (container/dir/name/timestamps). */
+  queueOutputPolicy?: OutputPolicy;
 }

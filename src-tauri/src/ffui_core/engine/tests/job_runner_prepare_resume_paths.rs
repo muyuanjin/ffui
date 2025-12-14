@@ -8,6 +8,7 @@ use std::io::Write;
 fn plan_resume_paths_uses_next_segment_for_initial_resume() {
     let dir = env::temp_dir();
     let input = dir.join("ffui_resume_plan_first.mp4");
+    let output = dir.join("ffui_resume_plan_first.output.mp4");
     let job_id = "job-test-resume-1";
     let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
     let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
@@ -29,7 +30,7 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
     };
 
     let (resume_from, existing, tmp_output) =
-        plan_resume_paths(job_id, &input, Some(100.0), Some(&meta), None);
+        plan_resume_paths(job_id, &input, &output, Some(100.0), Some(&meta), None);
 
     assert!(
         (resume_from.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
@@ -53,6 +54,7 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
 fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
     let dir = env::temp_dir();
     let input = dir.join("ffui_resume_plan_multi.mp4");
+    let output = dir.join("ffui_resume_plan_multi.output.mp4");
     let job_id = "job-test-resume-2";
     let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
     let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
@@ -82,7 +84,7 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
     };
 
     let (resume_from, existing, tmp_output) =
-        plan_resume_paths(job_id, &input, Some(100.0), Some(&meta), None);
+        plan_resume_paths(job_id, &input, &output, Some(100.0), Some(&meta), None);
 
     assert!(
         (resume_from.unwrap_or(0.0) - 50.0).abs() < f64::EPSILON,

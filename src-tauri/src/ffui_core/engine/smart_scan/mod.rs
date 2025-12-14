@@ -16,6 +16,7 @@ mod video;
 pub(crate) mod video;
 mod video_paths;
 
+pub(crate) use detection::is_video_file;
 #[cfg(test)]
 pub(super) use detection::{build_image_avif_paths, is_smart_scan_style_output};
 #[cfg(test)]

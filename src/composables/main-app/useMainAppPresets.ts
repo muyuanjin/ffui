@@ -7,6 +7,7 @@ import {
   deletePresetOnBackend,
   reorderPresetsOnBackend,
   enqueueTranscodeJob,
+  expandManualJobInputs,
 } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { UseMainAppShellReturn } from "./useMainAppShell";
@@ -57,7 +58,7 @@ export interface UseMainAppPresetsReturn {
   confirmDeletePreset: () => Promise<void>;
   cancelDeletePreset: () => void;
   openPresetEditor: (preset: FFmpegPreset) => void;
-  addManualJob: () => Promise<void>;
+  addManualJob: (mode?: "files" | "folder") => Promise<void>;
 }
 
 const INITIAL_PRESETS: FFmpegPreset[] = [
@@ -271,7 +272,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     dialogManager.openParameterPanel(preset);
   };
 
-  const addManualJob = async () => {
+  const addManualJob = async (mode: "files" | "folder" = "files") => {
     if (shell) {
       shell.activeTab.value = "queue";
     }
@@ -279,33 +280,33 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     if (!hasTauri()) return;
 
     try {
-      // DEBUG_MANUAL_JOB: trace manual job flow in tests
-      // console.debug("[MainAppPresets] addManualJob start, presetId=", manualJobPresetId.value);
       const selected = await openDialog({
-        multiple: false,
-        directory: false,
-        filters: [
-          {
-            name: "Video",
-            extensions: ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v"],
-          },
-        ],
+        multiple: true,
+        directory: mode === "folder",
+        recursive: mode === "folder",
       });
 
       if (!selected) return;
-      const path = Array.isArray(selected) ? selected[0] : selected;
-      if (!path) return;
+      const selectedPaths = (Array.isArray(selected) ? selected : [selected]).filter(
+        (p): p is string => typeof p === "string" && p.length > 0,
+      );
+      if (selectedPaths.length === 0) return;
+
+      const expanded = await expandManualJobInputs(selectedPaths, { recursive: true });
+      if (!Array.isArray(expanded) || expanded.length === 0) return;
 
       const preset = manualJobPreset.value ?? presets.value[0];
       if (!preset) return;
 
-      await enqueueTranscodeJob({
-        filename: path as string,
-        jobType: "video",
-        source: "manual",
-        originalSizeMb: 0,
-        presetId: preset.id,
-      });
+      for (const path of expanded) {
+        await enqueueTranscodeJob({
+          filename: path,
+          jobType: "video",
+          source: "manual",
+          originalSizeMb: 0,
+          presetId: preset.id,
+        });
+      }
     } catch (e) {
       console.error("Failed to add manual job:", e);
     }
