@@ -1,100 +1,165 @@
-pub fn collect_system_font_families() -> Result<Vec<String>, String> {
+use super::ui_fonts_types::SystemFontFamily;
+
+pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
     #[cfg(windows)]
     {
-        use windows::Win32::Foundation::{ERROR_MORE_DATA, ERROR_NO_MORE_ITEMS};
-        use windows::Win32::System::Registry::{
-            HKEY, HKEY_LOCAL_MACHINE, KEY_READ, RegCloseKey, RegEnumValueW, RegOpenKeyExW,
+        use std::collections::{BTreeMap, BTreeSet};
+        use windows::Win32::Globalization::GetUserDefaultLocaleName;
+        use windows::Win32::Graphics::DirectWrite::{
+            DWRITE_FACTORY_TYPE_SHARED, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection,
+            IDWriteLocalizedStrings,
         };
-        use windows::core::{PCWSTR, PWSTR};
+        use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
 
-        const FONTS_KEY: &str = r"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts";
-
-        fn open_subkey(root: HKEY, path: &str) -> Result<HKEY, String> {
-            let p: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
-            let mut hk: HKEY = HKEY(std::ptr::null_mut());
-            unsafe { RegOpenKeyExW(root, PCWSTR(p.as_ptr()), 0, KEY_READ, &mut hk) }
-                .ok()
-                .map_err(|e| format!("failed to open registry key {path}: {e:?}"))?;
-            Ok(hk)
-        }
-
-        fn normalize_registry_font_name(value_name: &str) -> Option<String> {
-            let mut s = value_name.trim().to_string();
-            if s.is_empty() {
+        fn get_user_locale_name() -> Option<String> {
+            // LOCALE_NAME_MAX_LENGTH is 85 incl. null terminator.
+            let mut buf = [0u16; 85];
+            let len = unsafe { GetUserDefaultLocaleName(&mut buf) };
+            if len <= 1 {
                 return None;
             }
-            // Strip common trailing "(TrueType)" / "(OpenType)" suffixes.
-            if s.ends_with(')')
-                && let Some(idx) = s.rfind(" (")
-            {
-                s.truncate(idx);
-                s = s.trim().to_string();
-            }
-            if s.is_empty() { None } else { Some(s) }
+            Some(String::from_utf16_lossy(&buf[..(len as usize - 1)]))
         }
 
-        let hk = open_subkey(HKEY_LOCAL_MACHINE, FONTS_KEY)?;
-        let mut out: Vec<String> = Vec::new();
-
-        // Enumerate value names.
-        let mut index: u32 = 0;
-        let mut done = false;
-        loop {
-            let mut name_buf_len: usize = 256;
-            let mut name: Option<String> = None;
-            loop {
-                let mut name_buf: Vec<u16> = vec![0u16; name_buf_len];
-                let mut name_len: u32 = name_buf_len as u32;
-
-                let status = unsafe {
-                    RegEnumValueW(
-                        hk,
-                        index,
-                        PWSTR(name_buf.as_mut_ptr()),
-                        &mut name_len,
-                        None,
-                        None,
-                        None,
-                        None,
-                    )
+        fn read_localized_strings(
+            strings: &IDWriteLocalizedStrings,
+        ) -> Result<Vec<(String, String)>, String> {
+            let count = unsafe { strings.GetCount() };
+            let mut out: Vec<(String, String)> = Vec::with_capacity(count as usize);
+            for index in 0..count {
+                let locale_len = unsafe {
+                    strings
+                        .GetLocaleNameLength(index)
+                        .map_err(|e| format!("failed to get locale name length: {e:?}"))?
                 };
-
-                if status == ERROR_MORE_DATA {
-                    name_buf_len = (name_buf_len * 2).min(16 * 1024);
-                    continue;
+                let mut locale_buf = vec![0u16; locale_len as usize + 1];
+                unsafe {
+                    strings
+                        .GetLocaleName(index, &mut locale_buf)
+                        .map_err(|e| format!("failed to get locale name: {e:?}"))?;
                 }
-                if status == ERROR_NO_MORE_ITEMS {
-                    done = true;
-                    break;
+                let locale = String::from_utf16_lossy(&locale_buf[..locale_len as usize])
+                    .trim()
+                    .to_string();
+
+                let name_len = unsafe {
+                    strings
+                        .GetStringLength(index)
+                        .map_err(|e| format!("failed to get family name length: {e:?}"))?
+                };
+                let mut name_buf = vec![0u16; name_len as usize + 1];
+                unsafe {
+                    strings
+                        .GetString(index, &mut name_buf)
+                        .map_err(|e| format!("failed to get family name: {e:?}"))?;
                 }
-                if status.is_err() {
-                    break;
+                let name = String::from_utf16_lossy(&name_buf[..name_len as usize])
+                    .trim()
+                    .to_string();
+
+                if !name.is_empty() {
+                    out.push((locale, name));
                 }
-
-                name = Some(String::from_utf16_lossy(&name_buf[..name_len as usize]));
-                break;
             }
-
-            if done {
-                break;
-            }
-
-            if let Some(name) = name
-                && let Some(normalized) = normalize_registry_font_name(&name)
-            {
-                out.push(normalized);
-            }
-
-            index += 1;
+            Ok(out)
         }
 
+        fn choose_primary_name(entries: &[(String, String)], user_locale: &str) -> Option<String> {
+            let user = user_locale.trim().to_ascii_lowercase();
+            if user.is_empty() {
+                return None;
+            }
+
+            for (locale, name) in entries {
+                if locale.trim().to_ascii_lowercase() == user && !name.trim().is_empty() {
+                    return Some(name.trim().to_string());
+                }
+            }
+
+            // Fall back to English names when present.
+            for (locale, name) in entries {
+                let l = locale.trim().to_ascii_lowercase();
+                if (l == "en-us" || l == "en") && !name.trim().is_empty() {
+                    return Some(name.trim().to_string());
+                }
+            }
+
+            None
+        }
+
+        // Ensure COM is initialized (DirectWrite depends on it). Ignore mode mismatch.
+        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+
+        let factory: IDWriteFactory = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }
+            .map_err(|e| format!("failed to create DirectWrite factory: {e:?}"))?;
+
+        let mut collection: Option<IDWriteFontCollection> = None;
         unsafe {
-            let _ = RegCloseKey(hk);
+            factory
+                .GetSystemFontCollection(&mut collection, false)
+                .map_err(|e| format!("failed to get system font collection: {e:?}"))?;
+        }
+        let collection = collection.ok_or_else(|| "system font collection is null".to_string())?;
+
+        let user_locale = get_user_locale_name().unwrap_or_default();
+        let mut by_primary: BTreeMap<String, SystemFontFamily> = BTreeMap::new();
+
+        let count = unsafe { collection.GetFontFamilyCount() };
+        for index in 0..count {
+            let family = unsafe { collection.GetFontFamily(index) }
+                .map_err(|e| format!("failed to get font family #{index}: {e:?}"))?;
+            let localized = unsafe { family.GetFamilyNames() }
+                .map_err(|e| format!("failed to get family localized names: {e:?}"))?;
+
+            let entries = read_localized_strings(&localized)?;
+            if entries.is_empty() {
+                continue;
+            }
+
+            let mut name_set: BTreeSet<String> = BTreeSet::new();
+            for (_locale, name) in entries.iter() {
+                let trimmed = name.trim();
+                if !trimmed.is_empty() {
+                    name_set.insert(trimmed.to_string());
+                }
+            }
+            if name_set.is_empty() {
+                continue;
+            }
+
+            let fallback_first = name_set.iter().next().cloned();
+            let primary = choose_primary_name(&entries, &user_locale)
+                .or(fallback_first)
+                .unwrap_or_default();
+            let primary_trimmed = primary.trim().to_string();
+            if primary_trimmed.is_empty() {
+                continue;
+            }
+
+            name_set.insert(primary_trimmed.clone());
+            let names: Vec<String> = name_set.into_iter().collect();
+            let key = primary_trimmed.to_ascii_lowercase();
+
+            by_primary
+                .entry(key)
+                .and_modify(|existing| {
+                    let merged = existing
+                        .names
+                        .iter()
+                        .cloned()
+                        .chain(names.iter().cloned())
+                        .map(|n| n.trim().to_string())
+                        .filter(|n| !n.is_empty())
+                        .collect::<BTreeSet<_>>();
+                    existing.names = merged.into_iter().collect();
+                })
+                .or_insert(SystemFontFamily {
+                    primary: primary_trimmed,
+                    names,
+                });
         }
 
-        out.sort();
-        out.dedup();
-        Ok(out)
+        Ok(by_primary.into_values().collect())
     }
 
     #[cfg(all(not(windows), not(any(target_os = "android", target_os = "ios"))))]
@@ -119,7 +184,13 @@ pub fn collect_system_font_families() -> Result<Vec<String>, String> {
             }
         }
 
-        Ok(families.into_iter().collect())
+        Ok(families
+            .into_iter()
+            .map(|name| SystemFontFamily {
+                primary: name.clone(),
+                names: vec![name],
+            })
+            .collect())
     }
 
     #[cfg(any(target_os = "android", target_os = "ios"))]

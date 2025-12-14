@@ -49,7 +49,7 @@ describe("QueueSelectionBar responsive affordances", () => {
     expect(row.classes()).toContain("min-w-max");
 
     const count = wrapper.get("[data-testid='queue-selection-count']");
-    expect(count.text()).toContain("Selected 3 job(s)");
+    expect(count.text()).toContain("Selected 3");
 
     const selection = (en as any).queue.selection as Record<string, string>;
     const actions = (en as any).queue.actions as Record<string, string>;
@@ -87,15 +87,20 @@ describe("QueueSelectionBar responsive affordances", () => {
     resizeObservers.forEach((o) => o.trigger());
     await nextTick();
     expect(root.attributes("data-density")).toBe("full");
-    expect(count.text()).toContain("Selected 3 job(s)");
+    expect(count.text()).toContain("Selected 3");
 
     Object.defineProperty(viewport.element, "clientWidth", { value: 350, configurable: true });
     resizeObservers.forEach((o) => o.trigger());
     await nextTick();
     expect(root.attributes("data-density")).toBe("short");
     expect(count.text()).toBe("3 selected");
-    expect(selectAll.text()).toBe("");
-    expect(bulkCancel.text()).toBe("");
+    const selectAllShort = wrapper.get(`button[aria-label="${selection.selectAll}"]`);
+    expect(selectAllShort.text()).toBe(selection.selectAllShort);
+    const invertShort = wrapper.get(`button[aria-label="${selection.invert}"]`);
+    expect(invertShort.text()).toBe(selection.invertShort);
+    const clearShort = wrapper.get(`button[aria-label="${selection.clear}"]`);
+    expect(clearShort.text()).toBe(selection.clearShort);
+    expect(bulkCancel.text()).toBe(actions.bulkCancelShort);
     expect(bulkWait.text()).toBe(actions.bulkWaitShort);
     expect(bulkResume.text()).toBe(actions.bulkResumeShort);
 
@@ -105,7 +110,8 @@ describe("QueueSelectionBar responsive affordances", () => {
     expect(root.attributes("data-density")).toBe("icon");
     expect(viewport.classes()).toContain("overflow-x-auto");
     expect(count.text()).toBe("3");
-    expect(selectAll.text()).toBe("");
-    expect(bulkCancel.text()).toBe("");
+    const selectAllIcon = wrapper.get(`button[aria-label="${selection.selectAll}"]`);
+    expect(selectAllIcon.text().trim()).toBe("");
+    expect(bulkCancel.text().trim()).toBe("");
   });
 });

@@ -11,6 +11,13 @@ pub struct OpenSourceFontInfo {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SystemFontFamily {
+    pub primary: String,
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DownloadedFontInfo {
     pub id: String,
     pub family_name: String,

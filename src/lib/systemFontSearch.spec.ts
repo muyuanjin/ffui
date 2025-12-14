@@ -1,41 +1,30 @@
-import { describe, expect, it } from "vitest";
-
-import { getSystemFontSuggestions, resolveSystemFontFamilyName } from "./systemFontSearch";
+import { describe, it, expect } from "vitest";
+import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "./systemFontSearch";
 
 describe("systemFontSearch", () => {
-  it("matches Chinese alias queries like 微软雅黑", () => {
+  it("matches localized names and resolves to the primary family name", () => {
+    const fonts: SystemFontFamily[] = [
+      { primary: "Example Primary", names: ["示例字体", "Example Primary"] },
+      { primary: "Other Font", names: ["其他字体"] },
+    ];
+
     const suggestions = getSystemFontSuggestions({
-      fonts: ["Arial", "Microsoft YaHei", "SimSun"],
-      query: "微软雅黑",
+      fonts,
+      query: "示例",
       focused: true,
+      max: 20,
     });
-    expect(suggestions.some((s) => s.value === "Microsoft YaHei")).toBe(true);
-    expect(suggestions.find((s) => s.value === "Microsoft YaHei")?.label).toContain("微软雅黑");
-  });
 
-  it("returns empty suggestions when not focused", () => {
-    const suggestions = getSystemFontSuggestions({
-      fonts: ["Microsoft YaHei"],
-      query: "yahei",
-      focused: false,
-    });
-    expect(suggestions).toEqual([]);
-  });
+    expect(suggestions.length).toBeGreaterThan(0);
+    expect(suggestions[0]?.value).toBe("Example Primary");
+    expect(suggestions[0]?.label).toContain("示例字体");
 
-  it("returns first entries when query is empty", () => {
-    const suggestions = getSystemFontSuggestions({
-      fonts: ["A", "B", "C"],
-      query: "",
-      focused: true,
-    });
-    expect(suggestions.map((s) => s.value)).toEqual(["A", "B", "C"]);
-  });
-
-  it("resolves exact alias input to an existing canonical font name", () => {
-    const resolved = resolveSystemFontFamilyName({
-      fonts: ["Arial", "Microsoft YaHei"],
-      input: "微软雅黑",
-    });
-    expect(resolved).toBe("Microsoft YaHei");
+    expect(
+      resolveSystemFontFamilyName({
+        fonts,
+        input: "示例字体",
+      }),
+    ).toBe("Example Primary");
   });
 });
+

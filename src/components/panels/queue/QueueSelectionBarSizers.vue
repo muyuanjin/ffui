@@ -5,7 +5,6 @@ import {
   ArrowUp,
   CheckSquare,
   Hourglass,
-  MoreHorizontal,
   Pin,
   Play,
   RefreshCw,
@@ -29,14 +28,14 @@ const { t } = useI18n();
   <div class="queue-selection-bar__sizer" aria-hidden="true">
     <div
       :ref="(el) => props.setFullSizerRowEl(el as HTMLDivElement | null)"
-      class="queue-selection-bar__sizer-row queue-selection-bar__sizer-row--full flex items-center justify-between gap-2 min-w-max font-medium"
+      class="queue-selection-bar__sizer-row queue-selection-bar__sizer-row--full inline-flex items-center gap-2 w-max whitespace-nowrap font-medium"
     >
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="inline-flex items-center gap-2 shrink-0">
         <span class="text-xs font-medium text-foreground whitespace-nowrap">
           {{ t("queue.selection.selectedCount", { count: props.selectedCount }) }}
         </span>
 
-        <div class="flex items-center gap-1">
+        <div class="inline-flex items-center gap-1">
           <div class="h-6 px-2 gap-1 text-xs inline-flex items-center justify-center">
             <CheckSquare class="h-3 w-3" />
             <span class="whitespace-nowrap">{{ t("queue.selection.selectAll") }}</span>
@@ -54,7 +53,7 @@ const { t } = useI18n();
         </div>
       </div>
 
-      <div class="flex items-center gap-1">
+      <div class="inline-flex items-center gap-1">
         <div class="h-6 px-2 gap-1 text-xs inline-flex items-center justify-center">
           <Hourglass class="h-3 w-3" />
           <span class="whitespace-nowrap">{{ t("queue.actions.bulkWait") }}</span>
@@ -104,29 +103,32 @@ const { t } = useI18n();
 
     <div
       :ref="(el) => props.setShortSizerRowEl(el as HTMLDivElement | null)"
-      class="queue-selection-bar__sizer-row queue-selection-bar__sizer-row--short flex items-center justify-between gap-1.5 min-w-max font-medium"
+      class="queue-selection-bar__sizer-row queue-selection-bar__sizer-row--short inline-flex items-center gap-2 w-max whitespace-nowrap font-medium"
     >
-      <div class="flex items-center gap-2 shrink-0">
+      <div class="inline-flex items-center gap-2 shrink-0">
         <span class="text-xs font-medium text-foreground whitespace-nowrap">
           {{ t("queue.selection.selectedCountShort", { count: props.selectedCount }) }}
         </span>
 
-        <div class="flex items-center gap-1">
+        <div class="inline-flex items-center gap-1">
           <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center">
             <CheckSquare class="h-3 w-3" />
+            <span class="whitespace-nowrap">{{ t("queue.selection.selectAllShort") }}</span>
           </div>
 
           <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center">
             <Square class="h-3 w-3" />
+            <span class="whitespace-nowrap">{{ t("queue.selection.invertShort") }}</span>
           </div>
 
           <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center text-muted-foreground">
             <X class="h-3 w-3" />
+            <span class="whitespace-nowrap">{{ t("queue.selection.clearShort") }}</span>
           </div>
         </div>
       </div>
 
-      <div class="flex items-center gap-1">
+      <div class="inline-flex items-center gap-1">
         <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center">
           <Hourglass class="h-3 w-3" />
           <span class="whitespace-nowrap">{{ t("queue.actions.bulkWaitShort") }}</span>
@@ -139,13 +141,26 @@ const { t } = useI18n();
 
         <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center">
           <XCircle class="h-3 w-3" />
+          <span class="whitespace-nowrap">{{ t("queue.actions.bulkCancelShort") }}</span>
         </div>
 
         <div class="h-6 w-6 p-0 inline-flex items-center justify-center">
-          <MoreHorizontal class="h-3 w-3" />
+          <RefreshCw class="h-3 w-3" />
         </div>
 
-        <div class="h-6 px-1.5 gap-1 text-xs inline-flex items-center justify-center">
+        <div class="h-6 w-6 p-0 inline-flex items-center justify-center">
+          <ArrowUp class="h-3 w-3" />
+        </div>
+
+        <div class="h-6 w-6 p-0 inline-flex items-center justify-center">
+          <ArrowDown class="h-3 w-3" />
+        </div>
+
+        <div class="h-6 w-6 p-0 inline-flex items-center justify-center text-destructive/80">
+          <Trash2 class="h-3 w-3" />
+        </div>
+
+        <div class="h-6 w-6 p-0 inline-flex items-center justify-center">
           <Pin class="h-3 w-3" />
         </div>
       </div>
@@ -162,4 +177,3 @@ const { t } = useI18n();
   pointer-events: none;
 }
 </style>
-

@@ -18,6 +18,7 @@ import type {
   SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
+import type { SystemFontFamily } from "./systemFontSearch";
 
 export const hasTauri = () => {
   if (typeof window === "undefined") return false;
@@ -68,9 +69,9 @@ export interface UiFontDownloadSnapshot {
   error: string | null;
 }
 
-export const fetchSystemFontFamilies = async (): Promise<string[]> => {
+export const fetchSystemFontFamilies = async (): Promise<SystemFontFamily[]> => {
   if (!hasTauri()) return [];
-  return invoke<string[]>("get_system_font_families");
+  return invoke<SystemFontFamily[]>("get_system_font_families");
 };
 
 export const listOpenSourceFonts = async (): Promise<OpenSourceFontInfo[]> => {

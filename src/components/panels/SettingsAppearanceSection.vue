@@ -1,22 +1,20 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AppSettings } from "@/types";
-import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { applyDownloadedUiFont } from "@/lib/uiFonts";
-import { getSystemFontSuggestions, resolveSystemFontFamilyName } from "@/lib/systemFontSearch";
-import {
-  fetchSystemFontFamilies,
-  hasTauri,
-  importUiFontFile,
-  listOpenSourceFonts,
-  type OpenSourceFontInfo,
-} from "@/lib/backend";
+	import { computed, onMounted, ref, watch } from "vue";
+	import { useI18n } from "vue-i18n";
+	import { Button } from "@/components/ui/button";
+	import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+	import { Input } from "@/components/ui/input";
+	import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+	import type { AppSettings } from "@/types";
+	import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
+	import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
+	import SettingsAppearanceUiFontFilePicker from "@/components/panels/SettingsAppearanceUiFontFilePicker.vue";
+	import {
+	  fetchSystemFontFamilies,
+	  hasTauri,
+	  listOpenSourceFonts,
+	  type OpenSourceFontInfo,
+	} from "@/lib/backend";
 const props = defineProps<{
   appSettings: AppSettings | null;
 }>();
@@ -61,7 +59,7 @@ const uiFontSizePxModel = computed<string>({
 const percentOptions = Array.from({ length: 31 }, (_, i) => 50 + i * 5);
 const fontSizePxOptions = Array.from({ length: 21 }, (_, i) => 12 + i);
 const scaleOptionTone = (p: number) => (p === 100 ? "ffui-select-option--default" : p < 80 || p > 140 ? "ffui-select-option--extreme" : p >= 90 && p <= 120 ? "ffui-select-option--recommended" : ""), fontSizeOptionTone = (px: number) => (px === 16 ? "ffui-select-option--default" : px < 13 || px > 22 ? "ffui-select-option--extreme" : px >= 14 && px <= 20 ? "ffui-select-option--recommended" : "");
-const systemFonts = ref<string[]>([]);
+const systemFonts = ref<SystemFontFamily[]>([]);
 const systemFontsLoading = ref(false);
 const openSourceFonts = ref<OpenSourceFontInfo[]>([]);
 const openSourceFontsLoading = ref(false);
@@ -70,7 +68,29 @@ const refreshSystemFonts = async () => {
   systemFontsLoading.value = true;
   try {
     const raw = await fetchSystemFontFamilies();
-    systemFonts.value = Array.from(new Set(raw)).sort((a, b) => a.localeCompare(b));
+    const byPrimary = new Map<string, SystemFontFamily>();
+    const normalizeKey = (value: string) => value.trim().toLowerCase();
+    for (const entry of Array.isArray(raw) ? raw : []) {
+      const primary = String(entry.primary ?? "").trim();
+      if (!primary) continue;
+      const names = Array.isArray(entry.names) ? entry.names : [];
+      const key = normalizeKey(primary);
+      const existing = byPrimary.get(key);
+      if (!existing) {
+        byPrimary.set(key, { primary, names: names.slice() });
+        continue;
+      }
+      existing.names = Array.from(
+        new Map(
+          existing.names
+            .concat(names)
+            .map((name) => String(name ?? "").trim())
+            .filter((name) => name.length > 0)
+            .map((name) => [normalizeKey(name), name] as const),
+        ).values(),
+      );
+    }
+    systemFonts.value = Array.from(byPrimary.values()).sort((a, b) => a.primary.localeCompare(b.primary));
   } finally {
     systemFontsLoading.value = false;
   }
@@ -110,6 +130,12 @@ watch(
     }
     if (typeof s.uiFontName === "string" && s.uiFontName.trim().length > 0) {
       uiFontModeSticky.value = "system";
+      return;
+    }
+    // When the user clears the input (e.g. holding backspace) we still want to
+    // keep the UI in "system font" mode, so the input doesn't disappear and
+    // the mode selector doesn't bounce back to "default" mid-edit.
+    if (uiFontModeSticky.value === "system") {
       return;
     }
     uiFontModeSticky.value = "default";
@@ -163,6 +189,7 @@ const uiFontModeModel = computed<UiFontMode>({
 });
 const uiSystemFontDraft = ref("");
 const systemFontFocused = ref(false);
+const systemFontSuggestionsSuppressed = ref(false);
 let systemFontCommitTimer: number | undefined;
 const commitSystemFontNameNow = () => {
   if (!props.appSettings) return;
@@ -185,6 +212,8 @@ const commitSystemFontNameNow = () => {
   });
 };
 const scheduleCommitSystemFontName = (value: string) => {
+  systemFontFocused.value = true;
+  systemFontSuggestionsSuppressed.value = false;
   uiSystemFontDraft.value = value;
   if (systemFontCommitTimer !== undefined) {
     window.clearTimeout(systemFontCommitTimer);
@@ -204,14 +233,14 @@ const systemFontSuggestions = computed(() =>
   getSystemFontSuggestions({
     fonts: systemFonts.value,
     query: uiSystemFontDraft.value,
-    focused: systemFontFocused.value,
+    focused: systemFontFocused.value && !systemFontSuggestionsSuppressed.value,
     max: 20,
   }),
 );
-const uiOpenSourceFontIdModel = computed<string>({
-  get() {
-    return props.appSettings?.uiFontDownloadId ?? "";
-  },
+	const uiOpenSourceFontIdModel = computed<string>({
+	  get() {
+	    return props.appSettings?.uiFontDownloadId ?? "";
+	  },
   set(value) {
     if (!props.appSettings) return;
     const id = String(value ?? "").trim();
@@ -225,58 +254,9 @@ const uiOpenSourceFontIdModel = computed<string>({
       uiFontFileSourceName: undefined,
     };
     emit("update:appSettings", next);
-  },
-});
-const uiFontFileBusy = ref(false);
-const uiFontFileError = ref<string | null>(null);
-const getFontFileBasename = (p?: string | null) => {
-  const value = (p ?? "").trim();
-  if (!value) return "";
-  const parts = value.split(/[/\\]/g);
-  return parts[parts.length - 1] ?? value;
-};
-const chooseUiFontFile = async () => {
-  if (!props.appSettings) return;
-  if (!hasTauri()) return;
-  uiFontFileError.value = null;
-  uiFontFileBusy.value = true;
-  try {
-    const selection = await openDialog({
-      multiple: false,
-      directory: false,
-      filters: [{ name: "Font", extensions: ["ttf", "otf"] }],
-    });
-    const path = typeof selection === "string" ? selection : "";
-    if (!path) return;
-    const sourceName = getFontFileBasename(path) || undefined;
-    const imported = await importUiFontFile(path);
-    await applyDownloadedUiFont(imported);
-    emit("update:appSettings", {
-      ...props.appSettings,
-      uiFontFamily: "system",
-      uiFontName: imported.familyName,
-      uiFontDownloadId: undefined,
-      uiFontFilePath: imported.path,
-      uiFontFileSourceName: sourceName,
-    });
-  } catch (error) {
-    uiFontFileError.value = String((error as any)?.message ?? error);
-  } finally {
-    uiFontFileBusy.value = false;
-  }
-};
-const clearUiFontFile = () => {
-  if (!props.appSettings) return;
-  emit("update:appSettings", {
-    ...props.appSettings,
-    uiFontDownloadId: undefined,
-    uiFontFilePath: undefined,
-    uiFontFileSourceName: undefined,
-    uiFontName: undefined,
-    uiFontFamily: "system",
-  });
-};
-</script>
+	  },
+	});
+	</script>
 <template>
   <Card class="border-border/50 bg-card/95 shadow-sm" :data-locale="locale">
     <CardHeader class="py-2 px-3 border-b border-border/30">
@@ -357,12 +337,14 @@ const clearUiFontFile = () => {
         </div>
         <div class="relative">
           <Input
+            data-testid="settings-ui-system-font-input"
             :model-value="uiSystemFontDraft"
             class="h-7 text-[11px] bg-background/50 border-border/30"
             :placeholder="t('app.settings.uiSystemFontPlaceholder')"
             @focus="
               () => {
                 systemFontFocused = true;
+                systemFontSuggestionsSuppressed = false;
                 ensureSystemFontsLoaded();
               }
             "
@@ -371,12 +353,14 @@ const clearUiFontFile = () => {
               () => {
                 commitSystemFontNameNow();
                 systemFontFocused = false;
+                systemFontSuggestionsSuppressed = false;
               }
             "
             @keydown.enter.prevent="commitSystemFontNameNow"
           />
           <div
             v-if="!systemFontsLoading && systemFontSuggestions.length > 0"
+            data-testid="settings-ui-system-font-suggestions"
             class="absolute z-50 mt-1 w-full rounded border border-border/40 bg-popover shadow-sm max-h-40 overflow-auto"
           >
             <button
@@ -388,7 +372,7 @@ const clearUiFontFile = () => {
                 () => {
                   uiSystemFontDraft = suggestion.value;
                   commitSystemFontNameNow();
-                  systemFontFocused = false;
+                  systemFontSuggestionsSuppressed = true;
                 }
               "
             >
@@ -422,50 +406,11 @@ const clearUiFontFile = () => {
         </p>
         <SettingsOpenSourceFontDownloadStatus :font-id="appSettings.uiFontDownloadId ?? null" />
       </div>
-      <div v-else-if="uiFontModeModel === 'file'" class="space-y-1">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs font-medium text-foreground">
-            {{ t("app.settings.uiFontFileLabel") }}
-          </p>
-          <div class="flex items-center gap-1">
-            <Button
-              v-if="hasTauri()"
-              variant="outline"
-              size="sm"
-              class="h-6 px-2 text-[10px]"
-              :disabled="uiFontFileBusy"
-              @click="chooseUiFontFile"
-            >
-              {{ uiFontFileBusy ? t("app.settings.loadingFonts") : t("app.settings.chooseFontFile") }}
-            </Button>
-            <Button
-              v-if="hasTauri() && appSettings.uiFontFilePath"
-              variant="outline"
-              size="sm"
-              class="h-6 px-2 text-[10px]"
-              :disabled="uiFontFileBusy"
-              @click="clearUiFontFile"
-            >
-              {{ t("app.settings.clearFontFile") }}
-            </Button>
-          </div>
-        </div>
-        <p class="text-[10px] text-muted-foreground leading-snug">
-          <span v-if="appSettings.uiFontFilePath">
-            {{ t("app.settings.currentFontFileLabel") }}
-            <span class="font-mono text-foreground">{{ getFontFileBasename(appSettings.uiFontFileSourceName || appSettings.uiFontFilePath) }}</span>
-          </span>
-          <span v-else>
-            {{ t("app.settings.noFontFileSelected") }}
-          </span>
-        </p>
-        <p v-if="uiFontFileError" class="text-[9px] text-red-500 leading-snug">
-          {{ uiFontFileError }}
-        </p>
-        <p class="text-[9px] text-muted-foreground leading-snug">
-          {{ t("app.settings.uiFontFileHelp") }}
-        </p>
-      </div>
+	      <SettingsAppearanceUiFontFilePicker
+	        v-else-if="uiFontModeModel === 'file' && appSettings"
+	        :app-settings="appSettings"
+	        @update:appSettings="emit('update:appSettings', $event)"
+	      />
 
       <div class="flex items-center justify-between gap-2 pt-1">
         <p class="text-[10px] text-muted-foreground">

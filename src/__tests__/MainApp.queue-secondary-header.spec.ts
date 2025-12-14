@@ -157,7 +157,7 @@ describe("MainApp queue secondary header", () => {
     const secondary = wrapper.get("[data-testid='queue-secondary-header']");
 
     // 初始没有选中，Secondary Header 中不展示选中数量，也不展示批量操作按钮。
-    expect(secondary.text()).not.toContain("Selected 2 job(s)");
+    expect(secondary.text()).not.toContain("Selected 2");
     const bulkCancelLabel = (en as any).queue.actions.bulkCancel as string;
     const bulkButtonsBefore = secondary.findAll("button");
     expect(
@@ -175,7 +175,7 @@ describe("MainApp queue secondary header", () => {
     const bulkCancel = bulkButtonsAfter.find(
       (btn) => btn.text() === bulkCancelLabel,
     );
-    expect(secondary.text()).toContain("Selected 2 job(s)");
+    expect(secondary.text()).toContain("Selected 2");
     expect(bulkCancel).toBeTruthy();
 
     wrapper.unmount();

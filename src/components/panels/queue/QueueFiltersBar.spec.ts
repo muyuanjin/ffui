@@ -39,8 +39,9 @@ describe("QueueFiltersBar bulk actions", () => {
   it("enables bulk wait/resume in display mode when there is a selection", async () => {
     const wrapper = mount(QueueFiltersBar, { props: makeDefaultProps(), global: { plugins: [i18n] } });
 
-    const bulkWait = wrapper.get('button[title="Wait selected"]');
-    const bulkResume = wrapper.get('button[title="Resume selected"]');
+    const actions = (en as any).queue.actions as Record<string, string>;
+    const bulkWait = wrapper.get(`button[title="${actions.bulkWait}"]`);
+    const bulkResume = wrapper.get(`button[title="${actions.bulkResume}"]`);
 
     expect(bulkWait.attributes("disabled")).toBeUndefined();
     expect(bulkResume.attributes("disabled")).toBeUndefined();

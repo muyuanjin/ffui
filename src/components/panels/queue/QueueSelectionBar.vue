@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 	import { Button } from "@/components/ui/button";
-	import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 	import { useI18n } from "vue-i18n";
 	import type { QueueMode } from "@/types";
 	import QueueSelectionBarSizers from "./QueueSelectionBarSizers.vue";
-	import { CheckSquare, Square, X, Hourglass, Play, RefreshCw, ArrowUp, ArrowDown, XCircle, Trash2, Pin, PinOff, MoreHorizontal } from "lucide-vue-next";
+	import { CheckSquare, Square, X, Hourglass, Play, RefreshCw, ArrowUp, ArrowDown, XCircle, Trash2, Pin, PinOff } from "lucide-vue-next";
 	const props = defineProps<{
 	  selectionBarPinned: boolean;
 	  selectedCount: number;
@@ -33,14 +32,6 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 	  shortSizerRowEl.value = el;
 	};
 	const density = ref<"full" | "short" | "icon">("full");
-	const moreOpen = ref(false);
-
-const runMoreAction = (
-  action: "bulk-restart" | "bulk-move-to-top" | "bulk-move-to-bottom" | "bulk-delete",
-) => {
-  moreOpen.value = false;
-  emit(action);
-};
 
 let resizeObserver: ResizeObserver | null = null;
 const updateDensityFromOverflow = () => {
@@ -64,6 +55,15 @@ const updateDensityFromOverflow = () => {
   } else {
     density.value = "icon";
   }
+};
+
+const buttonLayoutClass = () => {
+  if (density.value === "icon") return "h-6 w-6 p-0";
+  return density.value === "full" ? "h-6 px-2 gap-1 text-xs" : "h-6 px-1.5 gap-1 text-xs";
+};
+
+const iconOnlyButtonLayoutClass = () => {
+  return density.value === "full" ? "h-6 px-2 gap-1 text-xs" : "h-6 w-6 p-0";
 };
 
 onMounted(() => {
@@ -108,12 +108,12 @@ watch(
           density === 'full' ? 'gap-2' : 'gap-1.5',
         ]"
       >
-        <div class="flex items-center gap-2 shrink-0">
-          <span
-            class="text-xs font-medium text-foreground whitespace-nowrap"
-            :title="t('queue.selection.selectedCount', { count: props.selectedCount })"
-            data-testid="queue-selection-count"
-          >
+	        <div class="flex items-center gap-2 shrink-0">
+	          <span
+	            class="text-xs font-medium text-foreground whitespace-nowrap"
+	            :title="t('queue.selection.selectedCount', { count: props.selectedCount })"
+	            data-testid="queue-selection-count"
+	          >
             <span v-if="density === 'full'" class="queue-selection-bar__count-full">
               {{ t("queue.selection.selectedCount", { count: props.selectedCount }) }}
             </span>
@@ -122,16 +122,16 @@ watch(
             </span>
             <span v-else class="queue-selection-bar__count-icon" aria-hidden="true">
               {{ props.selectedCount }}
-            </span>
-          </span>
+	            </span>
+	          </span>
 
-          <div class="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              class="queue-selection-bar__button h-6 gap-1 text-xs"
-              :class="density === 'full' ? 'px-2' : 'px-1.5'"
+	          <div class="flex items-center gap-1">
+	            <Button
+	              type="button"
+	              variant="ghost"
+	              size="sm"
+	              class="queue-selection-bar__button"
+              :class="buttonLayoutClass()"
               @click="emit('select-all-visible-jobs')"
               :title="t('queue.selection.selectAll')"
               :aria-label="t('queue.selection.selectAll')"
@@ -140,14 +140,17 @@ watch(
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.selectAll") }}
               </span>
+              <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
+                {{ t("queue.selection.selectAllShort") }}
+              </span>
             </Button>
 
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              class="queue-selection-bar__button h-6 gap-1 text-xs"
-              :class="density === 'full' ? 'px-2' : 'px-1.5'"
+              class="queue-selection-bar__button"
+              :class="buttonLayoutClass()"
               @click="emit('invert-selection')"
               :title="t('queue.selection.invert')"
               :aria-label="t('queue.selection.invert')"
@@ -156,14 +159,17 @@ watch(
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.invert") }}
               </span>
+              <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
+                {{ t("queue.selection.invertShort") }}
+              </span>
             </Button>
 
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              class="queue-selection-bar__button h-6 gap-1 text-xs text-muted-foreground"
-              :class="density === 'full' ? 'px-2' : 'px-1.5'"
+              class="queue-selection-bar__button text-muted-foreground"
+              :class="buttonLayoutClass()"
               @click="emit('clear-selection')"
               :title="t('queue.selection.clear')"
               :aria-label="t('queue.selection.clear')"
@@ -172,17 +178,20 @@ watch(
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.clear") }}
               </span>
-            </Button>
-          </div>
-        </div>
+              <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
+                {{ t("queue.selection.clearShort") }}
+              </span>
+	            </Button>
+	          </div>
+	        </div>
 
         <div class="flex items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            class="queue-selection-bar__button h-6 gap-1 text-xs"
-            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+            class="queue-selection-bar__button"
+            :class="buttonLayoutClass()"
             @click="emit('bulk-wait')"
             :title="t('queue.actions.bulkWait')"
             :aria-label="t('queue.actions.bulkWait')"
@@ -200,8 +209,8 @@ watch(
             type="button"
             variant="ghost"
             size="sm"
-            class="queue-selection-bar__button h-6 gap-1 text-xs"
-            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+            class="queue-selection-bar__button"
+            :class="buttonLayoutClass()"
             @click="emit('bulk-resume')"
             :title="t('queue.actions.bulkResume')"
             :aria-label="t('queue.actions.bulkResume')"
@@ -219,8 +228,8 @@ watch(
             type="button"
             variant="ghost"
             size="sm"
-            class="queue-selection-bar__button h-6 gap-1 text-xs"
-            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+            class="queue-selection-bar__button"
+            :class="buttonLayoutClass()"
             @click="emit('bulk-cancel')"
             :title="t('queue.actions.bulkCancel')"
             :aria-label="t('queue.actions.bulkCancel')"
@@ -229,15 +238,17 @@ watch(
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkCancel") }}
             </span>
+            <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
+              {{ t("queue.actions.bulkCancelShort") }}
+            </span>
           </Button>
 
 	          <Button
 	            type="button"
 	            variant="ghost"
 	            size="sm"
-	            v-if="density === 'full'"
-	            class="queue-selection-bar__button h-6 gap-1 text-xs"
-	            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+	            class="queue-selection-bar__button"
+	            :class="iconOnlyButtonLayoutClass()"
 	            :disabled="props.queueMode !== 'queue'"
 	            @click="emit('bulk-restart')"
             :title="t('queue.actions.bulkRestart')"
@@ -255,9 +266,8 @@ watch(
 	            type="button"
 	            variant="ghost"
 	            size="sm"
-	            v-if="density === 'full'"
-	            class="queue-selection-bar__button h-6 gap-1 text-xs"
-	            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+	            class="queue-selection-bar__button"
+	            :class="iconOnlyButtonLayoutClass()"
 	            :disabled="props.queueMode !== 'queue'"
 	            @click="emit('bulk-move-to-top')"
             :title="t('queue.actions.bulkMoveToTop')"
@@ -273,9 +283,8 @@ watch(
 	            type="button"
 	            variant="ghost"
 	            size="sm"
-	            v-if="density === 'full'"
-	            class="queue-selection-bar__button h-6 gap-1 text-xs"
-	            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+	            class="queue-selection-bar__button"
+	            :class="iconOnlyButtonLayoutClass()"
 	            :disabled="props.queueMode !== 'queue'"
 	            @click="emit('bulk-move-to-bottom')"
             :title="t('queue.actions.bulkMoveToBottom')"
@@ -293,9 +302,8 @@ watch(
 	            type="button"
 	            variant="ghost"
 	            size="sm"
-	            v-if="density === 'full'"
-	            class="queue-selection-bar__button h-6 gap-1 text-xs text-destructive/80 hover:text-destructive"
-	            :class="density === 'full' ? 'px-2' : 'px-1.5'"
+	            class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
+	            :class="iconOnlyButtonLayoutClass()"
 	            @click="emit('bulk-delete')"
 	            :title="t('queue.actions.bulkDelete')"
 	            :aria-label="t('queue.actions.bulkDelete')"
@@ -306,79 +314,12 @@ watch(
             </span>
 	          </Button>
 
-	          <div v-if="density === 'full'" class="h-4 w-px bg-border/40 mx-1" />
-
-	          <Dialog v-if="density !== 'full'" v-model:open="moreOpen">
-	            <DialogTrigger as-child>
-	              <Button
-	                type="button"
-	                variant="ghost"
-	                size="sm"
-	                class="h-6 w-6 p-0"
-	                :title="t('queue.selection.moreActions')"
-	                :aria-label="t('queue.selection.moreActions')"
-	              >
-	                <MoreHorizontal class="h-3 w-3" />
-	              </Button>
-	            </DialogTrigger>
-	            <DialogContent class="sm:max-w-[420px]">
-	              <DialogHeader>
-	                <DialogTitle>{{ t("queue.selection.moreActions") }}</DialogTitle>
-	              </DialogHeader>
-	              <div class="grid gap-2">
-	                <Button
-	                  type="button"
-	                  variant="outline"
-	                  size="sm"
-	                  :disabled="props.queueMode !== 'queue'"
-	                  @click="runMoreAction('bulk-restart')"
-	                >
-	                  <RefreshCw class="h-4 w-4" />
-	                  <span class="truncate">{{ t("queue.actions.bulkRestart") }}</span>
-	                </Button>
-	                <Button
-	                  type="button"
-	                  variant="outline"
-	                  size="sm"
-	                  :disabled="props.queueMode !== 'queue'"
-	                  @click="runMoreAction('bulk-move-to-top')"
-	                >
-	                  <ArrowUp class="h-4 w-4" />
-	                  <span class="truncate">{{ t("queue.actions.bulkMoveToTop") }}</span>
-	                </Button>
-	                <Button
-	                  type="button"
-	                  variant="outline"
-	                  size="sm"
-	                  :disabled="props.queueMode !== 'queue'"
-	                  @click="runMoreAction('bulk-move-to-bottom')"
-	                >
-	                  <ArrowDown class="h-4 w-4" />
-	                  <span class="truncate">{{ t("queue.actions.bulkMoveToBottom") }}</span>
-	                </Button>
-	                <Button
-	                  type="button"
-	                  variant="outline"
-	                  size="sm"
-	                  class="text-destructive hover:text-destructive"
-	                  @click="runMoreAction('bulk-delete')"
-	                >
-	                  <Trash2 class="h-4 w-4" />
-	                  <span class="truncate">{{ t("queue.actions.bulkDelete") }}</span>
-	                </Button>
-	              </div>
-	            </DialogContent>
-	          </Dialog>
-
 	          <Button
 	            type="button"
 	            variant="ghost"
 	            size="sm"
-            class="queue-selection-bar__button h-6 gap-1 text-xs"
-            :class="[
-              density === 'full' ? 'px-2' : 'px-1.5',
-              { 'text-primary': props.selectionBarPinned },
-            ]"
+            class="queue-selection-bar__button"
+            :class="[iconOnlyButtonLayoutClass(), { 'text-primary': props.selectionBarPinned }]"
             @click="emitTogglePin"
             :title="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
             :aria-label="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"

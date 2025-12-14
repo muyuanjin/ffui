@@ -10,7 +10,9 @@ mod ui_fonts_system;
 mod ui_fonts_types;
 
 pub use ui_fonts_downloads::UiFontDownloadManager;
-pub use ui_fonts_types::{DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot};
+pub use ui_fonts_types::{
+    DownloadedFontInfo, OpenSourceFontInfo, SystemFontFamily, UiFontDownloadSnapshot,
+};
 
 #[tauri::command]
 pub fn list_open_source_fonts() -> Vec<OpenSourceFontInfo> {
@@ -26,7 +28,7 @@ pub fn list_open_source_fonts() -> Vec<OpenSourceFontInfo> {
 }
 
 #[tauri::command]
-pub async fn get_system_font_families() -> Result<Vec<String>, String> {
+pub async fn get_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
     tauri::async_runtime::spawn_blocking(ui_fonts_system::collect_system_font_families)
         .await
         .map_err(|e| format!("failed to join font enumeration task: {e}"))?
