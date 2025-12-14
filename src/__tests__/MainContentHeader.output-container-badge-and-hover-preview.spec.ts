@@ -76,6 +76,7 @@ describe("MainContentHeader output container badge + hover preview", () => {
     expect(preview.text()).toContain("Force format");
     expect(preview.text()).toContain("Fixed directory");
     expect(preview.text()).toContain("D:/Outputs");
+    expect(preview.text()).not.toContain("prefix=");
+    expect(preview.text()).not.toContain("suffix=");
   });
 });
-

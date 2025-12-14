@@ -6,9 +6,11 @@ import { nextTick } from "vue";
 
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
+import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings } from "@/types";
+import type { QueueFilterKind, QueueFilterStatus } from "@/composables";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 vi.mock("@/lib/backend", () => {
@@ -94,6 +96,74 @@ describe("Locale refresh for select trigger labels", () => {
     (i18n.global.locale as any).value = "en";
     await nextTick();
     expect(trigger.text()).toContain("System default");
+
+    wrapper.unmount();
+  });
+
+  it("updates the queue secondary header mode trigger label when locale changes", async () => {
+    const i18n = makeI18n();
+    const wrapper = mount(QueueFiltersBar, {
+      props: {
+        activeStatusFilters: new Set<QueueFilterStatus>(),
+        activeTypeFilters: new Set<QueueFilterKind>(),
+        filterText: "",
+        filterUseRegex: false,
+        filterRegexError: null,
+        sortPrimary: "addedTime",
+        sortPrimaryDirection: "desc",
+        sortSecondary: "filename",
+        sortSecondaryDirection: "asc",
+        hasActiveFilters: false,
+        hasSelection: false,
+        selectedCount: 0,
+        hasPrimarySortTies: false,
+        queueMode: "display",
+        visibleCount: 0,
+        totalCount: 0,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const trigger = wrapper.get('[data-testid="queue-mode-trigger"]');
+    expect(trigger.text()).toContain("视图排序");
+
+    (i18n.global.locale as any).value = "en";
+    await nextTick();
+    expect(trigger.text()).toContain("View-only sort");
+
+    wrapper.unmount();
+  });
+
+  it("updates the queue secondary header sort trigger label when locale changes", async () => {
+    const i18n = makeI18n();
+    const wrapper = mount(QueueFiltersBar, {
+      props: {
+        activeStatusFilters: new Set<QueueFilterStatus>(),
+        activeTypeFilters: new Set<QueueFilterKind>(),
+        filterText: "",
+        filterUseRegex: false,
+        filterRegexError: null,
+        sortPrimary: "addedTime",
+        sortPrimaryDirection: "desc",
+        sortSecondary: "filename",
+        sortSecondaryDirection: "asc",
+        hasActiveFilters: false,
+        hasSelection: false,
+        selectedCount: 0,
+        hasPrimarySortTies: false,
+        queueMode: "display",
+        visibleCount: 0,
+        totalCount: 0,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const trigger = wrapper.get('[data-testid="queue-sort-primary-trigger"]');
+    expect(trigger.text()).toContain("按添加时间");
+
+    (i18n.global.locale as any).value = "en";
+    await nextTick();
+    expect(trigger.text()).toContain("Added time");
 
     wrapper.unmount();
   });

@@ -20,6 +20,9 @@ const emit = defineEmits<{
 
 const query = ref("");
 
+const selectedEntry = computed(() => props.entries.find((e) => e.value === props.modelValue) ?? null);
+const selectedLabel = computed(() => selectedEntry.value?.label ?? props.modelValue);
+
 const visibleEntries = computed(() => {
   const allowed = props.allowedKinds?.length
     ? props.entries.filter((e) => props.allowedKinds!.includes(e.kind))
@@ -42,8 +45,10 @@ watch(
 
 <template>
   <Select :model-value="modelValue" @update:model-value="(v) => emit('update:modelValue', String(v))">
-    <SelectTrigger class="h-8 text-xs">
-      <SelectValue :placeholder="placeholder ?? '选择格式'" />
+    <SelectTrigger class="h-8 text-xs w-[220px]" :title="selectedLabel">
+      <SelectValue :placeholder="placeholder ?? '选择格式'">
+        {{ selectedLabel }}
+      </SelectValue>
     </SelectTrigger>
     <SelectContent class="w-[320px]">
       <div class="p-1">
@@ -101,4 +106,3 @@ watch(
     </SelectContent>
   </Select>
 </template>
-

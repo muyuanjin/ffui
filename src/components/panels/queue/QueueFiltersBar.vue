@@ -127,10 +127,11 @@ const toggleSecondarySortDirection = () => {
               @update:model-value="(v) => emit('update:queueMode', v as QueueMode)"
             >
               <SelectTrigger
+                data-testid="queue-mode-trigger"
                 class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[90px]"
                 :title="String(modeHint)"
               >
-                <SelectValue />
+                <SelectValue>{{ t(`queue.modes.${props.queueMode}`) }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="display">{{ t("queue.modes.display") }}</SelectItem>
@@ -154,8 +155,11 @@ const toggleSecondarySortDirection = () => {
               :model-value="props.sortPrimary"
               @update:model-value="(v) => emit('update:sortPrimary', v as QueueSortField)"
             >
-              <SelectTrigger class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]">
-                <SelectValue />
+              <SelectTrigger
+                data-testid="queue-sort-primary-trigger"
+                class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]"
+              >
+                <SelectValue>{{ t(`queue.sort.fields.${props.sortPrimary}`) }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="addedTime">{{ t("queue.sort.fields.addedTime") }}</SelectItem>
@@ -225,8 +229,11 @@ const toggleSecondarySortDirection = () => {
                 :model-value="props.sortSecondary"
                 @update:model-value="(v) => emit('update:sortSecondary', v as QueueSortField)"
               >
-                <SelectTrigger class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]">
-                  <SelectValue />
+                <SelectTrigger
+                  data-testid="queue-sort-secondary-trigger"
+                  class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]"
+                >
+                  <SelectValue>{{ t(`queue.sort.fields.${props.sortSecondary}`) }}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="filename">{{ t("queue.sort.fields.filename") }}</SelectItem>

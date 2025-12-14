@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 
 const props = defineProps<{
   activeTab: string;
@@ -117,51 +118,104 @@ const outputContainerBadge = computed<string>(() => {
   return presetDefaultContainerFormat.value ?? "auto";
 });
 
-const outputPolicyPreviewLines = computed(() => {
+const hoverPreviewContainerText = computed(() => {
   const policy = effectiveOutputPolicy.value;
-  const containerLabel =
-    policy.container.mode === "force"
-      ? `${normalizeContainerFormatForDisplay(policy.container.format || "mkv") || "mkv"} · ${t("outputPolicy.container.force")}`
-      : policy.container.mode === "keepInput"
-        ? t("outputPolicy.container.keepInput")
-        : presetDefaultContainerFormat.value
-          ? `${presetDefaultContainerFormat.value} · ${t("outputPolicy.container.default")}`
-          : t("outputPolicy.container.default");
+  if (policy.container.mode === "force") {
+    const fmt = normalizeContainerFormatForDisplay(policy.container.format || "mkv") || "mkv";
+    return `${t("outputPolicy.container.force")}：${fmt}`;
+  }
+  if (policy.container.mode === "keepInput") {
+    return t("outputPolicy.container.keepInput");
+  }
+  if (presetDefaultContainerFormat.value) {
+    return `${t("outputPolicy.container.default")}（${presetDefaultContainerFormat.value}）`;
+  }
+  return t("outputPolicy.container.default");
+});
 
-  const dirLabel =
-    policy.directory.mode === "fixed"
-      ? `${t("outputPolicy.dir.fixed")}: ${(policy.directory.directory ?? "").trim() || "—"}`
-      : t("outputPolicy.dir.sameAsInput");
+const hoverPreviewDirectoryText = computed(() => {
+  const policy = effectiveOutputPolicy.value;
+  if (policy.directory.mode === "fixed") {
+    const dir = (policy.directory.directory ?? "").trim();
+    return dir ? `${t("outputPolicy.dir.fixed")}：${dir}` : t("outputPolicy.dir.fixed");
+  }
+  return t("outputPolicy.dir.sameAsInput");
+});
 
+const hoverPreviewFilenameText = computed(() => {
+  const policy = effectiveOutputPolicy.value;
+  const none = t("presets.noFilters");
+
+  const parts: string[] = [];
   const prefix = (policy.filename.prefix ?? "").trim();
   const suffix = (policy.filename.suffix ?? "").trim();
-  const flags: string[] = [];
-  if (policy.filename.appendTimestamp) flags.push("timestamp");
-  if (policy.filename.appendEncoderQuality) flags.push("encoder+quality");
-  if (typeof policy.filename.randomSuffixLen === "number" && policy.filename.randomSuffixLen > 0) {
-    flags.push(`random(${policy.filename.randomSuffixLen})`);
+  if (prefix) parts.push(`${t("outputPolicy.name.prefix")}：${prefix}`);
+  if (suffix) parts.push(`${t("outputPolicy.name.suffix")}：${suffix}`);
+
+  const regexPattern = (policy.filename.regexReplace?.pattern ?? "").trim();
+  if (regexPattern) {
+    const repl = policy.filename.regexReplace?.replacement ?? "";
+    parts.push(`${t("outputPolicy.regexLabel")}：${regexPattern} → ${repl}`);
   }
-  const extras = flags.length > 0 ? flags.join(", ") : "—";
 
-  const preserve = (() => {
-    const value = policy.preserveFileTimes;
-    if (value === true) return "created, modified, accessed";
-    if (!value || typeof value !== "object") return "—";
-    const detailed = value as { created?: boolean; modified?: boolean; accessed?: boolean };
-    const parts = [
-      detailed.created ? "created" : null,
-      detailed.modified ? "modified" : null,
-      detailed.accessed ? "accessed" : null,
-    ].filter((v): v is string => !!v);
-    return parts.join(", ") || "—";
-  })();
+  return parts.length > 0 ? parts.join(" · ") : none;
+});
 
+const hoverPreviewAppendText = computed(() => {
+  const policy = effectiveOutputPolicy.value;
+  const none = t("presets.noFilters");
+
+  const parts: string[] = [];
+  if (policy.filename.appendTimestamp) parts.push(t("outputPolicy.name.timestamp"));
+  if (policy.filename.appendEncoderQuality) parts.push(t("outputPolicy.name.encoderTag"));
+  if (typeof policy.filename.randomSuffixLen === "number" && policy.filename.randomSuffixLen > 0) {
+    parts.push(`${t("outputPolicy.name.random")}（${t("outputPolicy.name.randomHint")}：${policy.filename.randomSuffixLen}）`);
+  }
+
+  return parts.length > 0 ? parts.join(" · ") : none;
+});
+
+const hoverPreviewPreserveTimesText = computed(() => {
+  const value = effectiveOutputPolicy.value.preserveFileTimes;
+  const none = t("presets.noFilters");
+
+  if (value === true) {
+    return [
+      t("outputPolicy.preserveTimesCreated"),
+      t("outputPolicy.preserveTimesModified"),
+      t("outputPolicy.preserveTimesAccessed"),
+    ].join(" · ");
+  }
+  if (!value || typeof value !== "object") return none;
+
+  const detailed = value as { created?: boolean; modified?: boolean; accessed?: boolean };
+  const parts = [
+    detailed.created ? t("outputPolicy.preserveTimesCreated") : null,
+    detailed.modified ? t("outputPolicy.preserveTimesModified") : null,
+    detailed.accessed ? t("outputPolicy.preserveTimesAccessed") : null,
+  ].filter((v): v is string => !!v);
+
+  return parts.length > 0 ? parts.join(" · ") : none;
+});
+
+const hoverPreviewExample = computed(() => {
+  const exampleInput = "C:/videos/input.mp4";
+  const policy = effectiveOutputPolicy.value;
+
+  const previewPolicy: OutputPolicy =
+    policy.container.mode === "default" && presetDefaultContainerFormat.value
+      ? {
+          ...policy,
+          // For example path only: match preset/template extension when "default" is selected.
+          container: { mode: "force", format: presetDefaultContainerFormat.value },
+        }
+      : policy;
+
+  const output = previewOutputPathLocal(exampleInput, previewPolicy);
+  const base = (p: string) => p.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? p;
   return {
-    containerLabel,
-    dirLabel,
-    filenameLabel: `prefix=${prefix || "—"} · suffix=${suffix || "—"}`,
-    filenameExtras: extras,
-    preserve,
+    input: base(exampleInput),
+    output: base(output),
   };
 });
 </script>
@@ -209,41 +263,36 @@ const outputPolicyPreviewLines = computed(() => {
             </Button>
           </div>
         </HoverCardTrigger>
-        <HoverCardContent align="end" side="bottom" :side-offset="8" class="w-[380px] p-3">
+        <HoverCardContent align="end" side="bottom" :side-offset="8" class="w-[420px] p-3">
           <div data-testid="ffui-queue-output-settings-hover-preview" class="space-y-2">
             <div class="flex items-center justify-between">
-              <div class="text-[11px] font-semibold text-foreground">
-                {{ t("outputPolicy.previewLabel") }}
-              </div>
+              <div class="text-[11px] font-semibold text-foreground">{{ t("app.outputSettings") }}</div>
               <div class="text-[10px] font-mono uppercase tracking-wide text-muted-foreground">
                 {{ outputContainerBadge }}
               </div>
             </div>
-            <div class="grid grid-cols-[120px,1fr] gap-x-3 gap-y-1 text-[11px]">
-              <div class="text-muted-foreground">{{ t("outputPolicy.containerLabel") }}</div>
-              <div class="font-mono text-foreground">
-                {{ outputPolicyPreviewLines.containerLabel }}
+            <div class="grid grid-cols-[108px,1fr] gap-x-3 gap-y-1 text-[11px]">
+              <div class="text-muted-foreground">{{ t("outputPolicy.previewLabel") }}</div>
+              <div class="text-foreground">
+                <span class="font-mono">{{ hoverPreviewExample.input }}</span>
+                <span class="text-muted-foreground mx-1">→</span>
+                <span class="font-mono">{{ hoverPreviewExample.output }}</span>
               </div>
+
+              <div class="text-muted-foreground">{{ t("outputPolicy.containerLabel") }}</div>
+              <div class="text-foreground">{{ hoverPreviewContainerText }}</div>
 
               <div class="text-muted-foreground">{{ t("outputPolicy.dirLabel") }}</div>
-              <div class="text-foreground truncate">
-                {{ outputPolicyPreviewLines.dirLabel }}
-              </div>
+              <div class="text-foreground truncate">{{ hoverPreviewDirectoryText }}</div>
 
               <div class="text-muted-foreground">{{ t("outputPolicy.nameLabel") }}</div>
-              <div class="font-mono text-foreground">
-                {{ outputPolicyPreviewLines.filenameLabel }}
-              </div>
+              <div class="text-foreground">{{ hoverPreviewFilenameText }}</div>
 
               <div class="text-muted-foreground">{{ t("outputPolicy.appendOrderLabel") }}</div>
-              <div class="text-foreground">
-                {{ outputPolicyPreviewLines.filenameExtras }}
-              </div>
+              <div class="text-foreground">{{ hoverPreviewAppendText }}</div>
 
               <div class="text-muted-foreground">{{ t("outputPolicy.preserveTimes") }}</div>
-              <div class="text-foreground">
-                {{ outputPolicyPreviewLines.preserve }}
-              </div>
+              <div class="text-foreground">{{ hoverPreviewPreserveTimesText }}</div>
             </div>
           </div>
         </HoverCardContent>
