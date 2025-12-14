@@ -48,6 +48,11 @@ const other = {
     noPathSelected: "Please select a folder to scan",
     replaceOriginal: "Replace original files",
     replaceOriginalHint: "Uncheck to keep originals (batch transcode mode)",
+    keepOriginalsBatchTranscode: "Output as new files",
+    keepOriginalsBatchTranscodeHint:
+      "Choose this to keep originals. Output directory + filename rules from Output settings will apply.",
+    replaceOriginalOutputPolicyHint:
+      "Replace originals: output directory + filename are forced to match the input; container + file time preservation still apply.",
     videoStrategy: "Video",
     targetPreset: "Transcode Preset",
     targetPresetPlaceholder: "Choose preset",
@@ -97,15 +102,30 @@ const other = {
       random: "Append random characters",
       randomHint: "Len",
     },
+    appendOrderLabel: "Ordered rules",
+    appendOrderHint: "Enable items, configure params inline, and drag to reorder (enabled items only).",
     regexLabel: "Regex Replace (Rust regex)",
     regex: {
       pattern: "Pattern",
       replacement: "Replacement",
+      hint: "Leave Pattern empty to disable.",
     },
     enabled: "Enabled",
-    preserveTimes: "Preserve created/modified/accessed times",
+    preserveTimes: "Preserve file times",
+    preserveTimesCreated: "Created",
+    preserveTimesModified: "Modified",
+    preserveTimesAccessed: "Accessed",
+    previewLabel: "Preview",
+    preview: {
+      input: "Example input",
+      output: "Derived output",
+      pick: "Pick",
+      loading: "Updating…",
+      lockHint:
+        'With "Replace original" enabled, Smart Scan forces output directory + filename; this preview reflects that override.',
+    },
     smartScanLockHint:
-      'When "Replace original" is enabled, output directory and filename follow the original; container/timestamp policies still apply.',
+      'When "Replace original" is enabled, output directory and filename follow the original; container + file time preservation still apply.',
   },
   taskDetail: {
     title: "Task details",

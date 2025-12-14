@@ -34,28 +34,21 @@ const { t } = useI18n();
 // 根据排序模式排序预设列表
 const sortedPresets = computed(() => sortPresets(props.presets, props.presetSortMode ?? "manual"));
 
+const queueViewModeLabelKey = computed(() => {
+  switch (props.queueViewModeModel) {
+    case "icon-small":
+      return "queue.viewModes.iconSmall";
+    case "icon-medium":
+      return "queue.viewModes.iconMedium";
+    case "icon-large":
+      return "queue.viewModes.iconLarge";
+    default:
+      return `queue.viewModes.${props.queueViewModeModel}`;
+  }
+});
+
 const outputDialogOpen = ref(false);
 const effectiveOutputPolicy = computed<OutputPolicy>(() => props.queueOutputPolicy ?? DEFAULT_OUTPUT_POLICY);
-
-const outputPolicySummary = computed(() => {
-  const p = effectiveOutputPolicy.value;
-  const container =
-    p.container.mode === "force"
-      ? p.container.format
-      : p.container.mode === "keepInput"
-        ? t("outputPolicy.container.keepInput")
-        : t("outputPolicy.container.default");
-  const dir =
-    p.directory.mode === "fixed"
-      ? t("outputPolicy.dir.fixed")
-      : t("outputPolicy.dir.sameAsInput");
-  const tags: string[] = [];
-  if (p.filename.appendTimestamp) tags.push(t("outputPolicy.name.timestamp"));
-  if (p.filename.appendEncoderQuality) tags.push(t("outputPolicy.name.encoderTag"));
-  if (p.filename.randomSuffixLen !== undefined) tags.push(`${t("outputPolicy.name.random")}×${p.filename.randomSuffixLen}`);
-  if (p.preserveFileTimes) tags.push(t("outputPolicy.preserveTimes"));
-  return [container, dir, ...tags].join(" · ");
-});
 </script>
 
 <template>
@@ -79,17 +72,15 @@ const outputPolicySummary = computed(() => {
 
     <div v-if="activeTab === 'queue'" class="flex items-center gap-3">
       <Button
+        data-testid="ffui-queue-output-settings"
         type="button"
-        variant="secondary"
+        variant="outputSettings"
         size="sm"
-        class="h-7 px-3 py-0 text-xs rounded-full"
-        :title="t('outputPolicy.containerLabel') as string"
+        class="h-7 px-3 py-0 text-xs rounded-full font-semibold text-white"
+        :title="t('app.outputSettings') as string"
         @click="outputDialogOpen = true"
       >
         {{ t("app.outputSettings") }}
-        <span class="ml-2 text-[10px] text-muted-foreground font-mono hidden md:inline">
-          {{ outputPolicySummary }}
-        </span>
       </Button>
 
       <div v-if="presets.length > 0" class="flex items-center gap-2">
@@ -97,7 +88,10 @@ const outputPolicySummary = computed(() => {
           {{ t("app.queueDefaultPresetLabel") }}
         </span>
         <Select :model-value="manualJobPresetId" @update:model-value="(v) => emit('update:manualJobPresetId', v as string)">
-          <SelectTrigger class="h-7 px-3 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[160px]">
+          <SelectTrigger
+            data-testid="ffui-queue-default-preset-trigger"
+            class="h-7 px-3 py-0 text-xs rounded-full min-w-[160px] font-semibold bg-primary/90 text-primary-foreground shadow hover:bg-[#f9a825]/90 focus-visible:ring-1 focus-visible:ring-ring !border-transparent data-[state=open]:bg-primary/90"
+          >
             <SelectValue :placeholder="t('app.queueDefaultPresetPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
@@ -109,8 +103,11 @@ const outputPolicySummary = computed(() => {
       </div>
 
       <Select :model-value="queueViewModeModel" @update:model-value="(v) => emit('update:queueViewModeModel', v as string)">
-        <SelectTrigger class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]">
-          <SelectValue />
+        <SelectTrigger
+          data-testid="ffui-queue-view-mode-trigger"
+          class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]"
+        >
+          <SelectValue>{{ t(queueViewModeLabelKey) }}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="detail">{{ t("queue.viewModes.detail") }}</SelectItem>
@@ -136,6 +133,7 @@ const outputPolicySummary = computed(() => {
       </DialogHeader>
       <OutputPolicyEditor
         :model-value="effectiveOutputPolicy"
+        :preview-preset-id="manualJobPresetId"
         @update:model-value="(v) => emit('update:queueOutputPolicy', v)"
       />
     </DialogContent>

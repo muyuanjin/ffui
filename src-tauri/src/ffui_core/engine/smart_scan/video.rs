@@ -333,7 +333,7 @@ pub(crate) fn enqueue_smart_scan_video_job(
             container: config.output_policy.container.clone(),
             directory: OutputDirectoryPolicy::SameAsInput,
             filename: OutputFilenamePolicy::default(),
-            preserve_file_times: config.output_policy.preserve_file_times,
+            preserve_file_times: config.output_policy.preserve_file_times.clone(),
         }
     } else {
         config.output_policy.clone()

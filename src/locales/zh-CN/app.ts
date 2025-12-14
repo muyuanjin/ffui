@@ -96,7 +96,7 @@ const app = {
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",
     appUpdateTitle: "应用更新",
-    appUpdateDescription: "从 GitHub Releases 检查 FFUI 新版本，并在应用内安装更新（仅桌面版）。",
+    appUpdateDescription: "从 GitHub Releases 检查 FFUI 新版本。",
     appUpdateUnavailableHint: "应用内更新仅在桌面版可用。",
     appUpdateNotConfiguredHint: "此构建未配置应用更新（缺少更新公钥）。",
     checkForUpdatesButton: "检查更新",

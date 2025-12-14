@@ -101,7 +101,7 @@ const app = {
     saveErrorGeneric: "Failed to save settings. Please try again later.",
     appUpdateTitle: "App updates",
     appUpdateDescription:
-      "Check for new FFUI versions on GitHub Releases and install updates (desktop builds only).",
+      "Check for new FFUI versions on GitHub Releases.",
     appUpdateUnavailableHint: "In-app updates are available only in the desktop app.",
     appUpdateNotConfiguredHint:
       "In-app updates are disabled for this build (missing updater public key).",

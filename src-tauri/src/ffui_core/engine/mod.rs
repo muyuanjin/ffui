@@ -34,13 +34,14 @@ static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
 // 导出 Job Object 初始化函数，供应用启动时调用
 pub use ffmpeg_args::init_child_process_job;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
 
 use crate::ffui_core::domain::{
-    AutoCompressProgress, AutoCompressResult, FFmpegPreset, JobSource, JobType, QueueState,
-    QueueStateLite, SmartScanConfig, TranscodeJob,
+    AutoCompressProgress, AutoCompressResult, FFmpegPreset, JobSource, JobType, OutputPolicy,
+    QueueState, QueueStateLite, SmartScanConfig, TranscodeJob,
 };
 use crate::ffui_core::monitor::{
     CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
@@ -55,6 +56,17 @@ use crate::ffui_core::tools::{
 use state::{
     Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
 };
+
+fn normalize_os_path_string(raw: &str) -> String {
+    #[cfg(windows)]
+    {
+        raw.replace('/', "\\")
+    }
+    #[cfg(not(windows))]
+    {
+        raw.to_string()
+    }
+}
 
 /// The main transcoding engine facade.
 ///
@@ -321,6 +333,27 @@ impl TranscodingEngine {
             original_codec,
             preset_id,
         )
+    }
+
+    pub fn preview_output_path(
+        &self,
+        input_path: String,
+        preset_id: Option<String>,
+        output_policy: OutputPolicy,
+    ) -> Option<String> {
+        let trimmed = input_path.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        let normalized = normalize_os_path_string(trimmed);
+        let input = Path::new(&normalized);
+
+        let state = self.inner.state.lock().expect("engine state poisoned");
+        let preset = preset_id
+            .as_deref()
+            .and_then(|id| state.presets.iter().find(|p| p.id == id));
+        let plan = output_policy_paths::preview_video_output_path(input, preset, &output_policy);
+        Some(plan.output_path.to_string_lossy().into_owned())
     }
 
     /// Cancel a job by ID.

@@ -96,9 +96,19 @@ pub(crate) fn handle_image_file_with_id(
         .map(|s| s.to_ascii_lowercase())
         .unwrap_or_default();
 
-    let preserve_file_times = config.output_policy.preserve_file_times;
-    let input_times = if preserve_file_times {
-        Some(super::super::file_times::read_file_times(path))
+    let preserve_times_policy = config.output_policy.preserve_file_times.clone();
+    let input_times = if preserve_times_policy.any() {
+        let mut times = super::super::file_times::read_file_times(path);
+        if !preserve_times_policy.created() {
+            times.created = None;
+        }
+        if !preserve_times_policy.modified() {
+            times.modified = None;
+        }
+        if !preserve_times_policy.accessed() {
+            times.accessed = None;
+        }
+        Some(times)
     } else {
         None
     };
@@ -249,7 +259,7 @@ pub(crate) fn handle_image_file_with_id(
                         )
                     })?;
 
-                    if preserve_file_times
+                    if preserve_times_policy.any()
                         && let Some(times) = input_times.as_ref()
                         && let Err(err) =
                             super::super::file_times::apply_file_times(&avif_target, times)
@@ -409,7 +419,7 @@ pub(crate) fn handle_image_file_with_id(
         )
     })?;
 
-    if preserve_file_times
+    if preserve_times_policy.any()
         && let Some(times) = input_times.as_ref()
         && let Err(err) = super::super::file_times::apply_file_times(&avif_target, times)
     {

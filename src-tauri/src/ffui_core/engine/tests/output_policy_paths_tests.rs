@@ -1,10 +1,13 @@
 use super::*;
 use crate::ffui_core::domain::{
-    OutputContainerPolicy, OutputDirectoryPolicy, OutputFilenamePolicy, OutputPolicy,
+    OutputContainerPolicy, OutputDirectoryPolicy, OutputFilenameAppend, OutputFilenamePolicy,
+    OutputPolicy,
 };
 use regex::Regex;
 
-use super::super::output_policy_paths::{plan_output_path_with_extension, plan_video_output_path};
+use super::super::output_policy_paths::{
+    plan_output_path_with_extension, plan_video_output_path, preview_video_output_path,
+};
 
 #[test]
 fn plan_video_output_path_force_container_uses_correct_extension_and_muxer() {
@@ -100,6 +103,23 @@ fn plan_video_output_path_adds_counter_suffix_on_collision() {
 }
 
 #[test]
+fn preview_video_output_path_does_not_probe_filesystem_for_collisions() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let input = dir.path().join("video.mp4");
+    let policy = OutputPolicy::default();
+
+    let planned = plan_video_output_path(&input, None, &policy, |_| false).output_path;
+    std::fs::create_dir_all(planned.parent().unwrap_or(dir.path())).expect("create parent");
+    std::fs::write(&planned, b"existing").expect("write collision file");
+
+    let preview = preview_video_output_path(&input, None, &policy).output_path;
+    assert_eq!(
+        preview, planned,
+        "preview should not auto-increment based on existing files"
+    );
+}
+
+#[test]
 fn plan_output_path_with_extension_preserves_custom_extension() {
     let input = PathBuf::from("C:/videos/audio.flac");
     let policy = OutputPolicy {
@@ -124,4 +144,34 @@ fn plan_output_path_with_extension_preserves_custom_extension() {
         "explicit extension must be used, got: {}",
         out.display()
     );
+}
+
+#[test]
+fn plan_video_output_path_respects_append_order_for_suffix_timestamp_random() {
+    let input = PathBuf::from("C:/videos/video.mp4");
+    let policy = OutputPolicy {
+        filename: OutputFilenamePolicy {
+            suffix: Some(".compressed".to_string()),
+            append_timestamp: true,
+            random_suffix_len: Some(6),
+            append_order: vec![
+                OutputFilenameAppend::Random,
+                OutputFilenameAppend::Suffix,
+                OutputFilenameAppend::Timestamp,
+            ],
+            ..OutputFilenamePolicy::default()
+        },
+        ..OutputPolicy::default()
+    };
+
+    let plan = plan_video_output_path(&input, None, &policy, |_| false);
+    let name = plan
+        .output_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+
+    // Expect: video-<rand>.compressed-<timestamp>.mp4 (order: random -> suffix -> timestamp).
+    let re = Regex::new(r"^video-[0-9a-f]{6}\.compressed-\d{8}-\d{6}\.mp4$").expect("regex");
+    assert!(re.is_match(name), "unexpected append order output: {name}");
 }

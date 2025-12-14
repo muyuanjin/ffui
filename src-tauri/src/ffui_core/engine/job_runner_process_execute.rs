@@ -28,12 +28,22 @@ fn execute_transcode_job(
             .get(job_id)
             .and_then(|job| job.output_policy.clone())
     };
-    let preserve_file_times = job_output_policy
+    let preserve_times_policy = job_output_policy
         .as_ref()
-        .map(|p| p.preserve_file_times)
-        .unwrap_or(false);
-    let input_times = if preserve_file_times {
-        Some(super::file_times::read_file_times(&input_path))
+        .map(|p| p.preserve_file_times.clone())
+        .unwrap_or_default();
+    let input_times = if preserve_times_policy.any() {
+        let mut times = super::file_times::read_file_times(&input_path);
+        if !preserve_times_policy.created() {
+            times.created = None;
+        }
+        if !preserve_times_policy.modified() {
+            times.modified = None;
+        }
+        if !preserve_times_policy.accessed() {
+            times.accessed = None;
+        }
+        Some(times)
     } else {
         None
     };
@@ -450,7 +460,7 @@ fn execute_transcode_job(
         }
     }
 
-    if preserve_file_times
+    if preserve_times_policy.any()
         && let Some(times) = input_times.as_ref()
         && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
     {

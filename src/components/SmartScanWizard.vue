@@ -17,7 +17,6 @@ import { hasTauri } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { buildSmartScanConfig } from "@/lib/smartScanConfig";
-
 const props = defineProps<{
   presets: FFmpegPreset[];
   initialConfig?: SmartScanConfig;
@@ -29,9 +28,7 @@ const emit = defineEmits<{
   (e: "run", value: SmartScanConfig): void;
   (e: "cancel"): void;
 }>();
-
 const { t } = useI18n();
-
 // 深拷贝初始配置
 const config = ref<SmartScanConfig>(
   buildSmartScanConfig({
@@ -176,8 +173,7 @@ const handleRun = () => {
     @click.self="emit('cancel')"
   >
     <div class="bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
-      <!-- 标题栏 -->
-      <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/60 rounded-t-xl shrink-0">
+	      <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/60 rounded-t-xl shrink-0">
         <div>
           <h2 class="text-xl font-bold text-foreground flex items-center gap-2">
             <span class="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg text-sm">▶</span>
@@ -188,16 +184,13 @@ const handleRun = () => {
         <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground h-8 w-8" @click="emit('cancel')">✕</Button>
       </div>
 
-      <!-- 内容区域 -->
-      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-        <!-- 提示信息 -->
-        <div class="bg-primary/10 border border-primary/40 p-3 rounded-lg text-xs text-foreground flex items-start gap-2">
+	      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+	        <div class="bg-primary/10 border border-primary/40 p-3 rounded-lg text-xs text-foreground flex items-start gap-2">
           <span class="text-primary shrink-0">!</span>
           <p>{{ t("smartScan.notice") }}</p>
         </div>
 
-        <!-- 路径选择 -->
-        <div class="space-y-2">
+	        <div class="space-y-2">
           <Label class="text-xs font-medium text-foreground">{{ t("smartScan.rootPath") }}</Label>
           <div class="flex gap-2">
             <Input
@@ -209,37 +202,48 @@ const handleRun = () => {
               {{ t("smartScan.browse") }}
             </Button>
           </div>
-        </div>
-
-        <!-- 输出设置（仅影响本次批量压缩任务） -->
-        <div class="space-y-2">
+	        </div>
+	        <div class="space-y-2">
           <div class="flex items-center justify-between">
             <Label class="text-xs font-medium text-foreground">{{ t("app.outputSettings") }}</Label>
-            <span class="text-[10px] text-muted-foreground">
-              {{ t("smartScan.replaceOriginalHint") }}
-            </span>
+            <div class="flex items-center gap-2">
+              <Button
+                type="button"
+                size="xs"
+                :variant="config.replaceOriginal ? 'default' : 'outline'"
+                class="h-7 px-2 text-[10px]"
+                @click="config.replaceOriginal = true"
+              >
+                {{ t("smartScan.replaceOriginal") }}
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                :variant="!config.replaceOriginal ? 'default' : 'outline'"
+                class="h-7 px-2 text-[10px]"
+                @click="config.replaceOriginal = false"
+              >
+                {{ t("smartScan.keepOriginalsBatchTranscode") }}
+              </Button>
+            </div>
           </div>
+          <p class="text-xs text-muted-foreground">
+            {{
+              config.replaceOriginal
+                ? t("smartScan.replaceOriginalOutputPolicyHint")
+                : t("smartScan.keepOriginalsBatchTranscodeHint")
+            }}
+          </p>
           <div class="bg-card/40 border border-border/60 rounded-lg p-3">
-            <OutputPolicyEditor v-model="config.outputPolicy" :lock-location-and-name="config.replaceOriginal" />
-          </div>
-        </div>
-
-        <!-- 基本选项 -->
-        <div class="flex items-center gap-6 py-2 border-y border-border/50">
-          <label class="flex items-center gap-2 cursor-pointer">
-            <Checkbox
-              :checked="config.replaceOriginal"
-              @update:checked="config.replaceOriginal = Boolean($event)"
+            <OutputPolicyEditor
+              v-model="config.outputPolicy"
+              :lock-location-and-name="config.replaceOriginal"
+              :preview-preset-id="config.videoPresetId"
             />
-            <span class="text-sm">{{ t("smartScan.replaceOriginal") }}</span>
-          </label>
-          <p class="text-xs text-muted-foreground">{{ t("smartScan.replaceOriginalHint") }}</p>
-        </div>
-
-        <!-- 三列布局：视频、图片、音频 -->
-        <div class="grid grid-cols-3 gap-4">
-          <!-- 视频策略 -->
-          <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
+          </div>
+	        </div>
+	        <div class="grid grid-cols-3 gap-4">
+	          <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold flex items-center gap-2">
                 <span class="text-emerald-400">▣</span>
@@ -291,7 +295,6 @@ const handleRun = () => {
             </div>
           </div>
 
-          <!-- 图片策略 -->
           <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold flex items-center gap-2">
@@ -350,7 +353,6 @@ const handleRun = () => {
             </div>
           </div>
 
-          <!-- 音频策略 -->
           <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold flex items-center gap-2">
@@ -407,8 +409,7 @@ const handleRun = () => {
           </div>
         </div>
 
-        <!-- 保留条件 -->
-        <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
+	        <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
           <h3 class="text-sm font-bold flex items-center gap-2">
             <span class="text-blue-400">▣</span>
             {{ t("smartScan.savingCondition") }}

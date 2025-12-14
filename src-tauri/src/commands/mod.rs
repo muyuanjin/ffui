@@ -6,6 +6,7 @@
 //! - `settings`: App settings and smart scan configuration
 //! - `tools`: System monitoring and tool management
 
+pub mod output;
 pub mod presets;
 pub mod queue;
 pub mod settings;

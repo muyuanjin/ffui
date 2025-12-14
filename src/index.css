@@ -32,6 +32,8 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
+  --color-cta-files: var(--cta-files);
+  --color-cta-folder: var(--cta-folder);
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -73,6 +75,8 @@
   --chart-3: #a855f7;
   --chart-4: #f97316;
   --chart-5: #eab308;
+  --cta-files: #6a85ee;
+  --cta-folder: #6a85ee;
   --sidebar: #020617;
   --sidebar-foreground: #e5e7eb;
   --sidebar-primary: #4f46e5;
@@ -112,6 +116,8 @@
   --chart-3: #a855f7;
   --chart-4: #f97316;
   --chart-5: #eab308;
+  --cta-files: #6a85ee;
+  --cta-folder: #6a85ee;
   /* Sidebar / navigation strip */
   --sidebar: #020617; /* 最暗：左侧导航栏 */
   --sidebar-foreground: #e5e7eb;

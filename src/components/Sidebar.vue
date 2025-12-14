@@ -119,23 +119,23 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
 
     <div class="shrink-0 px-4 py-4 border-t border-sidebar-border space-y-3">
       <div
-        class="flex w-full overflow-hidden rounded-md"
+        class="relative grid w-full grid-cols-2 overflow-hidden rounded-md after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35"
         data-testid="ffui-action-add-job-split"
       >
         <Button
           data-testid="ffui-action-add-job-files"
           variant="default"
           size="lg"
-          class="flex-1 justify-center rounded-r-none"
+          class="justify-center rounded-none font-semibold text-white"
           @click="emit('addJobFiles')"
         >
           <span>{{ t("app.actions.addJobFiles") }}</span>
         </Button>
         <Button
           data-testid="ffui-action-add-job-folder"
-          variant="secondary"
+          variant="manualFolder"
           size="lg"
-          class="shrink-0 justify-center rounded-l-none border-l border-border/60 px-4"
+          class="justify-center rounded-none font-semibold text-white"
           @click="emit('addJobFolder')"
         >
           <span class="whitespace-nowrap">{{ t("app.actions.addJobFolder") }}</span>
@@ -145,7 +145,7 @@ const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings
         data-testid="ffui-action-smart-scan"
         variant="smartScan"
         size="lg"
-        class="w-full justify-center"
+        class="w-full justify-center font-semibold text-white"
         @click="emit('smartScan')"
       >
         <span>{{ t("app.actions.smartScan") }}</span>

@@ -87,7 +87,7 @@ describe("MainContentHeader output settings", () => {
 
     expect(wrapper.find("[data-testid='output-policy-editor-stub']").exists()).toBe(false);
 
-    const openButton = wrapper.get("button");
+    const openButton = wrapper.get("[data-testid='ffui-queue-output-settings']");
     expect(openButton.text()).toContain("Output settings");
     await openButton.trigger("click");
     await nextTick();
@@ -101,4 +101,3 @@ describe("MainContentHeader output settings", () => {
     expect(emitted?.[0]?.[0]).toMatchObject({ preserveFileTimes: true });
   });
 });
-

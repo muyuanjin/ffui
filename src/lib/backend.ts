@@ -8,14 +8,15 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
   GpuUsageSnapshot,
-  FFmpegPreset,
-  JobSource,
-  JobType,
-  SmartScanConfig,
-  QueueState,
-  QueueStateLite,
-  TranscodeJob,
-  SystemMetricsSnapshot,
+	  FFmpegPreset,
+	  JobSource,
+	  JobType,
+	  OutputPolicy,
+	  SmartScanConfig,
+	  QueueState,
+	  QueueStateLite,
+	  TranscodeJob,
+	  SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
 import type { SystemFontFamily } from "./systemFontSearch";
@@ -295,6 +296,25 @@ export const expandManualJobInputs = async (
     // Resilience to backend param naming changes.
     inputPaths: normalized,
     input_paths: normalized,
+  });
+};
+
+export const previewOutputPath = async (params: {
+  inputPath: string;
+  presetId?: string | null;
+  outputPolicy: OutputPolicy;
+}): Promise<string | null> => {
+  if (!hasTauri()) return null;
+  const inputPath = params.inputPath;
+  const presetId = params.presetId ?? null;
+  const outputPolicy = params.outputPolicy;
+  return invoke<string | null>("preview_output_path", {
+    inputPath,
+    input_path: inputPath,
+    presetId,
+    preset_id: presetId,
+    outputPolicy,
+    output_policy: outputPolicy,
   });
 };
 

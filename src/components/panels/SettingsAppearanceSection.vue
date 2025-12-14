@@ -191,6 +191,23 @@ const uiSystemFontDraft = ref("");
 const systemFontFocused = ref(false);
 const systemFontSuggestionsSuppressed = ref(false);
 let systemFontCommitTimer: number | undefined;
+const resetUiAppearance = () => {
+  if (!props.appSettings) return;
+  uiFontModeSticky.value = "default";
+  systemFontFocused.value = false;
+  systemFontSuggestionsSuppressed.value = false;
+  uiSystemFontDraft.value = "";
+  emit("update:appSettings", {
+    ...props.appSettings,
+    uiScalePercent: 100,
+    uiFontSizePercent: 100,
+    uiFontFamily: "system",
+    uiFontName: undefined,
+    uiFontDownloadId: undefined,
+    uiFontFilePath: undefined,
+    uiFontFileSourceName: undefined,
+  });
+};
 const commitSystemFontNameNow = () => {
   if (!props.appSettings) return;
   if (systemFontCommitTimer !== undefined) {
@@ -296,8 +313,11 @@ const systemFontSuggestions = computed(() =>
             {{ t("app.settings.uiFontModeLabel") }}
           </p>
           <Select v-model="uiFontModeModel">
-            <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30">
-              <SelectValue />
+            <SelectTrigger
+              data-testid="settings-ui-font-mode-trigger"
+              class="h-7 text-[11px] bg-background/50 border-border/30"
+            >
+              <SelectValue>{{ t(`app.settings.uiFontModes.${uiFontModeModel}`) }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default" class="text-[11px]">
@@ -423,17 +443,7 @@ const systemFontSuggestions = computed(() =>
           size="sm"
           class="h-6 px-2 text-[10px]"
           data-testid="settings-reset-ui-appearance"
-          @click="
-            () => {
-              updateSetting('uiScalePercent', 100);
-              updateSetting('uiFontSizePercent', 100);
-              updateSetting('uiFontFamily', 'system');
-              updateSetting('uiFontName', undefined);
-              updateSetting('uiFontDownloadId', undefined);
-              updateSetting('uiFontFilePath', undefined);
-              updateSetting('uiFontFileSourceName', undefined);
-            }
-          "
+          @click="resetUiAppearance"
         >
           {{ t("app.settings.resetUiAppearanceButton") }}
         </Button>

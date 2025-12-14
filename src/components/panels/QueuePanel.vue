@@ -202,14 +202,14 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
         {{ t("app.emptyQueue.subtitle") }}
       </p>
       <div class="mt-6 flex items-center justify-center">
-        <div class="flex overflow-hidden rounded-md">
-          <Button size="lg" class="rounded-r-none" @click="emit('addJobFiles')">
+        <div class="relative grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-md after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35">
+          <Button size="lg" class="rounded-none font-semibold text-white" @click="emit('addJobFiles')">
             {{ t("app.actions.addJobFiles") }}
           </Button>
           <Button
             size="lg"
-            variant="secondary"
-            class="rounded-l-none border-l border-border/60"
+            variant="manualFolder"
+            class="rounded-none font-semibold text-white"
             @click="emit('addJobFolder')"
           >
             {{ t("app.actions.addJobFolder") }}

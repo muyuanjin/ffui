@@ -80,6 +80,7 @@ export type {
   OutputPolicy,
   OutputContainerPolicy,
   OutputDirectoryPolicy,
+  OutputFilenameAppend,
   OutputFilenamePolicy,
   OutputFilenameRegexReplace,
 } from "./output-policy";

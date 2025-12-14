@@ -76,6 +76,7 @@ pub fn run() {
             commands::queue::delete_smart_scan_batch,
             commands::queue::reorder_queue,
             commands::queue::get_job_detail,
+            commands::output::preview_output_path,
             commands::presets::get_presets,
             commands::presets::get_smart_default_presets,
             commands::presets::save_preset,

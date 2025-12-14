@@ -11,6 +11,17 @@ use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 
+fn normalize_os_path_string(raw: &str) -> String {
+    #[cfg(windows)]
+    {
+        raw.replace('/', "\\")
+    }
+    #[cfg(not(windows))]
+    {
+        raw.to_string()
+    }
+}
+
 /// Enqueue a new transcode job with computed metadata and queue it.
 pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
     inner: &Arc<Inner>,
@@ -28,11 +39,12 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
 
     let now_ms = current_time_millis();
 
-    let input_path = filename.clone();
+    let normalized_filename = normalize_os_path_string(&filename);
+    let input_path = normalized_filename.clone();
 
     // Prefer a backend-derived size based on the actual file on disk; fall back
     // to the caller-provided value if metadata is unavailable.
-    let computed_original_size_mb = fs::metadata(&filename)
+    let computed_original_size_mb = fs::metadata(&normalized_filename)
         .map(|m| m.len() as f64 / (1024.0 * 1024.0))
         .unwrap_or(original_size_mb);
 
@@ -46,7 +58,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
             .and_then(|p| estimate_job_seconds_for_preset(computed_original_size_mb, p));
         let queue_output_policy: OutputPolicy = state.settings.queue_output_policy.clone();
         let output_path = if matches!(job_type, JobType::Video) {
-            let path = PathBuf::from(&filename);
+            let path = PathBuf::from(&normalized_filename);
             let plan =
                 plan_video_output_path(&path, preset.as_ref(), &queue_output_policy, |candidate| {
                     let c = candidate.to_string_lossy();
@@ -64,7 +76,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
         let planned_command = if matches!(job_type, JobType::Video) {
             match (preset.as_ref(), output_path.as_deref()) {
                 (Some(preset), Some(output_path)) => {
-                    let input_path_buf = PathBuf::from(&filename);
+                    let input_path_buf = PathBuf::from(&normalized_filename);
                     let output_path_buf = PathBuf::from(output_path);
                     let args = build_ffmpeg_args(
                         preset,
@@ -83,7 +95,7 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
 
         let job = TranscodeJob {
             id: id.clone(),
-            filename,
+            filename: normalized_filename,
             job_type,
             source,
             queue_order: None,

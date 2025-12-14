@@ -48,6 +48,11 @@ const other = {
     noPathSelected: "请选择要扫描的文件夹",
     replaceOriginal: "替换原文件",
     replaceOriginalHint: "不勾选则保留原文件，相当于批量转码",
+    keepOriginalsBatchTranscode: "输出为新文件",
+    keepOriginalsBatchTranscodeHint:
+      "选择该模式会保留原文件；输出目录与文件名将按“输出设置”中的规则生成。",
+    replaceOriginalOutputPolicyHint:
+      "替换原文件：输出目录与文件名将强制与输入一致；容器与文件时间保留仍会生效。",
     videoStrategy: "视频",
     targetPreset: "转码预设",
     targetPresetPlaceholder: "选择预设",
@@ -97,15 +102,30 @@ const other = {
       random: "附加随机字符",
       randomHint: "长度",
     },
+    appendOrderLabel: "排序规则",
+    appendOrderHint: "勾选启用、原地配置参数，并可拖拽排序（仅对已启用项生效）。",
     regexLabel: "正则替换（Rust regex）",
     regex: {
       pattern: "Pattern",
       replacement: "Replacement",
+      hint: "Pattern 留空则不启用。",
     },
     enabled: "启用",
-    preserveTimes: "输出后保留创建/修改/访问时间",
+    preserveTimes: "保留文件时间",
+    preserveTimesCreated: "创建时间",
+    preserveTimesModified: "修改时间",
+    preserveTimesAccessed: "访问时间",
+    previewLabel: "预览",
+    preview: {
+      input: "示例输入",
+      output: "预期输出",
+      pick: "选择",
+      loading: "更新中…",
+      lockHint:
+        "当前启用了“替换原文件”，Smart Scan 会强制输出目录与文件名；此处预览已按该规则计算。",
+    },
     smartScanLockHint:
-      "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器/时间戳策略仍会生效。",
+      "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器与文件时间保留仍会生效。",
   },
   taskDetail: {
     title: "任务详情",

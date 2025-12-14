@@ -12,6 +12,8 @@ export interface OutputFilenameRegexReplace {
   replacement: string;
 }
 
+export type OutputFilenameAppend = "suffix" | "timestamp" | "encoderQuality" | "random";
+
 export interface OutputFilenamePolicy {
   /** Optional string prepended to the filename stem. */
   prefix?: string;
@@ -25,14 +27,24 @@ export interface OutputFilenamePolicy {
   appendEncoderQuality?: boolean;
   /** Optional fixed length of random hex characters appended to the stem. */
   randomSuffixLen?: number;
+  /** Controls the append order when multiple suffix-like options are enabled. */
+  appendOrder?: OutputFilenameAppend[];
 }
+
+export type PreserveFileTimesPolicy = {
+  created?: boolean;
+  modified?: boolean;
+  accessed?: boolean;
+};
+
+export type PreserveFileTimes = boolean | PreserveFileTimesPolicy;
 
 export interface OutputPolicy {
   container: OutputContainerPolicy;
   directory: OutputDirectoryPolicy;
   filename: OutputFilenamePolicy;
-  /** When true, try to preserve creation/modified/access times from input. */
-  preserveFileTimes?: boolean;
+  /** File time preservation options (boolean = all on/off for backward compatibility). */
+  preserveFileTimes?: PreserveFileTimes;
 }
 
 export const DEFAULT_OUTPUT_POLICY: OutputPolicy = {
@@ -43,9 +55,9 @@ export const DEFAULT_OUTPUT_POLICY: OutputPolicy = {
     appendTimestamp: false,
     appendEncoderQuality: false,
     randomSuffixLen: undefined,
+    appendOrder: ["suffix", "timestamp", "encoderQuality", "random"],
     prefix: undefined,
     regexReplace: undefined,
   },
   preserveFileTimes: false,
 };
-

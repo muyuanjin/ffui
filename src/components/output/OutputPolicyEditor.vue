@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,27 +8,25 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
-import { hasTauri } from "@/lib/backend";
+import { hasTauri, previewOutputPath } from "@/lib/backend";
+import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-
+import OutputAppendOrderEditor from "@/components/output/OutputAppendOrderEditor.vue";
 const props = defineProps<{
   modelValue?: OutputPolicy;
   /** When true, disables directory + filename fields (used by Smart Scan replaceOriginal). */
   lockLocationAndName?: boolean;
+  /** Optional preset id used for previewing default container + encoder tag. */
+  previewPresetId?: string | null;
 }>();
-
 const emit = defineEmits<{
   (e: "update:modelValue", value: OutputPolicy): void;
 }>();
-
 const { t } = useI18n();
-
 const policy = computed<OutputPolicy>(() => props.modelValue ?? DEFAULT_OUTPUT_POLICY);
-
 const updatePolicy = (patch: Partial<OutputPolicy>) => {
   emit("update:modelValue", { ...policy.value, ...patch });
 };
-
 const updateFilename = (patch: Partial<OutputPolicy["filename"]>) => {
   updatePolicy({ filename: { ...policy.value.filename, ...patch } });
 };
@@ -65,33 +63,54 @@ const fixedDirectory = computed(() =>
   policy.value.directory.mode === "fixed" ? policy.value.directory.directory : "",
 );
 
-const regexEnabled = computed(() => !!policy.value.filename.regexReplace);
+const regexPatternInput = ref("");
+const regexReplacementInput = ref("");
 
-const toggleRegex = () => {
-  if (policy.value.filename.regexReplace) {
-    updateFilename({ regexReplace: undefined });
-  } else {
-    updateFilename({ regexReplace: { pattern: "", replacement: "" } });
+watch(
+  () => policy.value.filename.regexReplace,
+  (v) => {
+    const nextPattern = v?.pattern ?? "";
+    const nextReplacement = v?.replacement ?? "";
+    if (regexPatternInput.value !== nextPattern) regexPatternInput.value = nextPattern;
+    if (regexReplacementInput.value !== nextReplacement) regexReplacementInput.value = nextReplacement;
+  },
+  { immediate: true, deep: true },
+);
+
+watch([regexPatternInput, regexReplacementInput], () => {
+  const pattern = regexPatternInput.value;
+  const replacement = regexReplacementInput.value;
+  if (!pattern.trim()) {
+    if (policy.value.filename.regexReplace) updateFilename({ regexReplace: undefined });
+    return;
   }
+  updateFilename({ regexReplace: { pattern, replacement } });
+});
+
+type PreserveTimesState = { created: boolean; modified: boolean; accessed: boolean };
+
+const normalizePreserveTimes = (value: OutputPolicy["preserveFileTimes"]): PreserveTimesState => {
+  if (value === true) return { created: true, modified: true, accessed: true };
+  if (value && typeof value === "object") {
+    return {
+      created: !!(value as any).created,
+      modified: !!(value as any).modified,
+      accessed: !!(value as any).accessed,
+    };
+  }
+  return { created: false, modified: false, accessed: false };
 };
 
-const randomLenString = computed({
-  get() {
-    const len = policy.value.filename.randomSuffixLen;
-    return typeof len === "number" && Number.isFinite(len) ? String(len) : "";
-  },
-  set(value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) {
-      updateFilename({ randomSuffixLen: undefined });
-      return;
-    }
-    const n = Number(trimmed);
-    if (!Number.isFinite(n)) return;
-    const clamped = Math.max(1, Math.min(32, Math.floor(n)));
-    updateFilename({ randomSuffixLen: clamped });
-  },
-});
+const preserveTimes = computed(() => normalizePreserveTimes(policy.value.preserveFileTimes));
+
+const updatePreserveTimes = (patch: Partial<PreserveTimesState>) => {
+  const current = preserveTimes.value;
+  const next: PreserveTimesState = { ...current, ...patch };
+  const allTrue = next.created && next.modified && next.accessed;
+  const allFalse = !next.created && !next.modified && !next.accessed;
+  const preserveFileTimes: OutputPolicy["preserveFileTimes"] = allTrue ? true : allFalse ? false : next;
+  updatePolicy({ preserveFileTimes });
+};
 
 const pickDirectory = async () => {
   if (!hasTauri()) return;
@@ -100,6 +119,82 @@ const pickDirectory = async () => {
     updateDirectory("fixed", selected);
   } else if (Array.isArray(selected) && typeof selected[0] === "string") {
     updateDirectory("fixed", selected[0]);
+  }
+};
+
+const previewInputPath = ref("C:/videos/input.mp4");
+const previewResolvedPath = ref<string>("");
+const previewError = ref<string | null>(null);
+const previewLoading = ref(false);
+let previewTimer: number | null = null;
+
+const normalizePathForDisplay = (value: string) => {
+  const input = previewInputPath.value;
+  const preferForward = input.includes("/") && !input.includes("\\");
+  const preferBack = input.includes("\\") && !input.includes("/");
+  if (preferForward) return value.replace(/\\/g, "/");
+  if (preferBack) return value.replace(/\//g, "\\");
+  return value;
+};
+
+const effectivePolicyForPreview = computed<OutputPolicy>(() => {
+  if (!props.lockLocationAndName) return policy.value;
+  return {
+    container: policy.value.container,
+    directory: { mode: "sameAsInput" },
+    filename: { suffix: ".compressed" },
+    preserveFileTimes: policy.value.preserveFileTimes,
+  };
+});
+
+const computeLocalPreview = () =>
+  previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value);
+
+const refreshPreview = () => {
+  if (previewTimer) window.clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(async () => {
+    previewError.value = null;
+    const fallback = computeLocalPreview();
+    previewResolvedPath.value = normalizePathForDisplay(fallback);
+
+    if (!hasTauri()) return;
+    const inputPath = previewInputPath.value.trim();
+    if (!inputPath) return;
+
+    previewLoading.value = true;
+    try {
+      const resolved = await previewOutputPath({
+        inputPath,
+        presetId: props.previewPresetId?.trim() ? props.previewPresetId : null,
+        outputPolicy: effectivePolicyForPreview.value,
+      });
+      if (resolved) previewResolvedPath.value = normalizePathForDisplay(resolved);
+    } catch (err: any) {
+      previewError.value = String(err?.message ?? err ?? "preview failed");
+    } finally {
+      previewLoading.value = false;
+    }
+  }, 250);
+};
+
+watch(
+  () => [previewInputPath.value, props.previewPresetId, effectivePolicyForPreview.value],
+  refreshPreview,
+  { immediate: true, deep: true },
+);
+
+onBeforeUnmount(() => {
+  if (previewTimer) window.clearTimeout(previewTimer);
+  previewTimer = null;
+});
+
+const pickPreviewFile = async () => {
+  if (!hasTauri()) return;
+  const selected = await openDialog({ multiple: false, directory: false });
+  if (typeof selected === "string" && selected.trim()) {
+    previewInputPath.value = selected;
+  } else if (Array.isArray(selected) && typeof selected[0] === "string") {
+    previewInputPath.value = selected[0];
   }
 };
 </script>
@@ -139,7 +234,7 @@ const pickDirectory = async () => {
         </div>
       </div>
 
-      <div class="space-y-1.5" :class="props.lockLocationAndName ? 'opacity-60 pointer-events-none' : ''">
+      <div v-if="!props.lockLocationAndName" class="space-y-1.5">
         <Label class="text-xs">{{ t("outputPolicy.dirLabel") }}</Label>
         <div class="flex items-center gap-2">
           <Select :model-value="directoryMode" @update:model-value="(v) => updateDirectory(v as any, fixedDirectory)">
@@ -173,11 +268,11 @@ const pickDirectory = async () => {
       </div>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-      <div class="space-y-2" :class="props.lockLocationAndName ? 'opacity-60 pointer-events-none' : ''">
-        <Label class="text-xs">{{ t("outputPolicy.nameLabel") }}</Label>
+    <div v-if="!props.lockLocationAndName" class="space-y-2">
+      <Label class="text-xs">{{ t("outputPolicy.nameLabel") }}</Label>
 
-        <div class="grid grid-cols-2 gap-2">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
+        <div class="rounded-md border border-border/60 bg-background/60 p-3 space-y-3 h-full">
           <div class="space-y-1">
             <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.name.prefix") }}</Label>
             <Input
@@ -186,69 +281,102 @@ const pickDirectory = async () => {
               @update:model-value="(v) => updateFilename({ prefix: String(v) || undefined })"
             />
           </div>
-          <div class="space-y-1">
-            <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.name.suffix") }}</Label>
-            <Input
-              class="h-8 text-xs"
-              :model-value="policy.filename.suffix || ''"
-              @update:model-value="(v) => updateFilename({ suffix: String(v) || undefined })"
-            />
+
+          <div class="space-y-2">
+            <div class="space-y-0.5">
+              <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.regexLabel") }}</Label>
+              <p class="text-[10px] text-muted-foreground">
+                {{ t("outputPolicy.regex.hint") }}
+              </p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-2">
+              <div class="space-y-1">
+                <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.regex.pattern") }}</Label>
+                <Input v-model="regexPatternInput" class="h-8 text-xs font-mono" />
+              </div>
+              <div class="space-y-1">
+                <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.regex.replacement") }}</Label>
+                <Input v-model="regexReplacementInput" class="h-8 text-xs font-mono" />
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
-          <Checkbox :checked="!!policy.filename.appendTimestamp" @update:checked="(v) => updateFilename({ appendTimestamp: !!v })" />
-          <span class="text-xs text-foreground">{{ t("outputPolicy.name.timestamp") }}</span>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <Checkbox :checked="!!policy.filename.appendEncoderQuality" @update:checked="(v) => updateFilename({ appendEncoderQuality: !!v })" />
-          <span class="text-xs text-foreground">{{ t("outputPolicy.name.encoderTag") }}</span>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <Checkbox :checked="policy.filename.randomSuffixLen !== undefined" @update:checked="(v) => updateFilename({ randomSuffixLen: v ? 6 : undefined })" />
-          <span class="text-xs text-foreground">{{ t("outputPolicy.name.random") }}</span>
-          <Input v-if="policy.filename.randomSuffixLen !== undefined" v-model="randomLenString" class="h-8 w-16 text-xs" />
-          <span v-if="policy.filename.randomSuffixLen !== undefined" class="text-[10px] text-muted-foreground">
-            {{ t("outputPolicy.name.randomHint") }}
-          </span>
-        </div>
-      </div>
-
-      <div class="space-y-2" :class="props.lockLocationAndName ? 'opacity-60 pointer-events-none' : ''">
-        <div class="flex items-center justify-between">
-          <Label class="text-xs">{{ t("outputPolicy.regexLabel") }}</Label>
-          <div class="flex items-center gap-2">
-            <Checkbox :checked="regexEnabled" @update:checked="toggleRegex" />
-            <span class="text-xs text-muted-foreground">{{ t("outputPolicy.enabled") }}</span>
-          </div>
-        </div>
-
-        <div v-if="regexEnabled" class="grid grid-cols-1 gap-2">
-          <div class="space-y-1">
-            <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.regex.pattern") }}</Label>
-            <Input
-              class="h-8 text-xs font-mono"
-              :model-value="policy.filename.regexReplace?.pattern || ''"
-              @update:model-value="(v) => updateFilename({ regexReplace: { pattern: String(v), replacement: policy.filename.regexReplace?.replacement || '' } })"
-            />
-          </div>
-          <div class="space-y-1">
-            <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.regex.replacement") }}</Label>
-            <Input
-              class="h-8 text-xs font-mono"
-              :model-value="policy.filename.regexReplace?.replacement || ''"
-              @update:model-value="(v) => updateFilename({ regexReplace: { pattern: policy.filename.regexReplace?.pattern || '', replacement: String(v) } })"
-            />
-          </div>
-        </div>
+        <OutputAppendOrderEditor :filename="policy.filename" @update="updateFilename" />
       </div>
     </div>
 
-    <div class="flex items-center gap-2">
-      <Checkbox :checked="!!policy.preserveFileTimes" @update:checked="(v) => updatePolicy({ preserveFileTimes: !!v })" />
-      <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimes") }}</span>
+    <div class="rounded-md border border-border/60 bg-muted/20 p-3 space-y-2">
+      <div class="flex items-center justify-between gap-2">
+        <Label class="text-xs">{{ t("outputPolicy.previewLabel") }}</Label>
+        <span v-if="previewLoading" class="text-[10px] text-muted-foreground">
+          {{ t("outputPolicy.preview.loading") }}
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <div class="space-y-1">
+          <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.preview.input") }}</Label>
+          <div class="flex items-center gap-2">
+            <Input v-model="previewInputPath" class="h-8 text-xs font-mono" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              class="h-8 px-2 text-xs shrink-0"
+              :disabled="!hasTauri()"
+              @click="pickPreviewFile"
+            >
+              {{ t("outputPolicy.preview.pick") }}
+            </Button>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.preview.output") }}</Label>
+          <div
+            class="min-h-8 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-xs font-mono whitespace-normal break-all"
+            :title="previewResolvedPath"
+          >
+            {{ previewResolvedPath || "-" }}
+          </div>
+          <p v-if="previewError" class="text-[10px] text-destructive">
+            {{ previewError }}
+          </p>
+        </div>
+      </div>
+
+      <p v-if="props.lockLocationAndName" class="text-[10px] text-muted-foreground">
+        {{ t("outputPolicy.preview.lockHint") }}
+      </p>
+    </div>
+
+    <div class="space-y-2">
+      <Label class="text-xs">{{ t("outputPolicy.preserveTimes") }}</Label>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div class="flex items-center gap-2">
+          <Checkbox
+            :checked="preserveTimes.created"
+            @update:checked="(v) => updatePreserveTimes({ created: !!v })"
+          />
+          <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesCreated") }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <Checkbox
+            :checked="preserveTimes.modified"
+            @update:checked="(v) => updatePreserveTimes({ modified: !!v })"
+          />
+          <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesModified") }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <Checkbox
+            :checked="preserveTimes.accessed"
+            @update:checked="(v) => updatePreserveTimes({ accessed: !!v })"
+          />
+          <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesAccessed") }}</span>
+        </div>
+      </div>
     </div>
 
     <p v-if="props.lockLocationAndName" class="text-[10px] text-muted-foreground">

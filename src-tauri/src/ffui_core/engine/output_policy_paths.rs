@@ -7,8 +7,8 @@ use chrono::Local;
 use regex::Regex;
 
 use crate::ffui_core::domain::{
-    EncoderType, FFmpegPreset, OutputContainerPolicy, OutputDirectoryPolicy, OutputPolicy,
-    RateControlMode,
+    EncoderType, FFmpegPreset, OutputContainerPolicy, OutputDirectoryPolicy, OutputFilenameAppend,
+    OutputPolicy, RateControlMode,
 };
 
 use super::ffmpeg_args::{
@@ -74,6 +74,49 @@ pub(crate) fn plan_video_output_path(
             candidate = target_dir.join(format!("{stem}-{token}.{ext}"));
             break;
         }
+    }
+
+    OutputPathPlan {
+        output_path: candidate,
+        forced_muxer,
+    }
+}
+
+pub(crate) fn preview_video_output_path(
+    input: &Path,
+    preset: Option<&FFmpegPreset>,
+    policy: &OutputPolicy,
+) -> OutputPathPlan {
+    let input_parent = input.parent().unwrap_or_else(|| Path::new("."));
+    let input_stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+
+    let target_dir = match &policy.directory {
+        OutputDirectoryPolicy::SameAsInput => input_parent.to_path_buf(),
+        OutputDirectoryPolicy::Fixed { directory } => {
+            let trimmed = directory.trim();
+            if trimmed.is_empty() {
+                input_parent.to_path_buf()
+            } else {
+                PathBuf::from(trimmed)
+            }
+        }
+    };
+
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let (ext, forced_muxer) = infer_container_extension_and_muxer(input_ext, preset, policy);
+
+    let mut stem = apply_filename_policy(input_stem, preset, policy);
+    stem = sanitize_windows_path_segment(&stem);
+    if stem.is_empty() {
+        stem = "output".to_string();
+    }
+
+    let mut candidate = target_dir.join(format!("{stem}.{ext}"));
+    if candidate == input {
+        candidate = target_dir.join(format!("{stem} (1).{ext}"));
     }
 
     OutputPathPlan {
@@ -218,6 +261,7 @@ fn apply_filename_policy(
     let mut stem = base_stem.to_string();
 
     if let Some(repl) = policy.filename.regex_replace.as_ref()
+        && !repl.pattern.trim().is_empty()
         && let Ok(re) = Regex::new(&repl.pattern)
     {
         stem = re.replace_all(&stem, repl.replacement.as_str()).to_string();
@@ -229,31 +273,61 @@ fn apply_filename_policy(
         stem = format!("{prefix}{stem}");
     }
 
-    if let Some(suffix) = policy.filename.suffix.as_ref()
-        && !suffix.is_empty()
-    {
-        stem = format!("{stem}{suffix}");
-    }
-
-    if policy.filename.append_timestamp {
-        let ts = Local::now().format("%Y%m%d-%H%M%S").to_string();
-        stem = format!("{stem}-{ts}");
-    }
-
-    if policy.filename.append_encoder_quality
-        && let Some(tag) = infer_encoder_quality_tag(preset)
-    {
-        stem = format!("{stem}-{tag}");
-    }
-
-    if let Some(len) = policy.filename.random_suffix_len
-        && len > 0
-    {
-        let token = random_hex(len as usize);
-        stem = format!("{stem}-{token}");
+    for item in normalized_append_order(policy) {
+        match item {
+            OutputFilenameAppend::Suffix => {
+                if let Some(suffix) = policy.filename.suffix.as_ref()
+                    && !suffix.is_empty()
+                {
+                    stem = format!("{stem}{suffix}");
+                }
+            }
+            OutputFilenameAppend::Timestamp => {
+                if policy.filename.append_timestamp {
+                    let ts = Local::now().format("%Y%m%d-%H%M%S").to_string();
+                    stem = format!("{stem}-{ts}");
+                }
+            }
+            OutputFilenameAppend::EncoderQuality => {
+                if policy.filename.append_encoder_quality
+                    && let Some(tag) = infer_encoder_quality_tag(preset)
+                {
+                    stem = format!("{stem}-{tag}");
+                }
+            }
+            OutputFilenameAppend::Random => {
+                if let Some(len) = policy.filename.random_suffix_len
+                    && len > 0
+                {
+                    let token = random_hex(len as usize);
+                    stem = format!("{stem}-{token}");
+                }
+            }
+        }
     }
 
     stem
+}
+
+fn normalized_append_order(policy: &OutputPolicy) -> Vec<OutputFilenameAppend> {
+    let mut seen = std::collections::HashSet::<OutputFilenameAppend>::new();
+    let mut out: Vec<OutputFilenameAppend> = Vec::new();
+    for item in policy.filename.append_order.iter().copied() {
+        if seen.insert(item) {
+            out.push(item);
+        }
+    }
+    for item in [
+        OutputFilenameAppend::Suffix,
+        OutputFilenameAppend::Timestamp,
+        OutputFilenameAppend::EncoderQuality,
+        OutputFilenameAppend::Random,
+    ] {
+        if seen.insert(item) {
+            out.push(item);
+        }
+    }
+    out
 }
 
 fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
