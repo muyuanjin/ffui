@@ -24,7 +24,7 @@ FFUI is a desktop user interface for FFmpeg-based transcoding, built with Tauri 
 - Smart Scan (auto-compress): scan a folder for media files that match simple size/codec rules and enqueue a batch of jobs.
 - Media info: inspect a single file and display structured metadata and analysis from the backend.
 - System performance monitor: chart CPU, memory, disk I/O, network I/O, and optional NVIDIA GPU metrics sampled on the Rust side.
-- Settings and external tools: configure FFmpeg / FFprobe / avifenc paths, auto-download behaviour, preview capture settings, concurrency limits, metrics interval, and queue crash-recovery mode.
+- Settings and external tools: configure Output Policy (output folder/filename rules, optional file-time preservation), UI appearance (font/scale), FFmpeg / FFprobe / avifenc paths, auto-download behaviour, preview capture settings, concurrency limits, metrics interval, and queue crash-recovery mode.
 
 ## Screenshots
 
@@ -238,7 +238,7 @@ FFUI 是一个围绕 FFmpeg 的桌面转码界面，基于 Tauri 2（Rust）和 
 - 批量压缩：按目录扫描媒体文件，基于体积和编码规则筛选候选文件并批量加入队列。
 - 媒体信息：针对单个文件查看由后端返回的结构化元数据和分析结果。
 - 性能监控：在“性能监控”页中查看 CPU、内存、磁盘 I/O、网络 I/O 以及可选的 NVIDIA GPU 指标。
-- 设置与外部工具：在设置页管理 `ffmpeg` / `ffprobe` / `avifenc` 路径和自动下载策略，并配置预览截帧位置、并行任务上限、性能采样间隔和队列崩溃恢复模式等行为。
+- 设置与外部工具：可配置输出策略（输出目录/文件名规则、可选保留文件时间）、外观设置（字体/缩放），并在设置页管理 `ffmpeg` / `ffprobe` / `avifenc` 路径与自动下载策略，同时支持预览截帧位置、并行任务上限、性能采样间隔和队列崩溃恢复模式等行为。
 
 ## 界面截图
 
