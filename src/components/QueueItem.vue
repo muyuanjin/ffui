@@ -66,6 +66,7 @@ const emit = defineEmits<{
   (e: "restart", id: string): void;
   (e: "inspect", job: TranscodeJob): void;
   (e: "preview", job: TranscodeJob): void;
+  (e: "compare", job: TranscodeJob): void;
   (e: "toggle-select", id: string): void;
   (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
@@ -429,6 +430,7 @@ const onCardContextMenu = (event: MouseEvent) => {
       :t="t"
       @toggle-select="(id) => emit('toggle-select', id)"
       @inspect="(targetJob) => emit('inspect', targetJob)"
+      @compare="(targetJob) => emit('compare', targetJob)"
       @wait="(id) => emit('wait', id)"
       @resume="(id) => emit('resume', id)"
       @restart="(id) => emit('restart', id)"

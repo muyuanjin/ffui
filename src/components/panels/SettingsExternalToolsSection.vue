@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import ExternalToolCard from "@/components/panels/settings-external-tools/ExternalToolCard.vue";
 import { useI18n } from "vue-i18n";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import type {
@@ -10,6 +9,13 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
 } from "@/types";
+
+type CheckUpdateLogLevel = "info" | "warn" | "error";
+type CheckUpdateLogEntry = {
+  atMs: number;
+  level: CheckUpdateLogLevel;
+  message: string;
+};
 
 const props = defineProps<{
   appSettings: AppSettings | null;
@@ -75,33 +81,164 @@ onUnmounted(() => {
 });
 
 const checkUpdateLoadingKind = ref<ExternalToolKind | null>(null);
+const checkUpdateRequestId = ref(0);
+const checkUpdateActiveRequest = ref<{
+  id: number;
+  kind: ExternalToolKind;
+  startedAtMs: number;
+  timeoutId?: number;
+} | null>(null);
+
+const checkUpdateLogsByKind = ref<Partial<Record<ExternalToolKind, CheckUpdateLogEntry[]>>>({});
+
+const getCheckUpdateLogs = (kind: ExternalToolKind): CheckUpdateLogEntry[] => {
+  return checkUpdateLogsByKind.value[kind] ?? [];
+};
+
+const setCheckUpdateLogs = (kind: ExternalToolKind, logs: CheckUpdateLogEntry[]) => {
+  checkUpdateLogsByKind.value = { ...checkUpdateLogsByKind.value, [kind]: logs };
+};
+
+const appendCheckUpdateLog = (
+  kind: ExternalToolKind,
+  message: string,
+  level: CheckUpdateLogLevel = "info",
+) => {
+  const next = [...getCheckUpdateLogs(kind), { atMs: Date.now(), level, message }];
+  const MAX_LINES = 80;
+  setCheckUpdateLogs(kind, next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next);
+};
+
+const checkUpdateLogsFor = (kind: ExternalToolKind): CheckUpdateLogEntry[] => getCheckUpdateLogs(kind);
+
 const lastManualUpdateCheckAtMs = ref<Partial<Record<ExternalToolKind, number>>>({});
+
+watch(
+  () => props.toolStatuses,
+  (next) => {
+    const request = checkUpdateActiveRequest.value;
+    if (!request) return;
+    if (checkUpdateLoadingKind.value !== request.kind) return;
+
+    if (request.timeoutId !== undefined) {
+      window.clearTimeout(request.timeoutId);
+    }
+
+    appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSnapshotReceived"));
+
+    const status = next.find((s) => s.kind === request.kind);
+    if (!status) {
+      appendCheckUpdateLog(
+        request.kind,
+        t("app.settings.checkToolUpdateLogSummaryResultToolMissing"),
+        "warn",
+      );
+    } else {
+      appendCheckUpdateLog(
+        request.kind,
+        t("app.settings.checkToolUpdateLogSummaryLocalPath", {
+          path: status.resolvedPath ?? "-",
+        }),
+      );
+      appendCheckUpdateLog(
+        request.kind,
+        t("app.settings.checkToolUpdateLogSummaryLocalVersion", {
+          version: status.version ?? "-",
+        }),
+      );
+      appendCheckUpdateLog(
+        request.kind,
+        t("app.settings.checkToolUpdateLogSummaryRemoteVersion", {
+          version: status.remoteVersion ?? "-",
+        }),
+      );
+
+      if (!status.resolvedPath) {
+        appendCheckUpdateLog(
+          request.kind,
+          t("app.settings.checkToolUpdateLogSummaryResultToolMissing"),
+          "warn",
+        );
+      } else if (!status.remoteVersion) {
+        appendCheckUpdateLog(
+          request.kind,
+          t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"),
+          "warn",
+        );
+      } else if (status.updateAvailable) {
+        appendCheckUpdateLog(
+          request.kind,
+          t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"),
+        );
+      } else {
+        appendCheckUpdateLog(
+          request.kind,
+          t("app.settings.checkToolUpdateLogSummaryResultUpToDate"),
+        );
+      }
+    }
+
+    const elapsedSeconds = ((Date.now() - request.startedAtMs) / 1000).toFixed(1);
+    appendCheckUpdateLog(
+      request.kind,
+      t("app.settings.checkToolUpdateLogDuration", { seconds: elapsedSeconds }),
+    );
+
+    checkUpdateLoadingKind.value = null;
+    checkUpdateActiveRequest.value = null;
+    lastManualUpdateCheckAtMs.value = {
+      ...lastManualUpdateCheckAtMs.value,
+      [request.kind]: Date.now(),
+    };
+  },
+  { deep: false },
+);
+
 const handleCheckToolUpdate = async (kind: ExternalToolKind) => {
   if (!props.refreshToolStatuses) return;
   if (checkUpdateLoadingKind.value) return;
+
   checkUpdateLoadingKind.value = kind;
+  const id = ++checkUpdateRequestId.value;
+  const startedAtMs = Date.now();
+
+  setCheckUpdateLogs(kind, []);
+  appendCheckUpdateLog(kind, t("app.settings.checkToolUpdateLogStarted"));
+  appendCheckUpdateLog(kind, t("app.settings.checkToolUpdateLogRequestSent"));
+
+  const timeoutSeconds = 20;
+  const timeoutId = window.setTimeout(() => {
+    const active = checkUpdateActiveRequest.value;
+    if (!active || active.id !== id) return;
+    appendCheckUpdateLog(
+      kind,
+      t("app.settings.checkToolUpdateLogTimeout", { seconds: timeoutSeconds }),
+      "warn",
+    );
+    checkUpdateLoadingKind.value = null;
+    checkUpdateActiveRequest.value = null;
+  }, timeoutSeconds * 1000);
+
+  checkUpdateActiveRequest.value = { id, kind, startedAtMs, timeoutId };
+
   try {
     await props.refreshToolStatuses({ remoteCheck: true, manualRemoteCheck: true });
-  } finally {
-    checkUpdateLoadingKind.value = null;
-    lastManualUpdateCheckAtMs.value = { ...lastManualUpdateCheckAtMs.value, [kind]: Date.now() };
+    if (checkUpdateActiveRequest.value?.id !== id) return;
+    appendCheckUpdateLog(kind, t("app.settings.checkToolUpdateLogAwaitingSnapshot"));
+  } catch (error) {
+    if (checkUpdateActiveRequest.value?.id === id) {
+      appendCheckUpdateLog(
+        kind,
+        t("app.settings.checkToolUpdateLogInvokeError", {
+          error: error instanceof Error ? error.message : String(error),
+        }),
+        "error",
+      );
+      window.clearTimeout(timeoutId);
+      checkUpdateLoadingKind.value = null;
+      checkUpdateActiveRequest.value = null;
+    }
   }
-};
-
-const CANDIDATE_SOURCE_I18N_KEYS: Partial<Record<string, string>> = {
-  custom: "app.settings.candidateSources.custom",
-  download: "app.settings.candidateSources.download",
-  path: "app.settings.candidateSources.path",
-  env: "app.settings.candidateSources.env",
-  registry: "app.settings.candidateSources.registry",
-  everything: "app.settings.candidateSources.everything",
-};
-
-const getToolDisplayName = (kind: ExternalToolKind): string => {
-  if (kind === "ffmpeg") return "FFmpeg";
-  if (kind === "ffprobe") return "FFprobe";
-  if (kind === "avifenc") return "avifenc";
-  return kind;
 };
 
 const getToolCustomPath = (kind: ExternalToolKind): string => {
@@ -149,7 +286,7 @@ const currentCandidates = computed<ExternalToolCandidate[]>(() => {
 
 const loadCandidates = async (kind: ExternalToolKind) => {
   // Toggle: clicking the same tool closes the list without re-querying.
-  if (candidateKind.value === kind && currentCandidates.value.length) {
+  if (candidateKind.value === kind) {
     candidateKind.value = null;
     return;
   }
@@ -182,50 +319,23 @@ const loadCandidates = async (kind: ExternalToolKind) => {
   }
 };
 
-const formatCandidateSource = (source: string): string => {
-  const key = CANDIDATE_SOURCE_I18N_KEYS[source];
-  return key ? t(key) : source;
-};
-
-const copyToClipboard = async (value: string | undefined | null) => {
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    // Fallback for environments where Clipboard API is not available.
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  }
-};
-
-const formatBytes = (value?: number): string => {
-  if (value == null || !Number.isFinite(value)) return "";
-  const units = ["B", "KB", "MB", "GB"];
-  let v = value;
-  let unitIndex = 0;
-  while (v >= 1024 && unitIndex < units.length - 1) {
-    v /= 1024;
-    unitIndex += 1;
-  }
-  const fractionDigits = unitIndex === 0 ? 0 : 1;
-  return `${v.toFixed(fractionDigits)} ${units[unitIndex]}`;
-};
-
-const formatSpeed = (bytesPerSecond?: number): string => {
-  if (bytesPerSecond == null || !Number.isFinite(bytesPerSecond)) return "";
-  return `${formatBytes(bytesPerSecond)}/s`;
+const handleUseCandidate = (candidate: ExternalToolCandidate) => {
+  if (candidate.isCurrent) return;
+  setToolCustomPath(candidate.kind, candidate.path);
+  const current = candidatesByKind.value[candidate.kind] ?? [];
+  candidatesByKind.value = {
+    ...candidatesByKind.value,
+    [candidate.kind]: current.map((item) => ({
+      ...item,
+      isCurrent: item.path === candidate.path,
+    })),
+  };
 };
 
 const showRecentlyCheckedHint = (kind: ExternalToolKind): boolean => {
   const ts = lastManualUpdateCheckAtMs.value[kind] ?? 0;
   if (!ts) return false;
-  return Date.now() - ts < 3_000;
+  return Date.now() - ts < 6_000;
 };
 </script>
 
@@ -238,223 +348,26 @@ const showRecentlyCheckedHint = (kind: ExternalToolKind): boolean => {
     </CardHeader>
     <CardContent class="p-2 flex-1 min-h-0">
       <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3 content-between h-full">
-        <div
+        <ExternalToolCard
           v-for="tool in toolStatuses"
           :key="tool.kind"
-          class="p-2 rounded border border-border/20 bg-background/50 hover:bg-accent/5 transition-colors"
-        >
-        <!-- Tool header with status -->
-        <div class="flex items-center justify-between mb-1.5 gap-2 min-w-0">
-          <div class="flex items-center gap-2 shrink-0">
-            <code class="text-[11px] font-mono font-semibold">{{ getToolDisplayName(tool.kind) }}</code>
-            <span
-              class="inline-flex items-center px-1.5 py-0 rounded text-[9px] font-mono uppercase tracking-wider whitespace-nowrap"
-              :class="
-                tool.resolvedPath
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                  : toolStatusesFresh
-                    ? 'bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30'
-                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30'
-              "
-            >
-              {{
-                tool.resolvedPath
-                  ? t("app.settings.toolStatus.ready")
-                  : toolStatusesFresh
-                    ? t("app.settings.toolStatus.missing")
-                    : t("app.settings.toolStatus.detecting")
-              }}
-            </span>
-          </div>
-          <span
-            v-if="tool.version"
-            class="ml-2 text-[10px] text-muted-foreground font-mono opacity-70 truncate max-w-[55%] text-right"
-          >
-            {{ tool.version }}
-          </span>
-        </div>
-
-        <!-- Tool path display -->
-        <div v-if="tool.resolvedPath" class="mb-1.5">
-          <div class="flex items-center gap-1 group">
-            <span class="text-[9px] text-muted-foreground uppercase tracking-wider">PATH:</span>
-            <code class="flex-1 text-[10px] font-mono text-muted-foreground truncate">
-              {{ tool.resolvedPath }}
-            </code>
-            <button
-              class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-accent rounded transition-all"
-              @click="copyToClipboard(tool.resolvedPath)"
-            >
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
-                />
-              </svg>
-            </button>
-          </div>
-          <div class="mt-0.5 flex items-center justify-between text-[9px]">
-            <button
-              type="button"
-              class="text-[9px] text-primary hover:underline focus:outline-none"
-              @click="loadCandidates(tool.kind)"
-            >
-              {{ t("app.settings.selectDetectedPath") }}
-            </button>
-            <span
-              v-if="candidatesLoadingKind === tool.kind"
-              class="text-muted-foreground"
-            >
-              {{ t("app.settings.loadingCandidates") }}
-            </span>
-          </div>
-
-          <div
-            v-if="candidateKind === tool.kind && currentCandidates.length"
-            class="mt-1.5 space-y-0.5 rounded border border-border/30 bg-background/60 p-1.5"
-          >
-            <div
-              v-for="candidate in currentCandidates"
-              :key="candidate.path"
-              class="flex items-center gap-1.5 py-0.5 border-t border-border/20 first:border-t-0"
-            >
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1">
-                  <code class="text-[9px] font-mono truncate">
-                    {{ candidate.path }}
-                  </code>
-                  <span
-                    class="px-1 py-0 rounded-full text-[8px] border border-border/40 text-muted-foreground"
-                  >
-                    {{ formatCandidateSource(candidate.source) }}
-                  </span>
-                </div>
-                <div v-if="candidate.version" class="text-[9px] text-muted-foreground truncate">
-                  {{ candidate.version }}
-                </div>
-              </div>
-              <span
-                v-if="candidate.isCurrent"
-                class="text-[9px] text-emerald-600 whitespace-nowrap mr-1"
-              >
-                {{ t("app.settings.candidateCurrentLabel") }}
-              </span>
-              <Button
-                v-else
-                variant="outline"
-                size="sm"
-                class="h-5 px-2 text-[9px]"
-                @click="setToolCustomPath(candidate.kind, candidate.path)"
-              >
-                {{ t("app.settings.useDetectedPath") }}
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Custom path input -->
-        <div v-if="appSettings" class="flex items-center gap-1.5">
-          <span class="text-[9px] text-muted-foreground uppercase tracking-wider shrink-0">CUSTOM:</span>
-          <Input
-            :model-value="getToolCustomPath(tool.kind)"
-            :placeholder="t('app.settings.customToolPathPlaceholder')"
-            class="h-6 text-[10px] font-mono bg-background/50 border-border/30 px-2"
-            @update:model-value="(value) => setToolCustomPath(tool.kind, value)"
-          />
-        </div>
-
-        <!-- Update available / manual download actions -->
-        <div class="mt-1 flex items-center justify-between text-[9px]">
-          <span
-            v-if="tool.updateAvailable && !tool.lastDownloadError"
-            class="text-amber-600"
-          >
-            {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
-          </span>
-          <span
-            v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError"
-            class="text-emerald-600"
-          >
-            {{ t("app.settings.toolUpToDateHint") }}
-          </span>
-          <div class="flex items-center gap-1.5">
-            <Button
-              v-if="!tool.downloadInProgress"
-              :data-testid="`tool-check-update-${tool.kind}`"
-              variant="ghost"
-              size="sm"
-              class="h-5 px-2 text-[9px]"
-              :disabled="!refreshToolStatuses || !!checkUpdateLoadingKind"
-              @click="handleCheckToolUpdate(tool.kind)"
-            >
-              {{
-                checkUpdateLoadingKind === tool.kind
-                  ? t("app.settings.checkToolUpdateCheckingButton")
-                  : t("app.settings.checkToolUpdateButton")
-              }}
-            </Button>
-            <span
-              v-if="showRecentlyCheckedHint(tool.kind) && checkUpdateLoadingKind !== tool.kind"
-              class="text-muted-foreground"
-            >
-              {{ t("app.settings.checkToolUpdateDoneHint") }}
-            </span>
-            <Button
-              v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
-              data-testid="tool-download-action"
-              variant="outline"
-              size="sm"
-              class="h-5 px-2 text-[9px]"
-              @click="emit('downloadTool', tool.kind)"
-            >
-              {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
-            </Button>
-          </div>
-        </div>
-
-        <!-- Download error message -->
-        <p
-          v-if="tool.lastDownloadError"
-          class="mt-1 text-[9px] text-red-600 dark:text-red-400 leading-snug"
-        >
-          {{ tool.lastDownloadError }}
-        </p>
-
-        <!-- Download progress -->
-        <div v-if="tool.downloadInProgress" class="mt-1.5 space-y-0.5">
-          <div class="flex items-center justify-between text-[9px]">
-            <span class="text-muted-foreground uppercase tracking-wider">
-              {{ t("app.settings.downloadStatusLabel") }}
-            </span>
-            <span v-if="tool.downloadProgress != null" class="font-mono text-primary">
-              {{ tool.downloadProgress.toFixed(1) }}%
-            </span>
-          </div>
-          <div class="flex items-center justify-between text-[9px] text-muted-foreground">
-            <span v-if="tool.downloadedBytes != null && tool.downloadedBytes > 0">
-              {{ formatBytes(tool.downloadedBytes) }}
-              <span v-if="tool.totalBytes != null">
-                / {{ formatBytes(tool.totalBytes) }}
-              </span>
-            </span>
-            <span v-if="tool.bytesPerSecond != null" class="font-mono">
-              {{ formatSpeed(tool.bytesPerSecond) }}
-            </span>
-          </div>
-          <div class="h-1 bg-muted/50 rounded-full overflow-hidden">
-            <div
-              class="h-full bg-gradient-to-r from-primary/80 to-primary transition-all duration-300"
-              :class="tool.downloadProgress == null ? 'animate-pulse w-full' : ''"
-              :style="tool.downloadProgress != null ? { width: `${tool.downloadProgress}%` } : {}"
-            />
-          </div>
-          <p class="text-[9px] text-muted-foreground mt-0.5 leading-snug">
-            {{ tool.lastDownloadMessage || t("app.settings.downloadInProgress") }}
-          </p>
-        </div>
-        </div>
+          :tool="tool"
+          :tool-statuses-fresh="toolStatusesFresh"
+          :app-settings="appSettings"
+          :tool-custom-path="getToolCustomPath(tool.kind)"
+          :candidates-open="candidateKind === tool.kind"
+          :candidates-loading="candidatesLoadingKind === tool.kind"
+          :candidates="candidateKind === tool.kind ? currentCandidates : []"
+          :check-update-logs="checkUpdateLogsFor(tool.kind)"
+          :check-update-loading="checkUpdateLoadingKind === tool.kind"
+          :check-update-disabled="!refreshToolStatuses || !!checkUpdateLoadingKind"
+          :recently-checked="showRecentlyCheckedHint(tool.kind)"
+          @toggle-candidates="loadCandidates(tool.kind)"
+          @use-candidate="handleUseCandidate"
+          @update-custom-path="(value) => setToolCustomPath(tool.kind, value)"
+          @check-update="handleCheckToolUpdate(tool.kind)"
+          @download="emit('downloadTool', tool.kind)"
+        />
       </div>
     </CardContent>
   </Card>

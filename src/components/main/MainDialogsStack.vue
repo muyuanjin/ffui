@@ -3,6 +3,7 @@ import DeletePresetDialog from "@/components/dialogs/DeletePresetDialog.vue";
 import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vue";
+import JobCompareDialog from "@/components/dialogs/JobCompareDialog.vue";
 import ParameterWizard from "@/components/ParameterWizard.vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import SmartScanWizard from "@/components/SmartScanWizard.vue";
@@ -70,6 +71,12 @@ const emit = defineEmits<{
   (e: "importSmartPackConfirmed", presets: FFmpegPreset[]): void;
   (e: "openToolsSettings"): void;
 }>();
+
+const openCompareFromJobDetail = () => {
+  const job = dialogManager.selectedJob.value;
+  if (!job) return;
+  dialogManager.openJobCompare(job);
+};
 </script>
 
 <template>
@@ -113,6 +120,7 @@ const emit = defineEmits<{
     :ffmpeg-resolved-path="ffmpegResolvedPath"
     @update:open="(val) => { if (!val) emit('closeJobDetail'); }"
     @expand-preview="emit('handleJobDetailExpandPreview')"
+    @compare="openCompareFromJobDetail"
     @copy-command="emit('copyToClipboard', dialogManager.selectedJob.value?.ffmpegCommand || '')"
   />
 
@@ -126,6 +134,7 @@ const emit = defineEmits<{
     @update:open="(val) => { if (!val) emit('closeBatchDetail'); }"
     @inspect-job="dialogManager.openJobDetail($event)"
     @preview-job="emit('openJobPreviewFromQueue', $event)"
+    @compare-job="dialogManager.openJobCompare($event)"
     @cancel-job="emit('handleCancelJob', $event)"
     @wait-job="emit('handleWaitJob', $event)"
     @resume-job="emit('handleResumeJob', $event)"
@@ -144,6 +153,12 @@ const emit = defineEmits<{
     @image-error="emit('handleExpandedImagePreviewError')"
     @open-in-system-player="emit('openPreviewInSystemPlayer')"
     @copy-path="emit('copyToClipboard', dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '')"
+  />
+
+  <JobCompareDialog
+    :open="dialogManager.jobCompareOpen.value"
+    :job="dialogManager.selectedJob.value"
+    @update:open="(open) => { if (!open) dialogManager.closeJobCompare(); }"
   />
 
   <SmartPresetOnboardingWizard

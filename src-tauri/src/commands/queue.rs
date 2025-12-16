@@ -15,7 +15,7 @@ use crate::ffui_core::{
 
 /// Get the current state of the transcoding queue.
 #[tauri::command]
-pub fn get_queue_state(engine: State<TranscodingEngine>) -> QueueState {
+pub fn get_queue_state(engine: State<'_, TranscodingEngine>) -> QueueState {
     engine.queue_state()
 }
 
@@ -23,7 +23,7 @@ pub fn get_queue_state(engine: State<TranscodingEngine>) -> QueueState {
 /// such as the full logs vector. This is intended for startup and frequent
 /// updates where payload size matters more than full detail.
 #[tauri::command]
-pub fn get_queue_state_lite(engine: State<TranscodingEngine>) -> QueueStateLite {
+pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateLite {
     engine.queue_state_lite()
 }
 
@@ -97,25 +97,25 @@ pub async fn expand_manual_job_inputs(
 
 /// Cancel a transcode job by ID.
 #[tauri::command]
-pub fn cancel_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+pub fn cancel_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.cancel_job(&job_id)
 }
 
 /// Pause a transcode job by ID.
 #[tauri::command]
-pub fn wait_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+pub fn wait_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.wait_job(&job_id)
 }
 
 /// Resume a paused transcode job by ID.
 #[tauri::command]
-pub fn resume_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+pub fn resume_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.resume_job(&job_id)
 }
 
 /// Restart a transcode job by ID.
 #[tauri::command]
-pub fn restart_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+pub fn restart_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.restart_job(&job_id)
 }
 
@@ -124,7 +124,7 @@ pub fn restart_transcode_job(engine: State<TranscodingEngine>, job_id: String) -
 /// Only jobs that are already in a terminal state (completed/failed/skipped/
 /// cancelled) are eligible for deletion; active jobs remain protected.
 #[tauri::command]
-pub fn delete_transcode_job(engine: State<TranscodingEngine>, job_id: String) -> bool {
+pub fn delete_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.delete_job(&job_id)
 }
 
@@ -133,18 +133,18 @@ pub fn delete_transcode_job(engine: State<TranscodingEngine>, job_id: String) ->
 /// 前端在“复合任务（Smart Scan 批次）→ 从列表删除”时，会优先调用该命令以确保
 /// 整个批次一次性从队列中清理，而不是逐个 delete_transcode_job。
 #[tauri::command]
-pub fn delete_smart_scan_batch(engine: State<TranscodingEngine>, batch_id: String) -> bool {
+pub fn delete_smart_scan_batch(engine: State<'_, TranscodingEngine>, batch_id: String) -> bool {
     engine.delete_smart_scan_batch(&batch_id)
 }
 
 /// Reorder jobs in the queue by their IDs.
 #[tauri::command]
-pub fn reorder_queue(engine: State<TranscodingEngine>, ordered_ids: Vec<String>) -> bool {
+pub fn reorder_queue(engine: State<'_, TranscodingEngine>, ordered_ids: Vec<String>) -> bool {
     engine.reorder_waiting_jobs(ordered_ids)
 }
 
 /// Fetch full details for a single job, including logs and media metadata.
 #[tauri::command]
-pub fn get_job_detail(engine: State<TranscodingEngine>, job_id: String) -> Option<TranscodeJob> {
+pub fn get_job_detail(engine: State<'_, TranscodingEngine>, job_id: String) -> Option<TranscodeJob> {
     engine.job_detail(&job_id)
 }

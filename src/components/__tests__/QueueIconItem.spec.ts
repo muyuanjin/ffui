@@ -111,6 +111,56 @@ describe("QueueIconItem", () => {
     expect(selectEvents).toBeFalsy();
   });
 
+  it("renders a compare button and disables it when Tauri is unavailable", () => {
+    const job = makeJob({
+      status: "completed",
+      outputPath: "C:/videos/sample.compressed.mp4",
+    });
+
+    (hasTauri as any).mockReturnValue(false);
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const compareButton = wrapper.get("[data-testid='queue-icon-item-compare-button']");
+    expect((compareButton.element as HTMLButtonElement).disabled).toBe(true);
+    expect(compareButton.attributes("title")).toBe((en as any).jobCompare.requiresTauri);
+  });
+
+  it("emits compare when the compare button is clicked", async () => {
+    const job = makeJob({
+      status: "completed",
+      outputPath: "C:/videos/sample.compressed.mp4",
+    });
+
+    (hasTauri as any).mockReturnValue(true);
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const compareButton = wrapper.get("[data-testid='queue-icon-item-compare-button']");
+    expect((compareButton.element as HTMLButtonElement).disabled).toBe(false);
+
+    await compareButton.trigger("click");
+    expect(wrapper.emitted("compare")?.[0]?.[0]).toEqual(job);
+  });
+
   it("renders a non-disappearing warning icon when job has warnings", () => {
     const job = makeJob({
       previewPath: "C:/app-data/previews/icon.jpg",

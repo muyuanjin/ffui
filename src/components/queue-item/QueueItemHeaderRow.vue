@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
+import { hasTauri } from "@/lib/backend";
+import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 
 const props = withDefaults(
   defineProps<{
@@ -98,6 +100,26 @@ const timeDisplayText = computed(() => {
   return null;
 });
 
+const compareDisabledReason = computed(() => {
+  if (!hasTauri()) return "requires-tauri";
+  return getJobCompareDisabledReason(props.job);
+});
+
+const canCompare = computed(
+  () => isJobCompareEligible(props.job) && compareDisabledReason.value == null,
+);
+
+const compareDisabledText = computed(() => {
+  const reason = compareDisabledReason.value;
+  if (!reason) return null;
+  if (reason === "requires-tauri") return props.t("jobCompare.requiresTauri") as string;
+  if (reason === "not-video") return props.t("jobCompare.disabled.notVideo") as string;
+  if (reason === "status") return props.t("jobCompare.disabled.status") as string;
+  if (reason === "no-output") return props.t("jobCompare.disabled.noOutput") as string;
+  if (reason === "no-partial-output") return props.t("jobCompare.disabled.noPartialOutput") as string;
+  return props.t("jobCompare.disabled.unavailable") as string;
+});
+
 const emit = defineEmits<{
   (e: "toggle-select", id: string): void;
   (e: "wait", id: string): void;
@@ -107,6 +129,7 @@ const emit = defineEmits<{
   (e: "preview", job: TranscodeJob): void;
   (e: "preview-error"): void;
    (e: "inspect", job: TranscodeJob): void;
+  (e: "compare", job: TranscodeJob): void;
 }>();
 </script>
 
@@ -238,6 +261,19 @@ const emit = defineEmits<{
         {{ timeDisplayText }}
       </span>
       <div class="flex flex-wrap justify-end items-center gap-1.5">
+        <Button
+          v-if="job.type === 'video'"
+          type="button"
+          variant="outline"
+          size="sm"
+          class="h-7 px-2 text-[11px]"
+          data-testid="queue-item-compare-button"
+          :disabled="!canCompare"
+          :title="compareDisabledText || String(t('jobCompare.open'))"
+          @click.stop="emit('compare', job)"
+        >
+          {{ t("jobCompare.open") }}
+        </Button>
         <Button
           type="button"
           variant="outline"

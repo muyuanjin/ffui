@@ -87,4 +87,3 @@ fn default_presets_ids_remain_stable_for_onboarding_replacement() {
         "legacy defaults (p1/p2) must keep stable ids so onboarding can replace them safely"
     );
 }
-

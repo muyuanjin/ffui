@@ -28,7 +28,7 @@ impl From<FrameQualityParam> for FallbackFrameQuality {
 /// so the UI can still provide a static scrub preview backed by FFmpeg.
 #[tauri::command]
 pub fn extract_fallback_preview_frame(
-    engine: State<TranscodingEngine>,
+    engine: State<'_, TranscodingEngine>,
     source_path: String,
     position_percent: Option<f64>,
     position_seconds: Option<f64>,

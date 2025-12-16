@@ -30,6 +30,7 @@ import {
   revealPathInFolder,
   loadQueueState,
   loadQueueStateLite,
+  getJobCompareSources,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -144,6 +145,22 @@ describe("backend contract", () => {
     });
 
     expect(result).toEqual(fakeJobs);
+  });
+
+  it("getJobCompareSources sends args wrapper with camelCase keys", async () => {
+    invokeMock.mockResolvedValueOnce(null);
+
+    const result = await getJobCompareSources("job-1");
+
+    expect(result).toBeNull();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("get_job_compare_sources");
+    expect(payload).toMatchObject({
+      args: {
+        jobId: "job-1",
+      },
+    });
   });
 
   it("loadPreviewDataUrl uses the dedicated preview command with both name variants", async () => {

@@ -4,6 +4,7 @@ use serde_json::{Value, json};
 
 mod presets_loading;
 mod tests_selection_bar_pinned;
+mod network_proxy;
 
 #[test]
 fn app_settings_default_uses_preview_capture_percent_25() {
@@ -372,10 +373,12 @@ fn default_intervals_match_documented_constants() {
 
 #[test]
 fn app_settings_normalizes_invalid_parallel_limits() {
-    let mut settings = AppSettings::default();
-    settings.max_parallel_jobs = Some(0);
-    settings.max_parallel_cpu_jobs = Some(0);
-    settings.max_parallel_hw_jobs = Some(0);
+    let mut settings = AppSettings {
+        max_parallel_jobs: Some(0),
+        max_parallel_cpu_jobs: Some(0),
+        max_parallel_hw_jobs: Some(0),
+        ..Default::default()
+    };
     settings.normalize();
 
     assert!(
@@ -404,9 +407,12 @@ fn app_settings_normalizes_invalid_parallel_limits() {
         crate::ffui_core::settings::types::DEFAULT_MAX_PARALLEL_HW_JOBS
     );
 
-    settings.max_parallel_jobs = Some(250);
-    settings.max_parallel_cpu_jobs = Some(250);
-    settings.max_parallel_hw_jobs = Some(250);
+    let mut settings = AppSettings {
+        max_parallel_jobs: Some(250),
+        max_parallel_cpu_jobs: Some(250),
+        max_parallel_hw_jobs: Some(250),
+        ..Default::default()
+    };
     settings.normalize();
 
     assert_eq!(

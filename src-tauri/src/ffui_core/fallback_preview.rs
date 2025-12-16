@@ -209,8 +209,20 @@ pub fn extract_fallback_frame(
     quality: FallbackFrameQuality,
 ) -> Result<PathBuf> {
     let source = Path::new(source_path);
-    if !is_regular_file(source) {
-        return Err(anyhow::anyhow!("sourcePath is not a readable file"));
+    let meta = match fs::metadata(source) {
+        Ok(m) => m,
+        Err(err) => {
+            return Err(anyhow::anyhow!(
+                "sourcePath is not a readable file: {}: {err}",
+                source.display()
+            ));
+        }
+    };
+    if !meta.is_file() {
+        return Err(anyhow::anyhow!(
+            "sourcePath is not a file: {}",
+            source.display()
+        ));
     }
 
     // `canonicalize` may introduce a Windows `\\?\` prefix. We still prefer it

@@ -33,6 +33,8 @@ export type {
   MediaInfo,
   JobWarning,
   WaitMetadata,
+  JobCompareOutput,
+  JobCompareSources,
   TranscodeJob,
   TranscodeJobLite,
   QueueState,
@@ -87,4 +89,11 @@ export type {
 } from "./output-policy";
 
 // Application settings
-export type { AppSettings, PresetSortMode, PresetViewMode, UiFontFamily } from "./settings";
+export type {
+  AppSettings,
+  PresetSortMode,
+  PresetViewMode,
+  UiFontFamily,
+  NetworkProxyMode,
+  NetworkProxySettings,
+} from "./settings";

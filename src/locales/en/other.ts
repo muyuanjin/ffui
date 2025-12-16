@@ -202,6 +202,37 @@ const other = {
     previewImageError:
       "Unable to load image preview. The file may be in use or corrupted; try opening it in your system player.",
   },
+  jobCompare: {
+    title: "Compare",
+    description: "Compare the job input vs output on a unified timeline.",
+    open: "Compare",
+    requiresTauri: "Compare is only available in the desktop app.",
+    unavailable: "Compare sources are not available for this job.",
+    loading: "Loading compare sources…",
+    loadingFrame: "Loading preview frame…",
+    timeline: "Timeline",
+    maxLabelHint: "Encoded limit / total duration (partial jobs).",
+    blinkHint: "Click the viewport to toggle input/output.",
+    sides: {
+      input: "Input",
+      output: "Output",
+    },
+    play: "Play",
+    pause: "Pause",
+    resetZoom: "Reset zoom",
+    modes: {
+      sideBySide: "Side by side",
+      wipe: "Wipe",
+      blink: "Blink",
+    },
+    disabled: {
+      notVideo: "Only video jobs can be compared.",
+      status: "Compare is only available for processing/paused/completed jobs.",
+      noOutput: "Output path is not available yet.",
+      noPartialOutput: "Partial output segments are not available yet.",
+      unavailable: "Compare is not available for this job.",
+    },
+  },
   previewFallback: {
     title: "Native playback failed",
     nativePlaybackFailed:

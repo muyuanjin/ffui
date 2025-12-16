@@ -13,6 +13,7 @@ import {
 } from "@/lib/backend";
 import type { TranscodeJob, FFmpegPreset } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
+import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -36,6 +37,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:open": [value: boolean];
   expandPreview: [];
+  compare: [];
   copyCommand: [command: string];
 }>();
 
@@ -132,6 +134,18 @@ const statusBadgeClass = computed(() => {
   if (status === "paused") return "bg-purple-500/20 text-purple-400 border-purple-500/40";
   if (status === "skipped") return "bg-gray-500/20 text-gray-400 border-gray-500/40";
   return "bg-muted text-muted-foreground border-border";
+});
+
+const compareDisabledReason = computed(() => getJobCompareDisabledReason(props.job));
+const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
+const compareDisabledText = computed(() => {
+  const reason = compareDisabledReason.value;
+  if (!reason) return null;
+  if (reason === "not-video") return t("jobCompare.disabled.notVideo") as string;
+  if (reason === "status") return t("jobCompare.disabled.status") as string;
+  if (reason === "no-output") return t("jobCompare.disabled.noOutput") as string;
+  if (reason === "no-partial-output") return t("jobCompare.disabled.noPartialOutput") as string;
+  return t("jobCompare.disabled.unavailable") as string;
 });
 
 const jobFileName = computed(() => {
@@ -240,6 +254,20 @@ const unknownPresetLabel = computed(() => {
                     {{ t("taskDetail.noPreview") }}
                   </span>
                 </button>
+
+                <div class="flex items-center gap-2">
+                  <Button
+                    v-if="isJobCompareEligible(job)"
+                    size="xs"
+                    class="h-7 px-3"
+                    :disabled="!canCompare"
+                    :title="compareDisabledText || undefined"
+                    data-testid="task-detail-compare"
+                    @click.stop="emit('compare')"
+                  >
+                    {{ t("jobCompare.open") }}
+                  </Button>
+                </div>
 
                 <div class="flex-1 space-y-2">
                   <div

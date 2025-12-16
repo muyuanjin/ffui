@@ -22,6 +22,7 @@ export interface UseQueueContextMenuOptions {
   bulkMoveToBottom: () => Promise<void>;
   bulkDelete: () => void;
   openJobDetail: (job: TranscodeJob) => void | Promise<void>;
+  openJobCompare: (job: TranscodeJob) => void | Promise<void>;
 }
 
 export interface UseQueueContextMenuReturn {
@@ -38,6 +39,7 @@ export interface UseQueueContextMenuReturn {
   openQueueContextMenuForBulk: (event: MouseEvent) => void;
   closeQueueContextMenu: () => void;
   handleQueueContextInspect: () => void;
+  handleQueueContextCompare: () => void;
   handleQueueContextWait: () => Promise<void>;
   handleQueueContextResume: () => Promise<void>;
   handleQueueContextRestart: () => Promise<void>;
@@ -69,6 +71,7 @@ export function useQueueContextMenu(
     bulkMoveToBottom,
     bulkDelete,
     openJobDetail,
+    openJobCompare,
   } = options;
 
   const queueContextMenuVisible = ref(false);
@@ -172,6 +175,13 @@ export function useQueueContextMenu(
     const job = queueContextMenuJob.value;
     if (!job) return;
     openJobDetail(job);
+  };
+
+  const handleQueueContextCompare = () => {
+    if (queueContextMenuMode.value !== "single") return;
+    const job = queueContextMenuJob.value;
+    if (!job) return;
+    openJobCompare(job);
   };
 
   const handleQueueContextWait = async () => {
@@ -280,6 +290,7 @@ export function useQueueContextMenu(
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
     handleQueueContextInspect,
+    handleQueueContextCompare,
     handleQueueContextWait,
     handleQueueContextResume,
     handleQueueContextRestart,

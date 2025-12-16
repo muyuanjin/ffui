@@ -7,6 +7,7 @@ import type {
   ExternalToolStatus,
   FFmpegPreset,
   GpuUsageSnapshot,
+  JobCompareSources,
   OutputPolicy,
   QueueStateLite,
   QueueState,
@@ -91,6 +92,37 @@ export const extractFallbackPreviewFrame = async (_args: {
 }): Promise<string> => {
   // Return a small data URL so docs screenshot builds can render the UI without
   // depending on real filesystem assets.
+  return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+};
+
+export const getJobCompareSources = async (jobId: string): Promise<JobCompareSources | null> => {
+  const normalized = String(jobId ?? "").trim();
+  if (!normalized) return null;
+
+  return {
+    jobId: normalized,
+    inputPath: "C:/docs-screenshot/input.mp4",
+    output: { kind: "completed", outputPath: "C:/docs-screenshot/output.mp4" },
+    maxCompareSeconds: 60,
+  };
+};
+
+export const extractJobCompareFrame = async (_args: {
+  jobId: string;
+  sourcePath: string;
+  positionSeconds: number;
+  durationSeconds?: number | null;
+  quality: FallbackFrameQuality;
+}): Promise<string> => {
+  return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+};
+
+export const extractJobCompareConcatFrame = async (_args: {
+  jobId: string;
+  segmentPaths: string[];
+  positionSeconds: number;
+  quality: FallbackFrameQuality;
+}): Promise<string> => {
   return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
 };
 

@@ -75,6 +75,8 @@ export interface ExternalToolCandidate {
   path: string;
   /** Source of this candidate: custom / download / path / env / registry / everything. */
   source: string;
+  /** File size (bytes) when available. */
+  fileSizeBytes?: number;
   /** Optional version string detected from the binary, when available. */
   version?: string;
   /** True when this candidate matches the currently resolvedPath used by the app. */

@@ -16,28 +16,27 @@
         <button
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
-          @click="
-            () => {
-              $emit('inspect');
-              $emit('close');
-            }
-          "
-          >
-            {{ t("jobDetail.title") }}
-          </button>
+          @click="onInspect"
+        >
+          {{ t("jobDetail.title") }}
+        </button>
+
+        <button
+          v-if="canCompare"
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
+          data-testid="queue-context-menu-compare"
+          @click="onCompare"
+        >
+          {{ t("jobCompare.open") }}
+        </button>
 
         <button
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canRevealInput"
           data-testid="queue-context-menu-open-input"
-          @click="
-            () => {
-              if (!canRevealInput) return;
-              $emit('open-input-folder');
-              $emit('close');
-            }
-          "
+          @click="onOpenInputFolder"
         >
           {{ t("queue.actions.openInputFolder") }}
         </button>
@@ -46,12 +45,7 @@
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
           data-testid="queue-context-menu-copy-input"
-          @click="
-            () => {
-              $emit('copy-input-path');
-              $emit('close');
-            }
-          "
+          @click="onCopyInputPath"
         >
           {{ t("queue.actions.copyInputPath") }}
         </button>
@@ -61,13 +55,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canRevealOutput"
           data-testid="queue-context-menu-open-output"
-          @click="
-            () => {
-              if (!canRevealOutput) return;
-              $emit('open-output-folder');
-              $emit('close');
-            }
-          "
+          @click="onOpenOutputFolder"
         >
           {{ t("queue.actions.openOutputFolder") }}
         </button>
@@ -76,12 +64,7 @@
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
           data-testid="queue-context-menu-copy-output"
-          @click="
-            () => {
-              $emit('copy-output-path');
-              $emit('close');
-            }
-          "
+          @click="onCopyOutputPath"
         >
           {{ t("queue.actions.copyOutputPath") }}
         </button>
@@ -93,13 +76,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canWait"
           data-testid="queue-context-menu-wait"
-          @click="
-            () => {
-              if (!canWait) return;
-              $emit('wait');
-              $emit('close');
-            }
-          "
+          @click="onWait"
         >
           {{ t("queue.actions.wait") }}
         </button>
@@ -109,13 +86,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canResume"
           data-testid="queue-context-menu-resume"
-          @click="
-            () => {
-              if (!canResume) return;
-              $emit('resume');
-              $emit('close');
-            }
-          "
+          @click="onResume"
         >
           {{ t("queue.actions.resume") }}
         </button>
@@ -125,13 +96,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canRestart"
           data-testid="queue-context-menu-restart"
-          @click="
-            () => {
-              if (!canRestart) return;
-              $emit('restart');
-              $emit('close');
-            }
-          "
+          @click="onRestart"
         >
           {{ t("queue.actions.restart") }}
         </button>
@@ -141,13 +106,7 @@
           class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canCancel"
           data-testid="queue-context-menu-cancel"
-          @click="
-            () => {
-              if (!canCancel) return;
-              $emit('cancel');
-              $emit('close');
-            }
-          "
+          @click="onCancel"
         >
           {{ t("app.actions.cancel") }}
         </button>
@@ -159,13 +118,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canMove"
           data-testid="queue-context-menu-move-top"
-          @click="
-            () => {
-              if (!canMove) return;
-              $emit('move-to-top');
-              $emit('close');
-            }
-          "
+          @click="onMoveToTop"
         >
           {{ t("queue.actions.bulkMoveToTop") }}
         </button>
@@ -175,13 +128,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canMove"
           data-testid="queue-context-menu-move-bottom"
-          @click="
-            () => {
-              if (!canMove) return;
-              $emit('move-to-bottom');
-              $emit('close');
-            }
-          "
+          @click="onMoveToBottom"
         >
           {{ t("queue.actions.bulkMoveToBottom") }}
         </button>
@@ -191,13 +138,7 @@
           class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canDeleteSingle"
           data-testid="queue-context-menu-remove"
-          @click="
-            () => {
-              if (!canDeleteSingle) return;
-              $emit('remove');
-              $emit('close');
-            }
-          "
+          @click="onRemove"
         >
           {{ t("queue.actions.bulkDelete") }}
         </button>
@@ -209,13 +150,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkBase"
           data-testid="queue-context-menu-copy-all-input"
-          @click="
-            () => {
-              if (!canBulkBase) return;
-              $emit('copy-input-path');
-              $emit('close');
-            }
-          "
+          @click="onCopyInputPath"
         >
           {{ t("queue.actions.copyAllInputPaths") }}
         </button>
@@ -225,13 +160,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkBase"
           data-testid="queue-context-menu-copy-all-output"
-          @click="
-            () => {
-              if (!canBulkBase) return;
-              $emit('copy-output-path');
-              $emit('close');
-            }
-          "
+          @click="onCopyOutputPath"
         >
           {{ t("queue.actions.copyAllOutputPaths") }}
         </button>
@@ -243,13 +172,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkWait"
           data-testid="queue-context-menu-bulk-wait"
-          @click="
-            () => {
-              if (!canBulkWait) return;
-              $emit('wait');
-              $emit('close');
-            }
-          "
+          @click="onWait"
         >
           {{ t("queue.actions.bulkWait") }}
         </button>
@@ -259,13 +182,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkResume"
           data-testid="queue-context-menu-bulk-resume"
-          @click="
-            () => {
-              if (!canBulkResume) return;
-              $emit('resume');
-              $emit('close');
-            }
-          "
+          @click="onResume"
         >
           {{ t("queue.actions.bulkResume") }}
         </button>
@@ -275,13 +192,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkCancel"
           data-testid="queue-context-menu-bulk-cancel"
-          @click="
-            () => {
-              if (!canBulkCancel) return;
-              $emit('cancel');
-              $emit('close');
-            }
-          "
+          @click="onCancel"
         >
           {{ t("queue.actions.bulkCancel") }}
         </button>
@@ -291,13 +202,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkRestart"
           data-testid="queue-context-menu-bulk-restart"
-          @click="
-            () => {
-              if (!canBulkRestart) return;
-              $emit('restart');
-              $emit('close');
-            }
-          "
+          @click="onRestart"
         >
           {{ t("queue.actions.bulkRestart") }}
         </button>
@@ -309,13 +214,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkMove"
           data-testid="queue-context-menu-bulk-move-top"
-          @click="
-            () => {
-              if (!canBulkMove) return;
-              $emit('move-to-top');
-              $emit('close');
-            }
-          "
+          @click="onMoveToTop"
         >
           {{ t("queue.actions.bulkMoveToTop") }}
         </button>
@@ -325,13 +224,7 @@
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkMove"
           data-testid="queue-context-menu-bulk-move-bottom"
-          @click="
-            () => {
-              if (!canBulkMove) return;
-              $emit('move-to-bottom');
-              $emit('close');
-            }
-          "
+          @click="onMoveToBottom"
         >
           {{ t("queue.actions.bulkMoveToBottom") }}
         </button>
@@ -341,13 +234,7 @@
           class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canBulkDelete"
           data-testid="queue-context-menu-bulk-remove"
-          @click="
-            () => {
-              if (!canBulkDelete) return;
-              $emit('remove');
-              $emit('close');
-            }
-          "
+          @click="onRemove"
         >
           {{ t("queue.actions.bulkDelete") }}
         </button>
@@ -359,7 +246,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { JobStatus, QueueMode } from "@/types";
+import type { JobStatus, JobType, QueueMode } from "@/types";
 
 const props = defineProps<{
   visible: boolean;
@@ -367,6 +254,7 @@ const props = defineProps<{
   y: number;
   mode: "single" | "bulk";
   jobStatus?: JobStatus;
+  jobType?: JobType;
   queueMode: QueueMode;
   hasSelection: boolean;
   canRevealInputPath?: boolean;
@@ -375,6 +263,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "inspect"): void;
+  (e: "compare"): void;
   (e: "open-input-folder"): void;
   (e: "open-output-folder"): void;
   (e: "copy-input-path"): void;
@@ -388,7 +277,69 @@ const emit = defineEmits<{
   (e: "remove"): void;
   (e: "close"): void;
 }>();
-void emit;
+const closeMenu = () => emit("close");
+const onInspect = () => {
+  emit("inspect");
+  closeMenu();
+};
+const onCompare = () => {
+  emit("compare");
+  closeMenu();
+};
+const onOpenInputFolder = () => {
+  if (!canRevealInput.value) return;
+  emit("open-input-folder");
+  closeMenu();
+};
+const onOpenOutputFolder = () => {
+  if (!canRevealOutput.value) return;
+  emit("open-output-folder");
+  closeMenu();
+};
+const onCopyInputPath = () => {
+  emit("copy-input-path");
+  closeMenu();
+};
+const onCopyOutputPath = () => {
+  emit("copy-output-path");
+  closeMenu();
+};
+const onWait = () => {
+  if (props.mode === "single" && !canWait.value) return;
+  if (props.mode === "single" || canBulkWait.value) emit("wait");
+  closeMenu();
+};
+const onResume = () => {
+  if (props.mode === "single" && !canResume.value) return;
+  if (props.mode === "single" || canBulkResume.value) emit("resume");
+  closeMenu();
+};
+const onRestart = () => {
+  if (props.mode === "single" && !canRestart.value) return;
+  if (props.mode === "single" || canBulkRestart.value) emit("restart");
+  closeMenu();
+};
+const onCancel = () => {
+  if (props.mode === "single" && !canCancel.value) return;
+  if (props.mode === "single" || canBulkCancel.value) emit("cancel");
+  closeMenu();
+};
+const onMoveToTop = () => {
+  if (props.mode === "single" && !canMove.value) return;
+  if (props.mode === "single" || canBulkMove.value) emit("move-to-top");
+  closeMenu();
+};
+const onMoveToBottom = () => {
+  if (props.mode === "single" && !canMove.value) return;
+  if (props.mode === "single" || canBulkMove.value) emit("move-to-bottom");
+  closeMenu();
+};
+const onRemove = () => {
+  if (props.mode === "single" && !canDeleteSingle.value) return;
+  if (props.mode === "bulk" && !canBulkDelete.value) return;
+  emit("remove");
+  closeMenu();
+};
 
 const { t } = useI18n();
 const menuRef = ref<HTMLElement | null>(null);
@@ -470,6 +421,16 @@ const canMove = computed(() => props.mode === "single" && isQueueMode.value);
 const canDeleteSingle = computed(
   () => props.mode === "single" && isTerminalStatus(status.value),
 );
+
+const canCompare = computed(() => {
+  if (props.mode !== "single") return false;
+  if (props.jobType !== "video") return false;
+  return (
+    status.value === "processing" ||
+    status.value === "paused" ||
+    status.value === "completed"
+  );
+});
 
 const canBulkBase = computed(
   () => props.mode === "bulk" && props.hasSelection,

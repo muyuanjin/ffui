@@ -60,7 +60,7 @@ fn cleanup_preview_caches_worker(
 /// - Deletes `previews/*.jpg|png|webp` files that are no longer referenced by any job in the queue.
 /// - Clears `previews/fallback-cache/frames/*` (fallback scrub frames).
 #[tauri::command]
-pub fn cleanup_preview_caches_async(engine: State<TranscodingEngine>) -> bool {
+pub fn cleanup_preview_caches_async(engine: State<'_, TranscodingEngine>) -> bool {
     let engine: TranscodingEngine = (*engine).clone();
 
     std::thread::Builder::new()

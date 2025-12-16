@@ -30,7 +30,9 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         let mut active_cpu = 0usize;
         let mut active_hw = 0usize;
         for id in state.active_jobs.iter() {
-            let Some(job) = state.jobs.get(id) else { continue };
+            let Some(job) = state.jobs.get(id) else {
+                continue;
+            };
             match classify_job(state, job) {
                 ParallelismClass::Cpu => active_cpu += 1,
                 ParallelismClass::Hardware => active_hw += 1,
@@ -90,9 +92,7 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
 
 fn classify_job(state: &EngineState, job: &TranscodeJob) -> ParallelismClass {
     let preset = state.presets.iter().find(|p| p.id == job.preset_id);
-    preset
-        .map(classify_preset)
-        .unwrap_or(ParallelismClass::Cpu)
+    preset.map(classify_preset).unwrap_or(ParallelismClass::Cpu)
 }
 
 fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {

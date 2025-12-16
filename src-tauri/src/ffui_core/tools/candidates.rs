@@ -63,12 +63,14 @@ pub fn tool_candidates(
             continue;
         }
         if verify_tool_binary(&path, kind, &source) {
+            let file_size_bytes = std::fs::metadata(&path).ok().map(|m| m.len());
             let version = detect_local_tool_version(&path, kind);
             let is_current = current_path.as_deref() == Some(path.as_str());
             result.push(ExternalToolCandidate {
                 kind,
                 path,
                 source,
+                file_size_bytes,
                 version,
                 is_current,
             });

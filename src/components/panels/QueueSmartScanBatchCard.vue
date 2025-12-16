@@ -43,6 +43,7 @@ const emit = defineEmits<{
   toggleJobSelected: [jobId: string];
   inspectJob: [job: TranscodeJob];
   previewJob: [job: TranscodeJob];
+  compareJob: [job: TranscodeJob];
   openJobContextMenu: [payload: { job: TranscodeJob; event: MouseEvent }];
   contextmenuBatch: [payload: { batch: CompositeSmartScanTask; event: MouseEvent }];
 }>();
@@ -178,6 +179,7 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
           @toggle-select="emit('toggleJobSelected', $event)"
           @inspect="emit('inspectJob', $event)"
           @preview="emit('previewJob', $event)"
+          @compare="emit('compareJob', $event)"
           @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
         />
       </div>

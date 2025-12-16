@@ -117,4 +117,3 @@ fn worker_selection_respects_split_cpu_and_hardware_caps() {
         assert_eq!(third, cpu2.id, "CPU slot freed; next CPU job should run");
     }
 }
-

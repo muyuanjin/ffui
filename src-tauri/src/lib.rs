@@ -83,6 +83,9 @@ pub fn run() {
             commands::queue::delete_smart_scan_batch,
             commands::queue::reorder_queue,
             commands::queue::get_job_detail,
+            commands::job_compare::get_job_compare_sources,
+            commands::job_compare::extract_job_compare_frame,
+            commands::job_compare::extract_job_compare_concat_frame,
             commands::output::preview_output_path,
             commands::presets::get_presets,
             commands::presets::get_smart_default_presets,
@@ -396,8 +399,7 @@ mod tests {
 
         assert!(
             !scope_set.contains("**") && !scope_set.contains("*"),
-            "assetProtocol.scope must not contain a global wildcard: {:?}",
-            scope_set
+            "assetProtocol.scope must not contain a global wildcard: {scope_set:?}"
         );
 
         let capabilities_path = manifest_dir.join("capabilities").join("default.json");

@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 
 #[cfg(not(test))]
-use crate::ffui_core::tools::download::net::proxy_from_env;
+use crate::ffui_core::network_proxy;
 use crate::ffui_core::tools::types::*;
 
 pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
@@ -109,74 +109,70 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
 
 #[cfg(not(test))]
 fn fetch_ffmpeg_release_from_github() -> Option<String> {
-    use reqwest::Proxy;
-    use reqwest::blocking::Client;
     use serde::Deserialize;
     use std::time::Duration;
 
-    let mut builder = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .user_agent("ffui/ffmpeg-static-updater");
+    tauri::async_runtime::block_on(async move {
+        use reqwest::Client;
 
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
+        let builder = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .user_agent("ffui/ffmpeg-static-updater");
+        let builder = network_proxy::apply_reqwest_builder(builder);
 
-    let client = builder.build().ok()?;
-    let resp = client
-        .get("https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest")
-        .send()
-        .ok()?;
+        let client = builder.build().ok()?;
+        let resp = client
+            .get("https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest")
+            .send()
+            .await
+            .ok()?;
 
-    if !resp.status().is_success() {
-        return None;
-    }
+        if !resp.status().is_success() {
+            return None;
+        }
 
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
+        #[derive(Deserialize)]
+        struct Release {
+            tag_name: String,
+        }
 
-    let release: Release = resp.json().ok()?;
-    Some(release.tag_name)
+        let release: Release = resp.json().await.ok()?;
+        Some(release.tag_name)
+    })
 }
 
 #[cfg(not(test))]
 fn fetch_libavif_release_from_github() -> Option<String> {
-    use reqwest::Proxy;
-    use reqwest::blocking::Client;
     use serde::Deserialize;
     use std::time::Duration;
 
-    let mut builder = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .user_agent("ffui/libavif-updater");
+    tauri::async_runtime::block_on(async move {
+        use reqwest::Client;
 
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
+        let builder = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .user_agent("ffui/libavif-updater");
+        let builder = network_proxy::apply_reqwest_builder(builder);
 
-    let client = builder.build().ok()?;
-    let resp = client
-        .get("https://api.github.com/repos/AOMediaCodec/libavif/releases/latest")
-        .send()
-        .ok()?;
+        let client = builder.build().ok()?;
+        let resp = client
+            .get("https://api.github.com/repos/AOMediaCodec/libavif/releases/latest")
+            .send()
+            .await
+            .ok()?;
 
-    if !resp.status().is_success() {
-        return None;
-    }
+        if !resp.status().is_success() {
+            return None;
+        }
 
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
+        #[derive(Deserialize)]
+        struct Release {
+            tag_name: String,
+        }
 
-    let release: Release = resp.json().ok()?;
-    Some(release.tag_name)
+        let release: Release = resp.json().await.ok()?;
+        Some(release.tag_name)
+    })
 }
 
 #[cfg(test)]

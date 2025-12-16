@@ -1,23 +1,24 @@
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 
+use crate::ffui_core::network_proxy;
 use crate::ffui_core::tools::probe::configure_background_command;
 use crate::ffui_core::tools::resolve::tool_binary_name;
 use crate::ffui_core::tools::types::ExternalToolKind;
 
-pub(crate) fn proxy_from_env() -> Option<String> {
-    for key in &["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-        if let Ok(v) = std::env::var(key)
-            && !v.trim().is_empty()
-        {
-            return Some(v);
-        }
-    }
-    None
+fn build_reqwest_client(timeout: Duration, context_label: &'static str) -> Result<reqwest::Client> {
+    use reqwest::Client;
+
+    let builder = Client::builder().timeout(timeout);
+    let builder = network_proxy::apply_reqwest_builder(builder);
+
+    builder.build()
+        .with_context(|| format!("failed to build HTTP client for {context_label}"))
 }
 
 pub(crate) fn aria2c_available() -> bool {
@@ -42,6 +43,7 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<()> {
 
     let mut cmd = Command::new("aria2c");
     configure_background_command(&mut cmd);
+    network_proxy::apply_aria2c_args(&mut cmd);
     let status = cmd
         .arg("--allow-overwrite=true")
         .arg("--auto-file-renaming=false")
@@ -73,120 +75,91 @@ pub(crate) fn download_file_with_reqwest<F>(
 where
     F: FnMut(u64, Option<u64>),
 {
-    use reqwest::Proxy;
-    use reqwest::blocking::Client;
-    use std::time::Duration;
-
     let dir = dest
         .parent()
         .ok_or_else(|| anyhow!("destination {} has no parent directory", dest.display()))?;
     fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
 
-    let mut builder = Client::builder().timeout(Duration::from_secs(30));
+    tauri::async_runtime::block_on(async move {
+        let client = build_reqwest_client(Duration::from_secs(30), "ffmpeg-static download")?;
 
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
+        let mut resp = client.get(url).send().await.with_context(|| {
+            format!(
+                "failed to download {} from {}",
+                tool_binary_name(ExternalToolKind::Ffmpeg),
+                url
+            )
+        })?;
 
-    let client = builder
-        .build()
-        .context("failed to build HTTP client for ffmpeg-static download")?;
-
-    let mut resp = client.get(url).send().with_context(|| {
-        format!(
-            "failed to download {} from {}",
-            tool_binary_name(ExternalToolKind::Ffmpeg),
-            url
-        )
-    })?;
-
-    if !resp.status().is_success() {
-        bail!(
-            "download of {} from {} failed with status {}",
-            tool_binary_name(ExternalToolKind::Ffmpeg),
-            url,
-            resp.status()
-        );
-    }
-
-    let mut file =
-        fs::File::create(dest).with_context(|| format!("failed to create {}", dest.display()))?;
-
-    let total_len = resp.content_length();
-    let mut downloaded: u64 = 0;
-    let mut buf = [0u8; 8192];
-
-    loop {
-        let n = resp
-            .read(&mut buf)
-            .context("failed to read downloaded bytes")?;
-        if n == 0 {
-            break;
+        if !resp.status().is_success() {
+            bail!(
+                "download of {} from {} failed with status {}",
+                tool_binary_name(ExternalToolKind::Ffmpeg),
+                url,
+                resp.status()
+            );
         }
-        file.write_all(&buf[..n])
-            .with_context(|| format!("failed to write {}", dest.display()))?;
-        downloaded += n as u64;
-        on_progress(downloaded, total_len);
-    }
 
-    mark_download_executable_if_unix(dest)?;
+        let mut file = fs::File::create(dest)
+            .with_context(|| format!("failed to create {}", dest.display()))?;
 
-    Ok(())
+        let total_len = resp.content_length();
+        let mut downloaded: u64 = 0;
+
+        while let Some(chunk) = resp
+            .chunk()
+            .await
+            .context("failed to read downloaded bytes")?
+        {
+            file.write_all(&chunk)
+                .with_context(|| format!("failed to write {}", dest.display()))?;
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+            on_progress(downloaded, total_len);
+        }
+
+        mark_download_executable_if_unix(dest)?;
+
+        Ok(())
+    })
 }
 
 pub(crate) fn download_bytes_with_reqwest<F>(url: &str, mut on_progress: F) -> Result<Vec<u8>>
 where
     F: FnMut(u64, Option<u64>),
 {
-    use reqwest::Proxy;
-    use reqwest::blocking::Client;
-    use std::time::Duration;
+    tauri::async_runtime::block_on(async move {
+        let client = build_reqwest_client(Duration::from_secs(30), "avifenc download")?;
 
-    let mut builder = Client::builder().timeout(Duration::from_secs(30));
+        let mut resp = client
+            .get(url)
+            .send()
+            .await
+            .with_context(|| format!("failed to download avifenc from {url}"))?;
 
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
-
-    let client = builder
-        .build()
-        .context("failed to build HTTP client for avifenc download")?;
-
-    let mut resp = client
-        .get(url)
-        .send()
-        .with_context(|| format!("failed to download avifenc from {url}"))?;
-
-    if !resp.status().is_success() {
-        bail!(
-            "download of avifenc from {} failed with status {}",
-            url,
-            resp.status()
-        );
-    }
-
-    let total_len = resp.content_length();
-    let mut downloaded: u64 = 0;
-    let mut out = Vec::new();
-    let mut buf = [0u8; 8192];
-
-    loop {
-        let n = resp
-            .read(&mut buf)
-            .context("failed to read downloaded avifenc bytes")?;
-        if n == 0 {
-            break;
+        if !resp.status().is_success() {
+            bail!(
+                "download of avifenc from {} failed with status {}",
+                url,
+                resp.status()
+            );
         }
-        out.extend_from_slice(&buf[..n]);
-        downloaded += n as u64;
-        on_progress(downloaded, total_len);
-    }
 
-    Ok(out)
+        let total_len = resp.content_length();
+        let mut downloaded: u64 = 0;
+        let mut out = Vec::new();
+
+        while let Some(chunk) = resp
+            .chunk()
+            .await
+            .context("failed to read downloaded avifenc bytes")?
+        {
+            out.extend_from_slice(&chunk);
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+            on_progress(downloaded, total_len);
+        }
+
+        Ok(out)
+    })
 }
 
 /// Best-effort: mark a downloaded file as executable on Unix platforms.
@@ -209,33 +182,108 @@ fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
 /// Lightweight HEAD to retrieve Content-Length when available. This is used
 /// to provide determinate progress for aria2c-driven downloads.
 pub(crate) fn content_length_head(url: &str) -> Option<u64> {
-    use reqwest::Proxy;
-    use reqwest::blocking::Client;
-    use std::time::Duration;
-
-    let mut builder = Client::builder().timeout(Duration::from_secs(5));
-
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
-
-    let client = builder.build().ok()?;
-    client
-        .head(url)
-        .send()
-        .ok()?
-        .headers()
-        .get(reqwest::header::CONTENT_LENGTH)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.parse::<u64>().ok())
+    tauri::async_runtime::block_on(async move {
+        let client = build_reqwest_client(Duration::from_secs(5), "content-length probe").ok()?;
+        let resp = client.head(url).send().await.ok()?;
+        resp.headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    #[cfg(unix)]
     use super::*;
+
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::{Mutex, OnceLock};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    fn clear_proxy_env_for_test() {
+        let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
+        let _guard = lock.lock().expect("ENV_LOCK poisoned");
+
+        for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
+            unsafe { std::env::remove_var(key) };
+        }
+        unsafe { std::env::set_var("NO_PROXY", "127.0.0.1,localhost") };
+    }
+
+    fn spawn_local_http_server(body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind test server");
+        let addr = listener.local_addr().expect("server addr");
+        let url = format!("http://127.0.0.1:{}/", addr.port());
+        listener
+            .set_nonblocking(true)
+            .expect("set listener nonblocking");
+
+        let handle = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(3);
+            let mut served: usize = 0;
+            while Instant::now() < deadline && served < 8 {
+                match listener.accept() {
+                    Ok((mut stream, _peer)) => {
+                        served += 1;
+                        let mut buf = [0u8; 16 * 1024];
+                        let n = stream.read(&mut buf).unwrap_or(0);
+                        let req = String::from_utf8_lossy(&buf[..n]);
+                        let method = req.split_whitespace().next().unwrap_or("");
+
+                        let headers = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = stream.write_all(headers.as_bytes());
+                        if method != "HEAD" {
+                            let _ = stream.write_all(&body);
+                        }
+                    }
+                    Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        (url, handle)
+    }
+
+    #[test]
+    fn reqwest_helpers_can_download_from_local_server() {
+        clear_proxy_env_for_test();
+
+        let body = b"hello from ffui".to_vec();
+        let (url, server_handle) = spawn_local_http_server(body.clone());
+
+        assert_eq!(content_length_head(&url), Some(body.len() as u64));
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let dest = dir.path().join("download.bin");
+
+        let mut progress_calls: u32 = 0;
+        download_file_with_reqwest(&url, &dest, |_downloaded, _total| {
+            progress_calls += 1;
+        })
+        .expect("download_file_with_reqwest");
+
+        assert!(
+            progress_calls > 0,
+            "progress callback must be invoked at least once"
+        );
+        assert_eq!(fs::read(&dest).expect("read downloaded file"), body);
+
+        let bytes = download_bytes_with_reqwest(&url, |_downloaded, _total| {})
+            .expect("download_bytes_with_reqwest");
+        assert_eq!(bytes, body);
+
+        server_handle.join().expect("server thread");
+    }
 
     #[cfg(unix)]
     #[test]

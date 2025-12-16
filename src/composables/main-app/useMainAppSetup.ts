@@ -392,6 +392,7 @@ export function useMainAppSetup() {
     bulkMoveToBottom: queue.bulkMoveToBottom,
     bulkDelete: queue.bulkDelete,
     openJobDetail: dialogs.dialogManager.openJobDetail,
+    openJobCompare: dialogs.dialogManager.openJobCompare,
   });
 
   const {
@@ -399,6 +400,7 @@ export function useMainAppSetup() {
     queueContextMenuMode,
     queueContextMenuX,
     queueContextMenuY,
+    queueContextMenuJob,
     queueContextMenuJobStatus,
     queueContextMenuCanRevealInputPath,
     queueContextMenuCanRevealOutputPath,
@@ -406,6 +408,7 @@ export function useMainAppSetup() {
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
     handleQueueContextInspect,
+    handleQueueContextCompare,
     handleQueueContextWait,
     handleQueueContextResume,
     handleQueueContextRestart,
@@ -446,7 +449,6 @@ export function useMainAppSetup() {
     ...dnd,
     currentTitle,
     currentSubtitle,
-
     selectedJobForDetail,
     globalTaskbarProgressPercent: settings.globalTaskbarProgressPercent,
     compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
@@ -454,9 +456,7 @@ export function useMainAppSetup() {
     jobDetailLogText,
     highlightedLogHtml,
     copyToClipboard,
-
-    // Additional bindings used only by the template but not originally
-    // exposed on the instance.
+    // Additional bindings used only by the template but not originally exposed on the instance.
     completedCount,
     presetSortMode,
     presetViewMode,
@@ -468,12 +468,12 @@ export function useMainAppSetup() {
     handleImportSmartPackConfirmed,
     ffmpegResolvedPath,
     handleUpdateAppSettings,
-
     // Queue context menu bindings used by the template.
     queueContextMenuVisible,
     queueContextMenuMode,
     queueContextMenuX,
     queueContextMenuY,
+    queueContextMenuJob,
     queueContextMenuJobStatus,
     queueContextMenuCanRevealInputPath,
     queueContextMenuCanRevealOutputPath,
@@ -481,6 +481,7 @@ export function useMainAppSetup() {
     openQueueContextMenuForBulk,
     closeQueueContextMenu,
     handleQueueContextInspect,
+    handleQueueContextCompare,
     handleQueueContextWait,
     handleQueueContextResume,
     handleQueueContextRestart,
@@ -495,5 +496,4 @@ export function useMainAppSetup() {
   };
   return { mainApp, manualJobPresetId };
 }
-
 export type MainAppSetup = ReturnType<typeof useMainAppSetup>;

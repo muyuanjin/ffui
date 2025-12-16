@@ -90,3 +90,31 @@ fn ensure_dir_exists_creates_directory() {
     ensure_dir_exists(&nested).expect("ensure_dir_exists should create nested dirs");
     assert!(nested.is_dir());
 }
+
+#[test]
+fn extract_fallback_frame_reports_source_path_and_os_error() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let missing = dir.path().join("missing-input.mp4");
+    assert!(!missing.exists());
+    let missing_str = missing.to_string_lossy().into_owned();
+
+    let err = extract_fallback_frame(
+        &missing_str,
+        &ExternalToolSettings::default(),
+        None,
+        FallbackFramePosition::Seconds(0.0),
+        FallbackFrameQuality::Low,
+    )
+    .expect_err("should fail for missing source path");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("sourcePath is not a readable file:"),
+        "should include a stable error prefix: {msg}"
+    );
+    assert!(
+        msg.contains(&missing_str),
+        "should include the source path: {msg}"
+    );
+    assert!(msg.contains("os error"), "should include OS error details: {msg}");
+}

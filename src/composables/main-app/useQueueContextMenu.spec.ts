@@ -33,6 +33,7 @@ function createContext(job: TranscodeJob) {
     bulkMoveToBottom: noopAsync,
     bulkDelete: vi.fn(),
     openJobDetail: vi.fn(),
+    openJobCompare: vi.fn(),
   });
 }
 
@@ -124,6 +125,7 @@ describe("useQueueContextMenu bulk vs single operations", () => {
       bulkMoveToBottom: noopAsync,
       bulkDelete: vi.fn(),
       openJobDetail: vi.fn(),
+      openJobCompare: vi.fn(),
     });
 
     ctx.openQueueContextMenuForJob({ job, event: { clientX: 0, clientY: 0 } as MouseEvent });
@@ -178,6 +180,7 @@ describe("useQueueContextMenu bulk vs single operations", () => {
       bulkMoveToBottom: noopAsync,
       bulkDelete: vi.fn(),
       openJobDetail: vi.fn(),
+      openJobCompare: vi.fn(),
     });
 
     ctx.openQueueContextMenuForBulk({ clientX: 10, clientY: 10 } as MouseEvent);

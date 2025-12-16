@@ -25,6 +25,10 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
+  networkProxy: {
+    mode: "custom",
+    proxyUrl: "http://127.0.0.1:7890",
+  },
   uiScalePercent: 110,
   uiFontSizePercent: 120,
   uiFontFamily: "system",
@@ -91,6 +95,10 @@ describe("backend settings contract", () => {
     expect(cmd).toBe("save_app_settings");
     expect(payload).toMatchObject({
       settings: {
+        networkProxy: {
+          mode: "custom",
+          proxyUrl: "http://127.0.0.1:7890",
+        },
         parallelismMode: "split",
         maxParallelJobs: 2,
         maxParallelCpuJobs: 3,

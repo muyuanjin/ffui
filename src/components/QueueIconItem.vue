@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
+import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -40,6 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: "inspect", job: TranscodeJob): void;
   (e: "preview", job: TranscodeJob): void;
+  (e: "compare", job: TranscodeJob): void;
   (e: "toggle-select", id: string): void;
   (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
@@ -228,6 +230,26 @@ const timeDisplayText = computed(() => {
   return null;
 });
 
+const compareDisabledReason = computed(() => {
+  if (!hasTauri()) return "requires-tauri";
+  return getJobCompareDisabledReason(props.job);
+});
+
+const canCompare = computed(
+  () => isJobCompareEligible(props.job) && compareDisabledReason.value == null,
+);
+
+const compareDisabledText = computed(() => {
+  const reason = compareDisabledReason.value;
+  if (!reason) return null;
+  if (reason === "requires-tauri") return t("jobCompare.requiresTauri") as string;
+  if (reason === "not-video") return t("jobCompare.disabled.notVideo") as string;
+  if (reason === "status") return t("jobCompare.disabled.status") as string;
+  if (reason === "no-output") return t("jobCompare.disabled.noOutput") as string;
+  if (reason === "no-partial-output") return t("jobCompare.disabled.noPartialOutput") as string;
+  return t("jobCompare.disabled.unavailable") as string;
+});
+
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
 const previewRescreenshotAttempted = ref(false);
@@ -287,6 +309,11 @@ const handlePreviewError = async () => {
 
 const onInspect = () => {
   emit("inspect", props.job);
+};
+
+const onCompare = (event: MouseEvent) => {
+  event.stopPropagation();
+  emit("compare", props.job);
 };
 
 const onPreview = (event: MouseEvent) => {
@@ -394,14 +421,28 @@ const onCardContextMenu = (event: MouseEvent) => {
             {{ timeDisplayText }}
           </span>
         </div>
-        <button
-          type="button"
-          class="text-[10px] text-primary hover:underline flex-shrink-0"
-          data-testid="queue-icon-item-detail-button"
-          @click.stop="onInspect"
-        >
-          {{ t("jobDetail.title") }}
-        </button>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            class="text-[10px] text-primary hover:underline"
+            data-testid="queue-icon-item-detail-button"
+            @click.stop="onInspect"
+          >
+            {{ t("jobDetail.title") }}
+          </button>
+          <button
+            v-if="job.type === 'video'"
+            type="button"
+            class="text-[10px] text-primary hover:underline"
+            :class="!canCompare ? 'opacity-50 cursor-not-allowed hover:no-underline' : ''"
+            data-testid="queue-icon-item-compare-button"
+            :disabled="!canCompare"
+            :title="compareDisabledText || (t('jobCompare.open') as string)"
+            @click="onCompare"
+          >
+            {{ t("jobCompare.open") }}
+          </button>
+        </div>
       </div>
 
       <!-- 底部进度条：根据 progressStyle 切换不同视觉样式，颜色随任务状态变化 -->

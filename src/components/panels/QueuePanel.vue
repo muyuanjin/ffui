@@ -97,6 +97,7 @@ const emit = defineEmits<{
   toggleJobSelected: [jobId: string];
   inspectJob: [job: TranscodeJob];
   previewJob: [job: TranscodeJob];
+  compareJob: [job: TranscodeJob];
   toggleBatchExpanded: [batchId: string];
   openBatchDetail: [batch: CompositeSmartScanTask];
   isJobSelected: [jobId: string];
@@ -238,6 +239,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @toggle-select="emit('toggleJobSelected', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
+              @compare="emit('compareJob', $event)"
               @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
             />
             <QueueSmartScanIconBatchItem
@@ -292,6 +294,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                 @toggle-select="emit('toggleJobSelected', $event)"
                 @inspect="emit('inspectJob', $event)"
                 @preview="emit('previewJob', $event)"
+                @compare="emit('compareJob', $event)"
                 @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
               />
             </div>
@@ -331,6 +334,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                   @toggle-job-selected="emit('toggleJobSelected', $event)"
                   @inspect-job="emit('inspectJob', $event)"
                   @preview-job="emit('previewJob', $event)"
+                  @compare-job="emit('compareJob', $event)"
                   @open-job-context-menu="emit('openJobContextMenu', $event)"
                   @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
                 />
@@ -356,6 +360,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                   @toggle-select="emit('toggleJobSelected', $event)"
                   @inspect="emit('inspectJob', $event)"
                   @preview="emit('previewJob', $event)"
+                  @compare="emit('compareJob', $event)"
                   @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
                 />
               </template>
@@ -388,6 +393,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @toggle-job-selected="emit('toggleJobSelected', $event)"
               @inspect-job="emit('inspectJob', $event)"
               @preview-job="emit('previewJob', $event)"
+              @compare-job="emit('compareJob', $event)"
               @open-job-context-menu="emit('openJobContextMenu', $event)"
               @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
             />
@@ -408,6 +414,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @restart="emit('restartJob', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
+              @compare="emit('compareJob', $event)"
             />
           </div>
         </div>
@@ -439,6 +446,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @toggle-job-selected="emit('toggleJobSelected', $event)"
               @inspect-job="emit('inspectJob', $event)"
               @preview-job="emit('previewJob', $event)"
+              @compare-job="emit('compareJob', $event)"
               @open-job-context-menu="emit('openJobContextMenu', $event)"
               @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
             />
@@ -464,6 +472,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @toggle-select="emit('toggleJobSelected', $event)"
               @inspect="emit('inspectJob', $event)"
               @preview="emit('previewJob', $event)"
+              @compare="emit('compareJob', $event)"
               @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
             />
           </div>

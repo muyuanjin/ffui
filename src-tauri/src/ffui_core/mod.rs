@@ -1,6 +1,8 @@
+mod compare_preview;
 mod domain;
 mod engine;
 mod fallback_preview;
+pub(crate) mod network_proxy;
 pub(crate) mod input_expand;
 mod monitor;
 mod monitor_activity;
@@ -8,6 +10,11 @@ mod preview_cache;
 mod settings;
 pub mod tools;
 
+pub(crate) use compare_preview::extract_concat_preview_frame;
+#[cfg(test)]
+pub(crate) use compare_preview::{
+    build_concat_list_contents_for_tests, compare_frames_dir_for_tests,
+};
 pub use domain::*;
 pub use engine::TranscodingEngine;
 pub use engine::init_child_process_job;

@@ -199,6 +199,37 @@ const other = {
     previewVideoError: "无法直接播放视频（WebView2 可能不支持该格式）。可用帧预览，或用系统播放器打开。",
     previewImageError: "无法加载图片预览，文件可能正在被占用或已损坏；可以尝试使用系统图片查看器打开。",
   },
+  jobCompare: {
+    title: "对比",
+    description: "在统一时间轴上对比任务的输入与输出。",
+    open: "对比",
+    requiresTauri: "对比功能仅在桌面版可用。",
+    unavailable: "该任务暂无可用的对比来源。",
+    loading: "正在加载对比来源…",
+    loadingFrame: "正在加载预览帧…",
+    timeline: "时间轴",
+    maxLabelHint: "已转码上限 / 总时长（处理中/暂停任务）。",
+    blinkHint: "点击画面切换原始/输出。",
+    sides: {
+      input: "原始",
+      output: "输出",
+    },
+    play: "播放",
+    pause: "暂停",
+    resetZoom: "重置缩放",
+    modes: {
+      sideBySide: "左右对比",
+      wipe: "分界线",
+      blink: "闪烁切换",
+    },
+    disabled: {
+      notVideo: "仅视频任务支持对比。",
+      status: "仅支持 processing/paused/completed 状态的任务对比。",
+      noOutput: "输出路径尚不可用。",
+      noPartialOutput: "暂无可用的临时输出分段。",
+      unavailable: "该任务暂不可对比。",
+    },
+  },
   previewFallback: {
     title: "原生播放失败",
     nativePlaybackFailed:

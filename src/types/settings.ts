@@ -35,11 +35,21 @@ export type UiFontFamily = "system" | "sans" | "mono";
 
 export type TranscodeParallelismMode = "unified" | "split";
 
+export type NetworkProxyMode = "none" | "system" | "custom";
+
+export interface NetworkProxySettings {
+  mode: NetworkProxyMode;
+  /** Required when mode is custom. */
+  proxyUrl?: string;
+}
+
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
   /** Optional app updater settings and cached metadata. */
   updater?: AppUpdaterSettings;
+  /** Optional network proxy settings. When omitted, behaves like "system". */
+  networkProxy?: NetworkProxySettings;
   /** Global UI scale in percent (e.g. 100 = default, 110 = larger). */
   uiScalePercent?: number;
   /** Global base UI font size in percent (e.g. 100 = default, 110 = larger). */

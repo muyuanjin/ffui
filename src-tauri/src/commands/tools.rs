@@ -24,19 +24,19 @@ mod reveal;
 
 /// Get the current CPU usage snapshot.
 #[tauri::command]
-pub fn get_cpu_usage(engine: State<TranscodingEngine>) -> CpuUsageSnapshot {
+pub fn get_cpu_usage(engine: State<'_, TranscodingEngine>) -> CpuUsageSnapshot {
     engine.cpu_usage()
 }
 
 /// Get the current GPU usage snapshot.
 #[tauri::command]
-pub fn get_gpu_usage(engine: State<TranscodingEngine>) -> GpuUsageSnapshot {
+pub fn get_gpu_usage(engine: State<'_, TranscodingEngine>) -> GpuUsageSnapshot {
     engine.gpu_usage()
 }
 
 /// Get the status of all external tools (FFmpeg, FFprobe, etc.).
 #[tauri::command]
-pub fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<ExternalToolStatus> {
+pub fn get_external_tool_statuses(engine: State<'_, TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
 }
 
@@ -46,7 +46,7 @@ pub fn get_external_tool_statuses(engine: State<TranscodingEngine>) -> Vec<Exter
 /// network I/O or external process probing.
 #[tauri::command]
 pub fn get_external_tool_statuses_cached(
-    engine: State<TranscodingEngine>,
+    engine: State<'_, TranscodingEngine>,
 ) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses_cached()
 }
@@ -56,7 +56,7 @@ pub fn get_external_tool_statuses_cached(
 /// Returns true when a new refresh task was started, false when deduped.
 #[tauri::command]
 pub fn refresh_external_tool_statuses_async(
-    engine: State<TranscodingEngine>,
+    engine: State<'_, TranscodingEngine>,
     remote_check: Option<bool>,
     manual_remote_check: Option<bool>,
 ) -> bool {
@@ -72,12 +72,16 @@ pub fn refresh_external_tool_statuses_async(
 /// available (for example a system PATH binary and an auto-downloaded
 /// static build) so that users can explicitly choose which one to use.
 #[tauri::command]
-pub fn get_external_tool_candidates(
-    engine: State<TranscodingEngine>,
+pub async fn get_external_tool_candidates(
+    engine: State<'_, TranscodingEngine>,
     kind: ExternalToolKind,
-) -> Vec<ExternalToolCandidate> {
-    let settings = engine.settings();
-    crate::ffui_core::tools::tool_candidates(kind, &settings.tools)
+) -> Result<Vec<ExternalToolCandidate>, String> {
+    let tools_settings = engine.settings().tools.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::ffui_core::tools::tool_candidates(kind, &tools_settings)
+    })
+    .await
+    .map_err(|err| format!("failed to enumerate external tool candidates: {err}"))
 }
 
 /// Manually trigger download/update for a specific external tool. This is used
@@ -85,7 +89,7 @@ pub fn get_external_tool_candidates(
 /// ffmpeg/ffprobe/avifenc。
 #[tauri::command]
 pub fn download_external_tool_now(
-    engine: State<TranscodingEngine>,
+    engine: State<'_, TranscodingEngine>,
     kind: ExternalToolKind,
 ) -> Result<Vec<ExternalToolStatus>, String> {
     // 在独立线程中执行实际的下载逻辑，避免在 Tauri 命令线程上做长时间的
@@ -141,7 +145,7 @@ pub fn open_devtools(window: WebviewWindow) {
 /// platforms this is a no-op, but we still expose the command so the
 /// frontend can call it unconditionally.
 #[tauri::command]
-pub fn ack_taskbar_progress(app: AppHandle, engine: State<TranscodingEngine>) {
+pub fn ack_taskbar_progress(app: AppHandle, engine: State<'_, TranscodingEngine>) {
     let state = engine.queue_state();
 
     #[cfg(windows)]
@@ -163,7 +167,7 @@ pub fn ack_taskbar_progress(app: AppHandle, engine: State<TranscodingEngine>) {
 
 /// Inspect a media file and return its metadata as JSON.
 #[tauri::command]
-pub fn inspect_media(engine: State<TranscodingEngine>, path: String) -> Result<String, String> {
+pub fn inspect_media(engine: State<'_, TranscodingEngine>, path: String) -> Result<String, String> {
     engine.inspect_media(path).map_err(|e| e.to_string())
 }
 
@@ -247,7 +251,7 @@ pub(crate) fn preview_root_dir_for_tests() -> PathBuf {
 /// When a user deletes the preview image from disk, this regenerates a fresh
 /// preview using the latest capture percent setting.
 #[tauri::command]
-pub fn ensure_job_preview(engine: State<TranscodingEngine>, job_id: String) -> Option<String> {
+pub fn ensure_job_preview(engine: State<'_, TranscodingEngine>, job_id: String) -> Option<String> {
     engine.ensure_job_preview(&job_id)
 }
 
@@ -287,24 +291,26 @@ mod tests {
 
 /// Increment the number of active system metrics subscribers.
 #[tauri::command]
-pub fn metrics_subscribe(metrics: State<MetricsState>) {
+pub fn metrics_subscribe(metrics: State<'_, MetricsState>) {
     metrics.subscribe();
 }
 
 /// Decrement the number of active system metrics subscribers.
 #[tauri::command]
-pub fn metrics_unsubscribe(metrics: State<MetricsState>) {
+pub fn metrics_unsubscribe(metrics: State<'_, MetricsState>) {
     metrics.unsubscribe();
 }
 
 /// Return the bounded history of system metrics snapshots for initial charting.
 #[tauri::command]
-pub fn get_metrics_history(metrics: State<MetricsState>) -> Vec<MetricsSnapshot> {
+pub fn get_metrics_history(metrics: State<'_, MetricsState>) -> Vec<MetricsSnapshot> {
     metrics.history()
 }
 
 /// Return today's transcode activity buckets for the Monitor heatmap.
 #[tauri::command]
-pub fn get_transcode_activity_today(engine: State<TranscodingEngine>) -> TranscodeActivityToday {
+pub fn get_transcode_activity_today(
+    engine: State<'_, TranscodingEngine>,
+) -> TranscodeActivityToday {
     engine.transcode_activity_today()
 }

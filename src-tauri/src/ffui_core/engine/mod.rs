@@ -7,6 +7,7 @@ mod job_runner;
 mod output_policy_paths;
 mod preview_cache_gc;
 mod preview_refresh;
+mod settings_save;
 mod smart_scan;
 mod state;
 mod state_persist;
@@ -83,6 +84,7 @@ impl TranscodingEngine {
 
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
+        crate::ffui_core::network_proxy::apply_settings(settings.network_proxy.as_ref());
         hydrate_last_tool_download_from_settings(&settings.tools);
         hydrate_remote_version_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
@@ -255,80 +257,6 @@ impl TranscodingEngine {
     pub fn settings(&self) -> AppSettings {
         let state = self.inner.state.lock().expect("engine state poisoned");
         state.settings.clone()
-    }
-
-    /// Save new application settings.
-    pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
-        let (tools_changed, percent_changed, refresh_token, tools_snapshot, new_percent, saved) = {
-            let mut state = self.inner.state.lock().expect("engine state poisoned");
-
-            let mut normalized = new_settings.clone();
-            normalized.normalize();
-
-            let old_tools = state.settings.tools.clone();
-            let old_percent = state.settings.preview_capture_percent;
-
-            state.settings = normalized.clone();
-            settings::save_settings(&state.settings)?;
-
-            let new_tools = &state.settings.tools;
-            let tools_changed = old_tools.ffmpeg_path != new_tools.ffmpeg_path
-                || old_tools.ffprobe_path != new_tools.ffprobe_path
-                || old_tools.avifenc_path != new_tools.avifenc_path
-                || old_tools.auto_download != new_tools.auto_download
-                || old_tools.auto_update != new_tools.auto_update;
-
-            let new_percent = state.settings.preview_capture_percent;
-            let percent_changed = old_percent != new_percent;
-            let refresh_token = if percent_changed {
-                state.preview_refresh_token = state.preview_refresh_token.saturating_add(1);
-                state.preview_refresh_token
-            } else {
-                state.preview_refresh_token
-            };
-
-            (
-                tools_changed,
-                percent_changed,
-                refresh_token,
-                state.settings.tools.clone(),
-                new_percent,
-                normalized,
-            )
-        };
-
-        if tools_changed {
-            clear_tool_runtime_error(ExternalToolKind::Ffmpeg);
-            clear_tool_runtime_error(ExternalToolKind::Ffprobe);
-            clear_tool_runtime_error(ExternalToolKind::Avifenc);
-        }
-
-        if percent_changed {
-            let engine_clone = self.clone();
-            if let Err(err) = std::thread::Builder::new()
-                .name(format!("ffui-preview-refresh-{new_percent}"))
-                .spawn(move || {
-                    engine_clone.refresh_video_previews_for_percent(
-                        new_percent,
-                        refresh_token,
-                        tools_snapshot,
-                    );
-                })
-            {
-                eprintln!("failed to spawn preview refresh thread: {err}");
-            }
-        }
-
-        // Re-evaluate crash recovery persistence immediately when the user
-        // changes the persistence mode. This ensures queue-state.json and any
-        // terminal logs reflect the newly selected setting without waiting for
-        // the next queue update.
-        state::notify_queue_listeners(&self.inner);
-
-        // Ensure we have enough background workers for the updated concurrency settings.
-        worker::spawn_worker(self.inner.clone());
-
-        Ok(saved)
     }
 
     /// Enqueue a new transcode job.

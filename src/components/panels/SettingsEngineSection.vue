@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
+import SettingsNetworkProxySection from "@/components/panels/settings-engine/SettingsNetworkProxySection.vue";
 import type { AppSettings } from "@/types";
 
 const props = defineProps<{
@@ -168,6 +169,10 @@ const toolsMode = computed<ExternalToolsMode>({
     emit("update:appSettings", next);
   },
 });
+
+const onUpdateSettings = (settings: AppSettings) => {
+  emit("update:appSettings", settings);
+};
 </script>
 
 <template>
@@ -266,6 +271,11 @@ const toolsMode = computed<ExternalToolsMode>({
         <SettingsQueuePersistenceSection
           :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsNetworkProxySection
+          :app-settings="appSettings"
+          @update:app-settings="onUpdateSettings"
         />
 
         <div class="py-1">

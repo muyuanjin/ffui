@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
@@ -66,6 +66,10 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("SettingsPanel external tools check updates button", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("renders a check-updates button for every external tool and forwards to refreshToolStatuses", async () => {
     const toolStatuses: ExternalToolStatus[] = [
       {
@@ -143,12 +147,80 @@ describe("SettingsPanel external tools check updates button", () => {
       manualRemoteCheck: true,
     });
     expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("检查中…");
+    expect(wrapper.get('[data-testid="tool-check-update-log-avifenc"]').text()).toContain(
+      "开始检查更新",
+    );
 
     resolveRefresh();
     await flushPromises();
 
-    expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("检查更新");
-    expect(wrapper.text()).toContain("已检查");
+    await wrapper.setProps({
+      toolStatuses: toolStatuses.map((status) =>
+        status.kind === "avifenc"
+          ? {
+              ...status,
+              remoteVersion: "avifenc 1.3.0",
+              updateAvailable: false,
+            }
+          : status,
+      ),
+    });
+    await flushPromises();
+
+    expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("已检查");
+    expect(wrapper.text().match(/已检查/g)?.length ?? 0).toBe(1);
+    expect(wrapper.get('[data-testid="tool-check-update-log-avifenc"]').text()).toContain(
+      "结论：已是最新版本",
+    );
+
+    wrapper.unmount();
+  });
+
+  it("shows a timeout log when no status snapshot arrives", async () => {
+    vi.useFakeTimers();
+
+    const toolStatuses: ExternalToolStatus[] = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "path",
+        version: "ffmpeg version 6.0",
+        updateAvailable: false,
+        autoDownloadEnabled: false,
+        autoUpdateEnabled: false,
+        downloadInProgress: false,
+      },
+    ];
+
+    const refreshToolStatuses = vi.fn(async () => {});
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses,
+        refreshToolStatuses,
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+    refreshToolStatuses.mockClear();
+
+    await wrapper.get('[data-testid="tool-check-update-ffmpeg"]').trigger("click");
+    await vi.runOnlyPendingTimersAsync();
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(wrapper.get('[data-testid="tool-check-update-log-ffmpeg"]').text()).toContain(
+      "等待状态快照超时",
+    );
+    expect(wrapper.text()).not.toContain("已检查");
 
     wrapper.unmount();
   });

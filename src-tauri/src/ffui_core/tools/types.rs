@@ -59,6 +59,9 @@ pub struct ExternalToolCandidate {
     pub path: String,
     /// Source of this candidate, e.g. "custom", "download", or "path".
     pub source: String,
+    /// File size (bytes) when the candidate exists on disk.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_size_bytes: Option<u64>,
     /// Optional version string detected from the binary, when available.
     pub version: Option<String>,
     /// True when this candidate matches the currently resolved path used

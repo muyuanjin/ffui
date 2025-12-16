@@ -6,8 +6,9 @@ use std::time::{Duration, Instant};
 
 use tauri::{Emitter, Manager};
 
-use super::ui_fonts_catalog::{open_source_fonts_catalog, proxy_from_env};
+use super::ui_fonts_catalog::open_source_fonts_catalog;
 use super::ui_fonts_types::{DownloadedFontInfo, UiFontDownloadSnapshot, UiFontDownloadStatus};
+use crate::ffui_core::network_proxy;
 
 pub struct UiFontDownloadManager {
     jobs: Mutex<HashMap<String, Arc<UiFontDownloadJob>>>,
@@ -174,7 +175,7 @@ pub fn start_open_source_font_download(
     let job_for_task = job.clone();
 
     tauri::async_runtime::spawn_blocking(move || {
-        use std::io::{Read, Write};
+        use std::io::Write;
 
         let job = job_for_task;
         if let Err(err) = std::fs::create_dir_all(&fonts_dir_for_task) {
@@ -200,70 +201,64 @@ pub fn start_open_source_font_download(
         });
         let _ = app_for_task.emit("ui_font_download", snapshot);
 
-        let outcome: Result<(String, u64, Option<u64>), String> = (|| {
-            let mut builder =
-                reqwest::blocking::Client::builder().timeout(Duration::from_secs(300));
+        let outcome: Result<(String, u64, Option<u64>), String> =
+            tauri::async_runtime::block_on(async {
+                let builder = network_proxy::apply_reqwest_builder(
+                    reqwest::Client::builder().timeout(Duration::from_secs(300)),
+                );
+                let client = builder
+                    .build()
+                    .map_err(|e| format!("failed to build HTTP client: {e}"))?;
 
-            if let Some(proxy_url) = proxy_from_env()
-                && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
-            {
-                builder = builder.proxy(proxy);
-            }
-            let client = builder
-                .build()
-                .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-
-            let mut resp = client
-                .get(&url)
-                .send()
-                .map_err(|e| format!("download failed: {e}"))?;
-            if !resp.status().is_success() {
-                return Err(format!("download failed with status {}", resp.status()));
-            }
-
-            let total = resp.content_length();
-            job.update_snapshot(|s| s.total_bytes = total);
-            emit_snapshot(&job);
-
-            let mut file = std::fs::File::create(&tmp)
-                .map_err(|e| format!("failed to create temp file: {e}"))?;
-
-            let mut received: u64 = 0;
-            let mut buf = [0u8; 32 * 1024];
-            loop {
-                if job.cancel_requested() {
-                    let _ = std::fs::remove_file(&tmp);
-                    return Err("canceled".to_string());
+                let mut resp = client
+                    .get(&url)
+                    .send()
+                    .await
+                    .map_err(|e| format!("download failed: {e}"))?;
+                if !resp.status().is_success() {
+                    return Err(format!("download failed with status {}", resp.status()));
                 }
 
-                let n = resp
-                    .read(&mut buf)
-                    .map_err(|e| format!("download read failed: {e}"))?;
-                if n == 0 {
-                    break;
+                let total = resp.content_length();
+                job.update_snapshot(|s| s.total_bytes = total);
+                emit_snapshot(&job);
+
+                let mut file = std::fs::File::create(&tmp)
+                    .map_err(|e| format!("failed to create temp file: {e}"))?;
+
+                let mut received: u64 = 0;
+                while let Some(chunk) = resp
+                    .chunk()
+                    .await
+                    .map_err(|e| format!("download read failed: {e}"))?
+                {
+                    if job.cancel_requested() {
+                        drop(file);
+                        let _ = std::fs::remove_file(&tmp);
+                        return Err("canceled".to_string());
+                    }
+
+                    file.write_all(&chunk)
+                        .map_err(|e| format!("write failed: {e}"))?;
+                    received = received.saturating_add(chunk.len() as u64);
+
+                    if last_emit_at.elapsed() >= Duration::from_millis(120) {
+                        last_emit_at = Instant::now();
+                        job.update_snapshot(|s| s.received_bytes = received);
+                        emit_snapshot(&job);
+                    }
                 }
 
-                file.write_all(&buf[..n])
-                    .map_err(|e| format!("write failed: {e}"))?;
-                received = received.saturating_add(n as u64);
+                drop(file);
+                std::fs::rename(&tmp, &dest_for_task)
+                    .map_err(|e| format!("failed to finalize font file: {e}"))?;
 
-                if last_emit_at.elapsed() >= Duration::from_millis(120) {
-                    last_emit_at = Instant::now();
-                    job.update_snapshot(|s| s.received_bytes = received);
-                    emit_snapshot(&job);
-                }
-            }
-
-            drop(file);
-            std::fs::rename(&tmp, &dest_for_task)
-                .map_err(|e| format!("failed to finalize font file: {e}"))?;
-
-            Ok((
-                dest_for_task.to_string_lossy().into_owned(),
-                received,
-                total,
-            ))
-        })();
+                Ok((
+                    dest_for_task.to_string_lossy().into_owned(),
+                    received,
+                    total,
+                ))
+            });
 
         match outcome {
             Ok((path, received, total)) => {
@@ -301,7 +296,7 @@ pub fn ensure_open_source_font_downloaded(
     font_id: &str,
 ) -> Result<DownloadedFontInfo, String> {
     use std::fs;
-    use std::io::{Read, Write};
+    use std::io::Write;
 
     let id = font_id.trim();
     if id.is_empty() {
@@ -333,39 +328,37 @@ pub fn ensure_open_source_font_downloaded(
     }
 
     let tmp = dest.with_extension(format!("{format}.tmp"));
+    tauri::async_runtime::block_on(async {
+        let builder = network_proxy::apply_reqwest_builder(
+            reqwest::Client::builder().timeout(Duration::from_secs(300)),
+        );
+        let client = builder
+            .build()
+            .map_err(|e| format!("failed to build HTTP client: {e}"))?;
 
-    let mut builder = reqwest::blocking::Client::builder().timeout(Duration::from_secs(300));
-    if let Some(proxy_url) = proxy_from_env()
-        && let Ok(proxy) = reqwest::Proxy::all(&proxy_url)
-    {
-        builder = builder.proxy(proxy);
-    }
-    let client = builder
-        .build()
-        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
-
-    let mut resp = client
-        .get(&url)
-        .send()
-        .map_err(|e| format!("download failed: {e}"))?;
-    if !resp.status().is_success() {
-        return Err(format!("download failed with status {}", resp.status()));
-    }
-
-    let mut file =
-        fs::File::create(&tmp).map_err(|e| format!("failed to create temp file: {e}"))?;
-    let mut buf = [0u8; 32 * 1024];
-    loop {
-        let n = resp
-            .read(&mut buf)
-            .map_err(|e| format!("download read failed: {e}"))?;
-        if n == 0 {
-            break;
+        let mut resp = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| format!("download failed: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("download failed with status {}", resp.status()));
         }
-        file.write_all(&buf[..n])
-            .map_err(|e| format!("write failed: {e}"))?;
-    }
-    drop(file);
+
+        let mut file =
+            fs::File::create(&tmp).map_err(|e| format!("failed to create temp file: {e}"))?;
+        while let Some(chunk) = resp
+            .chunk()
+            .await
+            .map_err(|e| format!("download read failed: {e}"))?
+        {
+            file.write_all(&chunk)
+                .map_err(|e| format!("write failed: {e}"))?;
+        }
+        drop(file);
+
+        Ok::<(), String>(())
+    })?;
 
     fs::rename(&tmp, &dest).map_err(|e| format!("failed to finalize font file: {e}"))?;
 

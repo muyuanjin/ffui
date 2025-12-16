@@ -43,5 +43,6 @@ export default defineConfig(async () => ({
   // to avoid noisy warnings for expected bundle size.
   build: {
     chunkSizeWarningLimit: 3072,
+    sourcemap: false,
   },
 }));

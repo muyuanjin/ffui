@@ -3,6 +3,7 @@ pub(super) mod io;
 
 // Settings type definitions
 pub mod types;
+pub mod proxy;
 pub use types::{DEFAULT_METRICS_INTERVAL_MS, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS};
 
 // FFmpeg preset management
@@ -25,3 +26,4 @@ pub use types::{
     AppSettings, DownloadedToolInfo, DownloadedToolState, ExternalToolSettings,
     TaskbarProgressMode, TaskbarProgressScope, TranscodeParallelismMode,
 };
+pub use proxy::{NetworkProxyMode, NetworkProxySettings};

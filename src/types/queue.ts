@@ -64,6 +64,25 @@ export interface WaitMetadata {
   segments?: string[];
 }
 
+export type JobCompareOutput =
+  | { kind: "completed"; outputPath: string }
+  | {
+      kind: "partial";
+      segmentPaths: string[];
+      activeSegmentPath?: string | null;
+    };
+
+export interface JobCompareSources {
+  jobId: string;
+  inputPath: string;
+  output: JobCompareOutput;
+  /**
+   * Maximum comparable media time in seconds for partial jobs. Completed jobs
+   * may omit this so the frontend can derive range from media durations.
+   */
+  maxCompareSeconds?: number | null;
+}
+
 export interface JobWarning {
   /** Stable machine-readable warning identifier. */
   code: string;

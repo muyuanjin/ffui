@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::ffui_core::domain::{
     FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType, SmartScanConfig,
 };
+use super::proxy::NetworkProxySettings;
 
 /// Human-readable metadata for a downloaded tool binary.
 /// All fields are optional so existing settings.json files remain valid and minimal.
@@ -273,6 +274,9 @@ pub struct AppSettings {
     /// Optional app updater settings and cached metadata.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updater: Option<AppUpdaterSettings>,
+    /// Optional network proxy settings. When omitted, behaves like System.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub network_proxy: Option<NetworkProxySettings>,
     /// Global UI scale in percent (e.g. 100 = default).
     #[serde(
         default = "default_ui_scale_percent",
@@ -466,6 +470,7 @@ impl Default for AppSettings {
             },
             monitor: None,
             updater: None,
+            network_proxy: None,
             ui_scale_percent: default_ui_scale_percent(),
             ui_font_size_percent: default_ui_font_size_percent(),
             ui_font_family: UiFontFamily::default(),

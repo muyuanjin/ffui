@@ -39,6 +39,7 @@ const emit = defineEmits<{
   "update:open": [value: boolean];
   inspectJob: [job: TranscodeJob];
   previewJob: [job: TranscodeJob];
+  compareJob: [job: TranscodeJob];
   cancelJob: [jobId: string];
   waitJob: [jobId: string];
   resumeJob: [jobId: string];
@@ -93,6 +94,12 @@ const handleContextMenuCancel = () => {
 const handleContextMenuInspect = () => {
   if (contextMenuJob.value) {
     emit("inspectJob", contextMenuJob.value);
+  }
+};
+
+const handleContextMenuCompare = () => {
+  if (contextMenuJob.value) {
+    emit("compareJob", contextMenuJob.value);
   }
 };
 
@@ -351,6 +358,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
             @restart="emit('restartJob', $event)"
             @inspect="emit('inspectJob', $event)"
             @preview="emit('previewJob', $event)"
+            @compare="emit('compareJob', $event)"
             @contextmenu-job="onJobContextMenu"
           />
         </div>
@@ -372,12 +380,13 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         :has-selection="false"
         :can-reveal-input-path="!!contextMenuJob?.inputPath"
         :can-reveal-output-path="!!contextMenuJob?.outputPath"
-        @close="closeContextMenu"
-        @inspect="handleContextMenuInspect"
-        @wait="handleContextMenuWait"
-        @resume="handleContextMenuResume"
-        @restart="handleContextMenuRestart"
-        @cancel="handleContextMenuCancel"
+	        @close="closeContextMenu"
+	        @inspect="handleContextMenuInspect"
+	        @compare="handleContextMenuCompare"
+	        @wait="handleContextMenuWait"
+	        @resume="handleContextMenuResume"
+	        @restart="handleContextMenuRestart"
+	        @cancel="handleContextMenuCancel"
       />
     </DialogContent>
   </Dialog>

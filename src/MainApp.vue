@@ -133,6 +133,7 @@ const {
   queueContextMenuX,
   queueContextMenuY,
   queueContextMenuMode,
+  queueContextMenuJob,
   queueContextMenuJobStatus,
   queueContextMenuCanRevealInputPath,
   queueContextMenuCanRevealOutputPath,
@@ -140,6 +141,7 @@ const {
   openQueueContextMenuForBulk,
   closeQueueContextMenu,
   handleQueueContextInspect,
+  handleQueueContextCompare,
   handleQueueContextWait,
   handleQueueContextResume,
   handleQueueContextRestart,
@@ -343,6 +345,7 @@ defineExpose({
               @toggle-job-selected="toggleJobSelected"
               @inspect-job="dialogManager.openJobDetail"
               @preview-job="openJobPreviewFromQueue"
+              @compare-job="dialogManager.openJobCompare"
               @toggle-batch-expanded="toggleBatchExpanded"
               @open-batch-detail="openBatchDetail"
               @open-job-context-menu="openQueueContextMenuForJob"
@@ -421,11 +424,13 @@ defineExpose({
       :y="queueContextMenuY"
       :mode="queueContextMenuMode"
       :job-status="queueContextMenuJobStatus"
+      :job-type="queueContextMenuJob?.type"
       :queue-mode="queueMode"
       :has-selection="hasSelection"
       :can-reveal-input-path="queueContextMenuCanRevealInputPath"
       :can-reveal-output-path="queueContextMenuCanRevealOutputPath"
       @inspect="handleQueueContextInspect"
+      @compare="handleQueueContextCompare"
       @wait="handleQueueContextWait"
       @resume="handleQueueContextResume"
       @restart="handleQueueContextRestart"

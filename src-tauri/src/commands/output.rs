@@ -8,7 +8,7 @@ use crate::ffui_core::{OutputPolicy, TranscodingEngine};
 /// naming options affect the final output path, without enqueuing a job.
 #[tauri::command]
 pub fn preview_output_path(
-    engine: State<TranscodingEngine>,
+    engine: State<'_, TranscodingEngine>,
     input_path: String,
     preset_id: Option<String>,
     output_policy: OutputPolicy,

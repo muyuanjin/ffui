@@ -141,4 +141,58 @@ describe("SettingsExternalToolsSection candidate loading", () => {
 
     wrapper.unmount();
   });
+
+  it("shows full path + file size on hover title and flips Use to Current after selecting a candidate", async () => {
+    const fetchToolCandidates = vi.fn(
+      async (_kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => [
+        {
+          kind: "ffprobe",
+          path: "C:/everything/ffprobe.exe",
+          source: "everything",
+          version: "ffprobe version 6.0",
+          fileSizeBytes: 1024,
+          isCurrent: false,
+        },
+      ]
+    );
+
+    const wrapper = mount(SettingsExternalToolsSection, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [makeToolStatus("ffprobe")],
+        fetchToolCandidates,
+      },
+    });
+
+    const openButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text() === "选择已检测路径…");
+    expect(openButton).toBeTruthy();
+    await openButton!.trigger("click");
+    await flushPromises();
+
+    const pathEl = wrapper.find('[data-testid="tool-candidate-path-ffprobe-0"]');
+    expect(pathEl.text()).toContain("C:/everything/ffprobe.exe");
+    expect(pathEl.attributes("title")).toContain("C:/everything/ffprobe.exe");
+    expect(pathEl.attributes("title")).toContain("大小: 1.0 KB");
+
+    const useButton = wrapper
+      .find('[data-testid="tool-candidate-ffprobe-0"]')
+      .findAll("button")
+      .find((btn) => btn.text() === "使用");
+    expect(useButton).toBeTruthy();
+    await useButton!.trigger("click");
+    await nextTick();
+
+    expect(wrapper.text()).toContain("当前");
+    const emitted = wrapper.emitted("update:appSettings") ?? [];
+    expect(emitted.length).toBeGreaterThan(0);
+    const last = emitted[emitted.length - 1]?.[0] as AppSettings;
+    expect(last.tools.ffprobePath).toBe("C:/everything/ffprobe.exe");
+
+    wrapper.unmount();
+  });
 });

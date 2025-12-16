@@ -36,7 +36,7 @@ pub async fn get_system_font_families() -> Result<Vec<SystemFontFamily>, String>
 
 #[tauri::command]
 pub fn get_open_source_font_download_snapshot(
-    manager: tauri::State<UiFontDownloadManager>,
+    manager: tauri::State<'_, UiFontDownloadManager>,
     font_id: String,
 ) -> Option<UiFontDownloadSnapshot> {
     ui_fonts_downloads::get_open_source_font_download_snapshot(&manager, &font_id)
@@ -44,7 +44,7 @@ pub fn get_open_source_font_download_snapshot(
 
 #[tauri::command]
 pub fn cancel_open_source_font_download(
-    manager: tauri::State<UiFontDownloadManager>,
+    manager: tauri::State<'_, UiFontDownloadManager>,
     font_id: String,
 ) -> bool {
     ui_fonts_downloads::cancel_open_source_font_download(&manager, &font_id)
@@ -53,7 +53,7 @@ pub fn cancel_open_source_font_download(
 #[tauri::command]
 pub fn start_open_source_font_download(
     app: tauri::AppHandle,
-    manager: tauri::State<UiFontDownloadManager>,
+    manager: tauri::State<'_, UiFontDownloadManager>,
     font_id: String,
 ) -> Result<UiFontDownloadSnapshot, String> {
     ui_fonts_downloads::start_open_source_font_download(app, &manager, &font_id)

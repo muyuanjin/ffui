@@ -27,15 +27,3 @@ pub fn open_source_fonts_catalog() -> Vec<(String, String, String, String, Strin
         ),
     ]
 }
-
-pub fn proxy_from_env() -> Option<String> {
-    for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-        if let Ok(v) = std::env::var(key) {
-            let trimmed = v.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-    None
-}

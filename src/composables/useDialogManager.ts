@@ -22,6 +22,7 @@ export function useDialogManager() {
   const jobDetailOpen = ref(false);
   const batchDetailOpen = ref(false);
   const previewOpen = ref(false);
+  const jobCompareOpen = ref(false);
   const deletePresetDialogOpen = ref(false);
   const smartPresetImportOpen = ref(false);
 
@@ -60,6 +61,11 @@ export function useDialogManager() {
     previewOpen.value = true;
   };
 
+  const openJobCompare = (job: TranscodeJob) => {
+    selectedJob.value = job;
+    jobCompareOpen.value = true;
+  };
+
   const openDeletePresetDialog = (preset: FFmpegPreset) => {
     editingPreset.value = preset;
     deletePresetDialogOpen.value = true;
@@ -88,7 +94,7 @@ export function useDialogManager() {
     jobDetailOpen.value = false;
     // 只有当预览也关闭时才清空 selectedJob，避免在“任务详情 + 预览”并存时
     // 关闭任一对话框导致另一个对话框变成“空详情”。
-    if (!previewOpen.value) {
+    if (!previewOpen.value && !jobCompareOpen.value) {
       selectedJob.value = null;
     }
   };
@@ -102,7 +108,14 @@ export function useDialogManager() {
     previewOpen.value = false;
     // 同理：只有在任务详情已关闭时才清空 selectedJob，保证
     // 从任务详情展开预览再关闭时，详情内容不会变成空白。
-    if (!jobDetailOpen.value) {
+    if (!jobDetailOpen.value && !jobCompareOpen.value) {
+      selectedJob.value = null;
+    }
+  };
+
+  const closeJobCompare = () => {
+    jobCompareOpen.value = false;
+    if (!jobDetailOpen.value && !previewOpen.value) {
       selectedJob.value = null;
     }
   };
@@ -124,6 +137,7 @@ export function useDialogManager() {
     jobDetailOpen.value = false;
     batchDetailOpen.value = false;
     previewOpen.value = false;
+    jobCompareOpen.value = false;
     deletePresetDialogOpen.value = false;
     smartPresetImportOpen.value = false;
     selectedJob.value = null;
@@ -139,6 +153,7 @@ export function useDialogManager() {
     jobDetailOpen,
     batchDetailOpen,
     previewOpen,
+    jobCompareOpen,
     deletePresetDialogOpen,
     smartPresetImportOpen,
     selectedJob,
@@ -151,6 +166,7 @@ export function useDialogManager() {
     openJobDetail,
     openBatchDetail,
     openPreview,
+    openJobCompare,
     openDeletePresetDialog,
     openSmartPresetImport,
     // 关闭方法
@@ -160,6 +176,7 @@ export function useDialogManager() {
     closeJobDetail,
     closeBatchDetail,
     closePreview,
+    closeJobCompare,
     closeDeletePresetDialog,
     closeSmartPresetImport,
     closeAllDialogs,

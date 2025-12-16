@@ -425,6 +425,7 @@ export const ensureJobPreview = async (jobId: string): Promise<string | null> =>
 
 export type { FallbackFrameQuality } from "./backend/fallbackPreview";
 export { cleanupFallbackPreviewFramesAsync, extractFallbackPreviewFrame } from "./backend/fallbackPreview";
+export { getJobCompareSources, extractJobCompareFrame, extractJobCompareConcatFrame } from "./backend/jobCompare";
 export { cleanupPreviewCachesAsync } from "./backend/previewCache";
 
 export const inspectMedia = async (path: string): Promise<string> => {
