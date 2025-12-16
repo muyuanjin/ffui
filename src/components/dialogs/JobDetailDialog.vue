@@ -4,7 +4,13 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollConte
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
-import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import {
+  buildPreviewUrl,
+  cleanupFallbackPreviewFramesAsync,
+  ensureJobPreview,
+  hasTauri,
+  loadPreviewDataUrl,
+} from "@/lib/backend";
 import type { TranscodeJob, FFmpegPreset } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 
@@ -39,6 +45,15 @@ const { t } = useI18n();
 const inlinePreviewUrl = ref<string | null>(null);
 const inlinePreviewFallbackLoaded = ref(false);
 const inlinePreviewRescreenshotAttempted = ref(false);
+
+watch(
+  () => props.open,
+  (open, prev) => {
+    if (prev && !open && hasTauri()) {
+      void cleanupFallbackPreviewFramesAsync();
+    }
+  },
+);
 
 watch(
   () => props.job?.previewPath,

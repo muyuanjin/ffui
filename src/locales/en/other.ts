@@ -198,9 +198,19 @@ const other = {
     previewDescription:
       "Preview the current job output. If playback fails, you can still open the file in your system player.",
     previewVideoError:
-      "Unable to load video preview. The file may be in use or corrupted; try opening it in your system player.",
+      "Unable to play this video in-app (WebView2 may not support this format). You can still scrub frames or open it in your system player.",
     previewImageError:
       "Unable to load image preview. The file may be in use or corrupted; try opening it in your system player.",
+  },
+  previewFallback: {
+    title: "Native playback failed",
+    nativePlaybackFailed:
+      "WebView2 may not support this format. You can still scrub frames or open it in your system player.",
+    hint: "While dragging, the app prefers faster low-quality frames; when you release, it loads a higher-quality frame.",
+    loadingFrame: "Loading preview frame…",
+    noFrame: "No preview frame yet",
+    scrub: "Scrub",
+    openInSystemPlayer: "Open in system player",
   },
   presets: {
     usedTimes: "Used {count} times",

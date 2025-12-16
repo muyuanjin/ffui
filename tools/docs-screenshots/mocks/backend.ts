@@ -74,6 +74,34 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
   return path;
 };
 
+// Single abstraction for `<video>/<audio>` URLs (kept in sync with src/lib/backend.ts).
+export const buildPlayableMediaUrl = buildPreviewUrl;
+
+export type FallbackFrameQuality = "low" | "high";
+
+const FALLBACK_PREVIEW_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1W2XwAAAAASUVORK5CYII=";
+
+export const extractFallbackPreviewFrame = async (_args: {
+  sourcePath: string;
+  positionPercent?: number;
+  positionSeconds?: number;
+  durationSeconds?: number | null;
+  quality: FallbackFrameQuality;
+}): Promise<string> => {
+  // Return a small data URL so docs screenshot builds can render the UI without
+  // depending on real filesystem assets.
+  return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+};
+
+export const cleanupFallbackPreviewFramesAsync = async (): Promise<boolean> => {
+  return true;
+};
+
+export const cleanupPreviewCachesAsync = async (): Promise<boolean> => {
+  return true;
+};
+
 export const selectPlayableMediaPath = async (candidates: string[]): Promise<string | null> => {
   const trimmed = (candidates ?? []).map((c) => String(c ?? "").trim()).filter(Boolean);
   return trimmed[0] ?? null;

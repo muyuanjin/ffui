@@ -11,12 +11,14 @@ vi.mock("@/lib/backend", () => {
     async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
   );
   const ensureJobPreview = vi.fn(async () => null);
+  const cleanupFallbackPreviewFramesAsync = vi.fn(async () => true);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
     ensureJobPreview,
+    cleanupFallbackPreviewFramesAsync,
   };
 });
 
@@ -31,7 +33,7 @@ vi.mock("@/lib/ffmpegCommand", async () => {
   };
 });
 
-import { ensureJobPreview, loadPreviewDataUrl } from "@/lib/backend";
+import { cleanupFallbackPreviewFramesAsync, ensureJobPreview, loadPreviewDataUrl } from "@/lib/backend";
 import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 
 const i18n = createI18n({
@@ -100,5 +102,31 @@ describe("JobDetailDialog preview regeneration", () => {
     expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
     expect(vm.inlinePreviewUrl).toBe("C:/app-data/previews/regenerated.jpg");
   });
-});
 
+  it("cleans fallback preview frames when closing the dialog", async () => {
+    const job = makeJob();
+    const wrapper = mount(JobDetailDialog, {
+      props: {
+        open: true,
+        job,
+        preset: null,
+        jobDetailLogText: "",
+        highlightedLogHtml: "",
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogScrollContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    expect(cleanupFallbackPreviewFramesAsync).toHaveBeenCalledTimes(0);
+    await wrapper.setProps({ open: false });
+    expect(cleanupFallbackPreviewFramesAsync).toHaveBeenCalledTimes(1);
+  });
+});

@@ -166,6 +166,17 @@ const app = {
       "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
     devtoolsWindowHint:
       "Open Devtools.",
+    previewCacheSectionTitle: "Preview cache",
+    previewCacheSectionDescription:
+      "Manage cached preview images and fallback scrub frames stored under the app-managed previews directory.",
+    previewCacheSectionHint: "Cleanup runs in the background and will not block the UI.",
+    previewCacheCleanupButton: "Clean up",
+    previewCacheCleaning: "Cleaning…",
+    previewCacheCleanupStartedButton: "Started",
+    previewCacheCleanupNotStartedButton: "Failed",
+    previewCacheCleanupErrorButton: "Error",
+    previewCacheCleanupStarted: "Cleanup has been started in the background.",
+    previewCacheCleanupNotStarted: "Cleanup could not be started.",
     systemInfoTitle: "System info",
     loadingSettings: "Loading application settings from backend…",
   },

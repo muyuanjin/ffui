@@ -1,5 +1,4 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-
 import type {
   AppSettings,
   AutoCompressResult,
@@ -26,7 +25,6 @@ import type {
   OpenSourceFontInfo,
   UiFontDownloadSnapshot,
 } from "./backend.types";
-
 export type {
   AppUpdaterCapabilities,
   DownloadedFontInfo,
@@ -34,7 +32,6 @@ export type {
   UiFontDownloadStatus,
   UiFontDownloadSnapshot,
 } from "./backend.types";
-
 export const hasTauri = () => {
   if (typeof window === "undefined") return false;
   const w = window as any;
@@ -426,6 +423,10 @@ export const ensureJobPreview = async (jobId: string): Promise<string | null> =>
   });
 };
 
+export type { FallbackFrameQuality } from "./backend/fallbackPreview";
+export { cleanupFallbackPreviewFramesAsync, extractFallbackPreviewFrame } from "./backend/fallbackPreview";
+export { cleanupPreviewCachesAsync } from "./backend/previewCache";
+
 export const inspectMedia = async (path: string): Promise<string> => {
   return invoke<string>("inspect_media", {
     path,
@@ -492,3 +493,6 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
     return path;
   }
 };
+
+// Single abstraction for `<video>/<audio>` URLs (may switch to secure scheme later).
+export const buildPlayableMediaUrl = buildPreviewUrl;

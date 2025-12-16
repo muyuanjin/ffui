@@ -1,4 +1,4 @@
-# <img src="public/ffui.svg" alt="FFUI Logo" width="32" style="vertical-align:middle;margin-left:0.5rem;" /> FFUI
+# <img src="public/ffui.svg" alt="FFUI Logo" width="32" style="vertical-align:middle;margin-left:0.5rem;" /> FFmpeg GUI
 
 > For the Chinese version, see [中文说明](#项目简介).
 

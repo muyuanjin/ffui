@@ -14,7 +14,7 @@ const i18n = createI18n({
 });
 
 describe("ExpandedPreviewDialog", () => {
-  it("emits videoError and stops playback when metadata has zero dimensions", async () => {
+  it("emits videoError when metadata has zero dimensions", async () => {
     const wrapper = mount(ExpandedPreviewDialog, {
       props: {
         open: true,
@@ -23,32 +23,40 @@ describe("ExpandedPreviewDialog", () => {
           filename: "C:/videos/sample.mp4",
         } as any,
         previewUrl: "file:///C:/videos/sample.mp4",
+        previewPath: "C:/videos/sample.mp4",
         isImage: false,
         error: null,
       },
       global: {
         plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
       },
     });
 
-    const videoEl: Partial<HTMLVideoElement> = {
-      videoWidth: 0,
-      videoHeight: 0,
-      pause: vi.fn(),
-      removeAttribute: vi.fn(),
-      load: vi.fn(),
-    };
+    const video = wrapper.get('[data-testid="task-detail-expanded-video"]');
+    const videoEl = video.element as HTMLVideoElement;
 
-    // 直接调用组件内部的事件处理函数，模拟 loadedmetadata 事件。
-    // @ts-expect-error script setup 下方法通过实例暴露给测试
-    await wrapper.vm.handleVideoLoadedMetadata({ target: videoEl } as Event);
+    Object.defineProperty(videoEl, "videoWidth", { value: 0, configurable: true });
+    Object.defineProperty(videoEl, "videoHeight", { value: 0, configurable: true });
+
+    const pauseSpy = vi.spyOn(videoEl, "pause").mockImplementation(() => {});
+    const loadSpy = vi.spyOn(videoEl, "load").mockImplementation(() => {});
+    const removeSpy = vi.spyOn(videoEl, "removeAttribute");
+
+    await video.trigger("loadedmetadata");
 
     const errors = wrapper.emitted("videoError");
     expect(errors).toBeTruthy();
     expect(errors?.length).toBe(1);
-    expect((videoEl.pause as any)).toHaveBeenCalled();
-    expect((videoEl.load as any)).toHaveBeenCalled();
-    expect((videoEl.removeAttribute as any)).toHaveBeenCalledWith("src");
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalled();
+    expect(removeSpy).toHaveBeenCalledWith("src");
   });
 
   it("does not emit videoError when metadata reports valid dimensions", async () => {
@@ -60,24 +68,29 @@ describe("ExpandedPreviewDialog", () => {
           filename: "C:/videos/ok.mp4",
         } as any,
         previewUrl: "file:///C:/videos/ok.mp4",
+        previewPath: "C:/videos/ok.mp4",
         isImage: false,
         error: null,
       },
       global: {
         plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
       },
     });
 
-    const videoEl: Partial<HTMLVideoElement> = {
-      videoWidth: 1920,
-      videoHeight: 1080,
-      pause: vi.fn(),
-      removeAttribute: vi.fn(),
-      load: vi.fn(),
-    };
+    const video = wrapper.get('[data-testid="task-detail-expanded-video"]');
+    const videoEl = video.element as HTMLVideoElement;
 
-    // @ts-expect-error script setup 下方法通过实例暴露给测试
-    await wrapper.vm.handleVideoLoadedMetadata({ target: videoEl } as Event);
+    Object.defineProperty(videoEl, "videoWidth", { value: 1920, configurable: true });
+    Object.defineProperty(videoEl, "videoHeight", { value: 1080, configurable: true });
+
+    await video.trigger("loadedmetadata");
 
     const errors = wrapper.emitted("videoError");
     expect(errors).toBeFalsy();

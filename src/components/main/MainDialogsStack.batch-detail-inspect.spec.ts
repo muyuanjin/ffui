@@ -31,6 +31,7 @@ describe("MainDialogsStack 批次详情与子任务交互", () => {
         jobDetailLogText: "",
         highlightedLogHtml: "",
         previewUrl: null,
+        previewPath: null,
         previewIsImage: false,
         previewError: null,
         ffmpegResolvedPath: null,

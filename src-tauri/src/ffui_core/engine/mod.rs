@@ -13,6 +13,7 @@ mod ffmpeg_args;
 mod file_times;
 mod job_runner;
 mod output_policy_paths;
+mod preview_cache_gc;
 mod preview_refresh;
 mod smart_scan;
 mod state;
@@ -27,8 +28,7 @@ mod tests;
 
 pub(crate) use smart_scan::is_video_file;
 
-// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免多个单元测试
-// 并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
+// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
 #[cfg(test)]
 static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
@@ -124,11 +124,28 @@ impl TranscodingEngine {
                 .name("ffui-queue-recovery".to_string())
                 .spawn(move || {
                     restore_jobs_from_persisted_queue(&inner_clone);
+                    inner_clone
+                        .queue_recovery_done
+                        .store(true, std::sync::atomic::Ordering::Release);
+                    inner_clone.cv.notify_all();
                 })
                 .expect("failed to spawn queue recovery thread");
         }
         worker::spawn_worker(inner.clone());
-        Ok(Self { inner })
+
+        let engine = Self { inner };
+
+        preview_cache_gc::spawn_preview_cache_gc(engine.clone());
+
+        Ok(engine)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_tests() -> Self {
+        let presets = Vec::new();
+        let settings = AppSettings::default();
+        let inner = Arc::new(Inner::new(presets, settings));
+        Self { inner }
     }
 
     /// Get a snapshot of the current queue state.

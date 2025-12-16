@@ -5,6 +5,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ParsedMediaAnalysis, MediaFileInfo } from "@/lib/mediaInfo";
+import FallbackMediaPreview from "@/components/media/FallbackMediaPreview.vue";
+import { hasTauri } from "@/lib/backend";
 import {
   buildFormatFields,
   buildSummaryFields,
@@ -33,6 +35,13 @@ const { t } = useI18n();
 const hasMedia = computed(() => !!props.inspectedPath && !!props.analysis);
 
 const fileInfo = computed<MediaFileInfo | null>(() => props.analysis?.file ?? null);
+const durationSeconds = computed(() => {
+  return (
+    props.analysis?.summary?.durationSeconds ??
+    props.analysis?.format?.durationSeconds ??
+    null
+  );
+});
 
 const fileName = computed(() => {
   const path = props.inspectedPath ?? fileInfo.value?.path ?? "";
@@ -100,6 +109,18 @@ const copyRawJson = async () => {
     console.error("copy raw media json failed", error);
   }
 };
+
+const openInspectedInSystemPlayer = async () => {
+  const path = props.inspectedPath;
+  if (!path) return;
+  if (!hasTauri()) return;
+  try {
+    const { openPath } = await import("@tauri-apps/plugin-opener");
+    await openPath(path);
+  } catch (error) {
+    console.error("open inspected media in system player failed", error);
+  }
+};
 </script>
 
 <template>
@@ -150,22 +171,25 @@ const copyRawJson = async () => {
           </CardTitle>
         </CardHeader>
         <CardContent class="flex-1 flex flex-col gap-3">
-          <div class="aspect-video w-full rounded-md bg-muted/40 flex items-center justify-center overflow-hidden">
+          <div class="w-full flex-1 min-h-48 rounded-md bg-muted/40 overflow-hidden flex items-center justify-center">
             <template v-if="previewUrl">
               <img
                 v-if="isImage"
                 :src="previewUrl"
                 :alt="fileName || 'preview'"
-                class="max-h-80 max-w-full object-contain"
+                class="w-full h-full object-contain"
                 :key="previewUrl || inspectedPath || fileName"
               />
-              <video
-                v-else
-                :src="previewUrl"
-                class="max-h-80 max-w-full object-contain"
-                controls
-                :key="previewUrl || inspectedPath || fileName"
-              />
+              <div v-else class="w-full h-full">
+                <FallbackMediaPreview
+                  :native-url="previewUrl"
+                  :source-path="inspectedPath"
+                  :duration-seconds="durationSeconds"
+                  :autoplay="false"
+                  video-test-id="media-preview-video"
+                  @open-in-system-player="openInspectedInSystemPlayer"
+                />
+              </div>
             </template>
             <template v-else>
               <span class="text-xs text-muted-foreground">

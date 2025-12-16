@@ -1,29 +1,89 @@
 use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Seek, SeekFrom, Write};
-use std::net::UdpSocket;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use fs2::FileExt;
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
+#[cfg(not(windows))]
+use std::io::{ErrorKind, Seek, SeekFrom};
+#[cfg(not(windows))]
+use std::net::UdpSocket;
+#[cfg(not(windows))]
+use std::sync::mpsc;
+
+#[cfg(not(windows))]
+use fs2::FileExt;
+#[cfg(not(windows))]
+use serde::{Deserialize, Serialize};
+#[cfg(not(windows))]
+use tauri::{Manager, UserAttentionType};
+
+#[cfg(windows)]
+mod windows_focus;
+
+const FOCUS_LOG_PREFIX: &str = "ffui.single-instance";
+
+#[cfg(not(windows))]
 const LOCK_FILE_PREFIX: &str = "ffui";
+#[cfg(not(windows))]
 const FOCUS_MESSAGE: &[u8] = b"focus";
+#[cfg(not(windows))]
 const LOOPBACK_ADDR: &str = "127.0.0.1";
+
+fn single_instance_debug_enabled() -> bool {
+    static ENABLED: OnceLock<bool> = OnceLock::new();
+    *ENABLED.get_or_init(|| {
+        std::env::args().any(|arg| arg == "--single-instance-debug" || arg == "--si-debug")
+    })
+}
+
+fn log_single_instance(instance_key: &str, message: &str) {
+    if !single_instance_debug_enabled() {
+        return;
+    }
+
+    let mut path = std::env::temp_dir();
+    path.push(format!("{FOCUS_LOG_PREFIX}.{instance_key}.log"));
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+
+    if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = writeln!(file, "[{now_ms}] pid={} {message}", std::process::id());
+    }
+}
 
 #[derive(Debug)]
 pub struct SingleInstanceGuard {
+    #[cfg(windows)]
+    _mutex: windows::Win32::Foundation::HANDLE,
+    #[cfg(not(windows))]
     _lock_file: std::fs::File,
+}
+
+#[cfg(windows)]
+impl Drop for SingleInstanceGuard {
+    fn drop(&mut self) {
+        unsafe {
+            use windows::Win32::Foundation::CloseHandle;
+            let _ = CloseHandle(self._mutex);
+        }
+    }
 }
 
 #[derive(Debug)]
 pub struct FocusServer {
+    #[cfg(not(windows))]
     socket: UdpSocket,
 }
 
+#[cfg(not(windows))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct LockInfo {
     port: u16,
@@ -33,7 +93,7 @@ struct LockInfo {
 #[derive(Debug)]
 pub struct PrimaryInstance {
     pub guard: SingleInstanceGuard,
-    pub focus_server: FocusServer,
+    pub focus_server: Option<FocusServer>,
 }
 
 #[derive(Debug)]
@@ -45,47 +105,196 @@ pub enum EnsureOutcome {
 pub fn ensure_single_instance_or_focus_existing() -> Result<EnsureOutcome> {
     let exe_path = current_exe_canonicalized();
     let instance_key = derive_instance_key(&exe_path);
-    let lock_path = lock_path_for_key(&instance_key);
 
-    let mut lock_file = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(&lock_path)
-        .with_context(|| format!("open lock file: {}", lock_path.display()))?;
+    #[cfg(windows)]
+    {
+        ensure_single_instance_windows(&exe_path, &instance_key)
+    }
 
-    match lock_file.try_lock_exclusive() {
-        Ok(()) => {
-            let focus_server =
-                FocusServer::bind_loopback().context("bind loopback UDP focus socket")?;
-            let port = focus_server.port()?;
-            write_lock_info(
-                &mut lock_file,
-                LockInfo {
-                    port,
-                    pid: std::process::id(),
-                },
-            )
-            .context("write lock info")?;
+    #[cfg(not(windows))]
+    {
+        let lock_path = lock_path_for_key(&instance_key);
+        let info_path = info_path_for_key(&instance_key);
 
-            Ok(EnsureOutcome::Primary(PrimaryInstance {
-                guard: SingleInstanceGuard {
-                    _lock_file: lock_file,
-                },
-                focus_server,
-            }))
+        log_single_instance(
+            &instance_key,
+            &format!(
+                "startup exe={} lock={} info={}",
+                exe_path.display(),
+                lock_path.display(),
+                info_path.display()
+            ),
+        );
+
+        let lock_file = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+        {
+            Ok(file) => file,
+            Err(err) => {
+                log_single_instance(
+                    &instance_key,
+                    &format!(
+                        "open lock file failed kind={:?} raw_os_error={:?}",
+                        err.kind(),
+                        err.raw_os_error()
+                    ),
+                );
+                return Err(err)
+                    .with_context(|| format!("open lock file: {}", lock_path.display()));
+            }
+        };
+
+        match lock_file.try_lock_exclusive() {
+            Ok(()) => {
+                let focus_server =
+                    FocusServer::bind_loopback().context("bind loopback UDP focus socket")?;
+                let port = focus_server.port()?;
+                let mut info_file = OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .create(true)
+                    .truncate(false)
+                    .open(&info_path)
+                    .with_context(|| format!("open info file: {}", info_path.display()))?;
+                write_lock_info(
+                    &mut info_file,
+                    LockInfo {
+                        port,
+                        pid: std::process::id(),
+                    },
+                )
+                .context("write lock info")?;
+
+                log_single_instance(&instance_key, &format!("primary lock-acquired port={port}"));
+
+                Ok(EnsureOutcome::Primary(PrimaryInstance {
+                    guard: SingleInstanceGuard {
+                        _lock_file: lock_file,
+                    },
+                    focus_server: Some(focus_server),
+                }))
+            }
+            Err(err) if is_lock_contended(&err) => {
+                log_single_instance(
+                    &instance_key,
+                    &format!(
+                        "secondary lock-contended; reading lock info from {}",
+                        info_path.display()
+                    ),
+                );
+                let info = match read_lock_info_with_retries(&info_path) {
+                    Ok(info) => info,
+                    Err(err) => {
+                        log_single_instance(
+                            &instance_key,
+                            &format!("read lock info failed: {err:#}"),
+                        );
+                        return Err(err)
+                            .with_context(|| format!("read lock info: {}", info_path.display()));
+                    }
+                };
+                log_single_instance(
+                    &instance_key,
+                    &format!(
+                        "secondary detected primary pid={} port={}",
+                        info.pid, info.port
+                    ),
+                );
+                send_focus_signal(info.port).context("send focus signal to primary instance")?;
+                log_single_instance(&instance_key, "secondary sent UDP focus signal; exiting");
+                Ok(EnsureOutcome::Secondary)
+            }
+            Err(err) => {
+                log_single_instance(
+                    &instance_key,
+                    &format!(
+                        "lock acquisition failed kind={:?} raw_os_error={:?}",
+                        err.kind(),
+                        err.raw_os_error()
+                    ),
+                );
+                Err(err).with_context(|| format!("acquire lock: {}", lock_path.display()))
+            }
         }
-        Err(err) if err.kind() == ErrorKind::WouldBlock => {
-            let info = read_lock_info_with_retries(&lock_path)
-                .with_context(|| format!("read lock info: {}", lock_path.display()))?;
-            send_focus_signal(info.port).context("send focus signal to primary instance")?;
-            Ok(EnsureOutcome::Secondary)
-        }
-        Err(err) => Err(err).with_context(|| format!("acquire lock: {}", lock_path.display())),
     }
 }
 
+#[cfg(windows)]
+fn ensure_single_instance_windows(exe_path: &Path, instance_key: &str) -> Result<EnsureOutcome> {
+    use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+    use windows::Win32::System::Threading::CreateMutexW;
+
+    let mutex_name = format!("Local\\ffui.{instance_key}");
+    let mutex_wide = to_wide_null(&mutex_name);
+    let mutex = unsafe {
+        CreateMutexW(
+            None,
+            false,
+            windows::core::PCWSTR::from_raw(mutex_wide.as_ptr()),
+        )
+    }
+    .with_context(|| format!("CreateMutexW({mutex_name})"))?;
+
+    let already_exists = unsafe { GetLastError() == ERROR_ALREADY_EXISTS };
+    log_single_instance(
+        instance_key,
+        &format!("startup exe={} mutex={mutex_name}", exe_path.display()),
+    );
+
+    if already_exists {
+        log_single_instance(
+            instance_key,
+            "secondary mutex-already-exists; focusing existing",
+        );
+        let focused = focus_existing_instance_by_exe_with_retries(exe_path);
+        log_single_instance(
+            instance_key,
+            &format!("secondary focus attempted ok={focused}"),
+        );
+        unsafe {
+            use windows::Win32::Foundation::CloseHandle;
+            let _ = CloseHandle(mutex);
+        }
+        return Ok(EnsureOutcome::Secondary);
+    }
+
+    log_single_instance(instance_key, "primary mutex-created; continuing startup");
+    Ok(EnsureOutcome::Primary(PrimaryInstance {
+        guard: SingleInstanceGuard { _mutex: mutex },
+        focus_server: None,
+    }))
+}
+
+#[cfg(windows)]
+fn to_wide_null(value: &str) -> Vec<u16> {
+    use std::os::windows::ffi::OsStrExt;
+    std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+#[cfg(windows)]
+fn focus_existing_instance_by_exe_with_retries(exe_path: &Path) -> bool {
+    for _ in 0..40 {
+        if windows_focus::focus_primary_window_by_exe_path_best_effort(exe_path) {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    false
+}
+
+#[cfg(not(windows))]
+fn is_lock_contended(err: &std::io::Error) -> bool {
+    err.kind() == ErrorKind::WouldBlock
+}
+
+#[cfg(not(windows))]
 impl FocusServer {
     fn bind_loopback() -> Result<Self> {
         let socket = UdpSocket::bind((LOOPBACK_ADDR, 0)).context("bind udp socket")?;
@@ -103,24 +312,54 @@ impl FocusServer {
                 let Ok((_len, _from)) = self.socket.recv_from(&mut buffer) else {
                     continue;
                 };
+                let exe_path = current_exe_canonicalized();
+                let instance_key = derive_instance_key(&exe_path);
+                log_single_instance(&instance_key, "primary received UDP focus signal");
                 focus_main_window_best_effort(&app);
             }
         });
     }
 }
 
+#[cfg(windows)]
+impl FocusServer {
+    pub fn spawn(self, _app: AppHandle) {}
+}
+
+#[cfg(not(windows))]
 fn focus_main_window_best_effort(app: &AppHandle) {
     for _ in 0..20 {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.show();
-            let _ = window.unminimize();
-            let _ = window.set_focus();
+        let (tx, rx) = mpsc::channel::<bool>();
+        let app_handle = app.clone();
+        if app
+            .run_on_main_thread(move || {
+                let focused = try_focus_main_window_once(&app_handle);
+                let _ = tx.send(focused);
+            })
+            .is_ok()
+            && matches!(rx.recv_timeout(Duration::from_millis(250)), Ok(true))
+        {
             return;
         }
         thread::sleep(Duration::from_millis(50));
     }
 }
 
+#[cfg(not(windows))]
+fn try_focus_main_window_once(app: &AppHandle) -> bool {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        if !window.is_focused().unwrap_or(false) {
+            let _ = window.request_user_attention(Some(UserAttentionType::Critical));
+        }
+        return true;
+    }
+    false
+}
+
+#[cfg(not(windows))]
 fn send_focus_signal(port: u16) -> Result<()> {
     let socket = UdpSocket::bind((LOOPBACK_ADDR, 0)).context("bind udp sender")?;
     socket
@@ -129,6 +368,7 @@ fn send_focus_signal(port: u16) -> Result<()> {
     Ok(())
 }
 
+#[cfg(not(windows))]
 fn write_lock_info(lock_file: &mut std::fs::File, info: LockInfo) -> Result<()> {
     let payload = serde_json::to_vec(&info).context("serialize lock info")?;
     lock_file.set_len(0).context("truncate lock file")?;
@@ -140,6 +380,7 @@ fn write_lock_info(lock_file: &mut std::fs::File, info: LockInfo) -> Result<()> 
     Ok(())
 }
 
+#[cfg(not(windows))]
 fn read_lock_info_with_retries(lock_path: &Path) -> Result<LockInfo> {
     let mut last_error: Option<anyhow::Error> = None;
     for _ in 0..20 {
@@ -161,9 +402,17 @@ fn current_exe_canonicalized() -> PathBuf {
     fs::canonicalize(&exe).unwrap_or(exe)
 }
 
+#[cfg(not(windows))]
 fn lock_path_for_key(instance_key: &str) -> PathBuf {
     let mut path = std::env::temp_dir();
     path.push(format!("{LOCK_FILE_PREFIX}.{instance_key}.lock"));
+    path
+}
+
+#[cfg(not(windows))]
+fn info_path_for_key(instance_key: &str) -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!("{LOCK_FILE_PREFIX}.{instance_key}.info.json"));
     path
 }
 
@@ -185,89 +434,4 @@ fn fnv1a_64(bytes: &[u8]) -> u64 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn derive_instance_key_is_deterministic_and_distinct() {
-        let a1 = derive_instance_key(Path::new("/tmp/a"));
-        let a2 = derive_instance_key(Path::new("/tmp/a"));
-        let b = derive_instance_key(Path::new("/tmp/b"));
-
-        assert_eq!(a1, a2);
-        assert_ne!(a1, b);
-    }
-
-    #[test]
-    fn lock_contention_blocks_second_handle() {
-        let dir = tempfile::tempdir().expect("tempdir must be created");
-        let lock_path = dir.path().join("ffui_test.lock");
-
-        let file1 = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
-            .expect("open lock file 1");
-        file1.try_lock_exclusive().expect("first lock must succeed");
-
-        let file2 = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
-            .expect("open lock file 2");
-        file2
-            .try_lock_exclusive()
-            .expect_err("second lock must fail while first lock is held");
-
-        drop(file1);
-        file2
-            .try_lock_exclusive()
-            .expect("lock must succeed after release");
-    }
-
-    #[test]
-    fn focus_udp_signal_is_received_by_loopback_socket() {
-        let server = FocusServer::bind_loopback().expect("bind loopback focus server");
-        let port = server.port().expect("read focus server port");
-
-        server
-            .socket
-            .set_read_timeout(Some(Duration::from_secs(1)))
-            .expect("set read timeout");
-
-        send_focus_signal(port).expect("send focus signal");
-
-        let mut buffer = [0u8; 64];
-        let (len, from) = server
-            .socket
-            .recv_from(&mut buffer)
-            .expect("focus server must receive datagram");
-
-        assert_eq!(&buffer[..len], FOCUS_MESSAGE);
-        assert_eq!(from.ip().to_string(), LOOPBACK_ADDR);
-    }
-
-    #[test]
-    fn lock_info_round_trip_is_readable() {
-        let dir = tempfile::tempdir().expect("tempdir must be created");
-        let lock_path = dir.path().join("ffui_test_info.lock");
-        let mut lock_file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(&lock_path)
-            .expect("open lock file");
-
-        write_lock_info(&mut lock_file, LockInfo { port: 4242, pid: 7 }).expect("write lock info");
-
-        let info = read_lock_info_with_retries(&lock_path).expect("read lock info");
-        assert_eq!(info.port, 4242);
-        assert_eq!(info.pid, 7);
-    }
-}
+mod tests;

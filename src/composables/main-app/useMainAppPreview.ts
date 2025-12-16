@@ -1,7 +1,6 @@
 import { computed, ref, type Ref } from "vue";
 import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob } from "@/types";
 import { buildPreviewUrl, hasTauri, selectPlayableMediaPath } from "@/lib/backend";
-import { openPath as openPathWithSystem } from "@tauri-apps/plugin-opener";
 
 export interface UseMainAppPreviewOptions {
   presets: Ref<FFmpegPreset[]>;
@@ -17,6 +16,8 @@ export interface UseMainAppPreviewOptions {
 
 export interface UseMainAppPreviewReturn {
   previewUrl: Ref<string | null>;
+  /** Raw filesystem path currently being previewed (best-effort). */
+  previewPath: Ref<string | null>;
   previewIsImage: Ref<boolean>;
   previewError: Ref<string | null>;
   openJobPreviewFromQueue: (job: TranscodeJob) => Promise<void>;
@@ -183,6 +184,8 @@ export function useMainAppPreview(
     if (!job) return;
     if (!hasTauri()) return;
 
+    const { openPath } = await import("@tauri-apps/plugin-opener");
+
     const candidates = buildPreviewCandidates(job);
     if (!candidates.length) return;
 
@@ -206,7 +209,7 @@ export function useMainAppPreview(
     if (!path) return;
 
     try {
-      await openPathWithSystem(path);
+      await openPath(path);
     } catch (e) {
       console.error("Failed to open in system player:", e);
     }
@@ -231,6 +234,7 @@ export function useMainAppPreview(
 
   return {
     previewUrl,
+    previewPath: currentPreviewPath,
     previewIsImage,
     previewError,
     openJobPreviewFromQueue,

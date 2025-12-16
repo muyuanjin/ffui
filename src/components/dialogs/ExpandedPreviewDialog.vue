@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, toRef, watch } from "vue";
+import { computed, toRef, watch } from "vue";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
+import FallbackMediaPreview from "@/components/media/FallbackMediaPreview.vue";
+import { cleanupFallbackPreviewFramesAsync, hasTauri } from "@/lib/backend";
 
 const props = defineProps<{
   /** Whether dialog is open */
@@ -12,6 +14,8 @@ const props = defineProps<{
   job: TranscodeJob | null;
   /** Preview URL (may be different from job.previewPath for Tauri file:// URLs) */
   previewUrl: string | null;
+  /** Underlying raw filesystem path currently being previewed (used for FFmpeg fallback) */
+  previewPath: string | null;
   /** Whether the preview is an image */
   isImage: boolean;
   /** Error message to display */
@@ -21,6 +25,7 @@ const props = defineProps<{
 const open = toRef(props, "open");
 const job = toRef(props, "job");
 const previewUrl = toRef(props, "previewUrl");
+const previewPath = toRef(props, "previewPath");
 const isImage = toRef(props, "isImage");
 const error = toRef(props, "error");
 
@@ -34,48 +39,25 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// 控制视频标签的 controls 何时显示：刚打开预览时完全隐藏，直到用户在视频区域内产生交互，
-// 避免一开始出现黑色 loading 圆圈或控制条闪现。
-const showVideoControls = ref(false);
+const videoSourcePath = computed(() => {
+  return (
+    previewPath.value ||
+    props.job?.outputPath ||
+    props.job?.inputPath ||
+    null
+  );
+});
 
-// 当对话框关闭、预览 URL 变化或切换为图片时，重置控制条可见状态。
+const forceFallback = computed(() => !isImage.value && !!error.value);
+
 watch(
-  [open, previewUrl, isImage],
-  ([openVal, previewUrlVal, isImageVal]) => {
-    if (!openVal || !previewUrlVal || isImageVal) {
-      showVideoControls.value = false;
-      return;
+  () => props.open,
+  (open, prev) => {
+    if (prev && !open && hasTauri()) {
+      void cleanupFallbackPreviewFramesAsync();
     }
   },
-  { immediate: true },
 );
-
-// 用户在视频区域产生交互（鼠标移动/触摸）时再启用 controls，
-// 此时浏览器会按照“自动隐藏”的原生策略显示/隐藏控制条。
-const handleVideoInteraction = () => {
-  if (!showVideoControls.value) {
-    showVideoControls.value = true;
-  }
-};
-
-const handleVideoLoadedMetadata = (event: Event) => {
-  const el = event.target as HTMLVideoElement | null;
-  if (!el) return;
-
-  // 如果浏览器只能解码音频而无法解码视频流，videoWidth/videoHeight 往往保持为 0。
-  // 这种情况下我们主动视为“预览失败”，停止播放并提示用户使用系统播放器。
-  if (!el.videoWidth || !el.videoHeight) {
-    try {
-      el.pause();
-      el.removeAttribute("src");
-      // 触发一次 load 以重置内部状态，避免继续播放“纯音频”。
-      el.load();
-    } catch {
-      // 在某些测试环境（jsdom/happy-dom）上这些方法可能是 no-op，忽略异常即可。
-    }
-    emit("videoError");
-  }
-};
 </script>
 
 <template>
@@ -91,8 +73,6 @@ const handleVideoLoadedMetadata = (event: Event) => {
       </DialogHeader>
       <div
         class="mt-2 relative w-full max-h-[70vh] rounded-md bg-black flex items-center justify-center overflow-hidden"
-        @mousemove="handleVideoInteraction"
-        @touchstart="handleVideoInteraction"
       >
         <template v-if="previewUrl">
           <img
@@ -102,15 +82,21 @@ const handleVideoLoadedMetadata = (event: Event) => {
             class="w-full h-full object-contain"
             @error="emit('imageError')"
           />
-          <video
+          <FallbackMediaPreview
             v-else
-            :src="previewUrl"
-            data-testid="task-detail-expanded-video"
-            class="w-full h-full object-contain"
-            :controls="showVideoControls"
-            autoplay
-            @loadedmetadata="handleVideoLoadedMetadata"
-            @error="emit('videoError')"
+            :native-url="previewUrl"
+            :source-path="videoSourcePath"
+            :duration-seconds="job?.mediaInfo?.durationSeconds ?? null"
+            :autoplay="true"
+            :lazy-controls="true"
+            :auto-fallback-on-native-error="false"
+            :force-fallback="forceFallback"
+            :error-text="error"
+            :show-copy-path-action="true"
+            video-test-id="task-detail-expanded-video"
+            @native-error="emit('videoError')"
+            @open-in-system-player="emit('openInSystemPlayer')"
+            @copy-path="emit('copyPath')"
           />
         </template>
         <p
@@ -121,7 +107,7 @@ const handleVideoLoadedMetadata = (event: Event) => {
           {{ t("jobDetail.noPreview") }}
         </p>
       </div>
-      <div v-if="error" class="mt-2 text-[11px] text-destructive">
+      <div v-if="error && isImage" class="mt-2 text-[11px] text-destructive">
         <p>{{ error }}</p>
         <div class="mt-2 flex flex-wrap gap-2">
           <Button size="xs" class="h-6 px-2 text-[10px]" @click="emit('openInSystemPlayer')">

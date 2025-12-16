@@ -163,6 +163,7 @@ const {
   jobDetailLogText,
   highlightedLogHtml,
   previewUrl,
+  previewPath,
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
@@ -359,17 +360,17 @@ defineExpose({
               @update:viewMode="(v) => (presetViewMode = v)"
             />
 
-            <MediaPanel
-              v-else-if="activeTab === 'media'"
-              :inspecting="isInspectingMedia"
-              :error="mediaInspectError"
-              :inspected-path="inspectedMediaPath"
-              :preview-url="inspectedPreviewUrl"
-              :is-image="inspectedIsImage"
-              :analysis="inspectedAnalysis"
-              :raw-json="inspectedRawJson"
-              @inspect-requested="openMediaFileDialog"
-              @clear="clearInspectedMedia"
+	            <MediaPanel
+	              v-else-if="activeTab === 'media'"
+	              :inspecting="isInspectingMedia"
+	              :error="mediaInspectError"
+	              :inspected-path="inspectedMediaPath"
+	              :preview-url="inspectedPreviewUrl"
+	              :is-image="inspectedIsImage"
+	              :analysis="inspectedAnalysis"
+	              :raw-json="inspectedRawJson"
+	              @inspect-requested="openMediaFileDialog"
+	              @clear="clearInspectedMedia"
             />
 
             <MonitorPanelPro v-else-if="activeTab === 'monitor'" />
@@ -446,13 +447,14 @@ defineExpose({
       :selected-job-preset="selectedJobPreset"
       :job-detail-log-text="jobDetailLogText"
       :highlighted-log-html="highlightedLogHtml"
-      :preview-url="previewUrl"
-      :preview-is-image="previewIsImage"
-      :preview-error="previewError"
-      :ffmpeg-resolved-path="ffmpegResolvedPath"
-      :sort-compare-fn="compareJobsForDisplay"
-      @savePreset="handleSavePreset"
-      @closeWizard="dialogManager.closeWizard()"
+	      :preview-url="previewUrl"
+	      :preview-path="previewPath"
+	      :preview-is-image="previewIsImage"
+	      :preview-error="previewError"
+	      :ffmpeg-resolved-path="ffmpegResolvedPath"
+	      :sort-compare-fn="compareJobsForDisplay"
+	      @savePreset="handleSavePreset"
+	      @closeWizard="dialogManager.closeWizard()"
       @closeParameterPanel="dialogManager.closeParameterPanel()"
       @runSmartScan="runSmartScan"
       @closeSmartScanWizard="closeSmartScanWizard"

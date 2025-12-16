@@ -40,7 +40,7 @@ pub fn run() {
         Option<single_instance::SingleInstanceGuard>,
     ) = match single_instance::ensure_single_instance_or_focus_existing() {
         Ok(single_instance::EnsureOutcome::Primary(primary)) => {
-            (Some(primary.focus_server), Some(primary.guard))
+            (primary.focus_server, Some(primary.guard))
         }
         Ok(single_instance::EnsureOutcome::Secondary) => {
             return;
@@ -113,8 +113,11 @@ pub fn run() {
             commands::tools::ack_taskbar_progress,
             commands::tools::inspect_media,
             commands::tools::get_preview_data_url,
+            commands::tools::fallback_preview::extract_fallback_preview_frame,
+            commands::tools::fallback_preview::cleanup_fallback_preview_frames_async,
+            commands::tools::preview_cache::cleanup_preview_caches_async,
             commands::tools::ensure_job_preview,
-            commands::tools::select_playable_media_path,
+            commands::tools::playable_media::select_playable_media_path,
             commands::tools::reveal_path_in_folder,
             commands::tools::metrics_subscribe,
             commands::tools::metrics_unsubscribe,
@@ -248,7 +251,9 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use crate::commands::tools::{get_preview_data_url, select_playable_media_path};
+    use crate::commands::tools::get_preview_data_url;
+    use crate::commands::tools::playable_media::select_playable_media_path;
+    use std::collections::BTreeSet;
 
     #[test]
     fn get_preview_data_url_builds_data_url_prefix() {
@@ -359,6 +364,75 @@ mod tests {
             selected,
             Some(missing_str),
             "even when stat fails the helper should return the first non-empty candidate"
+        );
+    }
+
+    #[test]
+    fn asset_protocol_scope_aligns_with_opener_allowlist_and_ui_fonts() {
+        use serde_json::Value;
+        use std::fs;
+        use std::path::PathBuf;
+
+        let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+
+        let tauri_conf_path = manifest_dir.join("tauri.conf.json");
+        let tauri_conf_raw =
+            fs::read_to_string(&tauri_conf_path).expect("failed to read src-tauri/tauri.conf.json");
+        let tauri_conf: Value =
+            serde_json::from_str(&tauri_conf_raw).expect("tauri.conf.json must be valid JSON");
+
+        let scope = tauri_conf
+            .get("app")
+            .and_then(|v| v.get("security"))
+            .and_then(|v| v.get("assetProtocol"))
+            .and_then(|v| v.get("scope"))
+            .and_then(|v| v.as_array())
+            .expect("expected app.security.assetProtocol.scope to be an array");
+
+        let scope_set: BTreeSet<String> = scope
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        assert!(
+            !scope_set.contains("**") && !scope_set.contains("*"),
+            "assetProtocol.scope must not contain a global wildcard: {:?}",
+            scope_set
+        );
+
+        let capabilities_path = manifest_dir.join("capabilities").join("default.json");
+        let capabilities_raw = fs::read_to_string(&capabilities_path)
+            .expect("failed to read src-tauri/capabilities/default.json");
+        let capabilities: Value = serde_json::from_str(&capabilities_raw)
+            .expect("capabilities/default.json must be valid JSON");
+
+        let permissions = capabilities
+            .get("permissions")
+            .and_then(|v| v.as_array())
+            .expect("capabilities/default.json permissions must be an array");
+
+        let opener_allow_paths: BTreeSet<String> = permissions
+            .iter()
+            .find(|p| p.get("identifier") == Some(&Value::String("opener:allow-open-path".into())))
+            .and_then(|p| p.get("allow"))
+            .and_then(|v| v.as_array())
+            .expect("expected opener:allow-open-path allowlist")
+            .iter()
+            .filter_map(|entry| {
+                entry
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            })
+            .collect();
+
+        let mut expected = opener_allow_paths;
+        expected.insert("**/*.[tT][tT][fF]".to_string());
+        expected.insert("**/*.[oO][tT][fF]".to_string());
+
+        assert_eq!(
+            scope_set, expected,
+            "assetProtocol.scope must align with opener:allow-open-path (+ ui fonts)"
         );
     }
 }

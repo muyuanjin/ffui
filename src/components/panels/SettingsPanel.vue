@@ -8,6 +8,7 @@ import { hasTauri, openDevtools } from "@/lib/backend";
 import SettingsAppUpdatesSection from "@/components/panels/SettingsAppUpdatesSection.vue";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
+import SettingsPreviewCacheSection from "@/components/panels/SettingsPreviewCacheSection.vue";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import type {
@@ -370,7 +371,7 @@ const toolsMode = computed<ExternalToolsMode>({
           :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
-
+        <SettingsPreviewCacheSection />
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">

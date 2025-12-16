@@ -21,6 +21,7 @@ const {
   selectedJobPreset,
   highlightedLogHtml,
   previewUrl,
+  previewPath,
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
@@ -37,6 +38,7 @@ const {
   jobDetailLogText: string;
   highlightedLogHtml: string;
   previewUrl: string | null;
+  previewPath: string | null;
   previewIsImage: boolean;
   previewError: string | null;
   ffmpegResolvedPath: string | null;
@@ -134,6 +136,7 @@ const emit = defineEmits<{
     :open="dialogManager.previewOpen.value"
     :job="dialogManager.selectedJob.value"
     :preview-url="previewUrl"
+    :preview-path="previewPath"
     :is-image="previewIsImage"
     :error="previewError"
     @update:open="(open) => { if (!open) emit('closeExpandedPreview'); }"

@@ -8,6 +8,7 @@ use crate::ffui_core::settings::types::QueuePersistenceMode;
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Condvar, Mutex};
 
@@ -112,6 +113,7 @@ pub(crate) struct Inner {
     pub(crate) state: Mutex<EngineState>,
     pub(crate) cv: Condvar,
     pub(crate) next_job_id: AtomicU64,
+    pub(crate) queue_recovery_done: AtomicBool,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
     pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
     pub(crate) smart_scan_listeners: Mutex<Vec<SmartScanProgressListener>>,
@@ -123,6 +125,7 @@ impl Inner {
             state: Mutex::new(EngineState::new(presets, settings)),
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
+            queue_recovery_done: AtomicBool::new(false),
             queue_listeners: Mutex::new(Vec::new()),
             queue_lite_listeners: Mutex::new(Vec::new()),
             smart_scan_listeners: Mutex::new(Vec::new()),

@@ -196,8 +196,18 @@ const other = {
     openInSystemPlayer: "用系统播放器打开",
     copyPath: "复制路径",
     previewDescription: "预览当前任务的输出结果；如无法播放，可以尝试使用系统播放器打开对应文件。",
-    previewVideoError: "无法加载视频预览，文件可能正在被占用或已损坏；可以尝试使用系统播放器打开。",
+    previewVideoError: "无法直接播放视频（WebView2 可能不支持该格式）。可用帧预览，或用系统播放器打开。",
     previewImageError: "无法加载图片预览，文件可能正在被占用或已损坏；可以尝试使用系统图片查看器打开。",
+  },
+  previewFallback: {
+    title: "原生播放失败",
+    nativePlaybackFailed:
+      "WebView2 可能不支持该格式。可用帧预览，或用系统播放器打开。",
+    hint: "拖动时会优先请求更快的低清帧；松手后会加载更清晰的帧。",
+    loadingFrame: "正在加载预览帧…",
+    noFrame: "暂无预览帧",
+    scrub: "拖动预览",
+    openInSystemPlayer: "用系统播放器打开",
   },
   presets: {
     usedTimes: "已使用 {count} 次",

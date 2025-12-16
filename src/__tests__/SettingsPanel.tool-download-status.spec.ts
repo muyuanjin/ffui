@@ -11,6 +11,7 @@ import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 vi.mock("@/lib/backend", () => {
   return {
     hasTauri: () => true,
+    cleanupPreviewCachesAsync: vi.fn(async () => true),
     openDevtools: vi.fn(),
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
