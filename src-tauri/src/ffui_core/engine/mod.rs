@@ -1,12 +1,4 @@
-//! Transcoding engine split into modular components.
-//!
-//! Module structure:
-//! - `state`: Engine state management, queue persistence, listeners
-//! - `ffmpeg_args`: FFmpeg command-line argument generation and parsing
-//! - `worker`: Worker thread pool and job scheduling
-//! - `job_runner`: Job execution logic, progress tracking
-//! - `smart_scan`: Smart Scan batch processing
-//! - `tests`: All test cases
+//! Transcoding engine split into modular components (state, ffmpeg_args, worker, job_runner, smart_scan).
 
 mod enqueue_bulk;
 mod ffmpeg_args;
@@ -267,13 +259,16 @@ impl TranscodingEngine {
 
     /// Save new application settings.
     pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
-        let (tools_changed, percent_changed, refresh_token, tools_snapshot, new_percent) = {
+        let (tools_changed, percent_changed, refresh_token, tools_snapshot, new_percent, saved) = {
             let mut state = self.inner.state.lock().expect("engine state poisoned");
+
+            let mut normalized = new_settings.clone();
+            normalized.normalize();
 
             let old_tools = state.settings.tools.clone();
             let old_percent = state.settings.preview_capture_percent;
 
-            state.settings = new_settings.clone();
+            state.settings = normalized.clone();
             settings::save_settings(&state.settings)?;
 
             let new_tools = &state.settings.tools;
@@ -298,6 +293,7 @@ impl TranscodingEngine {
                 refresh_token,
                 state.settings.tools.clone(),
                 new_percent,
+                normalized,
             )
         };
 
@@ -329,7 +325,10 @@ impl TranscodingEngine {
         // the next queue update.
         state::notify_queue_listeners(&self.inner);
 
-        Ok(new_settings)
+        // Ensure we have enough background workers for the updated concurrency settings.
+        worker::spawn_worker(self.inner.clone());
+
+        Ok(saved)
     }
 
     /// Enqueue a new transcode job.

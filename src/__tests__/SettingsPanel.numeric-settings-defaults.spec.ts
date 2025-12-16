@@ -75,17 +75,24 @@ describe("SettingsPanel numeric settings defaults", () => {
 
     const inputs = wrapper.findAll('input[type="number"]');
     // 1) previewCapturePercent, 2) maxParallelJobs,
-    // 3) progressUpdateIntervalMs, 4) metricsIntervalMs
-    expect(inputs.length).toBe(4);
+    // 3) maxParallelCpuJobs, 4) maxParallelHwJobs,
+    // 5) progressUpdateIntervalMs, 6) metricsIntervalMs
+    expect(inputs.length).toBe(6);
 
     const previewInput = inputs[0].element as HTMLInputElement;
     const maxParallelInput = inputs[1].element as HTMLInputElement;
-    const progressIntervalInput = inputs[2].element as HTMLInputElement;
-    const metricsIntervalInput = inputs[3].element as HTMLInputElement;
+    const maxParallelCpuInput = inputs[2].element as HTMLInputElement;
+    const maxParallelHwInput = inputs[3].element as HTMLInputElement;
+    const progressIntervalInput = inputs[4].element as HTMLInputElement;
+    const metricsIntervalInput = inputs[5].element as HTMLInputElement;
 
     expect(previewInput.value).toBe("25");
-    // 当并行转码数未配置时，UI 应该显示“自动 = 0”而不是空白。
-    expect(maxParallelInput.value).toBe("0");
+    // 当并行转码数未配置时，UI 应该显示默认值 2。
+    expect(maxParallelInput.value).toBe("2");
+    // Split-mode inputs are rendered but disabled by default; they should still
+    // show engine defaults so the layout stays stable.
+    expect(maxParallelCpuInput.value).toBe("2");
+    expect(maxParallelHwInput.value).toBe("1");
     // 进度刷新节奏/性能监控节奏都应显示引擎默认值，而不是留空。
     expect(progressIntervalInput.value).toBe("250");
     expect(metricsIntervalInput.value).toBe("1000");
@@ -115,15 +122,54 @@ describe("SettingsPanel numeric settings defaults", () => {
     });
 
     const inputs = wrapper.findAll('input[type="number"]');
-    expect(inputs.length).toBe(4);
+    expect(inputs.length).toBe(6);
 
     const maxParallelInput = inputs[1].element as HTMLInputElement;
-    const progressIntervalInput = inputs[2].element as HTMLInputElement;
-    const metricsIntervalInput = inputs[3].element as HTMLInputElement;
+    const maxParallelCpuInput = inputs[2].element as HTMLInputElement;
+    const maxParallelHwInput = inputs[3].element as HTMLInputElement;
+    const progressIntervalInput = inputs[4].element as HTMLInputElement;
+    const metricsIntervalInput = inputs[5].element as HTMLInputElement;
 
     expect(maxParallelInput.value).toBe("4");
+    expect(maxParallelCpuInput.value).toBe("2");
+    expect(maxParallelHwInput.value).toBe("1");
     expect(progressIntervalInput.value).toBe("500");
     expect(metricsIntervalInput.value).toBe("2000");
+
+    wrapper.unmount();
+  });
+
+  it("shows and respects split CPU/HW concurrency values", () => {
+    const appSettings: AppSettings = {
+      ...makeAppSettings(),
+      parallelismMode: "split",
+      maxParallelCpuJobs: 3,
+      maxParallelHwJobs: 2,
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings,
+        toolStatuses: [] as ExternalToolStatus[],
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    const inputs = wrapper.findAll('input[type="number"]');
+    expect(inputs.length).toBe(6);
+
+    const unified = inputs[1].element as HTMLInputElement;
+    const cpu = inputs[2].element as HTMLInputElement;
+    const hw = inputs[3].element as HTMLInputElement;
+
+    expect(unified.value).toBe("2");
+    expect(cpu.value).toBe("3");
+    expect(hw.value).toBe("2");
 
     wrapper.unmount();
   });

@@ -63,6 +63,8 @@ pub(crate) struct EngineState {
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
     pub(crate) active_jobs: HashSet<String>,
+    /// Number of transcoding worker threads spawned so far.
+    pub(crate) spawned_workers: usize,
     /// Input paths (filenames) currently being processed by active workers.
     /// This is used to prevent concurrent transcodes of the same input from
     /// deadlocking on temp output collisions or platform file locks.
@@ -97,6 +99,7 @@ impl EngineState {
             jobs: HashMap::new(),
             queue: VecDeque::new(),
             active_jobs: HashSet::new(),
+            spawned_workers: 0,
             active_inputs: HashSet::new(),
             cancelled_jobs: HashSet::new(),
             preview_refresh_token: 0,

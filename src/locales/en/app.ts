@@ -77,9 +77,19 @@ const app = {
     previewCaptureLabel: "Preview capture position (%)",
     previewCaptureHelp:
       "Percentage of total video duration used when capturing thumbnails; default is 25.",
+    parallelismModeLabel: "Concurrency mode",
+    parallelismModeHelp: "Choose a unified cap, or separate caps for CPU vs hardware encoders.",
+    parallelismModeUnifiedOption: "Unified cap (default)",
+    parallelismModeSplitOption: "Split CPU / hardware caps",
     maxParallelJobsLabel: "Max parallel transcode jobs",
     maxParallelJobsHelp:
-      "0 = auto (about half of logical CPU cores). Values > 0 pin the maximum to this number.",
+      "Upper bound (>= 1). Default is 2.",
+    maxParallelCpuJobsLabel: "Max parallel CPU transcode jobs",
+    maxParallelCpuJobsHelp:
+      "Applies to software encoders (e.g. x264/x265/SVT-AV1). Default is 2.",
+    maxParallelHwJobsLabel: "Max parallel hardware transcode jobs",
+    maxParallelHwJobsHelp:
+      "Applies to hardware encoders (e.g. NVENC/QSV/AMF). Default is 1.",
     progressUpdateIntervalLabel: "Progress update interval (ms)",
     progressUpdateIntervalHelp:
       "Controls how often the backend reports ffmpeg progress and how much buffering the UI uses. Smaller values are more real-time; larger values are smoother.",

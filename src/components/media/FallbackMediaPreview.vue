@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Copy, ExternalLink } from "lucide-vue-next";
 import {
   buildPreviewUrl,
   extractFallbackPreviewFrame,
@@ -112,7 +113,7 @@ watch(
   { immediate: true },
 );
 
-const requestFrame = async (quality: FallbackFrameQuality) => {
+async function requestFrame(quality: FallbackFrameQuality) {
   if (!hasSourcePath.value || !props.sourcePath) return;
   if (!hasTauri()) return;
 
@@ -138,7 +139,7 @@ const requestFrame = async (quality: FallbackFrameQuality) => {
     frameLoading.value = false;
     frameError.value = (error as Error)?.message ?? String(error);
   }
-};
+}
 
 const handleFrameImgError = async () => {
   const path = framePath.value;
@@ -227,7 +228,7 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else>
-      <div class="w-full h-full flex flex-col gap-2" data-testid="fallback-media-preview">
+      <div class="w-full h-full flex flex-col gap-2 p-2 sm:p-3" data-testid="fallback-media-preview">
         <div class="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-md px-2 py-1.5">
           <div class="font-medium">
             {{ t("previewFallback.title") }}
@@ -257,33 +258,40 @@ onBeforeUnmount(() => {
           </template>
         </div>
 
-        <div class="space-y-2">
-          <Slider
-            v-model="scrubPercent"
-            :min="0"
-            :max="100"
-            :step="1"
-            @update:modelValue="scheduleLowFrame"
-            @valueCommit="commitHighFrame"
-          />
-          <div class="flex items-center justify-end text-[11px] text-muted-foreground">
-            <span>{{ (scrubPercent[0] ?? 0).toFixed(0) }}%</span>
+        <div class="rounded-md border border-border/40 bg-background/5 backdrop-blur-sm p-2 space-y-2">
+          <div class="flex items-center gap-3">
+            <Slider
+              v-model="scrubPercent"
+              class="flex-1"
+              :min="0"
+              :max="100"
+              :step="1"
+              @update:modelValue="scheduleLowFrame"
+              @valueCommit="commitHighFrame"
+            />
+            <span class="min-w-[3.25rem] text-right text-xs text-muted-foreground tabular-nums">
+              {{ (scrubPercent[0] ?? 0).toFixed(0) }}%
+            </span>
           </div>
 
-          <div v-if="frameError" class="text-[11px] text-destructive whitespace-pre-wrap">
+          <div v-if="frameError" class="text-xs text-destructive whitespace-pre-wrap break-words">
             {{ frameError }}
           </div>
-          <div class="flex flex-wrap gap-2">
-            <Button size="xs" class="h-6 px-2 text-[10px]" @click="emit('openInSystemPlayer')">
+
+          <div class="flex flex-wrap justify-end gap-2">
+            <Button size="sm" class="h-7 px-2 text-xs" type="button" @click="emit('openInSystemPlayer')">
+              <ExternalLink />
               {{ t("previewFallback.openInSystemPlayer") }}
             </Button>
             <Button
               v-if="showCopyPathAction"
               variant="outline"
-              size="xs"
-              class="h-6 px-2 text-[10px]"
+              size="sm"
+              class="h-7 px-2 text-xs"
+              type="button"
               @click="emit('copyPath')"
             >
+              <Copy />
               {{ t("jobDetail.copyPath") }}
             </Button>
           </div>

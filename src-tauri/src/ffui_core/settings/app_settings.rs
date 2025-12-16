@@ -8,7 +8,9 @@ pub fn load_settings() -> Result<AppSettings> {
     if !path.exists() {
         return Ok(AppSettings::default());
     }
-    read_json_file(&path)
+    let mut settings: AppSettings = read_json_file(&path)?;
+    settings.normalize();
+    Ok(settings)
 }
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {

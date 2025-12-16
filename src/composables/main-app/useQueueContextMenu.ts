@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type { JobStatus, TranscodeJob } from "@/types";
 import { hasTauri, revealPathInFolder } from "@/lib/backend";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 
 export interface UseQueueContextMenuOptions {
   jobs: Ref<TranscodeJob[]>;
@@ -46,6 +47,8 @@ export interface UseQueueContextMenuReturn {
   handleQueueContextDelete: () => void;
   handleQueueContextOpenInputFolder: () => Promise<void>;
   handleQueueContextOpenOutputFolder: () => Promise<void>;
+  handleQueueContextCopyInputPath: () => Promise<void>;
+  handleQueueContextCopyOutputPath: () => Promise<void>;
 }
 
 export function useQueueContextMenu(
@@ -82,20 +85,27 @@ export function useQueueContextMenu(
     () => queueContextMenuJob.value?.status,
   );
 
+  const normalisePathOrNull = (value: string | undefined | null): string | null => {
+    const path = (value ?? "").trim();
+    return path ? path : null;
+  };
+
+  const getJobInputPath = (job: TranscodeJob): string | null =>
+    normalisePathOrNull(job.inputPath || job.filename);
+
+  const getJobOutputPath = (job: TranscodeJob): string | null =>
+    normalisePathOrNull(job.outputPath || job.waitMetadata?.tmpOutputPath);
+
   const queueContextMenuInputPath = computed<string | null>(() => {
     const job = queueContextMenuJob.value;
     if (!job) return null;
-    const path = job.inputPath || job.filename || "";
-    const trimmed = path.trim();
-    return trimmed ? trimmed : null;
+    return getJobInputPath(job);
   });
 
   const queueContextMenuOutputPath = computed<string | null>(() => {
     const job = queueContextMenuJob.value;
     if (!job) return null;
-    const path = job.outputPath || job.waitMetadata?.tmpOutputPath || "";
-    const trimmed = path?.trim?.() ?? "";
-    return trimmed ? trimmed : null;
+    return getJobOutputPath(job);
   });
 
   const queueContextMenuCanRevealInputPath = computed(
@@ -105,6 +115,34 @@ export function useQueueContextMenu(
   const queueContextMenuCanRevealOutputPath = computed(
     () => hasTauri() && !!queueContextMenuOutputPath.value,
   );
+
+  const selectedJobs = computed(() =>
+    jobs.value.filter((job) => selectedJobIds.value.has(job.id)),
+  );
+
+  const buildCopyText = (paths: Array<string | null>) => {
+    const compact = paths.filter((path): path is string => !!path);
+    if (compact.length === 0) return null;
+    return compact.join("\n");
+  };
+
+  const queueContextMenuCopyInputText = computed(() => {
+    if (queueContextMenuMode.value === "bulk") {
+      return buildCopyText(selectedJobs.value.map(getJobInputPath));
+    }
+    const job = queueContextMenuJob.value;
+    if (!job) return null;
+    return buildCopyText([getJobInputPath(job)]);
+  });
+
+  const queueContextMenuCopyOutputText = computed(() => {
+    if (queueContextMenuMode.value === "bulk") {
+      return buildCopyText(selectedJobs.value.map(getJobOutputPath));
+    }
+    const job = queueContextMenuJob.value;
+    if (!job) return null;
+    return buildCopyText([getJobOutputPath(job)]);
+  });
 
   const openQueueContextMenuForJob = (payload: { job: TranscodeJob; event: MouseEvent }) => {
     const { job, event } = payload;
@@ -220,6 +258,14 @@ export function useQueueContextMenu(
     await revealPathIfAvailable(queueContextMenuOutputPath.value);
   };
 
+  const handleQueueContextCopyInputPath = async () => {
+    await copyToClipboard(queueContextMenuCopyInputText.value);
+  };
+
+  const handleQueueContextCopyOutputPath = async () => {
+    await copyToClipboard(queueContextMenuCopyOutputText.value);
+  };
+
   return {
     queueContextMenuVisible,
     queueContextMenuMode,
@@ -243,5 +289,7 @@ export function useQueueContextMenu(
     handleQueueContextDelete,
     handleQueueContextOpenInputFolder,
     handleQueueContextOpenOutputFolder,
+    handleQueueContextCopyInputPath,
+    handleQueueContextCopyOutputPath,
   };
 }

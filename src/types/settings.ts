@@ -33,6 +33,8 @@ export type PresetViewMode = "grid" | "compact";
 /** UI font family preference (applies globally). */
 export type UiFontFamily = "system" | "sans" | "mono";
 
+export type TranscodeParallelismMode = "unified" | "split";
+
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
@@ -62,8 +64,14 @@ export interface AppSettings {
   presetSortMode?: PresetSortMode;
   /** Optional preset view mode for the presets panel (grid or compact). */
   presetViewMode?: PresetViewMode;
-  /** Optional upper bound for concurrent ffmpeg jobs; 0 or undefined means auto. */
+  /** Concurrency strategy for transcoding workers (unified cap or CPU/HW split). */
+  parallelismMode?: TranscodeParallelismMode;
+  /** Optional upper bound for concurrent ffmpeg jobs; must be >= 1 when set (unified mode). */
   maxParallelJobs?: number;
+  /** Optional upper bound for concurrent CPU/software-encoded jobs; must be >= 1 when set (split mode). */
+  maxParallelCpuJobs?: number;
+  /** Optional upper bound for concurrent hardware-encoded jobs; must be >= 1 when set (split mode). */
+  maxParallelHwJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
   progressUpdateIntervalMs?: number;
   /** Optional interval in milliseconds between system metrics samples for the performance monitor. */

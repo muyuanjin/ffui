@@ -24,6 +24,7 @@ mod common;
 use common::*;
 
 mod crash_recovery_merge_tests;
+mod concurrency_caps_selection;
 mod enqueue_and_logging;
 mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_filters_tests;

@@ -415,6 +415,8 @@ export function useMainAppSetup() {
     handleQueueContextDelete,
     handleQueueContextOpenInputFolder,
     handleQueueContextOpenOutputFolder,
+    handleQueueContextCopyInputPath,
+    handleQueueContextCopyOutputPath,
   } = queueContextMenu;
 
   const { jobDetailLogText, highlightedLogHtml } = useJobLog({
@@ -442,7 +444,6 @@ export function useMainAppSetup() {
     ...media,
     ...preview,
     ...dnd,
-
     currentTitle,
     currentSubtitle,
 
@@ -489,6 +490,8 @@ export function useMainAppSetup() {
     handleQueueContextDelete,
     handleQueueContextOpenInputFolder,
     handleQueueContextOpenOutputFolder,
+    handleQueueContextCopyInputPath,
+    handleQueueContextCopyOutputPath,
   };
   return { mainApp, manualJobPresetId };
 }

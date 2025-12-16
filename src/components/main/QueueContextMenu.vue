@@ -44,6 +44,20 @@
 
         <button
           type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
+          data-testid="queue-context-menu-copy-input"
+          @click="
+            () => {
+              $emit('copy-input-path');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.copyInputPath") }}
+        </button>
+
+        <button
+          type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
           :disabled="!canRevealOutput"
           data-testid="queue-context-menu-open-output"
@@ -56,6 +70,20 @@
           "
         >
           {{ t("queue.actions.openOutputFolder") }}
+        </button>
+
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
+          data-testid="queue-context-menu-copy-output"
+          @click="
+            () => {
+              $emit('copy-output-path');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.copyOutputPath") }}
         </button>
 
         <div class="h-px my-1 bg-border/40" />
@@ -176,6 +204,40 @@
       </template>
 
       <template v-else>
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canBulkBase"
+          data-testid="queue-context-menu-copy-all-input"
+          @click="
+            () => {
+              if (!canBulkBase) return;
+              $emit('copy-input-path');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.copyAllInputPaths") }}
+        </button>
+
+        <button
+          type="button"
+          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canBulkBase"
+          data-testid="queue-context-menu-copy-all-output"
+          @click="
+            () => {
+              if (!canBulkBase) return;
+              $emit('copy-output-path');
+              $emit('close');
+            }
+          "
+        >
+          {{ t("queue.actions.copyAllOutputPaths") }}
+        </button>
+
+        <div class="h-px my-1 bg-border/40" />
+
         <button
           type="button"
           class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
@@ -315,6 +377,8 @@ const emit = defineEmits<{
   (e: "inspect"): void;
   (e: "open-input-folder"): void;
   (e: "open-output-folder"): void;
+  (e: "copy-input-path"): void;
+  (e: "copy-output-path"): void;
   (e: "wait"): void;
   (e: "resume"): void;
   (e: "restart"): void;

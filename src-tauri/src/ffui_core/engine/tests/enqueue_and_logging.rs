@@ -40,6 +40,54 @@ fn enqueue_transcode_job_uses_actual_file_size_and_waiting_status() {
 }
 
 #[test]
+fn enqueue_transcode_job_plans_output_path_with_filename_immediately() {
+    let dir = env::temp_dir();
+    let path = dir.join("ffui_test_output_path.mp4");
+
+    {
+        let mut file = File::create(&path).expect("create temp video file");
+        file.write_all(&[0u8; 1024])
+            .expect("write data to temp video file");
+    }
+
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        path.to_string_lossy().into_owned(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let output_path = job
+        .output_path
+        .as_deref()
+        .expect("output_path should be planned at enqueue time");
+    let output_buf = PathBuf::from(output_path);
+
+    assert_eq!(
+        output_buf.parent(),
+        path.parent(),
+        "output should default to the input directory"
+    );
+    let output_file = output_buf
+        .file_name()
+        .expect("output path should include filename")
+        .to_string_lossy();
+    assert!(
+        output_file.contains("ffui_test_output_path.compressed"),
+        "expected output filename to contain suffix: {output_file}"
+    );
+    assert!(
+        output_file.ends_with(".mp4"),
+        "expected output filename to end with .mp4: {output_file}"
+    );
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
 fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
     let dir = env::temp_dir();
     let path = dir.join("ffui_test_cancel.mp4");

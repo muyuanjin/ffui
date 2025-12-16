@@ -149,6 +149,8 @@ const {
   handleQueueContextDelete,
   handleQueueContextOpenInputFolder,
   handleQueueContextOpenOutputFolder,
+  handleQueueContextCopyInputPath,
+  handleQueueContextCopyOutputPath,
 
   // 对话框栈 / 智能扫描 / 预览
   dialogManager,
@@ -433,6 +435,8 @@ defineExpose({
       @remove="handleQueueContextDelete"
       @open-input-folder="handleQueueContextOpenInputFolder"
       @open-output-folder="handleQueueContextOpenOutputFolder"
+      @copy-input-path="handleQueueContextCopyInputPath"
+      @copy-output-path="handleQueueContextCopyOutputPath"
       @close="closeQueueContextMenu"
     />
 

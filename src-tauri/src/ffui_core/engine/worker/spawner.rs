@@ -11,7 +11,7 @@ use super::super::worker_utils::{
 };
 use super::selection::next_job_for_worker_locked;
 
-/// Spawn worker threads with a bounded count derived from cores/settings.
+/// Spawn (or extend) worker threads to satisfy current concurrency settings.
 pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
     #[cfg(test)]
     {
@@ -20,36 +20,26 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
         }
     }
 
-    let logical_cores = std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1)
-        .max(1);
+    let mut state = inner.state.lock().expect("engine state poisoned");
+    let desired = match state.settings.parallelism_mode() {
+        crate::ffui_core::settings::TranscodeParallelismMode::Unified => {
+            state.settings.effective_max_parallel_jobs() as usize
+        }
+        crate::ffui_core::settings::TranscodeParallelismMode::Split => {
+            (state.settings.effective_max_parallel_cpu_jobs() as usize)
+                + (state.settings.effective_max_parallel_hw_jobs() as usize)
+        }
+    }
+    .max(1);
 
-    let configured_max = {
-        let state = inner.state.lock().expect("engine state poisoned");
-        state.settings.max_parallel_jobs.unwrap_or(0)
-    };
-
-    let auto_workers = if logical_cores >= 4 {
-        std::cmp::max(2, logical_cores / 2)
-    } else {
-        1
-    };
-
-    let worker_count = if configured_max == 0 {
-        auto_workers
-    } else {
-        let max = configured_max as usize;
-        // Clamp into [1, logical_cores] so we never oversubscribe the CPU.
-        max.clamp(1, logical_cores)
-    };
-
-    for index in 0..worker_count {
+    while state.spawned_workers < desired {
+        let index = state.spawned_workers;
         let inner_clone = inner.clone();
         thread::Builder::new()
             .name(format!("ffui-transcode-worker-{index}"))
             .spawn(move || worker_loop(inner_clone))
             .expect("failed to spawn transcoding worker thread");
+        state.spawned_workers += 1;
     }
 }
 

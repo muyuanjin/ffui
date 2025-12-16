@@ -226,7 +226,7 @@ describe("MainApp Tauri presets", () => {
         tools: { autoDownload: true, autoUpdate: false, ffmpegPath: undefined, ffprobePath: undefined, avifencPath: undefined },
         defaultQueuePresetId: "p2",
         smartScanDefaults: buildSmartScanDefaults({ videoPresetId: "p2" }),
-        maxParallelJobs: 0,
+        maxParallelJobs: undefined,
       }),
     } as AppSettings;
 

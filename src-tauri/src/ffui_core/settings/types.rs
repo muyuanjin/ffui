@@ -94,6 +94,15 @@ pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
 /// metrics interval is not explicitly configured via AppSettings.
 pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
 
+/// Default max number of concurrent transcoding jobs when using unified scheduling.
+pub const DEFAULT_MAX_PARALLEL_JOBS: u8 = 2;
+/// Default max number of concurrent CPU/software-encoded jobs when using split scheduling.
+pub const DEFAULT_MAX_PARALLEL_CPU_JOBS: u8 = 2;
+/// Default max number of concurrent hardware-encoded jobs when using split scheduling.
+pub const DEFAULT_MAX_PARALLEL_HW_JOBS: u8 = 1;
+/// Hard upper bound to avoid spawning an unreasonable number of worker threads.
+pub const MAX_PARALLEL_JOBS_LIMIT: u8 = 32;
+
 /// Default UI scale in percent (e.g. 100 = normal).
 pub const DEFAULT_UI_SCALE_PERCENT: u16 = 100;
 
@@ -245,6 +254,14 @@ pub struct AppUpdaterSettings {
     pub available_version: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TranscodeParallelismMode {
+    #[default]
+    Unified,
+    Split,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -294,10 +311,21 @@ pub struct AppSettings {
     /// the first available preset will be used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_queue_preset_id: Option<String>,
-    /// Optional upper bound for concurrent transcoding jobs. When None or 0,
-    /// the engine derives a conservative default based on available cores.
+    /// Concurrency strategy for transcoding workers (unified cap or CPU/HW split).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parallelism_mode: Option<TranscodeParallelismMode>,
+    /// Optional upper bound for concurrent transcoding jobs (unified mode).
+    /// Values must be >= 1; legacy 0 is treated as unset/default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_parallel_jobs: Option<u8>,
+    /// Optional upper bound for concurrent CPU/software-encoded jobs (split mode).
+    /// Values must be >= 1; legacy 0 is treated as unset/default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_parallel_cpu_jobs: Option<u8>,
+    /// Optional upper bound for concurrent hardware-encoded jobs (split mode).
+    /// Values must be >= 1; legacy 0 is treated as unset/default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_parallel_hw_jobs: Option<u8>,
     /// Optional interval in milliseconds between backend progress updates
     /// for ffmpeg-based jobs when using the bundled static binary. When
     /// unset, the engine uses a conservative default so existing installs
@@ -337,6 +365,45 @@ pub struct AppSettings {
 
 fn is_default_output_policy(policy: &OutputPolicy) -> bool {
     *policy == OutputPolicy::default()
+}
+
+impl AppSettings {
+    pub fn normalize(&mut self) {
+        self.max_parallel_jobs = normalize_parallel_limit(self.max_parallel_jobs);
+        self.max_parallel_cpu_jobs = normalize_parallel_limit(self.max_parallel_cpu_jobs);
+        self.max_parallel_hw_jobs = normalize_parallel_limit(self.max_parallel_hw_jobs);
+    }
+
+    pub fn parallelism_mode(&self) -> TranscodeParallelismMode {
+        self.parallelism_mode.unwrap_or_default()
+    }
+
+    pub fn effective_max_parallel_jobs(&self) -> u8 {
+        effective_parallel_limit(self.max_parallel_jobs, DEFAULT_MAX_PARALLEL_JOBS)
+    }
+
+    pub fn effective_max_parallel_cpu_jobs(&self) -> u8 {
+        effective_parallel_limit(self.max_parallel_cpu_jobs, DEFAULT_MAX_PARALLEL_CPU_JOBS)
+    }
+
+    pub fn effective_max_parallel_hw_jobs(&self) -> u8 {
+        effective_parallel_limit(self.max_parallel_hw_jobs, DEFAULT_MAX_PARALLEL_HW_JOBS)
+    }
+}
+
+fn normalize_parallel_limit(value: Option<u8>) -> Option<u8> {
+    match value {
+        Some(0) => None,
+        Some(v) => Some(v.clamp(1, MAX_PARALLEL_JOBS_LIMIT)),
+        None => None,
+    }
+}
+
+fn effective_parallel_limit(value: Option<u8>, default_value: u8) -> u8 {
+    match value {
+        Some(v) if v >= 1 => v.clamp(1, MAX_PARALLEL_JOBS_LIMIT),
+        _ => default_value,
+    }
 }
 
 impl Default for AppSettings {
@@ -409,7 +476,10 @@ impl Default for AppSettings {
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,
+            parallelism_mode: None,
             max_parallel_jobs: None,
+            max_parallel_cpu_jobs: None,
+            max_parallel_hw_jobs: None,
             progress_update_interval_ms: None,
             metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),

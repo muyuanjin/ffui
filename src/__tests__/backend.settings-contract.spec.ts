@@ -40,6 +40,10 @@ const makeAppSettings = (): AppSettings => ({
   smartScanDefaults: buildSmartScanDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
+  parallelismMode: "split",
+  maxParallelJobs: 2,
+  maxParallelCpuJobs: 3,
+  maxParallelHwJobs: 1,
   selectionBarPinned: true,
   taskbarProgressMode: "byEstimatedTime",
   queueOutputPolicy: {
@@ -87,6 +91,10 @@ describe("backend settings contract", () => {
     expect(cmd).toBe("save_app_settings");
     expect(payload).toMatchObject({
       settings: {
+        parallelismMode: "split",
+        maxParallelJobs: 2,
+        maxParallelCpuJobs: 3,
+        maxParallelHwJobs: 1,
         selectionBarPinned: true,
         queueOutputPolicy: {
           container: { mode: "force", format: "mkv" },
