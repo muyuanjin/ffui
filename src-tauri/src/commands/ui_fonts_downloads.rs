@@ -203,8 +203,10 @@ pub fn start_open_source_font_download(
 
         let outcome: Result<(String, u64, Option<u64>), String> =
             tauri::async_runtime::block_on(async {
+                let proxy = network_proxy::resolve_effective_proxy_once();
                 let builder = network_proxy::apply_reqwest_builder(
                     reqwest::Client::builder().timeout(Duration::from_secs(300)),
+                    &proxy,
                 );
                 let client = builder
                     .build()
@@ -329,8 +331,10 @@ pub fn ensure_open_source_font_downloaded(
 
     let tmp = dest.with_extension(format!("{format}.tmp"));
     tauri::async_runtime::block_on(async {
+        let proxy = network_proxy::resolve_effective_proxy_once();
         let builder = network_proxy::apply_reqwest_builder(
             reqwest::Client::builder().timeout(Duration::from_secs(300)),
+            &proxy,
         );
         let client = builder
             .build()

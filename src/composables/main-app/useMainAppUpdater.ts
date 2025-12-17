@@ -3,6 +3,7 @@ import type { AppSettings } from "@/types";
 import {
   fetchAppUpdaterCapabilities,
   hasTauri,
+  prepareAppUpdaterProxy,
   saveAppSettings,
 } from "@/lib/backend";
 
@@ -130,6 +131,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     updateHandle = null;
 
     try {
+      await prepareAppUpdaterProxy();
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       const now = Date.now();
@@ -182,6 +184,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     totalBytes.value = null;
 
     try {
+      await prepareAppUpdaterProxy();
       await updateHandle.downloadAndInstall((event: any) => {
         const kind = event?.event;
         if (kind === "Started") {

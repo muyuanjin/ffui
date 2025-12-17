@@ -96,7 +96,7 @@ const app = {
       "当前自动下载 / 自动更新开关组合不属于以上三种模式，将按你现有配置工作。若希望回到推荐策略，可切换到上面的任一模式。",
     networkProxyTitle: "网络代理",
     networkProxyDescription:
-      "控制 FFUI 对外网络请求（外部工具更新/下载、开源字体下载、应用更新检查与下载等）使用的代理。",
+      "控制 FFUI 对外网络请求（外部工具更新/下载、开源字体下载、应用更新检查与下载等）使用的代理。系统代理目前仅读取“代理服务器”配置，不解析 PAC/WPAD。",
     networkProxyModeLabel: "代理模式",
     networkProxyModeNone: "无代理",
     networkProxyModeSystem: "系统代理",

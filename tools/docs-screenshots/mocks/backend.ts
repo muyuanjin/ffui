@@ -722,6 +722,10 @@ export const fetchAppUpdaterCapabilities = async (): Promise<{ configured: boole
   return { configured: false };
 };
 
+export const prepareAppUpdaterProxy = async (): Promise<string | null> => {
+  return null;
+};
+
 export interface OpenSourceFontInfo {
   id: string;
   name: string;

@@ -52,3 +52,4 @@ mod smart_scan_name_tests;
 mod smart_scan_tests;
 mod tools_download_metadata;
 mod transcode_activity_tests;
+mod network_proxy_startup;

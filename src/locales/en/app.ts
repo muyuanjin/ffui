@@ -97,7 +97,7 @@ const app = {
       "Your current auto-download / auto-update switches do not match the three main modes. The app will follow your existing combination until you pick one of the modes above.",
     networkProxyTitle: "Network proxy",
     networkProxyDescription:
-      "Controls which proxy FFUI uses for outbound network traffic (external tool updates/downloads, open-source font downloads, app update checks/downloads, etc.).",
+      "Controls which proxy FFUI uses for outbound network traffic (external tool updates/downloads, open-source font downloads, app update checks/downloads, etc.). System proxy currently reads only the OS proxy server setting; PAC/WPAD are not evaluated.",
     networkProxyModeLabel: "Proxy mode",
     networkProxyModeNone: "No proxy",
     networkProxyModeSystem: "System proxy",

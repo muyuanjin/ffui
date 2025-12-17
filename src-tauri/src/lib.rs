@@ -105,6 +105,7 @@ pub fn run() {
             commands::ui_fonts::ensure_open_source_font_downloaded,
             commands::ui_fonts::import_ui_font_file,
             commands::updater::get_app_updater_capabilities,
+            commands::updater::prepare_app_updater_proxy,
             commands::tools::get_cpu_usage,
             commands::tools::get_gpu_usage,
             commands::tools::get_external_tool_statuses,

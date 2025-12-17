@@ -20,7 +20,6 @@ import type {
 } from "../types";
 import type { SystemFontFamily } from "./systemFontSearch";
 import type {
-  AppUpdaterCapabilities,
   DownloadedFontInfo,
   OpenSourceFontInfo,
   UiFontDownloadSnapshot,
@@ -39,6 +38,8 @@ export const hasTauri = () => {
   // exists only when `withGlobalTauri` is enabled. We treat either as Tauri.
   return "__TAURI_IPC__" in w || "__TAURI__" in w;
 };
+
+export { fetchAppUpdaterCapabilities, prepareAppUpdaterProxy } from "./backend.updater";
 
 export const loadAppSettings = async (): Promise<AppSettings> => {
   return invoke<AppSettings>("get_app_settings");
@@ -112,11 +113,6 @@ export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFo
     sourcePath: normalized,
     source_path: normalized,
   });
-};
-
-export const fetchAppUpdaterCapabilities = async (): Promise<AppUpdaterCapabilities> => {
-  if (!hasTauri()) return { configured: false };
-  return invoke<AppUpdaterCapabilities>("get_app_updater_capabilities");
 };
 
 export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {

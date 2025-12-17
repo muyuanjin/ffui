@@ -11,11 +11,15 @@ use crate::ffui_core::tools::probe::configure_background_command;
 use crate::ffui_core::tools::resolve::tool_binary_name;
 use crate::ffui_core::tools::types::ExternalToolKind;
 
-fn build_reqwest_client(timeout: Duration, context_label: &'static str) -> Result<reqwest::Client> {
+fn build_reqwest_client(
+    timeout: Duration,
+    context_label: &'static str,
+    proxy: &network_proxy::ResolvedNetworkProxy,
+) -> Result<reqwest::Client> {
     use reqwest::Client;
 
     let builder = Client::builder().timeout(timeout);
-    let builder = network_proxy::apply_reqwest_builder(builder);
+    let builder = network_proxy::apply_reqwest_builder(builder, proxy);
 
     builder.build()
         .with_context(|| format!("failed to build HTTP client for {context_label}"))
@@ -43,7 +47,8 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<()> {
 
     let mut cmd = Command::new("aria2c");
     configure_background_command(&mut cmd);
-    network_proxy::apply_aria2c_args(&mut cmd);
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    network_proxy::apply_aria2c_args(&mut cmd, &proxy);
     let status = cmd
         .arg("--allow-overwrite=true")
         .arg("--auto-file-renaming=false")
@@ -81,7 +86,12 @@ where
     fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
 
     tauri::async_runtime::block_on(async move {
-        let client = build_reqwest_client(Duration::from_secs(30), "ffmpeg-static download")?;
+        let proxy = network_proxy::resolve_effective_proxy_once();
+        let client = build_reqwest_client(
+            Duration::from_secs(30),
+            "ffmpeg-static download",
+            &proxy,
+        )?;
 
         let mut resp = client.get(url).send().await.with_context(|| {
             format!(
@@ -128,7 +138,8 @@ where
     F: FnMut(u64, Option<u64>),
 {
     tauri::async_runtime::block_on(async move {
-        let client = build_reqwest_client(Duration::from_secs(30), "avifenc download")?;
+        let proxy = network_proxy::resolve_effective_proxy_once();
+        let client = build_reqwest_client(Duration::from_secs(30), "avifenc download", &proxy)?;
 
         let mut resp = client
             .get(url)
@@ -183,7 +194,9 @@ fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
 /// to provide determinate progress for aria2c-driven downloads.
 pub(crate) fn content_length_head(url: &str) -> Option<u64> {
     tauri::async_runtime::block_on(async move {
-        let client = build_reqwest_client(Duration::from_secs(5), "content-length probe").ok()?;
+        let proxy = network_proxy::resolve_effective_proxy_once();
+        let client =
+            build_reqwest_client(Duration::from_secs(5), "content-length probe", &proxy).ok()?;
         let resp = client.head(url).send().await.ok()?;
         resp.headers()
             .get(reqwest::header::CONTENT_LENGTH)

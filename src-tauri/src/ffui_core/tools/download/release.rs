@@ -115,10 +115,11 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
     tauri::async_runtime::block_on(async move {
         use reqwest::Client;
 
+        let proxy = network_proxy::resolve_effective_proxy_once();
         let builder = Client::builder()
             .timeout(Duration::from_secs(5))
             .user_agent("ffui/ffmpeg-static-updater");
-        let builder = network_proxy::apply_reqwest_builder(builder);
+        let builder = network_proxy::apply_reqwest_builder(builder, &proxy);
 
         let client = builder.build().ok()?;
         let resp = client
@@ -149,10 +150,11 @@ fn fetch_libavif_release_from_github() -> Option<String> {
     tauri::async_runtime::block_on(async move {
         use reqwest::Client;
 
+        let proxy = network_proxy::resolve_effective_proxy_once();
         let builder = Client::builder()
             .timeout(Duration::from_secs(5))
             .user_agent("ffui/libavif-updater");
-        let builder = network_proxy::apply_reqwest_builder(builder);
+        let builder = network_proxy::apply_reqwest_builder(builder, &proxy);
 
         let client = builder.build().ok()?;
         let resp = client
