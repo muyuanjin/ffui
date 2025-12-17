@@ -58,4 +58,3 @@ fn engine_new_does_not_resolve_system_proxy_on_startup_path() {
         "engine startup must not trigger system proxy discovery"
     );
 }
-

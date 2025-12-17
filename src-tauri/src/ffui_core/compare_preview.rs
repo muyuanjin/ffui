@@ -301,7 +301,13 @@ mod tests {
             msg.contains("segmentPaths contains a non-readable file:"),
             "should include a stable error prefix: {msg}"
         );
-        assert!(msg.contains("missing-seg0.mp4"), "should include the path: {msg}");
-        assert!(msg.contains("os error"), "should include OS error details: {msg}");
+        assert!(
+            msg.contains("missing-seg0.mp4"),
+            "should include the path: {msg}"
+        );
+        assert!(
+            msg.contains("os error"),
+            "should include OS error details: {msg}"
+        );
     }
 }

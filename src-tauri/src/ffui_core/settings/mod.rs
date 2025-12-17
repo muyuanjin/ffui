@@ -2,8 +2,8 @@
 pub(super) mod io;
 
 // Settings type definitions
-pub mod types;
 pub mod proxy;
+pub mod types;
 pub use types::{DEFAULT_METRICS_INTERVAL_MS, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS};
 
 // FFmpeg preset management
@@ -21,9 +21,9 @@ mod tests;
 // Re-export types and main API
 pub use app_settings::{load_settings, save_settings};
 pub use presets::{load_presets, save_presets};
+pub use proxy::{NetworkProxyMode, NetworkProxySettings};
 pub use smart_presets::hardware_smart_default_presets;
 pub use types::{
     AppSettings, DownloadedToolInfo, DownloadedToolState, ExternalToolSettings,
     TaskbarProgressMode, TaskbarProgressScope, TranscodeParallelismMode,
 };
-pub use proxy::{NetworkProxyMode, NetworkProxySettings};

@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
+use super::proxy::NetworkProxySettings;
 use crate::ffui_core::domain::{
     FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType, SmartScanConfig,
 };
-use super::proxy::NetworkProxySettings;
 
 /// Human-readable metadata for a downloaded tool binary.
 /// All fields are optional so existing settings.json files remain valid and minimal.

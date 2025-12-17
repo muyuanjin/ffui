@@ -28,13 +28,14 @@ fn app_settings_round_trips_network_proxy_settings() {
         "networkProxy.proxyUrl must serialize in camelCase"
     );
 
-    let decoded: AppSettings =
-        serde_json::from_value(json).expect("round-trip deserialize AppSettings with network proxy");
-    let decoded_proxy = decoded.network_proxy.expect("decoded network proxy present");
+    let decoded: AppSettings = serde_json::from_value(json)
+        .expect("round-trip deserialize AppSettings with network proxy");
+    let decoded_proxy = decoded
+        .network_proxy
+        .expect("decoded network proxy present");
     assert_eq!(decoded_proxy.mode, NetworkProxyMode::Custom);
     assert_eq!(
         decoded_proxy.proxy_url.as_deref(),
         Some("http://127.0.0.1:7890")
     );
 }
-

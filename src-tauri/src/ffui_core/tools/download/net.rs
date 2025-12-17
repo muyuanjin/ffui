@@ -21,7 +21,8 @@ fn build_reqwest_client(
     let builder = Client::builder().timeout(timeout);
     let builder = network_proxy::apply_reqwest_builder(builder, proxy);
 
-    builder.build()
+    builder
+        .build()
         .with_context(|| format!("failed to build HTTP client for {context_label}"))
 }
 
@@ -87,11 +88,8 @@ where
 
     tauri::async_runtime::block_on(async move {
         let proxy = network_proxy::resolve_effective_proxy_once();
-        let client = build_reqwest_client(
-            Duration::from_secs(30),
-            "ffmpeg-static download",
-            &proxy,
-        )?;
+        let client =
+            build_reqwest_client(Duration::from_secs(30), "ffmpeg-static download", &proxy)?;
 
         let mut resp = client.get(url).send().await.with_context(|| {
             format!(

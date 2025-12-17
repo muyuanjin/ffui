@@ -145,6 +145,9 @@ pub fn reorder_queue(engine: State<'_, TranscodingEngine>, ordered_ids: Vec<Stri
 
 /// Fetch full details for a single job, including logs and media metadata.
 #[tauri::command]
-pub fn get_job_detail(engine: State<'_, TranscodingEngine>, job_id: String) -> Option<TranscodeJob> {
+pub fn get_job_detail(
+    engine: State<'_, TranscodingEngine>,
+    job_id: String,
+) -> Option<TranscodeJob> {
     engine.job_detail(&job_id)
 }

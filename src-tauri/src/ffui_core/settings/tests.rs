@@ -2,9 +2,9 @@ use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 use serde_json::{Value, json};
 
+mod network_proxy;
 mod presets_loading;
 mod tests_selection_bar_pinned;
-mod network_proxy;
 
 #[test]
 fn app_settings_default_uses_preview_capture_percent_25() {

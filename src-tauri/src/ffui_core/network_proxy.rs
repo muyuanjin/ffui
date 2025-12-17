@@ -72,32 +72,32 @@ pub fn apply_reqwest_builder(
         let _ = resolved;
         // Unit tests should be deterministic and avoid inheriting platform/system
         // proxy configuration (common on Windows via WinHTTP/WinINet).
-        return builder.no_proxy();
+        builder.no_proxy()
     }
 
     #[cfg(not(test))]
-    let mode = resolved.mode;
-    #[cfg(not(test))]
-    let proxy_url = resolved.proxy_url.clone();
-    #[cfg(not(test))]
-    match mode {
-        NetworkProxyMode::None => builder.no_proxy(),
-        NetworkProxyMode::Custom => {
-            if let Some(url) = proxy_url
-                && let Ok(proxy) = reqwest::Proxy::all(&url)
-            {
-                builder.proxy(proxy)
-            } else {
-                builder
+    {
+        let mode = resolved.mode;
+        let proxy_url = resolved.proxy_url.clone();
+        match mode {
+            NetworkProxyMode::None => builder.no_proxy(),
+            NetworkProxyMode::Custom => {
+                if let Some(url) = proxy_url
+                    && let Ok(proxy) = reqwest::Proxy::all(&url)
+                {
+                    builder.proxy(proxy)
+                } else {
+                    builder
+                }
             }
-        }
-        NetworkProxyMode::System => {
-            if let Some(url) = proxy_url
-                && let Ok(proxy) = reqwest::Proxy::all(&url)
-            {
-                builder.proxy(proxy)
-            } else {
-                builder
+            NetworkProxyMode::System => {
+                if let Some(url) = proxy_url
+                    && let Ok(proxy) = reqwest::Proxy::all(&url)
+                {
+                    builder.proxy(proxy)
+                } else {
+                    builder
+                }
             }
         }
     }
@@ -209,11 +209,11 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
 
 #[cfg(windows)]
 fn proxy_from_windows_inet_settings() -> Option<String> {
-    use windows::core::{HSTRING, PCWSTR};
     use windows::Win32::Foundation::ERROR_SUCCESS;
     use windows::Win32::System::Registry::{
         HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ, RegGetValueW,
     };
+    use windows::core::{HSTRING, PCWSTR};
 
     const SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
 
@@ -258,7 +258,7 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
             return None;
         }
 
-        let mut buf: Vec<u16> = vec![0u16; (size as usize + 1) / 2];
+        let mut buf: Vec<u16> = vec![0u16; (size as usize).div_ceil(2)];
         // SAFETY: `buf` is a valid writable buffer of `size` bytes (or larger).
         let status = unsafe {
             RegGetValueW(
@@ -357,7 +357,9 @@ impl Drop for TestPlatformProxyHookGuard {
 }
 
 #[cfg(test)]
-pub(crate) fn install_test_platform_proxy_hook(hook: PlatformProxyHook) -> TestPlatformProxyHookGuard {
+pub(crate) fn install_test_platform_proxy_hook(
+    hook: PlatformProxyHook,
+) -> TestPlatformProxyHookGuard {
     let prev = TEST_PLATFORM_PROXY_HOOK.with(|slot| slot.borrow_mut().replace(hook));
     TestPlatformProxyHookGuard { prev }
 }
@@ -365,8 +367,8 @@ pub(crate) fn install_test_platform_proxy_hook(hook: PlatformProxyHook) -> TestP
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
@@ -441,7 +443,10 @@ mod tests {
             .get_args()
             .map(|s| s.to_string_lossy().into_owned())
             .collect::<Vec<_>>();
-        assert!(args.windows(2).any(|w| w[0] == "--all-proxy" && w[1] == "http://127.0.0.1:7890"));
+        assert!(
+            args.windows(2)
+                .any(|w| w[0] == "--all-proxy" && w[1] == "http://127.0.0.1:7890")
+        );
 
         apply_settings(Some(&NetworkProxySettings {
             mode: NetworkProxyMode::None,

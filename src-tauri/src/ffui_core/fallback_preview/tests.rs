@@ -116,5 +116,8 @@ fn extract_fallback_frame_reports_source_path_and_os_error() {
         msg.contains(&missing_str),
         "should include the source path: {msg}"
     );
-    assert!(msg.contains("os error"), "should include OS error details: {msg}");
+    assert!(
+        msg.contains("os error"),
+        "should include OS error details: {msg}"
+    );
 }
