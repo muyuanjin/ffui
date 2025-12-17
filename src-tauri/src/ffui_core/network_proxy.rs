@@ -155,8 +155,17 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
 fn proxy_from_windows_inet_settings() -> Option<String> {
     use std::process::Command;
 
+    // Avoid visible console windows when spawning helper commands on Windows.
+    fn configure_background_command(cmd: &mut Command) {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
     fn query_value(name: &str) -> Option<String> {
-        let output = Command::new("reg")
+        let mut cmd = Command::new("reg");
+        configure_background_command(&mut cmd);
+        let output = cmd
             .arg("query")
             .arg(r#"HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings"#)
             .arg("/v")
