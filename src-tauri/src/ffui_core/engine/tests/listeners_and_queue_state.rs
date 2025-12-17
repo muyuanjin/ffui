@@ -228,7 +228,11 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
     assert_eq!(j.preset_id, job.preset_id);
     assert!(matches!(j.status, JobStatus::Waiting));
     // Lite snapshot exposes metadata like queueOrder and media/output fields.
-    assert!(j.queue_order.is_some(), "lite snapshot surfaces queueOrder");
+    assert_eq!(
+        j.queue_order,
+        Some(0),
+        "lite snapshot should assign queueOrder 0 for the first waiting job"
+    );
     // Heavy fields like the full `logs` vector must not be present on the
     // lite struct; they are only available via the full job detail endpoint.
     // (TranscodeJobLite does not carry a logs field, so we only assert on

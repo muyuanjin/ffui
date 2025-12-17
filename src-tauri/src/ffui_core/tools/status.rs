@@ -101,13 +101,19 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
     let mut source: Option<String> = None;
     let mut version: Option<String> = None;
 
-    let mut candidates: Vec<(String, String)> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut push_candidate = |path: String, source: &str| {
+    fn push_candidate(
+        seen: &mut HashSet<String>,
+        candidates: &mut Vec<(String, String)>,
+        path: String,
+        source: &str,
+    ) {
         if seen.insert(path.clone()) {
             candidates.push((path, source.to_string()));
         }
-    };
+    }
+
+    let mut candidates: Vec<(String, String)> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
 
     if let Some(custom_raw) = custom_path_for(kind, settings) {
         let expanded = if super::resolve::looks_like_bare_program_name(&custom_raw) {
@@ -117,37 +123,58 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         } else {
             custom_raw
         };
-        push_candidate(expanded, "custom");
+        push_candidate(&mut seen, &mut candidates, expanded, "custom");
     }
 
     if !runtime.download_arch_incompatible
         && let Some(downloaded) = downloaded_tool_path(kind)
     {
-        push_candidate(downloaded.to_string_lossy().into_owned(), "download");
+        push_candidate(
+            &mut seen,
+            &mut candidates,
+            downloaded.to_string_lossy().into_owned(),
+            "download",
+        );
     }
 
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_else(|| bin.clone());
-    push_candidate(path_candidate.clone(), "path");
+    push_candidate(&mut seen, &mut candidates, path_candidate.clone(), "path");
 
-    // Enrich with additional discovered candidates (env overrides, registry,
-    // Everything search). We expose them as PATH-sourced for UI stability.
-    for discovered in discover_candidates(&bin, kind) {
-        let s = discovered.path.to_string_lossy().into_owned();
-        push_candidate(s, discovered.source);
-    }
-
-    for (path, src) in candidates {
+    // Fast path: custom/download/PATH candidates are authoritative. Only do
+    // secondary discovery (env/registry/indexers) if these candidates fail,
+    // so startup refresh does not pay for scans it will never use.
+    for (path, src) in candidates.iter() {
         if src == "path" && runtime.path_arch_incompatible {
             continue;
         }
-        if verify_tool_binary(&path, kind, &src) {
-            version = detect_local_tool_version(&path, kind);
-            resolved_path = Some(path);
-            source = Some(src);
+        if verify_tool_binary(path, kind, src) {
+            version = detect_local_tool_version(path, kind);
+            resolved_path = Some(path.clone());
+            source = Some(src.clone());
             break;
+        }
+    }
+
+    if resolved_path.is_none() {
+        let discovered_start = candidates.len();
+        for discovered in discover_candidates(&bin, kind) {
+            let s = discovered.path.to_string_lossy().into_owned();
+            push_candidate(&mut seen, &mut candidates, s, discovered.source);
+        }
+
+        for (path, src) in candidates[discovered_start..].iter() {
+            if src == "path" && runtime.path_arch_incompatible {
+                continue;
+            }
+            if verify_tool_binary(path, kind, src) {
+                version = detect_local_tool_version(path, kind);
+                resolved_path = Some(path.clone());
+                source = Some(src.clone());
+                break;
+            }
         }
     }
 

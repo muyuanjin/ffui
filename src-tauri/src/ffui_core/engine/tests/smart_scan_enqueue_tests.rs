@@ -26,10 +26,11 @@ fn smart_scan_video_enqueue_keeps_batch_children_consecutive_even_when_manual_in
     };
 
     let settings = engine.settings();
-    let preset = engine
-        .presets()
-        .into_iter()
+    let presets = engine.presets();
+    let preset = presets
+        .iter()
         .find(|p| p.id == "preset-1")
+        .cloned()
         .expect("test preset must exist");
 
     let job1 = enqueue_smart_scan_video_job(

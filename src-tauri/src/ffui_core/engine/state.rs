@@ -58,7 +58,7 @@ pub(crate) struct SmartScanBatch {
 }
 
 pub(crate) struct EngineState {
-    pub(crate) presets: Vec<FFmpegPreset>,
+    pub(crate) presets: Arc<Vec<FFmpegPreset>>,
     pub(crate) settings: AppSettings,
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
@@ -94,7 +94,7 @@ pub(crate) struct EngineState {
 impl EngineState {
     pub(crate) fn new(presets: Vec<FFmpegPreset>, settings: AppSettings) -> Self {
         Self {
-            presets,
+            presets: Arc::new(presets),
             settings,
             jobs: HashMap::new(),
             queue: VecDeque::new(),
@@ -157,15 +157,15 @@ fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
     // Build a stable mapping from job id -> queue index so snapshots can
     // surface a `queueOrder` field for waiting jobs without mutating the
     // underlying engine state.
-    let mut order_by_id: HashMap<String, u64> = HashMap::new();
+    let mut order_by_id: HashMap<&str, u64> = HashMap::with_capacity(state.queue.len());
     for (index, id) in state.queue.iter().enumerate() {
-        order_by_id.insert(id.clone(), index as u64);
+        order_by_id.insert(id.as_str(), index as u64);
     }
 
     let mut jobs: Vec<TranscodeJob> = Vec::with_capacity(state.jobs.len());
     for (id, job) in state.jobs.iter() {
         let mut clone = job.clone();
-        clone.queue_order = order_by_id.get(id).copied();
+        clone.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(clone);
     }
 
@@ -183,15 +183,15 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
 fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStateLite {
     use std::collections::HashMap;
 
-    let mut order_by_id: HashMap<String, u64> = HashMap::new();
+    let mut order_by_id: HashMap<&str, u64> = HashMap::with_capacity(state.queue.len());
     for (index, id) in state.queue.iter().enumerate() {
-        order_by_id.insert(id.clone(), index as u64);
+        order_by_id.insert(id.as_str(), index as u64);
     }
 
     let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
     for (id, job) in state.jobs.iter() {
         let mut lite = TranscodeJobLite::from(job);
-        lite.queue_order = order_by_id.get(id).copied();
+        lite.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(lite);
     }
 

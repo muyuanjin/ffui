@@ -449,14 +449,15 @@ fn execute_transcode_job(
         if original_size_bytes > 0 && final_output_size_bytes > 0 && elapsed > 0.0 {
             let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
             let output_mb = final_output_size_bytes as f64 / (1024.0 * 1024.0);
-            if let Some(preset) = state.presets.iter_mut().find(|p| p.id == preset_id) {
+            let presets = std::sync::Arc::make_mut(&mut state.presets);
+            if let Some(preset) = presets.iter_mut().find(|p| p.id == preset_id) {
                 preset.stats.usage_count += 1;
                 preset.stats.total_input_size_mb += input_mb;
                 preset.stats.total_output_size_mb += output_mb;
                 preset.stats.total_time_seconds += elapsed;
             }
             // Persist updated presets.
-            let _ = crate::ffui_core::settings::save_presets(&state.presets);
+            let _ = crate::ffui_core::settings::save_presets(presets);
         }
     }
 

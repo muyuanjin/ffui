@@ -113,4 +113,78 @@ mod tools_tests_probe {
             let _ = fs::remove_file(&path);
         }
     }
+
+    #[test]
+    fn tool_status_does_not_spawn_ffmpeg_twice_for_version() {
+        use crate::ffui_core::settings::ExternalToolSettings;
+        use crate::ffui_core::tools::{ExternalToolKind, tool_status};
+
+        let dir = tempfile::tempdir().expect("create temp dir for tool_status spawn test");
+        let counter_path = dir.path().join("ffui_ffmpeg_spawn_count.txt");
+
+        #[cfg(windows)]
+        let script_path = {
+            let path = dir.path().join("fake_ffmpeg_counter.bat");
+            let mut file = File::create(&path).expect("create fake ffmpeg .bat");
+            writeln!(file, "@echo off").unwrap();
+            writeln!(file, "echo x>>\"{}\"", counter_path.display()).unwrap();
+            writeln!(file, "echo ffmpeg version 9.9.9").unwrap();
+            writeln!(file, "exit /b 0").unwrap();
+            drop(file);
+            path
+        };
+
+        #[cfg(not(windows))]
+        let script_path = {
+            let path = dir.path().join("fake_ffmpeg_counter.sh");
+            let mut file = File::create(&path).expect("create fake ffmpeg script");
+            writeln!(file, "#!/usr/bin/env sh").unwrap();
+            writeln!(file, "n=0").unwrap();
+            writeln!(
+                file,
+                "if [ -f \"{}\" ]; then n=$(cat \"{}\" 2>/dev/null || echo 0); fi",
+                counter_path.display(),
+                counter_path.display()
+            )
+            .unwrap();
+            writeln!(file, "n=$((n+1))").unwrap();
+            writeln!(file, "echo \"$n\" > \"{}\"", counter_path.display()).unwrap();
+            writeln!(file, "echo \"ffmpeg version 9.9.9\"").unwrap();
+            writeln!(file, "exit 0").unwrap();
+            drop(file);
+
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let mut perms = fs::metadata(&path)
+                    .expect("read permissions for fake ffmpeg script")
+                    .permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(&path, perms).expect("mark fake ffmpeg script as executable");
+            }
+
+            path
+        };
+
+        let mut settings = ExternalToolSettings::default();
+        settings.ffmpeg_path = Some(script_path.to_string_lossy().into_owned());
+
+        let status = tool_status(ExternalToolKind::Ffmpeg, &settings);
+        assert_eq!(
+            status.resolved_path.as_deref(),
+            settings.ffmpeg_path.as_deref(),
+            "expected tool_status to pick the custom ffmpeg path"
+        );
+
+        let count_raw = fs::read_to_string(&counter_path).unwrap_or_default();
+        #[cfg(windows)]
+        let spawn_count = count_raw.lines().filter(|l| l.trim() == "x").count();
+        #[cfg(not(windows))]
+        let spawn_count = count_raw.trim().parse::<u32>().unwrap_or(0);
+
+        assert_eq!(
+            spawn_count, 1,
+            "expected ffmpeg to be spawned exactly once for verify+version"
+        );
+    }
 }

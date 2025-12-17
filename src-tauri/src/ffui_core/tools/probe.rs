@@ -72,6 +72,7 @@ fn file_fingerprint(path: &str) -> Option<FileFingerprint> {
 #[derive(Clone, Debug)]
 struct VerifyCacheEntry {
     ok: bool,
+    version: Option<String>,
     fingerprint: Option<FileFingerprint>,
     last_checked: std::time::Instant,
 }
@@ -80,37 +81,54 @@ static VERIFY_CACHE: once_cell::sync::Lazy<
     std::sync::Mutex<HashMap<(ExternalToolKind, String), VerifyCacheEntry>>,
 > = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
 
-fn cache_lookup(kind: ExternalToolKind, path: &str) -> Option<bool> {
+fn cache_lookup(kind: ExternalToolKind, path: &str) -> Option<VerifyCacheEntry> {
     let key = (kind, path.to_string());
     let fp_now = file_fingerprint(path);
     let map = VERIFY_CACHE.lock().ok()?;
     if let Some(entry) = map.get(&key) {
         // If we have a stable fingerprint and it hasn't changed, reuse cached result.
         if entry.fingerprint.is_some() && entry.fingerprint == fp_now {
-            return Some(entry.ok);
+            return Some(entry.clone());
         }
-        // If we have no fingerprint (e.g. bare program name), reuse negative result briefly.
-        if entry.fingerprint.is_none()
-            && !entry.ok
-            && entry.last_checked.elapsed() < Duration::from_secs(2)
-        {
-            return Some(entry.ok);
+        // If we have no fingerprint (e.g. bare program name), reuse results briefly
+        // to avoid redundant spawns within the same refresh task.
+        if entry.fingerprint.is_none() && entry.last_checked.elapsed() < Duration::from_secs(2) {
+            return Some(entry.clone());
         }
     }
     None
 }
 
-fn cache_store(kind: ExternalToolKind, path: &str, ok: bool) {
+fn cache_store_with_version(kind: ExternalToolKind, path: &str, ok: bool, version: Option<String>) {
     let key = (kind, path.to_string());
     let fp = file_fingerprint(path);
     let entry = VerifyCacheEntry {
         ok,
+        version,
         fingerprint: fp,
         last_checked: std::time::Instant::now(),
     };
     if let Ok(mut map) = VERIFY_CACHE.lock() {
         map.insert(key, entry);
     }
+}
+
+fn extract_ffmpeg_version_line(stdout: &[u8]) -> Option<String> {
+    let s = String::from_utf8_lossy(stdout);
+    s.lines().next().map(|l| l.trim().to_string())
+}
+
+fn extract_first_non_empty_line(stdout: &[u8], stderr: &[u8]) -> Option<String> {
+    let stdout_s = String::from_utf8_lossy(stdout);
+    if let Some(line) = stdout_s.lines().map(str::trim).find(|l| !l.is_empty()) {
+        return Some(line.to_string());
+    }
+    let stderr_s = String::from_utf8_lossy(stderr);
+    stderr_s
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty())
+        .map(|l| l.to_string())
 }
 
 #[cfg(windows)]
@@ -172,8 +190,8 @@ fn pe_arch_compatible_with_host(machine: u16) -> bool {
 
 pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &str) -> bool {
     let debug_log = std::env::var("FFUI_TEST_LOG").is_ok();
-    if let Some(ok) = cache_lookup(kind, path) {
-        return ok;
+    if let Some(entry) = cache_lookup(kind, path) {
+        return entry.ok;
     }
     // 避免在 Windows 上对明显不是 PE 可执行文件的 .exe 进行 spawn，
     // 例如测试遗留的占位文本文件，从而防止系统弹出“不支持的 16 位应用程序”。
@@ -206,10 +224,10 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     if !ok {
                         let err = std::io::Error::from_raw_os_error(193);
                         mark_arch_incompatible_for_session(kind, source, path, &err);
-                        cache_store(kind, path, false);
+                        cache_store_with_version(kind, path, false, None);
                         return false;
                     }
-                    cache_store(kind, path, true);
+                    cache_store_with_version(kind, path, true, None);
                     if debug_log {
                         eprintln!(
                             "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
@@ -218,7 +236,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     return true;
                 }
             }
-            cmd.arg("--help");
+            cmd.arg("--version");
             match cmd.output() {
                 Ok(out) => {
                     if debug_log {
@@ -231,7 +249,8 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                             out.stderr.len()
                         );
                     }
-                    cache_store(kind, path, true);
+                    let version = extract_first_non_empty_line(&out.stdout, &out.stderr);
+                    cache_store_with_version(kind, path, true, version);
                     true
                 }
                 Err(err) => {
@@ -247,7 +266,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     if is_exec_arch_mismatch(&err) {
                         mark_arch_incompatible_for_session(kind, source, path, &err);
                     }
-                    cache_store(kind, path, false);
+                    cache_store_with_version(kind, path, false, None);
                     false
                 }
             }
@@ -269,7 +288,12 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                         );
                     }
                     let ok = out.status.success();
-                    cache_store(kind, path, ok);
+                    let version = if ok {
+                        extract_ffmpeg_version_line(&out.stdout)
+                    } else {
+                        None
+                    };
+                    cache_store_with_version(kind, path, ok, version);
                     ok
                 }
                 Err(err) => {
@@ -288,7 +312,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                         // a broken binary.
                         mark_arch_incompatible_for_session(kind, source, path, &err);
                     }
-                    cache_store(kind, path, false);
+                    cache_store_with_version(kind, path, false, None);
                     false
                 }
             }
@@ -297,6 +321,12 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
 }
 
 pub(super) fn detect_local_tool_version(path: &str, kind: ExternalToolKind) -> Option<String> {
+    if let Some(entry) = cache_lookup(kind, path)
+        && entry.ok
+        && let Some(version) = entry.version
+    {
+        return Some(version);
+    }
     #[cfg(windows)]
     {
         if path.to_ascii_lowercase().ends_with(".exe") && !looks_like_pe_executable(path) {
@@ -306,26 +336,23 @@ pub(super) fn detect_local_tool_version(path: &str, kind: ExternalToolKind) -> O
     }
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
-    match kind {
+    let version = match kind {
         ExternalToolKind::Avifenc => {
             // avifenc uses GNU-style `--version` in upstream builds; some versions
             // may print to stderr or exit non-zero, so we accept any output.
-            cmd.arg("--version").output().ok().and_then(|out| {
-                let stdout = String::from_utf8(out.stdout).ok().unwrap_or_default();
-                let stderr = String::from_utf8(out.stderr).ok().unwrap_or_default();
-                let first = stdout
-                    .lines()
-                    .map(str::trim)
-                    .find(|l| !l.is_empty())
-                    .or_else(|| stderr.lines().map(str::trim).find(|l| !l.is_empty()));
-                first.map(|l| l.to_string())
-            })
+            cmd.arg("--version")
+                .output()
+                .ok()
+                .and_then(|out| extract_first_non_empty_line(&out.stdout, &out.stderr))
         }
         _ => cmd
             .arg("-version")
             .output()
             .ok()
-            .and_then(|out| String::from_utf8(out.stdout).ok())
-            .and_then(|s| s.lines().next().map(|l| l.trim().to_string())),
+            .and_then(|out| extract_ffmpeg_version_line(&out.stdout)),
+    };
+    if version.is_some() {
+        cache_store_with_version(kind, path, true, version.clone());
     }
+    version
 }

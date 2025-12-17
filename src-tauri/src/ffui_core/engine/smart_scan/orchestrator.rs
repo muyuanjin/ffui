@@ -123,7 +123,7 @@ fn run_auto_compress_background(
     root: PathBuf,
     config: SmartScanConfig,
     settings_snapshot: AppSettings,
-    presets: Vec<FFmpegPreset>,
+    presets: Arc<Vec<FFmpegPreset>>,
     batch_id: String,
 ) {
     let mut queue_dirty = false;

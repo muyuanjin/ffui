@@ -8,10 +8,11 @@
 use tauri::State;
 
 use crate::ffui_core::{FFmpegPreset, TranscodingEngine, hardware_smart_default_presets};
+use std::sync::Arc;
 
 /// Get all available FFmpeg presets.
 #[tauri::command]
-pub fn get_presets(engine: State<'_, TranscodingEngine>) -> Vec<FFmpegPreset> {
+pub fn get_presets(engine: State<'_, TranscodingEngine>) -> Arc<Vec<FFmpegPreset>> {
     engine.presets()
 }
 
@@ -31,7 +32,7 @@ pub fn get_smart_default_presets(engine: State<'_, TranscodingEngine>) -> Vec<FF
 pub fn save_preset(
     engine: State<'_, TranscodingEngine>,
     preset: FFmpegPreset,
-) -> Result<Vec<FFmpegPreset>, String> {
+) -> Result<Arc<Vec<FFmpegPreset>>, String> {
     engine.save_preset(preset).map_err(|e| e.to_string())
 }
 
@@ -40,7 +41,7 @@ pub fn save_preset(
 pub fn delete_preset(
     engine: State<'_, TranscodingEngine>,
     preset_id: String,
-) -> Result<Vec<FFmpegPreset>, String> {
+) -> Result<Arc<Vec<FFmpegPreset>>, String> {
     engine.delete_preset(&preset_id).map_err(|e| e.to_string())
 }
 
@@ -49,7 +50,7 @@ pub fn delete_preset(
 pub fn reorder_presets(
     engine: State<'_, TranscodingEngine>,
     ordered_ids: Vec<String>,
-) -> Result<Vec<FFmpegPreset>, String> {
+) -> Result<Arc<Vec<FFmpegPreset>>, String> {
     engine
         .reorder_presets(&ordered_ids)
         .map_err(|e| e.to_string())

@@ -39,6 +39,7 @@ mod job_wait_wall_clock;
 mod listeners_and_queue_state;
 mod network_proxy_startup;
 mod output_policy_paths_tests;
+mod presets_snapshot;
 mod progress_parsing_and_utils;
 mod queue_basic;
 mod queue_cancel;
