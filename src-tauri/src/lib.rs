@@ -66,6 +66,7 @@ pub fn run() {
         .manage(engine)
         .manage(metrics_state.clone())
         .manage(commands::ui_fonts::UiFontDownloadManager::default())
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())

@@ -196,4 +196,244 @@ describe("JobCompareDialog", () => {
       wrapper.unmount();
     }
   });
+
+  it("preserves timeline when comparing a different job with the same input", async () => {
+    const sources: JobCompareSources = {
+      jobId: "job-1",
+      inputPath: "C:/videos/input.mp4",
+      output: { kind: "completed", outputPath: "C:/videos/output.mp4" },
+      maxCompareSeconds: null,
+    };
+    (getJobCompareSources as any).mockImplementation(async (jobId: string) => {
+      return {
+        ...sources,
+        jobId,
+        output: { kind: "completed", outputPath: `C:/videos/output-${jobId}.mp4` },
+      };
+    });
+
+    const wrapper = mount(JobCompareDialog, {
+      props: {
+        open: true,
+        job: makeJob({
+          id: "job-1",
+          filename: "C:/videos/input.mp4",
+          status: "completed",
+          outputPath: "C:/videos/output-job-1.mp4",
+        }),
+      },
+      global: { plugins: [i18n], stubs },
+    });
+
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    const slider = wrapper.get('[data-testid="job-compare-timeline"]');
+    await slider.setValue("5");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
+
+    await wrapper.setProps({
+      job: makeJob({
+        id: "job-2",
+        filename: "C:/videos/input.mp4",
+        status: "completed",
+        outputPath: "C:/videos/output-job-2.mp4",
+      }),
+    });
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
+  });
+
+  it("resets timeline when comparing a job with a different input", async () => {
+    const sources: JobCompareSources = {
+      jobId: "job-1",
+      inputPath: "C:/videos/input.mp4",
+      output: { kind: "completed", outputPath: "C:/videos/output.mp4" },
+      maxCompareSeconds: null,
+    };
+    (getJobCompareSources as any).mockImplementation(async (jobId: string) => {
+      return {
+        ...sources,
+        jobId,
+        inputPath: jobId === "job-1" ? "C:/videos/input-1.mp4" : "C:/videos/input-2.mp4",
+        output: { kind: "completed", outputPath: `C:/videos/output-${jobId}.mp4` },
+      };
+    });
+
+    const wrapper = mount(JobCompareDialog, {
+      props: {
+        open: true,
+        job: makeJob({
+          id: "job-1",
+          filename: "C:/videos/input-1.mp4",
+          status: "completed",
+          outputPath: "C:/videos/output-job-1.mp4",
+        }),
+      },
+      global: { plugins: [i18n], stubs },
+    });
+
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    const slider = wrapper.get('[data-testid="job-compare-timeline"]');
+    await slider.setValue("5");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
+
+    await wrapper.setProps({
+      job: makeJob({
+        id: "job-2",
+        filename: "C:/videos/input-2.mp4",
+        status: "completed",
+        outputPath: "C:/videos/output-job-2.mp4",
+      }),
+    });
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:00");
+  });
+
+  it("preserves timeline when reopening compare for the same input", async () => {
+    const sources: JobCompareSources = {
+      jobId: "job-1",
+      inputPath: "C:/videos/input.mp4",
+      output: { kind: "completed", outputPath: "C:/videos/output.mp4" },
+      maxCompareSeconds: null,
+    };
+    (getJobCompareSources as any).mockResolvedValue(sources);
+
+    const wrapper = mount(JobCompareDialog, {
+      props: {
+        open: true,
+        job: makeJob({
+          id: "job-1",
+          filename: "C:/videos/input.mp4",
+          status: "completed",
+          outputPath: "C:/videos/output.mp4",
+        }),
+      },
+      global: { plugins: [i18n], stubs },
+    });
+
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    const slider = wrapper.get('[data-testid="job-compare-timeline"]');
+    await slider.setValue("5");
+    await wrapper.vm.$nextTick();
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
+
+    await wrapper.setProps({ open: false });
+    await wrapper.vm.$nextTick();
+    await wrapper.setProps({ open: true });
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
+  });
+
+  it("does not re-seek the master video while playing (prevents occasional frame desync)", async () => {
+    vi.useFakeTimers();
+
+    const rafCallbacks = new Map<number, FrameRequestCallback>();
+    let rafId = 0;
+    const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb: FrameRequestCallback) => {
+      const id = (rafId += 1);
+      rafCallbacks.set(id, cb);
+      return id as unknown as number;
+    });
+    const cafSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id: number) => {
+      rafCallbacks.delete(id);
+    });
+
+    const runOneRafTick = () => {
+      const pending = Array.from(rafCallbacks.values());
+      rafCallbacks.clear();
+      for (const cb of pending) cb(0);
+    };
+
+    const sources: JobCompareSources = {
+      jobId: "job-1",
+      inputPath: "C:/videos/input.mp4",
+      output: { kind: "completed", outputPath: "C:/videos/output.mp4" },
+      maxCompareSeconds: null,
+    };
+    (getJobCompareSources as any).mockResolvedValueOnce(sources);
+
+    const wrapper = mount(JobCompareDialog, {
+      props: { open: true, job: makeJob({ status: "completed", outputPath: "C:/videos/output.mp4" }) },
+      global: { plugins: [i18n], stubs },
+      attachTo: document.body,
+    });
+
+    try {
+      await Promise.resolve();
+      await wrapper.vm.$nextTick();
+
+      const inputVideo = wrapper.element.querySelector('video[data-compare-side="input"]') as HTMLVideoElement | null;
+      const outputVideo = wrapper.element.querySelector('video[data-compare-side="output"]') as HTMLVideoElement | null;
+      expect(inputVideo).toBeTruthy();
+      expect(outputVideo).toBeTruthy();
+
+      let inputTime = 0;
+      let outputTime = 0;
+      let inputSets = 0;
+      let outputSets = 0;
+
+      Object.defineProperty(inputVideo!, "currentTime", {
+        configurable: true,
+        get: () => inputTime,
+        set: (v) => {
+          inputTime = Number(v);
+          inputSets += 1;
+        },
+      });
+      Object.defineProperty(outputVideo!, "currentTime", {
+        configurable: true,
+        get: () => outputTime,
+        set: (v) => {
+          outputTime = Number(v);
+          outputSets += 1;
+        },
+      });
+      Object.defineProperty(inputVideo!, "paused", { configurable: true, get: () => false });
+      Object.defineProperty(outputVideo!, "paused", { configurable: true, get: () => false });
+      Object.defineProperty(inputVideo!, "ended", { configurable: true, get: () => false });
+
+      (inputVideo! as any).play = vi.fn(async () => undefined);
+      (outputVideo! as any).play = vi.fn(async () => undefined);
+      (inputVideo! as any).pause = vi.fn(() => undefined);
+      (outputVideo! as any).pause = vi.fn(() => undefined);
+
+      // Flush any pending seek scheduled by the initial timeline watcher.
+      runOneRafTick();
+      await wrapper.vm.$nextTick();
+      const baselineBeforePlay = inputSets;
+
+      await wrapper.get('[data-testid="job-compare-toggle-play"]').trigger("click");
+      await wrapper.vm.$nextTick();
+      const baselineAfterStart = inputSets;
+      expect(baselineAfterStart).toBeGreaterThanOrEqual(baselineBeforePlay);
+
+      // Simulate the master advancing to 1s and run a single playback sync tick.
+      inputTime = 1.0;
+      outputTime = 1.0;
+      runOneRafTick();
+      await wrapper.vm.$nextTick();
+
+      // The fix: syncing updates the timeline without re-seeking the master.
+      expect(inputSets).toBe(baselineAfterStart);
+      expect(outputSets).toBeGreaterThanOrEqual(0);
+    } finally {
+      wrapper.unmount();
+      rafSpy.mockRestore();
+      cafSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });

@@ -166,9 +166,11 @@ const {
   highlightedLogHtml,
   previewUrl,
   previewPath,
+  previewSourceMode,
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
+  setPreviewSourceMode,
   handleImportSmartPackConfirmed,
   handleSavePreset,
   runSmartScan,
@@ -463,6 +465,7 @@ defineExpose({
       :highlighted-log-html="highlightedLogHtml"
 	      :preview-url="previewUrl"
 	      :preview-path="previewPath"
+	      :preview-source-mode="previewSourceMode"
 	      :preview-is-image="previewIsImage"
 	      :preview-error="previewError"
 	      :ffmpeg-resolved-path="ffmpegResolvedPath"
@@ -486,6 +489,7 @@ defineExpose({
       @handleExpandedPreviewError="handleExpandedPreviewError"
       @handleExpandedImagePreviewError="handleExpandedImagePreviewError"
       @closeExpandedPreview="closeExpandedPreview"
+      @setPreviewSourceMode="setPreviewSourceMode"
       @openPreviewInSystemPlayer="openPreviewInSystemPlayer"
       @importSmartPackConfirmed="handleImportSmartPackConfirmed"
       @openToolsSettings="activeTab = 'settings'"

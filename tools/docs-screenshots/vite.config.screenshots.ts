@@ -18,6 +18,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
   const aliasTauriEvent = resolveFromRepo("tools/docs-screenshots/mocks/tauri-event.ts");
   const aliasTauriCore = resolveFromRepo("tools/docs-screenshots/mocks/tauri-core.ts");
   const aliasTauriWindow = resolveFromRepo("tools/docs-screenshots/mocks/tauri-window.ts");
+  const aliasTauriOpener = resolveFromRepo("tools/docs-screenshots/mocks/tauri-opener.ts");
 
   const srcMainAbs = resolveFromRepo("src/main.ts");
   const srcDir = resolveFromRepo("src");
@@ -47,6 +48,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
       // iteration order can differ after config merging.
       alias: [
         { find: "@/lib/backend", replacement: aliasBackend },
+        { find: "@tauri-apps/plugin-opener", replacement: aliasTauriOpener },
         { find: "@tauri-apps/api/event", replacement: aliasTauriEvent },
         { find: "@tauri-apps/api/core", replacement: aliasTauriCore },
         { find: "@tauri-apps/api/window", replacement: aliasTauriWindow },

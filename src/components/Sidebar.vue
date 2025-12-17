@@ -4,6 +4,8 @@ import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 import { computed, type Component } from "vue";
 import { Activity, Film, ListTodo, Settings2, SlidersHorizontal } from "lucide-vue-next";
+import { FFUI_GITHUB_REPO_URL } from "@/constants/community";
+import { openExternalUrl } from "@/lib/externalLinks";
 
 const { activeTab, jobs } = defineProps<{
   /** Current active tab */
@@ -50,23 +52,25 @@ const processingCount = computed(
 const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings") => {
   emit("update:activeTab", tab);
 };
+
+const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
 </script>
 
 <template>
   <aside class="w-64 bg-sidebar border-r border-sidebar-border flex flex-col" data-testid="ffui-sidebar">
     <div class="shrink-0 border-b border-sidebar-border">
       <div class="px-5 py-4">
-        <div class="flex items-start gap-3">
-          <div class="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden">
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+            data-testid="ffui-sidebar-logo-link"
+            :title="t('app.openRepo')"
+            @click="openRepo"
+          >
             <img src="/ffui.svg" alt="FFUI" class="h-10 w-10" />
-          </div>
+          </button>
           <div class="min-w-0 flex-1">
-            <div
-              class="text-[11px] font-semibold tracking-wide text-sidebar-foreground/70"
-              data-testid="ffui-sidebar-title"
-            >
-              {{ t("app.sidebarTitle") }}
-            </div>
             <div
               class="mt-2 rounded-lg border border-sidebar-border/70 bg-sidebar-accent/30 px-3 py-2 h-[58px] flex items-center gap-2 overflow-hidden"
               data-testid="ffui-sidebar-active-info"

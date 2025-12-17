@@ -195,8 +195,23 @@ const other = {
     copyLog: "Copy logs",
     openInSystemPlayer: "Open in system player",
     copyPath: "Copy path",
+    previewSourceMode: {
+      auto: "Auto",
+      output: "Output",
+      input: "Input",
+    },
+    previewSource: {
+      output: "Output",
+      input: "Input",
+      tmpOutput: "Temp output",
+      unknown: "Selected file",
+    },
     previewDescription:
       "Preview the current job output. If playback fails, you can still open the file in your system player.",
+    previewDescriptionAuto:
+      "Preview job media (auto picks a usable source). Currently: {source}. If playback fails, switch source or open it in your system player.",
+    previewDescriptionWithSource:
+      "Preview the job {source}. If playback fails, open it in your system player.",
     previewVideoError:
       "Unable to play this video in-app (WebView2 may not support this format). You can still scrub frames or open it in your system player.",
     previewImageError:

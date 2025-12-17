@@ -71,6 +71,48 @@ describe("useMainAppPreview fallback path selection", () => {
     wrapper.unmount();
   });
 
+  it("does not silently switch across input/output when a forced source mode is selected", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-fallback-forced-1",
+      filename: "C:/videos/forced.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/videos/forced.mp4",
+      outputPath: "C:/videos/forced.compressed.mp4",
+    } as any;
+
+    await vm.openJobPreviewFromQueue(job);
+    await nextTick();
+
+    // Default is auto and prefers output first for completed jobs.
+    expect(vm.previewSourceMode).toBe("auto");
+    expect(vm.previewUrl).toBe(job.outputPath);
+
+    // Force output: playback error should not jump to input.
+    await vm.setPreviewSourceMode("output");
+    await nextTick();
+
+    expect(vm.previewSourceMode).toBe("output");
+    expect(vm.previewUrl).toBe(job.outputPath);
+
+    vm.handleExpandedPreviewError();
+    await nextTick();
+
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewError).not.toBeNull();
+
+    wrapper.unmount();
+  });
+
   it("prefers outputPath for completed image jobs when available", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;

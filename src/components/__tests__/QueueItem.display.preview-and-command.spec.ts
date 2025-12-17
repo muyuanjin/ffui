@@ -40,6 +40,11 @@ vi.mock("@/lib/ffmpegCommand", async () => {
 
 import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItem from "@/components/QueueItem.vue";
+import { copyToClipboard } from "@/lib/copyToClipboard";
+
+vi.mock("@/lib/copyToClipboard", () => ({
+  copyToClipboard: vi.fn(async () => {}),
+}));
 
 const i18n = createI18n({
   legacy: false,
@@ -338,5 +343,42 @@ describe("QueueItem display preview & command view", () => {
 
     pre = wrapper.get("pre");
     expect(pre.text()).toBe(rawCommand);
+  });
+
+  it("exposes a copy button for the currently displayed command", async () => {
+    const rawCommand = 'ffmpeg -i "INPUT" -c:v libx264 -crf 23 "OUTPUT"';
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand: rawCommand,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const copyButton = wrapper.get("[data-testid='queue-item-copy-command']");
+    await copyButton.trigger("click");
+
+    // 默认处于 template 视图，因此应复制 TEMPLATE:... 版本。
+    expect(copyToClipboard).toHaveBeenCalledWith(`TEMPLATE:${rawCommand}`);
+
+    // 切换到 full view 后应复制 raw command。
+    const toggleButton = wrapper
+      .findAll("button")
+      .find((btn) => btn.text().includes("Show full command"));
+    expect(toggleButton).toBeTruthy();
+
+    await toggleButton!.trigger("click");
+    await nextTick();
+
+    await copyButton.trigger("click");
+    expect(copyToClipboard).toHaveBeenCalledWith(rawCommand);
   });
 });

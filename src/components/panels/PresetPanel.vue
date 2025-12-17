@@ -149,7 +149,7 @@ useSortable(containerRef, localPresets, {
 </script>
 
 <template>
-  <div class="w-full max-w-6xl mx-auto px-4 overflow-x-hidden" data-testid="preset-panel">
+  <div class="w-full px-4 overflow-x-hidden" data-testid="preset-panel">
     <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-center gap-2 min-w-0 flex-shrink">
         <GripVertical class="w-4 h-4 flex-shrink-0" />
@@ -177,6 +177,7 @@ useSortable(containerRef, localPresets, {
 
         <div class="flex border rounded-md flex-shrink-0">
           <Button
+            data-testid="preset-view-grid"
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 rounded-r-none"
@@ -186,6 +187,7 @@ useSortable(containerRef, localPresets, {
             <LayoutGrid class="w-3.5 h-3.5" />
           </Button>
           <Button
+            data-testid="preset-view-compact"
             variant="ghost"
             size="sm"
             class="h-7 w-7 p-0 rounded-l-none border-l"
@@ -302,7 +304,11 @@ useSortable(containerRef, localPresets, {
       </div>
     </div>
 
-    <div v-else ref="containerRef" class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+    <div
+      v-else
+      ref="containerRef"
+      class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch"
+    >
       <Card
         v-for="preset in sortedPresets"
         :key="preset.id"

@@ -31,14 +31,14 @@ fn bucket_position_is_stable() {
             FallbackFramePosition::Seconds(1.2),
             FallbackFrameQuality::Low
         ),
-        "s1000"
+        "s1200"
     );
     assert_eq!(
         bucket_position(
             FallbackFramePosition::Seconds(1.2),
             FallbackFrameQuality::High
         ),
-        "s1000"
+        "s1200"
     );
 }
 

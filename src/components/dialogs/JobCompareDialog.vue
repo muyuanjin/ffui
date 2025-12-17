@@ -12,6 +12,7 @@ import {
 } from "@/lib/backend";
 import CompareViewport, { type CompareMode } from "./job-compare/CompareViewport.vue";
 import { useJobCompareFrames } from "./job-compare/useJobCompareFrames";
+import { useJobComparePlaybackSync } from "./job-compare/useJobComparePlaybackSync";
 const props = defineProps<{
   open: boolean;
   job: TranscodeJob | null;
@@ -27,7 +28,6 @@ const mode = ref<CompareMode>("side-by-side");
 const timeline = ref<number[]>([0]);
 const forceFrameCompare = ref(false);
 const isPlaying = ref(false);
-const playbackTimer = ref<number | null>(null);
 const viewportRef = ref<InstanceType<typeof CompareViewport> | null>(null);
 const jobRef = toRef(props, "job");
 const openRef = toRef(props, "open");
@@ -99,12 +99,6 @@ const outputVideoUrl = computed(() => {
   const path = outputSinglePath.value;
   return path ? buildPlayableMediaUrl(path) : null;
 });
-const clearPlaybackTimer = () => {
-  if (playbackTimer.value != null) {
-    window.clearInterval(playbackTimer.value);
-    playbackTimer.value = null;
-  }
-};
 const frames = useJobCompareFrames({
   open: openRef,
   job: jobRef,
@@ -133,71 +127,17 @@ const getSideVideos = (side: "input" | "output") => {
   return Array.from(el.querySelectorAll(`video[data-compare-side="${side}"]`)) as HTMLVideoElement[];
 };
 const getMasterVideo = () => getSideVideos("input")[0] ?? null;
-const seekVideos = (seconds: number) => {
-  for (const v of [...getSideVideos("input"), ...getSideVideos("output")]) {
-    try {
-      v.currentTime = seconds;
-    } catch {
-      // ignore
-    }
-  }
-};
-const pauseVideos = () => {
-  for (const v of [...getSideVideos("input"), ...getSideVideos("output")]) {
-    try {
-      v.pause();
-    } catch {
-      // ignore
-    }
-  }
-};
-const playVideos = async () => {
-  for (const v of [...getSideVideos("input"), ...getSideVideos("output")]) {
-    try {
-      await v.play();
-    } catch {
-      // ignore
-    }
-  }
-};
-
-const startPlaybackSync = () => {
-  clearPlaybackTimer();
-  playbackTimer.value = window.setInterval(() => {
-    if (!isPlaying.value) return;
-    const master = getMasterVideo();
-    if (!master) return;
-    const max = maxCompareSeconds.value;
-    const current = Number.isFinite(master.currentTime) ? master.currentTime : 0;
-    const clamped = Number.isFinite(max) && max > 0 ? Math.min(current, max) : Math.max(current, 0);
-    timeline.value = [clamped];
-
-    const outputs = getSideVideos("output");
-    for (const out of outputs) {
-      const drift = Math.abs((out.currentTime ?? 0) - clamped);
-      if (drift > 0.12) {
-        try {
-          out.currentTime = clamped;
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }, 200);
-};
-
+const playback = useJobComparePlaybackSync({
+  isPlaying,
+  maxCompareSeconds,
+  timeline,
+  getSideVideos,
+  getMasterVideo,
+});
+const { stopPlayback, scheduleSeekVideos, seekVideos, clearPendingSeek, cleanup: cleanupPlayback } = playback;
 const togglePlay = async () => {
   if (usingFrameCompare.value) return;
-  if (isPlaying.value) {
-    isPlaying.value = false;
-    pauseVideos();
-    clearPlaybackTimer();
-    return;
-  }
-  isPlaying.value = true;
-  seekVideos(clampedTimelineSeconds.value);
-  await playVideos();
-  startPlaybackSync();
+  await playback.togglePlay(clampedTimelineSeconds.value);
 };
 
 const handleResetZoom = () => {
@@ -206,6 +146,58 @@ const handleResetZoom = () => {
 
 const setTimeline = (value: number[] | undefined) => {
   timeline.value = value?.length ? value : [0];
+  if (usingFrameCompare.value) return;
+  if (!isPlaying.value) return;
+
+  const raw = timeline.value[0] ?? 0;
+  const max = maxCompareSeconds.value;
+  const clamped =
+    !Number.isFinite(raw) || raw < 0
+      ? 0
+      : Number.isFinite(max) && max > 0
+        ? Math.min(raw, max)
+        : raw;
+  clearPendingSeek();
+  seekVideos(clamped);
+};
+
+const normalizeInputKey = (raw: string | null | undefined): string | null => {
+  const trimmed = String(raw ?? "").trim();
+  return trimmed ? trimmed : null;
+};
+
+// Remember last compare position per input path so users can run multiple output
+// experiments against the same input without re-scrubbing every time.
+const lastTimelineByInput = new Map<string, number>();
+const lastKnownInputKey = ref<string | null>(null);
+
+const getActiveInputKey = (): string | null => {
+  return (
+    normalizeInputKey(inputPath.value) ??
+    normalizeInputKey(props.job?.inputPath) ??
+    normalizeInputKey(props.job?.filename)
+  );
+};
+
+const rememberTimelineForActiveInput = () => {
+  const key = getActiveInputKey();
+  if (!key) return;
+  const seconds = clampedTimelineSeconds.value;
+  if (!Number.isFinite(seconds) || seconds < 0) return;
+  lastTimelineByInput.set(key, seconds);
+  lastKnownInputKey.value = key;
+};
+
+const restoreTimelineForActiveInput = () => {
+  const key = getActiveInputKey();
+  if (!key) {
+    timeline.value = [0];
+    lastKnownInputKey.value = null;
+    return;
+  }
+  lastKnownInputKey.value = key;
+  const remembered = lastTimelineByInput.get(key);
+  timeline.value = [typeof remembered === "number" && Number.isFinite(remembered) && remembered >= 0 ? remembered : 0];
 };
 
 const fetchSources = async () => {
@@ -221,9 +213,7 @@ const fetchSources = async () => {
   sourcesError.value = null;
   sources.value = null;
   forceFrameCompare.value = false;
-  isPlaying.value = false;
-  pauseVideos();
-  clearPlaybackTimer();
+  stopPlayback();
   resetFrames();
   clearFrameTimers();
 
@@ -232,6 +222,27 @@ const fetchSources = async () => {
     sources.value = result;
     if (!result) {
       sourcesError.value = t("jobCompare.unavailable") as string;
+      timeline.value = [0];
+      lastKnownInputKey.value = null;
+      return;
+    }
+
+    // Restore timeline only when the input path matches a previous compare session.
+    restoreTimelineForActiveInput();
+
+    // The seek watcher may run before videos are actually in the DOM. Schedule a
+    // second seek after the viewport renders so both sides start on the same frame.
+    if (!usingFrameCompare.value) {
+      // Let Vue render the <video> elements, then run a seek pass that retries
+      // until metadata is available on both sides.
+      void Promise.resolve().then(() => {
+        window.setTimeout(() => {
+          if (!props.open) return;
+          if (usingFrameCompare.value) return;
+          if (isPlaying.value) return;
+          scheduleSeekVideos(clampedTimelineSeconds.value);
+        }, 0);
+      });
     }
   } catch (error) {
     sourcesError.value = (error as Error)?.message ?? String(error);
@@ -242,17 +253,28 @@ const fetchSources = async () => {
 
 watch(
   () => [props.open, props.job?.id] as const,
-  () => void fetchSources(),
+  ([open, jobId], oldValue) => {
+    const [prevOpen, prevJobId] = oldValue ?? [false, undefined];
+    // Persist the current position for the previous job before switching.
+    if (prevOpen && open && prevJobId && prevJobId !== jobId) {
+      rememberTimelineForActiveInput();
+    }
+    void fetchSources();
+  },
   { immediate: true },
 );
 
 watch(
   () => props.open,
   (open, prev) => {
+    if (!prev && open) {
+      // Open: restore (if input matches) so multi-output experiments stay aligned.
+      restoreTimelineForActiveInput();
+    }
     if (prev && !open) {
-      clearPlaybackTimer();
-      isPlaying.value = false;
-      pauseVideos();
+      rememberTimelineForActiveInput();
+      stopPlayback();
+      clearPendingSeek();
       clearFrameTimers();
     }
   },
@@ -263,19 +285,31 @@ watch(
   ([frameMode, seconds]) => {
     if (frameMode) return;
     if (!Number.isFinite(seconds) || seconds < 0) return;
-    seekVideos(seconds);
+    // Avoid re-seeking the master while playing; the playback sync loop is the source of truth.
+    if (isPlaying.value) return;
+    scheduleSeekVideos(seconds);
+  },
+);
+
+watch(
+  () => [props.open, playbackEligible.value, usingFrameCompare.value] as const,
+  ([open, eligible, frameMode]) => {
+    if (!open) return;
+    if (frameMode) return;
+    if (!eligible) return;
+    if (isPlaying.value) return;
+    window.setTimeout(() => scheduleSeekVideos(clampedTimelineSeconds.value), 0);
   },
 );
 
 const handleNativeError = () => {
   forceFrameCompare.value = true;
-  isPlaying.value = false;
-  pauseVideos();
-  clearPlaybackTimer();
+  stopPlayback();
+  clearPendingSeek();
 };
 
 onBeforeUnmount(() => {
-  clearPlaybackTimer();
+  cleanupPlayback();
 });
 
 function formatTime(seconds: number) {

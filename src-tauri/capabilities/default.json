@@ -57,6 +57,7 @@
     },
     "dialog:allow-open",
     "process:default",
+    "os:default",
     "updater:default",
     "core:window:default",
     "core:window:allow-close",

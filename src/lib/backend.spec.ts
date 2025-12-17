@@ -31,6 +31,8 @@ import {
   loadQueueState,
   loadQueueStateLite,
   getJobCompareSources,
+  extractJobCompareFrame,
+  extractJobCompareConcatFrame,
 } from "./backend";
 
 describe("backend contract", () => {
@@ -159,6 +161,58 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       args: {
         jobId: "job-1",
+      },
+    });
+  });
+
+  it("extractJobCompareFrame uses extract_job_compare_frame with args wrapper", async () => {
+    const previewPath = "C:/app-data/previews/compare-input.jpg";
+    invokeMock.mockResolvedValueOnce(previewPath);
+
+    const result = await extractJobCompareFrame({
+      jobId: "job-1",
+      sourcePath: "C:/videos/input.mp4",
+      positionSeconds: 12.34,
+      durationSeconds: 120,
+      quality: "high",
+    });
+
+    expect(result).toBe(previewPath);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("extract_job_compare_frame");
+    expect(payload).toMatchObject({
+      args: {
+        jobId: "job-1",
+        sourcePath: "C:/videos/input.mp4",
+        positionSeconds: 12.34,
+        durationSeconds: 120,
+        quality: "high",
+      },
+    });
+  });
+
+  it("extractJobCompareConcatFrame uses extract_job_compare_concat_frame with args wrapper", async () => {
+    const previewPath = "C:/app-data/previews/compare-output.jpg";
+    invokeMock.mockResolvedValueOnce(previewPath);
+
+    const result = await extractJobCompareConcatFrame({
+      jobId: "job-1",
+      segmentPaths: ["C:/tmp/seg0.mp4", "C:/tmp/seg1.mp4"],
+      positionSeconds: 9.87,
+      quality: "low",
+    });
+
+    expect(result).toBe(previewPath);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("extract_job_compare_concat_frame");
+    expect(payload).toMatchObject({
+      args: {
+        jobId: "job-1",
+        segmentPaths: ["C:/tmp/seg0.mp4", "C:/tmp/seg1.mp4"],
+        positionSeconds: 9.87,
+        quality: "low",
       },
     });
   });

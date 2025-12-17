@@ -3,16 +3,16 @@ import { computed, ref, watch, nextTick } from "vue";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
+import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
 import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 
 const isTestEnv = typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-
 type UiJobStatus = TranscodeJob["status"] | "pausing";
 
 const props = defineProps<{
@@ -75,7 +75,6 @@ const rowVariant = computed<"detail" | "compact">(
   () => props.viewMode ?? "detail",
 );
 const isCompact = computed(() => rowVariant.value === "compact");
-
 const effectiveStatus = computed<UiJobStatus>(() =>
   props.isPausing ? "pausing" : props.job.status,
 );
@@ -103,7 +102,6 @@ const statusTextClass = computed(() => {
 });
 
 const { t } = useI18n();
-
 // 将内部 queued 统一映射为 waiting，避免在文案中暴露裸 key。
 const displayStatusKey = computed(() =>
   effectiveStatus.value === "queued" ? "waiting" : effectiveStatus.value,
@@ -242,6 +240,7 @@ const progressVariant = computed<ProgressVariant>(() => {
 
 const rawCommand = computed(() => props.job.ffmpegCommand ?? "");
 const {
+  effectiveCommand,
   hasDistinctTemplate,
   highlightedHtml: highlightedCommand,
   toggle: toggleCommandView,
@@ -256,6 +255,10 @@ const {
   // "Show full command" entry point when available.
   defaultMode: "template",
 });
+
+const handleCopyCommand = async () => {
+  await copyToClipboard(effectiveCommand.value);
+};
 
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
@@ -302,11 +305,11 @@ watch(
   { immediate: true },
 );
 
-const handlePreviewError = async () => {
-  const path = props.job.previewPath;
-  if (!path) return;
-  if (!hasTauri()) return;
-  if (previewFallbackLoaded.value) return;
+	const handlePreviewError = async () => {
+	  const path = props.job.previewPath;
+	  if (!path) return;
+	  if (!hasTauri()) return;
+	  if (previewFallbackLoaded.value) return;
 
   try {
     const url = await loadPreviewDataUrl(path);
@@ -314,10 +317,10 @@ const handlePreviewError = async () => {
     previewFallbackLoaded.value = true;
     await nextTick();
   } catch (error) {
-    if (previewRescreenshotAttempted.value) {
-      console.error("QueueItem: failed to load preview via data URL fallback", error);
-      return;
-    }
+	    if (previewRescreenshotAttempted.value) {
+	      console.error("QueueItem: failed to load preview via data URL fallback", error);
+	      return;
+	    }
 
 	    previewRescreenshotAttempted.value = true;
 	    if (!isTestEnv) {
@@ -331,14 +334,14 @@ const handlePreviewError = async () => {
 	      const regenerated = await ensureJobPreview(props.job.id);
 	      if (regenerated) {
 	        previewUrl.value = buildPreviewUrl(regenerated);
-        previewFallbackLoaded.value = false;
-        await nextTick();
-      }
-    } catch (regenError) {
-      console.error("QueueItem: failed to regenerate preview", regenError);
-    }
-  }
-};
+	        previewFallbackLoaded.value = false;
+	        await nextTick();
+	      }
+	    } catch (regenError) {
+	      console.error("QueueItem: failed to regenerate preview", regenError);
+	    }
+	  }
+	};
 
 const mediaSummary = computed(() => {
   const info = props.job.mediaInfo;
@@ -446,34 +449,20 @@ const onCardContextMenu = (event: MouseEvent) => {
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />
-    <div
-      v-if="!isCompact && (rawCommand || mediaSummary)"
-      class="mt-2 space-y-1"
-    >
-      <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span class="flex-shrink-0">{{ t("taskDetail.commandTitle") }}</span>
-        <span
-          v-if="mediaSummary"
-          class="inline-flex items-center rounded bg-muted px-1.5 py-0.5 mx-2"
-        >
-          {{ mediaSummary }}
-        </span>
-        <Button
-          v-if="hasDistinctTemplate"
-          type="button"
-          variant="link"
-          size="xs"
-          class="text-[10px] px-0 flex-shrink-0"
-          @click.stop="toggleCommandView"
-        >
-          {{ commandViewToggleLabel }}
-        </Button>
-        <span v-else />
-      </div>
-      <pre
-        class="max-h-24 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"
-        v-html="highlightedCommand"
-      />
-    </div>
-  </Card>
-</template>
+	    <div
+	      v-if="!isCompact && (rawCommand || mediaSummary)"
+	    >
+	      <QueueItemCommandPreview
+	        :raw-command="rawCommand"
+	        :media-summary="mediaSummary"
+	        :has-distinct-template="hasDistinctTemplate"
+	        :command-title="t('taskDetail.commandTitle') as string"
+	        :copy-title="t('taskDetail.copyCommand') as string"
+	        :toggle-label="commandViewToggleLabel"
+	        :highlighted-html="highlightedCommand"
+	        @copy="handleCopyCommand"
+	        @toggle="toggleCommandView"
+	      />
+	    </div>
+	  </Card>
+	</template>

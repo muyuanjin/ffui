@@ -60,6 +60,33 @@ describe("useMainAppPreview + useMainAppDialogs integration", () => {
     expect(vm.dialogManager.jobDetailOpen.value).toBe(false);
   });
 
+  it("opening a job compare from the queue does not open the job detail dialog", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-compare-1",
+      filename: "C:/videos/compare.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      outputPath: "C:/videos/compare.compressed.mp4",
+    } as any;
+
+    expect(vm.dialogManager.jobCompareOpen.value).toBe(false);
+    expect(vm.dialogManager.jobDetailOpen.value).toBe(false);
+
+    vm.dialogManager.openJobCompare(job);
+    await nextTick();
+
+    expect(vm.dialogManager.jobCompareOpen.value).toBe(true);
+    expect(vm.dialogManager.jobDetailOpen.value).toBe(false);
+  });
+
   it("keeps selectedJob and task detail when closing preview that was opened from task detail", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;

@@ -1,7 +1,6 @@
 const app = {
   title: "FFUI",
-  titlebar: "FFUI — 开源 FFmpeg 图形界面 · {section}",
-  sidebarTitle: "队列 · 预设 · 对比",
+  titlebar: "FFUI — FFmpeg 图形界面",
   loading: "正在启动 FFUI…",
   tabs: {
     queue: "任务队列",
@@ -213,6 +212,13 @@ const app = {
     previewCacheCleanupErrorButton: "出错",
     previewCacheCleanupStarted: "已触发后台清理。",
     previewCacheCleanupNotStarted: "未能启动清理任务。",
+    communityTitle: "开源信息",
+    communityBadge: "GitHub",
+    openRepoButton: "打开仓库",
+    authorLabel: "作者：",
+    repoLabel: "仓库：",
+    reportIssueButton: "报告问题",
+    starRepoButton: "欢迎 Star",
     systemInfoTitle: "系统信息",
     loadingSettings: "正在从后端加载应用设置...",
   },
@@ -257,6 +263,7 @@ const app = {
   },
   openDevtools: "打开开发者工具",
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",
+  openRepo: "打开项目仓库（GitHub）",
   actions: {
     addJob: "添加转码任务",
     addJobFiles: "添加文件",

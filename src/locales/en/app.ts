@@ -1,7 +1,6 @@
 const app = {
   title: "FFUI",
-  titlebar: "FFUI — Open-source FFmpeg GUI · {section}",
-  sidebarTitle: "Queue · Presets · Compare",
+  titlebar: "FFUI — FFmpeg GUI",
   loading: "Starting FFUI…",
   tabs: {
     queue: "Transcode Queue",
@@ -225,6 +224,13 @@ const app = {
     previewCacheCleanupErrorButton: "Error",
     previewCacheCleanupStarted: "Cleanup has been started in the background.",
     previewCacheCleanupNotStarted: "Cleanup could not be started.",
+    communityTitle: "Community",
+    communityBadge: "Open source · GitHub",
+    openRepoButton: "Open repo",
+    authorLabel: "Author:",
+    repoLabel: "Repo:",
+    reportIssueButton: "Report a problem",
+    starRepoButton: "Star the project",
     systemInfoTitle: "System info",
     loadingSettings: "Loading application settings from backend…",
   },
@@ -270,6 +276,7 @@ const app = {
   openDevtools: "Open Devtools",
   openDevtoolsUnavailable:
     "Running in pure web mode; use your browser's devtools instead.",
+  openRepo: "Open GitHub repo",
   actions: {
     addJob: "Add transcode job",
     addJobFiles: "Add files",

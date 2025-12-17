@@ -154,8 +154,11 @@ fn bucket_position(position: FallbackFramePosition, quality: FallbackFrameQualit
         FallbackFramePosition::Seconds(raw) => {
             let clamped = raw.max(0.0);
             let step = match quality {
-                FallbackFrameQuality::Low => 1.0,
-                FallbackFrameQuality::High => 0.5,
+                // Compare scrubbing uses low-quality frames while moving the slider and expects
+                // reasonably tight alignment; keep caching granular enough to avoid "wrong frame"
+                // reports for long GOP sources.
+                FallbackFrameQuality::Low => 0.2,
+                FallbackFrameQuality::High => 0.1,
             };
             let snapped = (clamped / step).round() * step;
             let as_ms = (snapped * 1000.0).round().max(0.0) as u64;
@@ -288,7 +291,14 @@ pub fn extract_fallback_frame(
     };
 
     let seek_seconds = clamp_seek_seconds(total_duration, requested_seconds);
-    let ss_arg = format!("{seek_seconds:.3}");
+    // Two-stage seek for frame accuracy:
+    // - First `-ss` (input option) does a fast seek to the nearest keyframe.
+    // - Second `-ss` (output option) decodes forward to the exact requested frame.
+    // This avoids returning a keyframe-only result for long GOP media.
+    let fast_seek_seconds = (seek_seconds - 3.0).max(0.0);
+    let accurate_offset_seconds = (seek_seconds - fast_seek_seconds).max(0.0);
+    let fast_ss_arg = format!("{fast_seek_seconds:.3}");
+    let accurate_ss_arg = format!("{accurate_offset_seconds:.3}");
 
     let (ffmpeg_path, _, _) = ensure_tool_available(ExternalToolKind::Ffmpeg, tools)?;
     let tmp_path = frames_dir.join(frame_tmp_filename(hash));
@@ -303,9 +313,11 @@ pub fn extract_fallback_frame(
         .arg("-v")
         .arg("error")
         .arg("-ss")
-        .arg(&ss_arg)
+        .arg(&fast_ss_arg)
         .arg("-i")
         .arg(source.as_os_str())
+        .arg("-ss")
+        .arg(&accurate_ss_arg)
         .arg("-frames:v")
         .arg("1")
         .arg("-an");

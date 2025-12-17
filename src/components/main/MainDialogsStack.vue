@@ -10,6 +10,7 @@ import SmartScanWizard from "@/components/SmartScanWizard.vue";
 import SmartPresetOnboardingWizard from "@/components/dialogs/SmartPresetOnboardingWizard.vue";
 import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
+import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
 
 const {
   dialogManager,
@@ -23,6 +24,7 @@ const {
   highlightedLogHtml,
   previewUrl,
   previewPath,
+  previewSourceMode,
   previewIsImage,
   previewError,
   ffmpegResolvedPath,
@@ -40,6 +42,7 @@ const {
   highlightedLogHtml: string;
   previewUrl: string | null;
   previewPath: string | null;
+  previewSourceMode: PreviewSourceMode;
   previewIsImage: boolean;
   previewError: string | null;
   ffmpegResolvedPath: string | null;
@@ -67,6 +70,7 @@ const emit = defineEmits<{
   (e: "handleExpandedPreviewError"): void;
   (e: "handleExpandedImagePreviewError"): void;
   (e: "closeExpandedPreview"): void;
+  (e: "setPreviewSourceMode", mode: PreviewSourceMode): void;
   (e: "openPreviewInSystemPlayer"): void;
   (e: "importSmartPackConfirmed", presets: FFmpegPreset[]): void;
   (e: "openToolsSettings"): void;
@@ -144,15 +148,17 @@ const openCompareFromJobDetail = () => {
   <ExpandedPreviewDialog
     :open="dialogManager.previewOpen.value"
     :job="dialogManager.selectedJob.value"
+    :preview-source-mode="previewSourceMode"
     :preview-url="previewUrl"
     :preview-path="previewPath"
     :is-image="previewIsImage"
     :error="previewError"
     @update:open="(open) => { if (!open) emit('closeExpandedPreview'); }"
+    @update:preview-source-mode="(mode) => emit('setPreviewSourceMode', mode)"
     @video-error="emit('handleExpandedPreviewError')"
     @image-error="emit('handleExpandedImagePreviewError')"
     @open-in-system-player="emit('openPreviewInSystemPlayer')"
-    @copy-path="emit('copyToClipboard', dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '')"
+    @copy-path="emit('copyToClipboard', previewPath || dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '')"
   />
 
   <JobCompareDialog

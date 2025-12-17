@@ -10,6 +10,7 @@ import SettingsEngineSection from "@/components/panels/SettingsEngineSection.vue
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import SettingsPreviewCacheSection from "@/components/panels/SettingsPreviewCacheSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
+import SettingsCommunitySection from "@/components/panels/SettingsCommunitySection.vue";
 import type {
   AppSettings,
   ExternalToolCandidate,
@@ -121,6 +122,7 @@ const systemStatus = computed(() => {
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
         <SettingsPreviewCacheSection />
+        <SettingsCommunitySection />
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
@@ -145,40 +147,34 @@ const systemStatus = computed(() => {
             </div>
           </CardContent>
         </Card>
-
-        <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col lg:flex-1 lg:min-h-0">
-          <CardHeader class="py-2 px-3 border-b border-border/30">
-            <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
-              {{ t("app.settings.systemInfoTitle") }}
-            </CardTitle>
-          </CardHeader>
-          <CardContent class="p-2 flex flex-col lg:flex-1 lg:min-h-0">
-            <div class="grid auto-rows-min content-between flex-1 min-h-0 font-mono text-[9px] text-muted-foreground">
-              <div class="flex justify-between">
-                <span class="opacity-60">PLATFORM:</span>
-                <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="opacity-60">SETTINGS:</span>
-                <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
-              </div>
-              <div class="flex justify-between">
-                <span class="opacity-60">STATUS:</span>
-                <span :class="systemStatus.className">
-                  {{ systemStatus.text }}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
-    <div v-if="appSettings" class="mt-3 px-2 py-1 bg-muted/30 rounded border border-border/30">
-      <p class="text-[9px] font-mono text-muted-foreground text-center">
-        <span v-if="isSavingSettings" class="text-yellow-500">● SAVING SETTINGS...</span>
-        <span v-else-if="settingsSaveError" class="text-red-500">● {{ settingsSaveError }}</span>
-        <span v-else class="text-emerald-500">● {{ t("app.settings.autoSaveHint") }}</span>
-      </p>
+    <div
+      v-if="appSettings"
+      class="mt-3 px-2 py-1 bg-muted/30 rounded border border-border/30"
+      data-testid="settings-status-bar"
+    >
+      <div class="space-y-1">
+        <p class="text-[9px] font-mono text-muted-foreground text-center">
+          <span v-if="isSavingSettings" class="text-yellow-500">● SAVING SETTINGS...</span>
+          <span v-else-if="settingsSaveError" class="text-red-500">● {{ settingsSaveError }}</span>
+          <span v-else class="text-emerald-500">● {{ t("app.settings.autoSaveHint") }}</span>
+        </p>
+        <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-[9px] text-muted-foreground">
+          <span class="flex items-center gap-1">
+            <span class="opacity-60">PLATFORM:</span>
+            <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="opacity-60">SETTINGS:</span>
+            <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
+          </span>
+          <span class="flex items-center gap-1">
+            <span class="opacity-60">STATUS:</span>
+            <span :class="systemStatus.className">{{ systemStatus.text }}</span>
+          </span>
+        </div>
+      </div>
     </div>
 
     <div v-if="!appSettings" class="flex items-center justify-center py-12">

@@ -448,4 +448,22 @@ mod tests {
             "requested segment order mismatch should be detectable"
         );
     }
+
+    #[test]
+    fn max_compare_seconds_paused_clamps_processed_seconds_to_duration() {
+        let mut job = sample_video_job(JobStatus::Paused);
+        if let Some(info) = job.media_info.as_mut() {
+            info.duration_seconds = Some(10.0);
+        }
+        // wait_metadata.processed_seconds is 12.5 in sample_video_job; clamp to duration.
+        assert_eq!(compute_max_compare_seconds(&job), Some(10.0));
+    }
+
+    #[test]
+    fn max_compare_seconds_processing_prefers_progress_when_available() {
+        let mut job = sample_video_job(JobStatus::Processing);
+        job.progress = 50.0;
+        // duration 120.0 => 60.0 seconds
+        assert_eq!(compute_max_compare_seconds(&job), Some(60.0));
+    }
 }

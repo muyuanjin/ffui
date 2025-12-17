@@ -172,6 +172,34 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       appSettings.value = normalizeLoadedAppSettings(buildWebFallbackAppSettings());
       return;
     }
+    const applyLoadedSettings = (settings: AppSettings) => {
+      const current = appSettings.value;
+      appSettings.value = normalizeLoadedAppSettings(Object.assign({}, settings, current ?? {}));
+      lastSavedSettingsSnapshot = JSON.stringify(settings);
+      if (settings?.smartScanDefaults && smartConfig) {
+        const existing = smartConfig.value;
+        const next = { ...settings.smartScanDefaults };
+        if (existing?.rootPath) {
+          next.rootPath = existing.rootPath;
+        }
+        smartConfig.value = next;
+      }
+      if (settings?.defaultQueuePresetId && manualJobPresetId) {
+        manualJobPresetId.value = settings.defaultQueuePresetId;
+      }
+    };
+
+    // If main.ts already preloaded app settings (e.g. for locale bootstrapping),
+    // reuse that snapshot and avoid a duplicate backend round-trip.
+    if (typeof window !== "undefined") {
+      const w = window as any;
+      const preloaded = w.__FFUI_PRELOADED_APP_SETTINGS__ as AppSettings | undefined;
+      if (preloaded) {
+        w.__FFUI_PRELOADED_APP_SETTINGS__ = undefined;
+        applyLoadedSettings(preloaded);
+        return;
+      }
+    }
     try {
       const startedAt = startupNowMs();
       const settings = await loadAppSettings();
@@ -189,24 +217,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       // 若在等待后端返回期间，前端已经基于空设置写入了临时 appSettings
       //（例如用户在设置加载完成前就点击了“固定操作栏”等开关），
       //这里需要做一次合并，避免后到达的后端快照把用户刚刚的修改覆盖掉。
-      const current = appSettings.value;
-      appSettings.value = normalizeLoadedAppSettings(Object.assign({}, settings, current ?? {}));
-      // lastSavedSettingsSnapshot 仍然记录“后端当前视角”的快照，
-      //这样自动保存逻辑可以正确检测到前端合并后的差异并触发一次保存。
-      lastSavedSettingsSnapshot = JSON.stringify(settings);
-      if (settings?.smartScanDefaults && smartConfig) {
-        const existing = smartConfig.value;
-        const next = { ...settings.smartScanDefaults };
-        // 若用户已通过拖拽等方式选择了目录，保留当前的 rootPath，避免加载设置时覆盖预填路径
-        if (existing?.rootPath) {
-          next.rootPath = existing.rootPath;
-        }
-        smartConfig.value = next;
-      }
-      // Restore the user's preferred default queue preset when available.
-      if (settings?.defaultQueuePresetId && manualJobPresetId) {
-        manualJobPresetId.value = settings.defaultQueuePresetId;
-      }
+      applyLoadedSettings(settings);
     } catch (error) {
       console.error("Failed to load app settings", error);
     }
