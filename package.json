@@ -8,8 +8,9 @@
     "build": "vue-tsc --noEmit && vite build",
     "check:all": "node scripts/check-all.mjs",
     "preview": "vite preview",
-    "test": "vitest",
-    "test:unit": "vitest",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run",
     "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "tauri": "tauri",
     "tauri:dev": "vite build && tauri dev",
@@ -37,6 +38,7 @@
     "vue": "^3.5.13",
     "vue-echarts": "^8.0.1",
     "vue-i18n": "^11.2.2",
+    "vue-sonner": "^2.0.9",
     "vue3-apexcharts": "^1.10.0"
   },
   "devDependencies": {

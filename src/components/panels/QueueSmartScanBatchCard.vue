@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { CheckboxRootProps } from "reka-ui";
+import type { CheckboxRootProps } from "@/components/ui/checkbox";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";

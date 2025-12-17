@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, toRef } from "vue";
+import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
@@ -422,26 +423,29 @@ const onCardContextMenu = (event: MouseEvent) => {
           </span>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
-          <button
+          <Button
             type="button"
-            class="text-[10px] text-primary hover:underline"
+            variant="link"
+            size="sm"
+            class="h-auto p-0 text-[10px]"
             data-testid="queue-icon-item-detail-button"
             @click.stop="onInspect"
           >
             {{ t("jobDetail.title") }}
-          </button>
-          <button
+          </Button>
+          <Button
             v-if="job.type === 'video'"
             type="button"
-            class="text-[10px] text-primary hover:underline"
-            :class="!canCompare ? 'opacity-50 cursor-not-allowed hover:no-underline' : ''"
+            variant="link"
+            size="sm"
+            class="h-auto p-0 text-[10px]"
             data-testid="queue-icon-item-compare-button"
             :disabled="!canCompare"
             :title="compareDisabledText || (t('jobCompare.open') as string)"
             @click="onCompare"
           >
             {{ t("jobCompare.open") }}
-          </button>
+          </Button>
         </div>
       </div>
 

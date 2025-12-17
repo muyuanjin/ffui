@@ -11,12 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
+import { Toggle } from "@/components/ui/toggle";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { buildSmartScanConfig } from "@/lib/smartScanConfig";
+import SmartScanSavingConditionSection from "@/components/smart-scan/SmartScanSavingConditionSection.vue";
 const props = defineProps<{
   presets: FFmpegPreset[];
   initialConfig?: SmartScanConfig;
@@ -124,17 +125,19 @@ const selectFolder = async () => {
   }
 };
 
-// 切换扩展名选择
-const toggleExtension = (
+const setExtensionSelected = (
   filterKey: "videoFilter" | "imageFilter" | "audioFilter",
   ext: string,
+  selected: boolean,
 ) => {
   const filter = config.value[filterKey];
   const idx = filter.extensions.indexOf(ext);
-  if (idx >= 0) {
-    filter.extensions.splice(idx, 1);
-  } else {
+  if (selected && idx === -1) {
     filter.extensions.push(ext);
+    return;
+  }
+  if (!selected && idx >= 0) {
+    filter.extensions.splice(idx, 1);
   }
 };
 
@@ -276,20 +279,36 @@ const handleRun = () => {
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.fileTypes") }}</Label>
                 <div class="flex flex-wrap gap-1">
-                  <button
+                  <Toggle
                     v-for="ext in VIDEO_EXTENSIONS"
                     :key="ext"
-                    class="px-1.5 py-0.5 text-[10px] rounded border transition-colors"
-                    :class="config.videoFilter.extensions.includes(ext) ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'border-border/50 text-muted-foreground hover:border-border'"
-                    @click="toggleExtension('videoFilter', ext)"
+                    variant="outline"
+                    size="sm"
+                    :model-value="config.videoFilter.extensions.includes(ext)"
+                    class="h-6 px-1.5 py-0.5 text-[10px] rounded border transition-colors data-[state=off]:border-border/50 data-[state=off]:text-muted-foreground data-[state=off]:hover:border-border data-[state=on]:bg-emerald-500/20 data-[state=on]:border-emerald-500/50 data-[state=on]:text-emerald-400"
+                    @update:model-value="(on) => setExtensionSelected('videoFilter', ext, Boolean(on))"
                   >
                     .{{ ext }}
-                  </button>
+                  </Toggle>
                 </div>
                 <div class="flex gap-1 mt-1">
-                  <button class="text-[9px] text-primary hover:underline" @click="selectAllExtensions('videoFilter', VIDEO_EXTENSIONS)">{{ t("smartScan.selectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="selectAllExtensions('videoFilter', VIDEO_EXTENSIONS)"
+                  >
+                    {{ t("smartScan.selectAll") }}
+                  </Button>
                   <span class="text-[9px] text-muted-foreground">/</span>
-                  <button class="text-[9px] text-primary hover:underline" @click="deselectAllExtensions('videoFilter')">{{ t("smartScan.deselectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="deselectAllExtensions('videoFilter')"
+                  >
+                    {{ t("smartScan.deselectAll") }}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -334,20 +353,36 @@ const handleRun = () => {
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.fileTypes") }}</Label>
                 <div class="flex flex-wrap gap-1">
-                  <button
+                  <Toggle
                     v-for="ext in IMAGE_EXTENSIONS"
                     :key="ext"
-                    class="px-1.5 py-0.5 text-[10px] rounded border transition-colors"
-                    :class="config.imageFilter.extensions.includes(ext) ? 'bg-purple-500/20 border-purple-500/50 text-purple-400' : 'border-border/50 text-muted-foreground hover:border-border'"
-                    @click="toggleExtension('imageFilter', ext)"
+                    variant="outline"
+                    size="sm"
+                    :model-value="config.imageFilter.extensions.includes(ext)"
+                    class="h-6 px-1.5 py-0.5 text-[10px] rounded border transition-colors data-[state=off]:border-border/50 data-[state=off]:text-muted-foreground data-[state=off]:hover:border-border data-[state=on]:bg-purple-500/20 data-[state=on]:border-purple-500/50 data-[state=on]:text-purple-400"
+                    @update:model-value="(on) => setExtensionSelected('imageFilter', ext, Boolean(on))"
                   >
                     .{{ ext }}
-                  </button>
+                  </Toggle>
                 </div>
                 <div class="flex gap-1 mt-1">
-                  <button class="text-[9px] text-primary hover:underline" @click="selectAllExtensions('imageFilter', IMAGE_EXTENSIONS)">{{ t("smartScan.selectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="selectAllExtensions('imageFilter', IMAGE_EXTENSIONS)"
+                  >
+                    {{ t("smartScan.selectAll") }}
+                  </Button>
                   <span class="text-[9px] text-muted-foreground">/</span>
-                  <button class="text-[9px] text-primary hover:underline" @click="deselectAllExtensions('imageFilter')">{{ t("smartScan.deselectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="deselectAllExtensions('imageFilter')"
+                  >
+                    {{ t("smartScan.deselectAll") }}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -389,90 +424,50 @@ const handleRun = () => {
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.fileTypes") }}</Label>
                 <div class="flex flex-wrap gap-1">
-                  <button
+                  <Toggle
                     v-for="ext in AUDIO_EXTENSIONS"
                     :key="ext"
-                    class="px-1.5 py-0.5 text-[10px] rounded border transition-colors"
-                    :class="config.audioFilter.extensions.includes(ext) ? 'bg-amber-500/20 border-amber-500/50 text-amber-400' : 'border-border/50 text-muted-foreground hover:border-border'"
-                    @click="toggleExtension('audioFilter', ext)"
+                    variant="outline"
+                    size="sm"
+                    :model-value="config.audioFilter.extensions.includes(ext)"
+                    class="h-6 px-1.5 py-0.5 text-[10px] rounded border transition-colors data-[state=off]:border-border/50 data-[state=off]:text-muted-foreground data-[state=off]:hover:border-border data-[state=on]:bg-amber-500/20 data-[state=on]:border-amber-500/50 data-[state=on]:text-amber-400"
+                    @update:model-value="(on) => setExtensionSelected('audioFilter', ext, Boolean(on))"
                   >
                     .{{ ext }}
-                  </button>
+                  </Toggle>
                 </div>
                 <div class="flex gap-1 mt-1">
-                  <button class="text-[9px] text-primary hover:underline" @click="selectAllExtensions('audioFilter', AUDIO_EXTENSIONS)">{{ t("smartScan.selectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="selectAllExtensions('audioFilter', AUDIO_EXTENSIONS)"
+                  >
+                    {{ t("smartScan.selectAll") }}
+                  </Button>
                   <span class="text-[9px] text-muted-foreground">/</span>
-                  <button class="text-[9px] text-primary hover:underline" @click="deselectAllExtensions('audioFilter')">{{ t("smartScan.deselectAll") }}</button>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[9px]"
+                    @click="deselectAllExtensions('audioFilter')"
+                  >
+                    {{ t("smartScan.deselectAll") }}
+                  </Button>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-	        <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
-          <h3 class="text-sm font-bold flex items-center gap-2">
-            <span class="text-blue-400">▣</span>
-            {{ t("smartScan.savingCondition") }}
-          </h3>
-
-          <div class="flex gap-4">
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="savingCondition"
-                value="ratio"
-                :checked="config.savingConditionType === 'ratio'"
-                class="accent-primary"
-                @change="config.savingConditionType = 'ratio'"
-              />
-              <span class="text-xs">{{ t("smartScan.savingByRatio") }}</span>
-            </label>
-            <label class="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="savingCondition"
-                value="absoluteSize"
-                :checked="config.savingConditionType === 'absoluteSize'"
-                class="accent-primary"
-                @change="config.savingConditionType = 'absoluteSize'"
-              />
-              <span class="text-xs">{{ t("smartScan.savingByAbsolute") }}</span>
-            </label>
-          </div>
-
-          <!-- 按压缩率 -->
-          <div v-if="config.savingConditionType === 'ratio'" class="space-y-2">
-            <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.minSavingRatioLabel") }}</Label>
-            <div class="flex items-center gap-4">
-              <Slider
-                :min="0.5"
-                :max="0.99"
-                :step="0.01"
-                :model-value="[config.minSavingRatio]"
-                class="flex-1"
-                @update:model-value="(v) => { config.minSavingRatio = (v as number[])[0]; }"
-              />
-              <span class="text-emerald-400 font-mono font-bold w-12 text-right text-sm">
-                {{ (config.minSavingRatio * 100).toFixed(0) }}%
-              </span>
-            </div>
-            <p class="text-[10px] text-muted-foreground">
-              {{ t("smartScan.minSavingRatioHelp", { ratio: (config.minSavingRatio * 100).toFixed(0) }) }}
-            </p>
-          </div>
-
-          <!-- 按绝对大小 -->
-          <div v-else class="space-y-2">
-            <Label class="text-[10px] text-muted-foreground">{{ t("smartScan.minSavingAbsoluteLabel") }}</Label>
-            <div class="flex items-center gap-2">
-              <Input type="number" v-model.number="config.minSavingAbsoluteMB" class="w-24 h-8 text-sm" />
-              <span class="text-xs text-muted-foreground">MB</span>
-            </div>
-            <p class="text-[10px] text-muted-foreground">
-              {{ t("smartScan.minSavingAbsoluteHelp", { size: config.minSavingAbsoluteMB }) }}
-            </p>
-          </div>
-        </div>
+          <SmartScanSavingConditionSection
+            :saving-condition-type="config.savingConditionType"
+            :min-saving-ratio="config.minSavingRatio"
+            :min-saving-absolute-mb="config.minSavingAbsoluteMB"
+            @update:saving-condition-type="config.savingConditionType = $event"
+            @update:min-saving-ratio="config.minSavingRatio = $event"
+            @update:min-saving-absolute-mb="config.minSavingAbsoluteMB = $event"
+          />
       </div>
 
       <!-- 底部按钮 -->

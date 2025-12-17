@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import { Button } from "@/components/ui/button";
+</script>
+
 <template>
   <header
     data-testid="queue-secondary-header"
@@ -11,7 +15,7 @@
           <!-- 队列模式 -->
           <div class="flex items-center gap-1.5">
             <span class="text-xs text-muted-foreground">队列模式</span>
-            <button
+            <Button
               class="queue-select-button"
               title="仅改显示顺序：只改变界面上任务的展示顺序，不会影响后台实际执行顺序。拖拽、移到队首或队尾等调整优先级的操作在该模式下会被禁用。"
               role="combobox"
@@ -21,7 +25,7 @@
               <svg class="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m6 9 6 6 6-6"/>
               </svg>
-            </button>
+            </Button>
           </div>
 
           <!-- 分隔线 -->
@@ -30,14 +34,14 @@
           <!-- 排序控制 -->
           <div class="flex items-center gap-1.5">
             <span class="text-xs text-muted-foreground">排序</span>
-            <button class="queue-select-button">
+            <Button type="button" class="queue-select-button">
               <span>按添加时间</span>
               <svg class="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m6 9 6 6 6-6"/>
               </svg>
-            </button>
+            </Button>
 
-            <button class="queue-action-button" data-testid="queue-sort-primary-direction-toggle">
+            <Button type="button" class="queue-action-button" data-testid="queue-sort-primary-direction-toggle">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m3 16 4 4 4-4"/>
                 <path d="M7 20V4"/>
@@ -45,16 +49,16 @@
                 <path d="M17 4v16"/>
               </svg>
               <span>升序</span>
-            </button>
+            </Button>
 
-            <button class="queue-action-button" data-testid="queue-secondary-sort-expand">
+            <Button type="button" class="queue-action-button" data-testid="queue-secondary-sort-expand">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M3 13h18"/>
                 <path d="M3 7h12"/>
                 <path d="M3 19h6"/>
               </svg>
               <span>二级排序</span>
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -66,12 +70,12 @@
           </span>
 
           <!-- 筛选按钮 -->
-          <button class="queue-action-button group">
+          <Button type="button" class="queue-action-button group">
             <svg class="w-3 h-3 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
             </svg>
             <span>筛选</span>
-          </button>
+          </Button>
         </div>
       </div>
     </div>

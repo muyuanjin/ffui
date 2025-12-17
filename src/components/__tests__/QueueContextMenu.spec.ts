@@ -37,8 +37,8 @@ describe("QueueContextMenu", () => {
     const waitButton = wrapper.get("[data-testid='queue-context-menu-wait']");
     const resumeButton = wrapper.get("[data-testid='queue-context-menu-resume']");
 
-    expect(waitButton.attributes("disabled")).toBeUndefined();
-    expect(resumeButton.attributes("disabled")).toBeDefined();
+    expect(waitButton.attributes("aria-disabled")).toBeUndefined();
+    expect(resumeButton.attributes("aria-disabled")).toBe("true");
   });
 
   it("allows restart for non-terminal jobs in both queue and display modes", async () => {
@@ -69,8 +69,8 @@ describe("QueueContextMenu", () => {
     const restartInQueue = inQueueMode.get("[data-testid='queue-context-menu-restart']");
     const restartInDisplay = inDisplayMode.get("[data-testid='queue-context-menu-restart']");
 
-    expect(restartInQueue.attributes("disabled")).toBeUndefined();
-    expect(restartInDisplay.attributes("disabled")).toBeUndefined();
+    expect(restartInQueue.attributes("aria-disabled")).toBeUndefined();
+    expect(restartInDisplay.attributes("aria-disabled")).toBeUndefined();
   });
 
   it("disables file actions when reveal paths are unavailable", async () => {
@@ -92,8 +92,8 @@ describe("QueueContextMenu", () => {
     const openInput = wrapper.get("[data-testid='queue-context-menu-open-input']");
     const openOutput = wrapper.get("[data-testid='queue-context-menu-open-output']");
 
-    expect(openInput.attributes("disabled")).toBeDefined();
-    expect(openOutput.attributes("disabled")).toBeDefined();
+    expect(openInput.attributes("aria-disabled")).toBe("true");
+    expect(openOutput.attributes("aria-disabled")).toBe("true");
   });
 
   it("emits file reveal events when enabled", async () => {
@@ -140,8 +140,8 @@ describe("QueueContextMenu", () => {
     const bulkCancel = wrapper.get("[data-testid='queue-context-menu-bulk-cancel']");
     const bulkWait = wrapper.get("[data-testid='queue-context-menu-bulk-wait']");
 
-    expect(bulkCancel.attributes("disabled")).toBeDefined();
-    expect(bulkWait.attributes("disabled")).toBeDefined();
+    expect(bulkCancel.attributes("aria-disabled")).toBe("true");
+    expect(bulkWait.attributes("aria-disabled")).toBe("true");
   });
 
   it("emits corresponding events when menu items are clicked", async () => {
@@ -202,14 +202,47 @@ describe("QueueContextMenu", () => {
         toJSON: () => ({}),
       });
 
+      // Trigger a second clamp pass after the spy is installed.
+      await wrapper.setProps({ x: 189, y: 189 });
+
       await nextTick();
       await nextTick();
 
-      expect(menuEl.style.left).toBe("72px");
-      expect(menuEl.style.top).toBe("72px");
+      const anchorEl = wrapper.get("[data-testid='queue-context-menu-anchor']").element as HTMLElement;
+      expect(anchorEl.style.left).toBe("72px");
+      expect(anchorEl.style.top).toBe("72px");
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
       Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
     }
+  });
+
+  it("renders lucide icons for menu items", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "single",
+        jobStatus: "processing",
+        queueMode: "queue",
+        hasSelection: true,
+        canRevealInputPath: true,
+        canRevealOutputPath: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const menu = wrapper.get("[data-testid='queue-context-menu']");
+    const inspectItem = menu.get("[role='menuitem']");
+    expect(inspectItem.find("svg").exists()).toBe(true);
+
+    const waitButton = wrapper.get("[data-testid='queue-context-menu-wait']");
+    expect(waitButton.find("svg").exists()).toBe(true);
+
+    const openInput = wrapper.get("[data-testid='queue-context-menu-open-input']");
+    expect(openInput.find("svg").exists()).toBe(true);
   });
 });

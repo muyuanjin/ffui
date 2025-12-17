@@ -7,7 +7,7 @@ const other = {
     stepOf: "Step {step} of {total}",
   },
   onboarding: {
-    title: "Smart Preset Wizard",
+    title: "Preset Setup Wizard",
     welcomeTitle: "Welcome to FFUI",
     welcomeDescription: "Let us recommend the best transcoding presets based on your hardware and preferences. Just a few steps to get started.",
     hardwareDetection: "Hardware Detection",
@@ -277,7 +277,7 @@ const other = {
     twoPass: "2-pass",
     dragToReorder: "Drag to reorder",
     presetCount: "{count} presets",
-    recommendedSmart: "Smart recommended",
+    recommendedSmart: "Recommended",
     // View modes
     viewGrid: "Grid view",
     viewCompact: "Compact view",
@@ -296,14 +296,14 @@ const other = {
     useCasePreferenceShare: "Share / upload",
     useCasePreferenceDaily: "Daily compress",
     useCasePreferenceArchive: "Archival",
-    importSmartPack: "Import smart preset pack…",
+    importSmartPack: "Import recommended preset pack…",
     importSmartPackDescription:
       "Suggests H.26x / AV1 presets for fast compression and visually lossless archival based on current hardware. Imported presets remain fully editable.",
     openToolsSettingsFromOnboarding: "Configure FFmpeg / external tools…",
     hardwareSummaryNvenc:
-      "Detected NVIDIA / NVENC: smart pack will prefer H.265 hardware-accelerated presets.",
+      "Detected NVIDIA / NVENC: the preset pack will prefer H.265 hardware-accelerated presets.",
     hardwareSummaryCpuOnly:
-      "No NVIDIA NVENC detected: smart pack will use H.264 / AV1 (SVT) software presets.",
+      "No NVIDIA NVENC detected: the preset pack will use H.264 / AV1 (SVT) software presets.",
     hardwareSummaryAv1: "AV1 encoding support detected.",
     mayIncreaseSizeShort: "May increase size",
   },

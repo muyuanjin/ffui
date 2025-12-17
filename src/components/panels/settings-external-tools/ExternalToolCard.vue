@@ -178,8 +178,11 @@ const copyToClipboard = async (value: string | undefined | null) => {
         <code class="flex-1 text-[10px] font-mono text-muted-foreground truncate">
           {{ tool.resolvedPath }}
         </code>
-        <button
-          class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-accent rounded transition-all"
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          class="opacity-0 group-hover:opacity-100 h-5 w-5 p-0.5 hover:bg-accent rounded transition-all"
           @click="copyToClipboard(tool.resolvedPath)"
         >
           <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,16 +193,18 @@ const copyToClipboard = async (value: string | undefined | null) => {
               d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"
             />
           </svg>
-        </button>
+        </Button>
       </div>
       <div class="mt-0.5 flex items-center justify-between text-[9px]">
-        <button
+        <Button
           type="button"
-          class="text-[9px] text-primary hover:underline focus:outline-none"
+          variant="link"
+          size="sm"
+          class="h-auto p-0 text-[9px]"
           @click="emit('toggleCandidates')"
         >
           {{ t("app.settings.selectDetectedPath") }}
-        </button>
+        </Button>
         <span v-if="candidatesLoading" class="text-muted-foreground">
           {{ t("app.settings.loadingCandidates") }}
         </span>

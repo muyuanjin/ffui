@@ -252,13 +252,33 @@ fn sampling_mode(subscribers: usize, config: &MetricsConfig) -> SamplingMode {
     }
 }
 
+fn seed_sysinfo_if_needed(
+    subscribers: usize,
+    sys: &mut Option<System>,
+    networks: &mut Option<Networks>,
+    last_instant: &mut Option<Instant>,
+) -> bool {
+    if subscribers == 0 || sys.is_some() {
+        return false;
+    }
+
+    // sysinfo's `System::new_all + refresh_all` does a fair amount of CPU/IO
+    // work. Defer it until we have at least one subscriber so startup does
+    // not contend with WebView2 / frontend initialization.
+    let mut seeded = System::new_all();
+    seeded.refresh_all();
+    *sys = Some(seeded);
+    *networks = Some(Networks::new_with_refreshed_list());
+    *last_instant = Some(Instant::now());
+    true
+}
+
 /// Spawn the background sampler task on Tauri's async runtime.
 pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState) {
     tauri::async_runtime::spawn_blocking(move || {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-        let mut networks = Networks::new_with_refreshed_list();
-        let mut last_instant = Instant::now();
+        let mut sys: Option<System> = None;
+        let mut networks: Option<Networks> = None;
+        let mut last_instant: Option<Instant> = None;
 
         loop {
             // Prefer user-configured interval from AppSettings when available.
@@ -268,15 +288,28 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                 apply_settings_overrides(&mut config, &settings_snapshot);
             }
 
-            match sampling_mode(metrics_state.subscriber_count(), &config) {
+            let subscribers = metrics_state.subscriber_count();
+            match sampling_mode(subscribers, &config) {
                 SamplingMode::Idle(idle_interval) => {
                     metrics_state.wait_for_wakeup_or_timeout(idle_interval);
                     continue;
                 }
                 SamplingMode::Active(sampling_interval) => {
+                    let _ = seed_sysinfo_if_needed(
+                        subscribers,
+                        &mut sys,
+                        &mut networks,
+                        &mut last_instant,
+                    );
+
+                    let sys = sys.as_mut().expect("sysinfo System missing");
+                    let networks = networks.as_mut().expect("sysinfo Networks missing");
+
                     let now = Instant::now();
-                    let elapsed = now.saturating_duration_since(last_instant);
-                    last_instant = now;
+                    let elapsed = last_instant
+                        .replace(now)
+                        .map(|prev| now.saturating_duration_since(prev))
+                        .unwrap_or(sampling_interval);
 
                     let dt = if elapsed.is_zero() {
                         sampling_interval
@@ -284,7 +317,7 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                         elapsed
                     };
 
-                    let snapshot = sample_metrics(&mut sys, &mut networks, dt, &config);
+                    let snapshot = sample_metrics(sys, networks, dt, &config);
                     metrics_state.push_snapshot(snapshot.clone());
 
                     if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {

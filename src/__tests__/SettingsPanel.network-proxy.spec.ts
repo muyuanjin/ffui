@@ -79,17 +79,14 @@ describe("SettingsPanel network proxy settings", () => {
       },
     });
 
-    const radios = wrapper.findAll('input[type="radio"][name="settings-network-proxy-mode"]');
-    expect(radios.length).toBe(3);
+    const noneRadio = wrapper.get('[data-testid="settings-network-proxy-mode-none"]');
+    const systemRadio = wrapper.get('[data-testid="settings-network-proxy-mode-system"]');
+    const customRadio = wrapper.get('[data-testid="settings-network-proxy-mode-custom"]');
+    expect(noneRadio.attributes("data-state")).not.toBe("checked");
+    expect(systemRadio.attributes("data-state")).toBe("checked");
+    expect(customRadio.attributes("data-state")).not.toBe("checked");
 
-    const noneRadio = radios[0].element as HTMLInputElement;
-    const systemRadio = radios[1].element as HTMLInputElement;
-    const customRadio = radios[2].element as HTMLInputElement;
-    expect(noneRadio.checked).toBe(false);
-    expect(systemRadio.checked).toBe(true);
-    expect(customRadio.checked).toBe(false);
-
-    await radios[2].trigger("change");
+    await customRadio.trigger("click");
     await nextTick();
     const emitted1 = wrapper.emitted("update:appSettings") ?? [];
     expect(emitted1.length).toBeGreaterThan(0);
@@ -114,7 +111,7 @@ describe("SettingsPanel network proxy settings", () => {
     });
     await wrapper.setProps({ appSettings: last });
 
-    await radios[1].trigger("change");
+    await systemRadio.trigger("click");
     await nextTick();
     const emitted3 = wrapper.emitted("update:appSettings") ?? [];
     const last2 = emitted3[emitted3.length - 1]![0] as AppSettings;

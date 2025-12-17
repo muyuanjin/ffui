@@ -6,6 +6,10 @@ export type AppLocale = "en" | "zh-CN";
 
 export const DEFAULT_LOCALE: AppLocale = "zh-CN";
 
+export const isAppLocale = (value: unknown): value is AppLocale => {
+  return value === "en" || value === "zh-CN";
+};
+
 export const i18n = createI18n({
   legacy: false,
   locale: DEFAULT_LOCALE,

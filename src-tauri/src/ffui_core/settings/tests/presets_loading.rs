@@ -5,14 +5,8 @@ use std::fs;
 #[test]
 fn load_presets_provides_defaults_when_file_missing_or_empty() {
     presets::with_presets_sidecar_lock(|| {
-        // Reconstruct the sidecar path in the same way as executable_sidecar_path.
-        let exe = std::env::current_exe().expect("resolve current_exe for test");
-        let dir = exe.parent().expect("exe has parent directory");
-        let stem = exe
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .expect("exe has valid UTF-8 stem");
-        let path = dir.join(format!("{stem}.presets.json"));
+        let path = super::io::executable_sidecar_path("presets.json")
+            .expect("resolve presets sidecar path for test");
         // Ensure we start from a clean state with no presets.json.
         let _ = fs::remove_file(&path);
         let presets = load_presets().expect("load_presets should succeed without file");
@@ -42,14 +36,8 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
 #[test]
 fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
     presets::with_presets_sidecar_lock(|| {
-        // Reconstruct the sidecar path in the same way as executable_sidecar_path.
-        let exe = std::env::current_exe().expect("resolve current_exe for test");
-        let dir = exe.parent().expect("exe has parent directory");
-        let stem = exe
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .expect("exe has valid UTF-8 stem");
-        let path = dir.join(format!("{stem}.presets.json"));
+        let path = super::io::executable_sidecar_path("presets.json")
+            .expect("resolve presets sidecar path for test");
         // Start from a clean state.
         let _ = fs::remove_file(&path);
         // Simulate a user who deleted the built-in "Universal 1080p" preset (p1)

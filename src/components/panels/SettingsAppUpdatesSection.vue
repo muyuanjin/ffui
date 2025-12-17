@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import type { AppSettings } from "@/types";
@@ -108,10 +109,9 @@ const statusLabel = computed(() => {
 
       <div class="flex items-center justify-between gap-2">
         <label class="flex items-center gap-2">
-          <input
-            v-model="autoCheckModel"
-            type="checkbox"
-            class="w-3 h-3 rounded border-border/50"
+          <Checkbox
+            v-model:checked="autoCheckModel"
+            class="h-3 w-3 border-border/50"
             data-testid="settings-auto-check-updates"
             :disabled="!hasTauri() || appUpdate.configured === false"
           />

@@ -1,7 +1,8 @@
 const app = {
-  title: "FFUI 转码控制台",
-  loading: "正在启动转码控制台…",
-  controlPanel: "控制面板",
+  title: "FFUI",
+  titlebar: "FFUI — 开源 FFmpeg 图形界面 · {section}",
+  sidebarTitle: "队列 · 预设 · 对比",
+  loading: "正在启动 FFUI…",
   tabs: {
     queue: "任务队列",
     presets: "参数预设",
@@ -217,7 +218,7 @@ const app = {
   },
   emptyQueue: {
     title: "当前没有任务",
-    subtitle: "点击添加文件/添加文件夹，或者使用左下角的智能扫描入口。",
+    subtitle: "点击添加文件/添加文件夹，或者使用左下角的批量压缩入口。",
   },
   addManualJobDialog: {
     title: "添加转码任务",

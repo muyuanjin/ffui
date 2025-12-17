@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useI18n } from "vue-i18n";
 import type { AppSettings } from "@/types";
 
@@ -32,15 +33,16 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
     <p class="text-[11px] font-medium text-foreground">
       {{ t("app.settings.queuePersistenceLabel") }}
     </p>
-    <div class="flex flex-col gap-0.5">
+    <RadioGroup
+      class="grid gap-0.5"
+      :model-value="appSettings.queuePersistenceMode ?? 'none'"
+      @update:model-value="(v) => updateSetting('queuePersistenceMode', v as any)"
+    >
       <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-        <input
+        <RadioGroupItem
           id="queue-persistence-none"
-          type="radio"
-          name="queue-persistence-mode"
-          class="mt-[2px] w-3 h-3 rounded-full border-border/50"
-          :checked="!appSettings.queuePersistenceMode || appSettings.queuePersistenceMode === 'none'"
-          @change="updateSetting('queuePersistenceMode', 'none')"
+          value="none"
+          class="mt-[2px] h-3 w-3 border-border/50"
         />
         <span class="text-[10px] leading-snug select-none">
           {{ t("app.settings.queuePersistenceNoneOption") }}
@@ -48,13 +50,10 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
       </label>
 
       <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-        <input
+        <RadioGroupItem
           id="queue-persistence-crash-recovery-lite"
-          type="radio"
-          name="queue-persistence-mode"
-          class="mt-[2px] w-3 h-3 rounded-full border-border/50"
-          :checked="appSettings.queuePersistenceMode === 'crashRecoveryLite'"
-          @change="updateSetting('queuePersistenceMode', 'crashRecoveryLite')"
+          value="crashRecoveryLite"
+          class="mt-[2px] h-3 w-3 border-border/50"
         />
         <span class="text-[10px] leading-snug select-none">
           {{ t("app.settings.queuePersistenceCrashRecoveryLiteOption") }}
@@ -62,13 +61,10 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
       </label>
 
       <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-        <input
+        <RadioGroupItem
           id="queue-persistence-crash-recovery-full"
-          type="radio"
-          name="queue-persistence-mode"
-          class="mt-[2px] w-3 h-3 rounded-full border-border/50"
-          :checked="appSettings.queuePersistenceMode === 'crashRecoveryFull'"
-          @change="updateSetting('queuePersistenceMode', 'crashRecoveryFull')"
+          value="crashRecoveryFull"
+          class="mt-[2px] h-3 w-3 border-border/50"
         />
         <span class="text-[10px] leading-snug select-none">
           {{ t("app.settings.queuePersistenceCrashRecoveryFullOption") }}
@@ -116,6 +112,6 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
           </div>
         </div>
       </div>
-    </div>
+    </RadioGroup>
   </div>
 </template>

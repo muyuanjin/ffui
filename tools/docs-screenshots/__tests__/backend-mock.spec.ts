@@ -5,6 +5,7 @@ import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import {
   enqueueTranscodeJobs,
   expandManualJobInputs,
+  loadSmartDefaultPresets,
   previewOutputPath,
 } from "../mocks/backend";
 
@@ -33,5 +34,12 @@ describe("docs screenshots backend mock", () => {
     });
     expect(jobs).toHaveLength(2);
     expect(jobs[0]?.presetId).toBe("p1");
+  });
+
+  it("provides smart default presets for onboarding screenshots", async () => {
+    const presets = await loadSmartDefaultPresets();
+    expect(Array.isArray(presets)).toBe(true);
+    expect(presets.length).toBeGreaterThan(0);
+    expect(presets[0]?.stats?.usageCount).toBeDefined();
   });
 });

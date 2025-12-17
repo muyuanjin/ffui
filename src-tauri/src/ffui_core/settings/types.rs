@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 
+pub use super::monitor_updater_types::{AppUpdaterSettings, MonitorSettings, TranscodeActivityDay};
 use super::proxy::NetworkProxySettings;
+pub use super::tool_probe_cache::{
+    ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
+};
 use crate::ffui_core::domain::{
     FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType, SmartScanConfig,
 };
@@ -81,6 +85,9 @@ pub struct ExternalToolSettings {
     /// Optional cached remote-version metadata (TTL-based) for update hints.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub remote_version_cache: Option<RemoteToolVersionCache>,
+    /// Optional persisted probe cache used to avoid spawning tools on every startup.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub probe_cache: Option<ExternalToolProbeCache>,
 }
 
 pub fn default_preview_capture_percent() -> u8 {
@@ -175,14 +182,6 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
-}
-
-fn default_true() -> bool {
-    true
-}
-
 /// Queue persistence mode for crash-recovery. This controls whether the
 /// engine writes queue-state snapshots to disk and attempts to restore them
 /// on startup.
@@ -223,38 +222,6 @@ impl Default for CrashRecoveryLogRetention {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TranscodeActivityDay {
-    pub date: String,
-    pub active_hours_mask: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub updated_at_ms: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct MonitorSettings {
-    /// Bounded recent activity days for the transcode heatmap.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub transcode_activity_days: Option<Vec<TranscodeActivityDay>>,
-}
-
-/// Persisted updater preferences and cached metadata.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct AppUpdaterSettings {
-    /// When true (default), check for updates on startup (TTL-based).
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
-    pub auto_check: bool,
-    /// Unix epoch timestamp in milliseconds when the last update check completed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_checked_at_ms: Option<u64>,
-    /// Latest known available version when the last check found an update.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub available_version: Option<String>,
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum TranscodeParallelismMode {
@@ -277,6 +244,10 @@ pub struct AppSettings {
     /// Optional network proxy settings. When omitted, behaves like System.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub network_proxy: Option<NetworkProxySettings>,
+    /// Preferred UI locale (e.g. "en", "zh-CN"). When unset, the frontend uses
+    /// its built-in default locale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
     /// Global UI scale in percent (e.g. 100 = default).
     #[serde(
         default = "default_ui_scale_percent",
@@ -376,6 +347,7 @@ impl AppSettings {
         self.max_parallel_jobs = normalize_parallel_limit(self.max_parallel_jobs);
         self.max_parallel_cpu_jobs = normalize_parallel_limit(self.max_parallel_cpu_jobs);
         self.max_parallel_hw_jobs = normalize_parallel_limit(self.max_parallel_hw_jobs);
+        normalize_string_option(&mut self.locale);
     }
 
     pub fn parallelism_mode(&self) -> TranscodeParallelismMode {
@@ -471,6 +443,7 @@ impl Default for AppSettings {
             monitor: None,
             updater: None,
             network_proxy: None,
+            locale: None,
             ui_scale_percent: default_ui_scale_percent(),
             ui_font_size_percent: default_ui_font_size_percent(),
             ui_font_family: UiFontFamily::default(),
@@ -495,5 +468,19 @@ impl Default for AppSettings {
             selection_bar_pinned: false,
             queue_output_policy: OutputPolicy::default(),
         }
+    }
+}
+
+fn normalize_string_option(value: &mut Option<String>) {
+    let Some(current) = value.as_ref() else {
+        return;
+    };
+    let trimmed = current.trim();
+    if trimmed.is_empty() {
+        *value = None;
+        return;
+    }
+    if trimmed.len() != current.len() {
+        *value = Some(trimmed.to_string());
     }
 }

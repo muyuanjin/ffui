@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { InputTimelineConfig } from "@/types";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -117,10 +118,9 @@ const { t } = useI18n();
     </div>
 
     <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-      <input
-        v-model="inputTimeline.accurateSeek"
-        type="checkbox"
-        class="h-3 w-3 rounded border-border bg-background"
+      <Checkbox
+        v-model:checked="inputTimeline.accurateSeek"
+        class="h-3 w-3 border-border bg-background"
       />
       <span>
         {{ t("presetEditor.panel.accurateSeekLabel") }}

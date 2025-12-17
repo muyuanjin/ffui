@@ -51,6 +51,7 @@ mod tools_tests_runtime {
             auto_update: false,
             downloaded: None,
             remote_version_cache: None,
+            probe_cache: None,
         };
 
         let status = tool_status(ExternalToolKind::Ffmpeg, &settings);
@@ -197,6 +198,7 @@ mod tools_tests_runtime {
             auto_update: false,
             downloaded: None,
             remote_version_cache: None,
+            probe_cache: None,
         };
 
         let status = crate::ffui_core::tools::tool_status(ExternalToolKind::Avifenc, &settings);
@@ -387,6 +389,7 @@ mod tools_tests_runtime {
                 ..DownloadedToolState::default()
             }),
             remote_version_cache: None,
+            probe_cache: None,
         };
 
         super::super::runtime_state::hydrate_last_tool_download_from_settings(&settings);

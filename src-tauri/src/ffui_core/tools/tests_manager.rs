@@ -24,6 +24,7 @@ mod tools_tests_manager {
             auto_update: false,
             downloaded: None,
             remote_version_cache: None,
+            probe_cache: None,
         };
 
         // 在可执行旁的 tools 目录构造一个“下载过的” ffprobe 假二进制。

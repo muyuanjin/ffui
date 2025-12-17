@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { GlobalConfig, LogLevel } from "@/types";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -102,20 +103,18 @@ const overwriteBehaviorTitle = computed(() => {
 
     <div class="flex gap-3">
       <label class="inline-flex items-center gap-2 text-[10px]">
-        <input
-          v-model="globalConfig.hideBanner"
-          type="checkbox"
-          class="h-3 w-3 rounded border-border bg-background"
+        <Checkbox
+          v-model:checked="globalConfig.hideBanner"
+          class="h-3 w-3 border-border bg-background"
         />
         <span>
           {{ t("presetEditor.panel.hideBannerLabel") }}
         </span>
       </label>
       <label class="inline-flex items-center gap-2 text-[10px]">
-        <input
-          v-model="globalConfig.enableReport"
-          type="checkbox"
-          class="h-3 w-3 rounded border-border bg-background"
+        <Checkbox
+          v-model:checked="globalConfig.enableReport"
+          class="h-3 w-3 border-border bg-background"
         />
         <span>
           {{ t("presetEditor.panel.enableReportLabel") }}

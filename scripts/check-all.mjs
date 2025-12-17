@@ -68,7 +68,15 @@ function runStep(label, command, args, options = {}) {
   if (stderr) process.stderr.write(stderr);
 
   const combined = stripAnsi(`${stdout}\n${stderr}`);
-  if (/\bwarning\b/i.test(combined)) {
+  // "Warnings as errors" should flag actual warning output, not incidental words
+  // (e.g. a test name containing "warning"). Prefer line-anchored patterns that
+  // match real tool warnings.
+  const warningPatterns = [
+    /^\s*warning:/gim, // rustc/tsc/etc.
+    /^\s*Warning:/gim, // many libraries' console warnings
+    /^\s*\[Vue warn\]/gim, // Vue runtime warnings
+  ];
+  if (warningPatterns.some((re) => re.test(combined))) {
     process.stderr.write(`\nERROR: Warnings detected during "${label}".\n`);
     process.exit(1);
   }
@@ -184,17 +192,24 @@ function runRustChecksForPlatform(platform, rustRootDir) {
 
   if (platform === "windows") {
     if (process.platform === "win32") {
-      runStep("Rust build (Windows, warnings as errors)", "cargo", ["build"], {
+      // Keep host (Windows) and Linux/WSL builds isolated to avoid clobbering
+      // artifacts when both platforms share the same workspace/target directory.
+      runStep("Rust build (Windows, warnings as errors)", "cargo", ["build", "--target-dir", "target/win"], {
         cwd: rustRootDir,
         env: { RUSTFLAGS: "-Dwarnings" },
       });
-      runStep("Rust tests (Windows, warnings as errors)", "cargo", ["test"], {
+      runStep("Rust tests (Windows, warnings as errors)", "cargo", ["test", "--target-dir", "target/win"], {
         cwd: rustRootDir,
         env: { RUSTFLAGS: "-Dwarnings" },
       });
-      runStep("Rust clippy (Windows, deny warnings)", "cargo", ["clippy", "--", "-D", "warnings"], {
-        cwd: rustRootDir,
-      });
+      runStep(
+        "Rust clippy (Windows, deny warnings)",
+        "cargo",
+        ["clippy", "--target-dir", "target/win", "--", "-D", "warnings"],
+        {
+          cwd: rustRootDir,
+        }
+      );
       return;
     }
 
@@ -205,10 +220,13 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         );
       }
       const winCargoToml = wslPathToWindowsPath(rustCargoToml);
+      const winTargetDir = path.win32.join(path.win32.dirname(winCargoToml), "target", "win");
       const wslenv = appendWslenvToken(process.env.WSLENV, "RUSTFLAGS");
 
       runStep("Rust build (Windows via cargo.exe, warnings as errors)", "cargo.exe", [
         "build",
+        "--target-dir",
+        winTargetDir,
         "--manifest-path",
         winCargoToml,
       ], {
@@ -216,6 +234,8 @@ function runRustChecksForPlatform(platform, rustRootDir) {
       });
       runStep("Rust tests (Windows via cargo.exe, warnings as errors)", "cargo.exe", [
         "test",
+        "--target-dir",
+        winTargetDir,
         "--manifest-path",
         winCargoToml,
       ], {
@@ -223,6 +243,8 @@ function runRustChecksForPlatform(platform, rustRootDir) {
       });
       runStep("Rust clippy (Windows via cargo.exe, deny warnings)", "cargo.exe", [
         "clippy",
+        "--target-dir",
+        winTargetDir,
         "--manifest-path",
         winCargoToml,
         "--",
@@ -238,17 +260,22 @@ function runRustChecksForPlatform(platform, rustRootDir) {
   if (platform === "linux") {
     if (process.platform === "linux") {
       const cargo = resolveLocalCargoPath() ?? "cargo";
-      runStep("Rust build (Linux, warnings as errors)", cargo, ["build"], {
+      runStep("Rust build (Linux, warnings as errors)", cargo, ["build", "--target-dir", "target/linux"], {
         cwd: rustRootDir,
         env: { RUSTFLAGS: "-Dwarnings" },
       });
-      runStep("Rust tests (Linux, warnings as errors)", cargo, ["test"], {
+      runStep("Rust tests (Linux, warnings as errors)", cargo, ["test", "--target-dir", "target/linux"], {
         cwd: rustRootDir,
         env: { RUSTFLAGS: "-Dwarnings" },
       });
-      runStep("Rust clippy (Linux, deny warnings)", cargo, ["clippy", "--", "-D", "warnings"], {
-        cwd: rustRootDir,
-      });
+      runStep(
+        "Rust clippy (Linux, deny warnings)",
+        cargo,
+        ["clippy", "--target-dir", "target/linux", "--", "-D", "warnings"],
+        {
+          cwd: rustRootDir,
+        }
+      );
       return;
     }
 
@@ -258,6 +285,7 @@ function runRustChecksForPlatform(platform, rustRootDir) {
       }
 
       const wslCargoToml = windowsPathToWslPath(rustCargoToml);
+      const wslTargetDir = path.posix.join(path.posix.dirname(wslCargoToml), "target", "linux");
       const wslCargo = resolveWslCargoPathOnWindowsHost();
       if (!wslCargo) {
         throw new Error(
@@ -270,6 +298,8 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         "RUSTFLAGS=-Dwarnings",
         wslCargo,
         "build",
+        "--target-dir",
+        wslTargetDir,
         "--manifest-path",
         wslCargoToml,
       ]);
@@ -279,6 +309,8 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         "RUSTFLAGS=-Dwarnings",
         wslCargo,
         "test",
+        "--target-dir",
+        wslTargetDir,
         "--manifest-path",
         wslCargoToml,
       ]);
@@ -286,6 +318,8 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         "-e",
         wslCargo,
         "clippy",
+        "--target-dir",
+        wslTargetDir,
         "--manifest-path",
         wslCargoToml,
         "--",

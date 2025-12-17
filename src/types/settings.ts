@@ -46,6 +46,8 @@ export interface NetworkProxySettings {
 export interface AppSettings {
   tools: ExternalToolSettings;
   smartScanDefaults: SmartScanConfig;
+  /** Preferred UI locale (e.g. "en", "zh-CN"). */
+  locale?: string;
   /** Optional app updater settings and cached metadata. */
   updater?: AppUpdaterSettings;
   /** Optional network proxy settings. When omitted, behaves like "system". */

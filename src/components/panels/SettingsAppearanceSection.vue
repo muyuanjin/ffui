@@ -1,13 +1,13 @@
 <script setup lang="ts">
-	import { computed, onMounted, ref, watch } from "vue";
-	import { useI18n } from "vue-i18n";
-	import { Button } from "@/components/ui/button";
-	import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-	import { Input } from "@/components/ui/input";
-	import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-	import type { AppSettings } from "@/types";
-	import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
-	import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
+		import { computed, onMounted, ref, watch } from "vue";
+		import { useI18n } from "vue-i18n";
+		import { Button } from "@/components/ui/button";
+		import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+		import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+		import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+		import type { AppSettings } from "@/types";
+		import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
+		import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
 	import SettingsAppearanceUiFontFilePicker from "@/components/panels/SettingsAppearanceUiFontFilePicker.vue";
 	import {
 	  fetchSystemFontFamilies,
@@ -230,7 +230,17 @@ const commitSystemFontNameNow = () => {
 };
 const scheduleCommitSystemFontName = (value: string) => {
   systemFontFocused.value = true;
-  systemFontSuggestionsSuppressed.value = false;
+  // When selecting a suggestion, reka-ui will also update the input value.
+  // Keep the suggestions suppressed if the new value is identical to the current draft,
+  // so the list closes after selection but reopens on subsequent edits.
+  const previousDraft = uiSystemFontDraft.value;
+  if (systemFontSuggestionsSuppressed.value) {
+    if (value !== previousDraft) {
+      systemFontSuggestionsSuppressed.value = false;
+    }
+  } else {
+    systemFontSuggestionsSuppressed.value = false;
+  }
   uiSystemFontDraft.value = value;
   if (systemFontCommitTimer !== undefined) {
     window.clearTimeout(systemFontCommitTimer);
@@ -254,6 +264,12 @@ const systemFontSuggestions = computed(() =>
     max: 20,
   }),
 );
+
+const onSystemFontSuggestionSelected = (value: string) => {
+  uiSystemFontDraft.value = value;
+  systemFontSuggestionsSuppressed.value = true;
+  commitSystemFontNameNow();
+};
 	const uiOpenSourceFontIdModel = computed<string>({
 	  get() {
 	    return props.appSettings?.uiFontDownloadId ?? "";
@@ -356,49 +372,51 @@ const systemFontSuggestions = computed(() =>
           </Button>
         </div>
         <div class="relative">
-          <Input
-            data-testid="settings-ui-system-font-input"
-            :model-value="uiSystemFontDraft"
-            class="h-7 text-[11px] bg-background/50 border-border/30"
-            :placeholder="t('app.settings.uiSystemFontPlaceholder')"
-            @focus="
-              () => {
-                systemFontFocused = true;
-                systemFontSuggestionsSuppressed = false;
-                ensureSystemFontsLoaded();
-              }
-            "
-            @update:model-value="(v) => scheduleCommitSystemFontName(String(v ?? ''))"
-            @blur="
-              () => {
-                commitSystemFontNameNow();
-                systemFontFocused = false;
-                systemFontSuggestionsSuppressed = false;
-              }
-            "
-            @keydown.enter.prevent="commitSystemFontNameNow"
-          />
-          <div
-            v-if="!systemFontsLoading && systemFontSuggestions.length > 0"
-            data-testid="settings-ui-system-font-suggestions"
-            class="absolute z-50 mt-1 w-full rounded border border-border/40 bg-popover shadow-sm max-h-40 overflow-auto"
+          <Combobox
+            :open="!systemFontsLoading && systemFontSuggestions.length > 0 && systemFontFocused && !systemFontSuggestionsSuppressed"
+            :model-value="appSettings?.uiFontName ?? ''"
+            @update:model-value="(v) => onSystemFontSuggestionSelected(String(v ?? ''))"
           >
-            <button
-              v-for="suggestion in systemFontSuggestions"
-              :key="suggestion.value"
-              type="button"
-              class="w-full text-left px-2 py-1 text-[11px] hover:bg-accent/10"
-              @mousedown.prevent="
-                () => {
-                  uiSystemFontDraft = suggestion.value;
-                  commitSystemFontNameNow();
-                  systemFontSuggestionsSuppressed = true;
-                }
-              "
+            <ComboboxAnchor class="w-full">
+              <ComboboxInput
+                data-testid="settings-ui-system-font-input"
+                :model-value="uiSystemFontDraft"
+                class="h-7 text-[11px] bg-background/50 border-border/30"
+                :placeholder="t('app.settings.uiSystemFontPlaceholder')"
+                @focus="
+                  () => {
+                    systemFontFocused = true;
+                    systemFontSuggestionsSuppressed = false;
+                    ensureSystemFontsLoaded();
+                  }
+                "
+                @update:model-value="(v) => scheduleCommitSystemFontName(String(v ?? ''))"
+                @blur="
+                  () => {
+                    commitSystemFontNameNow();
+                    systemFontFocused = false;
+                    systemFontSuggestionsSuppressed = false;
+                  }
+                "
+                @keydown.enter.prevent="commitSystemFontNameNow"
+              />
+            </ComboboxAnchor>
+            <ComboboxList
+              data-testid="settings-ui-system-font-suggestions"
+              class="mt-1 w-[--reka-popper-anchor-width] max-h-40 overflow-auto border-border/40"
+              :side-offset="4"
             >
-              {{ suggestion.label }}
-            </button>
-          </div>
+              <ComboboxItem
+                v-for="suggestion in systemFontSuggestions"
+                :key="suggestion.value"
+                :value="suggestion.value"
+                class="px-2 py-1 text-[11px]"
+                @select="() => onSystemFontSuggestionSelected(suggestion.value)"
+              >
+                {{ suggestion.label }}
+              </ComboboxItem>
+            </ComboboxList>
+          </Combobox>
         </div>
         <p class="text-[9px] text-muted-foreground leading-snug">
           {{ t("app.settings.uiSystemFontHelp") }}

@@ -1,7 +1,8 @@
 const app = {
-  title: "FFUI - FFmpeg Transcoder",
-  loading: "Starting transcoding console…",
-  controlPanel: "Control Panel",
+  title: "FFUI",
+  titlebar: "FFUI — Open-source FFmpeg GUI · {section}",
+  sidebarTitle: "Queue · Presets · Compare",
+  loading: "Starting FFUI…",
   tabs: {
     queue: "Transcode Queue",
     presets: "Parameter Presets",

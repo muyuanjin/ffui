@@ -34,5 +34,6 @@ export default defineConfig({
     // Give each worker a larger heap to avoid repeated GC thrashing and
     // out-of-memory crashes when mounting MainApp + jsdom.
     execArgv: ["--max-old-space-size=8192"],
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

@@ -45,4 +45,3 @@ fn presets_snapshot_is_reused_and_cow_on_mutation() {
         "updated snapshot should reflect the mutation"
     );
 }
-

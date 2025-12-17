@@ -2,7 +2,9 @@
 pub(super) mod io;
 
 // Settings type definitions
+mod monitor_updater_types;
 pub mod proxy;
+mod tool_probe_cache;
 pub mod types;
 pub use types::{DEFAULT_METRICS_INTERVAL_MS, DEFAULT_PROGRESS_UPDATE_INTERVAL_MS};
 

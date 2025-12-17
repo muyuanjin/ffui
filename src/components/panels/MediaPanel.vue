@@ -231,23 +231,21 @@ const openInspectedInSystemPlayer = async () => {
       </Card>
     </div>
 
-    <div
+    <Button
       v-else
-      class="border border-dashed border-border/60 rounded-lg py-10 flex flex-col items-center justify-center text-sm text-muted-foreground cursor-pointer transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      role="button"
-      tabindex="0"
+      variant="outline"
+      type="button"
+      class="w-full h-auto border-dashed border-border/60 rounded-lg py-10 flex flex-col items-center justify-center text-sm text-muted-foreground transition hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       @click="emit('inspectRequested')"
-      @keydown.enter.stop.prevent="emit('inspectRequested')"
-      @keydown.space.stop.prevent="emit('inspectRequested')"
       data-testid="media-empty-state"
     >
-      <p class="text-sm font-medium mb-1">
+      <p class="text-sm font-medium mb-1 text-foreground">
         {{ t("media.emptyTitle") }}
       </p>
       <p class="text-xs">
         {{ t("media.emptyDescription") }}
       </p>
-    </div>
+    </Button>
 
     <div
       v-if="hasMedia"

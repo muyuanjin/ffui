@@ -53,7 +53,7 @@ const presetEditor = {
     bRefModeHelp: "允许 B 帧作为参考帧可提高压缩效率，如无把握保持自动；部分设备不支持全部模式。",
     rcLookaheadLabel: "码率前瞻帧数",
     rcLookaheadPlaceholder: "例如 32",
-    rcLookaheadHelp: "数值越大码率分配越智能，但增加延迟与内存占用。",
+    rcLookaheadHelp: "数值越大码率分配越精细，但会增加延迟与内存占用。",
     spatialAqLabel: "空间 AQ (-spatial-aq)",
     temporalAqLabel: "时间 AQ (-temporal-aq)",
     aqHelp: "空间 AQ 可能略增体积提升细节；时间 AQ 常在保持质量的同时缩小体积，HQ 预设建议开启。",
@@ -143,7 +143,7 @@ const presetEditor = {
     previewTitle: "命令预览",
     templateHint:
       "INPUT / OUTPUT 占位符会在实际执行时被具体路径替换；参数面板中的更改会实时反映到预览。",
-    parseButton: "从完整命令智能提取 INPUT / OUTPUT 占位符",
+    parseButton: "从完整命令自动提取 INPUT / OUTPUT 占位符",
     parseEmpty: "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。",
     parseOk: "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。",
     parsePartial: "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。",

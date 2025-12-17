@@ -1,13 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import { loadSmartDefaultPresets } from "@/lib/backend";
 import { resolvePresetDescription } from "@/lib/presetLocalization";
 import { computePresetInsights } from "@/lib/presetInsights";
 import type { FFmpegPreset } from "@/types";
+import {
+  classifyCodec,
+  classifyUseCase,
+  isAdvancedPreset,
+  type CodecPreference,
+  type UseCasePreference,
+} from "./smart-preset-onboarding/presetFilters";
 
 const props = defineProps<{
   open: boolean;
@@ -32,9 +41,6 @@ const error = ref<string | null>(null);
 const allPresets = ref<FFmpegPreset[]>([]);
 
 // 用户选择
-type CodecPreference = "auto" | "h264" | "hevc" | "av1";
-type UseCasePreference = "share" | "daily" | "archive";
-
 const codecPreference = ref<CodecPreference>("auto");
 const useCasePreference = ref<UseCasePreference>("daily");
 const selectedIds = ref<Set<string>>(new Set());
@@ -106,53 +112,9 @@ const useCaseOptions = computed(() => [
   },
 ]);
 
-// 编码器分类
-const classifyCodec = (encoder: string): CodecPreference | "other" => {
-  const lower = encoder.toLowerCase();
-  if (lower.includes("x264")) return "h264";
-  if (lower.includes("hevc") || lower.includes("h265")) return "hevc";
-  if (lower.includes("av1")) return "av1";
-  return "other";
-};
-
 // 用途分类
 const resolveDescription = (preset: FFmpegPreset): string =>
   resolvePresetDescription(preset, locale.value);
-
-const classifyUseCase = (preset: FFmpegPreset): UseCasePreference => {
-  const text = `${preset.id} ${preset.name} ${resolveDescription(preset)}`.toLowerCase();
-  if (text.includes("archive") || text.includes("归档") || text.includes("visually")) {
-    return "archive";
-  }
-  if (text.includes("fast") || text.includes("share") || text.includes("分享")) {
-    return "share";
-  }
-  return "daily";
-};
-
-// 识别“高阶/实验性”预设：例如 AV1 constqp18、SVT-AV1、QSV/AMF 等
-const isAdvancedPreset = (preset: FFmpegPreset): boolean => {
-  const encoder = String(preset.video?.encoder ?? "").toLowerCase();
-  const rc = preset.video?.rateControl ?? "crf";
-  const q = preset.video?.qualityValue ?? 0;
-  const text = `${preset.id} ${preset.name} ${resolveDescription(preset)}`.toLowerCase();
-
-  // Intel QSV / AMD AMF 目前在大部分环境下属于“进阶/特定硬件”
-  if (encoder.includes("qsv") || encoder.includes("amf")) return true;
-
-  // CPU AV1（libsvtav1）通常极慢，默认视为高阶
-  if (encoder.includes("libsvtav1")) return true;
-
-  // constqp + 极低 QP（例如 18/19）属于视觉无损档，体积可能比原片更大
-  if (rc === "constqp" && q <= 22) return true;
-
-  // 文案里明确标注“视觉无损 / 实验性”等，也视为高阶
-  if (text.includes("无损") || text.includes("visually") || text.includes("实验") || text.includes("experimental")) {
-    return true;
-  }
-
-  return false;
-};
 
 // 根据用户选择筛选预设
 const filteredPresets = computed(() => {
@@ -160,7 +122,7 @@ const filteredPresets = computed(() => {
 
   return allPresets.value.filter((preset) => {
     const codec = classifyCodec(preset.video.encoder as string);
-    const use = classifyUseCase(preset);
+    const use = classifyUseCase(preset, resolveDescription(preset));
 
     // 编码器筛选
     if (codecPreference.value !== "auto" && codec !== codecPreference.value) {
@@ -197,7 +159,7 @@ watch([codecPreference, useCasePreference], () => {
 watch(currentStep, (step) => {
   if (step === "presets" && selectedIds.value.size === 0) {
     const candidates = filteredPresets.value;
-    const primary = candidates.filter((p) => !isAdvancedPreset(p));
+    const primary = candidates.filter((p) => !isAdvancedPreset(p, resolveDescription(p)));
     const base = primary.length > 0 ? primary : candidates;
     selectedIds.value = new Set(base.map((p) => p.id));
   }
@@ -247,11 +209,17 @@ const fetchSmartPresets = async () => {
   }
 };
 
-onMounted(() => {
-  if (props.open) {
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) return;
+    currentStep.value = "welcome";
+    codecPreference.value = "auto";
+    useCasePreference.value = "daily";
     void fetchSmartPresets();
-  }
-});
+  },
+  { immediate: true },
+);
 
 // 预设选择操作
 const toggleSelection = (id: string) => {
@@ -306,12 +274,32 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
 </script>
 
 <template>
-  <div v-if="open" class="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
-    <div class="bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[85vh]">
+  <Dialog :open="open" @update:open="(v) => emit('update:open', v)">
+    <DialogContent
+      :portal-disabled="true"
+      :portal-force-mount="true"
+      :hide-close="true"
+      overlay-class="bg-black/70"
+      class="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 p-0 outline-none border-0 bg-transparent shadow-none gap-0"
+      data-testid="preset-setup-wizard"
+      @pointer-down-outside="(event) => event.preventDefault()"
+    >
+      <DialogDescription class="sr-only">
+        {{ t("onboarding.welcomeDescription") }}
+      </DialogDescription>
+      <div class="bg-background w-full rounded-xl shadow-2xl border border-border flex flex-col max-h-[85vh]">
       <div class="px-6 py-4 border-b border-border">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="text-lg font-semibold">{{ t("onboarding.title") }}</h2>
-          <Button variant="ghost" size="icon" class="h-7 w-7 text-muted-foreground hover:text-foreground" @click="handleCancel">✕</Button>
+          <DialogTitle class="text-lg font-semibold">{{ t("onboarding.title") }}</DialogTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            class="h-7 w-7 text-muted-foreground hover:text-foreground"
+            data-testid="preset-setup-wizard-close"
+            @click="handleCancel"
+          >
+            ✕
+          </Button>
         </div>
         <div class="flex items-center gap-2">
           <template v-for="(_, index) in steps" :key="index">
@@ -324,7 +312,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
       </div>
 
       <div class="flex-1 overflow-y-auto px-6 py-5">
-        <div v-if="currentStep === 'welcome'" class="space-y-4">
+        <div v-if="currentStep === 'welcome'" class="space-y-4" data-testid="preset-setup-wizard-step-welcome">
           <div class="text-center py-4">
             <div class="text-4xl mb-4">🎬</div>
             <h3 class="text-xl font-bold mb-2">{{ t("onboarding.welcomeTitle") }}</h3>
@@ -333,7 +321,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           <div class="bg-muted/50 rounded-lg p-4 space-y-2">
             <h4 class="text-sm font-medium flex items-center gap-2"><span>🔍</span>{{ t("onboarding.hardwareDetection") }}</h4>
             <div class="text-xs text-muted-foreground space-y-1">
-              <div v-if="loading" class="flex items-center gap-2"><span class="animate-spin">⏳</span>{{ t("common.loading") }}</div>
+              <div v-if="loading" class="flex items-center gap-2"><Spinner class="size-4" />{{ t("common.loading") }}</div>
               <template v-else-if="!error">
                 <div class="flex items-center gap-2">
                   <span :class="nvencAvailable ? 'text-green-500' : 'text-yellow-500'">{{ nvencAvailable ? "✓" : "○" }}</span>
@@ -349,7 +337,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           </div>
         </div>
 
-        <div v-else-if="currentStep === 'codec'" class="space-y-4">
+        <div v-else-if="currentStep === 'codec'" class="space-y-4" data-testid="preset-setup-wizard-step-codec">
           <div class="text-center mb-6">
             <h3 class="text-lg font-bold mb-1">{{ t("onboarding.codecTitle") }}</h3>
             <p class="text-muted-foreground text-sm">{{ t("onboarding.codecDescription") }}</p>
@@ -372,7 +360,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           </div>
         </div>
 
-        <div v-else-if="currentStep === 'useCase'" class="space-y-4">
+        <div v-else-if="currentStep === 'useCase'" class="space-y-4" data-testid="preset-setup-wizard-step-useCase">
           <div class="text-center mb-6">
             <h3 class="text-lg font-bold mb-1">{{ t("onboarding.useCaseTitle") }}</h3>
             <p class="text-muted-foreground text-sm">{{ t("onboarding.useCaseDescription") }}</p>
@@ -399,7 +387,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           </div>
         </div>
 
-        <div v-else-if="currentStep === 'presets'" class="space-y-4">
+        <div v-else-if="currentStep === 'presets'" class="space-y-4" data-testid="preset-setup-wizard-step-presets">
           <div class="flex items-center justify-between mb-2">
             <div>
               <h3 class="text-lg font-bold">{{ t("onboarding.presetsTitle") }}</h3>
@@ -419,6 +407,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
             <Card
               v-for="preset in filteredPresets"
               :key="preset.id"
+              data-testid="preset-setup-wizard-preset-card"
               :class="['cursor-pointer transition-all', selectedIds.has(preset.id) ? 'border-primary bg-primary/5' : 'border-border/60 hover:border-primary/50']"
               @click="toggleSelection(preset.id)"
             >
@@ -456,7 +445,7 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           </div>
         </div>
 
-        <div v-else-if="currentStep === 'confirm'" class="space-y-4">
+        <div v-else-if="currentStep === 'confirm'" class="space-y-4" data-testid="preset-setup-wizard-step-confirm">
           <div class="text-center py-4">
             <div class="text-4xl mb-4">✅</div>
             <h3 class="text-xl font-bold mb-2">{{ t("onboarding.confirmTitle") }}</h3>
@@ -489,11 +478,18 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
           <Button variant="ghost" size="sm" class="h-8 text-muted-foreground" @click="handleCancel">
             {{ t("common.cancel") }}
           </Button>
-          <Button size="sm" class="h-8 px-4" :disabled="currentStep === 'presets' && selectedIds.size === 0" @click="goNext">
+          <Button
+            size="sm"
+            class="h-8 px-4"
+            data-testid="preset-setup-wizard-next"
+            :disabled="currentStep === 'presets' && selectedIds.size === 0"
+            @click="goNext"
+          >
             {{ currentStep === "confirm" ? t("onboarding.importButton") : t("common.next") }}<span v-if="currentStep !== 'confirm'" class="ml-1">→</span>
           </Button>
         </div>
       </div>
-    </div>
-  </div>
+        </div>
+    </DialogContent>
+  </Dialog>
 </template>

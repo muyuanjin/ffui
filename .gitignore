@@ -32,3 +32,6 @@ dist-ssr
 
 # Local docs screenshot captures (temporary, should not be committed)
 /tmp_*.png
+
+# Docs screenshot artifacts (generated locally)
+/tools/docs-screenshots/artifacts/

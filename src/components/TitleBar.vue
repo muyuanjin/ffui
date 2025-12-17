@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import type { AppLocale } from "@/i18n";
-import { DEFAULT_LOCALE, loadLocale } from "@/i18n";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n";
 import { Minus, Square, X } from "lucide-vue-next";
 
-defineProps<{
+const props = defineProps<{
+  /** Current page title (translated). */
+  currentTitle: string | unknown;
   /** Progress percent for header bar (0-100) */
   progressPercent: number;
   /** Whether progress is visible */
@@ -20,15 +22,27 @@ const emit = defineEmits<{
   minimize: [];
   toggleMaximize: [];
   close: [];
+  localeChange: [AppLocale];
 }>();
 
 const { t, locale } = useI18n();
 
+const titleText = computed(() => {
+  const section =
+    typeof props.currentTitle === "string"
+      ? props.currentTitle.trim()
+      : props.currentTitle == null
+        ? ""
+        : String(props.currentTitle).trim();
+  return t("app.titlebar", { section: section || t("app.tabs.queue") });
+});
+
 const currentLocale = computed<AppLocale>({
   get: () =>
-    locale.value === "zh-CN" || locale.value === "en" ? (locale.value as AppLocale) : DEFAULT_LOCALE,
+    isAppLocale(locale.value) ? (locale.value as AppLocale) : DEFAULT_LOCALE,
   set: (value) => {
-    void loadLocale(value);
+    locale.value = value;
+    emit("localeChange", value);
   },
 });
 </script>
@@ -49,8 +63,8 @@ const currentLocale = computed<AppLocale>({
         class="flex items-center gap-3 h-full text-sm font-semibold tracking-wide text-sidebar-foreground/90"
       >
         <span class="inline-flex h-4 w-4 rounded-full bg-primary/80" />
-        <span class="truncate">
-          {{ t("app.title") }}
+        <span class="truncate" :title="titleText">
+          {{ titleText }}
         </span>
       </div>
       <div class="flex items-center gap-3" data-tauri-drag-region="false">

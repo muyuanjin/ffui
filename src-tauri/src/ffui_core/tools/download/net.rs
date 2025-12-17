@@ -240,9 +240,38 @@ mod tests {
                 match listener.accept() {
                     Ok((mut stream, _peer)) => {
                         served += 1;
+                        // `TcpListener::set_nonblocking(true)` can make accepted streams nonblocking
+                        // on some platforms. Ensure the connection behaves like a normal blocking
+                        // socket so we don't end up writing partial HTTP headers.
+                        let _ = stream.set_nonblocking(false);
+                        let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+                        let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+
                         let mut buf = [0u8; 16 * 1024];
-                        let n = stream.read(&mut buf).unwrap_or(0);
-                        let req = String::from_utf8_lossy(&buf[..n]);
+                        let mut total: usize = 0;
+                        let read_deadline = Instant::now() + Duration::from_millis(250);
+                        while total < buf.len() && Instant::now() < read_deadline {
+                            match stream.read(&mut buf[total..]) {
+                                Ok(0) => break,
+                                Ok(n) => {
+                                    total += n;
+                                    if total >= 4 && buf[..total].windows(4).any(|w| w == b"\r\n\r\n") {
+                                        break;
+                                    }
+                                }
+                                Err(err)
+                                    if matches!(
+                                        err.kind(),
+                                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                                    ) =>
+                                {
+                                    continue;
+                                }
+                                Err(_) => break,
+                            }
+                        }
+
+                        let req = String::from_utf8_lossy(&buf[..total]);
                         let method = req.split_whitespace().next().unwrap_or("");
 
                         let headers = format!(

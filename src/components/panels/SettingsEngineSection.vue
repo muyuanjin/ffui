@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useI18n } from "vue-i18n";
@@ -191,66 +193,65 @@ const onUpdateSettings = (settings: AppSettings) => {
           {{ t("app.settings.downloadStrategyLabel") }}
         </p>
 
-        <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-          <input
-            type="radio"
-            name="external-tools-mode"
-            class="mt-[2px] w-3 h-3 rounded border-border/50"
-            :checked="toolsMode === 'autoManaged'"
-            @change="toolsMode = 'autoManaged'"
-          />
-          <div class="flex-1 flex flex-col gap-0.5">
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] select-none">
-                {{ t("app.settings.toolModeAutoManagedLabel") }}
-              </span>
-              <span
-                class="inline-flex items-center px-1 py-[1px] rounded-full text-[8px] font-medium bg-primary/10 text-primary border border-primary/30"
-              >
-                {{ t("app.settings.toolModeRecommendedBadge") }}
-              </span>
+        <RadioGroup class="grid gap-0.5" :model-value="toolsMode" @update:model-value="(v) => (toolsMode = v as any)">
+          <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <RadioGroupItem
+              id="external-tools-mode-auto-managed"
+              data-testid="external-tools-mode-auto-managed"
+              value="autoManaged"
+              class="mt-[2px] h-3 w-3 border-border/50"
+            />
+            <div class="flex-1 flex flex-col gap-0.5">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] select-none">
+                  {{ t("app.settings.toolModeAutoManagedLabel") }}
+                </span>
+                <span
+                  class="inline-flex items-center px-1 py-[1px] rounded-full text-[8px] font-medium bg-primary/10 text-primary border border-primary/30"
+                >
+                  {{ t("app.settings.toolModeRecommendedBadge") }}
+                </span>
+              </div>
+              <p class="text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.toolModeAutoManagedDescription") }}
+              </p>
             </div>
-            <p class="text-[9px] text-muted-foreground leading-snug">
-              {{ t("app.settings.toolModeAutoManagedDescription") }}
-            </p>
-          </div>
-        </label>
+          </label>
 
-        <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-          <input
-            type="radio"
-            name="external-tools-mode"
-            class="mt-[2px] w-3 h-3 rounded border-border/50"
-            :checked="toolsMode === 'installOnly'"
-            @change="toolsMode = 'installOnly'"
-          />
-          <div class="flex-1 flex flex-col gap-0.5">
-            <span class="text-[10px] select-none">
-              {{ t("app.settings.toolModeInstallOnlyLabel") }}
-            </span>
-            <p class="text-[9px] text-muted-foreground leading-snug">
-              {{ t("app.settings.toolModeInstallOnlyDescription") }}
-            </p>
-          </div>
-        </label>
+          <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <RadioGroupItem
+              id="external-tools-mode-install-only"
+              data-testid="external-tools-mode-install-only"
+              value="installOnly"
+              class="mt-[2px] h-3 w-3 border-border/50"
+            />
+            <div class="flex-1 flex flex-col gap-0.5">
+              <span class="text-[10px] select-none">
+                {{ t("app.settings.toolModeInstallOnlyLabel") }}
+              </span>
+              <p class="text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.toolModeInstallOnlyDescription") }}
+              </p>
+            </div>
+          </label>
 
-        <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-          <input
-            type="radio"
-            name="external-tools-mode"
-            class="mt-[2px] w-3 h-3 rounded border-border/50"
-            :checked="toolsMode === 'manual'"
-            @change="toolsMode = 'manual'"
-          />
-          <div class="flex-1 flex flex-col gap-0.5">
-            <span class="text-[10px] select-none">
-              {{ t("app.settings.toolModeManualLabel") }}
-            </span>
-            <p class="text-[9px] text-muted-foreground leading-snug">
-              {{ t("app.settings.toolModeManualDescription") }}
-            </p>
-          </div>
-        </label>
+          <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
+            <RadioGroupItem
+              id="external-tools-mode-manual"
+              data-testid="external-tools-mode-manual"
+              value="manual"
+              class="mt-[2px] h-3 w-3 border-border/50"
+            />
+            <div class="flex-1 flex flex-col gap-0.5">
+              <span class="text-[10px] select-none">
+                {{ t("app.settings.toolModeManualLabel") }}
+              </span>
+              <p class="text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.toolModeManualDescription") }}
+              </p>
+            </div>
+          </label>
+        </RadioGroup>
 
         <div
           v-if="toolsMode === 'custom'"
@@ -310,14 +311,16 @@ const onUpdateSettings = (settings: AppSettings) => {
                 <TooltipProvider :delay-duration="120">
                   <Tooltip>
                     <TooltipTrigger as-child>
-                      <button
+                      <Button
                         type="button"
-                        class="inline-flex items-center justify-center w-4 h-4 rounded border border-border/40 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/5"
+                        variant="outline"
+                        size="icon-xs"
+                        class="w-4 h-4 p-0 rounded border border-border/40 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/5"
                         aria-label="Parallelism help"
                         data-testid="settings-parallelism-help"
                       >
                         ?
-                      </button>
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent side="top" :side-offset="6" class="max-w-[320px] text-[10px] leading-snug">
                       {{ t("app.settings.parallelismModeTooltip") }}

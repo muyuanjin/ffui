@@ -121,14 +121,18 @@
           <div class="queue-header__filter-group">
             <span class="queue-header__label">状态</span>
             <div class="queue-header__filter-chips">
-              <Chip
+              <Toggle
                 v-for="status in statusOptions"
                 :key="status.value"
-                :selected="filters.status.includes(status.value)"
-                @click="toggleFilter('status', status.value)"
+                variant="outline"
+                size="sm"
+                class="queue-header__chip"
+                :class="{ 'queue-header__chip--selected': filters.status.includes(status.value) }"
+                :model-value="filters.status.includes(status.value)"
+                @update:model-value="() => toggleFilter('status', status.value)"
               >
                 {{ status.label }}
-              </Chip>
+              </Toggle>
             </div>
           </div>
 
@@ -136,14 +140,18 @@
           <div class="queue-header__filter-group">
             <span class="queue-header__label">编码器</span>
             <div class="queue-header__filter-chips">
-              <Chip
+              <Toggle
                 v-for="encoder in encoderOptions"
                 :key="encoder.value"
-                :selected="filters.encoder.includes(encoder.value)"
-                @click="toggleFilter('encoder', encoder.value)"
+                variant="outline"
+                size="sm"
+                class="queue-header__chip"
+                :class="{ 'queue-header__chip--selected': filters.encoder.includes(encoder.value) }"
+                :model-value="filters.encoder.includes(encoder.value)"
+                @update:model-value="() => toggleFilter('encoder', encoder.value)"
               >
                 {{ encoder.label }}
-              </Chip>
+              </Toggle>
             </div>
           </div>
         </div>
@@ -163,6 +171,7 @@ import {
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Toggle } from '@/components/ui/toggle'
 import { ArrowUpDown, ArrowDownUp, Filter, ListOrdered } from 'lucide-vue-next'
 
 // Props
@@ -253,19 +262,6 @@ const toggleFilter = (type: 'status' | 'encoder', value: string) => {
   }
 }
 
-// Chip component (可以提取为独立组件)
-const Chip = {
-  props: ['selected'],
-  template: `
-    <button
-      class="queue-header__chip"
-      :class="{ 'queue-header__chip--selected': selected }"
-      @click="$emit('click')"
-    >
-      <slot />
-    </button>
-  `
-}
 </script>
 
 <style scoped>

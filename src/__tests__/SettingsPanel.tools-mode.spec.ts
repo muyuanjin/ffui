@@ -74,17 +74,14 @@ describe("SettingsPanel external tools management modes", () => {
       },
     });
 
-    const radios = wrapper.findAll('input[type="radio"][name="external-tools-mode"]');
-    expect(radios.length).toBe(3);
-
-    const first = radios[0].element as HTMLInputElement;
-    const second = radios[1].element as HTMLInputElement;
-    const third = radios[2].element as HTMLInputElement;
+    const first = wrapper.get('[data-testid="external-tools-mode-auto-managed"]');
+    const second = wrapper.get('[data-testid="external-tools-mode-install-only"]');
+    const third = wrapper.get('[data-testid="external-tools-mode-manual"]');
 
     // Default combo (autoDownload=true, autoUpdate=true) should select the first mode.
-    expect(first.checked).toBe(true);
-    expect(second.checked).toBe(false);
-    expect(third.checked).toBe(false);
+    expect(first.attributes("data-state")).toBe("checked");
+    expect(second.attributes("data-state")).not.toBe("checked");
+    expect(third.attributes("data-state")).not.toBe("checked");
 
     const text = wrapper.text();
     expect(text).toContain("自动托管");
@@ -112,11 +109,8 @@ describe("SettingsPanel external tools management modes", () => {
       },
     });
 
-    const radios = wrapper.findAll('input[type="radio"][name="external-tools-mode"]');
-    expect(radios.length).toBe(3);
-
     // Switch to "缺时安装" (install-only): autoDownload=true, autoUpdate=false
-    await radios[1].trigger("change");
+    await wrapper.get('[data-testid="external-tools-mode-install-only"]').trigger("click");
     const emitted1 = wrapper.emitted("update:appSettings");
     expect(emitted1).toBeTruthy();
     const firstPayload = emitted1![0][0] as AppSettings;
@@ -124,7 +118,7 @@ describe("SettingsPanel external tools management modes", () => {
     expect(firstPayload.tools.autoUpdate).toBe(false);
 
     // Switch to "手动管理": autoDownload=false, autoUpdate=false
-    await radios[2].trigger("change");
+    await wrapper.get('[data-testid="external-tools-mode-manual"]').trigger("click");
     const emitted2 = wrapper.emitted("update:appSettings");
     expect(emitted2).toBeTruthy();
     const secondPayload = emitted2![1][0] as AppSettings;
@@ -148,17 +142,13 @@ describe("SettingsPanel external tools management modes", () => {
       },
     });
 
-    const radios = wrapper.findAll('input[type="radio"][name="external-tools-mode"]');
-    expect(radios.length).toBe(3);
-
-    const first = radios[0].element as HTMLInputElement;
-    const second = radios[1].element as HTMLInputElement;
-    const third = radios[2].element as HTMLInputElement;
-
     // No canonical mode matches this combination; all radios should be unselected.
-    expect(first.checked).toBe(false);
-    expect(second.checked).toBe(false);
-    expect(third.checked).toBe(false);
+    const first = wrapper.get('[data-testid="external-tools-mode-auto-managed"]');
+    const second = wrapper.get('[data-testid="external-tools-mode-install-only"]');
+    const third = wrapper.get('[data-testid="external-tools-mode-manual"]');
+    expect(first.attributes("data-state")).not.toBe("checked");
+    expect(second.attributes("data-state")).not.toBe("checked");
+    expect(third.attributes("data-state")).not.toBe("checked");
 
     const customHint = wrapper.find('[data-testid="tools-mode-custom-hint"]');
     expect(customHint.exists()).toBe(true);

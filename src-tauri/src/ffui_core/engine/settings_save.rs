@@ -1,5 +1,20 @@
 use super::*;
 
+fn merge_backend_owned_tool_state(
+    new_tools: &mut crate::ffui_core::settings::ExternalToolSettings,
+    old_tools: &crate::ffui_core::settings::ExternalToolSettings,
+) {
+    if new_tools.downloaded.is_none() {
+        new_tools.downloaded = old_tools.downloaded.clone();
+    }
+    if new_tools.remote_version_cache.is_none() {
+        new_tools.remote_version_cache = old_tools.remote_version_cache.clone();
+    }
+    if new_tools.probe_cache.is_none() {
+        new_tools.probe_cache = old_tools.probe_cache.clone();
+    }
+}
+
 impl TranscodingEngine {
     /// Save new application settings.
     pub fn save_settings(&self, new_settings: AppSettings) -> Result<AppSettings> {
@@ -21,6 +36,12 @@ impl TranscodingEngine {
             let old_tools = state.settings.tools.clone();
             let old_percent = state.settings.preview_capture_percent;
             let old_proxy = state.settings.network_proxy.clone();
+
+            // The frontend does not necessarily round-trip backend-owned cache
+            // fields (for example tool probe/version fingerprints). Preserve
+            // them when the incoming payload omits these fields so that
+            // cross-session startup optimizations remain effective.
+            merge_backend_owned_tool_state(&mut normalized.tools, &old_tools);
 
             state.settings = normalized.clone();
             settings::save_settings(&state.settings)?;
@@ -86,5 +107,94 @@ impl TranscodingEngine {
         worker::spawn_worker(self.inner.clone());
 
         Ok(saved)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_backend_owned_tool_state_preserves_probe_cache_when_omitted() {
+        use crate::ffui_core::settings::types::{
+            ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
+        };
+
+        let old_tools = crate::ffui_core::settings::ExternalToolSettings {
+            probe_cache: Some(ExternalToolProbeCache {
+                ffmpeg: Some(ExternalToolProbeCacheEntry {
+                    path: "C:/tools/ffmpeg.exe".to_string(),
+                    fingerprint: ExternalToolBinaryFingerprint {
+                        len: 123,
+                        modified_millis: Some(456),
+                    },
+                    ok: true,
+                    version: Some("ffmpeg version 9.9.9".to_string()),
+                    checked_at_ms: Some(1_735_000_000_000),
+                }),
+                ffprobe: None,
+                avifenc: None,
+            }),
+            ..Default::default()
+        };
+
+        let mut new_tools = crate::ffui_core::settings::ExternalToolSettings::default();
+        merge_backend_owned_tool_state(&mut new_tools, &old_tools);
+
+        assert_eq!(
+            new_tools.probe_cache, old_tools.probe_cache,
+            "probe_cache should be preserved when the new payload omits it"
+        );
+    }
+
+    #[test]
+    fn merge_backend_owned_tool_state_does_not_override_probe_cache_when_present() {
+        use crate::ffui_core::settings::types::{
+            ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
+        };
+
+        let old_tools = crate::ffui_core::settings::ExternalToolSettings {
+            probe_cache: Some(ExternalToolProbeCache {
+                ffmpeg: Some(ExternalToolProbeCacheEntry {
+                    path: "C:/tools/old-ffmpeg.exe".to_string(),
+                    fingerprint: ExternalToolBinaryFingerprint {
+                        len: 1,
+                        modified_millis: Some(2),
+                    },
+                    ok: true,
+                    version: Some("ffmpeg version old".to_string()),
+                    checked_at_ms: Some(1),
+                }),
+                ffprobe: None,
+                avifenc: None,
+            }),
+            ..Default::default()
+        };
+
+        let mut new_tools = crate::ffui_core::settings::ExternalToolSettings {
+            probe_cache: Some(ExternalToolProbeCache {
+                ffmpeg: Some(ExternalToolProbeCacheEntry {
+                    path: "C:/tools/new-ffmpeg.exe".to_string(),
+                    fingerprint: ExternalToolBinaryFingerprint {
+                        len: 9,
+                        modified_millis: Some(9),
+                    },
+                    ok: true,
+                    version: Some("ffmpeg version new".to_string()),
+                    checked_at_ms: Some(9),
+                }),
+                ffprobe: None,
+                avifenc: None,
+            }),
+            ..Default::default()
+        };
+
+        let expected = new_tools.probe_cache.clone();
+        merge_backend_owned_tool_state(&mut new_tools, &old_tools);
+
+        assert_eq!(
+            new_tools.probe_cache, expected,
+            "probe_cache should remain unchanged when the new payload already contains it"
+        );
     }
 }

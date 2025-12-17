@@ -116,15 +116,14 @@ describe("MediaPanel empty state interactions", () => {
     expect(wrapper.emitted("inspectRequested")).toBeTruthy();
   });
 
-  it("emits inspectRequested when pressing Enter on the empty state", async () => {
+  it("renders empty state as a button for keyboard accessibility", async () => {
     const wrapper = mount(MediaPanel, {
       props: emptyProps,
       global: { plugins: [i18n] },
     });
 
     const emptyState = wrapper.get("[data-testid='media-empty-state']");
-    await emptyState.trigger("keydown.enter");
-
-    expect(wrapper.emitted("inspectRequested")).toBeTruthy();
+    expect(emptyState.element.tagName).toBe("BUTTON");
+    expect(emptyState.attributes("type")).toBe("button");
   });
 });

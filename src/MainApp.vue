@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
 import TitleBar from "@/components/TitleBar.vue";
 import Sidebar from "@/components/Sidebar.vue";
 import MonitorPanelPro from "@/components/panels/MonitorPanelPro.vue";
@@ -16,11 +15,10 @@ import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
-
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
+import { useLocalePersistence } from "@/composables/main-app/useLocalePersistence";
 
 const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
-
 // 仅解构模板中直接使用到的绑定，其余字段通过 defineExpose 暴露给测试。
 const {
   // Shell / 标题栏与侧边栏
@@ -206,6 +204,11 @@ const {
   compareJobsForDisplay,
 } = mainApp as any;
 
+const { handleLocaleChange } = useLocalePersistence({
+  appSettings,
+  handleUpdateAppSettings,
+});
+
 const addManualJobsFromFiles = async () => addManualJob("files");
 const addManualJobsFromFolder = async () => addManualJob("folder");
 
@@ -239,12 +242,14 @@ defineExpose({
     <MainDragOverlay :active-tab="activeTab" :is-dragging="isDragging" />
 
     <TitleBar
+      :current-title="currentTitle"
       :progress-percent="headerProgressPercent"
       :progress-visible="headerProgressVisible"
       :progress-fading="headerProgressFading"
       @minimize="minimizeWindow"
       @toggle-maximize="toggleMaximizeWindow"
       @close="closeWindow"
+      @locale-change="handleLocaleChange"
     />
 
     <div class="flex flex-1 min-h-0 flex-row overflow-hidden">

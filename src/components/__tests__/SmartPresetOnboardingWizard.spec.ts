@@ -89,6 +89,7 @@ describe("SmartPresetOnboardingWizard", () => {
     smartPresetsMock = presets;
 
     const wrapper = mount(SmartPresetOnboardingWizard, {
+      attachTo: document.body,
       props: { open: true },
       global: { plugins: [i18n] },
     });
@@ -99,15 +100,11 @@ describe("SmartPresetOnboardingWizard", () => {
     await nextTick();
 
     const t = (i18n.global as any).t.bind(i18n.global) as (key: string) => string;
-    const nextLabel = t("common.next");
-
     // welcome -> codec -> useCase -> presets，一共点击三次 Next
     for (let i = 0; i < 3; i += 1) {
-      const nextButton = wrapper
-        .findAll("button")
-        .find((btn) => btn.text().includes(nextLabel));
-      expect(nextButton).toBeTruthy();
-      await nextButton!.trigger("click");
+      const nextButton = wrapper.get("[data-testid='preset-setup-wizard-next']");
+      expect(nextButton.text()).toContain(t("common.next"));
+      await nextButton.trigger("click");
       await nextTick();
     }
 
@@ -173,6 +170,7 @@ describe("SmartPresetOnboardingWizard", () => {
     ];
 
     const wrapper = mount(SmartPresetOnboardingWizard, {
+      attachTo: document.body,
       props: { open: true },
       global: { plugins: [i18n] },
     });

@@ -100,7 +100,7 @@ describe("SettingsPanel queue persistence settings", () => {
 
     expect(wrapper.find('[data-testid="queue-persistence-full-hint"]').exists()).toBe(false);
 
-    await wrapper.find("#queue-persistence-crash-recovery-full").trigger("change");
+    await wrapper.find("#queue-persistence-crash-recovery-full").trigger("click");
 
     const emitted = wrapper.emitted("update:appSettings");
     expect(emitted?.length).toBe(1);

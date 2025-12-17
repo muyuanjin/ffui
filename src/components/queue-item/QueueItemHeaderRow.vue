@@ -137,10 +137,12 @@ const emit = defineEmits<{
   <div class="relative flex items-center justify-between mb-2">
     <div class="flex items-center gap-3">
       <!-- 左侧选择指示条 -->
-      <button
+      <Button
         v-if="isSelectable"
         type="button"
-        class="w-1 h-14 rounded-full transition-all flex-shrink-0"
+        variant="ghost"
+        size="icon-xs"
+        class="w-1 h-14 p-0 rounded-full transition-all flex-shrink-0"
         :class="isSelected
           ? 'bg-amber-500'
           : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'"

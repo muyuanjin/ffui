@@ -43,8 +43,8 @@ use crate::ffui_core::monitor::{
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::ffui_core::tools::{
     ExternalToolKind, ExternalToolStatus, clear_tool_runtime_error,
-    hydrate_last_tool_download_from_settings, hydrate_remote_version_cache_from_settings,
-    tool_status,
+    hydrate_last_tool_download_from_settings, hydrate_probe_cache_from_settings,
+    hydrate_remote_version_cache_from_settings, tool_status, update_probe_cache_from_statuses,
 };
 
 use state::{
@@ -87,6 +87,7 @@ impl TranscodingEngine {
         crate::ffui_core::network_proxy::apply_settings(settings.network_proxy.as_ref());
         hydrate_last_tool_download_from_settings(&settings.tools);
         hydrate_remote_version_cache_from_settings(&settings.tools);
+        hydrate_probe_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
         {
             use std::sync::atomic::Ordering;
@@ -385,6 +386,15 @@ impl TranscodingEngine {
         // emit ffui://external-tool-status without re-probing the filesystem
         // on every download tick.
         crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
+
+        {
+            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses)
+                && let Err(err) = settings::save_settings(&state.settings)
+            {
+                eprintln!("[tools_probe_cache] failed to persist probe cache: {err:#}");
+            }
+        }
 
         statuses
     }

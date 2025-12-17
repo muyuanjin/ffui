@@ -237,9 +237,11 @@ const unknownPresetLabel = computed(() => {
               </div>
 
               <div class="relative flex flex-col gap-4 px-3 py-3 md:flex-row">
-                <button
+                <Button
                   type="button"
-                  class="group w-full md:w-60 aspect-video rounded-md border border-border bg-muted flex items-center justify-center overflow-hidden cursor-zoom-in"
+                  variant="outline"
+                  size="sm"
+                  class="group w-full md:w-60 h-auto aspect-video p-0 rounded-md border border-border bg-muted flex items-center justify-center overflow-hidden cursor-zoom-in hover:bg-muted"
                   data-testid="task-detail-preview"
                   @click.stop="emit('expandPreview')"
                 >
@@ -253,7 +255,7 @@ const unknownPresetLabel = computed(() => {
                   <span v-else class="text-[11px] text-muted-foreground">
                     {{ t("taskDetail.noPreview") }}
                   </span>
-                </button>
+                </Button>
 
                 <div class="flex items-center gap-2">
                   <Button
@@ -396,14 +398,16 @@ const unknownPresetLabel = computed(() => {
                   <h3 class="text-xs font-semibold">
                     {{ t("taskDetail.commandTitle") }}
                   </h3>
-                  <button
+                  <Button
                     v-if="jobDetailHasDistinctTemplate"
                     type="button"
-                    class="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
                     @click="toggleCommandView"
                   >
                     {{ commandViewToggleLabel }}
-                  </button>
+                  </Button>
                 </div>
                 <div class="flex items-center gap-1">
                   <Button

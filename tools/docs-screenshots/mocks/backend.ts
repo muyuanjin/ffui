@@ -17,6 +17,7 @@ import type {
   TranscodeJob,
 } from "@/types";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
+import smartPresetsJson from "../../../src-tauri/assets/smart-presets.json";
 
 // The production app talks to a Tauri backend. For docs screenshots we replace
 // the backend module at build time (Vite alias) with this in-browser mock so
@@ -804,4 +805,102 @@ export const importUiFontFile = async (_sourcePath: string): Promise<DownloadedF
   };
 };
 
-export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => [];
+type SmartPresetEnv = {
+  gpuAvailable: boolean;
+  gpuVendor?: string | null;
+};
+
+type SmartPresetMatchCriteria = {
+  gpu?: {
+    available?: boolean;
+    vendor?: string;
+  };
+};
+
+type SmartPresetRecord = {
+  id: string;
+  name: string;
+  description?: string;
+  descriptionI18n?: Record<string, string>;
+  global?: unknown | null;
+  input?: unknown | null;
+  mapping?: unknown | null;
+  video: FFmpegPreset["video"];
+  audio: FFmpegPreset["audio"];
+  filters?: FFmpegPreset["filters"] | null;
+  subtitles?: FFmpegPreset["subtitles"] | null;
+  container?: FFmpegPreset["container"] | null;
+  hardware?: FFmpegPreset["hardware"] | null;
+  advancedEnabled?: boolean | null;
+  ffmpegTemplate?: string | null;
+  match?: SmartPresetMatchCriteria;
+  priority?: number;
+  expose?: boolean;
+};
+
+const matchSmartPreset = (record: SmartPresetRecord, env: SmartPresetEnv): boolean => {
+  if (record.expose === false) return false;
+  const gpu = record.match?.gpu;
+  if (gpu) {
+    if (typeof gpu.available === "boolean" && gpu.available !== env.gpuAvailable) return false;
+    if (typeof gpu.vendor === "string") {
+      const expected = String(env.gpuVendor ?? "").toLowerCase();
+      if (expected && gpu.vendor.toLowerCase() !== expected) return false;
+    }
+  }
+  return true;
+};
+
+const coerceNullable = <T>(value: T | null | undefined): T | undefined => {
+  if (value == null) return undefined;
+  return value;
+};
+
+const toSmartDefaultPreset = (record: SmartPresetRecord): FFmpegPreset => {
+  return {
+    id: String(record.id),
+    name: String(record.name),
+    description: String(record.description ?? ""),
+    descriptionI18n: record.descriptionI18n,
+    global: coerceNullable(record.global as FFmpegPreset["global"] | null | undefined),
+    input: coerceNullable(record.input as FFmpegPreset["input"] | null | undefined),
+    mapping: coerceNullable(record.mapping as FFmpegPreset["mapping"] | null | undefined),
+    video: record.video,
+    audio: record.audio,
+    filters: record.filters ?? {},
+    subtitles: coerceNullable(record.subtitles),
+    container: coerceNullable(record.container),
+    hardware: coerceNullable(record.hardware),
+    advancedEnabled: record.advancedEnabled ?? false,
+    ffmpegTemplate: coerceNullable(record.ffmpegTemplate),
+    stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+  };
+};
+
+let smartDefaultPresetsSnapshot: FFmpegPreset[] | null = null;
+
+export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
+  if (smartDefaultPresetsSnapshot) return smartDefaultPresetsSnapshot;
+
+  const file = smartPresetsJson as unknown as { presets?: SmartPresetRecord[] };
+  const records = Array.isArray(file?.presets) ? file.presets : [];
+
+  // For docs screenshots we intentionally pick the NVIDIA path so the wizard
+  // UI can demonstrate GPU-aware recommendations.
+  const env: SmartPresetEnv = { gpuAvailable: true, gpuVendor: "nvidia" };
+
+  const candidates = records.filter((record) => matchSmartPreset(record, env));
+  candidates.sort((a, b) => {
+    const pa = Number.isFinite(a.priority) ? Number(a.priority) : 0;
+    const pb = Number.isFinite(b.priority) ? Number(b.priority) : 0;
+    return pb - pa || String(a.name).localeCompare(String(b.name));
+  });
+
+  const byId = new Map<string, SmartPresetRecord>();
+  for (const record of candidates) {
+    if (!byId.has(record.id)) byId.set(record.id, record);
+  }
+
+  smartDefaultPresetsSnapshot = Array.from(byId.values()).map(toSmartDefaultPreset);
+  return smartDefaultPresetsSnapshot;
+};

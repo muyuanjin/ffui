@@ -1,4 +1,4 @@
-# <img src="public/ffui.svg" alt="FFUI Logo" width="32" style="vertical-align:middle;margin-left:0.5rem;" /> FFmpeg GUI
+# <img src="public/ffui.svg" alt="FFUI Logo" width="32" style="vertical-align:middle;margin-left:0.5rem;" /> FFUI — FFmpeg GUI
 
 > For the Chinese version, see [中文说明](#项目简介).
 
@@ -13,18 +13,30 @@
   <a href="https://github.com/muyuanjin/ffui/releases"><img src="https://img.shields.io/badge/Download-GitHub%20Releases-2ea44f?style=for-the-badge" alt="Download" /></a>
 </div>
 
+> FFUI is under active development. Bug reports, feature requests, and contributions are welcome — please use [GitHub Issues](https://github.com/muyuanjin/ffui/issues) or open a [pull request](https://github.com/muyuanjin/ffui/pulls).
+
 ## Overview
 
-FFUI is a desktop user interface for FFmpeg-based transcoding, built with Tauri 2 (Rust) and Vue 3. It focuses on queue-centric workflows, reusable presets, basic media inspection, and an optional system performance monitor.
+FFUI is a friendly desktop app for converting and compressing videos (and audio/images) in batches. Drag files into a queue, pick a preset, and start — no FFmpeg command line needed. It’s built around a queue workflow, preset management with stats, and quick input/output comparison. If you already know FFmpeg, every preset is still fully editable and reusable.
+
+## Quickstart (using the app)
+
+1. Download the latest release from GitHub Releases and launch FFUI.
+2. On the first launch, the preset setup wizard helps you import a starter set of FFmpeg presets; you can reopen it later from Presets → “Import recommended preset pack…” to import more.
+3. Drag files into the queue, choose a preset, and start.
+
+Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in Settings → External tools.
 
 ## Features
 
-- Transcode queue: add manual jobs or collect candidates via Smart Scan, track progress and status, and review logs for each job.
-- Presets: define and reuse FFmpeg presets for video, image, and audio workloads.
-- Smart Scan (auto-compress): scan a folder for media files that match simple size/codec rules and enqueue a batch of jobs.
+- Queue-first workflow: add jobs, track progress and status, and review per-job logs (with optional crash recovery).
+- Presets (with stats): manage reusable presets and see usage, average compression ratio, and speed stats.
+- Input vs output compare: side-by-side playback or frame snapshots to quickly spot quality differences.
+- FFmpeg management: auto-download/auto-update FFmpeg (plus `ffprobe` / `avifenc`) or point to your own binaries.
+- Batch scan (auto-compress): scan a folder for media files that match simple size/codec rules and enqueue a batch of jobs.
 - Media info: inspect a single file and display structured metadata and analysis from the backend.
 - System performance monitor: chart CPU, memory, disk I/O, network I/O, and optional NVIDIA GPU metrics sampled on the Rust side.
-- Settings and external tools: configure Output Policy (output folder/filename rules, optional file-time preservation), UI appearance (font/scale), FFmpeg / FFprobe / avifenc paths, auto-download behaviour, preview capture settings, concurrency limits, metrics interval, and queue crash-recovery mode.
+- Settings: configure output rules, UI appearance, preview capture settings, concurrency limits, and more.
 
 ## Screenshots
 
@@ -36,7 +48,10 @@ FFUI is a desktop user interface for FFmpeg-based transcoding, built with Tauri 
 
 ![Settings panel (English)](docs/images/settings-en.webp)
 
-To refresh these after UI changes, run `npm run docs:screenshots`.
+![Preset setup wizard (first launch, English)](docs/images/onboarding-en.webp)
+
+To refresh the UI screenshots after UI changes, run `npm run docs:screenshots`.
+If Playwright browsers are not installed on this machine, run `npx playwright install`.
 
 The script can use your local media folder to populate real filenames and preview thumbnails:
 
@@ -85,8 +100,10 @@ Build the frontend and start the Tauri dev window:
 
 ```bash
 npm run tauri:dev
-# equivalent to: npm run build && tauri dev
+# equivalent to: vite build && tauri dev
 ```
+
+Note: `tauri:dev` uses `vite build` for speed and does not run `vue-tsc`. Run `npm run build` for a strict type-checking build.
 
 Tauri attaches to the dev server at `http://localhost:5188` as configured in `tauri.conf.json` and `vite.config.ts`.
 
@@ -106,10 +123,11 @@ cargo build        # debug build
 cargo build --release
 ```
 
-On platforms where the Tauri CLI is available you can also build a desktop bundle from the repo root:
+On platforms where the Tauri CLI is available you can also build the desktop binary (no installer bundles) from the repo root:
 
 ```bash
 npm run build:exe
+# runs: tauri build --no-bundle
 ```
 
 ### Release assets
@@ -136,9 +154,10 @@ The repository contains unit tests for both the frontend and the Rust backend.
 - Frontend tests (Vitest):
 
 ```bash
+# non-interactive (recommended for CI):
 npm test
-# or
-npm run test
+# interactive watch mode:
+npm run test:watch
 ```
 
 - Backend tests (Rust):
@@ -229,16 +248,28 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 
 ## 项目简介
 
-FFUI 是一个围绕 FFmpeg 的桌面转码界面，基于 Tauri 2（Rust）和 Vue 3 实现。应用围绕“任务队列 + 参数预设”的流程设计，同时提供基础的媒体信息查看和系统性能监控功能，方便在本地机器上管理批量转码工作。
+FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队列，选个预设就能开始批量转码。它主打“队列 + 预设”工作流，内置预设统计和输入/输出帧对比，帮助你更快找到顺手的参数组合。它基于 FFmpeg，但你不必先学命令行；如果你熟悉 FFmpeg，也可以把预设当作可复用的“参数模板库”，随时细调并复用。
+
+> FFUI 正在积极开发中。欢迎任何建议、问题反馈与贡献：可以在 GitHub 提 [Issue](https://github.com/muyuanjin/ffui/issues)，也欢迎直接提 [Pull Request](https://github.com/muyuanjin/ffui/pulls)。
+
+## 首次使用
+
+1. 从 GitHub Releases 下载最新版本。
+2. 首次启动会弹出“预设引导”，根据你的硬件能力与用途帮你导入一套推荐的 FFmpeg 参数预设；后续也可以在“预设”页点击“导入推荐预设包…”单独打开，并导入更多预设。
+3. 在队列页添加/拖拽任务，选择预设并开始。
+
+小贴士：如果你没有安装 FFmpeg，可在“设置 → 外部工具”里开启自动下载/自动更新。
 
 ## 功能概览
 
-- 任务队列：添加手动转码任务或通过批量压缩扫描目录，查看进度、状态和日志。
-- 参数预设：为视频、图片和音频配置 FFmpeg 预设，并在队列中重复使用。
+- 任务队列：添加任务或通过批量压缩扫描目录入队，查看进度、状态与日志（支持可选的崩溃恢复）。
+- 参数预设（含统计）：为视频/图片/音频管理可复用的预设，并查看使用次数、平均压缩率与速度统计。
+- 输出对比：输入 vs 输出的同步播放/帧截图对比，快速检查画质差异。
+- FFmpeg 管理：可自动下载/自动更新 FFmpeg（以及 `ffprobe` / `avifenc`），也支持手动指定本机路径。
 - 批量压缩：按目录扫描媒体文件，基于体积和编码规则筛选候选文件并批量加入队列。
 - 媒体信息：针对单个文件查看由后端返回的结构化元数据和分析结果。
 - 性能监控：在“性能监控”页中查看 CPU、内存、磁盘 I/O、网络 I/O 以及可选的 NVIDIA GPU 指标。
-- 设置与外部工具：可配置输出策略（输出目录/文件名规则、可选保留文件时间）、外观设置（字体/缩放），并在设置页管理 `ffmpeg` / `ffprobe` / `avifenc` 路径与自动下载策略，同时支持预览截帧位置、并行任务上限、性能采样间隔和队列崩溃恢复模式等行为。
+- 设置：可配置输出规则、外观设置（字体/缩放）、预览截帧位置、并行任务上限、采样间隔等。
 
 ## 界面截图
 
@@ -250,7 +281,10 @@ FFUI 是一个围绕 FFmpeg 的桌面转码界面，基于 Tauri 2（Rust）和 
 
 ![设置面板（中文）](docs/images/settings-zh-CN.webp)
 
-修改 UI 后可用 `npm run docs:screenshots` 自动重新生成以上截图。
+![预设引导（首次启动，中文）](docs/images/onboarding-zh-CN.webp)
+
+修改 UI 后可用 `npm run docs:screenshots` 自动重新生成界面截图。
+首次在本机运行该脚本时，如未安装 Playwright 浏览器，请先执行 `npx playwright install`。
 
 脚本可以读取你的本地影视目录来填充真实文件名，并从视频中截帧生成预览图：
 
@@ -295,8 +329,10 @@ npm run dev
 
 ```bash
 npm run tauri:dev
-# 等价于：npm run build && tauri dev
+# 等价于：vite build && tauri dev
 ```
+
+注意：`tauri:dev` 为了速度使用 `vite build`，不会运行 `vue-tsc` 类型检查；如需严格构建请使用 `npm run build`。
 
 Tauri 会连接到 `tauri.conf.json` 和 `vite.config.ts` 中配置的 `http://localhost:5188` 前端开发服务。
 
@@ -316,10 +352,11 @@ cargo build          # 调试构建
 cargo build --release
 ```
 
-在支持 Tauri CLI 的平台上，也可以从仓库根目录构建桌面可执行包：
+在支持 Tauri CLI 的平台上，也可以从仓库根目录构建桌面可执行文件（不打包安装器）：
 
 ```bash
 npm run build:exe
+# 实际执行：tauri build --no-bundle
 ```
 
 ### Release 产物
@@ -346,9 +383,10 @@ FFUI 支持使用 Tauri 官方 updater 插件在应用内检查更新并安装�
 - 前端（Vitest）：
 
 ```bash
+# 非交互单次运行（推荐 CI）：
 npm test
-# 或
-npm run test
+# 交互 watch 模式：
+npm run test:watch
 ```
 
 - 后端（Rust）：

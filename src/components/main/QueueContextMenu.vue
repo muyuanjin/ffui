@@ -1,245 +1,253 @@
 <template>
-  <div
-    v-if="visible"
-    class="fixed inset-0 z-40"
-    @click="$emit('close')"
-    @contextmenu.prevent
-  >
-    <div
-      ref="menuRef"
-      class="absolute z-50 min-w-[180px] rounded-md border border-border bg-popover text-xs shadow-md py-1"
-      :style="{ left: `${displayX}px`, top: `${displayY}px` }"
-      @click.stop
-      data-testid="queue-context-menu"
-    >
-      <template v-if="mode === 'single'">
-        <button
+  <div v-if="visible" ref="rootRef" class="fixed inset-0 z-40" @contextmenu.prevent>
+    <DropdownMenu :open="visible" @update:open="onOpenChange">
+      <DropdownMenuTrigger as-child>
+        <Button
           type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
-          @click="onInspect"
-        >
-          {{ t("jobDetail.title") }}
-        </button>
+          variant="ghost"
+          size="icon-xs"
+          class="fixed z-40 h-1 w-1 p-0 opacity-0"
+          :style="{ left: `${displayX}px`, top: `${displayY}px` }"
+          aria-hidden="true"
+          data-testid="queue-context-menu-anchor"
+        />
+      </DropdownMenuTrigger>
 
-        <button
-          v-if="canCompare"
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
-          data-testid="queue-context-menu-compare"
-          @click="onCompare"
-        >
-          {{ t("jobCompare.open") }}
-        </button>
+      <!-- Render inline (no Teleport) to keep tests + clamping predictable. -->
+      <DropdownMenuContent
+        class="z-50 min-w-[180px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
+        :side-offset="4"
+        :portal-disabled="true"
+        :portal-force-mount="true"
+        update-position-strategy="always"
+        data-testid="queue-context-menu"
+      >
+          <template v-if="mode === 'single'">
+            <DropdownMenuItem class="px-3 py-1.5 text-xs gap-2" @select="onInspect">
+              <Eye class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("jobDetail.title") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canRevealInput"
-          data-testid="queue-context-menu-open-input"
-          @click="onOpenInputFolder"
-        >
-          {{ t("queue.actions.openInputFolder") }}
-        </button>
+            <DropdownMenuItem
+              v-if="canCompare"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-compare"
+              @select="onCompare"
+            >
+              <GitCompare class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("jobCompare.open") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
-          data-testid="queue-context-menu-copy-input"
-          @click="onCopyInputPath"
-        >
-          {{ t("queue.actions.copyInputPath") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canRevealInput"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-open-input"
+              @select="onOpenInputFolder"
+            >
+              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.openInputFolder") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canRevealOutput"
-          data-testid="queue-context-menu-open-output"
-          @click="onOpenOutputFolder"
-        >
-          {{ t("queue.actions.openOutputFolder") }}
-        </button>
+            <DropdownMenuItem
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-input"
+              @select="onCopyInputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyInputPath") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground"
-          data-testid="queue-context-menu-copy-output"
-          @click="onCopyOutputPath"
-        >
-          {{ t("queue.actions.copyOutputPath") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canRevealOutput"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-open-output"
+              @select="onOpenOutputFolder"
+            >
+              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.openOutputFolder") }}
+            </DropdownMenuItem>
 
-        <div class="h-px my-1 bg-border/40" />
+            <DropdownMenuItem
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-output"
+              @select="onCopyOutputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyOutputPath") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canWait"
-          data-testid="queue-context-menu-wait"
-          @click="onWait"
-        >
-          {{ t("queue.actions.wait") }}
-        </button>
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canResume"
-          data-testid="queue-context-menu-resume"
-          @click="onResume"
-        >
-          {{ t("queue.actions.resume") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.wait") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canRestart"
-          data-testid="queue-context-menu-restart"
-          @click="onRestart"
-        >
-          {{ t("queue.actions.restart") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canResume"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-resume"
+              @select="onResume"
+            >
+              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.resume") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canCancel"
-          data-testid="queue-context-menu-cancel"
-          @click="onCancel"
-        >
-          {{ t("app.actions.cancel") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canRestart"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-restart"
+              @select="onRestart"
+            >
+              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.restart") }}
+            </DropdownMenuItem>
 
-        <div class="h-px my-1 bg-border/40" />
+            <DropdownMenuItem
+              :disabled="!canCancel"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-cancel"
+              @select="onCancel"
+            >
+              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("app.actions.cancel") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canMove"
-          data-testid="queue-context-menu-move-top"
-          @click="onMoveToTop"
-        >
-          {{ t("queue.actions.bulkMoveToTop") }}
-        </button>
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canMove"
-          data-testid="queue-context-menu-move-bottom"
-          @click="onMoveToBottom"
-        >
-          {{ t("queue.actions.bulkMoveToBottom") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-move-top"
+              @select="onMoveToTop"
+            >
+              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToTop") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canDeleteSingle"
-          data-testid="queue-context-menu-remove"
-          @click="onRemove"
-        >
-          {{ t("queue.actions.bulkDelete") }}
-        </button>
-      </template>
+            <DropdownMenuItem
+              :disabled="!canMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-move-bottom"
+              @select="onMoveToBottom"
+            >
+              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToBottom") }}
+            </DropdownMenuItem>
 
-      <template v-else>
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkBase"
-          data-testid="queue-context-menu-copy-all-input"
-          @click="onCopyInputPath"
-        >
-          {{ t("queue.actions.copyAllInputPaths") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canDeleteSingle"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-remove"
+              @select="onRemove"
+            >
+              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkDelete") }}
+            </DropdownMenuItem>
+          </template>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkBase"
-          data-testid="queue-context-menu-copy-all-output"
-          @click="onCopyOutputPath"
-        >
-          {{ t("queue.actions.copyAllOutputPaths") }}
-        </button>
+          <template v-else>
+            <DropdownMenuItem
+              :disabled="!canBulkBase"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-all-input"
+              @select="onCopyInputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyAllInputPaths") }}
+            </DropdownMenuItem>
 
-        <div class="h-px my-1 bg-border/40" />
+            <DropdownMenuItem
+              :disabled="!canBulkBase"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-all-output"
+              @select="onCopyOutputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyAllOutputPaths") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkWait"
-          data-testid="queue-context-menu-bulk-wait"
-          @click="onWait"
-        >
-          {{ t("queue.actions.bulkWait") }}
-        </button>
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkResume"
-          data-testid="queue-context-menu-bulk-resume"
-          @click="onResume"
-        >
-          {{ t("queue.actions.bulkResume") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canBulkWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkWait") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkCancel"
-          data-testid="queue-context-menu-bulk-cancel"
-          @click="onCancel"
-        >
-          {{ t("queue.actions.bulkCancel") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canBulkResume"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-resume"
+              @select="onResume"
+            >
+              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkResume") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkRestart"
-          data-testid="queue-context-menu-bulk-restart"
-          @click="onRestart"
-        >
-          {{ t("queue.actions.bulkRestart") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canBulkCancel"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-bulk-cancel"
+              @select="onCancel"
+            >
+              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkCancel") }}
+            </DropdownMenuItem>
 
-        <div class="h-px my-1 bg-border/40" />
+            <DropdownMenuItem
+              :disabled="!canBulkRestart"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-restart"
+              @select="onRestart"
+            >
+              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkRestart") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkMove"
-          data-testid="queue-context-menu-bulk-move-top"
-          @click="onMoveToTop"
-        >
-          {{ t("queue.actions.bulkMoveToTop") }}
-        </button>
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkMove"
-          data-testid="queue-context-menu-bulk-move-bottom"
-          @click="onMoveToBottom"
-        >
-          {{ t("queue.actions.bulkMoveToBottom") }}
-        </button>
+            <DropdownMenuItem
+              :disabled="!canBulkMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-move-top"
+              @select="onMoveToTop"
+            >
+              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToTop") }}
+            </DropdownMenuItem>
 
-        <button
-          type="button"
-          class="w-full px-3 py-1.5 text-left text-destructive hover:bg-destructive/90 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canBulkDelete"
-          data-testid="queue-context-menu-bulk-remove"
-          @click="onRemove"
-        >
-          {{ t("queue.actions.bulkDelete") }}
-        </button>
-      </template>
-    </div>
+            <DropdownMenuItem
+              :disabled="!canBulkMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-move-bottom"
+              @select="onMoveToBottom"
+            >
+              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToBottom") }}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              :disabled="!canBulkDelete"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-bulk-remove"
+              @select="onRemove"
+            >
+              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkDelete") }}
+            </DropdownMenuItem>
+          </template>
+        </DropdownMenuContent>
+    </DropdownMenu>
   </div>
 </template>
 
@@ -247,6 +255,27 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import type { JobStatus, JobType, QueueMode } from "@/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowDownToLine,
+  ArrowUpToLine,
+  Copy,
+  Eye,
+  FolderOpen,
+  GitCompare,
+  Hourglass,
+  Play,
+  RefreshCw,
+  Trash2,
+  XCircle,
+} from "lucide-vue-next";
 
 const props = defineProps<{
   visible: boolean;
@@ -277,7 +306,28 @@ const emit = defineEmits<{
   (e: "remove"): void;
   (e: "close"): void;
 }>();
-const closeMenu = () => emit("close");
+
+const { t } = useI18n();
+const rootRef = ref<HTMLElement | null>(null);
+const displayX = ref(props.x);
+const displayY = ref(props.y);
+const closeFromItem = ref(false);
+
+const requestClose = () => emit("close");
+const closeMenu = () => {
+  closeFromItem.value = true;
+  requestClose();
+};
+
+const onOpenChange = (open: boolean) => {
+  if (open) return;
+  if (closeFromItem.value) {
+    closeFromItem.value = false;
+    return;
+  }
+  requestClose();
+};
+
 const onInspect = () => {
   emit("inspect");
   closeMenu();
@@ -341,15 +391,16 @@ const onRemove = () => {
   closeMenu();
 };
 
-const { t } = useI18n();
-const menuRef = ref<HTMLElement | null>(null);
-const displayX = ref(props.x);
-const displayY = ref(props.y);
-
 const clampToViewport = () => {
   const padding = 8;
-  const menuEl = menuRef.value;
-  const rect = menuEl?.getBoundingClientRect();
+  const menuEl =
+    rootRef.value?.querySelector<HTMLElement>("[data-testid='queue-context-menu']") ??
+    document.querySelector<HTMLElement>("[data-testid='queue-context-menu']") ??
+    null;
+  const rect =
+    menuEl && typeof menuEl.getBoundingClientRect === "function"
+      ? menuEl.getBoundingClientRect()
+      : null;
   const menuWidth = rect?.width || menuEl?.offsetWidth || 0;
   const menuHeight = rect?.height || menuEl?.offsetHeight || 0;
 
@@ -363,10 +414,12 @@ const clampToViewport = () => {
 watch(
   () => [props.visible, props.x, props.y],
   async ([visible]) => {
+    closeFromItem.value = false;
     displayX.value = props.x;
     displayY.value = props.y;
 
     if (!visible) return;
+    await nextTick();
     await nextTick();
     clampToViewport();
   },

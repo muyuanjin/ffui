@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { OctagonX, TriangleAlert } from "lucide-vue-next";
 
 type AlertVariant = "error" | "warning";
 
@@ -49,13 +51,10 @@ const alerts = computed(() => {
   return list;
 });
 
-const alertClass = (variant: AlertVariant) => {
-  if (variant === "warning") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200";
-  }
-
-  return "border-destructive/60 bg-destructive/10 text-destructive";
-};
+const alertClass = (variant: AlertVariant) =>
+  variant === "warning"
+    ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200"
+    : "border-destructive/60 bg-destructive/10 text-destructive";
 </script>
 
 <template>
@@ -67,27 +66,43 @@ const alertClass = (variant: AlertVariant) => {
     aria-label="Global alerts"
   >
     <div class="max-w-4xl mx-auto space-y-2 max-h-32 overflow-auto">
-      <div
+      <Alert
         v-for="alert in alerts"
         :key="alert.id"
-        class="rounded-md border text-xs px-3 py-2 flex items-start gap-2"
+        :variant="alert.variant === 'error' ? 'destructive' : 'default'"
+        class="text-xs pr-10"
         :class="alertClass(alert.variant)"
         role="alert"
         aria-live="polite"
       >
-        <span class="mt-0.5 select-none">!</span>
-        <span class="whitespace-pre-wrap flex-1">{{ alert.message }}</span>
+        <TriangleAlert
+          v-if="alert.variant === 'warning'"
+          class="h-4 w-4"
+          aria-hidden="true"
+        />
+        <OctagonX
+          v-else
+          class="h-4 w-4"
+          aria-hidden="true"
+        />
+        <div>
+          <AlertTitle class="text-xs">
+            {{ alert.id }}
+          </AlertTitle>
+          <AlertDescription class="text-xs whitespace-pre-wrap">
+            {{ alert.message }}
+          </AlertDescription>
+        </div>
         <Button
           variant="ghost"
-          size="sm"
-          class="h-6 px-2 -my-0.5"
+          size="icon-xs"
+          class="absolute top-2 right-2 text-xs"
           :aria-label="`Dismiss ${alert.id} alert`"
           @click="alert.onClose()"
         >
           ×
         </Button>
-      </div>
+      </Alert>
     </div>
   </section>
 </template>
-

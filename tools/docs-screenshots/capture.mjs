@@ -195,6 +195,14 @@ const SHOTS_MAIN = [
   { tab: "presets", panelTestId: "preset-panel", outBase: "preset", readyText: "Universal 1080p" },
 ];
 
+const SHOT_ONBOARDING = {
+  tab: "presets",
+  panelTestId: "preset-panel",
+  outBase: "onboarding",
+  readyTestId: "preset-import-recommended-pack",
+  mode: "preset-setup-wizard",
+};
+
 // Capture the monitor panel with a slightly taller viewport, then scale down to
 // 1920x1080 so the bottom widgets are visible without changing the published
 // image size.
@@ -210,7 +218,7 @@ const SETTINGS_SHOT = {
   tab: "settings",
   panelTestId: "settings-panel",
   outBase: "settings",
-  readySelector: 'input[name="external-tools-mode"]',
+  readySelector: '[data-testid="external-tools-mode-auto-managed"]',
 };
 
 const LOCALES = [
@@ -457,7 +465,7 @@ const forceUiAppearance = async (page, options) => {
 };
 
 const waitForLocaleApplied = async (page, locale) => {
-  const expected = locale.value === "en" ? "Control Panel" : "控制面板";
+  const expected = locale.value === "en" ? "Queue · Presets · Compare" : "队列 · 预设 · 对比";
   await page.waitForFunction(
     ({ testId, expectedText }) => {
       const el = document.querySelector(`[data-testid="${testId}"]`);
@@ -772,6 +780,25 @@ const captureScreenshotsForLocale = async ({
   await ensureLocaleSelected(page, locale);
   await waitForLocaleApplied(page, locale);
 
+  const openPresetSetupWizardToRecommendations = async () => {
+    await page.getByTestId("preset-import-recommended-pack").click();
+
+    await page.getByTestId("preset-setup-wizard").waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("preset-setup-wizard-step-welcome").waitFor({ state: "visible", timeout: 30_000 });
+
+    const next = page.getByTestId("preset-setup-wizard-next");
+
+    await next.click();
+    await page.getByTestId("preset-setup-wizard-step-codec").waitFor({ state: "visible", timeout: 30_000 });
+
+    await next.click();
+    await page.getByTestId("preset-setup-wizard-step-useCase").waitFor({ state: "visible", timeout: 30_000 });
+
+    await next.click();
+    await page.getByTestId("preset-setup-wizard-step-presets").waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("preset-setup-wizard-preset-card").first().waitFor({ state: "visible", timeout: 30_000 });
+  };
+
   const waitForShotReady = async (shot) => {
     if (shot?.readyTestId) {
       await page.getByTestId(shot.readyTestId).first().waitFor({ state: "visible", timeout: 30_000 });
@@ -792,14 +819,19 @@ const captureScreenshotsForLocale = async ({
     // eslint-disable-next-line no-await-in-loop
     await waitForShotReady(shot);
 
-    // Let charts/components settle (best-effort).
-    if (shot.tab === "monitor") {
+    if (shot.mode === "preset-setup-wizard") {
       // eslint-disable-next-line no-await-in-loop
-      await sleep(1250);
-    } else {
-      // eslint-disable-next-line no-await-in-loop
-      await sleep(200);
+      await openPresetSetupWizardToRecommendations();
     }
+
+    // Let charts/components settle (best-effort).
+    const settleMs = Number.isFinite(shot?.settleMs)
+      ? Math.max(0, Math.round(shot.settleMs))
+      : shot.tab === "monitor"
+        ? 1250
+        : 200;
+    // eslint-disable-next-line no-await-in-loop
+    await sleep(settleMs);
 
     const pngPath = path.join(tmpDir, `${shot.outBase}-${locale.suffix}.png`);
     const webpPath = path.join(docsImagesDir, `${shot.outBase}-${locale.suffix}.webp`);
@@ -900,6 +932,19 @@ const main = async () => {
           locale,
           viewport: { width: outSize.width, height: settingsCaptureHeight },
           shots: [settingsShot],
+          expectedFontSizePercent,
+          expectedUiScalePercent,
+          expectedUiFontName,
+          deviceScaleFactor,
+        });
+
+        // eslint-disable-next-line no-await-in-loop
+        await captureScreenshotsForLocale({
+          chromium,
+          baseUrl,
+          locale,
+          viewport: outSize,
+          shots: [SHOT_ONBOARDING],
           expectedFontSizePercent,
           expectedUiScalePercent,
           expectedUiFontName,

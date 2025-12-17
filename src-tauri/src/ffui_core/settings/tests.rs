@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 mod network_proxy;
 mod presets_loading;
 mod tests_selection_bar_pinned;
+mod updater_metadata;
 
 #[test]
 fn app_settings_default_uses_preview_capture_percent_25() {
@@ -158,6 +159,32 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
     assert!(
         value.get("uiFontFileSourceName").is_none(),
         "uiFontFileSourceName should be absent when unset"
+    );
+    assert!(
+        value.get("locale").is_none(),
+        "locale should be absent when unset"
+    );
+}
+
+#[test]
+fn app_settings_round_trips_locale_when_present() {
+    let settings = AppSettings {
+        locale: Some("en".to_string()),
+        ..AppSettings::default()
+    };
+    let value = serde_json::to_value(&settings).expect("serialize AppSettings with locale");
+    assert_eq!(
+        value.get("locale").and_then(Value::as_str),
+        Some("en"),
+        "locale should serialize as a string when set"
+    );
+
+    let decoded: AppSettings =
+        serde_json::from_value(value).expect("deserialize AppSettings with locale");
+    assert_eq!(
+        decoded.locale.as_deref(),
+        Some("en"),
+        "locale should round-trip through JSON"
     );
 }
 #[test]
@@ -427,50 +454,4 @@ fn app_settings_normalizes_invalid_parallel_limits() {
         settings.max_parallel_hw_jobs,
         Some(crate::ffui_core::settings::types::MAX_PARALLEL_JOBS_LIMIT)
     );
-}
-
-#[test]
-fn app_settings_round_trips_updater_metadata() {
-    use crate::ffui_core::settings::types::AppUpdaterSettings;
-
-    let settings = AppSettings {
-        updater: Some(AppUpdaterSettings {
-            auto_check: false,
-            last_checked_at_ms: Some(1_735_000_000_000),
-            available_version: Some("0.2.0".to_string()),
-        }),
-        ..Default::default()
-    };
-
-    let json = serde_json::to_value(&settings).expect("serialize AppSettings with updater");
-    let updater = json
-        .get("updater")
-        .and_then(Value::as_object)
-        .expect("updater object should be present when set");
-
-    assert_eq!(
-        updater.get("autoCheck").and_then(Value::as_bool),
-        Some(false),
-        "updater.autoCheck must serialize in camelCase"
-    );
-    assert_eq!(
-        updater.get("lastCheckedAtMs").and_then(Value::as_u64),
-        Some(1_735_000_000_000),
-        "updater.lastCheckedAtMs must serialize in camelCase"
-    );
-    assert_eq!(
-        updater.get("availableVersion").and_then(Value::as_str),
-        Some("0.2.0"),
-        "updater.availableVersion must serialize in camelCase"
-    );
-
-    let decoded: AppSettings =
-        serde_json::from_value(json).expect("round-trip deserialize AppSettings with updater");
-    let decoded_updater = decoded.updater.expect("decoded updater present");
-    assert!(
-        !decoded_updater.auto_check,
-        "updater.auto_check must remain false after round-trip"
-    );
-    assert_eq!(decoded_updater.last_checked_at_ms, Some(1_735_000_000_000));
-    assert_eq!(decoded_updater.available_version.as_deref(), Some("0.2.0"));
 }

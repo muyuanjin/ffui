@@ -21,7 +21,7 @@ import {
 } from "./presetHelpers";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, LayoutGrid, LayoutList } from "lucide-vue-next";
-import type { AcceptableValue } from "reka-ui";
+import type { AcceptableValue } from "@/components/ui/select";
 
 // 视图模式：grid（卡片）或 compact（紧凑列表）
 type ViewMode = "grid" | "compact";
@@ -200,6 +200,7 @@ useSortable(containerRef, localPresets, {
           variant="outline"
           size="sm"
           class="h-7 px-2 text-[11px] whitespace-nowrap"
+          data-testid="preset-import-recommended-pack"
           @click="emit('importSmartPack')"
         >
           {{ t("presets.importSmartPack") }}

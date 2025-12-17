@@ -3,6 +3,22 @@ use serde_json::Value;
 use std::time::Instant;
 
 #[test]
+fn metrics_sampler_does_not_init_sysinfo_while_unsubscribed() {
+    let mut sys: Option<System> = None;
+    let mut networks: Option<Networks> = None;
+    let mut last_instant: Option<Instant> = None;
+
+    let did_init = seed_sysinfo_if_needed(0, &mut sys, &mut networks, &mut last_instant);
+    assert!(!did_init, "must not initialize sysinfo when unsubscribed");
+    assert!(sys.is_none(), "sysinfo System must remain uninitialized");
+    assert!(
+        networks.is_none(),
+        "sysinfo Networks must remain uninitialized"
+    );
+    assert!(last_instant.is_none(), "last_instant must remain unset");
+}
+
+#[test]
 fn ring_buffer_is_bounded() {
     let config = MetricsConfig {
         history_capacity: 3,

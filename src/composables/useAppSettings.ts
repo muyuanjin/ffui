@@ -46,6 +46,12 @@ let loggedToolStatusLoad = false;
 const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
   const next: AppSettings = { ...settings };
 
+  // Normalize the locale string so we don't persist empty/whitespace values.
+  if (typeof (next as any).locale === "string") {
+    const normalized = (next as any).locale.trim();
+    next.locale = normalized.length > 0 ? normalized : undefined;
+  }
+
   // Font mode exclusivity (new UI): keep exactly one source active.
   if (typeof next.uiFontFilePath === "string" && next.uiFontFilePath.trim().length > 0) {
     next.uiFontDownloadId = undefined;

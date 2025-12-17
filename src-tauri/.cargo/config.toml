@@ -1,14 +1,4 @@
-[target.x86_64-pc-windows-msvc]
-rustflags = [
-  "-C", "link-arg=/OPT:REF",
-  "-C", "link-arg=/OPT:ICF",
-  "-C", "link-arg=/INCREMENTAL:NO",
-]
-
-[target.aarch64-pc-windows-msvc]
-rustflags = [
-  "-C", "link-arg=/OPT:REF",
-  "-C", "link-arg=/OPT:ICF",
-  "-C", "link-arg=/INCREMENTAL:NO",
-]
-
+## Intentionally left empty.
+##
+## MSVC release-only link args are now injected via `build.rs` so that
+## `cargo test`/debug builds stay fast, while release builds keep size opts.

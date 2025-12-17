@@ -133,19 +133,37 @@ describe("SettingsAppearanceSection system font input", () => {
 
     await input.setValue("示例");
     await nextTick();
-    expect(wrapper.find('[data-testid="settings-ui-system-font-suggestions"]').exists()).toBe(true);
+    const listEl1 = document.querySelector(
+      '[data-testid="settings-ui-system-font-suggestions"]',
+    ) as HTMLElement | null;
+    expect(listEl1).toBeTruthy();
+    expect(listEl1?.getAttribute("data-state")).toBe("open");
 
-    const suggestionButtons = wrapper.findAll('[data-testid="settings-ui-system-font-suggestions"] button');
-    expect(suggestionButtons.length).toBeGreaterThan(0);
-    await suggestionButtons[0]!.trigger("mousedown");
+    const suggestionItems = Array.from(
+      document.querySelectorAll(
+        '[data-testid="settings-ui-system-font-suggestions"] [role="option"]',
+      ),
+    );
+    expect(suggestionItems.length).toBeGreaterThan(0);
+    (suggestionItems[0] as HTMLElement).dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 }),
+    );
     await nextTick();
 
-    expect(wrapper.find('[data-testid="settings-ui-system-font-suggestions"]').exists()).toBe(false);
+    const listEl2 = document.querySelector(
+      '[data-testid="settings-ui-system-font-suggestions"]',
+    ) as HTMLElement | null;
+    expect(listEl2).toBeTruthy();
+    expect(listEl2?.getAttribute("data-state")).toBe("closed");
 
     // Edit again without hitting refresh: suggestions should show up again.
     await input.setValue("其");
     await nextTick();
-    expect(wrapper.find('[data-testid="settings-ui-system-font-suggestions"]').exists()).toBe(true);
+    const listEl3 = document.querySelector(
+      '[data-testid="settings-ui-system-font-suggestions"]',
+    ) as HTMLElement | null;
+    expect(listEl3).toBeTruthy();
+    expect(listEl3?.getAttribute("data-state")).toBe("open");
 
     wrapper.unmount();
   });

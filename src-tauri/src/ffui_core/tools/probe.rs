@@ -52,7 +52,7 @@ pub(super) fn is_exec_arch_mismatch(err: &std::io::Error) -> bool {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct FileFingerprint {
     len: u64,
-    modified_millis: Option<u128>,
+    modified_millis: Option<u64>,
 }
 
 fn file_fingerprint(path: &str) -> Option<FileFingerprint> {
@@ -61,7 +61,7 @@ fn file_fingerprint(path: &str) -> Option<FileFingerprint> {
     let modified_millis = meta.modified().ok().and_then(|t| {
         t.duration_since(SystemTime::UNIX_EPOCH)
             .ok()
-            .map(|d| d.as_millis())
+            .and_then(|d| d.as_millis().try_into().ok())
     });
     Some(FileFingerprint {
         len,
@@ -80,6 +80,60 @@ struct VerifyCacheEntry {
 static VERIFY_CACHE: once_cell::sync::Lazy<
     std::sync::Mutex<HashMap<(ExternalToolKind, String), VerifyCacheEntry>>,
 > = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+
+#[derive(Clone, Debug)]
+pub(crate) struct PersistableProbeCacheEntry {
+    pub ok: bool,
+    pub version: Option<String>,
+    pub fingerprint_len: u64,
+    pub fingerprint_modified_millis: Option<u64>,
+}
+
+pub(crate) fn cached_probe_entry_for_persistence(
+    kind: ExternalToolKind,
+    path: &str,
+) -> Option<PersistableProbeCacheEntry> {
+    let key = (kind, path.to_string());
+    let map = VERIFY_CACHE.lock().ok()?;
+    let entry = map.get(&key)?;
+    let fp = entry.fingerprint.as_ref()?;
+    Some(PersistableProbeCacheEntry {
+        ok: entry.ok,
+        version: entry.version.clone(),
+        fingerprint_len: fp.len,
+        fingerprint_modified_millis: fp.modified_millis,
+    })
+}
+
+pub(crate) fn seed_probe_cache_from_persisted(
+    kind: ExternalToolKind,
+    path: String,
+    ok: bool,
+    version: Option<String>,
+    fingerprint_len: u64,
+    fingerprint_modified_millis: Option<u64>,
+) {
+    let key = (kind, path);
+    let entry = VerifyCacheEntry {
+        ok,
+        version,
+        fingerprint: Some(FileFingerprint {
+            len: fingerprint_len,
+            modified_millis: fingerprint_modified_millis,
+        }),
+        last_checked: std::time::Instant::now(),
+    };
+    if let Ok(mut map) = VERIFY_CACHE.lock() {
+        map.insert(key, entry);
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn reset_probe_cache_for_tests() {
+    if let Ok(mut map) = VERIFY_CACHE.lock() {
+        map.clear();
+    }
+}
 
 fn cache_lookup(kind: ExternalToolKind, path: &str) -> Option<VerifyCacheEntry> {
     let key = (kind, path.to_string());
