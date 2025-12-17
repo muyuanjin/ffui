@@ -24,6 +24,7 @@ const app = {
     checkToolUpdateCheckingButton: "Checking…",
     checkToolUpdateDoneHint: "Checked",
     checkToolUpdateLogTitle: "Update check log",
+    checkToolUpdateLogCopy: "Copy log",
     checkToolUpdateLogStarted: "Started update check.",
     checkToolUpdateLogRequestSent: "Sent remote version check request to the backend…",
     checkToolUpdateLogAwaitingSnapshot: "Backend accepted; waiting for status snapshot…",
@@ -110,9 +111,13 @@ const app = {
     previewCaptureHelp:
       "Percentage of total video duration used when capturing thumbnails; default is 25.",
     parallelismModeLabel: "Concurrency mode",
-    parallelismModeHelp: "Choose a unified cap, or separate caps for CPU vs hardware encoders.",
+    parallelismModeHelp:
+      "Choose \"Unified cap\" or \"CPU/hardware split\". Only the limits that apply to the selected mode are shown below.",
+    parallelismModeTooltip:
+      "Unified cap: all jobs share a single concurrency limit.\nCPU/hardware split: CPU (software) and hardware-encoded jobs are limited separately; total concurrency = CPU cap + hardware cap.",
     parallelismModeUnifiedOption: "Unified cap (default)",
     parallelismModeSplitOption: "Split CPU / hardware caps",
+    parallelismModeSplitSummary: "Total cap: {total} (CPU {cpu} + HW {hw})",
     maxParallelJobsLabel: "Max parallel transcode jobs",
     maxParallelJobsHelp:
       "Upper bound (>= 1). Default is 2.",

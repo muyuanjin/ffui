@@ -73,27 +73,25 @@ describe("SettingsPanel numeric settings defaults", () => {
       },
     });
 
-    const inputs = wrapper.findAll('input[type="number"]');
-    // 1) previewCapturePercent, 2) maxParallelJobs,
-    // 3) maxParallelCpuJobs, 4) maxParallelHwJobs,
-    // 5) progressUpdateIntervalMs, 6) metricsIntervalMs
-    expect(inputs.length).toBe(6);
-
-    const previewInput = inputs[0].element as HTMLInputElement;
-    const maxParallelInput = inputs[1].element as HTMLInputElement;
-    const maxParallelCpuInput = inputs[2].element as HTMLInputElement;
-    const maxParallelHwInput = inputs[3].element as HTMLInputElement;
-    const progressIntervalInput = inputs[4].element as HTMLInputElement;
-    const metricsIntervalInput = inputs[5].element as HTMLInputElement;
-
+    const previewInput = wrapper.get(
+      'input[data-testid="settings-preview-capture-percent"]',
+    ).element as HTMLInputElement;
     expect(previewInput.value).toBe("25");
-    // 当并行转码数未配置时，UI 应该显示默认值 2。
+
+    // Default mode is unified; only the unified cap input should be shown.
+    const maxParallelInput = wrapper.get(
+      'input[data-testid="settings-max-parallel-jobs"]',
+    ).element as HTMLInputElement;
     expect(maxParallelInput.value).toBe("2");
-    // Split-mode inputs are rendered but disabled by default; they should still
-    // show engine defaults so the layout stays stable.
-    expect(maxParallelCpuInput.value).toBe("2");
-    expect(maxParallelHwInput.value).toBe("1");
-    // 进度刷新节奏/性能监控节奏都应显示引擎默认值，而不是留空。
+    expect(wrapper.find('input[data-testid="settings-max-parallel-cpu-jobs"]').exists()).toBe(false);
+    expect(wrapper.find('input[data-testid="settings-max-parallel-hw-jobs"]').exists()).toBe(false);
+
+    const progressIntervalInput = wrapper.get(
+      'input[data-testid="settings-progress-update-interval-ms"]',
+    ).element as HTMLInputElement;
+    const metricsIntervalInput = wrapper.get(
+      'input[data-testid="settings-metrics-interval-ms"]',
+    ).element as HTMLInputElement;
     expect(progressIntervalInput.value).toBe("250");
     expect(metricsIntervalInput.value).toBe("1000");
 
@@ -121,18 +119,19 @@ describe("SettingsPanel numeric settings defaults", () => {
       },
     });
 
-    const inputs = wrapper.findAll('input[type="number"]');
-    expect(inputs.length).toBe(6);
-
-    const maxParallelInput = inputs[1].element as HTMLInputElement;
-    const maxParallelCpuInput = inputs[2].element as HTMLInputElement;
-    const maxParallelHwInput = inputs[3].element as HTMLInputElement;
-    const progressIntervalInput = inputs[4].element as HTMLInputElement;
-    const metricsIntervalInput = inputs[5].element as HTMLInputElement;
-
+    const maxParallelInput = wrapper.get(
+      'input[data-testid="settings-max-parallel-jobs"]',
+    ).element as HTMLInputElement;
     expect(maxParallelInput.value).toBe("4");
-    expect(maxParallelCpuInput.value).toBe("2");
-    expect(maxParallelHwInput.value).toBe("1");
+    expect(wrapper.find('input[data-testid="settings-max-parallel-cpu-jobs"]').exists()).toBe(false);
+    expect(wrapper.find('input[data-testid="settings-max-parallel-hw-jobs"]').exists()).toBe(false);
+
+    const progressIntervalInput = wrapper.get(
+      'input[data-testid="settings-progress-update-interval-ms"]',
+    ).element as HTMLInputElement;
+    const metricsIntervalInput = wrapper.get(
+      'input[data-testid="settings-metrics-interval-ms"]',
+    ).element as HTMLInputElement;
     expect(progressIntervalInput.value).toBe("500");
     expect(metricsIntervalInput.value).toBe("2000");
 
@@ -160,16 +159,18 @@ describe("SettingsPanel numeric settings defaults", () => {
       },
     });
 
-    const inputs = wrapper.findAll('input[type="number"]');
-    expect(inputs.length).toBe(6);
+    expect(wrapper.find('input[data-testid="settings-max-parallel-jobs"]').exists()).toBe(false);
 
-    const unified = inputs[1].element as HTMLInputElement;
-    const cpu = inputs[2].element as HTMLInputElement;
-    const hw = inputs[3].element as HTMLInputElement;
+    const cpu = wrapper.get(
+      'input[data-testid="settings-max-parallel-cpu-jobs"]',
+    ).element as HTMLInputElement;
+    const hw = wrapper.get(
+      'input[data-testid="settings-max-parallel-hw-jobs"]',
+    ).element as HTMLInputElement;
 
-    expect(unified.value).toBe("2");
     expect(cpu.value).toBe("3");
     expect(hw.value).toBe("2");
+    expect(wrapper.get('[data-testid="settings-parallelism-summary"]').text()).toContain("5");
 
     wrapper.unmount();
   });

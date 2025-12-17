@@ -2,6 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Input } from "@/components/ui/input";
+import { computed, toRefs } from "vue";
 import { useI18n } from "vue-i18n";
 import type {
   AppSettings,
@@ -17,7 +18,7 @@ type CheckUpdateLogEntry = {
   message: string;
 };
 
-defineProps<{
+const props = defineProps<{
   tool: ExternalToolStatus;
   toolStatusesFresh: boolean;
   appSettings: AppSettings | null;
@@ -30,6 +31,20 @@ defineProps<{
   checkUpdateDisabled: boolean;
   recentlyChecked: boolean;
 }>();
+
+const {
+  tool,
+  toolStatusesFresh,
+  appSettings,
+  toolCustomPath,
+  candidatesOpen,
+  candidatesLoading,
+  candidates,
+  checkUpdateLogs,
+  checkUpdateLoading,
+  checkUpdateDisabled,
+  recentlyChecked,
+} = toRefs(props);
 
 const emit = defineEmits<{
   toggleCandidates: [];
@@ -99,6 +114,12 @@ const formatLogTime = (ms: number): string => {
   const pad2 = (value: number) => String(value).padStart(2, "0");
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
 };
+
+const checkUpdateLogCopyText = computed(() =>
+  checkUpdateLogs.value
+    .map((entry) => `${formatLogTime(entry.atMs)}  ${entry.level.toUpperCase()}  ${entry.message}`)
+    .join("\n"),
+);
 
 const copyToClipboard = async (value: string | undefined | null) => {
   if (!value) return;
@@ -319,8 +340,71 @@ const copyToClipboard = async (value: string | undefined | null) => {
         {{ t("app.settings.toolUpToDateHint") }}
       </span>
       <div class="flex items-center gap-1.5">
+        <HoverCard v-if="!tool.downloadInProgress && checkUpdateLogs.length > 0" :open-delay="180" :close-delay="90">
+          <HoverCardTrigger as-child>
+            <Button
+              :data-testid="`tool-check-update-${tool.kind}`"
+              variant="ghost"
+              size="sm"
+              class="h-5 px-2 text-[9px]"
+              :disabled="checkUpdateDisabled"
+              @click="emit('checkUpdate')"
+            >
+              {{
+                checkUpdateLoading
+                  ? t("app.settings.checkToolUpdateCheckingButton")
+                  : recentlyChecked
+                    ? t("app.settings.checkToolUpdateDoneHint")
+                    : t("app.settings.checkToolUpdateButton")
+              }}
+            </Button>
+          </HoverCardTrigger>
+          <HoverCardContent
+            align="end"
+            side="bottom"
+            :side-offset="8"
+            :collision-padding="12"
+            :prioritize-position="true"
+            sticky="always"
+            class="w-[min(620px,var(--reka-hover-card-content-available-width))] p-3"
+            :data-testid="`tool-check-update-hover-${tool.kind}`"
+          >
+            <div class="flex items-center justify-end gap-2 mb-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-6 px-2 text-[10px]"
+                :data-testid="`tool-check-update-hover-copy-${tool.kind}`"
+                @click="copyToClipboard(checkUpdateLogCopyText)"
+              >
+                {{ t("app.settings.checkToolUpdateLogCopy") }}
+              </Button>
+            </div>
+            <div
+              class="rounded border border-border/30 bg-background/60 p-2 max-h-[calc(100vh-180px)] overflow-auto select-text"
+              :data-testid="`tool-check-update-hover-log-${tool.kind}`"
+            >
+              <div
+                v-for="(entry, idx) in checkUpdateLogs"
+                :key="idx"
+                class="flex gap-2 leading-snug text-[10px] font-mono"
+                :class="
+                  entry.level === 'error'
+                    ? 'text-red-600 dark:text-red-400'
+                    : entry.level === 'warn'
+                      ? 'text-amber-600 dark:text-amber-400'
+                      : 'text-muted-foreground'
+                "
+              >
+                <span class="opacity-70 shrink-0 tabular-nums">{{ formatLogTime(entry.atMs) }}</span>
+                <span class="opacity-60 shrink-0">{{ entry.level.toUpperCase() }}</span>
+                <span class="whitespace-pre-wrap break-words">{{ entry.message }}</span>
+              </div>
+            </div>
+          </HoverCardContent>
+        </HoverCard>
         <Button
-          v-if="!tool.downloadInProgress"
+          v-else-if="!tool.downloadInProgress"
           :data-testid="`tool-check-update-${tool.kind}`"
           variant="ghost"
           size="sm"
@@ -346,39 +430,6 @@ const copyToClipboard = async (value: string | undefined | null) => {
         >
           {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
         </Button>
-      </div>
-    </div>
-
-    <!-- Check update logs -->
-    <div
-      v-if="checkUpdateLogs.length"
-      :data-testid="`tool-check-update-log-${tool.kind}`"
-      class="mt-1.5 space-y-0.5"
-    >
-      <div class="flex items-center justify-between text-[9px]">
-        <span class="text-muted-foreground uppercase tracking-wider">
-          {{ t("app.settings.checkToolUpdateLogTitle") }}
-        </span>
-        <span v-if="checkUpdateLoading" class="font-mono text-muted-foreground">
-          {{ t("app.settings.checkToolUpdateCheckingButton") }}
-        </span>
-      </div>
-      <div class="rounded border border-border/30 bg-background/60 p-1.5 max-h-20 overflow-auto">
-        <div
-          v-for="(entry, idx) in checkUpdateLogs"
-          :key="idx"
-          class="flex gap-1.5 leading-snug"
-          :class="
-            entry.level === 'error'
-              ? 'text-red-600 dark:text-red-400'
-              : entry.level === 'warn'
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-muted-foreground'
-          "
-        >
-          <span class="font-mono opacity-70 shrink-0">{{ formatLogTime(entry.atMs) }}</span>
-          <span class="font-mono whitespace-pre-wrap break-words">{{ entry.message }}</span>
-        </div>
       </div>
     </div>
 

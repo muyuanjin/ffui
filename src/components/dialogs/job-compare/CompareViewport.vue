@@ -72,6 +72,12 @@ const blinkSideLabel = computed(() => {
   return blinkShowInput.value ? (t("jobCompare.sides.input") as string) : (t("jobCompare.sides.output") as string);
 });
 
+const showCornerSideLabels = computed(() => {
+  if (props.loadingSources) return false;
+  if (props.sourcesError) return false;
+  return props.mode === "side-by-side" || props.mode === "wipe";
+});
+
 const setScaleAt = (nextScale: number, anchorX: number, anchorY: number) => {
   const oldScale = scale.value;
   const clamped = clamp(nextScale, 1, 12);
@@ -333,6 +339,25 @@ function clamp(value: number, min: number, max: number) {
         @update:wipe-percent="(v) => (wipePercent = v)"
       />
     </template>
+
+    <div
+      v-if="showCornerSideLabels"
+      class="absolute top-2 left-2 right-2 flex items-start justify-between gap-2 pointer-events-none"
+      data-testid="job-compare-corner-side-labels"
+    >
+      <div
+        class="rounded-md bg-black/60 border border-white/15 px-2 py-1.5 text-[10px] text-white select-none"
+        data-testid="job-compare-corner-side-label-input"
+      >
+        {{ t("jobCompare.sides.input") }}
+      </div>
+      <div
+        class="rounded-md bg-black/60 border border-white/15 px-2 py-1.5 text-[10px] text-white select-none"
+        data-testid="job-compare-corner-side-label-output"
+      >
+        {{ t("jobCompare.sides.output") }}
+      </div>
+    </div>
 
     <div
       v-if="!loadingSources && !sourcesError && mode === 'blink'"

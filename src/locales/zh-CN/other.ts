@@ -209,10 +209,13 @@ const other = {
     loadingFrame: "正在加载预览帧…",
     timeline: "时间轴",
     maxLabelHint: "已转码上限 / 总时长（处理中/暂停任务）。",
-    blinkHint: "点击画面切换原始/输出。",
+    blinkHint: "点击画面切换输入/输出。",
     sides: {
-      input: "原始",
+      input: "输入",
       output: "输出",
+    },
+    frameErrors: {
+      unreadableFile: "无法读取{side}文件：{name}（文件可能已被移动或删除）",
     },
     play: "播放",
     pause: "暂停",

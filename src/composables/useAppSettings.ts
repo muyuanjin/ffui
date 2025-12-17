@@ -17,6 +17,7 @@ import {
 } from "@/lib/backend";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 
 const isTestEnv =
   typeof import.meta !== "undefined" &&
@@ -158,8 +159,13 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
   // ----- Methods -----
   const ensureAppSettingsLoaded = async () => {
-    if (!hasTauri()) return;
     if (appSettings.value) return;
+    if (!hasTauri()) {
+      // Web mode: there is no backend settings.json. We still populate an in-memory
+      // default so the Settings UI can render (and be screenshot-tested).
+      appSettings.value = normalizeLoadedAppSettings(buildWebFallbackAppSettings());
+      return;
+    }
     try {
       const startedAt = startupNowMs();
       const settings = await loadAppSettings();

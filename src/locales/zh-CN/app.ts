@@ -24,6 +24,7 @@ const app = {
     checkToolUpdateCheckingButton: "检查中…",
     checkToolUpdateDoneHint: "已检查",
     checkToolUpdateLogTitle: "检查更新日志",
+    checkToolUpdateLogCopy: "复制日志",
     checkToolUpdateLogStarted: "开始检查更新。",
     checkToolUpdateLogRequestSent: "已向后端发起远程版本查询请求…",
     checkToolUpdateLogAwaitingSnapshot: "后端已接受请求，等待状态快照推送…",
@@ -108,9 +109,12 @@ const app = {
     previewCaptureLabel: "预览截帧位置（%）",
     previewCaptureHelp: "相对于视频总时长的百分比，默认 25。",
     parallelismModeLabel: "并行调度模式",
-    parallelismModeHelp: "选择统一并行上限，或按 CPU / 硬件编码分别限制并行数。",
+    parallelismModeHelp: "选择“统一上限”或“CPU / 硬件分别限制”，下方只显示当前模式会生效的并行上限。",
+    parallelismModeTooltip:
+      "统一上限：所有转码任务共用一个并行上限。\nCPU / 硬件分别限制：软件编码任务与硬件编码任务分别受限，总并行数 = CPU 上限 + 硬件上限。",
     parallelismModeUnifiedOption: "统一上限（默认）",
     parallelismModeSplitOption: "CPU / 硬件分别限制",
+    parallelismModeSplitSummary: "总并行上限：{total}（CPU {cpu} + 硬件 {hw}）",
     maxParallelJobsLabel: "最大并行转码任务数",
     maxParallelJobsHelp:
       "并行上限（≥ 1），默认 2。",

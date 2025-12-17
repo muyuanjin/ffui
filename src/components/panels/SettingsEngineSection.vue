@@ -2,13 +2,8 @@
 import { computed, ref } from "vue";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useI18n } from "vue-i18n";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
 import SettingsNetworkProxySection from "@/components/panels/settings-engine/SettingsNetworkProxySection.vue";
@@ -137,6 +132,10 @@ const parallelismMode = computed<ParallelismMode>({
     });
   },
 });
+
+const getSplitTotalConcurrency = () => {
+  return getMaxParallelCpuJobsInputValue() + getMaxParallelHwJobsInputValue();
+};
 
 type ExternalToolsMode = "autoManaged" | "installOnly" | "manual" | "custom";
 const toolsMode = computed<ExternalToolsMode>({
@@ -289,6 +288,7 @@ const onUpdateSettings = (settings: AppSettings) => {
                 type="number"
                 min="0"
                 max="100"
+                data-testid="settings-preview-capture-percent"
                 class="w-20 h-6 text-[10px] font-mono text-center"
                 @update:model-value="(v) => updateSetting('previewCapturePercent', Number(v))"
               />
@@ -300,100 +300,132 @@ const onUpdateSettings = (settings: AppSettings) => {
           </p>
         </div>
 
-        <div class="py-1">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-[11px] font-medium text-foreground">
-              {{ t("app.settings.parallelismModeLabel") }}
-            </label>
-            <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
-              <Select v-model="parallelismMode">
-                <SelectTrigger class="w-24 h-6 text-[10px] bg-background/50 border-border/30">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="unified" class="text-[10px]">
-                    {{ t("app.settings.parallelismModeUnifiedOption") }}
-                  </SelectItem>
-                  <SelectItem value="split" class="text-[10px]">
-                    {{ t("app.settings.parallelismModeSplitOption") }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <span class="w-6" aria-hidden="true"></span>
+        <div class="py-1 space-y-1.5" data-testid="settings-parallelism-group">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.parallelismModeLabel") }}
+                </label>
+                <TooltipProvider :delay-duration="120">
+                  <Tooltip>
+                    <TooltipTrigger as-child>
+                      <button
+                        type="button"
+                        class="inline-flex items-center justify-center w-4 h-4 rounded border border-border/40 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/5"
+                        aria-label="Parallelism help"
+                        data-testid="settings-parallelism-help"
+                      >
+                        ?
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" :side-offset="6" class="max-w-[320px] text-[10px] leading-snug">
+                      {{ t("app.settings.parallelismModeTooltip") }}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.parallelismModeHelp") }}
+              </p>
             </div>
-          </div>
-          <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
-            {{ t("app.settings.parallelismModeHelp") }}
-          </p>
-        </div>
 
-        <div class="py-1" :class="parallelismMode !== 'unified' ? 'opacity-60' : ''">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-[11px] font-medium text-foreground">
-              {{ t("app.settings.maxParallelJobsLabel") }}
-            </label>
-            <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
-              <Input
-                :model-value="getMaxParallelJobsInputValue()"
-                type="number"
-                min="1"
-                max="32"
-                :disabled="parallelismMode !== 'unified'"
-                class="w-20 h-6 text-[10px] font-mono text-center"
-                @update:model-value="(v) => updateSetting('maxParallelJobs', Math.max(1, Number(v)))"
-              />
-              <span class="w-6" aria-hidden="true"></span>
-            </div>
+            <Tabs v-model="parallelismMode">
+              <TabsList class="h-6 bg-background/50 border border-border/30 p-0.5">
+                <TabsTrigger
+                  value="unified"
+                  data-testid="settings-parallelism-mode-unified"
+                  class="h-5 px-2 text-[10px] leading-none"
+                >
+                  {{ t("app.settings.parallelismModeUnifiedOption") }}
+                </TabsTrigger>
+                <TabsTrigger
+                  value="split"
+                  data-testid="settings-parallelism-mode-split"
+                  class="h-5 px-2 text-[10px] leading-none"
+                >
+                  {{ t("app.settings.parallelismModeSplitOption") }}
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-          <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
-            {{ t("app.settings.maxParallelJobsHelp") }}
-          </p>
-        </div>
 
-        <div class="py-1" :class="parallelismMode !== 'split' ? 'opacity-60' : ''">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-[11px] font-medium text-foreground">
-              {{ t("app.settings.maxParallelCpuJobsLabel") }}
-            </label>
-            <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
-              <Input
-                :model-value="getMaxParallelCpuJobsInputValue()"
-                type="number"
-                min="1"
-                max="32"
-                :disabled="parallelismMode !== 'split'"
-                class="w-20 h-6 text-[10px] font-mono text-center"
-                @update:model-value="(v) => updateSetting('maxParallelCpuJobs', Math.max(1, Number(v)))"
-              />
-              <span class="w-6" aria-hidden="true"></span>
+          <div class="ml-1 pl-2 border-l border-border/40 space-y-1.5">
+            <div v-if="parallelismMode === 'unified'" class="space-y-0.5">
+              <div class="flex items-center justify-between gap-2">
+                <label class="text-[11px] font-medium text-foreground">
+                  {{ t("app.settings.maxParallelJobsLabel") }}
+                </label>
+                <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                  <Input
+                    :model-value="getMaxParallelJobsInputValue()"
+                    type="number"
+                    min="1"
+                    max="32"
+                    data-testid="settings-max-parallel-jobs"
+                    class="w-20 h-6 text-[10px] font-mono text-center"
+                    @update:model-value="(v) => updateSetting('maxParallelJobs', Math.max(1, Number(v)))"
+                  />
+                  <span class="w-6" aria-hidden="true"></span>
+                </div>
+              </div>
+              <p class="text-[9px] text-muted-foreground leading-snug">
+                {{ t("app.settings.maxParallelJobsHelp") }}
+              </p>
             </div>
-          </div>
-          <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
-            {{ t("app.settings.maxParallelCpuJobsHelp") }}
-          </p>
-        </div>
 
-        <div class="py-1" :class="parallelismMode !== 'split' ? 'opacity-60' : ''">
-          <div class="flex items-center justify-between gap-2">
-            <label class="text-[11px] font-medium text-foreground">
-              {{ t("app.settings.maxParallelHwJobsLabel") }}
-            </label>
-            <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
-              <Input
-                :model-value="getMaxParallelHwJobsInputValue()"
-                type="number"
-                min="1"
-                max="32"
-                :disabled="parallelismMode !== 'split'"
-                class="w-20 h-6 text-[10px] font-mono text-center"
-                @update:model-value="(v) => updateSetting('maxParallelHwJobs', Math.max(1, Number(v)))"
-              />
-              <span class="w-6" aria-hidden="true"></span>
-            </div>
+            <template v-else>
+              <div class="space-y-0.5">
+                <div class="flex items-center justify-between gap-2">
+                  <label class="text-[11px] font-medium text-foreground">
+                    {{ t("app.settings.maxParallelCpuJobsLabel") }}
+                  </label>
+                  <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                    <Input
+                      :model-value="getMaxParallelCpuJobsInputValue()"
+                      type="number"
+                      min="1"
+                      max="32"
+                      data-testid="settings-max-parallel-cpu-jobs"
+                      class="w-20 h-6 text-[10px] font-mono text-center"
+                      @update:model-value="(v) => updateSetting('maxParallelCpuJobs', Math.max(1, Number(v)))"
+                    />
+                    <span class="w-6" aria-hidden="true"></span>
+                  </div>
+                </div>
+                <p class="text-[9px] text-muted-foreground leading-snug">
+                  {{ t("app.settings.maxParallelCpuJobsHelp") }}
+                </p>
+              </div>
+
+              <div class="space-y-0.5">
+                <div class="flex items-center justify-between gap-2">
+                  <label class="text-[11px] font-medium text-foreground">
+                    {{ t("app.settings.maxParallelHwJobsLabel") }}
+                  </label>
+                  <div class="flex items-center justify-end gap-1 w-28 whitespace-nowrap">
+                    <Input
+                      :model-value="getMaxParallelHwJobsInputValue()"
+                      type="number"
+                      min="1"
+                      max="32"
+                      data-testid="settings-max-parallel-hw-jobs"
+                      class="w-20 h-6 text-[10px] font-mono text-center"
+                      @update:model-value="(v) => updateSetting('maxParallelHwJobs', Math.max(1, Number(v)))"
+                    />
+                    <span class="w-6" aria-hidden="true"></span>
+                  </div>
+                </div>
+                <p class="text-[9px] text-muted-foreground leading-snug">
+                  {{ t("app.settings.maxParallelHwJobsHelp") }}
+                </p>
+              </div>
+
+              <p class="text-[9px] text-muted-foreground font-mono" data-testid="settings-parallelism-summary">
+                {{ t("app.settings.parallelismModeSplitSummary", { cpu: getMaxParallelCpuJobsInputValue(), hw: getMaxParallelHwJobsInputValue(), total: getSplitTotalConcurrency() }) }}
+              </p>
+            </template>
           </div>
-          <p class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
-            {{ t("app.settings.maxParallelHwJobsHelp") }}
-          </p>
         </div>
 
         <div class="py-1">
@@ -408,6 +440,7 @@ const onUpdateSettings = (settings: AppSettings) => {
                 min="50"
                 max="2000"
                 step="50"
+                data-testid="settings-progress-update-interval-ms"
                 class="w-20 h-6 text-[10px] font-mono text-center"
                 @update:model-value="setProgressUpdateIntervalDraft"
                 @blur="commitProgressUpdateIntervalDraft"
@@ -433,6 +466,7 @@ const onUpdateSettings = (settings: AppSettings) => {
                 min="100"
                 max="5000"
                 step="100"
+                data-testid="settings-metrics-interval-ms"
                 class="w-20 h-6 text-[10px] font-mono text-center"
                 @update:model-value="setMetricsIntervalDraft"
                 @blur="commitMetricsIntervalDraft"

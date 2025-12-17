@@ -30,6 +30,46 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const extractPathFromReadableFileError = (raw: string): string | null => {
+  const match = raw.match(/sourcePath is not a readable file:\s(.+?):\s/i);
+  return match?.[1] ?? null;
+};
+
+const extractPathFromSegmentReadableFileError = (raw: string): string | null => {
+  const match = raw.match(/segmentPaths contains a non-readable file:\s(.+?):\s/i);
+  return match?.[1] ?? null;
+};
+
+const basename = (value: string): string => {
+  const normalized = value.replace(/\\/g, "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  return lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
+};
+
+const formatFrameError = (side: "input" | "output", raw: string | null): string | null => {
+  if (!raw) return null;
+
+  const sideLabel = t(side === "input" ? "jobCompare.sides.input" : "jobCompare.sides.output") as string;
+
+  const readablePath = extractPathFromReadableFileError(raw);
+  if (readablePath) {
+    return t("jobCompare.frameErrors.unreadableFile", {
+      side: sideLabel,
+      name: basename(readablePath),
+    }) as string;
+  }
+
+  const segmentReadablePath = extractPathFromSegmentReadableFileError(raw);
+  if (segmentReadablePath) {
+    return t("jobCompare.frameErrors.unreadableFile", {
+      side: sideLabel,
+      name: basename(segmentReadablePath),
+    }) as string;
+  }
+
+  return raw;
+};
+
 const inputFrameStyle = computed(() => {
   if (props.inputFrameQuality !== "low") return undefined;
   return { filter: "blur(1.3px)" } as const;
@@ -181,8 +221,10 @@ const handleVideoLoadedMetadata = (event: Event) => {
           <div
             v-if="inputFrameError"
             class="absolute inset-0 flex items-center justify-center text-[11px] text-destructive bg-destructive/10"
+            data-testid="job-compare-frame-error-input"
+            :title="inputFrameError"
           >
-            {{ inputFrameError }}
+            {{ formatFrameError("input", inputFrameError) }}
           </div>
         </div>
 
@@ -208,8 +250,10 @@ const handleVideoLoadedMetadata = (event: Event) => {
           <div
             v-if="outputFrameError"
             class="absolute inset-0 flex items-center justify-center text-[11px] text-destructive bg-destructive/10"
+            data-testid="job-compare-frame-error-output"
+            :title="outputFrameError"
           >
-            {{ outputFrameError }}
+            {{ formatFrameError("output", outputFrameError) }}
           </div>
         </div>
       </template>

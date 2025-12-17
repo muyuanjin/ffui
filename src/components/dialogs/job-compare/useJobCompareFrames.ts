@@ -127,21 +127,36 @@ export function useJobCompareFrames(options: {
         });
       })();
 
-      const [inputPathResult, outputPathResult] = await Promise.all([inputPromise, outputPromise]);
+      const [inputResult, outputResult] = await Promise.allSettled([inputPromise, outputPromise]);
       if (token !== requestToken.value) return;
 
-      inputFramePath.value = inputPathResult;
-      inputFrameUrl.value = buildPreviewUrl(inputPathResult);
-      inputFrameLoading.value = false;
-      inputFrameQuality.value = quality;
+      if (inputResult.status === "fulfilled") {
+        inputFramePath.value = inputResult.value;
+        inputFrameUrl.value = buildPreviewUrl(inputResult.value);
+        inputFrameLoading.value = false;
+        inputFrameQuality.value = quality;
+      } else {
+        inputFrameLoading.value = false;
+        inputFrameError.value =
+          (inputResult.reason as Error | undefined)?.message ??
+          String(inputResult.reason);
+      }
 
-      outputFramePath.value = outputPathResult;
-      outputFrameUrl.value = buildPreviewUrl(outputPathResult);
-      outputFrameLoading.value = false;
-      outputFrameQuality.value = quality;
+      if (outputResult.status === "fulfilled") {
+        outputFramePath.value = outputResult.value;
+        outputFrameUrl.value = buildPreviewUrl(outputResult.value);
+        outputFrameLoading.value = false;
+        outputFrameQuality.value = quality;
+      } else {
+        outputFrameLoading.value = false;
+        outputFrameError.value =
+          (outputResult.reason as Error | undefined)?.message ??
+          String(outputResult.reason);
+      }
     } catch (error) {
       if (token !== requestToken.value) return;
       const msg = (error as Error)?.message ?? String(error);
+      // Should be rare: `Promise.allSettled` handles per-side failures.
       inputFrameLoading.value = false;
       outputFrameLoading.value = false;
       inputFrameError.value = msg;

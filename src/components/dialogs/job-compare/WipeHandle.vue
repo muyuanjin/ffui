@@ -47,16 +47,13 @@ const onPointerUp = (event: PointerEvent) => {
     data-testid="job-compare-wipe-handle"
   >
     <div
-      class="absolute top-0 bottom-0 pointer-events-auto cursor-ew-resize"
+      class="absolute top-0 bottom-0 pointer-events-auto cursor-ew-resize z-20"
       :style="{ left: `${props.modelValue}%`, transform: 'translateX(-50%)' }"
       @pointerdown.stop.prevent="onPointerDown"
       @pointermove.stop.prevent="onPointerMove"
       @pointerup.stop.prevent="onPointerUp"
       @pointercancel.stop.prevent="onPointerUp"
     >
-      <div
-        class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] bg-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.35)]"
-      />
       <div
         class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md bg-black/60 border border-white/30 px-1.5 py-1 text-[10px] text-white select-none"
       >
@@ -65,4 +62,3 @@ const onPointerUp = (event: PointerEvent) => {
     </div>
   </div>
 </template>
-

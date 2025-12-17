@@ -79,10 +79,9 @@ describe("SettingsPanel interval input UX", () => {
       },
     });
 
-    const inputs = wrapper.findAll('input[type="number"]');
-    expect(inputs.length).toBe(6);
-
-    const progressIntervalInput = inputs[4];
+    const progressIntervalInput = wrapper.get(
+      'input[data-testid="settings-progress-update-interval-ms"]',
+    );
     expect((progressIntervalInput.element as HTMLInputElement).value).toBe("250");
 
     await progressIntervalInput.setValue("");
@@ -109,7 +108,7 @@ describe("SettingsPanel interval input UX", () => {
 
     onUpdate.mockClear();
 
-    const progressIntervalInput = wrapper.findAll('input[type="number"]')[4];
+    const progressIntervalInput = wrapper.get('input[data-testid="settings-progress-update-interval-ms"]');
 
     await progressIntervalInput.setValue("49");
     await progressIntervalInput.trigger("blur");
@@ -119,7 +118,7 @@ describe("SettingsPanel interval input UX", () => {
     expect(nextSettings.progressUpdateIntervalMs).toBe(50);
 
     await wrapper.setProps({ appSettings: nextSettings });
-    const refreshedProgressInput = wrapper.findAll('input[type="number"]')[4];
+    const refreshedProgressInput = wrapper.get('input[data-testid="settings-progress-update-interval-ms"]');
     expect((refreshedProgressInput.element as HTMLInputElement).value).toBe("50");
 
     wrapper.unmount();

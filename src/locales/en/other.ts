@@ -217,6 +217,9 @@ const other = {
       input: "Input",
       output: "Output",
     },
+    frameErrors: {
+      unreadableFile: "{side} file is missing or unreadable: {name}",
+    },
     play: "Play",
     pause: "Pause",
     resetZoom: "Reset zoom",

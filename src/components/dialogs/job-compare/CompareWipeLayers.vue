@@ -34,6 +34,12 @@ const emit = defineEmits<{
       </div>
     </div>
 
+    <div
+      class="absolute inset-y-0 w-[2px] bg-white/80 shadow-[0_0_0_1px_rgba(0,0,0,0.35)] z-10 pointer-events-none"
+      :style="{ left: `${props.modelValue}%`, transform: 'translateX(-50%)' }"
+      data-testid="job-compare-wipe-divider"
+    />
+
     <WipeHandle :model-value="props.modelValue" @update:model-value="(v) => emit('update:modelValue', v)" />
   </div>
 </template>
