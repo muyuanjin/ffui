@@ -141,12 +141,15 @@ const handlePointerUp = (e: PointerEvent) => {
   if (!isDragging.value) return;
   isDragging.value = false;
 
+  const len = displayedItems.value.length;
   const threshold = 50;
-  if (Math.abs(dragOffset.value) > threshold) {
-    if (dragOffset.value > 0 && activeIndex.value > 0) {
-      activeIndex.value--;
-    } else if (dragOffset.value < 0 && activeIndex.value < displayedItems.value.length - 1) {
-      activeIndex.value++;
+  if (Math.abs(dragOffset.value) > threshold && len > 0) {
+    if (dragOffset.value > 0) {
+      // 向右拖拽，前一个（无限循环）
+      activeIndex.value = (activeIndex.value - 1 + len) % len;
+    } else {
+      // 向左拖拽，下一个（无限循环）
+      activeIndex.value = (activeIndex.value + 1) % len;
     }
   }
   dragOffset.value = 0;
@@ -156,14 +159,14 @@ const handlePointerUp = (e: PointerEvent) => {
 
 const handleWheel = (e: WheelEvent) => {
   e.preventDefault();
+  const len = displayedItems.value.length;
+  if (len === 0) return;
   if (e.deltaX > 20 || e.deltaY > 20) {
-    if (activeIndex.value < displayedItems.value.length - 1) {
-      activeIndex.value++;
-    }
+    // 向下/向右滚动，下一个（无限循环）
+    activeIndex.value = (activeIndex.value + 1) % len;
   } else if (e.deltaX < -20 || e.deltaY < -20) {
-    if (activeIndex.value > 0) {
-      activeIndex.value--;
-    }
+    // 向上/向左滚动，前一个（无限循环）
+    activeIndex.value = (activeIndex.value - 1 + len) % len;
   }
 };
 
@@ -199,10 +202,14 @@ const handleCardContextMenu = (e: MouseEvent, item: QueueListItem) => {
 };
 
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === "ArrowLeft" && activeIndex.value > 0) {
-    activeIndex.value--;
-  } else if (e.key === "ArrowRight" && activeIndex.value < displayedItems.value.length - 1) {
-    activeIndex.value++;
+  const len = displayedItems.value.length;
+  if (len === 0) return;
+  if (e.key === "ArrowLeft") {
+    // 前一个（无限循环）
+    activeIndex.value = (activeIndex.value - 1 + len) % len;
+  } else if (e.key === "ArrowRight") {
+    // 下一个（无限循环）
+    activeIndex.value = (activeIndex.value + 1) % len;
   } else if (e.key === "Enter" || e.key === " ") {
     const item = displayedItems.value[activeIndex.value];
     if (item) {
@@ -285,7 +292,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
   <div
     v-if="displayedItems.length > 0"
     ref="containerRef"
-    class="carousel-3d-container relative select-none outline-none"
+    class="carousel-3d-container relative select-none outline-none flex flex-col h-full"
     tabindex="0"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
@@ -303,11 +310,11 @@ const getDisplayFilename = (item: QueueListItem): string => {
       <span class="text-xs text-muted-foreground font-mono"> {{ activeIndex + 1 }} / {{ displayedItems.length }} </span>
     </div>
 
-    <div class="relative h-80 flex items-center justify-center overflow-visible">
+    <div class="relative flex-1 min-h-[300px] flex items-center justify-center overflow-visible">
       <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
         <div
           v-if="isCardVisible(index)"
-          class="carousel-card absolute w-72 h-64 rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
+          class="carousel-card absolute w-[min(90vw,480px)] aspect-[4/3] max-h-[70vh] rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
           :class="{
             'ring-2 ring-primary/60 border-primary/70': index === activeIndex,
             'ring-2 ring-amber-500/60 border-amber-500/70': isItemSelected(item),
@@ -317,7 +324,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
           @dblclick="handleCardDoubleClick(item)"
           @contextmenu="handleCardContextMenu($event, item)"
         >
-          <div class="relative h-40 bg-muted/50 overflow-hidden">
+          <div class="relative h-[55%] bg-muted/50 overflow-hidden">
             <img
               v-if="getPreviewUrl(item)"
               :src="getPreviewUrl(item) ?? undefined"

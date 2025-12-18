@@ -67,20 +67,20 @@ export const computeCarouselCardStyle = (params: {
 
   let baseOffset = relativeIndex;
   if (params.isDragging) {
-    baseOffset = relativeIndex - params.dragOffset / 100;
+    baseOffset = relativeIndex - params.dragOffset / 150;
   }
 
-  const rotateY = Math.max(-65, Math.min(65, baseOffset * 15));
-  const translateX = baseOffset * 80;
-  const translateZ = -Math.abs(baseOffset) * 50;
-  const scale = Math.max(0.6, 1 - Math.abs(baseOffset) * 0.08);
-  const opacity = Math.max(0.2, 1 - Math.abs(baseOffset) * 0.2);
+  const rotateY = Math.max(-60, Math.min(60, baseOffset * 12));
+  const translateX = baseOffset * 120;
+  const translateZ = -Math.abs(baseOffset) * 80;
+  const scale = Math.max(0.65, 1 - Math.abs(baseOffset) * 0.07);
+  const opacity = Math.max(0.15, 1 - Math.abs(baseOffset) * 0.18);
   const zIndex = params.totalCards - Math.abs(relativeIndex);
-  const rotateX = Math.abs(baseOffset) > 0.5 ? 4 : 0;
+  const rotateX = Math.abs(baseOffset) > 0.5 ? 3 : 0;
 
   return {
     transform: `
-      perspective(1000px)
+      perspective(1200px)
       translateX(${translateX}px)
       translateZ(${translateZ}px)
       rotateY(${rotateY}deg)
