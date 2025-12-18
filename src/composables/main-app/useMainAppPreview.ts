@@ -50,6 +50,30 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const previewCandidateIndex = ref<number>(-1);
   const currentPreviewPath = ref<string | null>(null);
 
+  const inferSourceModeFromSelectedPath = (
+    job: TranscodeJob,
+    selectedPath: string | null | undefined,
+    preferredMode: PreviewSourceMode,
+  ): PreviewSourceMode | null => {
+    const path = String(selectedPath ?? "").trim();
+    if (!path) return null;
+
+    const inputPath = String(job.inputPath ?? "").trim();
+    const outputPath = String(job.outputPath ?? "").trim();
+    const tmpOutputPath = String(job.waitMetadata?.tmpOutputPath ?? "").trim();
+
+    // When input/output are the same (e.g. "replace original"), keep the caller's
+    // preferred mode so the UI doesn't "fight" the user's selection.
+    if (inputPath && outputPath && inputPath === outputPath && path === inputPath) {
+      return preferredMode;
+    }
+
+    if (inputPath && path === inputPath) return "input";
+    if ((outputPath && path === outputPath) || (tmpOutputPath && path === tmpOutputPath)) return "output";
+
+    return null;
+  };
+
   function buildPreviewCandidates(job: TranscodeJob | null, mode: PreviewSourceMode): string[] {
     if (!job) return [];
 
@@ -190,6 +214,11 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
       previewCandidateIndex.value = idx >= 0 ? idx : 0;
       currentPreviewPath.value = selectedPath;
 
+      const inferred = inferSourceModeFromSelectedPath(job, selectedPath, mode);
+      if (inferred && previewSourceMode.value !== inferred) {
+        previewSourceMode.value = inferred;
+      }
+
       const url = buildPreviewUrl(selectedPath);
       previewUrl.value = url;
     } catch (e) {
@@ -225,28 +254,10 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   };
 
   const handleExpandedPreviewError = () => {
-    const candidates = previewCandidatePaths.value;
-
-    // 没有候选路径或者已经尝试完所有路径时，直接给出错误提示。
-    if (!candidates.length || previewCandidateIndex.value >= candidates.length - 1) {
-      const key = "jobDetail.previewVideoError";
-      previewError.value = (t?.(key) as string) ?? "";
-      return;
-    }
-
-    // 尝试下一个候选路径，避免因为某个输出文件损坏/不可解码而完全失效。
-    const nextIndex = previewCandidateIndex.value + 1;
-    const nextPath = candidates[nextIndex];
-    if (!nextPath) {
-      const key = "jobDetail.previewVideoError";
-      previewError.value = (t?.(key) as string) ?? "";
-      return;
-    }
-
-    previewCandidateIndex.value = nextIndex;
-    currentPreviewPath.value = nextPath;
-    previewError.value = null;
-    previewUrl.value = buildPreviewUrl(nextPath);
+    // Do NOT silently switch between input/output sources when native playback fails.
+    // Users expect the source toggle to match the content being previewed.
+    const key = "jobDetail.previewVideoError";
+    previewError.value = (t?.(key) as string) ?? key;
   };
 
   const handleExpandedImagePreviewError = () => {

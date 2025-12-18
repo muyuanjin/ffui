@@ -25,7 +25,7 @@ const queue = {
     iconMedium: "中图网格",
     iconLarge: "大图网格",
     dynamicCard: "动态卡片",
-    carousel3d: "3D轮播",
+    carousel3d: "卡片轮播",
   },
   carouselSpeedLabel: "轮播速度",
   carouselSpeedHint: "0 表示不自动轮播，仅响应鼠标滚轮和方向键",

@@ -424,11 +424,12 @@ describe("MainApp Tauri preview fallback", () => {
     expect(vm.previewUrl).toBe(job.outputPath);
     expect(vm.previewIsImage).toBe(false);
 
-    // Simulate native playback failure: the preview should fall back to the input path.
+    // Simulate native playback failure: stay on the selected source and switch to frame fallback.
     vm.handleExpandedPreviewError();
     await nextTick();
 
-    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewError).toBeTruthy();
 
     wrapper.unmount();
   });

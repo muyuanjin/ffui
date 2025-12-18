@@ -52,13 +52,51 @@ const titlePath = computed(() => {
   return (previewPath.value ?? job.value?.filename ?? "").trim() || (t("jobDetail.preview") as string);
 });
 
+const canSelectInput = computed(() => {
+  return !!String(job.value?.inputPath ?? "").trim();
+});
+
+const canSelectOutput = computed(() => {
+  const jobValue = job.value;
+  if (!jobValue) return false;
+
+  const outputPath = String(jobValue.outputPath ?? "").trim();
+  const tmpOutputPath = String(jobValue.waitMetadata?.tmpOutputPath ?? "").trim();
+
+  // For in-flight jobs, only tmp output is a valid output preview target.
+  if (jobValue.status !== "completed" && jobValue.status !== "failed") {
+    return !!tmpOutputPath;
+  }
+
+  return !!outputPath || !!tmpOutputPath;
+});
+
+const outputDisabledReason = computed(() => {
+  const jobValue = job.value;
+  if (!jobValue) return "";
+  if (canSelectOutput.value) return "";
+  if (jobValue.status !== "completed" && jobValue.status !== "failed") {
+    return t("jobDetail.outputNotReady") as string;
+  }
+  return t("jobDetail.outputNotAvailable") as string;
+});
+
 const resolvedPreviewSource = computed<ResolvedPreviewSource>(() => {
   const jobValue = job.value;
   const path = (previewPath.value ?? "").trim();
   if (!jobValue || !path) return "unknown";
 
-  if (jobValue.outputPath && path === jobValue.outputPath) return "output";
-  if (jobValue.inputPath && path === jobValue.inputPath) return "input";
+  const outputPath = (jobValue.outputPath ?? "").trim();
+  const inputPath = (jobValue.inputPath ?? "").trim();
+
+  // When input/output are the same (e.g. "replace original"), keep the label
+  // aligned with the user's selected mode to avoid confusing "same file" cases.
+  if (outputPath && inputPath && outputPath === inputPath && path === outputPath) {
+    return previewSourceMode.value === "input" ? "input" : "output";
+  }
+
+  if (outputPath && path === outputPath) return "output";
+  if (inputPath && path === inputPath) return "input";
 
   const tmp = jobValue.waitMetadata?.tmpOutputPath;
   if (tmp && path === tmp) return "tmpOutput";
@@ -130,6 +168,7 @@ watch(
                   value="input"
                   data-testid="expanded-preview-source-input"
                   class="h-5 px-2 text-[10px] leading-none"
+                  :disabled="!canSelectInput"
                 >
                   {{ t("jobDetail.previewSourceMode.input") }}
                 </TabsTrigger>
@@ -137,6 +176,8 @@ watch(
                   value="output"
                   data-testid="expanded-preview-source-output"
                   class="h-5 px-2 text-[10px] leading-none"
+                  :disabled="!canSelectOutput"
+                  :title="outputDisabledReason"
                 >
                   {{ t("jobDetail.previewSourceMode.output") }}
                 </TabsTrigger>

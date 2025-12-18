@@ -14,6 +14,103 @@ const i18n = createI18n({
 });
 
 describe("ExpandedPreviewDialog", () => {
+  it("uses the resolved previewPath as the title when available", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-title-1",
+          filename: "C:/videos/input.mp4",
+          inputPath: "C:/videos/input.mp4",
+          outputPath: "C:/videos/output.mp4",
+        } as any,
+        previewSourceMode: "output",
+        previewUrl: "file:///C:/videos/output.mp4",
+        previewPath: "C:/videos/output.mp4",
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("C:/videos/output.mp4");
+  });
+
+  it("labels a shared input/output path using the selected source mode", () => {
+    const shared = "C:/videos/shared.mp4";
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-shared-1",
+          filename: shared,
+          inputPath: shared,
+          outputPath: shared,
+        } as any,
+        previewSourceMode: "input",
+        previewUrl: `file:///${shared}`,
+        previewPath: shared,
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    expect(wrapper.get("[data-testid='expanded-preview-source-badge']").text()).toBe("Input");
+  });
+
+  it("disables the output toggle for in-flight jobs without a temp output path", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-disable-output-1",
+          filename: "C:/videos/inflight.mp4",
+          type: "video",
+          status: "processing",
+          inputPath: "C:/videos/inflight.mp4",
+          outputPath: "C:/videos/inflight.out.mkv",
+        } as any,
+        previewSourceMode: "input",
+        previewUrl: "file:///C:/videos/inflight.mp4",
+        previewPath: "C:/videos/inflight.mp4",
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const outputToggle = wrapper.get("[data-testid='expanded-preview-source-output']");
+    expect(outputToggle.attributes("data-disabled")).toBeDefined();
+  });
+
   it("emits videoError when metadata has zero dimensions", async () => {
     const wrapper = mount(ExpandedPreviewDialog, {
       props: {

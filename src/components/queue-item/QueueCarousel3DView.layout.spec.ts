@@ -71,9 +71,9 @@ describe("QueueCarousel3DView layout guardrails", () => {
     expect(stage.classes()).toContain("z-0");
 
     const header = wrapper.get("[data-testid='ffui-carousel-3d-header']");
-    const pagination = wrapper.get("[data-testid='ffui-carousel-3d-pagination']");
+    const footer = wrapper.get("[data-testid='ffui-carousel-3d-hint']").element.parentElement!;
     expect(header.classes()).toContain("z-10");
-    expect(pagination.classes()).toContain("z-10");
+    expect(footer.classList).toContain("z-10");
   });
 
   it("renders stable test ids for screenshot automation and regression checks", () => {
