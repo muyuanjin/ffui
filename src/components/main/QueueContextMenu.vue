@@ -39,6 +39,15 @@
             </DropdownMenuItem>
 
             <DropdownMenuItem
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-input"
+              @select="onCopyInputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyInputPath") }}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
               :disabled="!canRevealInput"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-open-input"
@@ -50,11 +59,11 @@
 
             <DropdownMenuItem
               class="px-3 py-1.5 text-xs gap-2"
-              data-testid="queue-context-menu-copy-input"
-              @select="onCopyInputPath"
+              data-testid="queue-context-menu-copy-output"
+              @select="onCopyOutputPath"
             >
               <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-              {{ t("queue.actions.copyInputPath") }}
+              {{ t("queue.actions.copyOutputPath") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem
@@ -65,15 +74,6 @@
             >
               <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
               {{ t("queue.actions.openOutputFolder") }}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
-              class="px-3 py-1.5 text-xs gap-2"
-              data-testid="queue-context-menu-copy-output"
-              @select="onCopyOutputPath"
-            >
-              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-              {{ t("queue.actions.copyOutputPath") }}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator class="my-1 bg-border/40" />

@@ -255,14 +255,17 @@ mod tests {
                                 Ok(0) => break,
                                 Ok(n) => {
                                     total += n;
-                                    if total >= 4 && buf[..total].windows(4).any(|w| w == b"\r\n\r\n") {
+                                    if total >= 4
+                                        && buf[..total].windows(4).any(|w| w == b"\r\n\r\n")
+                                    {
                                         break;
                                     }
                                 }
                                 Err(err)
                                     if matches!(
                                         err.kind(),
-                                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                                        std::io::ErrorKind::WouldBlock
+                                            | std::io::ErrorKind::TimedOut
                                     ) =>
                                 {
                                     continue;
