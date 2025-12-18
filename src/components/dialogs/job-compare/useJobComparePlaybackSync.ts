@@ -31,6 +31,7 @@ export function useJobComparePlaybackSync(options: {
   const seekHandle = ref<SeekHandle | null>(null);
   const pendingSeekSeconds = ref<number | null>(null);
   const seekRetry = new Map<HTMLVideoElement, SeekRetryState>();
+  const alignedSeekToken = ref(0);
 
   const clearPlaybackSync = () => {
     const handle = playbackSyncHandle.value;
@@ -167,6 +168,58 @@ export function useJobComparePlaybackSync(options: {
     }
   };
 
+  const nextVisualTick = () =>
+    new Promise<void>((resolve) => {
+      if (typeof window.requestAnimationFrame === "function") {
+        window.requestAnimationFrame(() => resolve());
+      } else {
+        window.setTimeout(() => resolve(), 0);
+      }
+    });
+
+  const alignOutputsToMasterAfterSeek = async (requestedSeconds: number) => {
+    const master = options.getMasterVideo();
+    if (!master) {
+      seekVideos(requestedSeconds);
+      return;
+    }
+
+    const outputs = options.getSideVideos("output");
+    if (outputs.length === 0) {
+      seekVideos(requestedSeconds);
+      return;
+    }
+
+    const token = (alignedSeekToken.value += 1);
+    const before = Number.isFinite(master.currentTime) ? master.currentTime : null;
+
+    // First, seek both sides to the requested point.
+    seekVideos(requestedSeconds);
+
+    // Then, once the master has actually settled on its displayed time,
+    // snap outputs to that exact time. This avoids stable off-by-one-frame
+    // mismatches when the browser quantizes seeks differently per file.
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await nextVisualTick();
+      if (token !== alignedSeekToken.value) return;
+      if (options.isPlaying.value) return;
+
+      const masterTime = Number.isFinite(master.currentTime) ? master.currentTime : null;
+      if (masterTime == null) continue;
+
+      const changed = before == null ? true : Math.abs(masterTime - before) > 1 / 240;
+      const closeEnough = Math.abs(masterTime - requestedSeconds) <= 0.25;
+
+      if (!changed && !closeEnough && attempt < 5) continue;
+
+      for (const out of outputs) {
+        scheduleSeekRetryFor(out, masterTime);
+      }
+      return;
+    }
+  };
+
   const scheduleSeekVideos = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds < 0) return;
     pendingSeekSeconds.value = seconds;
@@ -177,7 +230,7 @@ export function useJobComparePlaybackSync(options: {
       pendingSeekSeconds.value = null;
       seekHandle.value = null;
       if (next == null) return;
-      seekVideos(next);
+      void alignOutputsToMasterAfterSeek(next);
     };
 
     if (typeof window.requestAnimationFrame === "function") {
@@ -297,6 +350,7 @@ export function useJobComparePlaybackSync(options: {
   const cleanup = () => {
     clearPlaybackSync();
     clearPendingSeek();
+    alignedSeekToken.value += 1;
     for (const v of Array.from(seekRetry.keys())) clearSeekRetryFor(v);
   };
 
