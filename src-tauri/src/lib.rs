@@ -73,10 +73,17 @@ pub fn run() {
     let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");
     let metrics_state = MetricsState::default();
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .manage(engine)
         .manage(metrics_state.clone())
-        .manage(commands::ui_fonts::UiFontDownloadManager::default())
+        .manage(commands::ui_fonts::UiFontDownloadManager::default());
+
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
+    }
+
+    builder
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
