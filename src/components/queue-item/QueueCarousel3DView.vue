@@ -292,7 +292,8 @@ const getDisplayFilename = (item: QueueListItem): string => {
   <div
     v-if="displayedItems.length > 0"
     ref="containerRef"
-    class="carousel-3d-container relative select-none outline-none flex flex-col items-center h-full py-4"
+    data-testid="ffui-carousel-3d-container"
+    class="carousel-3d-container relative select-none outline-none flex flex-1 min-h-0 w-full flex-col items-center py-3 h-full"
     tabindex="0"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
@@ -301,7 +302,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
     @keydown="handleKeyDown"
   >
     <!-- 标题栏 -->
-    <div class="flex items-center justify-between w-full max-w-xl mb-4 px-4 relative z-10">
+    <div data-testid="ffui-carousel-3d-header" class="flex items-center justify-between w-full mb-3 px-4 relative z-10">
       <div class="flex items-center gap-2">
         <span class="text-sm font-medium text-foreground">{{ t("app.tabs.queue") }}</span>
         <Badge variant="secondary" class="text-xs px-1.5 py-0">
@@ -312,17 +313,24 @@ const getDisplayFilename = (item: QueueListItem): string => {
     </div>
 
     <!-- 卡片轮播区域 - 使用更大的高度 -->
-    <div class="relative w-full flex-1 min-h-[280px]">
+    <!-- NOTE: `z-0` creates a stacking context so card `zIndex` cannot cover header/pagination/hint. -->
+    <div data-testid="ffui-carousel-3d-stage" class="relative z-0 w-full flex-1 min-h-[380px]">
       <div class="absolute inset-0 flex items-center justify-center overflow-visible">
         <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
           <div
             v-if="isCardVisible(index)"
+            data-testid="ffui-carousel-3d-card"
+            :data-active="index === activeIndex ? 'true' : 'false'"
             class="carousel-card absolute rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
             :class="{
               'ring-2 ring-primary/60 border-primary/70': index === activeIndex,
               'ring-2 ring-amber-500/60 border-amber-500/70': isItemSelected(item),
             }"
-            :style="{ ...getCardStyle(index), width: 'clamp(320px, 50vw, 520px)', height: 'clamp(260px, 45vh, 400px)' }"
+            :style="{
+              ...getCardStyle(index),
+              width: 'calc(100% - 2rem)',
+              height: 'calc(100% - 1rem)',
+            }"
             @click="handleCardClick(index, item)"
             @dblclick="handleCardDoubleClick(item)"
             @contextmenu="handleCardContextMenu($event, item)"
@@ -428,7 +436,11 @@ const getDisplayFilename = (item: QueueListItem): string => {
     </div>
 
     <!-- 导航点 -->
-    <div v-if="displayedItems.length > 1" class="flex justify-center items-center gap-1 mt-4 relative z-10">
+    <div
+      v-if="displayedItems.length > 1"
+      data-testid="ffui-carousel-3d-pagination"
+      class="flex justify-center items-center gap-1 mt-3 relative z-10"
+    >
       <button
         v-for="(_, index) in displayedItems.slice(0, 15)"
         :key="index"
@@ -442,7 +454,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
     </div>
 
     <!-- 提示文字 -->
-    <p class="text-center text-[10px] text-muted-foreground/60 mt-3 relative z-10">
+    <p data-testid="ffui-carousel-3d-hint" class="text-center text-[10px] text-muted-foreground/60 mt-2 relative z-10">
       {{ t("queue.skippedStackHint") }}
     </p>
   </div>

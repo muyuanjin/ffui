@@ -337,7 +337,7 @@ defineExpose({
         />
 
         <ScrollArea class="flex-1">
-          <div class="p-4 min-h-full">
+          <div class="p-4 h-full min-h-0 flex flex-col">
             <QueuePanel
               v-if="activeTab === 'queue'"
               v-bind="queuePanelProps"

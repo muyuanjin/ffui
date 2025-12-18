@@ -90,12 +90,12 @@ const main = async () => {
     const browser = await chromium.launch({ headless: true });
     try {
       const context = await browser.newContext({
-        viewport: { width: 1280, height: 800 },
+        viewport: { width: 1440, height: 900 },
         deviceScaleFactor: 1,
       });
       const page = await context.newPage();
 
-      const url = `${baseUrl}?ffuiLocale=zh-CN`;
+      const url = `${baseUrl}?ffuiLocale=zh-CN&ffuiQueueScenario=carousel-3d-many-items`;
       await page.goto(url, { waitUntil: "domcontentloaded" });
 
       // Wait for sidebar to load
@@ -130,6 +130,41 @@ const main = async () => {
 
       // Take screenshot of carousel view
       await page.screenshot({ path: path.join(outDir, "queue-carousel-3d.png"), fullPage: false });
+
+      const carouselRoot = page.locator("[data-testid='ffui-carousel-3d-container']");
+      await waitFor(async () => (await carouselRoot.count()) > 0);
+
+      const activeCard = page.locator("[data-testid='ffui-carousel-3d-card'][data-active='true']");
+      const header = page.locator("[data-testid='ffui-carousel-3d-header']");
+      const pagination = page.locator("[data-testid='ffui-carousel-3d-pagination']");
+
+      await waitFor(async () => (await activeCard.count()) > 0);
+      await waitFor(async () => (await header.count()) > 0);
+      await waitFor(async () => (await pagination.count()) > 0);
+
+      const activeCardBox = await activeCard.first().boundingBox();
+      const headerBox = await header.first().boundingBox();
+      const paginationBox = await pagination.first().boundingBox();
+
+      if (!activeCardBox || !headerBox || !paginationBox) {
+        throw new Error("Missing bounding boxes for carousel layout verification.");
+      }
+
+      // Layout assertions: card should not overlap header or pagination controls.
+      const headerBottom = headerBox.y + headerBox.height;
+      const cardTop = activeCardBox.y;
+      if (cardTop < headerBottom - 4) {
+        throw new Error(`Active card overlaps header (cardTop=${cardTop}, headerBottom=${headerBottom}).`);
+      }
+
+      const cardBottom = activeCardBox.y + activeCardBox.height;
+      const paginationTop = paginationBox.y;
+      if (paginationTop < cardBottom - 4) {
+        throw new Error(`Active card overlaps pagination (paginationTop=${paginationTop}, cardBottom=${cardBottom}).`);
+      }
+
+      await carouselRoot.screenshot({ path: path.join(outDir, "carousel-3d-container.png") });
+      await pagination.screenshot({ path: path.join(outDir, "carousel-3d-pagination.png") });
 
       // Also capture just the main content area
       const mainContent = page.locator("main");

@@ -390,6 +390,32 @@ const buildQueueJobs = (): TranscodeJob[] => {
   const o3 = `${v3}.archive.mp4`;
 
   const queueScenario = readQueryParam("ffuiQueueScenario");
+  if (queueScenario === "carousel-3d-many-items") {
+    return Array.from({ length: 21 }, (_, idx) => {
+      const index = idx + 1;
+      const filename = `C:/videos/carousel_many/item_${String(index).padStart(2, "0")}.mp4`;
+      const outputPath = `C:/videos/carousel_many/item_${String(index).padStart(2, "0")}.compressed.mp4`;
+      const status: TranscodeJob["status"] = index === 1 ? "processing" : index <= 3 ? "queued" : "waiting";
+      const progress = status === "processing" ? 42 : 0;
+      return {
+        id: `docs-carousel-many-${index}`,
+        filename,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 280 + index * 12,
+        originalCodec: index % 3 === 0 ? "hevc" : "h264",
+        presetId: "p1",
+        status,
+        progress,
+        inputPath: filename,
+        outputPath,
+        previewPath: poster1,
+        ffmpegCommand: `ffmpeg -hide_banner -y -i \"${filename}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${outputPath}\"`,
+        logs: [],
+        estimatedSeconds: 300,
+      } satisfies TranscodeJob;
+    });
+  }
   if (queueScenario === "taskbar-progress-scope-serial") {
     // Scenario for verifying taskbar/titlebar aggregated progress behaviour:
     // when "active/queued/waiting only" is enabled, completed jobs from the

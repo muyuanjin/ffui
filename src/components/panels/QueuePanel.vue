@@ -87,7 +87,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
 
 <template>
   <section
-    class="space-y-4 w-full min-w-0"
+    class="flex flex-1 min-h-0 flex-col gap-4 w-full min-w-0"
     data-testid="queue-panel"
     @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
   >
@@ -131,10 +131,11 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
     </div>
 
     <!-- Queue content -->
-    <div v-else>
+    <div v-else class="flex flex-1 min-h-0 flex-col">
       <!-- 3D Carousel view mode -->
-      <div v-if="isCarousel3dViewMode">
+      <div v-if="isCarousel3dViewMode" class="flex-1 min-h-0">
         <QueueCarousel3DView
+          class="h-full"
           :items="visibleQueueItems"
           :selected-job-ids="selectedJobIds"
           :progress-style="queueProgressStyle"
@@ -151,7 +152,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
       </div>
 
       <!-- Icon view mode -->
-      <div v-else-if="isIconViewMode">
+      <div v-else-if="isIconViewMode" class="flex-1 min-h-0">
         <div data-testid="queue-icon-grid" :class="iconGridClass">
           <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
             <QueueIconItem
@@ -184,7 +185,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
       </div>
 
       <!-- List view mode -->
-      <div v-else>
+      <div v-else class="flex-1 min-h-0">
         <!-- Queue mode: Processing / Waiting groups -->
         <div v-if="queueMode === 'queue'" class="space-y-4">
           <div v-if="queueModeProcessingJobs.length > 0" class="space-y-2">

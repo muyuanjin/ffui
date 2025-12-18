@@ -126,6 +126,8 @@ describe("QueuePanel layout responsiveness", () => {
 
     const panel = wrapper.get("[data-testid='queue-panel']");
     expect(panel.classes()).toContain("w-full");
+    expect(panel.classes()).toContain("flex");
+    expect(panel.classes()).toContain("flex-col");
     expect(panel.classes()).not.toContain("max-w-4xl");
   });
 
