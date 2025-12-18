@@ -198,14 +198,17 @@ const main = async () => {
       });
       const page = await context.newPage();
 
-      const url = `${ensureTrailingSlash(baseUrl)}?ffuiLocale=${encodeURIComponent(args.locale)}`;
+      const url = `${ensureTrailingSlash(baseUrl)}?ffuiLocale=${encodeURIComponent(args.locale)}&ffuiQueueScenario=batch-compress-composite`;
       await page.goto(url, { waitUntil: "domcontentloaded" });
 
       await waitFor(async () => (await page.locator("[data-testid='ffui-sidebar']").count()) > 0);
       await openQueueTab(page);
 
       await setQueueViewModeToIconMedium(page);
-      await page.screenshot({ path: path.join(args.outDir, `queue-icon-view-ready-${args.locale}.png`), fullPage: false });
+      await page.screenshot({
+        path: path.join(args.outDir, `queue-icon-view-ready-${args.locale}.png`),
+        fullPage: false,
+      });
 
       const batchCount = await page.locator("[data-testid='queue-icon-batch-item']").count();
       const jobCount = await page.locator("[data-testid='queue-item-card']").count();
@@ -224,7 +227,10 @@ const main = async () => {
       await previewGrid.scrollIntoViewIfNeeded();
       // Use dispatchEvent so overlays (badges/selection indicator) don't steal the click.
       await previewGrid.dispatchEvent("click", { bubbles: true, cancelable: true });
-      await page.screenshot({ path: path.join(args.outDir, `after-open-detail-click-${args.locale}.png`), fullPage: false });
+      await page.screenshot({
+        path: path.join(args.outDir, `after-open-detail-click-${args.locale}.png`),
+        fullPage: false,
+      });
 
       const batchDialog = page.locator("[data-testid='batch-detail-dialog']");
       await waitFor(async () => (await batchDialog.count()) > 0, { timeoutMs: 60_000 });
@@ -260,7 +266,12 @@ const main = async () => {
       });
 
       if (!menuRect) throw new Error("Failed to read context menu rect.");
-      if (menuRect.left < 0 || menuRect.top < 0 || menuRect.right > args.width + 0.5 || menuRect.bottom > args.height + 0.5) {
+      if (
+        menuRect.left < 0 ||
+        menuRect.top < 0 ||
+        menuRect.right > args.width + 0.5 ||
+        menuRect.bottom > args.height + 0.5
+      ) {
         throw new Error(
           `Expected context menu to be fully within viewport; got rect=${JSON.stringify(menuRect)} viewport=${args.width}x${args.height}`,
         );

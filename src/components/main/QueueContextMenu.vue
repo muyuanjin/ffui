@@ -1,12 +1,6 @@
 <template>
   <Teleport to="body" :disabled="!teleportToBody">
-    <div
-      v-if="visible"
-      ref="rootRef"
-      :class="rootClass"
-      data-testid="queue-context-menu-root"
-      @contextmenu.prevent
-    >
+    <div v-if="visible" ref="rootRef" :class="rootClass" data-testid="queue-context-menu-root" @contextmenu.prevent>
       <DropdownMenu :open="visible" @update:open="onOpenChange">
         <DropdownMenuTrigger as-child>
           <Button
@@ -20,240 +14,240 @@
           />
         </DropdownMenuTrigger>
 
-      <!-- Render inline (no Teleport) to keep tests + clamping predictable. -->
-      <DropdownMenuContent
-        class="z-50 min-w-[180px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
-        :side-offset="4"
-        :portal-disabled="true"
-        :portal-force-mount="true"
-        update-position-strategy="always"
-        data-testid="queue-context-menu"
-      >
-        <template v-if="mode === 'single'">
-          <DropdownMenuItem class="px-3 py-1.5 text-xs gap-2" @select="onInspect">
-            <Eye class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("jobDetail.title") }}
-          </DropdownMenuItem>
+        <!-- Render inline (no Teleport) to keep tests + clamping predictable. -->
+        <DropdownMenuContent
+          class="z-50 min-w-[180px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
+          :side-offset="4"
+          :portal-disabled="true"
+          :portal-force-mount="true"
+          update-position-strategy="always"
+          data-testid="queue-context-menu"
+        >
+          <template v-if="mode === 'single'">
+            <DropdownMenuItem class="px-3 py-1.5 text-xs gap-2" @select="onInspect">
+              <Eye class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("jobDetail.title") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            v-if="canCompare"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-compare"
-            @select="onCompare"
-          >
-            <GitCompare class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("jobCompare.open") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              v-if="canCompare"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-compare"
+              @select="onCompare"
+            >
+              <GitCompare class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("jobCompare.open") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-copy-input"
-            @select="onCopyInputPath"
-          >
-            <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.copyInputPath") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-input"
+              @select="onCopyInputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyInputPath") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canRevealInput"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-open-input"
-            @select="onOpenInputFolder"
-          >
-            <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.openInputFolder") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canRevealInput"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-open-input"
+              @select="onOpenInputFolder"
+            >
+              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.openInputFolder") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-copy-output"
-            @select="onCopyOutputPath"
-          >
-            <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.copyOutputPath") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-output"
+              @select="onCopyOutputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyOutputPath") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canRevealOutput"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-open-output"
-            @select="onOpenOutputFolder"
-          >
-            <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.openOutputFolder") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canRevealOutput"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-open-output"
+              @select="onOpenOutputFolder"
+            >
+              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.openOutputFolder") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuSeparator class="my-1 bg-border/40" />
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-          <DropdownMenuItem
-            :disabled="!canWait"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-wait"
-            @select="onWait"
-          >
-            <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.wait") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.wait") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canResume"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-resume"
-            @select="onResume"
-          >
-            <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.resume") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canResume"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-resume"
+              @select="onResume"
+            >
+              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.resume") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canRestart"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-restart"
-            @select="onRestart"
-          >
-            <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.restart") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canRestart"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-restart"
+              @select="onRestart"
+            >
+              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.restart") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canCancel"
-            class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-            data-testid="queue-context-menu-cancel"
-            @select="onCancel"
-          >
-            <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("app.actions.cancel") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canCancel"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-cancel"
+              @select="onCancel"
+            >
+              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("app.actions.cancel") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuSeparator class="my-1 bg-border/40" />
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-          <DropdownMenuItem
-            :disabled="!canMove"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-move-top"
-            @select="onMoveToTop"
-          >
-            <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkMoveToTop") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-move-top"
+              @select="onMoveToTop"
+            >
+              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToTop") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canMove"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-move-bottom"
-            @select="onMoveToBottom"
-          >
-            <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkMoveToBottom") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-move-bottom"
+              @select="onMoveToBottom"
+            >
+              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToBottom") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canDeleteSingle"
-            class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-            data-testid="queue-context-menu-remove"
-            @select="onRemove"
-          >
-            <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkDelete") }}
-          </DropdownMenuItem>
-        </template>
+            <DropdownMenuItem
+              :disabled="!canDeleteSingle"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-remove"
+              @select="onRemove"
+            >
+              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkDelete") }}
+            </DropdownMenuItem>
+          </template>
 
-        <template v-else>
-          <DropdownMenuItem
-            :disabled="!canBulkBase"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-copy-all-input"
-            @select="onCopyInputPath"
-          >
-            <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.copyAllInputPaths") }}
-          </DropdownMenuItem>
+          <template v-else>
+            <DropdownMenuItem
+              :disabled="!canBulkBase"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-all-input"
+              @select="onCopyInputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyAllInputPaths") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkBase"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-copy-all-output"
-            @select="onCopyOutputPath"
-          >
-            <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.copyAllOutputPaths") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkBase"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-copy-all-output"
+              @select="onCopyOutputPath"
+            >
+              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.copyAllOutputPaths") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuSeparator class="my-1 bg-border/40" />
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-          <DropdownMenuItem
-            :disabled="!canBulkWait"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-bulk-wait"
-            @select="onWait"
-          >
-            <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkWait") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkWait") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkResume"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-bulk-resume"
-            @select="onResume"
-          >
-            <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkResume") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkResume"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-resume"
+              @select="onResume"
+            >
+              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkResume") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkCancel"
-            class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-            data-testid="queue-context-menu-bulk-cancel"
-            @select="onCancel"
-          >
-            <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkCancel") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkCancel"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-bulk-cancel"
+              @select="onCancel"
+            >
+              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkCancel") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkRestart"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-bulk-restart"
-            @select="onRestart"
-          >
-            <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkRestart") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkRestart"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-restart"
+              @select="onRestart"
+            >
+              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkRestart") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuSeparator class="my-1 bg-border/40" />
+            <DropdownMenuSeparator class="my-1 bg-border/40" />
 
-          <DropdownMenuItem
-            :disabled="!canBulkMove"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-bulk-move-top"
-            @select="onMoveToTop"
-          >
-            <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkMoveToTop") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-move-top"
+              @select="onMoveToTop"
+            >
+              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToTop") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkMove"
-            class="px-3 py-1.5 text-xs gap-2"
-            data-testid="queue-context-menu-bulk-move-bottom"
-            @select="onMoveToBottom"
-          >
-            <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkMoveToBottom") }}
-          </DropdownMenuItem>
+            <DropdownMenuItem
+              :disabled="!canBulkMove"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-move-bottom"
+              @select="onMoveToBottom"
+            >
+              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkMoveToBottom") }}
+            </DropdownMenuItem>
 
-          <DropdownMenuItem
-            :disabled="!canBulkDelete"
-            class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
-            data-testid="queue-context-menu-bulk-remove"
-            @select="onRemove"
-          >
-            <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
-            {{ t("queue.actions.bulkDelete") }}
-          </DropdownMenuItem>
-        </template>
-      </DropdownMenuContent>
+            <DropdownMenuItem
+              :disabled="!canBulkDelete"
+              class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
+              data-testid="queue-context-menu-bulk-remove"
+              @select="onRemove"
+            >
+              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkDelete") }}
+            </DropdownMenuItem>
+          </template>
+        </DropdownMenuContent>
       </DropdownMenu>
     </div>
   </Teleport>

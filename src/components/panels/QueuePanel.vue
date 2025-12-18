@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from "vue";
+import { computed, defineAsyncComponent } from "vue";
 import QueueBatchCompressBatchCard from "./QueueBatchCompressBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
@@ -18,7 +18,23 @@ const QueueCarousel3DView = defineAsyncComponent(() => import("@/components/queu
 const props = defineProps<QueuePanelProps>();
 const emit = defineEmits<QueuePanelEmits>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
+
+const emptyQueueBadgeLines = computed(() => {
+  const label = t("app.tabs.queue");
+  const currentLocale = String(locale.value ?? "");
+
+  if (currentLocale.startsWith("zh")) {
+    // Chinese: prefer a balanced 2+2 split for "任务队列" instead of breaking characters arbitrarily.
+    return label.length === 4 ? [label.slice(0, 2), label.slice(2)] : [label];
+  }
+
+  // Non-Chinese: prefer word boundaries (e.g. "Transcode" + "Queue").
+  const parts = label.split(/\s+/).filter(Boolean);
+  if (parts.length === 2) return parts;
+  if (parts.length > 2) return [parts.slice(0, -1).join(" "), parts[parts.length - 1]];
+  return [label];
+});
 
 const isBatchExpanded = (batchId: string) => props.expandedBatchIds.has(batchId);
 
@@ -102,10 +118,25 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
       v-if="queueJobsForDisplay.length === 0 && !hasBatchCompressBatches && !hasActiveFilters"
       class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl hover:border-sidebar-ring/70 hover:text-foreground transition-all"
     >
-      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70">
-        <span class="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground whitespace-nowrap">
-          {{ t("app.tabs.queue") }}
-        </span>
+      <div
+        class="mx-auto mb-3 flex h-12 w-12 items-center justify-center overflow-hidden rounded-md border border-border bg-card/70"
+        data-testid="ffui-empty-queue-badge"
+      >
+        <div
+          :class="[
+            'flex w-full max-w-full flex-col items-center justify-center px-1 text-center font-semibold text-muted-foreground',
+            locale.startsWith('zh') ? 'text-[10px] leading-3' : 'text-[8px] leading-3 tracking-normal',
+          ]"
+          data-testid="ffui-empty-queue-badge-label"
+        >
+          <span
+            v-for="(line, idx) in emptyQueueBadgeLines"
+            :key="idx"
+            :data-testid="`ffui-empty-queue-badge-line-${idx}`"
+          >
+            {{ line }}
+          </span>
+        </div>
       </div>
       <p class="text-lg font-medium">
         {{ t("app.emptyQueue.title") }}

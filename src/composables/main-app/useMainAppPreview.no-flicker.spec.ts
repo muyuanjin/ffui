@@ -56,10 +56,7 @@ describe("useMainAppPreview source switching does not flicker", () => {
     const { selectPlayableMediaPath } = await import("@/lib/backend");
     const selectMock = selectPlayableMediaPath as unknown as ReturnType<typeof vi.fn>;
 
-    // openJobPreviewFromQueue:
-    // - resolveInitialPreviewSourceMode() uses selectPlayableMediaPath once
-    // - applyPreviewSelection() uses it once again
-    selectMock.mockResolvedValueOnce(job.outputPath);
+    // openJobPreviewFromQueue selects initial path once.
     selectMock.mockResolvedValueOnce(job.outputPath);
 
     await vm.openJobPreviewFromQueue(job);
@@ -82,6 +79,7 @@ describe("useMainAppPreview source switching does not flicker", () => {
 
     // Switching sources should not clear the dialog media while waiting for the backend.
     expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewPath).toBe(job.outputPath);
 
     resolveNext(job.inputPath ?? null);
     await switching;
@@ -89,6 +87,7 @@ describe("useMainAppPreview source switching does not flicker", () => {
 
     expect(vm.previewSourceMode).toBe("input");
     expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewPath).toBe(job.inputPath);
 
     wrapper.unmount();
   });

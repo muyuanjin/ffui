@@ -48,6 +48,10 @@ const { t } = useI18n();
 
 type ResolvedPreviewSource = "input" | "output" | "tmpOutput" | "unknown";
 
+const titlePath = computed(() => {
+  return (previewPath.value ?? job.value?.filename ?? "").trim() || (t("jobDetail.preview") as string);
+});
+
 const resolvedPreviewSource = computed<ResolvedPreviewSource>(() => {
   const jobValue = job.value;
   const path = (previewPath.value ?? "").trim();
@@ -87,7 +91,7 @@ const previewSourceModeModel = computed<PreviewSourceMode>({
 });
 
 const videoSourcePath = computed(() => {
-  return previewPath.value || props.job?.outputPath || props.job?.inputPath || null;
+  return previewPath.value || null;
 });
 
 const forceFallback = computed(() => !isImage.value && !!error.value);
@@ -110,7 +114,7 @@ watch(
           <div class="flex items-center justify-between gap-3">
             <div class="min-w-0 flex items-center gap-2">
               <span class="min-w-0 truncate">
-                {{ job?.filename || t("jobDetail.preview") }}
+                {{ titlePath }}
               </span>
               <Badge
                 variant="outline"
@@ -120,7 +124,7 @@ watch(
                 {{ resolvedPreviewSourceLabel }}
               </Badge>
             </div>
-            <Tabs v-model="previewSourceModeModel" class="shrink-0">
+            <Tabs v-model="previewSourceModeModel" activation-mode="manual" class="shrink-0">
               <TabsList class="h-6 bg-background/50 border border-border/30 p-0.5">
                 <TabsTrigger
                   value="input"

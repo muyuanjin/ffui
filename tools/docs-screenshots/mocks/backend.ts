@@ -413,6 +413,9 @@ const buildQueueJobs = (): TranscodeJob[] => {
   const o3 = `${v3}.archive.mp4`;
 
   const queueScenario = readQueryParam("ffuiQueueScenario");
+  if (queueScenario === "empty") {
+    return [];
+  }
   if (queueScenario === "carousel-3d-many-items") {
     return Array.from({ length: 21 }, (_, idx) => {
       const index = idx + 1;

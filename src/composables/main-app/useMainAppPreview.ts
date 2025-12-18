@@ -73,13 +73,17 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
       // 视频任务优先级（仅决定“先尝试谁”）：
       // - output 模式：优先尝试（临时输出 -> 最终输出），失败则回退到输入；
       // - input 模式：优先输入，失败则回退到输出（临时输出/最终输出）。
+      //
+      // 注意：对“未完成”的任务，不应把最终 outputPath 作为可播放候选。
+      // 由于 selectPlayableMediaPath 只按“文件是否存在”挑选路径，
+      // 若 outputPath 磁盘上残留了历史输出，会导致预览误播旧文件。
       const outputCandidates: (string | undefined)[] = [];
-      if (job.status === "completed") {
+      if (job.status === "completed" || job.status === "failed") {
         if (output) outputCandidates.push(output);
         if (tmpOutput) outputCandidates.push(tmpOutput);
       } else {
+        // In-flight: only allow tmp output (if any). Never try final output path.
         if (tmpOutput) outputCandidates.push(tmpOutput);
-        if (output) outputCandidates.push(output);
       }
 
       if (mode === "input") {
@@ -105,11 +109,17 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     return "input";
   };
 
-  const resolveInitialPreviewSourceMode = async (job: TranscodeJob): Promise<PreviewSourceMode> => {
-    if (!hasTauri()) return guessInitialPreviewSourceMode(job);
+  const resolveInitialPreviewSelection = async (
+    job: TranscodeJob,
+  ): Promise<{ mode: PreviewSourceMode; selectedPath: string | null }> => {
+    if (!hasTauri()) {
+      const mode = guessInitialPreviewSourceMode(job);
+      const candidates = buildPreviewCandidates(job, mode);
+      return { mode, selectedPath: candidates[0] ?? null };
+    }
 
     const candidates = buildPreviewCandidates(job, "output");
-    if (!candidates.length) return "input";
+    if (!candidates.length) return { mode: "input", selectedPath: null };
 
     let selectedPath: string | null = null;
     try {
@@ -119,18 +129,21 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
       selectedPath = candidates[0] ?? null;
     }
 
-    const inputPath = (job.inputPath ?? "").trim();
-    if (selectedPath && inputPath && selectedPath.trim() === inputPath) return "input";
+    if (!selectedPath) selectedPath = candidates[0] ?? null;
 
-    return "output";
+    const inputPath = (job.inputPath ?? "").trim();
+    const mode: PreviewSourceMode = selectedPath && inputPath && selectedPath.trim() === inputPath ? "input" : "output";
+
+    return { mode, selectedPath };
   };
 
   const applyPreviewSelection = async (
     job: TranscodeJob,
     mode: PreviewSourceMode,
-    options?: { preserveMedia?: boolean },
+    options?: { preserveMedia?: boolean; initialSelectedPath?: string | null },
   ) => {
     const preserveMedia = options?.preserveMedia ?? false;
+    const preservedPath = preserveMedia ? currentPreviewPath.value : null;
 
     if (!preserveMedia) {
       previewUrl.value = null;
@@ -140,19 +153,26 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     previewError.value = null;
     previewCandidatePaths.value = buildPreviewCandidates(job, mode);
     previewCandidateIndex.value = -1;
-    currentPreviewPath.value = null;
+    // Keep the currently displayed path stable while switching sources to avoid
+    // badge/copy-path inconsistencies during async backend selection.
+    currentPreviewPath.value = preserveMedia ? preservedPath : null;
 
     const candidates = previewCandidatePaths.value;
     if (!candidates.length) {
       // 没有任何可用路径时直接展示“无预览”占位文案。
-      previewUrl.value = null;
+      if (!preserveMedia) {
+        previewUrl.value = null;
+      }
       return;
     }
 
     try {
       let selectedPath: string | null = null;
 
-      if (hasTauri()) {
+      const preferred = (options?.initialSelectedPath ?? "").trim();
+      if (preferred && candidates.includes(preferred)) {
+        selectedPath = preferred;
+      } else if (hasTauri()) {
         // 让后端根据真实文件存在情况挑选首选路径，避免指向已删除/不存在的输出文件。
         selectedPath = await selectPlayableMediaPath(candidates);
       }
@@ -180,9 +200,10 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   };
 
   const openJobPreviewFromQueue = async (job: TranscodeJob) => {
-    previewSourceMode.value = await resolveInitialPreviewSourceMode(job);
+    const { mode, selectedPath } = await resolveInitialPreviewSelection(job);
+    previewSourceMode.value = mode;
     dialogManager.openPreview(job);
-    await applyPreviewSelection(job, previewSourceMode.value);
+    await applyPreviewSelection(job, previewSourceMode.value, { initialSelectedPath: selectedPath });
   };
 
   const setPreviewSourceMode = async (mode: PreviewSourceMode) => {

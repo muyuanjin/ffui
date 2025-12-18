@@ -317,6 +317,66 @@ describe("MainApp Tauri preview fallback", () => {
     wrapper.unmount();
   });
 
+  it("does not pick the final output path for in-flight jobs even when it exists on disk", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const job = {
+      id: "job-processing-stale-output-1",
+      filename: "C:/videos/source-processing.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 42,
+      logs: [],
+      inputPath: "C:/videos/source-processing.mp4",
+      outputPath: "C:/videos/source-processing.compressed.mp4",
+      waitMetadata: {
+        tmpOutputPath: "C:/videos/tmp/source-processing.partial.mp4",
+      },
+      previewPath: "C:/app-data/previews/img-processing.jpg",
+    };
+
+    if (Array.isArray(vm.jobs)) {
+      vm.jobs = [job];
+    } else if (vm.jobs && "value" in vm.jobs) {
+      vm.jobs.value = [job];
+    }
+
+    await nextTick();
+
+    // Simulate: tmp output is not ready yet, but a stale final output file exists.
+    // The selector will "skip" tmp output and pick the next candidate.
+    selectPlayableMediaPathMock.mockImplementationOnce(async (candidates: string[]) => {
+      const next = candidates.find((p) => !String(p).includes(".partial.mp4"));
+      return next ?? candidates[0] ?? null;
+    });
+
+    if (typeof vm.openJobPreviewFromQueue === "function") {
+      await vm.openJobPreviewFromQueue(job);
+    }
+
+    await nextTick();
+
+    // The preview must fall back to inputPath; it must never select outputPath for in-flight jobs.
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewUrl).not.toBe(job.outputPath);
+
+    wrapper.unmount();
+  });
+
   it("falls back to input path for failed jobs so preview remains playable", async () => {
     const wrapper = mount(MainApp, {
       global: {

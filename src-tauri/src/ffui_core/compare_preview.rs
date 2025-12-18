@@ -157,33 +157,30 @@ fn build_concat_ffmpeg_args(
     tmp_path: &Path,
 ) -> Vec<OsString> {
     let (fast_ss_arg, accurate_ss_arg) = two_stage_seek_args(position_seconds);
-    let mut out: Vec<OsString> = Vec::new();
-
-    out.push("-y".into());
-    out.push("-v".into());
-    out.push("error".into());
-    out.push("-hide_banner".into());
-
-    // Two-stage seek for concat previews:
-    // - First `-ss` (input option) fast-seeks near the target time.
-    // - Second `-ss` (output option) decodes forward for frame accuracy.
-    // Putting the only `-ss` after `-i` forces decoding from the start and is
-    // catastrophic for long-duration scrubs.
-    out.push("-ss".into());
-    out.push(fast_ss_arg.into());
-
-    out.push("-f".into());
-    out.push("concat".into());
-    out.push("-safe".into());
-    out.push("0".into());
-    out.push("-i".into());
-    out.push(list_path.as_os_str().to_os_string());
-
-    out.push("-ss".into());
-    out.push(accurate_ss_arg.into());
-    out.push("-frames:v".into());
-    out.push("1".into());
-    out.push("-an".into());
+    let mut out: Vec<OsString> = vec![
+        "-y".into(),
+        "-v".into(),
+        "error".into(),
+        "-hide_banner".into(),
+        // Two-stage seek for concat previews:
+        // - First `-ss` (input option) fast-seeks near the target time.
+        // - Second `-ss` (output option) decodes forward for frame accuracy.
+        // Putting the only `-ss` after `-i` forces decoding from the start and is
+        // catastrophic for long-duration scrubs.
+        "-ss".into(),
+        fast_ss_arg.into(),
+        "-f".into(),
+        "concat".into(),
+        "-safe".into(),
+        "0".into(),
+        "-i".into(),
+        list_path.as_os_str().to_os_string(),
+        "-ss".into(),
+        accurate_ss_arg.into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-an".into(),
+    ];
 
     match quality {
         FallbackFrameQuality::Low => {
