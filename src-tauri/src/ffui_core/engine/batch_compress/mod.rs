@@ -25,8 +25,8 @@ pub(super) use detection::{
 };
 #[cfg(test)]
 pub(super) use image::handle_image_file;
-pub(super) use orchestrator::run_auto_compress;
 #[cfg(test)]
 pub(super) use orchestrator::batch_compress_batch_summary;
+pub(super) use orchestrator::run_auto_compress;
 #[cfg(test)]
 pub(super) use video_paths::reserve_unique_batch_compress_video_output_path;

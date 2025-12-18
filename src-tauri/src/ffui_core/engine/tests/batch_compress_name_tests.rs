@@ -44,7 +44,9 @@ fn batch_compress_keeps_compressed_named_files_as_candidates() {
             }
             attempts += 1;
             if attempts > 100 {
-                panic!("Batch Compress batch did not include compressed-named video within timeout");
+                panic!(
+                    "Batch Compress batch did not include compressed-named video within timeout"
+                );
             }
             std::thread::sleep(std::time::Duration::from_millis(50));
         }

@@ -44,7 +44,7 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 
 ![Presets panel (English)](docs/images/preset-en.webp)
 
-![Compare (wipe mode, English)](docs/images/compare-en.webp)
+![Compare (wipe mode, English)](docs/images/compare-en.gif)
 
 ![Monitor panel (English)](docs/images/monitor-en.webp)
 
@@ -63,6 +63,10 @@ npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
 npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
 # Optional: choose the frame timestamp for thumbnails (default: 00:05:00)
 npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+# Optional: choose the frame timestamp used for compare screenshots/GIF (default: --thumb-time)
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
+# Optional: force compare output format (default: gif)
+npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
 ```
 
 ## Technology stack
@@ -279,7 +283,7 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 
 ![预设面板（中文）](docs/images/preset-zh-CN.webp)
 
-![对比（滑动对比，中文）](docs/images/compare-zh-CN.webp)
+![对比（滑动对比，中文）](docs/images/compare-zh-CN.gif)
 
 ![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
 

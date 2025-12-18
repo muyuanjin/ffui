@@ -30,6 +30,9 @@ const printHelp = () => {
     "  --ui-font-name <NAME>            Force a UI font name (recommended for consistent EN/ZH sizing).",
     "  --allow-video-thumbs              Generate preview posters from video frames when no images exist.",
     "  --thumb-time <HH:MM:SS>           Frame timestamp for thumbnails (default: 00:05:00).",
+    "  --compare-thumb-time <HH:MM:SS>   Frame timestamp used for compare screenshots/GIF (default: --thumb-time).",
+    "  --compare-format <FMT>            Compare output format: gif or webp (default: gif).",
+    "  --shots <LIST>                    Comma-separated outBase list to capture (e.g. main,compare).",
     "  --ui-scale <PERCENT>              UI scale percent (80-140, default: 100).",
     "  --ui-font-size-px <PX>            Base font size in px (e.g. 18/20/22).",
     "  --ui-font-size-percent <PERCENT>  Base font size percent (80-140).",
@@ -61,6 +64,9 @@ const parseArgs = (argv) => {
     uiFontName: null,
     allowVideoThumbs: false,
     thumbTime: "00:05:00",
+    compareThumbTime: null,
+    compareFormat: "gif",
+    shots: null,
     uiScalePercent: 100,
     uiFontSizePx: null,
     uiFontSizePercent: null,
@@ -123,6 +129,29 @@ const parseArgs = (argv) => {
       i += 1;
       continue;
     }
+    if (a === "--compare-thumb-time") {
+      args.compareThumbTime = takeValue(i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--compare-format") {
+      const raw = String(takeValue(i, a)).trim().toLowerCase();
+      if (raw !== "gif" && raw !== "webp") {
+        throw new Error(`Invalid --compare-format: ${raw} (expected gif|webp)`);
+      }
+      args.compareFormat = raw;
+      i += 1;
+      continue;
+    }
+    if (a === "--shots") {
+      const raw = String(takeValue(i, a));
+      args.shots = raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      i += 1;
+      continue;
+    }
     if (a === "--ui-scale") {
       args.uiScalePercent = Number(takeValue(i, a));
       i += 1;
@@ -172,6 +201,9 @@ const resolveCliArgv = () => {
       "--media-dir",
       "--allow-video-thumbs",
       "--thumb-time",
+      "--compare-thumb-time",
+      "--compare-format",
+      "--shots",
       "--ui-scale",
       "--ui-font-size-px",
       "--ui-font-size-percent",
@@ -432,6 +464,9 @@ const applyDocsScreenshotStyles = async (page) => {
       border: 1px solid rgba(148, 163, 184, 0.22);
       background: rgb(2, 6, 23);
     }
+    [data-testid="ffui-action-batch-compress"] {
+      display: none !important;
+    }
   `;
   await page.addStyleTag({ content: css });
 };
@@ -556,6 +591,7 @@ const prepareLocalMedia = async (args) => {
   if (!mediaDir) throw new Error("Missing required --media-dir <DIR>");
   const allowVideoThumbs = args.allowVideoThumbs === true;
   const thumbTime = args.thumbTime || "00:05:00";
+  const compareThumbTime = args.compareThumbTime || thumbTime || "00:05:00";
 
   if (!(await dirExists(mediaDir))) {
     throw new Error(`Docs media directory not found: ${mediaDir}`);
@@ -580,7 +616,6 @@ const prepareLocalMedia = async (args) => {
   await mkdir(tmpPublicDir, { recursive: true });
 
   const posterUrls = [];
-  const posterPaths = [];
   if (images.length >= 1) {
     const pickedImages = images
       .slice()
@@ -595,7 +630,6 @@ const prepareLocalMedia = async (args) => {
       // eslint-disable-next-line no-await-in-loop
       await copyFile(src, dst);
       posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
-      posterPaths.push(dst);
     }
   } else if (allowVideoThumbs) {
     console.warn(
@@ -651,7 +685,6 @@ const prepareLocalMedia = async (args) => {
         );
       }
       posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
-      posterPaths.push(dst);
     }
   } else {
     throw new Error(
@@ -662,35 +695,48 @@ const prepareLocalMedia = async (args) => {
 
   while (posterUrls.length < 3) posterUrls.push(posterUrls[posterUrls.length - 1]);
 
-  const compareSourcePath = posterPaths[0];
-  if (!compareSourcePath) throw new Error("Missing generated poster for compare screenshots.");
-
   const compareInputName = "compare-input.jpg";
   const compareOutputName = "compare-output.jpg";
   const compareInputPath = path.join(tmpPublicDir, compareInputName);
   const compareOutputPath = path.join(tmpPublicDir, compareOutputName);
 
-  // Keep docs screenshots fast: derive compare images from a single poster frame
-  // (scaled once, then run a lightweight filter pass for the "output" side).
-  await run(
-    "ffmpeg",
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-i",
-      compareSourcePath,
-      "-frames:v",
-      "1",
-      "-vf",
-      "scale=1280:-1:flags=lanczos",
-      "-q:v",
-      "2",
-      compareInputPath,
-    ],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
+  // Keep docs screenshots fast: extract a short window and let `thumbnail` pick
+  // a representative frame (reduces the chance of landing on an awkward cut).
+  const extractCompareFrame = async (time) => {
+    await run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-ss",
+        time,
+        "-t",
+        "2",
+        "-i",
+        pickedVideos[0],
+        "-frames:v",
+        "1",
+        "-vf",
+        "fps=12,thumbnail=n=18,scale=1280:-1:flags=lanczos",
+        "-q:v",
+        "2",
+        compareInputPath,
+      ],
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+  };
+
+  try {
+    await extractCompareFrame(compareThumbTime);
+  } catch (error) {
+    console.warn(
+      `[docs:screenshots] Failed to extract compare frame at ${compareThumbTime}; retrying at 00:00:30`,
+      error,
+    );
+    await extractCompareFrame("00:00:30");
+  }
 
   await run(
     "ffmpeg",
@@ -704,7 +750,9 @@ const prepareLocalMedia = async (args) => {
       "-frames:v",
       "1",
       "-vf",
-      "hue=s=0,eq=contrast=1.18:brightness=0.05",
+      // Keep it subtle and colored: the goal is to demonstrate the wipe UX,
+      // not to simulate an actual transcoding result.
+      "eq=contrast=1.08:brightness=0.02:saturation=1.06,unsharp=3:3:0.45:3:3:0.0",
       "-q:v",
       "2",
       compareOutputPath,
@@ -802,6 +850,7 @@ const captureScreenshotsForLocale = async ({
   expectedUiScalePercent,
   expectedUiFontName,
   deviceScaleFactor,
+  compareFormat,
 }) => {
   const context = await chromium.newContext({
     viewport,
@@ -909,6 +958,112 @@ const captureScreenshotsForLocale = async ({
     );
   };
 
+  const setWipePercent = async (percent) => {
+    const track = page.getByTestId("job-compare-wipe-handle");
+    const grip = page.locator('[data-testid="job-compare-wipe-handle"] .cursor-ew-resize > div');
+    const trackBox = await track.boundingBox();
+    const gripBox = await grip.boundingBox();
+    if (!trackBox || !gripBox) return;
+
+    const y = Math.round(trackBox.y + trackBox.height / 2);
+    const startX = Math.round(gripBox.x + gripBox.width / 2);
+    const startY = Math.round(gripBox.y + gripBox.height / 2);
+    const targetX = Math.round(trackBox.x + trackBox.width * (percent / 100));
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(targetX, y);
+    await page.mouse.up();
+
+    await page.waitForFunction(
+      ({ min, max }) => {
+        const divider = document.querySelector('[data-testid="job-compare-wipe-divider"]');
+        const left = divider instanceof HTMLElement ? divider.style.left : "";
+        const n = Number(String(left).replace("%", ""));
+        return Number.isFinite(n) && n >= min && n <= max;
+      },
+      { min: percent - 2, max: percent + 2 },
+    );
+  };
+
+  const writeCompareGif = async (localeSuffix) => {
+    // Capture the full app shell so the compare dialog UI is visible in the GIF.
+    const root = page.locator(".ffui-ui-scale-root");
+    await root.waitFor({ state: "visible", timeout: 30_000 });
+
+    const prefix = `compare-${localeSuffix}`;
+    const framePattern = path.join(tmpDir, `${prefix}-frame-%02d.png`);
+    const palettePath = path.join(tmpDir, `${prefix}-palette.png`);
+    const gifPath = path.join(docsImagesDir, `${prefix}.gif`);
+
+    const start = 18;
+    const end = 82;
+    const steps = 16;
+    const forward = Array.from({ length: steps + 1 }, (_, i) => start + ((end - start) * i) / steps);
+    const back = forward.slice(0, -1).reverse();
+    const holds = [start, start, start];
+    const percents = [...holds, ...forward.slice(1), end, end, end, ...back.slice(1), ...holds];
+
+    for (let i = 0; i < percents.length; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await setWipePercent(percents[i]);
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(120);
+      const framePath = path.join(tmpDir, `${prefix}-frame-${String(i + 1).padStart(2, "0")}.png`);
+      // eslint-disable-next-line no-await-in-loop
+      await root.screenshot({ path: framePath });
+    }
+
+    await run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-framerate",
+        "10",
+        "-start_number",
+        "1",
+        "-i",
+        framePattern,
+        "-vf",
+        "scale=1280:-1:flags=lanczos,palettegen",
+        palettePath,
+      ],
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+
+    await run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-framerate",
+        "10",
+        "-start_number",
+        "1",
+        "-i",
+        framePattern,
+        "-i",
+        palettePath,
+        "-filter_complex",
+        "scale=1280:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=3",
+        "-loop",
+        "0",
+        gifPath,
+      ],
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+
+    await setWipePercent(62);
+    await sleep(100);
+
+    return gifPath;
+  };
+
   const waitForShotReady = async (shot) => {
     if (shot?.readyTestId) {
       await page.getByTestId(shot.readyTestId).first().waitFor({ state: "visible", timeout: 30_000 });
@@ -936,6 +1091,10 @@ const captureScreenshotsForLocale = async ({
     if (shot.mode === "job-compare-wipe") {
       // eslint-disable-next-line no-await-in-loop
       await openJobCompareDialogWipe();
+      if (compareFormat === "gif") {
+        // eslint-disable-next-line no-await-in-loop
+        await writeCompareGif(locale.suffix);
+      }
     }
 
     // Let charts/components settle (best-effort).
@@ -947,18 +1106,21 @@ const captureScreenshotsForLocale = async ({
     // eslint-disable-next-line no-await-in-loop
     await sleep(settleMs);
 
-    const pngPath = path.join(tmpDir, `${shot.outBase}-${locale.suffix}.png`);
-    const webpPath = path.join(docsImagesDir, `${shot.outBase}-${locale.suffix}.webp`);
+    const shouldWriteWebp = !(shot.mode === "job-compare-wipe" && compareFormat === "gif");
+    if (shouldWriteWebp) {
+      const pngPath = path.join(tmpDir, `${shot.outBase}-${locale.suffix}.png`);
+      const webpPath = path.join(docsImagesDir, `${shot.outBase}-${locale.suffix}.webp`);
 
-    await page.locator(".ffui-ui-scale-root").screenshot({ path: pngPath });
-    // eslint-disable-next-line no-await-in-loop
-    await convertPngToWebpWithViewport({
-      pngPath,
-      webpPath,
-      viewport,
-      targetSize: shot.targetSize ?? viewport,
-      deviceScaleFactor,
-    });
+      await page.locator(".ffui-ui-scale-root").screenshot({ path: pngPath });
+      // eslint-disable-next-line no-await-in-loop
+      await convertPngToWebpWithViewport({
+        pngPath,
+        webpPath,
+        viewport,
+        targetSize: shot.targetSize ?? viewport,
+        deviceScaleFactor,
+      });
+    }
 
     if (shot.mode === "job-compare-wipe") {
       // The compare dialog blocks tab navigation; close it before the next shot.
@@ -1022,6 +1184,9 @@ const main = async () => {
     await withDevServer(
       async ({ baseUrl }) => {
         for (const locale of LOCALES) {
+          const onlyOutBases = Array.isArray(args.shots) && args.shots.length > 0 ? new Set(args.shots) : null;
+          const wants = (outBase) => (onlyOutBases ? onlyOutBases.has(outBase) : true);
+
           const monitorShot = { ...SHOT_MONITOR, targetSize: outSize };
           const settingsShot = { ...SETTINGS_SHOT, targetSize: outSize };
           // eslint-disable-next-line no-await-in-loop
@@ -1030,51 +1195,61 @@ const main = async () => {
             baseUrl,
             locale,
             viewport: outSize,
-            shots: SHOTS_MAIN,
+            shots: SHOTS_MAIN.filter((s) => wants(s.outBase)),
             expectedFontSizePercent,
             expectedUiScalePercent,
             expectedUiFontName,
             deviceScaleFactor,
+            compareFormat: args.compareFormat,
           });
 
-          // eslint-disable-next-line no-await-in-loop
-          await captureScreenshotsForLocale({
-            chromium,
-            baseUrl,
-            locale,
-            viewport: { width: outSize.width, height: monitorCaptureHeight },
-            shots: [monitorShot],
-            expectedFontSizePercent,
-            expectedUiScalePercent,
-            expectedUiFontName,
-            deviceScaleFactor,
-          });
+          if (wants(monitorShot.outBase)) {
+            // eslint-disable-next-line no-await-in-loop
+            await captureScreenshotsForLocale({
+              chromium,
+              baseUrl,
+              locale,
+              viewport: { width: outSize.width, height: monitorCaptureHeight },
+              shots: [monitorShot],
+              expectedFontSizePercent,
+              expectedUiScalePercent,
+              expectedUiFontName,
+              deviceScaleFactor,
+              compareFormat: args.compareFormat,
+            });
+          }
 
-          // eslint-disable-next-line no-await-in-loop
-          await captureScreenshotsForLocale({
-            chromium,
-            baseUrl,
-            locale,
-            viewport: { width: outSize.width, height: settingsCaptureHeight },
-            shots: [settingsShot],
-            expectedFontSizePercent,
-            expectedUiScalePercent,
-            expectedUiFontName,
-            deviceScaleFactor,
-          });
+          if (wants(settingsShot.outBase)) {
+            // eslint-disable-next-line no-await-in-loop
+            await captureScreenshotsForLocale({
+              chromium,
+              baseUrl,
+              locale,
+              viewport: { width: outSize.width, height: settingsCaptureHeight },
+              shots: [settingsShot],
+              expectedFontSizePercent,
+              expectedUiScalePercent,
+              expectedUiFontName,
+              deviceScaleFactor,
+              compareFormat: args.compareFormat,
+            });
+          }
 
-          // eslint-disable-next-line no-await-in-loop
-          await captureScreenshotsForLocale({
-            chromium,
-            baseUrl,
-            locale,
-            viewport: outSize,
-            shots: [SHOT_ONBOARDING],
-            expectedFontSizePercent,
-            expectedUiScalePercent,
-            expectedUiFontName,
-            deviceScaleFactor,
-          });
+          if (wants(SHOT_ONBOARDING.outBase)) {
+            // eslint-disable-next-line no-await-in-loop
+            await captureScreenshotsForLocale({
+              chromium,
+              baseUrl,
+              locale,
+              viewport: outSize,
+              shots: [SHOT_ONBOARDING],
+              expectedFontSizePercent,
+              expectedUiScalePercent,
+              expectedUiFontName,
+              deviceScaleFactor,
+              compareFormat: args.compareFormat,
+            });
+          }
         }
       },
       { ...media, port: args.port },

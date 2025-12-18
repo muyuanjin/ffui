@@ -174,7 +174,7 @@ const captureLocale = async ({ baseUrl, outDir, locale, width, height }) => {
     });
     const page = await context.newPage();
 
-    const url = `${ensureTrailingSlash(baseUrl)}?ffuiLocale=${encodeURIComponent(locale)}`;
+    const url = `${ensureTrailingSlash(baseUrl)}?ffuiLocale=${encodeURIComponent(locale)}&ffuiQueueScenario=batch-compress-composite`;
     await page.goto(url, { waitUntil: "domcontentloaded" });
 
     await waitFor(async () => (await page.locator("[data-testid='ffui-sidebar']").count()) > 0);

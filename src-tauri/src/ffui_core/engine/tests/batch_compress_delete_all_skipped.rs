@@ -45,7 +45,10 @@ fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
         {
             let status = {
                 let state = engine.inner.state.lock().expect("engine state poisoned");
-                state.batch_compress_batches.get(&batch_id).map(|b| b.status)
+                state
+                    .batch_compress_batches
+                    .get(&batch_id)
+                    .map(|b| b.status)
             };
             if matches!(status, Some(BatchCompressBatchStatus::Completed)) {
                 break;

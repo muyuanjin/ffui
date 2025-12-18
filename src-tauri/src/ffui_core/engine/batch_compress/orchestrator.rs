@@ -13,9 +13,9 @@ use std::{
 use anyhow::Result;
 
 use super::super::state::{
-    Inner,
     BatchCompressBatch,
     BatchCompressBatchStatus,
+    Inner,
     is_known_batch_compress_output_with_inner,
     notify_batch_compress_listeners,
     update_batch_compress_batch_with_inner,
@@ -42,9 +42,9 @@ use super::video::enqueue_batch_compress_video_job;
 use crate::ffui_core::domain::{
     AutoCompressProgress,
     AutoCompressResult,
+    BatchCompressConfig,
     FFmpegPreset,
     JobStatus,
-    BatchCompressConfig,
 };
 use crate::ffui_core::settings::{
     self,

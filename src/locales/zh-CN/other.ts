@@ -229,8 +229,8 @@ const other = {
     resetZoom: "重置缩放",
     modes: {
       sideBySide: "左右对比",
-      wipe: "分界线",
-      blink: "闪烁切换",
+      wipe: "滑动对比",
+      blink: "切换对比",
     },
     disabled: {
       notVideo: "仅视频任务支持对比。",
