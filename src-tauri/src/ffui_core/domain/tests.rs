@@ -50,6 +50,7 @@ mod domain_contract_tests {
             }),
             estimated_seconds: Some(300.0),
             preview_path: Some("C:/app-data/previews/abc123.jpg".to_string()),
+            preview_revision: 2,
             log_tail: Some("last few lines".to_string()),
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
             warnings: Vec::new(),
@@ -166,6 +167,13 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("previewPath present"),
             "C:/app-data/previews/abc123.jpg"
+        );
+        assert_eq!(
+            value
+                .get("previewRevision")
+                .and_then(Value::as_u64)
+                .expect("previewRevision present"),
+            2
         );
         assert_eq!(
             value
@@ -286,6 +294,7 @@ mod domain_contract_tests {
             media_info: None,
             estimated_seconds: None,
             preview_path: None,
+            preview_revision: 0,
             log_tail: None,
             failure_reason: None,
             warnings: Vec::new(),

@@ -14,6 +14,8 @@ vi.mock("@/lib/backend", () => {
 
   return {
     buildPreviewUrl: (path: string | null) => path,
+    buildJobPreviewUrl: (path: string | null, revision?: number | null) =>
+      path && revision && hasTauri() ? `${path}?ffuiPreviewRev=${revision}` : path,
     hasTauri,
     loadPreviewDataUrl,
     ensureJobPreview,
@@ -145,6 +147,35 @@ describe("QueueItem display preview & command view", () => {
     const img = thumb.find("img");
     expect(img.element).toBeTruthy();
     expect(img.attributes("src")).toBe(job.previewPath);
+  });
+
+  it("cache-busts the thumbnail src when previewRevision changes but previewPath stays stable (Tauri mode)", async () => {
+    const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg", previewRevision: 1 });
+
+    (hasTauri as any).mockReturnValue(true);
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    const img = thumb.find("img");
+    expect(img.attributes("src")).toBe("C:/app-data/previews/abc123.jpg?ffuiPreviewRev=1");
+
+    await wrapper.setProps({
+      job: { ...job, previewRevision: 2 },
+    });
+    await nextTick();
+
+    const img2 = wrapper.get("[data-testid='queue-item-thumbnail']").find("img");
+    expect(img2.attributes("src")).toBe("C:/app-data/previews/abc123.jpg?ffuiPreviewRev=2");
   });
 
   it("falls back to backend data URL when thumbnail fails to load in Tauri mode", async () => {

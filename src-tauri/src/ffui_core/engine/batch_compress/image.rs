@@ -23,11 +23,11 @@ use super::helpers::{
     record_tool_download,
 };
 use crate::ffui_core::domain::{
+    BatchCompressConfig,
     JobSource,
     JobStatus,
     JobType,
     MediaInfo,
-    BatchCompressConfig,
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
@@ -103,6 +103,7 @@ pub(crate) fn handle_image_file_with_id(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings: Vec::new(),
@@ -154,6 +155,7 @@ pub(crate) fn handle_image_file_with_id(
         register_known_batch_compress_output_with_inner(inner, &sibling_avif);
         job.output_path = Some(sibling_avif.to_string_lossy().into_owned());
         job.preview_path = Some(sibling_avif.to_string_lossy().into_owned());
+        job.preview_revision = job.preview_revision.saturating_add(1);
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
         job.skip_reason = Some("Existing .avif sibling".to_string());
@@ -201,6 +203,7 @@ pub(crate) fn handle_image_file_with_id(
         // can show the final compressed result instead of the original PNG.
         job.output_path = Some(avif_target.to_string_lossy().into_owned());
         job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+        job.preview_revision = job.preview_revision.saturating_add(1);
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
         job.skip_reason = Some("Existing .avif sibling".to_string());
@@ -302,6 +305,7 @@ pub(crate) fn handle_image_file_with_id(
                     // "compressed file path" alongside the original input.
                     job.output_path = Some(avif_target.to_string_lossy().into_owned());
                     job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+                    job.preview_revision = job.preview_revision.saturating_add(1);
 
                     job.logs.push(format!(
                         "avifenc: lossless AVIF encode completed; new size {:.2} MB ({:.1}% of original)",

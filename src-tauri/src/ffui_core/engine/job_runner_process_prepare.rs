@@ -355,6 +355,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             job.media_info = Some(media_info.clone());
             if let Some(preview) = &preview_path {
                 job.preview_path = Some(preview.to_string_lossy().into_owned());
+                job.preview_revision = job.preview_revision.saturating_add(1);
             }
             if matches!(job.job_type, JobType::Video) {
                 let tmp_str = tmp_output.to_string_lossy().into_owned();

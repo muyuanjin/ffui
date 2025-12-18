@@ -4,7 +4,7 @@ import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
-import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
@@ -258,11 +258,12 @@ const lastPreviewPath = ref<string | null>(null);
 watch(
   () => ({
     previewPath: props.job.previewPath,
+    previewRevision: props.job.previewRevision,
     type: props.job.type,
     inputPath: props.job.inputPath,
     outputPath: props.job.outputPath,
   }),
-  ({ previewPath, type, inputPath, outputPath }) => {
+  ({ previewPath, previewRevision, type, inputPath, outputPath }) => {
     previewFallbackLoaded.value = false;
     if ((previewPath ?? null) !== lastPreviewPath.value) {
       previewRescreenshotAttempted.value = false;
@@ -283,7 +284,7 @@ watch(
       return;
     }
 
-    previewUrl.value = buildPreviewUrl(path);
+    previewUrl.value = buildJobPreviewUrl(path, previewRevision);
   },
   { immediate: true },
 );
@@ -313,7 +314,7 @@ const handlePreviewError = async () => {
     try {
       const regenerated = await ensureJobPreview(props.job.id);
       if (regenerated) {
-        previewUrl.value = buildPreviewUrl(regenerated);
+        previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
         previewFallbackLoaded.value = false;
         await nextTick();
       }

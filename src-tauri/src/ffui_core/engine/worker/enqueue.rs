@@ -148,6 +148,7 @@ fn enqueue_transcode_job_no_notify(
             }),
             estimated_seconds,
             preview_path: None,
+            preview_revision: 0,
             log_tail: None,
             failure_reason: None,
             warnings,

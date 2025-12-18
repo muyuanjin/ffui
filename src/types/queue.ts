@@ -133,6 +133,11 @@ export interface TranscodeJob {
   estimatedSeconds?: number;
   /** Optional thumbnail path for this job's input media. */
   previewPath?: string;
+  /**
+   * Monotonic revision that changes when the preview file is (re)generated.
+   * Used to cache-bust preview URLs even when `previewPath` is stable.
+   */
+  previewRevision?: number;
   /** Optional pre-truncated tail string of logs from the backend. The detail view prefers the full in-memory logs when available and falls back to this tail for legacy snapshots. */
   logTail?: string;
   /** Short structured description of why the job failed. */

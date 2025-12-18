@@ -3,7 +3,7 @@ import { computed, ref, watch, toRef } from "vue";
 import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
-import { buildPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
@@ -230,15 +230,15 @@ const previewFallbackLoaded = ref(false);
 const previewRescreenshotAttempted = ref(false);
 
 watch(
-  () => props.job.previewPath,
-  (path) => {
+  () => ({ previewPath: props.job.previewPath, previewRevision: props.job.previewRevision }),
+  ({ previewPath, previewRevision }) => {
     previewFallbackLoaded.value = false;
     previewRescreenshotAttempted.value = false;
-    if (!path) {
+    if (!previewPath) {
       previewUrl.value = null;
       return;
     }
-    previewUrl.value = buildPreviewUrl(path);
+    previewUrl.value = buildJobPreviewUrl(previewPath, previewRevision);
   },
   { immediate: true },
 );
@@ -267,7 +267,7 @@ const handlePreviewError = async () => {
     try {
       const regenerated = await ensureJobPreview(props.job.id);
       if (regenerated) {
-        previewUrl.value = buildPreviewUrl(regenerated);
+        previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
         previewFallbackLoaded.value = false;
       }
     } catch (regenError) {

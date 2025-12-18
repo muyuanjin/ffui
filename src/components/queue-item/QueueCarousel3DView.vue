@@ -3,7 +3,7 @@ import { computed, ref, onMounted, onUnmounted, watch, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
-import { buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
+import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -69,11 +69,11 @@ const getPreviewUrl = (item: QueueListItem): string | null => {
   if (!job) return null;
 
   if (previewCache[job.id]) {
-    return buildPreviewUrl(previewCache[job.id]);
+    return buildJobPreviewUrl(previewCache[job.id], job.previewRevision);
   }
 
   if (job.previewPath) {
-    return buildPreviewUrl(job.previewPath);
+    return buildJobPreviewUrl(job.previewPath, job.previewRevision);
   }
 
   if (job.type === "image") {

@@ -34,6 +34,7 @@ use super::video_paths::{
     build_video_tmp_output_path,
 };
 use crate::ffui_core::domain::{
+    BatchCompressConfig,
     FFmpegPreset,
     JobSource,
     JobStatus,
@@ -42,7 +43,6 @@ use crate::ffui_core::domain::{
     OutputDirectoryPolicy,
     OutputFilenamePolicy,
     OutputPolicy,
-    BatchCompressConfig,
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
@@ -117,6 +117,7 @@ pub(crate) fn handle_video_file(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings,
@@ -314,6 +315,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings: Vec::new(),

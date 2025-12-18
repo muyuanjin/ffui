@@ -5,6 +5,10 @@ use serde::{
 
 use super::output_policy::OutputPolicy;
 
+fn is_zero(v: &u64) -> bool {
+    *v == 0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadata {
@@ -150,6 +154,12 @@ pub struct TranscodeJob {
     /// Optional preview image path for this job, typically a JPEG/PNG frame
     /// extracted from the input video and stored near the app data folder.
     pub preview_path: Option<String>,
+    /// Monotonic revision that changes when the preview file is (re)generated.
+    ///
+    /// This allows the frontend to cache-bust preview URLs even when the
+    /// preview path itself is stable (e.g. hash-based filenames).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub preview_revision: u64,
     /// Bounded textual tail of stderr/stdout logs for this job, suitable
     /// for rendering in the task detail view without unbounded growth.
     pub log_tail: Option<String>,
@@ -233,6 +243,11 @@ pub struct TranscodeJobLite {
     pub estimated_seconds: Option<f64>,
     /// Optional thumbnail path for this job's input media.
     pub preview_path: Option<String>,
+    /// Monotonic revision that changes when the preview file is (re)generated.
+    ///
+    /// See `TranscodeJob.preview_revision`.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub preview_revision: u64,
     /// Optional pre-truncated tail string of logs from the backend. The
     /// detail view prefers the full in-memory logs when available and falls
     /// back to this tail for legacy snapshots.
@@ -293,6 +308,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             media_info: job.media_info.clone(),
             estimated_seconds: job.estimated_seconds,
             preview_path: job.preview_path.clone(),
+            preview_revision: job.preview_revision,
             log_tail: job.log_tail.clone(),
             log_head,
             failure_reason: job.failure_reason.clone(),
@@ -342,6 +358,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             media_info: job.media_info,
             estimated_seconds: job.estimated_seconds,
             preview_path: job.preview_path,
+            preview_revision: job.preview_revision,
             log_tail: job.log_tail,
             failure_reason: job.failure_reason,
             warnings: job.warnings,
@@ -389,6 +406,7 @@ mod tests {
                 media_info: None,
                 estimated_seconds: None,
                 preview_path: None,
+                preview_revision: 0,
                 log_tail: None,
                 log_head: Some(vec!["ffmpeg version ...".to_string()]),
                 failure_reason: None,

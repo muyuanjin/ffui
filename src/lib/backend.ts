@@ -461,5 +461,35 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
   }
 };
 
+const appendQueryParam = (url: string, key: string, value: string): string => {
+  const [withoutHash, hash = ""] = url.split("#");
+  const separator = withoutHash.includes("?") ? "&" : "?";
+  const next = `${withoutHash}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
+  return hash ? `${next}#${hash}` : next;
+};
+
+/**
+ * Build a preview URL for a job thumbnail, including a cache-busting query when
+ * a monotonic `previewRevision` is provided by the backend.
+ *
+ * The revision is only applied in Tauri mode (where the preview URL is backed
+ * by a stable local asset URL); in pure web mode we return the base URL to
+ * avoid turning filesystem-looking paths into invalid URLs.
+ */
+export const buildJobPreviewUrl = (
+  previewPath: string | null | undefined,
+  previewRevision?: number | null,
+): string | null => {
+  const url = buildPreviewUrl(previewPath);
+  if (!url) return null;
+  if (!hasTauri()) return url;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+
+  const revision = Number(previewRevision ?? 0);
+  if (!Number.isFinite(revision) || revision <= 0) return url;
+
+  return appendQueryParam(url, "ffuiPreviewRev", String(Math.floor(revision)));
+};
+
 // Single abstraction for `<video>/<audio>` URLs (may switch to secure scheme later).
 export const buildPlayableMediaUrl = buildPreviewUrl;

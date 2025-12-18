@@ -12,6 +12,8 @@ vi.mock("@/lib/backend", () => {
 
   return {
     buildPreviewUrl: (path: string | null) => path,
+    buildJobPreviewUrl: (path: string | null, revision?: number | null) =>
+      path && revision && hasTauri() ? `${path}?ffuiPreviewRev=${revision}` : path,
     hasTauri,
     loadPreviewDataUrl,
     selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),

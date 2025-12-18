@@ -3,7 +3,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import type { CompositeBatchCompressTask, QueueProgressStyle } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { buildPreviewUrl } from "@/lib/backend";
+import { buildJobPreviewUrl } from "@/lib/backend";
 
 const props = defineProps<{
   batch: CompositeBatchCompressTask;
@@ -109,6 +109,7 @@ const captionPaddingClass = computed(() => {
 type PreviewSlot = {
   key: string;
   previewPath: string | null;
+  previewRevision: number | null;
 };
 
 const previewSlots = computed<PreviewSlot[]>(() => {
@@ -151,6 +152,7 @@ const previewSlots = computed<PreviewSlot[]>(() => {
     slots.push({
       key: id,
       previewPath: source.previewPath,
+      previewRevision: source.job.previewRevision ?? null,
     });
   };
 
@@ -172,6 +174,7 @@ const previewSlots = computed<PreviewSlot[]>(() => {
     slots.push({
       key: `placeholder-${index}`,
       previewPath: null,
+      previewRevision: null,
     });
   }
 
@@ -198,7 +201,7 @@ const firstPreviewUrl = computed<string | null>(() => {
     (job) => typeof job.previewPath === "string" && job.previewPath.length > 0,
   );
   if (!jobWithPreview?.previewPath) return null;
-  return buildPreviewUrl(jobWithPreview.previewPath);
+  return buildJobPreviewUrl(jobWithPreview.previewPath, jobWithPreview.previewRevision);
 });
 
 const progressLabel = computed(() => `${Math.round(clampedProgress.value)}%`);
@@ -242,7 +245,7 @@ const onContextMenu = (event: MouseEvent) => {
         <div v-for="slot in previewSlots" :key="slot.key" class="bg-background/40 overflow-hidden">
           <img
             v-if="slot.previewPath"
-            :src="buildPreviewUrl(slot.previewPath) ?? undefined"
+            :src="buildJobPreviewUrl(slot.previewPath, slot.previewRevision) ?? undefined"
             alt=""
             class="h-full w-full object-cover"
           />

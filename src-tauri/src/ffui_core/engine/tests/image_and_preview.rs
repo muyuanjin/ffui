@@ -193,6 +193,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
             }),
             estimated_seconds: None,
             preview_path: Some(old_preview.to_string_lossy().into_owned()),
+            preview_revision: 7,
             log_tail: None,
             failure_reason: None,
             warnings: Vec::new(),
@@ -226,6 +227,15 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
         stored,
         expected_preview.to_string_lossy(),
         "job.preview_path should be updated in engine state"
+    );
+    let stored_rev = state
+        .jobs
+        .get("job-1")
+        .map(|j| j.preview_revision)
+        .unwrap_or_default();
+    assert_eq!(
+        stored_rev, 8,
+        "job.preview_revision should bump when preview is regenerated"
     );
 
     let _ = fs::remove_file(&expected_preview);
@@ -299,6 +309,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
             }),
             estimated_seconds: None,
             preview_path: Some(old_preview.to_string_lossy().into_owned()),
+            preview_revision: 2,
             log_tail: None,
             failure_reason: None,
             warnings: Vec::new(),
@@ -332,6 +343,15 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
         stored,
         expected_preview.to_string_lossy(),
         "job.preview_path should be updated to the new percent path"
+    );
+    let stored_rev = state
+        .jobs
+        .get("job-1")
+        .map(|j| j.preview_revision)
+        .unwrap_or_default();
+    assert_eq!(
+        stored_rev, 3,
+        "job.preview_revision should bump when preview is refreshed"
     );
 
     let _ = fs::remove_file(&expected_preview);

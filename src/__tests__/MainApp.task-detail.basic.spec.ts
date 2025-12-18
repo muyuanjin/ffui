@@ -28,6 +28,7 @@ vi.mock("@/lib/backend", async () => {
     ...actual,
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null) => path,
+    buildJobPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
     fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),

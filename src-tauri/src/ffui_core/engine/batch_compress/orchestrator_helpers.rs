@@ -4,11 +4,11 @@ use std::path::Path;
 use super::super::state::Inner;
 use super::helpers::current_time_millis;
 use crate::ffui_core::domain::{
+    BatchCompressConfig,
     JobSource,
     JobStatus,
     JobType,
     MediaInfo,
-    BatchCompressConfig,
     TranscodeJob,
 };
 
@@ -66,6 +66,7 @@ pub(super) fn insert_image_stub_job(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings: Vec::new(),
@@ -132,6 +133,7 @@ pub(super) fn insert_audio_stub_job(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings: Vec::new(),

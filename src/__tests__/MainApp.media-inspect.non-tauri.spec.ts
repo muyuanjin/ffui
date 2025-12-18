@@ -10,6 +10,7 @@ vi.mock("@/lib/backend", () => {
   return {
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null) => path,
+    buildJobPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => '{"format":{"duration":"60"},"streams":[]}'),
     fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),

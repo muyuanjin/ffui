@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
 import {
-  buildPreviewUrl,
+  buildJobPreviewUrl,
   cleanupFallbackPreviewFramesAsync,
   ensureJobPreview,
   hasTauri,
@@ -56,15 +56,15 @@ watch(
 );
 
 watch(
-  () => props.job?.previewPath,
-  (path) => {
+  () => ({ previewPath: props.job?.previewPath, previewRevision: props.job?.previewRevision }),
+  ({ previewPath, previewRevision }) => {
     inlinePreviewFallbackLoaded.value = false;
     inlinePreviewRescreenshotAttempted.value = false;
-    if (!path) {
+    if (!previewPath) {
       inlinePreviewUrl.value = null;
       return;
     }
-    inlinePreviewUrl.value = buildPreviewUrl(path);
+    inlinePreviewUrl.value = buildJobPreviewUrl(previewPath, previewRevision);
   },
   { immediate: true },
 );
@@ -92,7 +92,7 @@ const handleInlinePreviewError = async () => {
     try {
       const regenerated = await ensureJobPreview(props.job.id);
       if (regenerated) {
-        inlinePreviewUrl.value = buildPreviewUrl(regenerated);
+        inlinePreviewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
         inlinePreviewFallbackLoaded.value = false;
       }
     } catch (regenError) {

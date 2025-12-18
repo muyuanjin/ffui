@@ -268,6 +268,7 @@ mod tests {
             media_info: None,
             estimated_seconds: None,
             preview_path: None,
+            preview_revision: 0,
             log_tail: None,
             failure_reason: None,
             warnings: Vec::new(),

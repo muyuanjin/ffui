@@ -47,6 +47,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                 }),
                 estimated_seconds: None,
                 preview_path: None,
+                preview_revision: 0,
                 log_tail: None,
                 failure_reason: None,
                 warnings: Vec::new(),

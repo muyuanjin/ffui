@@ -15,6 +15,7 @@ vi.mock("@/lib/backend", async () => {
     ...actual,
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null | undefined) => path ?? null,
+    buildJobPreviewUrl: (path: string | null | undefined) => path ?? null,
     ensureJobPreview: vi.fn(async () => null),
   };
 });

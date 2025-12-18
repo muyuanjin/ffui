@@ -56,6 +56,7 @@ impl TranscodingEngine {
             let mut state = self.inner.state.lock().expect("engine state poisoned");
             if let Some(job) = state.jobs.get_mut(job_id) {
                 job.preview_path = Some(preview_str.clone());
+                job.preview_revision = job.preview_revision.saturating_add(1);
             }
         }
 
@@ -146,6 +147,7 @@ impl TranscodingEngine {
                     Some(job) if job.job_type == JobType::Video => {
                         let previous = job.preview_path.clone();
                         job.preview_path = Some(preview_str.clone());
+                        job.preview_revision = job.preview_revision.saturating_add(1);
                         previous
                     }
                     _ => None,

@@ -25,12 +25,12 @@ use super::helpers::{
 use super::video_paths::ensure_progress_args;
 use crate::ffui_core::domain::{
     AudioCodecType,
+    BatchCompressConfig,
     FFmpegPreset,
     JobSource,
     JobStatus,
     JobType,
     MediaInfo,
-    BatchCompressConfig,
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
@@ -138,6 +138,7 @@ pub(crate) fn handle_audio_file_with_id(
         }),
         estimated_seconds: None,
         preview_path: None,
+        preview_revision: 0,
         log_tail: None,
         failure_reason: None,
         warnings: Vec::new(),

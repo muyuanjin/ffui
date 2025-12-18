@@ -21,27 +21,33 @@ vi.mock("@tauri-apps/api/window", () => ({
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn().mockResolvedValue(() => {}) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn(), convertFileSrc: (path: string) => path }));
-vi.mock("@/lib/backend", () => ({
-  hasTauri: vi.fn(() => false),
-  buildPreviewUrl: vi.fn((path: string | null) => path),
-  inspectMedia: vi.fn(async () => "{}"),
-  fetchCpuUsage: vi.fn(async () => ({}) as any),
-  fetchExternalToolStatuses: vi.fn(async () => []),
-  fetchExternalToolStatusesCached: vi.fn(async () => []),
-  refreshExternalToolStatusesAsync: vi.fn(async () => true),
-  fetchGpuUsage: vi.fn(async () => ({}) as any),
-  loadAppSettings: vi.fn(async () => ({}) as any),
-  loadQueueState: vi.fn(async () => ({ jobs: [] })),
-  loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
-  loadJobDetail: vi.fn(async () => null),
-  loadSmartDefaultPresets: vi.fn(async () => []),
-  loadPresets: vi.fn(async () => []),
-  runAutoCompress: vi.fn(async () => ({ jobs: [] })),
-  saveAppSettings: vi.fn(async (settings: any) => settings),
-  enqueueTranscodeJob: vi.fn(async () => ({}) as any),
-  cancelTranscodeJob: vi.fn(async () => true),
-  selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
-}));
+vi.mock("@/lib/backend", () => {
+  const hasTauri = vi.fn(() => false);
+  return {
+    hasTauri,
+    buildPreviewUrl: vi.fn((path: string | null) => path),
+    buildJobPreviewUrl: vi.fn((path: string | null, revision?: number | null) =>
+      path && revision && hasTauri() ? `${path}?ffuiPreviewRev=${revision}` : path,
+    ),
+    inspectMedia: vi.fn(async () => "{}"),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
+    fetchExternalToolStatuses: vi.fn(async () => []),
+    fetchExternalToolStatusesCached: vi.fn(async () => []),
+    refreshExternalToolStatusesAsync: vi.fn(async () => true),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
+    loadQueueState: vi.fn(async () => ({ jobs: [] })),
+    loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
+    loadJobDetail: vi.fn(async () => null),
+    loadSmartDefaultPresets: vi.fn(async () => []),
+    loadPresets: vi.fn(async () => []),
+    runAutoCompress: vi.fn(async () => ({ jobs: [] })),
+    saveAppSettings: vi.fn(async (settings: any) => settings),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
+    cancelTranscodeJob: vi.fn(async () => true),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
+  };
+});
 
 const i18n = createI18n({
   legacy: false,

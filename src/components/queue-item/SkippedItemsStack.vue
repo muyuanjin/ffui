@@ -2,7 +2,7 @@
 import { computed, ref, onMounted, onUnmounted, watch, reactive } from "vue";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
-import { buildPreviewUrl, ensureJobPreview, hasTauri, revealPathInFolder } from "@/lib/backend";
+import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri, revealPathInFolder } from "@/lib/backend";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -150,12 +150,12 @@ const parseSkipReason = (reason: string | undefined, jobType: string): string =>
 const getPreviewUrl = (job: TranscodeJob): string | null => {
   // 优先使用缓存
   if (previewCache[job.id]) {
-    return buildPreviewUrl(previewCache[job.id]);
+    return buildJobPreviewUrl(previewCache[job.id], job.previewRevision);
   }
 
   // 已有预览路径
   if (job.previewPath) {
-    return buildPreviewUrl(job.previewPath);
+    return buildJobPreviewUrl(job.previewPath, job.previewRevision);
   }
 
   // 图片类型可以使用输入/输出路径
