@@ -41,6 +41,7 @@ pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
     execute_transcode_job(inner, job_id, prepared)
 }
 
+include!("job_runner_process_resume_utils.rs");
 include!("job_runner_process_execute_replace_original.rs");
 include!("job_runner_process_execute.rs");
 include!("job_runner_process_prepare.rs");

@@ -261,18 +261,33 @@ fn execute_transcode_job(
     }
 
     if wait_requested {
-        // 暂停：无论退出码如何，都将当前 tmp_output 视为“已完成分段”，并将
-        // 最后一次看到的 out_time_ms/time= 作为 processed_seconds（叠加 resume 基线）。
-        //
-        // 这能避免“暂停后少读最后几行进度”导致 processed_seconds 偏小，从而在
-        // 下一次 resume 里使用 -ss 回退并产生重叠段，最终让输出体积异常增大。
+        // 暂停：将当前 tmp_output 视为已完成分段，并用 ffprobe 探测分段真实 duration（端点）
+        // 校准 processedSeconds（ffmpeg `-progress out_time*` 在 B 帧场景会落后，易导致续转重叠）。
+        let base_by_probe =
+            existing_segments
+                .iter()
+                .map(|p| probe_segment_duration_seconds(p.as_path(), &settings_snapshot))
+                .collect::<Option<Vec<f64>>>()
+                .map(|durations| durations.into_iter().sum::<f64>());
+
+        let base = base_by_probe
+            .or(resume_from_seconds)
+            .unwrap_or(0.0)
+            .max(0.0);
+
+        let segment_duration = probe_segment_duration_seconds(tmp_output.as_path(), &settings_snapshot);
+        let probed_end = segment_duration.map(|d| base + d);
+
+        let processed_seconds_override =
+            choose_processed_seconds_after_wait(total_duration, last_effective_elapsed_seconds, probed_end);
+
         mark_job_waiting(
             inner,
             job_id,
             &tmp_output,
             &output_path,
             total_duration,
-            last_effective_elapsed_seconds,
+            processed_seconds_override,
         )?;
         return Ok(());
     }

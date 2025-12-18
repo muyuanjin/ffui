@@ -141,7 +141,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         preset_id,
         cached_media_info,
         job_filename,
-        job_wait_metadata,
+        mut job_wait_metadata,
     ) = {
         let state = inner.state.lock().expect("engine state poisoned");
         let job = match state.jobs.get(job_id) {
@@ -300,6 +300,31 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             )
         }
     };
+
+    // If the job has existing partial segments (paused/crash recovery), recompute
+    // processed_seconds based on the actual segment durations. This avoids the
+    // resume seek point drifting backwards when ffmpeg's -progress out_time
+    // lags behind the final muxed frames (common with B-frames).
+    if let Some(meta) = job_wait_metadata.as_mut() {
+        let corrected =
+            recompute_processed_seconds_from_segments(meta, &settings_snapshot, media_info.duration_seconds);
+        if corrected {
+            let processed = meta.processed_seconds.unwrap_or(0.0);
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id)
+                && let Some(job_meta) = job.wait_metadata.as_mut()
+            {
+                job_meta.processed_seconds = Some(processed);
+                job_meta.segments = meta.segments.clone();
+                job_meta.tmp_output_path = meta.tmp_output_path.clone();
+                job.logs.push(format!(
+                    "resume: recomputed processedSeconds from segment durations: {processed:.6}s"
+                ));
+                recompute_log_tail(job);
+            }
+        }
+    }
+
     let (mut resume_from_seconds, mut existing_segments, tmp_output) = plan_resume_paths(
         job_id,
         &input_path,
@@ -377,7 +402,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                 match timeline.seek_mode {
                     None | Some(SeekMode::Input) => {
                         timeline.seek_mode = Some(SeekMode::Input);
-                        timeline.seek_position = Some(format!("{offset:.3}"));
+                        timeline.seek_position = Some(format!("{offset:.6}"));
                         if timeline.accurate_seek.is_none() {
                             timeline.accurate_seek = Some(true);
                         }
@@ -396,7 +421,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                 use crate::ffui_core::domain::{InputTimelineConfig, SeekMode};
                 let timeline = InputTimelineConfig {
                     seek_mode: Some(SeekMode::Input),
-                    seek_position: Some(format!("{offset:.3}")),
+                    seek_position: Some(format!("{offset:.6}")),
                     duration_mode: None,
                     duration: None,
                     accurate_seek: Some(true),

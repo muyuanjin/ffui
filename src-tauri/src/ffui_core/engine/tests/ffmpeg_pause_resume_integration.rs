@@ -187,11 +187,40 @@ fn ffmpeg_pause_resume_does_not_create_overlap_segments() {
         s.trim().parse::<f64>().ok()
     }
 
+    fn probe_frame_count(path: &std::path::Path) -> Option<u64> {
+        let output = Command::new("ffprobe")
+            .args([
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-count_frames",
+                "-show_entries",
+                "stream=nb_read_frames",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                path.to_string_lossy().as_ref(),
+            ])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let s = String::from_utf8_lossy(&output.stdout);
+        s.trim().parse::<u64>().ok()
+    }
+
     let input_dur = probe_duration(&input).expect("input duration should be probeable");
     let out_dur = probe_duration(&output).expect("output duration should be probeable");
+    let input_frames = probe_frame_count(&input).expect("input frame count should be probeable");
+    let out_frames = probe_frame_count(&output).expect("output frame count should be probeable");
+    assert_eq!(
+        out_frames, input_frames,
+        "pause/resume should not duplicate/drop frames; input_frames={input_frames} out_frames={out_frames}"
+    );
     assert!(
-        out_dur <= input_dur + 0.15,
-        "output duration should not exceed input duration significantly; input={input_dur:.3}s output={out_dur:.3}s"
+        out_dur <= input_dur + 0.05,
+        "output duration should not exceed input duration by more than ~1-2 frames; input={input_dur:.3}s output={out_dur:.3}s"
     );
 
     let _ = fs::remove_file(&input);
