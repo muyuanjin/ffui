@@ -14,6 +14,7 @@
     "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "verify:job-compare": "node tools/docs-screenshots/capture-job-compare-verification.mjs",
     "verify:community-links": "node tools/docs-screenshots/capture-community-links-verification.mjs",
+    "verify:preset-open-panel": "node tools/docs-screenshots/capture-preset-open-panel-verification.mjs",
     "tauri": "tauri",
     "tauri:dev": "vite build && tauri dev",
     "build:exe": "npm run tauri -- build --no-bundle"

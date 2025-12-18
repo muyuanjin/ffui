@@ -335,7 +335,13 @@ const hoverPreviewExample = computed(() => {
     </div>
 
     <div v-else-if="activeTab === 'presets'" class="flex items-center gap-3">
-      <Button variant="default" size="sm" class="h-8 px-4 rounded-full" @click="emit('openPresetWizard')">
+      <Button
+        variant="default"
+        size="sm"
+        class="h-8 px-4 rounded-full"
+        data-testid="ffui-new-preset"
+        @click="emit('openPresetWizard')"
+      >
         {{ t("app.newPreset") }}
       </Button>
     </div>

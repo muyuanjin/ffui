@@ -42,6 +42,18 @@ export function useDialogManager() {
     parameterPanelOpen.value = true;
   };
 
+  const switchWizardToParameterPanel = (preset: FFmpegPreset) => {
+    editingPreset.value = preset;
+    wizardOpen.value = false;
+    parameterPanelOpen.value = true;
+  };
+
+  const switchParameterPanelToWizard = (preset: FFmpegPreset) => {
+    editingPreset.value = preset;
+    parameterPanelOpen.value = false;
+    wizardOpen.value = true;
+  };
+
   const openSmartScan = () => {
     smartScanOpen.value = true;
   };
@@ -162,6 +174,8 @@ export function useDialogManager() {
     // 打开方法
     openWizard,
     openParameterPanel,
+    switchWizardToParameterPanel,
+    switchParameterPanelToWizard,
     openSmartScan,
     openJobDetail,
     openBatchDetail,

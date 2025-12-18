@@ -88,6 +88,7 @@ const openCompareFromJobDetail = () => {
     v-if="dialogManager.wizardOpen.value"
     :initial-preset="dialogManager.editingPreset.value"
     @save="emit('savePreset', $event)"
+    @switchToPanel="dialogManager.switchWizardToParameterPanel($event)"
     @cancel="emit('closeWizard')"
   />
 
@@ -95,6 +96,7 @@ const openCompareFromJobDetail = () => {
     v-if="dialogManager.parameterPanelOpen.value && dialogManager.editingPreset.value"
     :initial-preset="dialogManager.editingPreset.value"
     @save="emit('savePreset', $event)"
+    @switchToWizard="dialogManager.switchParameterPanelToWizard($event)"
     @cancel="emit('closeParameterPanel')"
   />
 
