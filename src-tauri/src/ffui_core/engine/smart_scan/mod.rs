@@ -14,6 +14,7 @@ mod orchestrator_helpers;
 mod video;
 #[cfg(test)]
 pub(crate) mod video;
+mod video_helpers;
 mod video_paths;
 
 pub(crate) use detection::is_video_file;

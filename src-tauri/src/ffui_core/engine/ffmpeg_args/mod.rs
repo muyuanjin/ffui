@@ -1,4 +1,5 @@
 mod builder;
+mod builder_tail;
 mod builder_webm;
 mod container;
 mod detect;

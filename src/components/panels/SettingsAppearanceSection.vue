@@ -10,6 +10,12 @@ import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOp
 import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
 import SettingsAppearanceUiFontFilePicker from "@/components/panels/SettingsAppearanceUiFontFilePicker.vue";
 import { fetchSystemFontFamilies, hasTauri, listOpenSourceFonts, type OpenSourceFontInfo } from "@/lib/backend";
+import {
+  fontSizeOptionTone,
+  fontSizePxOptions,
+  percentOptions,
+  scaleOptionTone,
+} from "@/components/panels/settings-appearance/appearanceOptions";
 const props = defineProps<{
   appSettings: AppSettings | null;
 }>();
@@ -51,24 +57,6 @@ const uiFontSizePxModel = computed<string>({
     updateSetting("uiFontSizePercent", percent as AppSettings["uiFontSizePercent"]);
   },
 });
-const percentOptions = Array.from({ length: 31 }, (_, i) => 50 + i * 5);
-const fontSizePxOptions = Array.from({ length: 21 }, (_, i) => 12 + i);
-const scaleOptionTone = (p: number) =>
-    p === 100
-      ? "ffui-select-option--default"
-      : p < 80 || p > 140
-        ? "ffui-select-option--extreme"
-        : p >= 90 && p <= 120
-          ? "ffui-select-option--recommended"
-          : "",
-  fontSizeOptionTone = (px: number) =>
-    px === 16
-      ? "ffui-select-option--default"
-      : px < 13 || px > 22
-        ? "ffui-select-option--extreme"
-        : px >= 14 && px <= 20
-          ? "ffui-select-option--recommended"
-          : "";
 const systemFonts = ref<SystemFontFamily[]>([]);
 const systemFontsLoading = ref(false);
 const openSourceFonts = ref<OpenSourceFontInfo[]>([]);

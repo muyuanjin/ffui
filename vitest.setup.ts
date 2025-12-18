@@ -86,3 +86,11 @@ if (typeof HTMLElement !== "undefined") {
     };
   }
 }
+
+// happy-dom currently logs "Not implemented: HTMLMediaElement's pause() method"
+// when components call it. Stub media playback APIs so test output stays clean.
+if (typeof HTMLMediaElement !== "undefined") {
+  const proto = HTMLMediaElement.prototype as any;
+  proto.pause = () => {};
+  proto.play = () => Promise.resolve();
+}

@@ -68,7 +68,9 @@ describe("useMainAppPreview source switching does not flicker", () => {
     expect(vm.previewSourceMode).toBe("output");
     expect(vm.previewUrl).toBe(job.outputPath);
 
-    let resolveNext: ((value: string | null) => void) | null = null;
+    let resolveNext: (value: string | null) => void = () => {
+      throw new Error("resolveNext was not initialized");
+    };
     const nextPick = new Promise<string | null>((resolve) => {
       resolveNext = resolve;
     });
@@ -81,7 +83,7 @@ describe("useMainAppPreview source switching does not flicker", () => {
     // Switching sources should not clear the dialog media while waiting for the backend.
     expect(vm.previewUrl).toBe(job.outputPath);
 
-    resolveNext?.(job.inputPath);
+    resolveNext(job.inputPath ?? null);
     await switching;
     await nextTick();
 
