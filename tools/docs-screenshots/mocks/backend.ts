@@ -443,6 +443,33 @@ const buildQueueJobs = (): TranscodeJob[] => {
       logs: [],
       estimatedSeconds: 300,
     },
+    // Smart Scan composite batch (used by docs/verification screenshots).
+    ...Array.from({ length: 18 }, (_, idx) => {
+      const index = idx + 1;
+      const filename = `C:/videos/smart_scan_batch/item_${String(index).padStart(2, "0")}.mp4`;
+      const outputPath = `C:/videos/smart_scan_batch/item_${String(index).padStart(2, "0")}.compressed.mp4`;
+      const status: TranscodeJob["status"] =
+        index <= 1 ? "processing" : index <= 3 ? "paused" : index <= 6 ? "waiting" : index <= 8 ? "queued" : "waiting";
+      const progress = status === "processing" ? 42 : status === "paused" ? 66 : 0;
+      return {
+        id: `docs-smart-scan-${index}`,
+        filename,
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 280 + index * 12,
+        originalCodec: index % 3 === 0 ? "hevc" : "h264",
+        presetId: "p1",
+        status,
+        progress,
+        inputPath: filename,
+        outputPath,
+        previewPath: poster1,
+        ffmpegCommand: `ffmpeg -hide_banner -y -i \"${filename}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${outputPath}\"`,
+        logs: [],
+        estimatedSeconds: 300,
+        batchId: "docs-batch-1",
+      } satisfies TranscodeJob;
+    }),
   ];
 };
 

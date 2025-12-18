@@ -18,6 +18,7 @@
     "format:rust:staged": "node scripts/format-rust-staged.mjs",
     "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "verify:job-compare": "node tools/docs-screenshots/capture-job-compare-verification.mjs",
+    "verify:batch-detail-context-menu": "node tools/docs-screenshots/capture-batch-detail-context-menu-verification.mjs",
     "verify:community-links": "node tools/docs-screenshots/capture-community-links-verification.mjs",
     "verify:preset-open-panel": "node tools/docs-screenshots/capture-preset-open-panel-verification.mjs",
     "tauri": "tauri",

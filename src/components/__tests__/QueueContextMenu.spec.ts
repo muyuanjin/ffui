@@ -245,4 +245,39 @@ describe("QueueContextMenu", () => {
     const openInput = wrapper.get("[data-testid='queue-context-menu-open-input']");
     expect(openInput.find("svg").exists()).toBe(true);
   });
+
+  it("teleports the fixed overlay container to body when requested", async () => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+
+    try {
+      const wrapper = mount(QueueContextMenu, {
+        attachTo: host,
+        props: {
+          visible: true,
+          x: 100,
+          y: 100,
+          mode: "single",
+          jobStatus: "processing",
+          queueMode: "queue",
+          hasSelection: true,
+          teleportToBody: true,
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await nextTick();
+      await nextTick();
+
+      const root = document.body.querySelector("[data-testid='queue-context-menu-root']") as HTMLElement | null;
+      expect(root).toBeTruthy();
+      expect(root?.className).toContain("z-[60]");
+      wrapper.unmount();
+    } finally {
+      host.remove();
+      document.body.querySelector("[data-testid='queue-context-menu-root']")?.remove();
+    }
+  });
 });

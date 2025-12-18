@@ -241,7 +241,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-4xl max-h-[90vh] flex flex-col overflow-y-auto">
+    <DialogContent data-testid="batch-detail-dialog" class="max-w-4xl max-h-[90vh] flex flex-col overflow-y-auto">
       <DialogHeader>
         <DialogTitle class="flex items-center gap-3">
           <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
@@ -379,6 +379,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         :visible="contextMenuVisible"
         :x="contextMenuX"
         :y="contextMenuY"
+        teleport-to-body
         mode="single"
         :job-status="contextMenuJob?.status"
         queue-mode="queue"

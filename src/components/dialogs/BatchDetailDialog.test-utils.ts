@@ -59,6 +59,7 @@ export const QueueContextMenuStub = defineComponent({
     "x",
     "y",
     "mode",
+    "teleportToBody",
     "jobStatus",
     "queueMode",
     "hasSelection",

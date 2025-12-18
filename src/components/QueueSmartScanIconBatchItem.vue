@@ -234,7 +234,11 @@ const onContextMenu = (event: MouseEvent) => {
     @contextmenu.prevent.stop="onContextMenu"
   >
     <div class="relative w-full bg-muted/40" :class="thumbnailAspectClass">
-      <div class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40" @click="onPreviewClick">
+      <div
+        class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40"
+        data-testid="queue-icon-batch-preview-grid"
+        @click="onPreviewClick"
+      >
         <div v-for="slot in previewSlots" :key="slot.key" class="bg-background/40 overflow-hidden">
           <img
             v-if="slot.previewPath"

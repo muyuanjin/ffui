@@ -1,17 +1,24 @@
 <template>
-  <div v-if="visible" ref="rootRef" class="fixed inset-0 z-40" @contextmenu.prevent>
-    <DropdownMenu :open="visible" @update:open="onOpenChange">
-      <DropdownMenuTrigger as-child>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          class="fixed z-40 h-1 w-1 p-0 opacity-0"
-          :style="{ left: `${displayX}px`, top: `${displayY}px` }"
-          aria-hidden="true"
-          data-testid="queue-context-menu-anchor"
-        />
-      </DropdownMenuTrigger>
+  <Teleport to="body" :disabled="!teleportToBody">
+    <div
+      v-if="visible"
+      ref="rootRef"
+      :class="rootClass"
+      data-testid="queue-context-menu-root"
+      @contextmenu.prevent
+    >
+      <DropdownMenu :open="visible" @update:open="onOpenChange">
+        <DropdownMenuTrigger as-child>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            class="fixed z-40 h-1 w-1 p-0 opacity-0"
+            :style="{ left: `${displayX}px`, top: `${displayY}px` }"
+            aria-hidden="true"
+            data-testid="queue-context-menu-anchor"
+          />
+        </DropdownMenuTrigger>
 
       <!-- Render inline (no Teleport) to keep tests + clamping predictable. -->
       <DropdownMenuContent
@@ -247,8 +254,9 @@
           </DropdownMenuItem>
         </template>
       </DropdownMenuContent>
-    </DropdownMenu>
-  </div>
+      </DropdownMenu>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
@@ -282,6 +290,11 @@ const props = defineProps<{
   x: number;
   y: number;
   mode: "single" | "bulk";
+  /**
+   * When true, the overlay container is teleported to `document.body` so the
+   * fixed positioning is not affected by transformed ancestors (e.g. dialogs).
+   */
+  teleportToBody?: boolean;
   jobStatus?: JobStatus;
   jobType?: JobType;
   queueMode: QueueMode;
@@ -312,6 +325,13 @@ const rootRef = ref<HTMLElement | null>(null);
 const displayX = ref(props.x);
 const displayY = ref(props.y);
 const closeFromItem = ref(false);
+
+const rootClass = computed(() => {
+  // When the menu is teleported outside dialogs, it must stack above the dialog overlay.
+  // Keep the previous stacking in the inline render to avoid changing unrelated contexts.
+  const z = props.teleportToBody ? "z-[60]" : "z-40";
+  return `fixed inset-0 ${z}`;
+});
 
 const requestClose = () => emit("close");
 const closeMenu = () => {
