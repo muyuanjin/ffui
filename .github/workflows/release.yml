@@ -13,7 +13,80 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  prepare-release:
+    name: prepare-release
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.prepare.outputs.release_id }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate curated release notes (bilingual)
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            if [[ "${GITHUB_REF}" != refs/tags/v* ]]; then
+              echo "Manual publish requires selecting a v* tag ref (got: ${GITHUB_REF})" >&2
+              exit 1
+            fi
+          fi
+
+          file="releases/${GITHUB_REF_NAME}.md"
+          if [ ! -f "$file" ]; then
+            echo "Missing release notes file: $file" >&2
+            echo "Create it (and rewrite it) before tagging, e.g.:" >&2
+            echo "  node scripts/generate-release-notes.mjs \"${GITHUB_REF_NAME}\" \"<previousTag>\" > \"$file\"" >&2
+            exit 1
+          fi
+
+          if ! grep -qE '^##[[:space:]]+English([[:space:]]|$)' "$file"; then
+            echo "Release notes must include a '## English' section: $file" >&2
+            exit 1
+          fi
+
+          if ! grep -qE '^##[[:space:]]+中文([[:space:]]|$)' "$file"; then
+            echo "Release notes must include a '## 中文' section: $file" >&2
+            exit 1
+          fi
+
+      - name: Create or update draft release
+        id: prepare
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          file="releases/${tag}.md"
+          target="$(git rev-parse "${tag}^{commit}")"
+          title="FFUI ${tag}"
+
+          if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release edit "$tag" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --draft \
+              --title "$title" \
+              --notes-file "$file" \
+              --target "$target"
+          else
+            gh release create "$tag" \
+              --repo "${GITHUB_REPOSITORY}" \
+              --draft \
+              --title "$title" \
+              --notes-file "$file" \
+              --target "$target"
+          fi
+
+          release_id="$(gh release view "$tag" --repo "${GITHUB_REPOSITORY}" --json databaseId -q .databaseId)"
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+
   publish-tauri:
+    needs: prepare-release
     permissions:
       contents: write
 
@@ -23,7 +96,7 @@ jobs:
         platform: [macos-latest, ubuntu-22.04, windows-latest]
 
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
       - name: Checkout repository
@@ -55,6 +128,17 @@ jobs:
         with:
           # 仅缓存 Tauri 后端的 target 目录
           workspaces: "./src-tauri -> target"
+
+      - name: Cache Tauri tooling downloads
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/tauri
+            ~/Library/Caches/tauri
+            ~/AppData/Local/tauri
+          key: tauri-tools-${{ runner.os }}-v1
+          restore-keys: |
+            tauri-tools-${{ runner.os }}-
 
       - name: Install frontend dependencies
         # 项目使用 package-lock.json，因此优先使用 npm ci 以获得更稳定的依赖版本
@@ -91,34 +175,6 @@ jobs:
             fi
           fi
 
-      - name: Load curated release notes (bilingual)
-        id: release_notes
-        shell: bash
-        run: |
-          file="releases/${GITHUB_REF_NAME}.md"
-          if [ ! -f "$file" ]; then
-            echo "Missing release notes file: $file" >&2
-            echo "Create it (and rewrite it) before tagging, e.g.:" >&2
-            echo "  node scripts/generate-release-notes.mjs \"${GITHUB_REF_NAME}\" \"<previousTag>\" > \"$file\"" >&2
-            exit 1
-          fi
-
-          if ! grep -qE '^##[[:space:]]+English([[:space:]]|$)' "$file"; then
-            echo "Release notes must include a '## English' section: $file" >&2
-            exit 1
-          fi
-
-          if ! grep -qE '^##[[:space:]]+中文([[:space:]]|$)' "$file"; then
-            echo "Release notes must include a '## 中文' section: $file" >&2
-            exit 1
-          fi
-
-          {
-            echo "body<<EOF"
-            cat "$file"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
-
       - name: Validate updater signing configuration
         shell: bash
         env:
@@ -140,7 +196,7 @@ jobs:
 
       - name: Build and release with Tauri
         id: tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v1
         env:
           # GitHub 默认提供的 token，用于创建 Release 与上传构建产物
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -148,10 +204,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
+          retryAttempts: 3
           # __VERSION__ 会自动替换为 src-tauri/tauri.conf.json 中的 version 字段
           tagName: v__VERSION__
-          releaseName: "FFUI v__VERSION__"
-          releaseBody: ${{ steps.release_notes.outputs.body }}
           releaseDraft: true
           prerelease: false
 
@@ -178,36 +234,3 @@ jobs:
           tag_name: v${{ steps.tauri.outputs.appVersion }}
           files: dist-portable/FFUI-v${{ steps.tauri.outputs.appVersion }}-windows-x64-portable.exe
           fail_on_unmatched_files: true
-
-  sync-release-metadata:
-    name: sync-release-metadata
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: publish-tauri
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Sync release notes and target commitish
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          file="releases/${tag}.md"
-          target="$(git rev-parse "${tag}^{commit}")"
-
-          if [ ! -f "$file" ]; then
-            echo "Missing release notes file: $file" >&2
-            exit 1
-          fi
-
-          gh release edit "$tag" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --notes-file "$file" \
-            --target "$target"
