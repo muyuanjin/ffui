@@ -52,6 +52,7 @@ use common::*;
 
 mod batch_compress_audio_tests;
 mod batch_compress_delete_all_skipped;
+mod batch_compress_delete_legacy_missing_meta;
 mod batch_compress_delete_no_children;
 mod batch_compress_enqueue_tests;
 mod batch_compress_name_tests;

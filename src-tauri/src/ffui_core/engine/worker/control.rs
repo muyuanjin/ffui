@@ -310,25 +310,54 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
 
-        let batch = match state.batch_compress_batches.get(batch_id) {
-            Some(b) => b.clone(),
-            None => return false,
-        };
-
-        // 兼容旧状态/边缘状态：即便批次 status 没有被标记为 Completed，只要批次已“逻辑完成”
-        //（processed >= candidates）就允许删除，以避免前端出现无法删除的“空壳复合任务”。
-        //
-        // 同时保持防御性：对于仍处于 Scanning 且未完成统计的批次，一律拒绝删除。
-        let batch_is_deletable = matches!(batch.status, BatchCompressBatchStatus::Completed)
-            || (!matches!(batch.status, BatchCompressBatchStatus::Scanning)
-                && batch.total_processed >= batch.total_candidates);
-        if !batch_is_deletable {
+        let batch_opt = state.batch_compress_batches.get(batch_id).cloned();
+        if let Some(batch) = batch_opt.as_ref()
+            && matches!(batch.status, BatchCompressBatchStatus::Scanning)
+        {
+            // Defensive: avoid deleting a batch that is still scanning and may
+            // enqueue more jobs concurrently.
             return false;
         }
 
-        // 先遍历一遍，确保所有子任务都处于终态且不是当前 active_jobs。
-        for job_id in &batch.child_job_ids {
-            if let Some(job) = state.jobs.get(job_id) {
+        // Backward compatibility: older persisted queues may contain child
+        // jobs with `batch_id` but have no in-memory `batch_compress_batches`
+        // metadata after crash recovery. In that case derive children from
+        // the jobs map and delete the batch safely based on job terminality.
+        let child_job_ids: Vec<String> = state
+            .jobs
+            .iter()
+            .filter_map(|(id, job)| {
+                if job.batch_id.as_deref() == Some(batch_id) {
+                    Some(id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if child_job_ids.is_empty() {
+            // No children found in current engine state. If batch metadata exists,
+            // fall back to the legacy "logical completion" heuristic so empty
+            // batches (e.g. missing preset) remain deletable.
+            let Some(batch) = batch_opt else {
+                return false;
+            };
+
+            let batch_is_deletable = matches!(batch.status, BatchCompressBatchStatus::Completed)
+                || (!matches!(batch.status, BatchCompressBatchStatus::Scanning)
+                    && batch.total_processed >= batch.total_candidates);
+            if !batch_is_deletable {
+                return false;
+            }
+
+            state.batch_compress_batches.remove(batch_id);
+        } else {
+            // Ensure every child is terminal and not currently active.
+            for job_id in &child_job_ids {
+                let Some(job) = state.jobs.get(job_id) else {
+                    continue;
+                };
+
                 match job.status {
                     JobStatus::Completed
                     | JobStatus::Failed
@@ -339,24 +368,25 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
                         }
                     }
                     _ => {
-                        // Batch Compress 批次中仍存在非终态子任务，保持与单个 delete_job 一致的保护行为。
+                        // Keep the same defensive semantics as delete_job:
+                        // non-terminal jobs cannot be deleted in bulk.
                         return false;
                     }
                 }
             }
-        }
 
-        // 所有校验通过后，真正删除该批次的所有子任务以及批次元数据。
-        for job_id in &batch.child_job_ids {
-            state.queue.retain(|id| id != job_id);
-            state.cancelled_jobs.remove(job_id);
-            state.wait_requests.remove(job_id);
-            state.restart_requests.remove(job_id);
-            state.jobs.remove(job_id);
-        }
+            for job_id in &child_job_ids {
+                state.queue.retain(|id| id != job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.wait_requests.remove(job_id);
+                state.restart_requests.remove(job_id);
+                state.jobs.remove(job_id);
+            }
 
-        // 子任务删除后，清理批次记录，这样前端不会再渲染空壳的“复合任务”卡片。
-        state.batch_compress_batches.remove(batch_id);
+            // Remove batch metadata if present so the frontend composite card
+            // disappears after queue refresh.
+            state.batch_compress_batches.remove(batch_id);
+        }
     }
 
     notify_queue_listeners(inner);
