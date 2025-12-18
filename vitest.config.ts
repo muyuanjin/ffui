@@ -28,6 +28,9 @@ export default defineConfig({
     // Use separate Node processes instead of threads so memory can be fully
     // reclaimed between runs of heavy test files.
     pool: "forks",
+    // Allow extra time for workers to clean up pending module requests before
+    // forceful shutdown (avoids "Closing rpc while fetch was pending" errors).
+    teardownTimeout: 3000,
     // Give each worker a larger heap to avoid repeated GC thrashing and
     // out-of-memory crashes when mounting MainApp + jsdom.
     execArgv: ["--max-old-space-size=8192"],

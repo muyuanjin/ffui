@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi } from "vitest";
-import { mount } from "@vue/test-utils";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { mount, flushPromises } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
 import QueuePanel from "./QueuePanel.vue";
@@ -9,6 +9,19 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { FFmpegPreset, TranscodeJob } from "@/types";
 import type { QueueFilterKind, QueueFilterStatus, QueueListItem } from "@/composables";
+
+// Mock defineAsyncComponent to prevent dynamic imports from triggering
+// during test teardown (avoids "Closing rpc while fetch was pending" errors).
+vi.mock("vue", async () => {
+  const actual = await vi.importActual<typeof import("vue")>("vue");
+  return {
+    ...actual,
+    defineAsyncComponent: (_loader: unknown) => ({
+      name: "AsyncComponentStub",
+      render: () => null,
+    }),
+  };
+});
 
 vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
@@ -70,6 +83,11 @@ const basePreset: FFmpegPreset = {
 };
 
 describe("QueuePanel layout responsiveness", () => {
+  // Flush pending async component loads to avoid "Closing rpc while fetch was pending" errors.
+  afterEach(async () => {
+    await flushPromises();
+  });
+
   it("does not constrain queue width with a fixed max-w container", () => {
     const job = makeJob();
     const items: QueueListItem[] = [{ kind: "job", job }];
