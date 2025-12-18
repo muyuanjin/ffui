@@ -292,7 +292,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
   <div
     v-if="displayedItems.length > 0"
     ref="containerRef"
-    class="carousel-3d-container relative select-none outline-none flex flex-col h-full"
+    class="carousel-3d-container relative select-none outline-none flex flex-col items-center h-full py-4"
     tabindex="0"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
@@ -300,7 +300,8 @@ const getDisplayFilename = (item: QueueListItem): string => {
     @pointercancel="handlePointerUp"
     @keydown="handleKeyDown"
   >
-    <div class="flex items-center justify-between mb-2 px-2">
+    <!-- 标题栏 -->
+    <div class="flex items-center justify-between w-full max-w-xl mb-4 px-4 relative z-10">
       <div class="flex items-center gap-2">
         <span class="text-sm font-medium text-foreground">{{ t("app.tabs.queue") }}</span>
         <Badge variant="secondary" class="text-xs px-1.5 py-0">
@@ -310,120 +311,124 @@ const getDisplayFilename = (item: QueueListItem): string => {
       <span class="text-xs text-muted-foreground font-mono"> {{ activeIndex + 1 }} / {{ displayedItems.length }} </span>
     </div>
 
-    <div class="relative flex-1 min-h-[300px] flex items-center justify-center overflow-visible">
-      <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
-        <div
-          v-if="isCardVisible(index)"
-          class="carousel-card absolute w-[min(90vw,480px)] aspect-[4/3] max-h-[70vh] rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
-          :class="{
-            'ring-2 ring-primary/60 border-primary/70': index === activeIndex,
-            'ring-2 ring-amber-500/60 border-amber-500/70': isItemSelected(item),
-          }"
-          :style="getCardStyle(index)"
-          @click="handleCardClick(index, item)"
-          @dblclick="handleCardDoubleClick(item)"
-          @contextmenu="handleCardContextMenu($event, item)"
-        >
-          <div class="relative h-[55%] bg-muted/50 overflow-hidden">
-            <img
-              v-if="getPreviewUrl(item)"
-              :src="getPreviewUrl(item) ?? undefined"
-              alt=""
-              class="w-full h-full object-cover"
-            />
-            <div v-else class="w-full h-full flex items-center justify-center">
-              <component
-                :is="item.kind === 'batch' ? Folder : getTypeIcon(item.kind === 'job' ? item.job.type : 'video')"
-                class="h-16 w-16 text-muted-foreground/30"
+    <!-- 卡片轮播区域 - 使用更大的高度 -->
+    <div class="relative w-full flex-1 min-h-[280px]">
+      <div class="absolute inset-0 flex items-center justify-center overflow-visible">
+        <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
+          <div
+            v-if="isCardVisible(index)"
+            class="carousel-card absolute rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
+            :class="{
+              'ring-2 ring-primary/60 border-primary/70': index === activeIndex,
+              'ring-2 ring-amber-500/60 border-amber-500/70': isItemSelected(item),
+            }"
+            :style="{ ...getCardStyle(index), width: 'clamp(320px, 50vw, 520px)', height: 'clamp(260px, 45vh, 400px)' }"
+            @click="handleCardClick(index, item)"
+            @dblclick="handleCardDoubleClick(item)"
+            @contextmenu="handleCardContextMenu($event, item)"
+          >
+            <div class="relative h-[55%] bg-muted/50 overflow-hidden">
+              <img
+                v-if="getPreviewUrl(item)"
+                :src="getPreviewUrl(item) ?? undefined"
+                alt=""
+                class="w-full h-full object-cover"
               />
+              <div v-else class="w-full h-full flex items-center justify-center">
+                <component
+                  :is="item.kind === 'batch' ? Folder : getTypeIcon(item.kind === 'job' ? item.job.type : 'video')"
+                  class="h-16 w-16 text-muted-foreground/30"
+                />
+              </div>
+
+              <div class="absolute top-2 left-2">
+                <Badge
+                  v-if="item.kind === 'job'"
+                  variant="outline"
+                  class="px-1.5 py-0.5 text-[10px] font-medium"
+                  :class="getStatusClass(item.job.status)"
+                >
+                  {{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}
+                </Badge>
+                <Badge
+                  v-else
+                  variant="outline"
+                  class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300 bg-blue-500/20"
+                >
+                  {{ t("queue.source.smartScan") }}
+                </Badge>
+              </div>
+
+              <div
+                v-if="isItemSelected(item)"
+                class="absolute top-2 right-2 h-6 w-6 rounded-full bg-amber-500 border-2 border-amber-500 text-white flex items-center justify-center"
+              >
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
             </div>
 
-            <div class="absolute top-2 left-2">
-              <Badge
-                v-if="item.kind === 'job'"
-                variant="outline"
-                class="px-1.5 py-0.5 text-[10px] font-medium"
-                :class="getStatusClass(item.job.status)"
-              >
-                {{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}
-              </Badge>
-              <Badge
-                v-else
-                variant="outline"
-                class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300 bg-blue-500/20"
-              >
-                {{ t("queue.source.smartScan") }}
-              </Badge>
-            </div>
+            <div class="p-3 space-y-2">
+              <div class="flex items-center gap-2">
+                <p class="flex-1 text-sm font-medium text-foreground truncate" :title="getDisplayFilename(item)">
+                  {{ getDisplayFilename(item) }}
+                </p>
+                <QueueJobWarnings v-if="item.kind === 'job'" :warnings="item.job.warnings" />
+              </div>
 
-            <div
-              v-if="isItemSelected(item)"
-              class="absolute top-2 right-2 h-6 w-6 rounded-full bg-amber-500 border-2 border-amber-500 text-white flex items-center justify-center"
-            >
-              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+              <div v-if="item.kind === 'job'" class="space-y-1">
+                <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span>{{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}</span>
+                  <span v-if="item.job.progress > 0 && item.job.progress < 100" class="font-mono">
+                    {{ Math.round(item.job.progress) }}%
+                  </span>
+                </div>
+                <Progress
+                  v-if="item.job.status !== 'waiting' && item.job.status !== 'skipped'"
+                  :model-value="item.job.progress"
+                  :variant="getProgressVariant(item.job.status) as any"
+                  class="h-1.5"
+                />
+              </div>
+
+              <div v-else class="space-y-1">
+                <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span> {{ item.batch.completedCount }} / {{ item.batch.totalCandidates }} </span>
+                  <span class="font-mono">{{ Math.round(item.batch.overallProgress) }}%</span>
+                </div>
+                <Progress :model-value="item.batch.overallProgress" class="h-1.5" />
+              </div>
+
+              <div class="flex items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  class="h-auto p-0 text-[10px]"
+                  @click.stop="item.kind === 'job' ? emit('inspectJob', item.job) : emit('openBatchDetail', item.batch)"
+                >
+                  {{ t("jobDetail.title") }}
+                </Button>
+                <Button
+                  v-if="item.kind === 'job' && item.job.type === 'video'"
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  class="h-auto p-0 text-[10px]"
+                  @click.stop="emit('compareJob', item.job)"
+                >
+                  {{ t("jobCompare.open") }}
+                </Button>
+              </div>
             </div>
           </div>
-
-          <div class="p-3 space-y-2">
-            <div class="flex items-center gap-2">
-              <p class="flex-1 text-sm font-medium text-foreground truncate" :title="getDisplayFilename(item)">
-                {{ getDisplayFilename(item) }}
-              </p>
-              <QueueJobWarnings v-if="item.kind === 'job'" :warnings="item.job.warnings" />
-            </div>
-
-            <div v-if="item.kind === 'job'" class="space-y-1">
-              <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                <span>{{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}</span>
-                <span v-if="item.job.progress > 0 && item.job.progress < 100" class="font-mono">
-                  {{ Math.round(item.job.progress) }}%
-                </span>
-              </div>
-              <Progress
-                v-if="item.job.status !== 'waiting' && item.job.status !== 'skipped'"
-                :model-value="item.job.progress"
-                :variant="getProgressVariant(item.job.status) as any"
-                class="h-1.5"
-              />
-            </div>
-
-            <div v-else class="space-y-1">
-              <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                <span> {{ item.batch.completedCount }} / {{ item.batch.totalCandidates }} </span>
-                <span class="font-mono">{{ Math.round(item.batch.overallProgress) }}%</span>
-              </div>
-              <Progress :model-value="item.batch.overallProgress" class="h-1.5" />
-            </div>
-
-            <div class="flex items-center justify-end gap-2">
-              <Button
-                type="button"
-                variant="link"
-                size="sm"
-                class="h-auto p-0 text-[10px]"
-                @click.stop="item.kind === 'job' ? emit('inspectJob', item.job) : emit('openBatchDetail', item.batch)"
-              >
-                {{ t("jobDetail.title") }}
-              </Button>
-              <Button
-                v-if="item.kind === 'job' && item.job.type === 'video'"
-                type="button"
-                variant="link"
-                size="sm"
-                class="h-auto p-0 text-[10px]"
-                @click.stop="emit('compareJob', item.job)"
-              >
-                {{ t("jobCompare.open") }}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </template>
+        </template>
+      </div>
     </div>
 
-    <div v-if="displayedItems.length > 1" class="flex justify-center items-center gap-1 mt-3">
+    <!-- 导航点 -->
+    <div v-if="displayedItems.length > 1" class="flex justify-center items-center gap-1 mt-4 relative z-10">
       <button
         v-for="(_, index) in displayedItems.slice(0, 15)"
         :key="index"
@@ -436,7 +441,8 @@ const getDisplayFilename = (item: QueueListItem): string => {
       </span>
     </div>
 
-    <p class="text-center text-[10px] text-muted-foreground/60 mt-2">
+    <!-- 提示文字 -->
+    <p class="text-center text-[10px] text-muted-foreground/60 mt-3 relative z-10">
       {{ t("queue.skippedStackHint") }}
     </p>
   </div>
