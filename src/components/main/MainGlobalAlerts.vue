@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { OctagonX, TriangleAlert, X } from "lucide-vue-next";
@@ -17,6 +18,21 @@ const emit = defineEmits<{
   clearMediaInspectError: [];
   clearSettingsSaveError: [];
 }>();
+
+const { t } = useI18n();
+
+const alertTitle = (id: string) => {
+  switch (id) {
+    case "queue":
+      return t("app.tabs.queue");
+    case "media":
+      return t("app.tabs.media");
+    case "settings":
+      return t("app.tabs.settings");
+    default:
+      return id;
+  }
+};
 
 const alerts = computed(() => {
   const list: { id: string; message: string; variant: AlertVariant; onClose: () => void }[] = [];
@@ -79,8 +95,8 @@ const alertClass = (variant: AlertVariant) =>
           <TriangleAlert v-if="alert.variant === 'warning'" class="h-4 w-4" aria-hidden="true" />
           <OctagonX v-else class="h-4 w-4" aria-hidden="true" />
           <div>
-            <AlertTitle class="text-xs">
-              {{ alert.id }}
+            <AlertTitle class="text-xs" :data-testid="`global-alert-title-${alert.id}`">
+              {{ alertTitle(alert.id) }}
             </AlertTitle>
             <AlertDescription class="text-xs whitespace-pre-wrap">
               {{ alert.message }}
@@ -90,6 +106,8 @@ const alertClass = (variant: AlertVariant) =>
             variant="ghost"
             size="icon-xs"
             class="absolute top-2 right-2"
+            :data-testid="`global-alert-dismiss-${alert.id}`"
+            data-alert-close
             :aria-label="`Dismiss ${alert.id} alert`"
             @click="alert.onClose()"
           >

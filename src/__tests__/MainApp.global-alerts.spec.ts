@@ -61,11 +61,15 @@ describe("MainApp global alerts", () => {
     expect(globalAlerts.text()).toContain(expected);
     expect(globalAlerts.classes()).toContain("h-0");
 
+    const expectedTitle = (i18n as any).global.t("app.tabs.queue") as string;
+    expect(globalAlerts.get("[data-testid='global-alert-title-queue']").text()).toBe(expectedTitle);
+    expect(globalAlerts.get("[data-testid='global-alert-dismiss-queue']").attributes("data-alert-close")).toBeDefined();
+
     // The global alert bar must not render inside the scrollable queue panel.
     expect(wrapper.find("[data-testid='queue-panel'] [data-testid='global-alerts']").exists()).toBe(false);
 
     // Dismissing the alert clears the error state.
-    await globalAlerts.get("button[aria-label='Dismiss queue alert']").trigger("click");
+    await globalAlerts.get("[data-testid='global-alert-dismiss-queue']").trigger("click");
     await nextTick();
     expect(wrapper.find("[data-testid='global-alerts']").exists()).toBe(false);
 

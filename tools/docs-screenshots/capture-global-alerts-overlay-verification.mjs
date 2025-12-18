@@ -154,6 +154,23 @@ const waitFor = async (fn, { timeoutMs = 30000, intervalMs = 200 } = {}) => {
   }
 };
 
+const assert = (condition, message) => {
+  if (!condition) throw new Error(message);
+};
+
+const assertWithin = (inner, outer, { tolerance = 0.5 } = {}) => {
+  assert(inner.x >= outer.x - tolerance, `Expected inner.x (${inner.x}) >= outer.x (${outer.x})`);
+  assert(inner.y >= outer.y - tolerance, `Expected inner.y (${inner.y}) >= outer.y (${outer.y})`);
+  assert(
+    inner.x + inner.width <= outer.x + outer.width + tolerance,
+    `Expected inner.right (${inner.x + inner.width}) <= outer.right (${outer.x + outer.width})`,
+  );
+  assert(
+    inner.y + inner.height <= outer.y + outer.height + tolerance,
+    `Expected inner.bottom (${inner.y + inner.height}) <= outer.bottom (${outer.y + outer.height})`,
+  );
+};
+
 const main = async () => {
   const args = parseArgs();
   await fs.mkdir(args.outDir, { recursive: true });
@@ -186,10 +203,34 @@ const main = async () => {
       const globalAlerts = page.locator("[data-testid='global-alerts']");
       await waitFor(async () => (await globalAlerts.count()) > 0);
 
+      const title = page.locator("[data-testid='global-alert-title-queue']");
+      await waitFor(async () => (await title.count()) > 0);
+      const titleText = (await title.first().innerText()).trim();
+      const expectedTitleByLocale = {
+        "zh-CN": "任务队列",
+        en: "Transcode Queue",
+      };
+      const expectedTitle = expectedTitleByLocale[args.locale];
+      if (expectedTitle) assert(titleText === expectedTitle, `Expected title "${expectedTitle}", got "${titleText}"`);
+
+      const dismiss = page.locator("[data-testid='global-alert-dismiss-queue']").first();
+      await waitFor(async () => (await dismiss.count()) > 0);
+      const dismissIcon = dismiss.locator("svg").first();
+      await waitFor(async () => (await dismissIcon.count()) > 0);
+
       const mainEl = page.locator("main");
       await waitFor(async () => (await mainEl.count()) > 0);
 
       await mainEl.screenshot({ path: path.join(args.outDir, `global-alerts-overlay-${args.locale}.png`) });
+
+      const dismissBox = await dismiss.boundingBox();
+      const iconBox = await dismissIcon.boundingBox();
+      assert(dismissBox, "Expected dismiss button to have a bounding box.");
+      assert(iconBox, "Expected dismiss icon to have a bounding box.");
+      assertWithin(iconBox, dismissBox);
+
+      await page.mouse.click(iconBox.x + iconBox.width / 2, iconBox.y + iconBox.height / 2, { force: true });
+      await waitFor(async () => (await globalAlerts.count()) === 0);
     } finally {
       await browser.close();
     }
