@@ -16,7 +16,7 @@ import FormatSelect from "@/components/formats/FormatSelect.vue";
 import { FORMAT_CATALOG } from "@/lib/formatCatalog";
 const props = defineProps<{
   modelValue?: OutputPolicy;
-  /** When true, disables directory + filename fields (used by Smart Scan replaceOriginal). */
+  /** When true, disables directory + filename fields (used by Batch Compress replaceOriginal). */
   lockLocationAndName?: boolean;
   /** Optional preset id used for previewing default container + encoder tag. */
   previewPresetId?: string | null;
@@ -366,7 +366,7 @@ const pickPreviewFile = async () => {
     </div>
 
     <p v-if="props.lockLocationAndName" class="text-[10px] text-muted-foreground">
-      {{ t("outputPolicy.smartScanLockHint") }}
+      {{ t("outputPolicy.batchCompressLockHint") }}
     </p>
   </section>
 </template>

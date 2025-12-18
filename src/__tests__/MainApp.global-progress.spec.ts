@@ -8,7 +8,7 @@ import MainApp from "@/MainApp.vue";
 import type { AppSettings, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const i18n = createI18n({
   legacy: false,
@@ -48,7 +48,7 @@ describe("MainApp global aggregated progress", () => {
         autoUpdate: false,
         downloaded: undefined,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,
@@ -125,7 +125,7 @@ describe("MainApp global aggregated progress", () => {
         autoUpdate: false,
         downloaded: undefined,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,
@@ -193,7 +193,7 @@ describe("MainApp global aggregated progress", () => {
         autoUpdate: false,
         downloaded: undefined,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,

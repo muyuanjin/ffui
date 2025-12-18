@@ -171,11 +171,11 @@ cargo test
 
 - `src/` – Vue 3 frontend.
   - `components/` – UI components and panels (queue, presets, media, monitor, settings, dialogs).
-  - `composables/` – state and behaviour hooks (queue operations, smart scan, system metrics, settings, etc.).
+  - `composables/` – state and behaviour hooks (queue operations, batch compress, system metrics, settings, etc.).
   - `lib/` – frontend helpers such as backend bindings, FFmpeg command rendering, and preset utilities.
   - `locales/` – i18n resources for English and Simplified Chinese.
 - `src-tauri/` – Tauri 2 Rust backend.
-  - `src/ffui_core/` – transcoding engine, presets, smart scan, settings, external tools, and monitoring logic.
+  - `src/ffui_core/` – transcoding engine, presets, batch compress, settings, external tools, and monitoring logic.
   - `src/commands/` – Tauri commands exposed to the frontend.
   - `src/system_metrics.rs` – system metrics sampler and history buffer.
 - `docs/` – notes about FFmpeg parameter space and internal design.

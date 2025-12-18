@@ -10,11 +10,11 @@ pub use preset::*;
 mod job;
 pub use job::*;
 
-// Smart Scan types
-mod smart_scan;
-pub use smart_scan::*;
+// Batch Compress types
+mod batch_compress;
+pub use batch_compress::*;
 
-// Output policy types (shared by queue + Smart Scan)
+// Output policy types (shared by queue + Batch Compress)
 mod output_policy;
 pub use output_policy::*;
 

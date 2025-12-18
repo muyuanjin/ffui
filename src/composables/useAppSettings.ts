@@ -4,7 +4,7 @@ import type {
   ExternalToolCandidate,
   ExternalToolKind,
   ExternalToolStatus,
-  SmartScanConfig,
+  BatchCompressConfig,
 } from "@/types";
 import {
   hasTauri,
@@ -68,13 +68,13 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
     next.uiFontFamily = "system";
   }
 
-  // Output policy defaults (queue + Smart Scan).
+  // Output policy defaults (queue + Batch Compress).
   if (!next.queueOutputPolicy) {
     next.queueOutputPolicy = { ...DEFAULT_OUTPUT_POLICY };
   }
-  if (next.smartScanDefaults && !next.smartScanDefaults.outputPolicy) {
-    next.smartScanDefaults = {
-      ...next.smartScanDefaults,
+  if (next.batchCompressDefaults && !next.batchCompressDefaults.outputPolicy) {
+    next.batchCompressDefaults = {
+      ...next.batchCompressDefaults,
       outputPolicy: { ...DEFAULT_OUTPUT_POLICY },
     };
   }
@@ -84,7 +84,7 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
 
 export interface UseAppSettingsOptions {
   /** Smart config ref (to restore from settings). */
-  smartConfig?: Ref<SmartScanConfig>;
+  smartConfig?: Ref<BatchCompressConfig>;
   /** Manual job preset ID ref (to restore from settings). */
   manualJobPresetId?: Ref<string | null>;
   /** Optional i18n translation function for user-facing messages. */
@@ -166,9 +166,9 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       const current = appSettings.value;
       appSettings.value = normalizeLoadedAppSettings(Object.assign({}, settings, current ?? {}));
       lastSavedSettingsSnapshot = JSON.stringify(settings);
-      if (settings?.smartScanDefaults && smartConfig) {
+      if (settings?.batchCompressDefaults && smartConfig) {
         const existing = smartConfig.value;
-        const next = { ...settings.smartScanDefaults };
+        const next = { ...settings.batchCompressDefaults };
         if (existing?.rootPath) {
           next.rootPath = existing.rootPath;
         }

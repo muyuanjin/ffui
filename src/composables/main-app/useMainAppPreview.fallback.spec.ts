@@ -122,7 +122,7 @@ describe("useMainAppPreview fallback path selection", () => {
       id: "job-image-1",
       filename: "C:/images/sample.avif",
       type: "image",
-      source: "smart_scan",
+      source: "batch_compress",
       originalSizeMB: 2,
       presetId: "preset-1",
       status: "completed",

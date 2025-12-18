@@ -133,13 +133,13 @@ pub fn delete_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
     engine.delete_job(&job_id)
 }
 
-/// Permanently delete all Smart Scan child jobs that belong to a given batch.
+/// Permanently delete all Batch Compress child jobs that belong to a given batch.
 ///
-/// 前端在“复合任务（Smart Scan 批次）→ 从列表删除”时，会优先调用该命令以确保
+/// 前端在“复合任务（Batch Compress 批次）→ 从列表删除”时，会优先调用该命令以确保
 /// 整个批次一次性从队列中清理，而不是逐个 delete_transcode_job。
 #[tauri::command]
-pub fn delete_smart_scan_batch(engine: State<'_, TranscodingEngine>, batch_id: String) -> bool {
-    engine.delete_smart_scan_batch(&batch_id)
+pub fn delete_batch_compress_batch(engine: State<'_, TranscodingEngine>, batch_id: String) -> bool {
+    engine.delete_batch_compress_batch(&batch_id)
 }
 
 /// Reorder jobs in the queue by their IDs.

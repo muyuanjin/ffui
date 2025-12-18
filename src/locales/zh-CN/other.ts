@@ -37,7 +37,7 @@ const other = {
     selectedPresets: "已选预设",
     importButton: "开始使用",
   },
-  smartScan: {
+  batchCompress: {
     title: "批量压缩转码",
     subtitle: "递归扫描并压缩媒体文件",
     notice: "满足特定条件（已是高效编码、小文件或压缩收益太低）的文件会被自动跳过。",
@@ -116,9 +116,9 @@ const other = {
       output: "预期输出",
       pick: "选择",
       loading: "更新中…",
-      lockHint: "当前启用了“替换原文件”，Smart Scan 会强制输出目录与文件名；此处预览已按该规则计算。",
+      lockHint: "当前启用了“替换原文件”，Batch Compress 会强制输出目录与文件名；此处预览已按该规则计算。",
     },
-    smartScanLockHint: "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器与文件时间保留仍会生效。",
+    batchCompressLockHint: "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器与文件时间保留仍会生效。",
   },
   taskDetail: {
     title: "任务详情",

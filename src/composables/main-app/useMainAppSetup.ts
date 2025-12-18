@@ -3,7 +3,7 @@ import { useI18n } from "vue-i18n";
 import type { AppSettings, FFmpegPreset, PresetSortMode, PresetViewMode, TranscodeJob } from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
-import { useMainAppSmartScan } from "@/composables/main-app/useMainAppSmartScan";
+import { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
 import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
 import { useMainAppQueue } from "@/composables/main-app/useMainAppQueue";
 import { useMainAppSettings } from "@/composables/main-app/useMainAppSettings";
@@ -19,7 +19,7 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { scheduleStartupIdle } from "./startupIdle";
 import { useUiAppearanceSync } from "./useUiAppearanceSync";
-import { useSmartScanQueueRefresh } from "./useSmartScanQueueRefresh";
+import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -61,7 +61,7 @@ export function useMainAppSetup() {
   const shell = useMainAppShell();
   const dialogs = useMainAppDialogs();
 
-  const smartScan = useMainAppSmartScan({
+  const batchCompress = useMainAppBatchCompress({
     t,
     activeTab: shell.activeTab,
     jobs,
@@ -87,14 +87,14 @@ export function useMainAppSetup() {
     lastQueueSnapshotAtMs,
     presets,
     manualJobPresetId,
-    compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
-    compositeTasksById: smartScan.compositeTasksById,
+    compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
+    compositeTasksById: batchCompress.compositeTasksById,
     onJobCompleted: presetsModule.handleCompletedJobFromBackend,
     startupIdleReady,
   });
 
-  useSmartScanQueueRefresh({
-    smartScanBatchMeta: smartScan.smartScanBatchMeta,
+  useBatchCompressQueueRefresh({
+    batchCompressBatchMeta: batchCompress.batchCompressBatchMeta,
     jobs,
     refreshQueueFromBackend: queue.refreshQueueFromBackend,
   });
@@ -102,7 +102,7 @@ export function useMainAppSetup() {
   const settings = useMainAppSettings({
     jobs,
     manualJobPresetId,
-    smartConfig: smartScan.smartConfig,
+    smartConfig: batchCompress.smartConfig,
     startupIdleReady,
   });
   useUiAppearanceSync(settings.appSettings);
@@ -272,7 +272,7 @@ export function useMainAppSetup() {
     if (current?.selectionBarPinned === pinned) return;
 
     const nextSettings: AppSettings = {
-      ...(current ?? ({ tools: {}, smartScanDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
+      ...(current ?? ({ tools: {}, batchCompressDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
       selectionBarPinned: pinned,
     };
     // 直接更新 appSettings，useAppSettings 的 watch 会自动触发持久化
@@ -313,7 +313,7 @@ export function useMainAppSetup() {
     iconGridClass: queue.iconGridClass,
     queueRowVariant: queue.queueRowVariant,
     progressUpdateIntervalMs: settings.progressUpdateIntervalMs,
-    hasSmartScanBatches: smartScan.hasSmartScanBatches,
+    hasBatchCompressBatches: batchCompress.hasBatchCompressBatches,
     activeStatusFilters: queue.activeStatusFilters,
     activeTypeFilters: queue.activeTypeFilters,
     filterText: queue.filterText,
@@ -324,7 +324,7 @@ export function useMainAppSetup() {
     hasSelection: queue.hasSelection,
     hasActiveFilters: queue.hasActiveFilters,
     selectedJobIds: queue.selectedJobIds,
-    expandedBatchIds: smartScan.expandedBatchIds,
+    expandedBatchIds: batchCompress.expandedBatchIds,
     sortCompareFn: queue.compareJobsForDisplay,
   });
 
@@ -390,7 +390,7 @@ export function useMainAppSetup() {
     settings,
     ...shell,
     ...dialogs,
-    ...smartScan,
+    ...batchCompress,
     ...settings,
     ...updater,
     ...presetsModule,
@@ -402,8 +402,8 @@ export function useMainAppSetup() {
     currentSubtitle,
     selectedJobForDetail,
     globalTaskbarProgressPercent: settings.globalTaskbarProgressPercent,
-    compositeSmartScanTasks: smartScan.compositeSmartScanTasks,
-    smartScanBatchMeta: smartScan.smartScanBatchMeta,
+    compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
+    batchCompressBatchMeta: batchCompress.batchCompressBatchMeta,
     jobDetailLogText,
     highlightedLogHtml,
     copyToClipboard,

@@ -7,7 +7,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
 const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
@@ -62,7 +62,7 @@ function makeDefaultSettings(): AppSettings {
       autoDownload: false,
       autoUpdate: false,
     },
-    smartScanDefaults: buildSmartScanDefaults(),
+    batchCompressDefaults: buildBatchCompressDefaults(),
     previewCapturePercent: 25,
     maxParallelJobs: undefined,
     progressUpdateIntervalMs: undefined,
@@ -194,7 +194,7 @@ describe("MainApp queue ordering helpers", () => {
     );
   });
 
-  it("single Smart Scan child move-to-top reorders within batch only", async () => {
+  it("single Batch Compress child move-to-top reorders within batch only", async () => {
     queueJobs = [
       {
         id: "manual-1",
@@ -211,7 +211,7 @@ describe("MainApp queue ordering helpers", () => {
         id: "batch1-a",
         filename: "a.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 10,
         presetId: "preset-1",
         status: "waiting",
@@ -223,7 +223,7 @@ describe("MainApp queue ordering helpers", () => {
         id: "batch1-b",
         filename: "b.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 10,
         presetId: "preset-1",
         status: "waiting",
@@ -277,7 +277,7 @@ describe("MainApp queue ordering helpers", () => {
     );
   });
 
-  it("Smart Scan batch move-to-top moves the whole batch globally", async () => {
+  it("Batch Compress batch move-to-top moves the whole batch globally", async () => {
     queueJobs = [
       {
         id: "manual-1",
@@ -294,7 +294,7 @@ describe("MainApp queue ordering helpers", () => {
         id: "batch1-a",
         filename: "a.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 10,
         presetId: "preset-1",
         status: "waiting",
@@ -306,7 +306,7 @@ describe("MainApp queue ordering helpers", () => {
         id: "batch1-b",
         filename: "b.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 10,
         presetId: "preset-1",
         status: "waiting",

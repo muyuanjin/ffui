@@ -310,7 +310,7 @@ fn execute_transcode_job(
             }
         }
         let _ = fs::remove_file(&tmp_output);
-        mark_smart_scan_child_processed(inner, job_id);
+        mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
 
@@ -350,7 +350,7 @@ fn execute_transcode_job(
                 }
             }
             let _ = fs::remove_file(&tmp_output);
-            mark_smart_scan_child_processed(inner, job_id);
+            mark_batch_compress_child_processed(inner, job_id);
             return Ok(());
         }
 
@@ -385,8 +385,8 @@ fn execute_transcode_job(
     }
 
     // 后续逻辑中，final_output_path 代表对用户可见的“最终输出路径”。
-    // 对于非 Smart Scan 场景，它与 output_path 相同；对于启用了
-    // “替换原文件”的 Smart Scan 任务，可能会在下方被更新为去掉
+    // 对于非 Batch Compress 场景，它与 output_path 相同；对于启用了
+    // “替换原文件”的 Batch Compress 任务，可能会在下方被更新为去掉
     // `.compressed` 后的路径（同时原文件被移入回收站）。
     let mut final_output_path = output_path.clone();
 
@@ -400,7 +400,7 @@ fn execute_transcode_job(
             if let Some(job_snapshot) = job_snapshot
                 && matches!(
                     job_snapshot.source,
-                    crate::ffui_core::domain::JobSource::SmartScan
+                    crate::ffui_core::domain::JobSource::BatchCompress
                 )
                 && matches!(
                     job_snapshot.job_type,
@@ -408,7 +408,7 @@ fn execute_transcode_job(
                 )
             {
                 if let Some(batch_id) = job_snapshot.batch_id.clone()
-                    && let Some(batch) = state.smart_scan_batches.get(&batch_id)
+                    && let Some(batch) = state.batch_compress_batches.get(&batch_id)
                     && batch.replace_original
                     && let (Some(ref input_str), Some(ref output_str)) =
                         (job_snapshot.input_path.as_ref(), job_snapshot.output_path.as_ref())
@@ -490,10 +490,10 @@ fn execute_transcode_job(
         }
     }
 
-    // 记录所有成功生成的最终输出路径,供 Smart Scan 在后续批次中进行去重与跳过。
-    register_known_smart_scan_output_with_inner(inner, &final_output_path);
+    // 记录所有成功生成的最终输出路径,供 Batch Compress 在后续批次中进行去重与跳过。
+    register_known_batch_compress_output_with_inner(inner, &final_output_path);
 
-    mark_smart_scan_child_processed(inner, job_id);
+    mark_batch_compress_child_processed(inner, job_id);
 
     Ok(())
 }

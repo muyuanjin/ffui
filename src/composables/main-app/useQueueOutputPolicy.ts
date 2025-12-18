@@ -8,7 +8,7 @@ export function useQueueOutputPolicy(appSettings: Ref<AppSettings | null>) {
   const setQueueOutputPolicy = (policy: OutputPolicy) => {
     const current = appSettings.value;
     const nextSettings: AppSettings = {
-      ...(current ?? ({ tools: {}, smartScanDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
+      ...(current ?? ({ tools: {}, batchCompressDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
       queueOutputPolicy: policy,
     };
     appSettings.value = nextSettings;

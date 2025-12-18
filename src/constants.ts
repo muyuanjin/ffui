@@ -1,4 +1,4 @@
-import type { EncoderType, SmartScanConfig } from "./types";
+import type { EncoderType, BatchCompressConfig } from "./types";
 import { DEFAULT_OUTPUT_POLICY } from "./types/output-policy";
 
 export const ENCODER_OPTIONS: { value: EncoderType; label: string; hardware: boolean }[] = [
@@ -39,7 +39,7 @@ export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "bmp", "tif", "tiff", "we
 /** 音频文件扩展名（不含点号） */
 export const AUDIO_EXTENSIONS = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"];
 
-export const DEFAULT_SMART_SCAN_CONFIG: SmartScanConfig = {
+export const DEFAULT_BATCH_COMPRESS_CONFIG: BatchCompressConfig = {
   rootPath: "",
   replaceOriginal: true,
   minImageSizeKB: 50,

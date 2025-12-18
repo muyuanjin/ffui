@@ -205,7 +205,7 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
             "autoDownload": false,
             "autoUpdate": false
         },
-        "smartScanDefaults": {
+        "batchCompressDefaults": {
             "minImageSizeKB": 50,
             "minVideoSizeMB": 50,
             "minSavingRatio": 0.95,

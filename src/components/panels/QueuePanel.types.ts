@@ -1,5 +1,5 @@
 import type {
-  CompositeSmartScanTask,
+  CompositeBatchCompressTask,
   FFmpegPreset,
   QueueMode,
   QueueProgressStyle,
@@ -39,7 +39,7 @@ export interface QueuePanelProps {
   iconGridClass: string;
   queueRowVariant: "detail" | "compact";
   progressUpdateIntervalMs: number;
-  hasSmartScanBatches: boolean;
+  hasBatchCompressBatches: boolean;
 
   // Filter/sort state
   activeStatusFilters: Set<QueueFilterStatus>;
@@ -94,7 +94,7 @@ export type QueuePanelEmits = {
   previewJob: [job: TranscodeJob];
   compareJob: [job: TranscodeJob];
   toggleBatchExpanded: [batchId: string];
-  openBatchDetail: [batch: CompositeSmartScanTask];
+  openBatchDetail: [batch: CompositeBatchCompressTask];
   isJobSelected: [jobId: string];
   openJobContextMenu: [payload: { job: TranscodeJob; event: MouseEvent }];
   openBulkContextMenu: [event: MouseEvent];

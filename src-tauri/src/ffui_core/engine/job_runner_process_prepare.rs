@@ -182,7 +182,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                     Some("Only video jobs are processed by the ffmpeg worker".to_string());
             }
         }
-        mark_smart_scan_child_processed(inner, job_id);
+        mark_batch_compress_child_processed(inner, job_id);
         return Ok(None);
     }
 
@@ -201,7 +201,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                     recompute_log_tail(job);
                 }
             }
-            mark_smart_scan_child_processed(inner, job_id);
+            mark_batch_compress_child_processed(inner, job_id);
             return Ok(None);
         }
     };
@@ -275,7 +275,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
 
     let output_path = {
         // Prefer a job-specific output path when provided (for example from
-        // Smart Scan), falling back to the deterministic helper for older
+        // Batch Compress), falling back to the deterministic helper for older
         // manual jobs.
         let state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get(job_id) {

@@ -1,13 +1,13 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, ExternalToolCandidate, ExternalToolKind, SmartScanConfig, TranscodeJob } from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, BatchCompressConfig, TranscodeJob } from "@/types";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
 
 export interface UseMainAppSettingsOptions {
   jobs: Ref<TranscodeJob[]>;
   manualJobPresetId: Ref<string | null>;
-  smartConfig: Ref<SmartScanConfig>;
+  smartConfig: Ref<BatchCompressConfig>;
   /** Optional startup idle gate so initial calls can be deferred until after first paint. */
   startupIdleReady?: Ref<boolean>;
 }

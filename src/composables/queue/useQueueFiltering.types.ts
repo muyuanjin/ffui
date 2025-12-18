@@ -1,10 +1,10 @@
 import type { Ref, ComputedRef } from "vue";
-import type { TranscodeJob, CompositeSmartScanTask, JobStatus } from "@/types";
+import type { TranscodeJob, CompositeBatchCompressTask, JobStatus } from "@/types";
 
 // ----- Filter & sort types -----
 
 export type QueueFilterStatus = JobStatus;
-export type QueueFilterKind = "manual" | "smartScan";
+export type QueueFilterKind = "manual" | "batchCompress";
 
 export type QueueSortField =
   | "filename"
@@ -23,17 +23,17 @@ export type QueueSortField =
 
 export type QueueSortDirection = "asc" | "desc";
 
-export type QueueListItem = { kind: "batch"; batch: CompositeSmartScanTask } | { kind: "job"; job: TranscodeJob };
+export type QueueListItem = { kind: "batch"; batch: CompositeBatchCompressTask } | { kind: "job"; job: TranscodeJob };
 
 // ----- Composable options & return shape -----
 
 export interface UseQueueFilteringOptions {
   /** The full list of jobs from backend. */
   jobs: Ref<TranscodeJob[]>;
-  /** Composite smart scan tasks for batch display. */
-  compositeSmartScanTasks: ComputedRef<CompositeSmartScanTask[]>;
+  /** Composite batch compress tasks for batch display. */
+  compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
   /** Map of batch ID to composite task. */
-  compositeTasksById: ComputedRef<Map<string, CompositeSmartScanTask>>;
+  compositeTasksById: ComputedRef<Map<string, CompositeBatchCompressTask>>;
   /** Optional i18n translation function for error messages. */
   t?: (key: string) => string;
 }
@@ -87,7 +87,7 @@ export interface UseQueueFilteringReturn {
   /** Check if a job matches current filters. */
   jobMatchesFilters: (job: TranscodeJob) => boolean;
   /** Check if a batch matches current filters. */
-  batchMatchesFilters: (batch: CompositeSmartScanTask) => boolean;
+  batchMatchesFilters: (batch: CompositeBatchCompressTask) => boolean;
   /** Check if a job is selected. */
   isJobSelected: (jobId: string) => boolean;
   /** Toggle job selection. */

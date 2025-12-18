@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import { deleteSmartScanBatchOnBackend, deleteTranscodeJob, hasTauri } from "@/lib/backend";
+import { deleteBatchCompressBatchOnBackend, deleteTranscodeJob, hasTauri } from "@/lib/backend";
 import type { TranscodeJob } from "@/types";
 
 interface CreateBulkDeleteOptions {
@@ -21,7 +21,7 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
     const selected = Array.from(selectedJobIds.value);
     if (!selected.length) return;
 
-    // 预先按 batchId 分组，便于对 Smart Scan 批次进行完整性校验和批量删除。
+    // 预先按 batchId 分组，便于对 Batch Compress 批次进行完整性校验和批量删除。
     const jobsByBatchId = new Map<string, TranscodeJob[]>();
     for (const job of jobs.value) {
       if (!job.batchId) continue;
@@ -33,7 +33,7 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
     const terminalJobs = selectedJobs.value.filter((job) => isTerminalStatus(job.status));
     const nonTerminalJobs = selectedJobs.value.filter((job) => !isTerminalStatus(job.status));
 
-    // 对 Smart Scan 批次：若该批次存在任意非终态子任务，则跳过该批次的删除，避免“部分删除”。
+    // 对 Batch Compress 批次：若该批次存在任意非终态子任务，则跳过该批次的删除，避免“部分删除”。
     const blockedBatchIds = new Set<string>();
     const terminalJobsAllowed: TranscodeJob[] = [];
 
@@ -50,9 +50,9 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       terminalJobsAllowed.push(job);
     }
 
-    // 进一步识别“整批选中”的 Smart Scan 批次：
+    // 进一步识别“整批选中”的 Batch Compress 批次：
     // 当某个 batchId 的所有子任务都处于终态且都在选中集内时，可以优先调用后端
-    // delete_smart_scan_batch 一次性删除，避免对每个子任务单独发 N 个请求。
+    // delete_batch_compress_batch 一次性删除，避免对每个子任务单独发 N 个请求。
     const terminalJobsByBatchId = new Map<string, TranscodeJob[]>();
     for (const job of terminalJobsAllowed) {
       if (!job.batchId) continue;
@@ -88,11 +88,11 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       return;
     }
 
-    // Tauri 模式下，优先对整批选中的 Smart Scan 批次使用批量删除命令，
+    // Tauri 模式下，优先对整批选中的 Batch Compress 批次使用批量删除命令，
     // 其它任务仍然逐个调用 delete_transcode_job。
     const failedJobIds: string[] = [];
 
-    // 1) 批次级删除（Smart Scan 复合任务）。
+    // 1) 批次级删除（Batch Compress 复合任务）。
     for (const batchId of fullBatchIdsToDelete) {
       const batchJobs = jobsByBatchId.get(batchId) ?? [];
       if (!batchJobs.length) {
@@ -100,7 +100,7 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       }
 
       try {
-        const ok = await deleteSmartScanBatchOnBackend(batchId);
+        const ok = await deleteBatchCompressBatchOnBackend(batchId);
         if (!ok) {
           // 若批次删除失败，则认为该批次所有子任务均删除失败，统一纳入错误集合。
           for (const job of batchJobs) {
@@ -114,7 +114,7 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       }
     }
 
-    // 2) 逐个删除其余终态任务（包括手动任务和未整批选中的 Smart Scan 子任务）。
+    // 2) 逐个删除其余终态任务（包括手动任务和未整批选中的 Batch Compress 子任务）。
     const terminalJobsForIndividualDelete = terminalJobsAllowed.filter(
       (job) => !job.batchId || !fullBatchIdsToDelete.has(job.batchId),
     );

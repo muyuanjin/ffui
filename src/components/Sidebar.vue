@@ -20,7 +20,7 @@ const emit = defineEmits<{
   "update:activeTab": [tab: "queue" | "presets" | "media" | "monitor" | "settings"];
   addJobFiles: [];
   addJobFolder: [];
-  smartScan: [];
+  batchCompress: [];
 }>();
 
 const { t } = useI18n();
@@ -211,13 +211,13 @@ const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
         </Button>
       </div>
       <Button
-        data-testid="ffui-action-smart-scan"
-        variant="smartScan"
+        data-testid="ffui-action-batch-compress"
+        variant="batchCompress"
         size="lg"
         class="w-full justify-center font-semibold text-white"
-        @click="emit('smartScan')"
+        @click="emit('batchCompress')"
       >
-        <span>{{ t("app.actions.smartScan") }}</span>
+        <span>{{ t("app.actions.batchCompress") }}</span>
       </Button>
     </div>
   </aside>

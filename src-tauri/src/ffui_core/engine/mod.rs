@@ -1,6 +1,7 @@
 //! Transcoding engine split into modular components (state, ffmpeg_args, worker, job_runner,
-//! smart_scan).
+//! batch_compress).
 
+mod batch_compress;
 mod enqueue_bulk;
 mod ffmpeg_args;
 mod file_times;
@@ -9,7 +10,6 @@ mod output_policy_paths;
 mod preview_cache_gc;
 mod preview_refresh;
 mod settings_save;
-mod smart_scan;
 mod state;
 mod state_persist;
 mod tools_refresh;
@@ -20,7 +20,7 @@ mod worker_utils;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use smart_scan::is_video_file;
+pub(crate) use batch_compress::is_video_file;
 
 // 测试环境下为 TranscodingEngine::new
 // 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
@@ -44,13 +44,13 @@ use state::{
 use crate::ffui_core::domain::{
     AutoCompressProgress,
     AutoCompressResult,
+    BatchCompressConfig,
     FFmpegPreset,
     JobSource,
     JobType,
     OutputPolicy,
     QueueState,
     QueueStateLite,
-    SmartScanConfig,
     TranscodeJob,
 };
 use crate::ffui_core::monitor::{
@@ -212,15 +212,15 @@ impl TranscodingEngine {
         listeners.push(Arc::new(listener));
     }
 
-    /// Register a listener for Smart Scan progress updates.
-    pub fn register_smart_scan_listener<F>(&self, listener: F)
+    /// Register a listener for Batch Compress progress updates.
+    pub fn register_batch_compress_listener<F>(&self, listener: F)
     where
         F: Fn(AutoCompressProgress) + Send + Sync + 'static, {
         let mut listeners = self
             .inner
-            .smart_scan_listeners
+            .batch_compress_listeners
             .lock()
-            .expect("smart scan listeners lock poisoned");
+            .expect("batch compress listeners lock poisoned");
         listeners.push(Arc::new(listener));
     }
 
@@ -357,13 +357,13 @@ impl TranscodingEngine {
         worker::delete_job(&self.inner, job_id)
     }
 
-    /// Permanently delete all Smart Scan child jobs that belong to the given batch.
+    /// Permanently delete all Batch Compress child jobs that belong to the given batch.
     ///
-    /// This is used by前端在“复合任务（Smart Scan 批次）→ 从列表删除”场景下，一次性
+    /// This is used by前端在“复合任务（Batch Compress 批次）→ 从列表删除”场景下，一次性
     /// 清理该批次的所有终态子任务以及对应的批次元数据，避免逐个 delete_transcode_job
     /// 调用在某些边缘状态下失败导致复合任务残留。
-    pub fn delete_smart_scan_batch(&self, batch_id: &str) -> bool {
-        worker::delete_smart_scan_batch(&self.inner, batch_id)
+    pub fn delete_batch_compress_batch(&self, batch_id: &str) -> bool {
+        worker::delete_batch_compress_batch(&self.inner, batch_id)
     }
 
     /// Reorder the waiting jobs in the queue.
@@ -422,33 +422,36 @@ impl TranscodingEngine {
         statuses
     }
 
-    /// Get the Smart Scan default configuration.
-    pub fn smart_scan_defaults(&self) -> SmartScanConfig {
+    /// Get the Batch Compress default configuration.
+    pub fn batch_compress_defaults(&self) -> BatchCompressConfig {
         let state = self.inner.state.lock().expect("engine state poisoned");
-        state.settings.smart_scan_defaults.clone()
+        state.settings.batch_compress_defaults.clone()
     }
 
-    /// Update the Smart Scan default configuration.
-    pub fn update_smart_scan_defaults(&self, config: SmartScanConfig) -> Result<SmartScanConfig> {
+    /// Update the Batch Compress default configuration.
+    pub fn update_batch_compress_defaults(
+        &self,
+        config: BatchCompressConfig,
+    ) -> Result<BatchCompressConfig> {
         let mut state = self.inner.state.lock().expect("engine state poisoned");
-        state.settings.smart_scan_defaults = config.clone();
+        state.settings.batch_compress_defaults = config.clone();
         settings::save_settings(&state.settings)?;
         Ok(config)
     }
 
-    /// Run Smart Scan auto-compress on a directory.
+    /// Run Batch Compress auto-compress on a directory.
     pub fn run_auto_compress(
         &self,
         root_path: String,
-        config: SmartScanConfig,
+        config: BatchCompressConfig,
     ) -> Result<AutoCompressResult> {
-        smart_scan::run_auto_compress(&self.inner, root_path, config)
+        batch_compress::run_auto_compress(&self.inner, root_path, config)
     }
 
-    /// Get the summary of a Smart Scan batch.
+    /// Get the summary of a Batch Compress batch.
     #[cfg(test)]
-    pub fn smart_scan_batch_summary(&self, batch_id: &str) -> Option<AutoCompressResult> {
-        smart_scan::smart_scan_batch_summary(&self.inner, batch_id)
+    pub fn batch_compress_batch_summary(&self, batch_id: &str) -> Option<AutoCompressResult> {
+        batch_compress::batch_compress_batch_summary(&self.inner, batch_id)
     }
 
     /// Inspect media file metadata using ffprobe.

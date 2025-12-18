@@ -3,7 +3,7 @@ import { createI18n } from "vue-i18n";
 import type { AppSettings, AutoCompressResult, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
-import { buildSmartScanDefaults } from "./smartScanDefaults";
+import { buildBatchCompressDefaults } from "./batchCompressDefaults";
 
 export const dialogOpenMock = vi.fn();
 export const dialogMessageMock = vi.fn();
@@ -12,7 +12,7 @@ export const listenMock =
   vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
 
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
-let smartScanProgressHandler: ((event: { payload: unknown }) => void) | null = null;
+let batchCompressProgressHandler: ((event: { payload: unknown }) => void) | null = null;
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 let queueJobs: TranscodeJob[] = [];
 
@@ -73,7 +73,7 @@ export function defaultAppSettings(overrides: Partial<AppSettings> = {}): AppSet
       autoDownload: tools.autoDownload ?? false,
       autoUpdate: tools.autoUpdate ?? false,
     },
-    smartScanDefaults: buildSmartScanDefaults(overrides.smartScanDefaults),
+    batchCompressDefaults: buildBatchCompressDefaults(overrides.batchCompressDefaults),
     previewCapturePercent: overrides.previewCapturePercent ?? 25,
     defaultQueuePresetId: overrides.defaultQueuePresetId,
     maxParallelJobs: overrides.maxParallelJobs,
@@ -116,8 +116,8 @@ export function emitQueueState(jobs: TranscodeJob[]): void {
   queueStateHandler?.({ payload: { jobs } });
 }
 
-export function emitSmartScanProgress(progress: unknown): void {
-  smartScanProgressHandler?.({ payload: progress });
+export function emitBatchCompressProgress(progress: unknown): void {
+  batchCompressProgressHandler?.({ payload: progress });
 }
 
 export function emitDragDrop(paths: string[]): void {
@@ -128,8 +128,8 @@ export function getQueueStateHandler() {
   return queueStateHandler;
 }
 
-export function getSmartScanProgressHandler() {
-  return smartScanProgressHandler;
+export function getBatchCompressProgressHandler() {
+  return batchCompressProgressHandler;
 }
 
 export function defaultBackendResponse(cmd: string): unknown {
@@ -183,14 +183,14 @@ beforeEach(() => {
   listenMock.mockReset();
   queueJobs = [];
   queueStateHandler = null;
-  smartScanProgressHandler = null;
+  batchCompressProgressHandler = null;
   dragDropHandler = null;
 
   listenMock.mockImplementation(async (event: string, handler: (event: { payload: unknown }) => void) => {
     if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {
       queueStateHandler = handler;
     } else if (event === "auto-compress://progress") {
-      smartScanProgressHandler = handler;
+      batchCompressProgressHandler = handler;
     } else if (event === "tauri://drag-drop") {
       dragDropHandler = handler as any;
     }

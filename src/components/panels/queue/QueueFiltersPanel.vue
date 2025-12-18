@@ -64,13 +64,13 @@ const statusOptions: QueueFilterStatus[] = [
           size="sm"
           class="h-6 px-2 text-xs rounded-md transition-all"
           :class="
-            props.activeTypeFilters.has('smartScan')
+            props.activeTypeFilters.has('batchCompress')
               ? 'bg-primary/20 text-primary border-primary/50 hover:bg-primary/30'
               : 'bg-background/50 text-muted-foreground border-border/50 hover:bg-background/80'
           "
-          @click="emit('toggle-type-filter', 'smartScan')"
+          @click="emit('toggle-type-filter', 'batchCompress')"
         >
-          {{ t("queue.filters.typeSmartScan") }}
+          {{ t("queue.filters.typeBatchCompress") }}
         </Button>
       </div>
     </div>

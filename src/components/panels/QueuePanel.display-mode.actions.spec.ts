@@ -59,7 +59,7 @@ const queueIconItemStub = {
   template: `<div data-testid="queue-icon-item-stub">{{ job.filename }}</div>`,
 };
 
-const queueSmartScanIconBatchStub = {
+const queueBatchCompressIconBatchStub = {
   props: ["batch", "size", "progressStyle"],
   template: `<div data-testid="queue-icon-batch-stub">{{ batch.batchId }}</div>`,
 };
@@ -128,7 +128,7 @@ describe("QueuePanel display mode actions", () => {
         iconGridClass: "",
         queueRowVariant: "detail",
         progressUpdateIntervalMs: 500,
-        hasSmartScanBatches: false,
+        hasBatchCompressBatches: false,
 
         activeStatusFilters: new Set<QueueFilterStatus>(),
         activeTypeFilters: new Set<QueueFilterKind>(),
@@ -150,7 +150,7 @@ describe("QueuePanel display mode actions", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: queueIconItemStub,
-          QueueSmartScanIconBatchItem: queueSmartScanIconBatchStub,
+          QueueBatchCompressIconBatchItem: queueBatchCompressIconBatchStub,
         },
       },
     });

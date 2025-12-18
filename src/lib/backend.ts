@@ -11,7 +11,7 @@ import type {
   JobSource,
   JobType,
   OutputPolicy,
-  SmartScanConfig,
+  BatchCompressConfig,
   QueueState,
   QueueStateLite,
   TranscodeJob,
@@ -105,15 +105,15 @@ export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFo
   });
 };
 
-export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {
-  return invoke<SmartScanConfig>("get_smart_scan_defaults");
+export const loadBatchCompressDefaults = async (): Promise<BatchCompressConfig> => {
+  return invoke<BatchCompressConfig>("get_batch_compress_defaults");
 };
 
-export const saveSmartScanDefaults = async (config: SmartScanConfig): Promise<SmartScanConfig> => {
-  return invoke<SmartScanConfig>("save_smart_scan_defaults", { config });
+export const saveBatchCompressDefaults = async (config: BatchCompressConfig): Promise<BatchCompressConfig> => {
+  return invoke<BatchCompressConfig>("save_batch_compress_defaults", { config });
 };
 
-export const runAutoCompress = async (rootPath: string, config: SmartScanConfig): Promise<AutoCompressResult> => {
+export const runAutoCompress = async (rootPath: string, config: BatchCompressConfig): Promise<AutoCompressResult> => {
   return invoke<AutoCompressResult>("run_auto_compress", {
     rootPath,
     root_path: rootPath,
@@ -344,8 +344,8 @@ export const deleteTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
-export const deleteSmartScanBatchOnBackend = async (batchId: string): Promise<boolean> => {
-  return invoke<boolean>("delete_smart_scan_batch", {
+export const deleteBatchCompressBatchOnBackend = async (batchId: string): Promise<boolean> => {
+  return invoke<boolean>("delete_batch_compress_batch", {
     // 同时传递 camelCase 与 snake_case，避免后端参数名调整导致调用失效。
     batchId,
     batch_id: batchId,

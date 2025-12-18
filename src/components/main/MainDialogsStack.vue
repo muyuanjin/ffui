@@ -6,7 +6,7 @@ import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vu
 import JobCompareDialog from "@/components/dialogs/JobCompareDialog.vue";
 import ParameterWizard from "@/components/ParameterWizard.vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
-import SmartScanWizard from "@/components/SmartScanWizard.vue";
+import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
 import SmartPresetOnboardingWizard from "@/components/dialogs/SmartPresetOnboardingWizard.vue";
 import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
@@ -54,8 +54,8 @@ const emit = defineEmits<{
   (e: "savePreset", preset: FFmpegPreset): void;
   (e: "closeWizard"): void;
   (e: "closeParameterPanel"): void;
-  (e: "runSmartScan", config: any): void;
-  (e: "closeSmartScanWizard"): void;
+  (e: "runBatchCompress", config: any): void;
+  (e: "closeBatchCompressWizard"): void;
   (e: "confirmDeletePreset"): void;
   (e: "cancelDeletePreset"): void;
   (e: "closeJobDetail"): void;
@@ -100,13 +100,13 @@ const openCompareFromJobDetail = () => {
     @cancel="emit('closeParameterPanel')"
   />
 
-  <SmartScanWizard
-    v-if="dialogManager.smartScanOpen.value"
+  <BatchCompressWizard
+    v-if="dialogManager.batchCompressOpen.value"
     :initial-config="smartConfig"
     :presets="presets"
     :default-video-preset-id="defaultVideoPresetId"
-    @run="emit('runSmartScan', $event)"
-    @cancel="emit('closeSmartScanWizard')"
+    @run="emit('runBatchCompress', $event)"
+    @cancel="emit('closeBatchCompressWizard')"
   />
 
   <DeletePresetDialog

@@ -28,7 +28,7 @@ vi.mock("@tauri-apps/api/event", () => {
 
 import { useAppSettings } from "@/composables/useAppSettings";
 import * as backend from "@/lib/backend";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const makeAppSettings = (): AppSettings => ({
   tools: {
@@ -39,7 +39,7 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   defaultQueuePresetId: undefined,

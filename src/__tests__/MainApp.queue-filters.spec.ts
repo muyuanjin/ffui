@@ -74,7 +74,7 @@ describe("MainApp queue filters", () => {
         id: "job-scan",
         filename: "scan.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",

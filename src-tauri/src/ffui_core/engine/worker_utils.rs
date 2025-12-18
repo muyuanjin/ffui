@@ -4,10 +4,10 @@ use std::time::{
 };
 
 use super::state::{
+    BatchCompressBatchStatus,
     Inner,
-    SmartScanBatchStatus,
+    notify_batch_compress_listeners,
     notify_queue_listeners,
-    notify_smart_scan_listeners,
 };
 use crate::ffui_core::domain::{
     AutoCompressProgress,
@@ -94,9 +94,9 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
     }
 }
 
-/// Mark a Smart Scan child job as processed and update batch status if all
+/// Mark a Batch Compress child job as processed and update batch status if all
 /// children are complete.
-pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
+pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
     let (batch_id_opt, progress_opt) = {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let job = match state.jobs.get(job_id) {
@@ -109,7 +109,7 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
             None => return,
         };
 
-        let batch = match state.smart_scan_batches.get_mut(&batch_id) {
+        let batch = match state.batch_compress_batches.get_mut(&batch_id) {
             Some(b) => b,
             None => return,
         };
@@ -125,10 +125,10 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
         if batch.total_processed >= batch.total_candidates
             && !matches!(
                 batch.status,
-                SmartScanBatchStatus::Completed | SmartScanBatchStatus::Failed
+                BatchCompressBatchStatus::Completed | BatchCompressBatchStatus::Failed
             )
         {
-            batch.status = SmartScanBatchStatus::Completed;
+            batch.status = BatchCompressBatchStatus::Completed;
             batch.completed_at_ms = Some(current_time_millis());
             (
                 Some(batch_id.clone()),
@@ -157,7 +157,7 @@ pub(super) fn mark_smart_scan_child_processed(inner: &Inner, job_id: &str) {
     };
 
     if let Some(progress) = progress_opt {
-        notify_smart_scan_listeners(inner, progress);
+        notify_batch_compress_listeners(inner, progress);
     }
 
     if batch_id_opt.is_some() {

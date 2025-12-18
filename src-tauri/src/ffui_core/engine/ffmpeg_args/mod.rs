@@ -10,7 +10,7 @@ mod progress;
 mod utils;
 
 // Internal helpers that are safe and useful across engine sub-modules (enqueue,
-// Smart Scan queueing, etc).
+// Batch Compress queueing, etc).
 pub(crate) use builder::build_ffmpeg_args;
 pub(super) use container::{
     infer_output_extension,

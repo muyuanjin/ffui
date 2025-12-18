@@ -88,7 +88,7 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
         state.settings.clone()
     };
 
-    let config = SmartScanConfig {
+    let config = BatchCompressConfig {
         min_image_size_kb: 1,      // treat the tiny PNG as a valid candidate
         min_video_size_mb: 10_000, // unused here
         min_saving_ratio: 0.95,

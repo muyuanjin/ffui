@@ -11,7 +11,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings } from "@/types";
 import type { QueueFilterKind, QueueFilterStatus } from "@/composables";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -40,7 +40,7 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   uiScalePercent: 100,

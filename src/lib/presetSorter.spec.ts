@@ -33,7 +33,7 @@ const makePreset = (overrides: Partial<FFmpegPreset>): FFmpegPreset => ({
 });
 
 describe("presetSorter.getPresetAvgRatio", () => {
-  it("返回输出体积 / 输入体积 * 100，对应 Smart Scan 的压缩率语义", () => {
+  it("返回输出体积 / 输入体积 * 100，对应 Batch Compress 的压缩率语义", () => {
     const preset = makePreset({
       stats: {
         usageCount: 3,

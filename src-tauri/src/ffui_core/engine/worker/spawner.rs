@@ -7,7 +7,7 @@ use super::super::state::{
 };
 use super::super::worker_utils::{
     current_time_millis,
-    mark_smart_scan_child_processed,
+    mark_batch_compress_child_processed,
     recompute_log_tail,
 };
 use super::super::{
@@ -91,7 +91,7 @@ fn worker_loop(inner: Arc<Inner>) {
                     recompute_log_tail(job);
                 }
             }
-            mark_smart_scan_child_processed(&inner, &job_id);
+            mark_batch_compress_child_processed(&inner, &job_id);
         }
 
         {

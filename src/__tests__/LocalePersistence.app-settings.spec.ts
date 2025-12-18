@@ -9,7 +9,7 @@ import zhCN from "@/locales/zh-CN";
 import MainApp from "@/MainApp.vue";
 import TitleBar from "@/components/TitleBar.vue";
 import type { AppSettings } from "@/types";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@tauri-apps/api/window", () => {
   return {
@@ -96,7 +96,7 @@ const makeAppSettings = (locale?: string): AppSettings => ({
     autoDownload: false,
     autoUpdate: false,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   taskbarProgressMode: "byEstimatedTime",
   locale,

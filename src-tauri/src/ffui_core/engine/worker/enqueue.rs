@@ -79,7 +79,7 @@ fn enqueue_transcode_job_no_notify(
                         .jobs
                         .values()
                         .any(|j| j.output_path.as_deref() == Some(c.as_ref()))
-                        || state.known_smart_scan_outputs.contains(c.as_ref())
+                        || state.known_batch_compress_outputs.contains(c.as_ref())
                 });
             (
                 Some(plan.output_path.to_string_lossy().into_owned()),

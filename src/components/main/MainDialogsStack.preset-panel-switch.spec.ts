@@ -79,7 +79,7 @@ const createWrapper = (dialogManager: ReturnType<typeof useDialogManager>) => {
       stubs: {
         ParameterWizard: StubParameterWizard,
         UltimateParameterPanel: StubUltimateParameterPanel,
-        SmartScanWizard: true,
+        BatchCompressWizard: true,
         DeletePresetDialog: true,
         JobDetailDialog: true,
         BatchDetailDialog: true,

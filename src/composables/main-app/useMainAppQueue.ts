@@ -1,6 +1,6 @@
 import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import type {
-  CompositeSmartScanTask,
+  CompositeBatchCompressTask,
   FFmpegPreset,
   QueueMode,
   QueueProgressStyle,
@@ -23,8 +23,8 @@ export interface UseMainAppQueueOptions {
   lastQueueSnapshotAtMs: Ref<number | null>;
   presets: Ref<FFmpegPreset[]>;
   manualJobPresetId: Ref<string | null>;
-  compositeSmartScanTasks: ComputedRef<CompositeSmartScanTask[]>;
-  compositeTasksById: ComputedRef<Map<string, CompositeSmartScanTask>>;
+  compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
+  compositeTasksById: ComputedRef<Map<string, CompositeBatchCompressTask>>;
   onJobCompleted?: (job: TranscodeJob) => void;
   /** Optional startup idle gate so the initial queue poll can be deferred. */
   startupIdleReady?: Ref<boolean>;
@@ -100,7 +100,7 @@ export interface UseMainAppQueueReturn extends Pick<
   bulkMoveSelectedJobsToBottomInner: () => Promise<void>;
   moveJobToTop: (jobId: string) => Promise<void>;
   bulkDelete: () => Promise<void>;
-  /** Queue-mode waiting items (manual jobs + Smart Scan batches interleaved). */
+  /** Queue-mode waiting items (manual jobs + Batch Compress batches interleaved). */
   queueModeWaitingItems: ComputedRef<QueueListItem[]>;
   /** Batch ids already rendered in queueModeWaitingItems (for de-dupe). */
   queueModeWaitingBatchIds: ComputedRef<Set<string>>;
@@ -119,7 +119,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     lastQueueSnapshotAtMs,
     presets,
     manualJobPresetId,
-    compositeSmartScanTasks,
+    compositeBatchCompressTasks,
     compositeTasksById,
     onJobCompleted,
     startupIdleReady,
@@ -184,7 +184,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   ensureManualPresetId(presets.value, manualJobPresetId);
-  const smartScanJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "smart_scan"));
+  const batchCompressJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "batch_compress"));
 
   // UI-only: track jobs that have requested "wait/pause" but remain in
   // processing state until the backend reaches a safe point and marks them paused.
@@ -243,7 +243,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     compareJobsForDisplay,
   } = useQueueFiltering({
     jobs,
-    compositeSmartScanTasks,
+    compositeBatchCompressTasks,
     compositeTasksById,
     t: (key: string) => t(key),
   });
@@ -278,7 +278,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = useQueueOperations({
     jobs,
     pausingJobIds,
-    smartScanJobs,
+    batchCompressJobs,
     manualJobPreset,
     presets,
     queueError,
@@ -334,7 +334,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
       const waitingBatchIds = queueModeWaitingBatchIds.value;
       items.push(...waitingItems);
 
-      for (const batch of compositeSmartScanTasks.value) {
+      for (const batch of compositeBatchCompressTasks.value) {
         if (waitingBatchIds.has(batch.batchId)) continue;
         if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
       }
@@ -347,7 +347,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
       return items;
     }
 
-    for (const batch of compositeSmartScanTasks.value) {
+    for (const batch of compositeBatchCompressTasks.value) {
       if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
     }
     for (const job of displayModeSortedJobs.value) {
@@ -401,7 +401,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     t: (key: string) => t(key),
   });
 
-  // Queue / Smart Scan event listeners for queue state updates.
+  // Queue / Batch Compress event listeners for queue state updates.
   useQueueEventListeners({
     jobs,
     lastQueueSnapshotAtMs,

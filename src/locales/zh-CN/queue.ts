@@ -71,13 +71,13 @@ const queue = {
   },
   source: {
     manual: "手动添加",
-    smartScan: "批量压缩",
+    batchCompress: "批量压缩",
   },
   filters: {
     label: "筛选",
     typeLabel: "任务类型",
     typeManual: "普通转码",
-    typeSmartScan: "压缩任务",
+    typeBatchCompress: "压缩任务",
     statusLabel: "任务状态",
     textLabel: "条件",
     textPlaceholder: "按路径、名称、状态、体积等组合筛选（支持 regex: 和 size>20mb）",

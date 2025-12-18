@@ -47,7 +47,7 @@ fn eligible_jobs_for_scope<'a>(
                 // Only count terminal jobs that belong to the same enqueue cohort
                 // as the currently active/waiting jobs. This prevents progress
                 // from resetting to 0% between serial tasks (including composite
-                // Smart Scan batches) while still ignoring older completed jobs
+                // Batch Compress batches) while still ignoring older completed jobs
                 // when a new round of work starts.
                 match cohort_start_ms {
                     Some(start_ms) => job.start_time.map(|t| t >= start_ms).unwrap_or(false),

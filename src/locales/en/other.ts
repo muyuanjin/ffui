@@ -38,7 +38,7 @@ const other = {
     selectedPresets: "Selected Presets",
     importButton: "Get Started",
   },
-  smartScan: {
+  batchCompress: {
     title: "Batch Auto-Compression",
     subtitle: "Recursively scan and compress media files",
     notice:
@@ -121,9 +121,9 @@ const other = {
       pick: "Pick",
       loading: "Updating…",
       lockHint:
-        'With "Replace original" enabled, Smart Scan forces output directory + filename; this preview reflects that override.',
+        'With "Replace original" enabled, Batch Compress forces output directory + filename; this preview reflects that override.',
     },
-    smartScanLockHint:
+    batchCompressLockHint:
       'When "Replace original" is enabled, output directory and filename follow the original; container + file time preservation still apply.',
   },
   taskDetail: {

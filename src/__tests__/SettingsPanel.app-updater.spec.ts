@@ -6,7 +6,7 @@ import { createI18n } from "vue-i18n";
 import en from "@/locales/en";
 import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import type { AppSettings, ExternalToolStatus } from "@/types";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -42,7 +42,7 @@ const makeAppSettings = (overrides: Partial<AppSettings> = {}): AppSettings =>
       autoUpdate: true,
       downloaded: undefined,
     },
-    smartScanDefaults: buildSmartScanDefaults(),
+    batchCompressDefaults: buildBatchCompressDefaults(),
     previewCapturePercent: 25,
     developerModeEnabled: false,
     taskbarProgressMode: "byEstimatedTime",

@@ -8,7 +8,7 @@ import MainApp from "@/MainApp.vue";
 import { acknowledgeTaskbarProgress } from "@/lib/backend";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const focusListenMock = vi.fn<(event: string, handler: () => void) => Promise<() => void>>();
 
@@ -53,7 +53,7 @@ vi.mock("@/lib/backend", async () => {
         autoDownload: false,
         autoUpdate: false,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,

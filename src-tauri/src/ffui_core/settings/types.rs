@@ -15,11 +15,11 @@ pub use super::tool_probe_cache::{
     ExternalToolProbeCacheEntry,
 };
 use crate::ffui_core::domain::{
+    BatchCompressConfig,
     FileTypeFilter,
     ImageTargetFormat,
     OutputPolicy,
     SavingConditionType,
-    SmartScanConfig,
 };
 
 /// Human-readable metadata for a downloaded tool binary.
@@ -247,7 +247,7 @@ pub enum TranscodeParallelismMode {
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
     pub tools: ExternalToolSettings,
-    pub smart_scan_defaults: SmartScanConfig,
+    pub batch_compress_defaults: BatchCompressConfig,
     /// Optional Monitor-only persisted state.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monitor: Option<MonitorSettings>,
@@ -399,7 +399,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             tools: ExternalToolSettings::default(),
-            smart_scan_defaults: SmartScanConfig {
+            batch_compress_defaults: BatchCompressConfig {
                 root_path: None,
                 replace_original: true,
                 min_image_size_kb: 50,

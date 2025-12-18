@@ -42,7 +42,7 @@ describe("MainDialogsStack 批次详情与子任务交互", () => {
         stubs: {
           ParameterWizard: true,
           UltimateParameterPanel: true,
-          SmartScanWizard: true,
+          BatchCompressWizard: true,
           DeletePresetDialog: true,
           JobDetailDialog: true,
           ExpandedPreviewDialog: true,

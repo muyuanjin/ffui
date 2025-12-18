@@ -293,24 +293,24 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
     true
 }
 
-/// Permanently delete all Smart Scan child jobs for a given batch id.
+/// Permanently delete all Batch Compress child jobs for a given batch id.
 ///
 /// 语义约定：
 /// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且 当前没有处于
 ///   active_jobs 状态时才执行删除；否则直接返回 false，不做任何修改；
 /// - 删除成功后会同时清理队列中的相关 bookkeeping（queue / cancelled / wait / restart）；
-/// - 当该批次所有子任务都被移除后，连同 smart_scan_batches 中的批次元数据一并移除，
+/// - 当该批次所有子任务都被移除后，连同 batch_compress_batches 中的批次元数据一并移除，
 ///   这样前端复合任务卡片也会从队列中消失。
-pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
+pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     inner: &Arc<Inner>,
     batch_id: &str,
 ) -> bool {
-    use crate::ffui_core::engine::state::SmartScanBatchStatus;
+    use crate::ffui_core::engine::state::BatchCompressBatchStatus;
 
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
 
-        let batch = match state.smart_scan_batches.get(batch_id) {
+        let batch = match state.batch_compress_batches.get(batch_id) {
             Some(b) => b.clone(),
             None => return false,
         };
@@ -319,8 +319,8 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
         //（processed >= candidates）就允许删除，以避免前端出现无法删除的“空壳复合任务”。
         //
         // 同时保持防御性：对于仍处于 Scanning 且未完成统计的批次，一律拒绝删除。
-        let batch_is_deletable = matches!(batch.status, SmartScanBatchStatus::Completed)
-            || (!matches!(batch.status, SmartScanBatchStatus::Scanning)
+        let batch_is_deletable = matches!(batch.status, BatchCompressBatchStatus::Completed)
+            || (!matches!(batch.status, BatchCompressBatchStatus::Scanning)
                 && batch.total_processed >= batch.total_candidates);
         if !batch_is_deletable {
             return false;
@@ -339,7 +339,7 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
                         }
                     }
                     _ => {
-                        // Smart Scan 批次中仍存在非终态子任务，保持与单个 delete_job 一致的保护行为。
+                        // Batch Compress 批次中仍存在非终态子任务，保持与单个 delete_job 一致的保护行为。
                         return false;
                     }
                 }
@@ -356,7 +356,7 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
         }
 
         // 子任务删除后，清理批次记录，这样前端不会再渲染空壳的“复合任务”卡片。
-        state.smart_scan_batches.remove(batch_id);
+        state.batch_compress_batches.remove(batch_id);
     }
 
     notify_queue_listeners(inner);

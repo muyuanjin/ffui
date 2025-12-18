@@ -10,7 +10,7 @@ export type JobStatus =
   | "skipped"
   | "cancelled";
 export type JobType = "video" | "image" | "audio";
-export type JobSource = "manual" | "smart_scan";
+export type JobSource = "manual" | "batch_compress";
 
 /**
  * Queue view modes used by the queue UI. Additional modes (icon views,
@@ -139,7 +139,7 @@ export interface TranscodeJob {
   failureReason?: string;
   /** Structured warnings that should remain visible on the task card. */
   warnings?: JobWarning[];
-  /** Optional stable id for the Smart Scan batch this job belongs to. */
+  /** Optional stable id for the Batch Compress batch this job belongs to. */
   batchId?: string;
   /** Optional metadata captured when a job is paused via wait or restored after crash recovery. */
   waitMetadata?: WaitMetadata;

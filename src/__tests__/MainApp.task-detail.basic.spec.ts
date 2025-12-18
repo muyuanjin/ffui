@@ -70,12 +70,12 @@ describe("MainApp task detail surface - basics", () => {
     (i18n.global.locale as any).value = "en";
   });
 
-  it("shows the image Smart Scan output path when present", async () => {
+  it("shows the image Batch Compress output path when present", async () => {
     const job: TranscodeJob = {
       id: "image-job-1",
       filename: "C:/images/sample.png",
       type: "image",
-      source: "smart_scan",
+      source: "batch_compress",
       originalSizeMB: 2,
       originalCodec: "png",
       presetId: "p1",
@@ -108,12 +108,12 @@ describe("MainApp task detail surface - basics", () => {
     wrapper.unmount();
   });
 
-  it("renders encoder command and logs for image Smart Scan jobs", async () => {
+  it("renders encoder command and logs for image Batch Compress jobs", async () => {
     const job: TranscodeJob = {
       id: "image-job-2",
       filename: "C:/images/sample2.png",
       type: "image",
-      source: "smart_scan",
+      source: "batch_compress",
       originalSizeMB: 2,
       originalCodec: "png",
       presetId: "p1",

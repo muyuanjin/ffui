@@ -229,7 +229,7 @@ const app = {
   },
   emptyQueue: {
     title: "No active jobs",
-    subtitle: "Click Add files / Add folder, or use the Smart Scan entry in the lower-left corner.",
+    subtitle: "Click Add files / Add folder, or use the Batch Compress entry in the lower-left corner.",
   },
   addManualJobDialog: {
     title: "Add transcode jobs",
@@ -272,7 +272,7 @@ const app = {
     addJob: "Add transcode job",
     addJobFiles: "Add files",
     addJobFolder: "Add folder",
-    smartScan: "Add compression task",
+    batchCompress: "Add compression task",
     deletePreset: "Delete",
     confirmDelete: "Confirm delete",
     deletePresetConfirmTitle: "Delete preset",

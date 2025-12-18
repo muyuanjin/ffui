@@ -14,9 +14,9 @@ use std::sync::{
     Mutex as TestMutex,
 };
 
+use super::batch_compress::*;
 use super::ffmpeg_args::*;
 use super::job_runner::*;
-use super::smart_scan::*;
 use super::state::*;
 use super::worker::*;
 use super::*;
@@ -50,6 +50,12 @@ mod common;
 
 use common::*;
 
+mod batch_compress_audio_tests;
+mod batch_compress_delete_all_skipped;
+mod batch_compress_delete_no_children;
+mod batch_compress_enqueue_tests;
+mod batch_compress_name_tests;
+mod batch_compress_tests;
 mod concurrency_caps_selection;
 mod crash_recovery_merge_tests;
 mod enqueue_and_logging;
@@ -74,11 +80,5 @@ mod queue_delete;
 mod queue_recovery_tests;
 mod queue_selection_input_lock;
 mod queue_wait_and_restart;
-mod smart_scan_audio_tests;
-mod smart_scan_delete_all_skipped;
-mod smart_scan_delete_no_children;
-mod smart_scan_enqueue_tests;
-mod smart_scan_name_tests;
-mod smart_scan_tests;
 mod tools_download_metadata;
 mod transcode_activity_tests;

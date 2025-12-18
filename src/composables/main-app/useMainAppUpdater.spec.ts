@@ -4,7 +4,7 @@ import { defineComponent, ref } from "vue";
 import { mount } from "@vue/test-utils";
 
 import type { AppSettings } from "@/types";
-import { buildSmartScanDefaults } from "@/__tests__/helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "@/__tests__/helpers/batchCompressDefaults";
 import { useMainAppUpdater } from "./useMainAppUpdater";
 
 const relaunchMock = vi.fn(async (..._args: any[]) => {});
@@ -37,7 +37,7 @@ const makeSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   taskbarProgressMode: "byEstimatedTime",

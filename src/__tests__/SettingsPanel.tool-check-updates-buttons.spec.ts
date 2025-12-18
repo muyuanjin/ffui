@@ -6,7 +6,7 @@ import { createI18n } from "vue-i18n";
 import zhCN from "@/locales/zh-CN";
 import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import type { AppSettings, ExternalToolStatus } from "@/types";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -55,7 +55,7 @@ const makeAppSettings = (): AppSettings => ({
     downloaded: undefined,
     remoteVersionCache: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   defaultQueuePresetId: undefined,

@@ -31,8 +31,8 @@ const FIRST_QUEUE_STATE_LITE_MARK = "first_queue_state_lite_applied";
 export interface StateSyncDeps {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
-  /** Smart scan jobs to merge with backend jobs. */
-  smartScanJobs: Ref<TranscodeJob[]>;
+  /** Batch Compress jobs to merge with backend jobs. */
+  batchCompressJobs: Ref<TranscodeJob[]>;
   /** Queue error message ref. */
   queueError: Ref<string | null>;
   /** Last queue snapshot timestamp. */
@@ -44,19 +44,19 @@ export interface StateSyncDeps {
 }
 
 /**
- * Recompute the jobs list from backend jobs, merging with smart scan jobs.
- * Backend jobs are appended after smart scan jobs to maintain scan batch grouping.
+ * Recompute the jobs list from backend jobs, merging with batch compress jobs.
+ * Backend jobs are appended after batch compress jobs to maintain scan batch grouping.
  */
 export function recomputeJobsFromBackend(
   backendJobs: TranscodeJob[],
-  deps: Pick<StateSyncDeps, "jobs" | "smartScanJobs">,
+  deps: Pick<StateSyncDeps, "jobs" | "batchCompressJobs">,
 ) {
   // 现在后端队列快照是唯一事实来源：
-  // - 任何“本地 Smart Scan 临时队列”都不再与后端快照合并，
-  // - 这样可以避免后端已经删除 Smart Scan 子任务但前端仍残留的 UI 不一致问题。
+  // - 任何“本地 Batch Compress 临时队列”都不再与后端快照合并，
+  // - 这样可以避免后端已经删除 Batch Compress 子任务但前端仍残留的 UI 不一致问题。
   //
-  // smartScanJobs 仍保留在依赖中，仅为向后兼容接口签名和未来扩展。
-  void deps.smartScanJobs;
+  // batchCompressJobs 仍保留在依赖中，仅为向后兼容接口签名和未来扩展。
+  void deps.batchCompressJobs;
 
   deps.jobs.value = [...backendJobs];
 }

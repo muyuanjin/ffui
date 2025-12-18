@@ -8,7 +8,7 @@ import zhCN from "@/locales/zh-CN";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
 import type { AppSettings } from "@/types";
 import { fetchSystemFontFamilies } from "@/lib/backend";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -53,7 +53,7 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: true,
     downloaded: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   uiScalePercent: 100,

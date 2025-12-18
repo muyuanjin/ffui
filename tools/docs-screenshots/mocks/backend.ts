@@ -11,7 +11,7 @@ import type {
   OutputPolicy,
   QueueStateLite,
   QueueState,
-  SmartScanConfig,
+  BatchCompressConfig,
   SystemMetricsSnapshot,
   TranscodeActivityToday,
   TranscodeJob,
@@ -168,7 +168,7 @@ const makeAppSettings = (): AppSettings => {
         },
       },
     },
-    smartScanDefaults: {
+    batchCompressDefaults: {
       replaceOriginal: true,
       minVideoSizeMB: 200,
       minImageSizeKB: 512,
@@ -182,7 +182,7 @@ const makeAppSettings = (): AppSettings => {
       videoFilter: { enabled: true, extensions: ["mp4", "mkv", "mov", "webm"] },
       imageFilter: { enabled: true, extensions: ["jpg", "jpeg", "png", "webp"] },
       audioFilter: { enabled: false, extensions: ["mp3", "aac", "flac"] },
-    } satisfies SmartScanConfig,
+    } satisfies BatchCompressConfig,
     previewCapturePercent: 25,
     uiScalePercent: resolveUiScalePercent(),
     uiFontSizePercent: resolveUiFontSizePercent(),
@@ -532,19 +532,19 @@ const buildQueueJobs = (): TranscodeJob[] => {
       logs: [],
       estimatedSeconds: 300,
     },
-    // Smart Scan composite batch (used by docs/verification screenshots).
+    // Batch Compress composite batch (used by docs/verification screenshots).
     ...Array.from({ length: 18 }, (_, idx) => {
       const index = idx + 1;
-      const filename = `C:/videos/smart_scan_batch/item_${String(index).padStart(2, "0")}.mp4`;
-      const outputPath = `C:/videos/smart_scan_batch/item_${String(index).padStart(2, "0")}.compressed.mp4`;
+      const filename = `C:/videos/batch_compress_batch/item_${String(index).padStart(2, "0")}.mp4`;
+      const outputPath = `C:/videos/batch_compress_batch/item_${String(index).padStart(2, "0")}.compressed.mp4`;
       const status: TranscodeJob["status"] =
         index <= 1 ? "processing" : index <= 3 ? "paused" : index <= 6 ? "waiting" : index <= 8 ? "queued" : "waiting";
       const progress = status === "processing" ? 42 : status === "paused" ? 66 : 0;
       return {
-        id: `docs-smart-scan-${index}`,
+        id: `docs-batch-compress-${index}`,
         filename,
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 280 + index * 12,
         originalCodec: index % 3 === 0 ? "hevc" : "h264",
         presetId: "p1",
@@ -695,7 +695,7 @@ export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => t
 
 export const reorderQueue = async (_orderedJobIds: string[]): Promise<boolean> => true;
 
-export const deleteSmartScanBatchOnBackend = async (_batchId: string): Promise<boolean> => true;
+export const deleteBatchCompressBatchOnBackend = async (_batchId: string): Promise<boolean> => true;
 
 export const previewOutputPath = async (params: {
   inputPath: string;
@@ -778,14 +778,14 @@ export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> =>
   return result;
 };
 
-export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {
+export const loadBatchCompressDefaults = async (): Promise<BatchCompressConfig> => {
   const settings = await loadAppSettings();
-  return settings.smartScanDefaults;
+  return settings.batchCompressDefaults;
 };
 
-export const saveSmartScanDefaults = async (config: SmartScanConfig): Promise<SmartScanConfig> => {
+export const saveBatchCompressDefaults = async (config: BatchCompressConfig): Promise<BatchCompressConfig> => {
   const settings = await loadAppSettings();
-  appSettingsSnapshot = { ...settings, smartScanDefaults: config };
+  appSettingsSnapshot = { ...settings, batchCompressDefaults: config };
   return config;
 };
 
@@ -814,7 +814,7 @@ export const inspectMedia = async (_path: string): Promise<any> => {
   };
 };
 
-export const runAutoCompress = async (_rootPath: string, _config: SmartScanConfig): Promise<AutoCompressResult> => {
+export const runAutoCompress = async (_rootPath: string, _config: BatchCompressConfig): Promise<AutoCompressResult> => {
   const startedAtMs = Date.now();
   const completedAtMs = startedAtMs + 5000;
   return {

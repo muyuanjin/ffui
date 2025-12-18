@@ -40,7 +40,7 @@ const queueIconItemStub = {
   </div>`,
 };
 
-const queueSmartScanIconBatchStub = {
+const queueBatchCompressIconBatchStub = {
   props: ["batch", "size", "progressStyle"],
   template: `<div
     data-testid="queue-icon-batch-stub"
@@ -80,7 +80,7 @@ describe("MainApp icon queue view", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: queueIconItemStub,
-          QueueSmartScanIconBatchItem: queueSmartScanIconBatchStub,
+          QueueBatchCompressIconBatchItem: queueBatchCompressIconBatchStub,
         },
       },
     });
@@ -137,7 +137,7 @@ describe("MainApp icon queue view", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: queueIconItemStub,
-          QueueSmartScanIconBatchItem: queueSmartScanIconBatchStub,
+          QueueBatchCompressIconBatchItem: queueBatchCompressIconBatchStub,
         },
       },
     });
@@ -180,7 +180,7 @@ describe("MainApp icon queue view", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: queueIconItemStub,
-          QueueSmartScanIconBatchItem: queueSmartScanIconBatchStub,
+          QueueBatchCompressIconBatchItem: queueBatchCompressIconBatchStub,
         },
       },
     });

@@ -15,13 +15,13 @@ import { applyQueueStateFromBackend, refreshQueueFromBackend, type StateSyncDeps
 
 function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { jobs: Ref<TranscodeJob[]> } {
   const jobs = overrides.jobs ?? ref<TranscodeJob[]>([]);
-  const smartScanJobs = overrides.smartScanJobs ?? ref<TranscodeJob[]>([]);
+  const batchCompressJobs = overrides.batchCompressJobs ?? ref<TranscodeJob[]>([]);
   const queueError = overrides.queueError ?? ref<string | null>(null);
   const lastQueueSnapshotAtMs = overrides.lastQueueSnapshotAtMs ?? ref<number | null>(null);
 
   return {
     jobs,
-    smartScanJobs,
+    batchCompressJobs,
     queueError,
     lastQueueSnapshotAtMs,
     t: overrides.t,
@@ -35,11 +35,11 @@ describe("queue operations state sync", () => {
   });
 
   it("applyQueueStateFromBackend applies backend jobs snapshot and updates timestamp", () => {
-    const smartScanJob: TranscodeJob = {
+    const batchCompressJob: TranscodeJob = {
       id: "scan-1",
       filename: "C:/videos/scan.mp4",
       type: "video",
-      source: "smart_scan",
+      source: "batch_compress",
       originalSizeMB: 50,
       originalCodec: "h264",
       presetId: "preset-1",
@@ -62,24 +62,24 @@ describe("queue operations state sync", () => {
     };
 
     const deps = makeDeps({
-      jobs: ref<TranscodeJob[]>([smartScanJob]),
-      smartScanJobs: ref<TranscodeJob[]>([smartScanJob]),
+      jobs: ref<TranscodeJob[]>([batchCompressJob]),
+      batchCompressJobs: ref<TranscodeJob[]>([batchCompressJob]),
     });
 
     const before = deps.lastQueueSnapshotAtMs.value;
     applyQueueStateFromBackend({ jobs: [backendJob] }, deps);
 
-    // 现在后端快照是唯一事实来源，应直接覆盖本地 Smart Scan 队列，防止“后端已删但前端仍残留”。
+    // 现在后端快照是唯一事实来源，应直接覆盖本地 Batch Compress 队列，防止“后端已删但前端仍残留”。
     expect(deps.jobs.value.map((j) => j.id)).toEqual([backendJob.id]);
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
   });
 
-  it("applyQueueStateFromBackend does not duplicate smart scan jobs that already exist in backend snapshot", () => {
-    const smartScanJob: TranscodeJob = {
+  it("applyQueueStateFromBackend does not duplicate batch compress jobs that already exist in backend snapshot", () => {
+    const batchCompressJob: TranscodeJob = {
       id: "scan-1",
       filename: "C:/videos/scan.mp4",
       type: "video",
-      source: "smart_scan",
+      source: "batch_compress",
       originalSizeMB: 50,
       originalCodec: "h264",
       presetId: "preset-1",
@@ -88,23 +88,25 @@ describe("queue operations state sync", () => {
       logs: [],
     };
 
-    // 模拟 MainApp 中的实际接线：smartScanJobs 由 jobs 计算而来。
-    const jobs = ref<TranscodeJob[]>([smartScanJob]);
-    const smartScanJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "smart_scan"));
+    // 模拟 MainApp 中的实际接线：batchCompressJobs 由 jobs 计算而来。
+    const jobs = ref<TranscodeJob[]>([batchCompressJob]);
+    const batchCompressJobs = computed<TranscodeJob[]>(() =>
+      jobs.value.filter((job) => job.source === "batch_compress"),
+    );
 
     const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
       jobs,
-      smartScanJobs,
+      batchCompressJobs,
       queueError: ref<string | null>(null),
       lastQueueSnapshotAtMs: ref<number | null>(null),
       t: undefined,
       onJobCompleted: undefined,
     };
 
-    applyQueueStateFromBackend({ jobs: [smartScanJob] }, deps);
+    applyQueueStateFromBackend({ jobs: [batchCompressJob] }, deps);
 
-    // 同一个 Smart Scan 任务只应出现一次，而不是在每次快照时不断复制。
-    expect(deps.jobs.value.map((j) => j.id)).toEqual([smartScanJob.id]);
+    // 同一个 Batch Compress 任务只应出现一次，而不是在每次快照时不断复制。
+    expect(deps.jobs.value.map((j) => j.id)).toEqual([batchCompressJob.id]);
   });
 
   it("applyQueueStateFromBackend fires onJobCompleted for newly completed jobs", () => {
@@ -130,7 +132,7 @@ describe("queue operations state sync", () => {
     const onJobCompleted = vi.fn();
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([previousJob]),
-      smartScanJobs: ref<TranscodeJob[]>([]),
+      batchCompressJobs: ref<TranscodeJob[]>([]),
       onJobCompleted,
     });
 
@@ -165,7 +167,7 @@ describe("queue operations state sync", () => {
     const onJobCompleted = vi.fn();
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([previousJob]),
-      smartScanJobs: ref<TranscodeJob[]>([]),
+      batchCompressJobs: ref<TranscodeJob[]>([]),
       onJobCompleted,
     });
 

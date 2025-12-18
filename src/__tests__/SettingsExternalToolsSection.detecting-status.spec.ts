@@ -6,7 +6,7 @@ import { createI18n } from "vue-i18n";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings, ExternalToolStatus } from "@/types";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const i18n = createI18n({
   legacy: false,
@@ -25,7 +25,7 @@ const makeAppSettings = (): AppSettings => ({
     autoUpdate: false,
     downloaded: undefined,
   },
-  smartScanDefaults: buildSmartScanDefaults(),
+  batchCompressDefaults: buildBatchCompressDefaults(),
   previewCapturePercent: 25,
   developerModeEnabled: false,
   defaultQueuePresetId: undefined,

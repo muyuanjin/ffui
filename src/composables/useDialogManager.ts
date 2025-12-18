@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { TranscodeJob, FFmpegPreset, CompositeSmartScanTask } from "@/types";
+import type { TranscodeJob, FFmpegPreset, CompositeBatchCompressTask } from "@/types";
 
 /**
  * 对话框管理 Composable
@@ -18,7 +18,7 @@ export function useDialogManager() {
   // 对话框状态
   const wizardOpen = ref(false);
   const parameterPanelOpen = ref(false);
-  const smartScanOpen = ref(false);
+  const batchCompressOpen = ref(false);
   const jobDetailOpen = ref(false);
   const batchDetailOpen = ref(false);
   const previewOpen = ref(false);
@@ -28,7 +28,7 @@ export function useDialogManager() {
 
   // 当前选中的项目(用于详情对话框)
   const selectedJob = ref<TranscodeJob | null>(null);
-  const selectedBatch = ref<CompositeSmartScanTask | null>(null);
+  const selectedBatch = ref<CompositeBatchCompressTask | null>(null);
   const editingPreset = ref<FFmpegPreset | null>(null);
 
   // 打开方法
@@ -54,8 +54,8 @@ export function useDialogManager() {
     wizardOpen.value = true;
   };
 
-  const openSmartScan = () => {
-    smartScanOpen.value = true;
+  const openBatchCompress = () => {
+    batchCompressOpen.value = true;
   };
 
   const openJobDetail = (job: TranscodeJob) => {
@@ -63,7 +63,7 @@ export function useDialogManager() {
     jobDetailOpen.value = true;
   };
 
-  const openBatchDetail = (batch: CompositeSmartScanTask) => {
+  const openBatchDetail = (batch: CompositeBatchCompressTask) => {
     selectedBatch.value = batch;
     batchDetailOpen.value = true;
   };
@@ -98,8 +98,8 @@ export function useDialogManager() {
     editingPreset.value = null;
   };
 
-  const closeSmartScan = () => {
-    smartScanOpen.value = false;
+  const closeBatchCompress = () => {
+    batchCompressOpen.value = false;
   };
 
   const closeJobDetail = () => {
@@ -145,7 +145,7 @@ export function useDialogManager() {
   const closeAllDialogs = () => {
     wizardOpen.value = false;
     parameterPanelOpen.value = false;
-    smartScanOpen.value = false;
+    batchCompressOpen.value = false;
     jobDetailOpen.value = false;
     batchDetailOpen.value = false;
     previewOpen.value = false;
@@ -161,7 +161,7 @@ export function useDialogManager() {
     // 状态
     wizardOpen,
     parameterPanelOpen,
-    smartScanOpen,
+    batchCompressOpen,
     jobDetailOpen,
     batchDetailOpen,
     previewOpen,
@@ -176,7 +176,7 @@ export function useDialogManager() {
     openParameterPanel,
     switchWizardToParameterPanel,
     switchParameterPanelToWizard,
-    openSmartScan,
+    openBatchCompress,
     openJobDetail,
     openBatchDetail,
     openPreview,
@@ -186,7 +186,7 @@ export function useDialogManager() {
     // 关闭方法
     closeWizard,
     closeParameterPanel,
-    closeSmartScan,
+    closeBatchCompress,
     closeJobDetail,
     closeBatchDetail,
     closePreview,

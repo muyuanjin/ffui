@@ -42,15 +42,15 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     restore::restore_jobs_from_snapshot(inner, snapshot);
 }
 
-const SMART_SCAN_PROGRESS_EVERY: u64 = 32;
+const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
 
 pub(super) type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
 pub(super) type QueueLiteListener = Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;
-pub(super) type SmartScanProgressListener =
+pub(super) type BatchCompressProgressListener =
     Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SmartScanBatchStatus {
+pub(crate) enum BatchCompressBatchStatus {
     Scanning,
     Running,
     Completed,
@@ -59,12 +59,12 @@ pub(crate) enum SmartScanBatchStatus {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct SmartScanBatch {
+pub(crate) struct BatchCompressBatch {
     pub(crate) batch_id: String,
     pub(crate) root_path: String,
     /// 当前批次是否在压缩完成后替换原文件（移动到回收站并更新输出路径）。
     pub(crate) replace_original: bool,
-    pub(crate) status: SmartScanBatchStatus,
+    pub(crate) status: BatchCompressBatchStatus,
     pub(crate) total_files_scanned: u64,
     pub(crate) total_candidates: u64,
     pub(crate) total_processed: u64,
@@ -99,13 +99,13 @@ pub(crate) struct EngineState {
     // Per-input media metadata cache keyed by absolute input path. This avoids
     // repeated ffprobe calls when the same file is reused across jobs.
     pub(crate) media_info_cache: HashMap<String, MediaInfo>,
-    // Smart Scan batches tracked by stable batch id so the frontend can build
+    // Batch Compress batches tracked by stable batch id so the frontend can build
     // composite cards from queue + progress events alone.
-    pub(crate) smart_scan_batches: HashMap<String, SmartScanBatch>,
-    // Known Smart Scan output paths (both from current and previous runs).
+    pub(crate) batch_compress_batches: HashMap<String, BatchCompressBatch>,
+    // Known Batch Compress output paths (both from current and previous runs).
     // These are used to avoid overwriting existing outputs and to skip
-    // re-enqueuing Smart Scan outputs as new candidates.
-    pub(crate) known_smart_scan_outputs: HashSet<String>,
+    // re-enqueuing Batch Compress outputs as new candidates.
+    pub(crate) known_batch_compress_outputs: HashSet<String>,
 }
 
 impl EngineState {
@@ -123,8 +123,8 @@ impl EngineState {
             wait_requests: HashSet::new(),
             restart_requests: HashSet::new(),
             media_info_cache: HashMap::new(),
-            smart_scan_batches: HashMap::new(),
-            known_smart_scan_outputs: HashSet::new(),
+            batch_compress_batches: HashMap::new(),
+            known_batch_compress_outputs: HashSet::new(),
         }
     }
 }
@@ -136,7 +136,7 @@ pub(crate) struct Inner {
     pub(crate) queue_recovery_done: AtomicBool,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
     pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
-    pub(crate) smart_scan_listeners: Mutex<Vec<SmartScanProgressListener>>,
+    pub(crate) batch_compress_listeners: Mutex<Vec<BatchCompressProgressListener>>,
 }
 
 impl Inner {
@@ -148,7 +148,7 @@ impl Inner {
             queue_recovery_done: AtomicBool::new(false),
             queue_listeners: Mutex::new(Vec::new()),
             queue_lite_listeners: Mutex::new(Vec::new()),
-            smart_scan_listeners: Mutex::new(Vec::new()),
+            batch_compress_listeners: Mutex::new(Vec::new()),
         }
     }
 }
@@ -280,26 +280,26 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     }
 }
 
-pub(super) fn notify_smart_scan_listeners(inner: &Inner, progress: AutoCompressProgress) {
+pub(super) fn notify_batch_compress_listeners(inner: &Inner, progress: AutoCompressProgress) {
     let listeners = inner
-        .smart_scan_listeners
+        .batch_compress_listeners
         .lock()
-        .expect("smart scan listeners lock poisoned");
+        .expect("batch compress listeners lock poisoned");
     for listener in listeners.iter() {
         listener(progress.clone());
     }
 }
 
-pub(super) fn update_smart_scan_batch_with_inner<F>(
+pub(super) fn update_batch_compress_batch_with_inner<F>(
     inner: &Inner,
     batch_id: &str,
     force_notify: bool,
     f: F,
 ) where
-    F: FnOnce(&mut SmartScanBatch), {
+    F: FnOnce(&mut BatchCompressBatch), {
     let progress = {
         let mut state = inner.state.lock().expect("engine state poisoned");
-        let batch = match state.smart_scan_batches.get_mut(batch_id) {
+        let batch = match state.batch_compress_batches.get_mut(batch_id) {
             Some(b) => b,
             None => return,
         };
@@ -309,7 +309,7 @@ pub(super) fn update_smart_scan_batch_with_inner<F>(
         if force_notify
             || batch
                 .total_files_scanned
-                .is_multiple_of(SMART_SCAN_PROGRESS_EVERY)
+                .is_multiple_of(BATCH_COMPRESS_PROGRESS_EVERY)
         {
             Some(AutoCompressProgress {
                 root_path: batch.root_path.clone(),
@@ -325,18 +325,18 @@ pub(super) fn update_smart_scan_batch_with_inner<F>(
     };
 
     if let Some(progress) = progress {
-        notify_smart_scan_listeners(inner, progress);
+        notify_batch_compress_listeners(inner, progress);
     }
 }
 
-pub(super) fn register_known_smart_scan_output_with_inner(inner: &Inner, path: &Path) {
+pub(super) fn register_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) {
     let key = path.to_string_lossy().into_owned();
     let mut state = inner.state.lock().expect("engine state poisoned");
-    state.known_smart_scan_outputs.insert(key);
+    state.known_batch_compress_outputs.insert(key);
 }
 
-pub(super) fn is_known_smart_scan_output_with_inner(inner: &Inner, path: &Path) -> bool {
+pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) -> bool {
     let key = path.to_string_lossy().into_owned();
     let state = inner.state.lock().expect("engine state poisoned");
-    state.known_smart_scan_outputs.contains(&key)
+    state.known_batch_compress_outputs.contains(&key)
 }

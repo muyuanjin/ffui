@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 /**
- * 测试：通过右键菜单删除复合任务（Smart Scan 批次）
+ * 测试：通过右键菜单删除复合任务（Batch Compress 批次）
  *
  * 场景：用户右键点击复合任务卡片，选择“从列表删除”，
- * 前端应该调用新的 delete_smart_scan_batch 批量删除命令，后端成功时
+ * 前端应该调用新的 delete_batch_compress_batch 批量删除命令，后端成功时
  * 视为该批次所有终态子任务已从队列中移除。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -26,16 +26,16 @@ describe("MainApp 复合任务删除", () => {
     vi.clearAllMocks();
   });
 
-  it("右键复合任务卡片后删除，应该调用 delete_smart_scan_batch 并视为整批成功删除", async () => {
+  it("右键复合任务卡片后删除，应该调用 delete_batch_compress_batch 并视为整批成功删除", async () => {
     const batchId = "batch-composite-delete";
 
     // 模拟一个复合任务，包含多个已完成的子任务
     const jobs: TranscodeJob[] = [
       {
-        id: "smart-scan-job-1",
+        id: "batch-compress-job-1",
         filename: "C:/videos/video1.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 100,
         originalCodec: "h264",
         presetId: "p1",
@@ -45,10 +45,10 @@ describe("MainApp 复合任务删除", () => {
         batchId,
       } as any,
       {
-        id: "smart-scan-job-2",
+        id: "batch-compress-job-2",
         filename: "C:/videos/video2.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 80,
         originalCodec: "h264",
         presetId: "p1",
@@ -58,10 +58,10 @@ describe("MainApp 复合任务删除", () => {
         batchId,
       } as any,
       {
-        id: "smart-scan-job-3",
+        id: "batch-compress-job-3",
         filename: "C:/videos/video3.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 60,
         originalCodec: "h264",
         presetId: "p1",
@@ -78,7 +78,7 @@ describe("MainApp 复合任务删除", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_smart_scan_batch: (payload) => {
+      delete_batch_compress_batch: (payload) => {
         // 模拟后端批量删除成功
         expect((payload?.batchId ?? payload?.batch_id) as string).toBe(batchId);
         return true;
@@ -111,8 +111,8 @@ describe("MainApp 复合任务删除", () => {
     }
     await nextTick();
 
-    // 验证：应调用一次 delete_smart_scan_batch，而不是对每个子任务逐个 delete_transcode_job。
-    const deleteBatchCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_smart_scan_batch");
+    // 验证：应调用一次 delete_batch_compress_batch，而不是对每个子任务逐个 delete_transcode_job。
+    const deleteBatchCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batch");
     expect(deleteBatchCalls.length).toBe(1);
 
     const singlePayload = deleteBatchCalls[0]?.[1] as any;
@@ -136,7 +136,7 @@ describe("MainApp 复合任务删除", () => {
         id: "job-fail-1",
         filename: "C:/videos/video1.mp4",
         type: "video",
-        source: "smart_scan",
+        source: "batch_compress",
         originalSizeMB: 100,
         originalCodec: "h264",
         presetId: "p1",
@@ -153,7 +153,7 @@ describe("MainApp 复合任务删除", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_smart_scan_batch: () => {
+      delete_batch_compress_batch: () => {
         // 模拟后端批次删除返回 false（删除失败）
         return false;
       },

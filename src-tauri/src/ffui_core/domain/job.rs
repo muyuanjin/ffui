@@ -66,7 +66,7 @@ pub enum JobType {
 #[serde(rename_all = "snake_case")]
 pub enum JobSource {
     Manual,
-    SmartScan,
+    BatchCompress,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -159,7 +159,7 @@ pub struct TranscodeJob {
     /// Structured warnings that should remain visible on the task card.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<JobWarning>,
-    /// Optional stable identifier for a Smart Scan batch this job belongs to.
+    /// Optional stable identifier for a Batch Compress batch this job belongs to.
     /// Manual / ad-hoc jobs do not carry a batch id.
     pub batch_id: Option<String>,
     /// Optional metadata captured when a job is paused via an explicit wait
@@ -247,7 +247,7 @@ pub struct TranscodeJobLite {
     /// Structured warnings that should remain visible on the task card.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<JobWarning>,
-    /// Optional stable id for the Smart Scan batch this job belongs to.
+    /// Optional stable id for the Batch Compress batch this job belongs to.
     pub batch_id: Option<String>,
     /// Optional metadata captured when a job is paused via wait or restored
     /// after crash recovery.

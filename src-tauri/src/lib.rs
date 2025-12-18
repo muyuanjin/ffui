@@ -92,7 +92,7 @@ pub fn run() {
             commands::queue::resume_transcode_job,
             commands::queue::restart_transcode_job,
             commands::queue::delete_transcode_job,
-            commands::queue::delete_smart_scan_batch,
+            commands::queue::delete_batch_compress_batch,
             commands::queue::reorder_queue,
             commands::queue::get_job_detail,
             commands::job_compare::get_job_compare_sources,
@@ -106,8 +106,8 @@ pub fn run() {
             commands::presets::reorder_presets,
             commands::settings::get_app_settings,
             commands::settings::save_app_settings,
-            commands::settings::get_smart_scan_defaults,
-            commands::settings::save_smart_scan_defaults,
+            commands::settings::get_batch_compress_defaults,
+            commands::settings::save_batch_compress_defaults,
             commands::settings::run_auto_compress,
             commands::ui_fonts::get_system_font_families,
             commands::ui_fonts::list_open_source_fonts,
@@ -222,12 +222,12 @@ pub fn run() {
             // a long-lived Tauri event so the UI does not need to poll.
             queue_events::register_queue_stream(&handle);
 
-            // Stream Smart Scan progress snapshots so the frontend can show
+            // Stream Batch Compress progress snapshots so the frontend can show
             // coarse-grained scanning progress for large directory trees.
             {
                 let engine = app.state::<TranscodingEngine>();
                 let event_handle = handle.clone();
-                engine.register_smart_scan_listener(move |progress: AutoCompressProgress| {
+                engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
                     if let Err(err) = event_handle.emit("auto-compress://progress", progress.clone()) {
                         eprintln!("failed to emit auto-compress progress event: {err}");
                     }

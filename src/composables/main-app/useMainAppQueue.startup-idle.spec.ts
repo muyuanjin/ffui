@@ -3,7 +3,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { defineComponent, ref, computed, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
-import type { CompositeSmartScanTask, FFmpegPreset, QueueStateLite, TranscodeJob } from "@/types";
+import type { CompositeBatchCompressTask, FFmpegPreset, QueueStateLite, TranscodeJob } from "@/types";
 
 const loadQueueStateMock = vi.fn<() => Promise<QueueStateLite>>();
 
@@ -51,8 +51,8 @@ describe("useMainAppQueue startup idle defers", () => {
     const lastQueueSnapshotAtMs = ref<number | null>(null);
     const presets = ref<FFmpegPreset[]>([]);
     const manualJobPresetId = ref<string | null>(null);
-    const compositeSmartScanTasks = computed<CompositeSmartScanTask[]>(() => []);
-    const compositeTasksById = computed<Map<string, CompositeSmartScanTask>>(() => new Map());
+    const compositeBatchCompressTasks = computed<CompositeBatchCompressTask[]>(() => []);
+    const compositeTasksById = computed<Map<string, CompositeBatchCompressTask>>(() => new Map());
 
     const TestHarness = defineComponent({
       setup() {
@@ -63,7 +63,7 @@ describe("useMainAppQueue startup idle defers", () => {
           lastQueueSnapshotAtMs,
           presets,
           manualJobPresetId,
-          compositeSmartScanTasks,
+          compositeBatchCompressTasks,
           compositeTasksById,
           onJobCompleted: () => {},
           startupIdleReady,
@@ -104,8 +104,8 @@ describe("useMainAppQueue startup idle defers", () => {
     const lastQueueSnapshotAtMs = ref<number | null>(null);
     const presets = ref<FFmpegPreset[]>([]);
     const manualJobPresetId = ref<string | null>(null);
-    const compositeSmartScanTasks = computed<CompositeSmartScanTask[]>(() => []);
-    const compositeTasksById = computed<Map<string, CompositeSmartScanTask>>(() => new Map());
+    const compositeBatchCompressTasks = computed<CompositeBatchCompressTask[]>(() => []);
+    const compositeTasksById = computed<Map<string, CompositeBatchCompressTask>>(() => new Map());
 
     const TestHarness = defineComponent({
       setup() {
@@ -116,7 +116,7 @@ describe("useMainAppQueue startup idle defers", () => {
           lastQueueSnapshotAtMs,
           presets,
           manualJobPresetId,
-          compositeSmartScanTasks,
+          compositeBatchCompressTasks,
           compositeTasksById,
           onJobCompleted: () => {},
           startupIdleReady,

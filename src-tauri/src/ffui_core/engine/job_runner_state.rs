@@ -130,7 +130,7 @@ pub(super) fn mark_job_waiting(
     }
 
     notify_queue_listeners(inner);
-    mark_smart_scan_child_processed(inner, job_id);
+    mark_batch_compress_child_processed(inner, job_id);
     Ok(())
 }
 
@@ -173,6 +173,6 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
     notify_queue_listeners(inner);
     // Wake at least one worker in case a restart enqueued a new job.
     inner.cv.notify_one();
-    mark_smart_scan_child_processed(inner, job_id);
+    mark_batch_compress_child_processed(inner, job_id);
     Ok(())
 }

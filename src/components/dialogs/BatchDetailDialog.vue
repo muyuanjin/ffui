@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
-import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
+import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import { buildPreviewUrl } from "@/lib/backend";
 
@@ -15,7 +15,7 @@ const props = defineProps<{
   /** Whether dialog is open */
   open: boolean;
   /** The batch to display */
-  batch: CompositeSmartScanTask | null;
+  batch: CompositeBatchCompressTask | null;
   /** Available presets */
   presets: FFmpegPreset[];
   /** Progress style */
@@ -245,12 +245,12 @@ const onPreviewClick = (job: TranscodeJob | null) => {
       <DialogHeader>
         <DialogTitle class="flex items-center gap-3">
           <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
-            {{ t("queue.source.smartScan") }}
+            {{ t("queue.source.batchCompress") }}
           </Badge>
-          <span class="truncate max-w-md">{{ batch?.rootPath || t("smartScan.title") }}</span>
+          <span class="truncate max-w-md">{{ batch?.rootPath || t("batchCompress.title") }}</span>
         </DialogTitle>
         <DialogDescription class="text-xs text-muted-foreground">
-          {{ batch ? `${batch.totalProcessed} / ${batch.totalCandidates} ${t("smartScan.subtitle")}` : "" }}
+          {{ batch ? `${batch.totalProcessed} / ${batch.totalCandidates} ${t("batchCompress.subtitle")}` : "" }}
         </DialogDescription>
       </DialogHeader>
 
@@ -338,7 +338,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         <!-- Job list header -->
         <div class="flex items-center justify-between text-xs text-muted-foreground flex-shrink-0">
           <span class="font-medium">{{ t("app.tabs.queue") }}</span>
-          <span>{{ batch.jobs.filter((j) => j.status !== "skipped").length }} {{ t("smartScan.subtitle") }}</span>
+          <span>{{ batch.jobs.filter((j) => j.status !== "skipped").length }} {{ t("batchCompress.subtitle") }}</span>
         </div>
 
         <!-- Job list - 依赖整个对话框的垂直滚动，不再单独嵌套一层 ScrollArea，避免只有内层列表可以滚动的体验问题。 -->

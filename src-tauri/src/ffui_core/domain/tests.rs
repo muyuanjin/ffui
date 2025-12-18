@@ -5,12 +5,12 @@ mod domain_contract_tests {
         json,
     };
 
-    use super::super::job::*;
-    use super::super::preset::PresetStats;
-    use super::super::smart_scan::{
+    use super::super::batch_compress::{
         AutoCompressProgress,
         AutoCompressResult,
     };
+    use super::super::job::*;
+    use super::super::preset::PresetStats;
 
     #[test]
     fn transcode_job_uses_stable_mb_field_names_and_aliases() {
@@ -264,7 +264,7 @@ mod domain_contract_tests {
             id: "1".to_string(),
             filename: "video.mp4".to_string(),
             job_type: JobType::Video,
-            source: JobSource::SmartScan,
+            source: JobSource::BatchCompress,
             queue_order: None,
             original_size_mb: 10.0,
             original_codec: Some("h264".to_string()),

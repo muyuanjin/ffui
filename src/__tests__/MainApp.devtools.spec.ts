@@ -6,7 +6,7 @@ import { nextTick } from "vue";
 
 import en from "@/locales/en";
 import MainApp from "@/MainApp.vue";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const openDevtoolsMock = vi.fn();
 
@@ -57,7 +57,7 @@ vi.mock("@/lib/backend", async () => {
       autoDownload: false,
       autoUpdate: false,
     },
-    smartScanDefaults: buildSmartScanDefaults(),
+    batchCompressDefaults: buildBatchCompressDefaults(),
     previewCapturePercent: 25,
     defaultQueuePresetId: undefined,
     maxParallelJobs: undefined,
@@ -137,7 +137,7 @@ describe("MainApp devtools quick action", () => {
         autoDownload: false,
         autoUpdate: false,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       defaultQueuePresetId: undefined,
       maxParallelJobs: undefined,

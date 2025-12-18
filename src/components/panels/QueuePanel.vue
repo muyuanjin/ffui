@@ -1,16 +1,18 @@
 <script setup lang="ts">
 import { defineAsyncComponent } from "vue";
-import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
+import QueueBatchCompressBatchCard from "./QueueBatchCompressBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
-import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
+import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
-const QueueSmartScanIconBatchItem = defineAsyncComponent(() => import("@/components/QueueSmartScanIconBatchItem.vue"));
+const QueueBatchCompressIconBatchItem = defineAsyncComponent(
+  () => import("@/components/QueueBatchCompressIconBatchItem.vue"),
+);
 const QueueCarousel3DView = defineAsyncComponent(() => import("@/components/queue-item/QueueCarousel3DView.vue"));
 
 const props = defineProps<QueuePanelProps>();
@@ -25,10 +27,10 @@ const canCancelJob = (job: TranscodeJob): boolean => {
 };
 
 /**
- * 判断一个 Smart Scan 批次是否“完全选中”（所有子任务都在 selectedJobIds 中）。
+ * 判断一个 Batch Compress 批次是否“完全选中”（所有子任务都在 selectedJobIds 中）。
  * 用于图标视图下的复合卡片选中状态和批量点击行为。
  */
-const isBatchFullySelected = (batch: CompositeSmartScanTask): boolean => {
+const isBatchFullySelected = (batch: CompositeBatchCompressTask): boolean => {
   const jobs = batch.jobs ?? [];
   if (jobs.length === 0) return false;
   for (const job of jobs) {
@@ -44,7 +46,7 @@ const isBatchFullySelected = (batch: CompositeSmartScanTask): boolean => {
  * - 如果当前批次所有子任务都已选中，则取消该批次所有子任务的选中；
  * - 否则，仅为该批次中未被选中的子任务补齐选中状态，不影响其它任务的选中。
  */
-const handleToggleBatchSelection = (batch: CompositeSmartScanTask) => {
+const handleToggleBatchSelection = (batch: CompositeBatchCompressTask) => {
   const jobs = batch.jobs ?? [];
   if (jobs.length === 0) return;
 
@@ -72,7 +74,7 @@ const handleToggleBatchSelection = (batch: CompositeSmartScanTask) => {
  * - 先清空现有选中，再选中该批次所有子任务；
  * - 随后以 bulk 模式打开队列右键菜单，使“删除/暂停/继续/移动”等操作明确作用于该批次。
  */
-const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent) => {
+const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseEvent) => {
   const jobs = batch.jobs ?? [];
 
   // 重置选中集为该批次的子任务集合，保持与右键单个任务时的心智一致
@@ -97,7 +99,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
          header visible so users can adjust filters instead of seeing an
          "empty queue" screen. -->
     <div
-      v-if="queueJobsForDisplay.length === 0 && !hasSmartScanBatches && !hasActiveFilters"
+      v-if="queueJobsForDisplay.length === 0 && !hasBatchCompressBatches && !hasActiveFilters"
       class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl hover:border-sidebar-ring/70 hover:text-foreground transition-all"
     >
       <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70">
@@ -169,7 +171,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @compare="emit('compareJob', $event)"
               @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
             />
-            <QueueSmartScanIconBatchItem
+            <QueueBatchCompressIconBatchItem
               v-else
               :batch="item.batch"
               :size="iconViewSize"
@@ -241,7 +243,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
                 v-for="item in queueModeWaitingItems"
                 :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
               >
-                <QueueSmartScanBatchCard
+                <QueueBatchCompressBatchCard
                   v-if="item.kind === 'batch'"
                   :batch="item.batch"
                   :presets="presets"
@@ -294,13 +296,13 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
             </div>
           </div>
 
-          <!-- Smart Scan batches in queue mode -->
+          <!-- Batch Compress batches in queue mode -->
           <div
             v-for="item in visibleQueueItems"
             :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
             class="mb-3"
           >
-            <QueueSmartScanBatchCard
+            <QueueBatchCompressBatchCard
               v-if="item.kind === 'batch' && !queueModeWaitingBatchIds.has(item.batch.batchId)"
               :batch="item.batch"
               :presets="presets"
@@ -355,7 +357,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
             :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
             class="mb-3"
           >
-            <QueueSmartScanBatchCard
+            <QueueBatchCompressBatchCard
               v-if="item.kind === 'batch'"
               :batch="item.batch"
               :presets="presets"

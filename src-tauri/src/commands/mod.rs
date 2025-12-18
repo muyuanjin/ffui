@@ -3,7 +3,7 @@
 //! This module organizes all Tauri commands into logical sub-modules:
 //! - `queue`: Queue management operations
 //! - `presets`: FFmpeg preset management
-//! - `settings`: App settings and smart scan configuration
+//! - `settings`: App settings and batch compress configuration
 //! - `tools`: System monitoring and tool management
 
 pub mod job_compare;

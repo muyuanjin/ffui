@@ -1,5 +1,5 @@
 import { computed, ref, watch } from "vue";
-import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
+import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
 import type {
@@ -123,7 +123,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     }
 
     if (activeTypeFilters.value.size > 0) {
-      const kind: QueueFilterKind = job.source === "smart_scan" ? "smartScan" : "manual";
+      const kind: QueueFilterKind = job.source === "batch_compress" ? "batchCompress" : "manual";
       if (!activeTypeFilters.value.has(kind)) {
         return false;
       }
@@ -207,7 +207,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return matchesSizeFilter(job, sizeFilter);
   };
 
-  const batchMatchesFilters = (batch: CompositeSmartScanTask): boolean => {
+  const batchMatchesFilters = (batch: CompositeBatchCompressTask): boolean => {
     // When no filters are active, include batches that still have visible jobs.
     if (!hasActiveFilters.value) {
       return true;

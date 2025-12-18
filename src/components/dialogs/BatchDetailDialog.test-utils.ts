@@ -1,7 +1,7 @@
 import { createI18n } from "vue-i18n";
 import { defineComponent } from "vue";
 import en from "@/locales/en";
-import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob } from "@/types";
+import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob } from "@/types";
 
 export const i18n = createI18n({
   legacy: false,
@@ -93,7 +93,7 @@ export const createMockJob = (id: string, status: TranscodeJob["status"]): Trans
   id,
   filename: `C:/videos/input-${id}.mp4`,
   type: "video",
-  source: "smart_scan",
+  source: "batch_compress",
   originalSizeMB: 100,
   originalCodec: "h264",
   presetId: "p1",
@@ -103,7 +103,7 @@ export const createMockJob = (id: string, status: TranscodeJob["status"]): Trans
   batchId: "batch-1",
 });
 
-export const createMockBatch = (jobs: TranscodeJob[]): CompositeSmartScanTask => ({
+export const createMockBatch = (jobs: TranscodeJob[]): CompositeBatchCompressTask => ({
   batchId: "batch-1",
   rootPath: "C:/videos",
   jobs,
@@ -122,7 +122,7 @@ export const createMockBatch = (jobs: TranscodeJob[]): CompositeSmartScanTask =>
 });
 
 // 创建挂载选项的辅助函数
-export const createMountOptions = (batch: CompositeSmartScanTask, presets: FFmpegPreset[]) => ({
+export const createMountOptions = (batch: CompositeBatchCompressTask, presets: FFmpegPreset[]) => ({
   props: {
     open: true,
     batch,

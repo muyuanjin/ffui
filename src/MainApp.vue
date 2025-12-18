@@ -60,7 +60,7 @@ const {
   queuePanelProps,
   queueError,
   addManualJob,
-  startSmartScan,
+  startBatchCompress,
   setQueueViewMode,
   setQueueProgressStyle,
   carouselAutoRotationSpeed,
@@ -172,8 +172,8 @@ const {
   setPreviewSourceMode,
   handleImportSmartPackConfirmed,
   handleSavePreset,
-  runSmartScan,
-  closeSmartScanWizard,
+  runBatchCompress,
+  closeBatchCompressWizard,
   confirmDeletePreset,
   cancelDeletePreset,
   handleJobDetailExpandPreview,
@@ -261,7 +261,7 @@ defineExpose({
         @update:active-tab="activeTab = $event"
         @add-job-files="addManualJobsFromFiles"
         @add-job-folder="addManualJobsFromFolder"
-        @smart-scan="startSmartScan"
+        @batch-compress="startBatchCompress"
       />
 
       <!-- 主内容区作为 flex 子项必须设置 min-w-0，避免内部长内容把整体布局撑宽，导致侧边栏被挤压 -->
@@ -474,8 +474,8 @@ defineExpose({
       @savePreset="handleSavePreset"
       @closeWizard="dialogManager.closeWizard()"
       @closeParameterPanel="dialogManager.closeParameterPanel()"
-      @runSmartScan="runSmartScan"
-      @closeSmartScanWizard="closeSmartScanWizard"
+      @runBatchCompress="runBatchCompress"
+      @closeBatchCompressWizard="closeBatchCompressWizard"
       @confirmDeletePreset="confirmDeletePreset"
       @cancelDeletePreset="cancelDeletePreset"
       @closeJobDetail="dialogManager.closeJobDetail()"

@@ -1,5 +1,5 @@
 import type { ExternalToolSettings, TaskbarProgressMode, TaskbarProgressScope } from "./tools";
-import type { SmartScanConfig } from "./smart-scan";
+import type { BatchCompressConfig } from "./batch-compress";
 import type { OutputPolicy } from "./output-policy";
 
 export type QueuePersistenceMode = "none" | "crashRecoveryLite" | "crashRecoveryFull";
@@ -41,7 +41,7 @@ export interface NetworkProxySettings {
 
 export interface AppSettings {
   tools: ExternalToolSettings;
-  smartScanDefaults: SmartScanConfig;
+  batchCompressDefaults: BatchCompressConfig;
   /** Preferred UI locale (e.g. "en", "zh-CN"). */
   locale?: string;
   /** Optional app updater settings and cached metadata. */

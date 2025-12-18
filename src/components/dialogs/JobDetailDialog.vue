@@ -275,7 +275,7 @@ const unknownPresetLabel = computed(() => {
                       {{ t(`queue.status.${job.status}`) }}
                     </Badge>
                     <span class="text-[11px] text-muted-foreground">
-                      {{ job.source === "smart_scan" ? t("queue.source.smartScan") : t("queue.source.manual") }}
+                      {{ job.source === "batch_compress" ? t("queue.source.batchCompress") : t("queue.source.manual") }}
                     </span>
                   </div>
                   <div class="space-y-1 text-[11px]">

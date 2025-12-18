@@ -100,7 +100,7 @@ type WaitingGroupKind = "manual" | "batch";
 
 interface WaitingGroup {
   kind: WaitingGroupKind;
-  /** Batch id for Smart Scan groups; undefined for manual jobs. */
+  /** Batch id for Batch Compress groups; undefined for manual jobs. */
   batchId?: string;
   /** Ordered waiting job ids in this group. */
   ids: string[];

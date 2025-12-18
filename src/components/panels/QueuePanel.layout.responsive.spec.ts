@@ -96,7 +96,7 @@ describe("QueuePanel layout responsiveness", () => {
         iconGridClass: getQueueIconGridClass("icon-small"),
         queueRowVariant: "detail",
         progressUpdateIntervalMs: 500,
-        hasSmartScanBatches: false,
+        hasBatchCompressBatches: false,
 
         activeStatusFilters: new Set<QueueFilterStatus>(),
         activeTypeFilters: new Set<QueueFilterKind>(),
@@ -118,8 +118,8 @@ describe("QueuePanel layout responsiveness", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: true,
-          QueueSmartScanIconBatchItem: true,
-          QueueSmartScanBatchCard: true,
+          QueueBatchCompressIconBatchItem: true,
+          QueueBatchCompressBatchCard: true,
         },
       },
     });
@@ -157,7 +157,7 @@ describe("QueuePanel layout responsiveness", () => {
         iconGridClass: getQueueIconGridClass("icon-small"),
         queueRowVariant: "compact",
         progressUpdateIntervalMs: 500,
-        hasSmartScanBatches: false,
+        hasBatchCompressBatches: false,
 
         activeStatusFilters: new Set<QueueFilterStatus>(),
         activeTypeFilters: new Set<QueueFilterKind>(),
@@ -179,8 +179,8 @@ describe("QueuePanel layout responsiveness", () => {
         stubs: {
           QueueItem: queueItemStub,
           QueueIconItem: true,
-          QueueSmartScanIconBatchItem: true,
-          QueueSmartScanBatchCard: true,
+          QueueBatchCompressIconBatchItem: true,
+          QueueBatchCompressBatchCard: true,
         },
       },
     });

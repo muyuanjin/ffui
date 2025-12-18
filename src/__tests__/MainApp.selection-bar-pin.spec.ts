@@ -62,7 +62,7 @@ import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, AppSettings } from "@/types";
-import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
+import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 import { saveAppSettings as saveAppSettingsMock } from "@/lib/backend";
 
 const i18n = createI18n({
@@ -161,7 +161,7 @@ describe("MainApp queue selection toolbar pin", () => {
         autoUpdate: false,
         downloaded: undefined,
       },
-      smartScanDefaults: buildSmartScanDefaults(),
+      batchCompressDefaults: buildBatchCompressDefaults(),
       previewCapturePercent: 25,
       developerModeEnabled: false,
       defaultQueuePresetId: undefined,

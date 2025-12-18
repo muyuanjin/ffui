@@ -16,10 +16,10 @@ export interface UseFileInputOptions {
   addManualJobMock: () => void;
   /** Callback to enqueue a manual job from path. */
   enqueueManualJobFromPath: (path: string) => Promise<void>;
-  /** Whether to show smart scan wizard after folder selection. */
-  pendingSmartScanAfterFolder?: Ref<boolean>;
-  /** Show smart scan ref. */
-  showSmartScan?: Ref<boolean>;
+  /** Whether to show batch compress wizard after folder selection. */
+  pendingBatchCompressAfterFolder?: Ref<boolean>;
+  /** Show batch compress ref. */
+  showBatchCompress?: Ref<boolean>;
   /** Optional i18n translation function. */
   t?: (key: string) => string;
 }
@@ -64,8 +64,8 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
     lastDroppedRoot,
     addManualJobMock,
     enqueueManualJobFromPath,
-    pendingSmartScanAfterFolder,
-    showSmartScan,
+    pendingBatchCompressAfterFolder,
+    showBatchCompress,
     t,
   } = options;
 
@@ -118,8 +118,8 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
       if (input) {
         input.value = "";
       }
-      if (pendingSmartScanAfterFolder) {
-        pendingSmartScanAfterFolder.value = false;
+      if (pendingBatchCompressAfterFolder) {
+        pendingBatchCompressAfterFolder.value = false;
       }
       return;
     }
@@ -135,12 +135,12 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
       console.error("Selected folder does not expose a native path; ignoring selection");
     }
 
-    if (pendingSmartScanAfterFolder?.value && lastDroppedRoot.value && showSmartScan) {
-      showSmartScan.value = true;
+    if (pendingBatchCompressAfterFolder?.value && lastDroppedRoot.value && showBatchCompress) {
+      showBatchCompress.value = true;
     }
 
-    if (pendingSmartScanAfterFolder) {
-      pendingSmartScanAfterFolder.value = false;
+    if (pendingBatchCompressAfterFolder) {
+      pendingBatchCompressAfterFolder.value = false;
     }
 
     if (input) {
@@ -192,7 +192,7 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
     const normalized = (paths || []).filter((p): p is string => typeof p === "string" && p.length > 0);
     if (normalized.length === 0) return;
 
-    // Record the most recent dropped root directory for subsequent Smart Scan.
+    // Record the most recent dropped root directory for subsequent Batch Compress.
     const first = normalized[0].replace(/\\/g, "/");
     const lastSlash = first.lastIndexOf("/");
     lastDroppedRoot.value = lastSlash >= 0 ? first.slice(0, lastSlash) : first;

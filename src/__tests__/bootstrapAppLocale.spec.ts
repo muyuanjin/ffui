@@ -12,7 +12,7 @@ const makeSettings = (locale?: string): AppSettings =>
       autoDownload: false,
       autoUpdate: false,
     },
-    smartScanDefaults: {} as any,
+    batchCompressDefaults: {} as any,
     previewCapturePercent: 25,
     taskbarProgressMode: "byEstimatedTime",
     locale,

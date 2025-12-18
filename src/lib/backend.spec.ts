@@ -18,7 +18,7 @@ import {
   resumeTranscodeJob,
   restartTranscodeJob,
   deleteTranscodeJob,
-  deleteSmartScanBatchOnBackend,
+  deleteBatchCompressBatchOnBackend,
   reorderQueue,
   loadPreviewDataUrl,
   ensureJobPreview,
@@ -433,15 +433,15 @@ describe("backend contract", () => {
     expect(result).toBe(true);
   });
 
-  it("deleteSmartScanBatchOnBackend sends delete_smart_scan_batch with both id name variants", async () => {
+  it("deleteBatchCompressBatchOnBackend sends delete_batch_compress_batch with both id name variants", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const batchId = "batch-123";
 
-    const result = await deleteSmartScanBatchOnBackend(batchId);
+    const result = await deleteBatchCompressBatchOnBackend(batchId);
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
     const [cmd, payload] = invokeMock.mock.calls[0];
-    expect(cmd).toBe("delete_smart_scan_batch");
+    expect(cmd).toBe("delete_batch_compress_batch");
     expect(payload).toMatchObject({
       batchId,
       batch_id: batchId,

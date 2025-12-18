@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from "vue";
-import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob } from "@/types";
+import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob } from "@/types";
 import { buildPreviewUrl, hasTauri, selectPlayableMediaPath } from "@/lib/backend";
 
 export type PreviewSourceMode = "output" | "input";
@@ -10,7 +10,7 @@ export interface UseMainAppPreviewOptions {
     selectedJob: Ref<TranscodeJob | null>;
     openPreview: (job: TranscodeJob) => void;
     closePreview: () => void;
-    openBatchDetail: (batch: CompositeSmartScanTask) => void;
+    openBatchDetail: (batch: CompositeBatchCompressTask) => void;
   };
   /** Optional i18n translation function for preview error messages. */
   t?: (key: string) => string;
@@ -29,7 +29,7 @@ export interface UseMainAppPreviewReturn {
   handleExpandedPreviewError: () => void;
   handleExpandedImagePreviewError: () => void;
   openPreviewInSystemPlayer: () => Promise<void>;
-  openBatchDetail: (batch: CompositeSmartScanTask) => void;
+  openBatchDetail: (batch: CompositeBatchCompressTask) => void;
   handleJobDetailExpandPreview: () => void;
   selectedJobPreset: Ref<FFmpegPreset | null>;
 }
@@ -60,7 +60,7 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
 
     if (job.type === "image") {
       // 图片任务优先级：
-      // - output 模式：优先展示输出（例如 Smart Scan 生成的 .avif），必要时回退到输入；
+      // - output 模式：优先展示输出（例如 Batch Compress 生成的 .avif），必要时回退到输入；
       // - input 模式：优先展示输入，但仍允许回退到输出，避免输入被移动/替换后无法预览。
       if (mode === "input") {
         if (input) candidates.push(input);
@@ -267,7 +267,7 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     }
   };
 
-  const openBatchDetail = (batch: CompositeSmartScanTask) => {
+  const openBatchDetail = (batch: CompositeBatchCompressTask) => {
     dialogManager.openBatchDetail(batch);
   };
 

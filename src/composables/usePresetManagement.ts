@@ -239,7 +239,7 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
 
     if (hasTauri()) {
       try {
-        // Keep backend presets in sync so Smart Scan and queued jobs never see
+        // Keep backend presets in sync so Batch Compress and queued jobs never see
         // a stale preset id that no longer exists.
         nextPresets = await deletePresetOnBackend(target.id);
       } catch (error) {
@@ -252,7 +252,7 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
 
     presets.value = nextPresets;
 
-    // If the current smart scan default preset was deleted, fall back to the first or clear.
+    // If the current batch compress default preset was deleted, fall back to the first or clear.
     if (smartConfigVideoPresetId.value === target.id) {
       smartConfigVideoPresetId.value = presets.value[0]?.id ?? "";
     }
@@ -268,7 +268,7 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
     const input = preset.stats.totalInputSizeMB;
     const output = preset.stats.totalOutputSizeMB;
     if (!input || !output || input <= 0 || output <= 0) return null;
-    // 与 Smart Scan 逻辑保持一致：压缩率 = 输出体积 / 输入体积 * 100
+    // 与 Batch Compress 逻辑保持一致：压缩率 = 输出体积 / 输入体积 * 100
     return (output / input) * 100;
   };
 

@@ -36,7 +36,7 @@ describe("MainApp sidebar primary actions", () => {
     const { wrapper } = makeWrapper("zh-CN");
 
     const addFilesButton = wrapper.find('[data-testid="ffui-action-add-job-files"]');
-    const addCompressionButton = wrapper.find('[data-testid="ffui-action-smart-scan"]');
+    const addCompressionButton = wrapper.find('[data-testid="ffui-action-batch-compress"]');
 
     expect(addFilesButton.exists()).toBe(true);
     expect(addCompressionButton.exists()).toBe(true);
@@ -48,7 +48,7 @@ describe("MainApp sidebar primary actions", () => {
     const { wrapper } = makeWrapper("en");
 
     const addFilesButton = wrapper.find('[data-testid="ffui-action-add-job-files"]');
-    const addCompressionButton = wrapper.find('[data-testid="ffui-action-smart-scan"]');
+    const addCompressionButton = wrapper.find('[data-testid="ffui-action-batch-compress"]');
 
     expect(addFilesButton.exists(), "Add files button should exist").toBe(true);
     expect(addCompressionButton.exists(), "Add compression task button should exist").toBe(true);
@@ -87,7 +87,7 @@ describe("MainApp sidebar primary actions", () => {
     const { wrapper, i18n } = makeWrapper("zh-CN");
 
     const addFilesButton = () => wrapper.find('[data-testid="ffui-action-add-job-files"]');
-    const addCompressionButton = () => wrapper.find('[data-testid="ffui-action-smart-scan"]');
+    const addCompressionButton = () => wrapper.find('[data-testid="ffui-action-batch-compress"]');
 
     expect(addFilesButton().exists()).toBe(true);
     expect(addCompressionButton().exists()).toBe(true);

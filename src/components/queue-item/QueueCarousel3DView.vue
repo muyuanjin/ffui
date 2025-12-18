@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch, reactive } from "vue";
 import { useI18n } from "vue-i18n";
-import type { TranscodeJob, QueueProgressStyle, CompositeSmartScanTask } from "@/types";
+import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
 import { buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
 import { Badge } from "@/components/ui/badge";
@@ -30,9 +30,9 @@ const emit = defineEmits<{
   previewJob: [job: TranscodeJob];
   compareJob: [job: TranscodeJob];
   openJobContextMenu: [payload: { job: TranscodeJob; event: MouseEvent }];
-  openBatchDetail: [batch: CompositeSmartScanTask];
-  toggleBatchSelection: [batch: CompositeSmartScanTask];
-  contextmenuBatch: [payload: { batch: CompositeSmartScanTask; event: MouseEvent }];
+  openBatchDetail: [batch: CompositeBatchCompressTask];
+  toggleBatchSelection: [batch: CompositeBatchCompressTask];
+  contextmenuBatch: [payload: { batch: CompositeBatchCompressTask; event: MouseEvent }];
 }>();
 
 const { t } = useI18n();
@@ -278,7 +278,7 @@ const isItemSelected = (item: QueueListItem): boolean => {
 
 const getDisplayFilename = (item: QueueListItem): string => {
   if (item.kind === "batch") {
-    return item.batch.rootPath?.split(/[/\\]/).pop() || t("smartScan.title");
+    return item.batch.rootPath?.split(/[/\\]/).pop() || t("batchCompress.title");
   }
   const name = item.job.filename || "";
   const slash = name.lastIndexOf("/");
@@ -363,7 +363,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
                   variant="outline"
                   class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300 bg-blue-500/20"
                 >
-                  {{ t("queue.source.smartScan") }}
+                  {{ t("queue.source.batchCompress") }}
                 </Badge>
               </div>
 

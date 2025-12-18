@@ -259,7 +259,7 @@ const app = {
     addJob: "添加转码任务",
     addJobFiles: "添加文件",
     addJobFolder: "添加文件夹",
-    smartScan: "添加压缩任务",
+    batchCompress: "添加压缩任务",
     deletePreset: "删除",
     confirmDelete: "确认删除",
     deletePresetConfirmTitle: "删除预设",

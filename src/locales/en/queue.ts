@@ -71,13 +71,13 @@ const queue = {
   },
   source: {
     manual: "Manual",
-    smartScan: "Smart Scan",
+    batchCompress: "Batch Compress",
   },
   filters: {
     label: "Filters",
     typeLabel: "Type",
     typeManual: "Manual transcode",
-    typeSmartScan: "Compression (Smart Scan)",
+    typeBatchCompress: "Compression (Batch Compress)",
     statusLabel: "Status",
     textLabel: "Conditions",
     textPlaceholder: "Filter by path, name, status, size or other fields (supports regex: and size>20mb)",
@@ -156,7 +156,7 @@ const queue = {
     cancelRejected: "The backend refused to cancel this job. It may have already finished or is not cancellable.",
     cancelFailed: "Error while cancelling job. Please retry later or verify external tool settings.",
     autoCompressFailed:
-      "Smart Scan failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
+      "Batch Compress failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
     waitRejected:
       "The backend refused to put this job into wait state. It may have already finished or is not running.",
     waitFailed: "Error while applying the wait operation. Please retry later or verify external tool settings.",

@@ -70,8 +70,13 @@ export type {
   ExternalToolCandidate,
 } from "./tools";
 
-// Smart scan types
-export type { SmartScanConfig, AutoCompressResult, AutoCompressProgress, CompositeSmartScanTask } from "./smart-scan";
+// Batch Compress types
+export type {
+  BatchCompressConfig,
+  AutoCompressResult,
+  AutoCompressProgress,
+  CompositeBatchCompressTask,
+} from "./batch-compress";
 
 // Output policy types
 export type {

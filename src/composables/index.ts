@@ -21,13 +21,13 @@ export type { UseJobProgressOptions, UseJobProgressReturn } from "./useJobProgre
 export { useQueueOperations } from "./useQueueOperations";
 export type { UseQueueOperationsOptions, UseQueueOperationsReturn } from "./useQueueOperations";
 
-export { useSmartScan } from "./useSmartScan";
+export { useBatchCompress } from "./useBatchCompress";
 export type {
-  SmartScanBatchMeta,
-  SmartScanBatchSnapshot,
-  UseSmartScanOptions,
-  UseSmartScanReturn,
-} from "./useSmartScan";
+  BatchCompressBatchMeta,
+  BatchCompressBatchSnapshot,
+  UseBatchCompressOptions,
+  UseBatchCompressReturn,
+} from "./useBatchCompress";
 
 export { usePresetManagement } from "./usePresetManagement";
 export type { UsePresetManagementOptions, UsePresetManagementReturn } from "./usePresetManagement";

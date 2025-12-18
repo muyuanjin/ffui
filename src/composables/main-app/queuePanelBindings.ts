@@ -29,7 +29,7 @@ interface QueuePanelBindingsInput {
   iconGridClass: Ref<string>;
   queueRowVariant: Ref<"detail" | "compact">;
   progressUpdateIntervalMs: Ref<number>;
-  hasSmartScanBatches: Ref<boolean>;
+  hasBatchCompressBatches: Ref<boolean>;
   activeStatusFilters: Ref<Set<QueueFilterStatus>>;
   activeTypeFilters: Ref<Set<QueueFilterKind>>;
   filterText: Ref<string>;
@@ -66,7 +66,7 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     iconGridClass: input.iconGridClass.value,
     queueRowVariant: input.queueRowVariant.value,
     progressUpdateIntervalMs: unref(input.progressUpdateIntervalMs),
-    hasSmartScanBatches: input.hasSmartScanBatches.value,
+    hasBatchCompressBatches: input.hasBatchCompressBatches.value,
     activeStatusFilters: input.activeStatusFilters.value,
     activeTypeFilters: input.activeTypeFilters.value,
     filterText: input.filterText.value,

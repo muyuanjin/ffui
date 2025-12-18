@@ -115,8 +115,8 @@ const typeLabel = computed(() => {
 });
 
 const sourceLabel = computed(() => {
-  if (props.job.source === "smart_scan") {
-    return t("queue.source.smartScan");
+  if (props.job.source === "batch_compress") {
+    return t("queue.source.batchCompress");
   }
   return t("queue.source.manual");
 });
@@ -252,7 +252,7 @@ const lastPreviewPath = ref<string | null>(null);
  * 为队列项计算缩略图路径：
  * - 首选后端提供的 previewPath（通常是预生成的 jpg 预览图或 AVIF 输出）；
  * - 对于图片任务，当 previewPath 为空时，回退到 outputPath 或 inputPath，保证
- *   Smart Scan 图片子任务在“替换原文件”后仍然可以预览最终压缩结果；
+ *   Batch Compress 图片子任务在“替换原文件”后仍然可以预览最终压缩结果；
  * - 视频任务仍然只依赖 previewPath，避免直接用视频文件作为 <img> 源。
  */
 watch(
