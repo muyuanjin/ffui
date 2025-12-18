@@ -6,6 +6,7 @@ import { nextTick } from "vue";
 
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
+import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
@@ -164,6 +165,32 @@ describe("Locale refresh for select trigger labels", () => {
     (i18n.global.locale as any).value = "en";
     await nextTick();
     expect(trigger.text()).toContain("Added time");
+
+    wrapper.unmount();
+  });
+
+  it("updates the taskbar progress mode/scope trigger labels when locale changes", async () => {
+    const i18n = makeI18n();
+    const wrapper = mount(SettingsTaskbarProgressSection, {
+      props: {
+        appSettings: {
+          ...makeAppSettings(),
+          taskbarProgressMode: "byEstimatedTime",
+          taskbarProgressScope: "activeAndQueued",
+        },
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const modeTrigger = wrapper.get('[data-testid="settings-taskbar-progress-mode-trigger"]');
+    const scopeTrigger = wrapper.get('[data-testid="settings-taskbar-progress-scope-trigger"]');
+    expect(modeTrigger.text()).toContain("按预估耗时加权");
+    expect(scopeTrigger.text()).toContain("仅统计进行中/排队/等待的任务");
+
+    (i18n.global.locale as any).value = "en";
+    await nextTick();
+    expect(modeTrigger.text()).toContain("Weight by estimated processing time");
+    expect(scopeTrigger.text()).toContain("Only active/queued/waiting jobs");
 
     wrapper.unmount();
   });

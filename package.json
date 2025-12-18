@@ -21,6 +21,7 @@
     "verify:batch-detail-context-menu": "node tools/docs-screenshots/capture-batch-detail-context-menu-verification.mjs",
     "verify:community-links": "node tools/docs-screenshots/capture-community-links-verification.mjs",
     "verify:preset-open-panel": "node tools/docs-screenshots/capture-preset-open-panel-verification.mjs",
+    "verify:settings-taskbar-progress-locale-refresh": "node tools/docs-screenshots/capture-settings-taskbar-progress-locale-refresh-verification.mjs",
     "tauri": "tauri",
     "tauri:dev": "vite build && tauri dev",
     "build:exe": "npm run tauri -- build --no-bundle",

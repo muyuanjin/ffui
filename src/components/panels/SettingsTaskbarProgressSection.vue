@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,6 +15,16 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const taskbarProgressModeLabelKey = computed(() => {
+  const mode = props.appSettings?.taskbarProgressMode ?? "byEstimatedTime";
+  return `app.taskbarProgressModes.${mode}`;
+});
+
+const taskbarProgressScopeLabelKey = computed(() => {
+  const scope = props.appSettings?.taskbarProgressScope ?? "allJobs";
+  return `app.taskbarProgressScopes.${scope}`;
+});
+
 const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
   if (!props.appSettings) return;
   emit("update:appSettings", { ...props.appSettings, [key]: value });
@@ -21,7 +32,7 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
 </script>
 
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm">
+  <Card class="border-border/50 bg-card/95 shadow-sm" data-testid="settings-taskbar-progress">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.taskbarProgressModeLabel") }}
@@ -32,17 +43,24 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
         :model-value="appSettings.taskbarProgressMode"
         @update:model-value="(v) => updateSetting('taskbarProgressMode', v as AppSettings['taskbarProgressMode'])"
       >
-        <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
-          <SelectValue />
+        <SelectTrigger
+          class="h-7 text-[10px] bg-background/50 border-border/30"
+          data-testid="settings-taskbar-progress-mode-trigger"
+        >
+          <SelectValue>{{ t(taskbarProgressModeLabelKey) }}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="bySize" class="text-[10px]">
+          <SelectItem value="bySize" class="text-[10px]" data-testid="settings-taskbar-progress-mode-by-size">
             {{ t("app.taskbarProgressModes.bySize") }}
           </SelectItem>
-          <SelectItem value="byDuration" class="text-[10px]">
+          <SelectItem value="byDuration" class="text-[10px]" data-testid="settings-taskbar-progress-mode-by-duration">
             {{ t("app.taskbarProgressModes.byDuration") }}
           </SelectItem>
-          <SelectItem value="byEstimatedTime" class="text-[10px]">
+          <SelectItem
+            value="byEstimatedTime"
+            class="text-[10px]"
+            data-testid="settings-taskbar-progress-mode-by-estimated-time"
+          >
             {{ t("app.taskbarProgressModes.byEstimatedTime") }}
           </SelectItem>
         </SelectContent>
@@ -58,14 +76,21 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
           :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
           @update:model-value="(v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])"
         >
-          <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
-            <SelectValue />
+          <SelectTrigger
+            class="h-7 text-[10px] bg-background/50 border-border/30"
+            data-testid="settings-taskbar-progress-scope-trigger"
+          >
+            <SelectValue>{{ t(taskbarProgressScopeLabelKey) }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="allJobs" class="text-[10px]">
+            <SelectItem value="allJobs" class="text-[10px]" data-testid="settings-taskbar-progress-scope-all-jobs">
               {{ t("app.taskbarProgressScopes.allJobs") }}
             </SelectItem>
-            <SelectItem value="activeAndQueued" class="text-[10px]">
+            <SelectItem
+              value="activeAndQueued"
+              class="text-[10px]"
+              data-testid="settings-taskbar-progress-scope-active-and-queued"
+            >
               {{ t("app.taskbarProgressScopes.activeAndQueued") }}
             </SelectItem>
           </SelectContent>

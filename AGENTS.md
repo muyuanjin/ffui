@@ -51,6 +51,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Name Vue components in `PascalCase` (e.g. `TranscodingPanel.vue`), variables and functions in `camelCase`.
 - In Rust, follow `rustfmt` conventions via `cargo fmt`; use `snake_case` for functions and `SCREAMING_SNAKE_CASE` for constants.
 
+## i18n 运行时切换（高频踩坑）
+
+- 任何“下拉/选择器触发器”里的**已选项文本**，不要依赖组件内部缓存；必须在触发器里显式渲染 `t(...)`（例如给 `SelectValue` 提供插槽文本）。
+- 若组件无法显式渲染（或第三方组件强缓存），可用 `:key="locale"` 作为兜底强制重挂载，但要评估是否会丢失局部交互状态。
+- 涉及此类文本的修复必须补齐验证：Vitest 覆盖“切换 locale 后文本立刻更新”，并提供可复用的 Playwright 截图脚本做回归。
+
 ## Testing Guidelines
 
 - Frontend and integration tests are not yet configured; when adding them, prefer colocating tests near code (e.g. `src/components/__tests__`).
