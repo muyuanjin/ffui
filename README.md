@@ -44,6 +44,8 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 
 ![Presets panel (English)](docs/images/preset-en.webp)
 
+![Compare (wipe mode, English)](docs/images/compare-en.webp)
+
 ![Monitor panel (English)](docs/images/monitor-en.webp)
 
 ![Settings panel (English)](docs/images/settings-en.webp)
@@ -276,6 +278,8 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 ![主界面（中文）](docs/images/main-zh-CN.webp)
 
 ![预设面板（中文）](docs/images/preset-zh-CN.webp)
+
+![对比（滑动对比，中文）](docs/images/compare-zh-CN.webp)
 
 ![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
 

@@ -192,6 +192,14 @@ const tmpPublicDir = path.join(repoRoot, "public", "docs-screenshots", "__local_
 
 const SHOTS_MAIN = [
   { tab: "queue", panelTestId: "queue-panel", outBase: "main", readyTestId: "queue-item-card" },
+  {
+    tab: "queue",
+    panelTestId: "queue-panel",
+    outBase: "compare",
+    readyTestId: "queue-item-card",
+    mode: "job-compare-wipe",
+    settleMs: 450,
+  },
   { tab: "presets", panelTestId: "preset-panel", outBase: "preset", readyText: "Universal 1080p" },
 ];
 
@@ -461,13 +469,13 @@ const forceUiAppearance = async (page, options) => {
 };
 
 const waitForLocaleApplied = async (page, locale) => {
-  const expected = locale.value === "en" ? "Queue · Presets · Compare" : "队列 · 预设 · 对比";
+  const expected = locale.value === "en" ? "Transcode Queue" : "任务队列";
   await page.waitForFunction(
     ({ testId, expectedText }) => {
       const el = document.querySelector(`[data-testid="${testId}"]`);
       return (el?.textContent ?? "").trim() === expectedText;
     },
-    { testId: "ffui-sidebar-title", expectedText: expected },
+    { testId: "ffui-sidebar-active-title", expectedText: expected },
   );
 };
 
@@ -572,6 +580,7 @@ const prepareLocalMedia = async (args) => {
   await mkdir(tmpPublicDir, { recursive: true });
 
   const posterUrls = [];
+  const posterPaths = [];
   if (images.length >= 1) {
     const pickedImages = images
       .slice()
@@ -586,6 +595,7 @@ const prepareLocalMedia = async (args) => {
       // eslint-disable-next-line no-await-in-loop
       await copyFile(src, dst);
       posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
+      posterPaths.push(dst);
     }
   } else if (allowVideoThumbs) {
     console.warn(
@@ -641,6 +651,7 @@ const prepareLocalMedia = async (args) => {
         );
       }
       posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
+      posterPaths.push(dst);
     }
   } else {
     throw new Error(
@@ -650,6 +661,56 @@ const prepareLocalMedia = async (args) => {
   }
 
   while (posterUrls.length < 3) posterUrls.push(posterUrls[posterUrls.length - 1]);
+
+  const compareSourcePath = posterPaths[0];
+  if (!compareSourcePath) throw new Error("Missing generated poster for compare screenshots.");
+
+  const compareInputName = "compare-input.jpg";
+  const compareOutputName = "compare-output.jpg";
+  const compareInputPath = path.join(tmpPublicDir, compareInputName);
+  const compareOutputPath = path.join(tmpPublicDir, compareOutputName);
+
+  // Keep docs screenshots fast: derive compare images from a single poster frame
+  // (scaled once, then run a lightweight filter pass for the "output" side).
+  await run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      compareSourcePath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "scale=1280:-1:flags=lanczos",
+      "-q:v",
+      "2",
+      compareInputPath,
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
+
+  await run(
+    "ffmpeg",
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-i",
+      compareInputPath,
+      "-frames:v",
+      "1",
+      "-vf",
+      "hue=s=0,eq=contrast=1.18:brightness=0.05",
+      "-q:v",
+      "2",
+      compareOutputPath,
+    ],
+    { cwd: repoRoot, stdio: "inherit" },
+  );
 
   return {
     envPatch: {
@@ -663,6 +724,8 @@ const prepareLocalMedia = async (args) => {
       VITE_DOCS_SCREENSHOT_POSTER_1: posterUrls[0] ?? "",
       VITE_DOCS_SCREENSHOT_POSTER_2: posterUrls[1] ?? posterUrls[0] ?? "",
       VITE_DOCS_SCREENSHOT_POSTER_3: posterUrls[2] ?? posterUrls[1] ?? posterUrls[0] ?? "",
+      VITE_DOCS_SCREENSHOT_COMPARE_INPUT_FRAME: `/docs-screenshots/__local_tmp/${compareInputName}`,
+      VITE_DOCS_SCREENSHOT_COMPARE_OUTPUT_FRAME: `/docs-screenshots/__local_tmp/${compareOutputName}`,
     },
     cleanup: async () => {
       await rm(tmpPublicDir, { recursive: true, force: true });
@@ -795,6 +858,57 @@ const captureScreenshotsForLocale = async ({
     await page.getByTestId("preset-setup-wizard-preset-card").first().waitFor({ state: "visible", timeout: 30_000 });
   };
 
+  const openJobCompareDialogWipe = async () => {
+    const card = page.getByTestId("queue-item-card").first();
+    await card.waitFor({ state: "visible", timeout: 30_000 });
+    await card.hover();
+
+    const compareBtn = card.getByTestId("queue-item-compare-button");
+    await compareBtn.waitFor({ state: "visible", timeout: 30_000 });
+    await compareBtn.click();
+
+    const viewport = page.getByTestId("job-compare-viewport");
+    await viewport.waitFor({ state: "visible", timeout: 30_000 });
+
+    await page.getByTestId("job-compare-mode-wipe").click();
+    await page.getByTestId("job-compare-wipe-divider").waitFor({ state: "visible", timeout: 30_000 });
+
+    const track = page.getByTestId("job-compare-wipe-handle");
+    await track.waitFor({ state: "visible", timeout: 30_000 });
+    const grip = page.locator('[data-testid="job-compare-wipe-handle"] .cursor-ew-resize > div');
+    await grip.waitFor({ state: "visible", timeout: 30_000 });
+
+    const trackBox = await track.boundingBox();
+    const gripBox = await grip.boundingBox();
+    if (trackBox && gripBox) {
+      const y = Math.round(trackBox.y + trackBox.height / 2);
+      const targetX = Math.round(trackBox.x + trackBox.width * 0.62);
+      await page.mouse.move(Math.round(gripBox.x + gripBox.width / 2), Math.round(gripBox.y + gripBox.height / 2));
+      await page.mouse.down();
+      await page.mouse.move(targetX, y);
+      await page.mouse.up();
+
+      await page.waitForFunction(() => {
+        const divider = document.querySelector('[data-testid="job-compare-wipe-divider"]');
+        const left = divider instanceof HTMLElement ? divider.style.left : "";
+        const n = Number(String(left).replace("%", ""));
+        return Number.isFinite(n) && n > 58 && n < 70;
+      });
+    }
+
+    // Wait for the debounced "high" frame pass so screenshots aren't blurred.
+    await page.waitForFunction(
+      () => {
+        const inImg = document.querySelector('[data-testid="job-compare-transform-wipe-input"] img');
+        const outImg = document.querySelector('[data-testid="job-compare-transform-wipe-output"] img');
+        if (!(inImg instanceof HTMLImageElement) || !(outImg instanceof HTMLImageElement)) return false;
+        return !inImg.style.filter && !outImg.style.filter;
+      },
+      undefined,
+      { timeout: 30_000 },
+    );
+  };
+
   const waitForShotReady = async (shot) => {
     if (shot?.readyTestId) {
       await page.getByTestId(shot.readyTestId).first().waitFor({ state: "visible", timeout: 30_000 });
@@ -819,6 +933,10 @@ const captureScreenshotsForLocale = async ({
       // eslint-disable-next-line no-await-in-loop
       await openPresetSetupWizardToRecommendations();
     }
+    if (shot.mode === "job-compare-wipe") {
+      // eslint-disable-next-line no-await-in-loop
+      await openJobCompareDialogWipe();
+    }
 
     // Let charts/components settle (best-effort).
     const settleMs = Number.isFinite(shot?.settleMs)
@@ -841,6 +959,14 @@ const captureScreenshotsForLocale = async ({
       targetSize: shot.targetSize ?? viewport,
       deviceScaleFactor,
     });
+
+    if (shot.mode === "job-compare-wipe") {
+      // The compare dialog blocks tab navigation; close it before the next shot.
+      // eslint-disable-next-line no-await-in-loop
+      await page.keyboard.press("Escape");
+      // eslint-disable-next-line no-await-in-loop
+      await page.getByTestId("job-compare-viewport").waitFor({ state: "hidden", timeout: 30_000 });
+    }
   }
 
   await context.close();

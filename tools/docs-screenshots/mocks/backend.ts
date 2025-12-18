@@ -76,6 +76,14 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
   return path;
 };
 
+export const buildJobPreviewUrl = (path: string | null | undefined, revision?: number | null): string | null => {
+  if (!path) return null;
+  const r = Number(revision ?? 0);
+  if (!Number.isFinite(r) || r <= 0) return path;
+  const sep = path.includes("?") ? "&" : "?";
+  return `${path}${sep}ffuiPreviewRev=${Math.floor(r)}`;
+};
+
 // Single abstraction for `<video>/<audio>` URLs (kept in sync with src/lib/backend.ts).
 export const buildPlayableMediaUrl = buildPreviewUrl;
 
@@ -96,6 +104,13 @@ export const extractFallbackPreviewFrame = async (_args: {
   return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
 };
 
+const resolveCompareFrameUrl = (side: "input" | "output"): string | null => {
+  const key =
+    side === "input" ? "VITE_DOCS_SCREENSHOT_COMPARE_INPUT_FRAME" : "VITE_DOCS_SCREENSHOT_COMPARE_OUTPUT_FRAME";
+  const v = (readEnv(key) ?? "").trim();
+  return v.length > 0 ? v : null;
+};
+
 export const getJobCompareSources = async (jobId: string): Promise<JobCompareSources | null> => {
   const normalized = String(jobId ?? "").trim();
   if (!normalized) return null;
@@ -103,7 +118,13 @@ export const getJobCompareSources = async (jobId: string): Promise<JobCompareSou
   return {
     jobId: normalized,
     inputPath: "C:/docs-screenshot/input.mp4",
-    output: { kind: "completed", outputPath: "C:/docs-screenshot/output.mp4" },
+    // Force frame-compare mode in docs builds: browsers cannot load local file
+    // paths as <video> sources, and we want the compare "wipe" UI for README.
+    output: {
+      kind: "partial",
+      activeSegmentPath: null,
+      segmentPaths: ["C:/docs-screenshot/output-part-1.mp4", "C:/docs-screenshot/output-part-2.mp4"],
+    },
     maxCompareSeconds: 60,
   };
 };
@@ -115,7 +136,8 @@ export const extractJobCompareFrame = async (_args: {
   durationSeconds?: number | null;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+  const url = resolveCompareFrameUrl("input");
+  return url ?? `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
 };
 
 export const extractJobCompareConcatFrame = async (_args: {
@@ -124,7 +146,8 @@ export const extractJobCompareConcatFrame = async (_args: {
   positionSeconds: number;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+  const url = resolveCompareFrameUrl("output");
+  return url ?? `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
 };
 
 export const cleanupFallbackPreviewFramesAsync = async (): Promise<boolean> => {
