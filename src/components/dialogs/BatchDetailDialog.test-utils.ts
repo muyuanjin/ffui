@@ -25,15 +25,7 @@ export const QueueItemStub = defineComponent({
     "progressStyle",
     "progressUpdateIntervalMs",
   ],
-  emits: [
-    "cancel",
-    "wait",
-    "resume",
-    "restart",
-    "inspect",
-    "preview",
-    "contextmenu-job",
-  ],
+  emits: ["cancel", "wait", "resume", "restart", "inspect", "preview", "contextmenu-job"],
   setup(props, { emit }) {
     const onContextMenu = (event: MouseEvent) => {
       emit("contextmenu-job", { job: props.job, event });

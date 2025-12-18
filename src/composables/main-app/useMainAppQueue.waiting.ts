@@ -5,12 +5,7 @@ export function isWaitingStatus(status: TranscodeJob["status"]) {
 }
 
 export function isTerminalStatus(status: TranscodeJob["status"]) {
-  return (
-    status === "completed" ||
-    status === "failed" ||
-    status === "skipped" ||
-    status === "cancelled"
-  );
+  return status === "completed" || status === "failed" || status === "skipped" || status === "cancelled";
 }
 
 export function compareJobsInWaitingGroup(
@@ -31,4 +26,3 @@ export function compareJobsInWaitingGroup(
 
   return a.id.localeCompare(b.id);
 }
-

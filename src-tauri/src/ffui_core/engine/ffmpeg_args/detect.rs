@@ -1,12 +1,17 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, Result};
-
-use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
+use anyhow::{
+    Context,
+    Result,
+};
 
 use super::configure_background_command;
+use crate::ffui_core::settings::AppSettings;
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 pub(crate) fn detect_duration_seconds(path: &Path, settings: &AppSettings) -> Result<f64> {
     let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;

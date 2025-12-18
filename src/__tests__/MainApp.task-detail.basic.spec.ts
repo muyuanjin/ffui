@@ -29,23 +29,21 @@ vi.mock("@/lib/backend", async () => {
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
-    loadAppSettings: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadSmartDefaultPresets: vi.fn(async () => []),
     loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -102,9 +100,7 @@ describe("MainApp task detail surface - basics", () => {
 
     await nextTick();
 
-    const outputPathEl = document.querySelector(
-      "[data-testid='task-detail-output-path']",
-    ) as HTMLElement | null;
+    const outputPathEl = document.querySelector("[data-testid='task-detail-output-path']") as HTMLElement | null;
 
     expect(outputPathEl).toBeTruthy();
     expect(outputPathEl?.textContent).toContain("C:/images/sample.avif");
@@ -147,15 +143,11 @@ describe("MainApp task detail surface - basics", () => {
 
     await nextTick();
 
-    const commandEl = document.querySelector(
-      "[data-testid='task-detail-command']",
-    ) as HTMLElement | null;
+    const commandEl = document.querySelector("[data-testid='task-detail-command']") as HTMLElement | null;
     expect(commandEl).toBeTruthy();
     expect(commandEl?.textContent || "").toContain("avifenc");
 
-    const logContainer = document.querySelector(
-      "[data-testid='task-detail-log']",
-    ) as HTMLElement | null;
+    const logContainer = document.querySelector("[data-testid='task-detail-log']") as HTMLElement | null;
     expect(logContainer).toBeTruthy();
     expect(logContainer?.textContent || "").toContain("avifenc");
 
@@ -179,8 +171,7 @@ describe("MainApp task detail surface - basics", () => {
       logs: [],
       inputPath: "C:/videos/sample.mp4",
       outputPath: "C:/videos/sample.compressed.mp4",
-      ffmpegCommand:
-        'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
+      ffmpegCommand: 'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
       mediaInfo: {
         durationSeconds: 120,
         width: 1920,
@@ -210,9 +201,7 @@ describe("MainApp task detail surface - basics", () => {
     expect(text).toContain("ffmpeg -i");
     expect(text).toContain("Universal 1080p");
 
-    const titleEl = document.querySelector(
-      "[data-testid='task-detail-title']",
-    ) as HTMLElement | null;
+    const titleEl = document.querySelector("[data-testid='task-detail-title']") as HTMLElement | null;
     expect(titleEl?.textContent?.trim()).toBe("sample.mp4");
   });
 
@@ -253,16 +242,13 @@ describe("MainApp task detail surface - basics", () => {
       vm.selectedJobForDetail && "value" in vm.selectedJobForDetail
         ? vm.selectedJobForDetail.value
         : vm.selectedJobForDetail;
-    const expectedSeconds =
-      selectedJob?.elapsedMs != null ? (selectedJob.elapsedMs / 1000).toFixed(1) : null;
+    const expectedSeconds = selectedJob?.elapsedMs != null ? (selectedJob.elapsedMs / 1000).toFixed(1) : null;
     const fallbackSeconds =
       selectedJob?.startTime && selectedJob?.endTime
         ? ((selectedJob.endTime - selectedJob.startTime) / 1000).toFixed(1)
         : null;
 
-    const processingEls = document.querySelectorAll(
-      "[data-testid='task-detail-processing-time']",
-    );
+    const processingEls = document.querySelectorAll("[data-testid='task-detail-processing-time']");
     const processingEl = processingEls[processingEls.length - 1] as HTMLElement | undefined;
     expect(processingEl).toBeTruthy();
     const text = processingEl?.textContent || "";
@@ -336,9 +322,7 @@ describe("MainApp task detail surface - basics", () => {
 
     await nextTick();
 
-    const logContainer = document.querySelector(
-      "[data-testid='task-detail-log']",
-    ) as HTMLElement | null;
+    const logContainer = document.querySelector("[data-testid='task-detail-log']") as HTMLElement | null;
     expect(logContainer).toBeTruthy();
     // 滚动性由内部内容区域负责，这里只断言日志容器存在
   });
@@ -392,9 +376,7 @@ describe("MainApp task detail surface - basics", () => {
     } as any;
 
     const getButtonsWithText = (substr: string) =>
-      Array.from(document.querySelectorAll("button")).filter((btn) =>
-        (btn.textContent || "").includes(substr),
-      );
+      Array.from(document.querySelectorAll("button")).filter((btn) => (btn.textContent || "").includes(substr));
 
     // Record baseline counts before mounting this MainApp instance to avoid
     // interference from other tests sharing the same jsdom document.

@@ -175,4 +175,3 @@ describe("presetSorter.sortPresets", () => {
     expect(ids).toEqual(["strong", "medium", "weak", "no-stats"]);
   });
 });
-

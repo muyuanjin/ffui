@@ -1,6 +1,11 @@
-use super::*;
-use filetime::{FileTime, set_file_mtime};
 use std::time::Duration;
+
+use filetime::{
+    FileTime,
+    set_file_mtime,
+};
+
+use super::*;
 
 #[test]
 fn clamp_seek_seconds_never_exceeds_duration() {

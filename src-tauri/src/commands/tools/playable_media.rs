@@ -1,8 +1,7 @@
 #[cfg(windows)]
-use std::path::PathBuf;
-
-#[cfg(windows)]
 use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
 
 /// Given an ordered list of candidate media paths, return the first one that
 /// currently exists as a regular file on disk.
@@ -10,8 +9,8 @@ use std::path::Path;
 /// The frontend uses this to make preview/video playback more robust when
 /// users delete or rename original/transcoded files after a job has finished:
 /// - Completed jobs normally prefer the final output path.
-/// - When the output file was deleted but the original input still exists,
-///   this helper automatically falls back to the input file.
+/// - When the output file was deleted but the original input still exists, this helper
+///   automatically falls back to the input file.
 /// - For in‑flight jobs we can prefer temporary outputs when present.
 #[tauri::command]
 pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String> {

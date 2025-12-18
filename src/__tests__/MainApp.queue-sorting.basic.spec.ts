@@ -49,9 +49,42 @@ describe("MainApp queue sorting basics", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-b", filename: "C:/videos/beta.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
-      { id: "job-a", filename: "C:/videos/alpha.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
-      { id: "job-c", filename: "C:/videos/charlie.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
+      {
+        id: "job-b",
+        filename: "C:/videos/beta.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+      {
+        id: "job-a",
+        filename: "C:/videos/alpha.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+      {
+        id: "job-c",
+        filename: "C:/videos/charlie.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
     ];
 
     setJobs(vm, jobs);
@@ -78,9 +111,45 @@ describe("MainApp queue sorting basics", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "queue";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-1", filename: "C:/videos/beta.mp4", queueOrder: 2, type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] } as any,
-      { id: "job-2", filename: "C:/videos/alpha.mp4", queueOrder: 1, type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] } as any,
-      { id: "job-3", filename: "C:/videos/charlie.mp4", queueOrder: 3, type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] } as any,
+      {
+        id: "job-1",
+        filename: "C:/videos/beta.mp4",
+        queueOrder: 2,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
+      {
+        id: "job-2",
+        filename: "C:/videos/alpha.mp4",
+        queueOrder: 1,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
+      {
+        id: "job-3",
+        filename: "C:/videos/charlie.mp4",
+        queueOrder: 3,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      } as any,
     ];
 
     setJobs(vm, jobs);
@@ -102,9 +171,51 @@ describe("MainApp queue sorting basics", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-1", filename: "C:/videos/a.mp4", type: "video", source: "manual", originalSizeMB: 20, originalCodec: "h264", presetId: "p1", status: "completed", progress: 100, durationSeconds: 100, modifiedTime: 1, createdTime: 10, logs: [] } as any,
-      { id: "job-2", filename: "C:/videos/b.mp4", type: "video", source: "manual", originalSizeMB: 15, originalCodec: "h264", presetId: "p1", status: "completed", progress: 100, durationSeconds: 80, modifiedTime: 2, createdTime: 5, logs: [] } as any,
-      { id: "job-3", filename: "C:/videos/c.mp4", type: "video", source: "manual", originalSizeMB: 15, originalCodec: "h264", presetId: "p1", status: "completed", progress: 100, durationSeconds: 80, modifiedTime: 3, createdTime: 7, logs: [] } as any,
+      {
+        id: "job-1",
+        filename: "C:/videos/a.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 20,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "completed",
+        progress: 100,
+        durationSeconds: 100,
+        modifiedTime: 1,
+        createdTime: 10,
+        logs: [],
+      } as any,
+      {
+        id: "job-2",
+        filename: "C:/videos/b.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 15,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "completed",
+        progress: 100,
+        durationSeconds: 80,
+        modifiedTime: 2,
+        createdTime: 5,
+        logs: [],
+      } as any,
+      {
+        id: "job-3",
+        filename: "C:/videos/c.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 15,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "completed",
+        progress: 100,
+        durationSeconds: 80,
+        modifiedTime: 3,
+        createdTime: 7,
+        logs: [],
+      } as any,
     ];
 
     setJobs(vm, jobs);

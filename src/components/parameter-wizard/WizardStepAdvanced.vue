@@ -5,27 +5,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { AudioConfig, FilterConfig, VideoConfig } from "@/types";
 
-const {
-  video,
-  audio,
-  filters,
-  advancedEnabled,
-  ffmpegTemplate,
-  highlightedCommandHtml,
-  parseHint,
-  parseHintClass,
-  t,
-} = defineProps<{
-  video: VideoConfig;
-  audio: AudioConfig;
-  filters: FilterConfig;
-  advancedEnabled: boolean;
-  ffmpegTemplate: string;
-  highlightedCommandHtml: string;
-  parseHint: string | null;
-  parseHintClass: string;
-  t: (key: string, params?: any) => string | unknown;
-}>();
+const { video, audio, filters, advancedEnabled, ffmpegTemplate, highlightedCommandHtml, parseHint, parseHintClass, t } =
+  defineProps<{
+    video: VideoConfig;
+    audio: AudioConfig;
+    filters: FilterConfig;
+    advancedEnabled: boolean;
+    ffmpegTemplate: string;
+    highlightedCommandHtml: string;
+    parseHint: string | null;
+    parseHintClass: string;
+    t: (key: string, params?: any) => string | unknown;
+  }>();
 
 const emit = defineEmits<{
   (e: "update-advanced-enabled", value: boolean): void;
@@ -58,18 +49,14 @@ const emit = defineEmits<{
             <span v-if="audio.codec === 'copy'">
               {{ t("presets.audioCopy") }}
             </span>
-            <span v-else>
-              AAC {{ audio.bitrate ?? 0 }}k
-            </span>
+            <span v-else> AAC {{ audio.bitrate ?? 0 }}k </span>
           </div>
         </div>
         <div v-if="filters.scale">
           <div class="text-[10px] text-muted-foreground uppercase mb-1">
             {{ t("presetEditor.filters.title") }}
           </div>
-          <div class="font-mono text-foreground">
-            scale={{ filters.scale }}
-          </div>
+          <div class="font-mono text-foreground">scale={{ filters.scale }}</div>
         </div>
       </div>
     </div>

@@ -10,4 +10,3 @@ const props = defineProps<HoverCardTriggerProps>();
     <slot />
   </HoverCardTrigger>
 </template>
-

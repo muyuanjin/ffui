@@ -51,13 +51,7 @@ const segments = computed(() => {
           :data-hour="seg.hour"
         />
       </g>
-      <text
-        class="heatmap-ring__label"
-        x="60"
-        y="60"
-        text-anchor="middle"
-        dominant-baseline="middle"
-      >
+      <text class="heatmap-ring__label" x="60" y="60" text-anchor="middle" dominant-baseline="middle">
         {{ uptimeLabel }}
       </text>
     </svg>
@@ -95,4 +89,3 @@ const segments = computed(() => {
   fill: #ffaa00;
 }
 </style>
-

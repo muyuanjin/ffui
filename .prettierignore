@@ -1,0 +1,6 @@
+dist
+node_modules
+src-tauri/target
+src-tauri/target-codex-test
+src-tauri/gen
+perf-traces.local

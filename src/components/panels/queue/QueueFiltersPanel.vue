@@ -25,14 +25,14 @@ const { t } = useI18n();
 
 // 状态筛选选项
 const statusOptions: QueueFilterStatus[] = [
-  'processing',
-  'waiting',
-  'queued',
-  'paused',
-  'completed',
-  'failed',
-  'cancelled',
-  'skipped',
+  "processing",
+  "waiting",
+  "queued",
+  "paused",
+  "completed",
+  "failed",
+  "cancelled",
+  "skipped",
 ];
 </script>
 
@@ -168,4 +168,3 @@ const statusOptions: QueueFilterStatus[] = [
   opacity: 0;
 }
 </style>
-

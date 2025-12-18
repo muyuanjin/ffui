@@ -18,4 +18,3 @@ describe("uiFonts (non-tauri)", () => {
     await expect(startOpenSourceFontDownload("inter")).resolves.toBeNull();
   });
 });
-

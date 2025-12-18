@@ -81,7 +81,7 @@ describe("MainApp Tauri manual job flow", () => {
     await nextTick();
     vm.manualJobPresetId = "p2";
 
-    const initialJobs = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const initialJobs = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(initialJobs.length).toBe(0);
 
     await vm.addManualJob("files");
@@ -92,7 +92,7 @@ describe("MainApp Tauri manual job flow", () => {
       await nextTick();
     }
 
-    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsAfter.length).toBe(1);
     expect(jobsAfter[0].filename).toBe(selectedPath);
 
@@ -288,14 +288,14 @@ describe("MainApp Tauri manual job flow", () => {
     }
     await nextTick();
 
-    const jobsBefore = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsBefore = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsBefore.length).toBe(1);
     expect(jobsBefore[0].status).toBe("processing");
 
     await vm.handleCancelJob(jobId);
     await nextTick();
 
-    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsAfter.length).toBe(1);
     const jobAfter = jobsAfter[0];
     expect(jobAfter.status).toBe("cancelled");

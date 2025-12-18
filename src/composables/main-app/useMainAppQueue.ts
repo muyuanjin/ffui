@@ -8,24 +8,11 @@ import type {
   TranscodeJob,
 } from "@/types";
 import { useQueuePreferences } from "@/lib/queuePreferences";
-import {
-  type QueueListItem,
-  useQueueFiltering,
-  useQueueOperations,
-  type UseQueueFilteringReturn,
-} from "@/composables";
+import { type QueueListItem, useQueueFiltering, useQueueOperations, type UseQueueFilteringReturn } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
-import {
-  ensureManualPresetId,
-  getQueueIconGridClass,
-  ICON_VIEW_MAX_VISIBLE_ITEMS,
-} from "./useMainAppQueue.ui";
-import {
-  compareJobsInWaitingGroup,
-  isTerminalStatus,
-  isWaitingStatus,
-} from "./useMainAppQueue.waiting";
+import { ensureManualPresetId, getQueueIconGridClass, ICON_VIEW_MAX_VISIBLE_ITEMS } from "./useMainAppQueue.ui";
+import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./useMainAppQueue.waiting";
 
 export { getQueueIconGridClass } from "./useMainAppQueue.ui";
 
@@ -43,34 +30,33 @@ export interface UseMainAppQueueOptions {
   startupIdleReady?: Ref<boolean>;
 }
 
-export interface UseMainAppQueueReturn
-  extends Pick<
-    UseQueueFilteringReturn,
-    | "selectedJobIds"
-    | "activeStatusFilters"
-    | "activeTypeFilters"
-    | "filterText"
-    | "filterUseRegex"
-    | "filterRegexError"
-    | "sortPrimary"
-    | "sortPrimaryDirection"
-    | "sortSecondary"
-    | "sortSecondaryDirection"
-    | "filteredJobs"
-    | "hasActiveFilters"
-    | "hasSelection"
-    | "queueModeProcessingJobs"
-    | "queueModeWaitingJobs"
-    | "selectAllVisibleJobs"
-    | "invertSelection"
-    | "clearSelection"
-    | "toggleStatusFilter"
-    | "toggleTypeFilter"
-    | "resetQueueFilters"
-    | "toggleFilterRegexMode"
-    | "toggleJobSelected"
-    | "compareJobsForDisplay"
-  > {
+export interface UseMainAppQueueReturn extends Pick<
+  UseQueueFilteringReturn,
+  | "selectedJobIds"
+  | "activeStatusFilters"
+  | "activeTypeFilters"
+  | "filterText"
+  | "filterUseRegex"
+  | "filterRegexError"
+  | "sortPrimary"
+  | "sortPrimaryDirection"
+  | "sortSecondary"
+  | "sortSecondaryDirection"
+  | "filteredJobs"
+  | "hasActiveFilters"
+  | "hasSelection"
+  | "queueModeProcessingJobs"
+  | "queueModeWaitingJobs"
+  | "selectAllVisibleJobs"
+  | "invertSelection"
+  | "clearSelection"
+  | "toggleStatusFilter"
+  | "toggleTypeFilter"
+  | "resetQueueFilters"
+  | "toggleFilterRegexMode"
+  | "toggleJobSelected"
+  | "compareJobsForDisplay"
+> {
   queueViewMode: Ref<QueueViewMode>;
   queueProgressStyle: Ref<QueueProgressStyle>;
   queueMode: Ref<QueueMode>;
@@ -137,14 +123,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = options;
 
   // Queue view preferences
-  const {
-    queueViewMode,
-    queueProgressStyle,
-    queueMode,
-    setQueueViewMode,
-    setQueueProgressStyle,
-    setQueueMode,
-  } = useQueuePreferences();
+  const { queueViewMode, queueProgressStyle, queueMode, setQueueViewMode, setQueueProgressStyle, setQueueMode } =
+    useQueuePreferences();
 
   const queueViewModeModel = computed<QueueViewMode>({
     get: () => queueViewMode.value,
@@ -191,9 +171,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   });
 
   ensureManualPresetId(presets.value, manualJobPresetId);
-  const smartScanJobs = computed<TranscodeJob[]>(() =>
-    jobs.value.filter((job) => job.source === "smart_scan"),
-  );
+  const smartScanJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "smart_scan"));
 
   // UI-only: track jobs that have requested "wait/pause" but remain in
   // processing state until the backend reaches a safe point and marks them paused.
@@ -365,9 +343,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     return items;
   });
 
-  const iconViewItems = computed<QueueListItem[]>(() =>
-    visibleQueueItems.value.slice(0, ICON_VIEW_MAX_VISIBLE_ITEMS),
-  );
+  const iconViewItems = computed<QueueListItem[]>(() => visibleQueueItems.value.slice(0, ICON_VIEW_MAX_VISIBLE_ITEMS));
 
   const queueJobsForDisplay = computed<TranscodeJob[]>(() =>
     queueMode.value === "queue" ? manualQueueJobs.value : displayModeSortedJobs.value,
@@ -380,9 +356,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
       const waiting = queueModeWaitingJobs.value;
       const waitingIds = new Set(waiting.map((j) => j.id));
       const processingIds = new Set(processing.map((j) => j.id));
-      const others = manualQueueJobs.value.filter(
-        (job) => !waitingIds.has(job.id) && !processingIds.has(job.id),
-      );
+      const others = manualQueueJobs.value.filter((job) => !waitingIds.has(job.id) && !processingIds.has(job.id));
       return [...processing, ...waiting, ...others];
     }
     return displayModeSortedJobs.value;

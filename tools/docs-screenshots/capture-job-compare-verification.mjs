@@ -129,11 +129,15 @@ const withDevServer = async (fn, options = {}) => {
     VITE_STARTUP_IDLE_TIMEOUT_MS: "0",
   };
 
-  const server = spawn(process.execPath, [viteBin, "--config", configPath, "--host", "127.0.0.1", "--port", String(port), "--strictPort"], {
-    cwd: repoRoot,
-    env,
-    stdio: "inherit",
-  });
+  const server = spawn(
+    process.execPath,
+    [viteBin, "--config", configPath, "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
+    {
+      cwd: repoRoot,
+      env,
+      stdio: "inherit",
+    },
+  );
 
   try {
     await waitForHttpOk(baseUrl, 30_000);
@@ -196,4 +200,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-

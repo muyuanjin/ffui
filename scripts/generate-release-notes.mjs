@@ -8,9 +8,7 @@ function runGit(args) {
 function usageAndExit() {
   // Keep output concise; this tool is primarily used in CI.
   // eslint-disable-next-line no-console
-  console.error(
-    "Usage: node scripts/generate-release-notes.mjs <currentTag> [previousTag] [--format=bilingual|plain]"
-  );
+  console.error("Usage: node scripts/generate-release-notes.mjs <currentTag> [previousTag] [--format=bilingual|plain]");
   process.exit(2);
 }
 
@@ -99,35 +97,20 @@ function zhSectionForEn(enSection) {
 function buildNotesPlain({ repo, currentTag, previousTag, subjects }) {
   const groups = groupSubjects(subjects);
 
-  const orderedSections = [
-    "Features",
-    "Fixes",
-    "Performance",
-    "Refactors",
-    "Docs",
-    "Tests",
-    "CI",
-    "Chores",
-    "Other",
-  ];
+  const orderedSections = ["Features", "Fixes", "Performance", "Refactors", "Docs", "Tests", "CI", "Chores", "Other"];
 
   const lines = [];
   lines.push(`# FFUI ${currentTag}`);
   lines.push("");
 
-  const compareUrl =
-    previousTag && repo
-      ? `https://github.com/${repo}/compare/${previousTag}...${currentTag}`
-      : "";
+  const compareUrl = previousTag && repo ? `https://github.com/${repo}/compare/${previousTag}...${currentTag}` : "";
 
   if (compareUrl) {
     lines.push(`Full Changelog: ${compareUrl}`);
     lines.push("");
   }
 
-  lines.push(
-    ...renderGroupedSections(groups, orderedSections, (s) => s, "##")
-  );
+  lines.push(...renderGroupedSections(groups, orderedSections, (s) => s, "##"));
 
   // Trim trailing blank lines for clean Action output.
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
@@ -135,23 +118,10 @@ function buildNotesPlain({ repo, currentTag, previousTag, subjects }) {
 }
 
 function buildNotesBilingual({ repo, currentTag, previousTag, subjects }) {
-  const compareUrl =
-    previousTag && repo
-      ? `https://github.com/${repo}/compare/${previousTag}...${currentTag}`
-      : "";
+  const compareUrl = previousTag && repo ? `https://github.com/${repo}/compare/${previousTag}...${currentTag}` : "";
 
   const groups = groupSubjects(subjects);
-  const orderedSections = [
-    "Features",
-    "Fixes",
-    "Performance",
-    "Refactors",
-    "Docs",
-    "Tests",
-    "CI",
-    "Chores",
-    "Other",
-  ];
+  const orderedSections = ["Features", "Fixes", "Performance", "Refactors", "Docs", "Tests", "CI", "Chores", "Other"];
 
   const lines = [];
   lines.push(`# FFUI ${currentTag}`);
@@ -166,9 +136,7 @@ function buildNotesBilingual({ repo, currentTag, previousTag, subjects }) {
   lines.push("");
   lines.push("<!-- Replace this draft with user-facing release notes. -->");
   lines.push("");
-  lines.push(
-    ...renderGroupedSections(groups, orderedSections, (s) => s, "###")
-  );
+  lines.push(...renderGroupedSections(groups, orderedSections, (s) => s, "###"));
   lines.push("");
 
   lines.push("## 中文");
@@ -176,9 +144,7 @@ function buildNotesBilingual({ repo, currentTag, previousTag, subjects }) {
   lines.push("<!-- 请将下方草稿改写为面向用户的发布说明（与英文内容一致）。 -->");
   lines.push("");
 
-  lines.push(
-    ...renderGroupedSections(groups, orderedSections, zhSectionForEn, "###")
-  );
+  lines.push(...renderGroupedSections(groups, orderedSections, zhSectionForEn, "###"));
 
   while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
   return lines.join("\n");

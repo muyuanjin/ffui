@@ -1,12 +1,6 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  SmartScanConfig,
-  TranscodeJob,
-} from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, SmartScanConfig, TranscodeJob } from "@/types";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
 
@@ -26,14 +20,9 @@ export interface UseMainAppSettingsReturn {
   toolStatusesFresh: ReturnType<typeof useAppSettings>["toolStatusesFresh"];
   ensureAppSettingsLoaded: () => Promise<void>;
   scheduleSaveSettings: () => void;
-  refreshToolStatuses: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-  }) => Promise<void>;
+  refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
   downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
-  fetchToolCandidates: (
-    kind: ExternalToolKind,
-  ) => Promise<ExternalToolCandidate[]>;
+  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   progressUpdateIntervalMs: ReturnType<typeof useJobProgress>["progressUpdateIntervalMs"];
   globalTaskbarProgressPercent: ReturnType<typeof useJobProgress>["globalTaskbarProgressPercent"];
   headerProgressPercent: ReturnType<typeof useJobProgress>["headerProgressPercent"];
@@ -48,9 +37,7 @@ export interface UseMainAppSettingsReturn {
  * - Delegates aggregate progress/header animation to useJobProgress.
  * - Keeps AppSettings.defaultQueuePresetId in sync with manualJobPresetId.
  */
-export function useMainAppSettings(
-  options: UseMainAppSettingsOptions,
-): UseMainAppSettingsReturn {
+export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainAppSettingsReturn {
   const { jobs, manualJobPresetId, smartConfig, startupIdleReady } = options;
 
   const { t } = useI18n();

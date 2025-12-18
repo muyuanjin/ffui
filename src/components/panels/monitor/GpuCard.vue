@@ -26,11 +26,8 @@ const gpuTemp = computed(() => Math.floor(Math.random() * 30 + 50));
 <template>
   <div class="gpu-card">
     <div class="gpu-header">
-      <span class="gpu-title">{{ t('monitor.gpuStatus') }}</span>
-      <span
-        class="status-indicator"
-        :class="{ active: gpu?.available }"
-      ></span>
+      <span class="gpu-title">{{ t("monitor.gpuStatus") }}</span>
+      <span class="status-indicator" :class="{ active: gpu?.available }"></span>
     </div>
     <VChart
       class="gpu-chart"
@@ -40,19 +37,15 @@ const gpuTemp = computed(() => Math.floor(Math.random() * 30 + 50));
     />
     <div class="gpu-stats">
       <div class="stat">
-        <span class="stat-label">{{ t('monitor.gpuCore') }}</span>
-        <span class="stat-value">
-          {{ gpuUsage.toFixed(1) }}%
-        </span>
+        <span class="stat-label">{{ t("monitor.gpuCore") }}</span>
+        <span class="stat-value"> {{ gpuUsage.toFixed(1) }}% </span>
       </div>
       <div class="stat">
-        <span class="stat-label">{{ t('monitor.gpuVram') }}</span>
-        <span class="stat-value">
-          {{ gpuMemory.toFixed(1) }}%
-        </span>
+        <span class="stat-label">{{ t("monitor.gpuVram") }}</span>
+        <span class="stat-value"> {{ gpuMemory.toFixed(1) }}% </span>
       </div>
       <div class="stat">
-        <span class="stat-label">{{ t('monitor.gpuTemp') }}</span>
+        <span class="stat-label">{{ t("monitor.gpuTemp") }}</span>
         <span class="stat-value">{{ gpuTemp }}°C</span>
       </div>
     </div>
@@ -101,8 +94,13 @@ const gpuTemp = computed(() => Math.floor(Math.random() * 30 + 50));
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .gpu-chart {

@@ -1,11 +1,4 @@
-export type CommandTokenKind =
-  | "program"
-  | "option"
-  | "path"
-  | "encoder"
-  | "placeholder"
-  | "other"
-  | "whitespace";
+export type CommandTokenKind = "program" | "option" | "path" | "encoder" | "placeholder" | "other" | "whitespace";
 
 export interface CommandToken {
   text: string;
@@ -24,8 +17,7 @@ export const escapeHtml = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const stripQuotes = (value: string): string =>
-  value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
+const stripQuotes = (value: string): string => value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
 
 const classifyCommandToken = (segment: string, index: number): CommandTokenKind => {
   if (!segment.trim()) return "whitespace";
@@ -66,9 +58,7 @@ const classifyCommandToken = (segment: string, index: number): CommandTokenKind 
   return "other";
 };
 
-export const tokenizeFfmpegCommand = (
-  command: string | undefined | null,
-): CommandToken[] => {
+export const tokenizeFfmpegCommand = (command: string | undefined | null): CommandToken[] => {
   const raw = command ?? "";
   if (!raw) return [];
 

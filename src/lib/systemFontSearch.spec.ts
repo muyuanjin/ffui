@@ -27,4 +27,3 @@ describe("systemFontSearch", () => {
     ).toBe("Example Primary");
   });
 });
-

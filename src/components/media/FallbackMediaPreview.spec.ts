@@ -148,5 +148,4 @@ describe("FallbackMediaPreview", () => {
     wrapper.unmount();
     vi.useRealTimers();
   });
-
 });

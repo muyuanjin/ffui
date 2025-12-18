@@ -10,9 +10,7 @@ import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
-const focusListenMock = vi.fn<
-  (event: string, handler: () => void) => Promise<() => void>
->();
+const focusListenMock = vi.fn<(event: string, handler: () => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/window", () => {
   return {
@@ -21,8 +19,7 @@ vi.mock("@tauri-apps/api/window", () => {
       minimize: vi.fn(async () => {}),
       toggleMaximize: vi.fn(async () => {}),
       close: vi.fn(async () => {}),
-      listen: (...args: Parameters<typeof focusListenMock>) =>
-        focusListenMock(...args),
+      listen: (...args: Parameters<typeof focusListenMock>) => focusListenMock(...args),
     }),
   };
 });
@@ -81,11 +78,9 @@ vi.mock("@/lib/backend", async () => {
     saveAppSettings: vi.fn(async (settings: any) => settings),
     savePresetOnBackend: vi.fn(async (preset: any) => [preset]),
     deletePresetOnBackend: vi.fn(async () => []),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -108,14 +103,12 @@ describe("MainApp taskbar progress acknowledgement", () => {
   it("registers a focus listener and calls acknowledgeTaskbarProgress on tauri://focus", async () => {
     let focusHandler: (() => void) | null = null;
 
-    focusListenMock.mockImplementation(
-      async (event: string, handler: () => void) => {
-        if (event === "tauri://focus") {
-          focusHandler = handler;
-        }
-        return () => {};
-      },
-    );
+    focusListenMock.mockImplementation(async (event: string, handler: () => void) => {
+      if (event === "tauri://focus") {
+        focusHandler = handler;
+      }
+      return () => {};
+    });
 
     const wrapper = mount(MainApp, {
       global: {

@@ -6,24 +6,18 @@ import { i18n, basePreset, makeJob } from "./queueItemDisplayTestUtils";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
 vi.mock("@/lib/ffmpegCommand", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
-    "@/lib/ffmpegCommand",
-  );
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>("@/lib/ffmpegCommand");
   return {
     ...actual,
     highlightFfmpegCommand: (command: string) => command,
@@ -89,7 +83,7 @@ describe("QueueItem display basics", () => {
       ffmpegCommand:
         'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy "C:/videos/sample.compressed.mp4"',
       logs: [
-        "command: ffmpeg -i \"C:/videos/sample.mp4\" -c:v libx264 -crf 23 -preset medium -c:a copy \"C:/videos/sample.compressed.mp4\"",
+        'command: ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 -preset medium -c:a copy "C:/videos/sample.compressed.mp4"',
         "ffmpeg exited with non-zero status (exit code -22)",
       ],
     });
@@ -246,15 +240,7 @@ describe("QueueItem display basics", () => {
   });
 
   it("renders localized status text and visual style for common job statuses", () => {
-    const statuses = [
-      "processing",
-      "completed",
-      "paused",
-      "waiting",
-      "failed",
-      "skipped",
-      "cancelled",
-    ] as const;
+    const statuses = ["processing", "completed", "paused", "waiting", "failed", "skipped", "cancelled"] as const;
 
     const expectedClassByStatus = {
       completed: "text-emerald-500",
@@ -293,8 +279,7 @@ describe("QueueItem display basics", () => {
   });
 
   it("truncates long filenames while keeping the full path in the title attribute", () => {
-    const longPath =
-      "C:/a/very/long/path/with/many/segments/and spaces/ultra-long-file-name-with-details.mp4";
+    const longPath = "C:/a/very/long/path/with/many/segments/and spaces/ultra-long-file-name-with-details.mp4";
     const job = makeJob({ filename: longPath });
 
     const wrapper = mount(QueueItem, {

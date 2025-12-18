@@ -31,15 +31,9 @@ export const isAdvancedPreset = (preset: FFmpegPreset, resolvedDescription: stri
   if (encoder.includes("qsv") || encoder.includes("amf")) return true;
   if (encoder.includes("libsvtav1")) return true;
   if (rc === "constqp" && q <= 22) return true;
-  if (
-    text.includes("无损") ||
-    text.includes("visually") ||
-    text.includes("实验") ||
-    text.includes("experimental")
-  ) {
+  if (text.includes("无损") || text.includes("visually") || text.includes("实验") || text.includes("experimental")) {
     return true;
   }
 
   return false;
 };
-

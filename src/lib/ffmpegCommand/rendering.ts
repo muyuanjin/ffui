@@ -16,8 +16,7 @@ export const escapeHtml = (value: string): string =>
 /**
  * Strip leading and trailing quotes from a string
  */
-const stripQuotes = (value: string): string =>
-  value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
+const stripQuotes = (value: string): string => value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
 
 /**
  * Re-wrap a replacement value with the same quote style (single/double) as
@@ -129,20 +128,17 @@ const applyProgramOverride = (
   const isFfmpeg = base === "ffmpeg" || base === "ffmpeg.exe";
   const isFfprobe = base === "ffprobe" || base === "ffprobe.exe";
 
-  const replacement =
-    (isFfmpeg && overrides.ffmpeg) || (isFfprobe && overrides.ffprobe) || null;
+  const replacement = (isFfmpeg && overrides.ffmpeg) || (isFfprobe && overrides.ffprobe) || null;
   if (!replacement) return null;
 
   // Only override when the original looks like a bare program name without
   // path segments. If the backend already logged an absolute path, keep it.
-  const looksLikeBareProgram =
-    !unquoted.includes("/") && !unquoted.includes("\\") && !unquoted.includes(":");
+  const looksLikeBareProgram = !unquoted.includes("/") && !unquoted.includes("\\") && !unquoted.includes(":");
   if (!looksLikeBareProgram) return null;
 
   // Quote the replacement when it contains spaces and the original token was
   // not already explicitly quoted.
-  const needsQuotes =
-    /\s/.test(replacement) && !/^['"].*['"]$/.test(rawText.trim());
+  const needsQuotes = /\s/.test(replacement) && !/^['"].*['"]$/.test(rawText.trim());
   const withQuotes = needsQuotes ? `"${replacement}"` : replacement;
 
   return wrapWithSameQuotes(rawText, withQuotes);
@@ -151,10 +147,7 @@ const applyProgramOverride = (
 /**
  * Highlight FFmpeg command with HTML syntax highlighting
  */
-export const highlightFfmpegCommand = (
-  command: string | undefined | null,
-  options?: HighlightOptions,
-): string => {
+export const highlightFfmpegCommand = (command: string | undefined | null, options?: HighlightOptions): string => {
   const tokens = assignCommandTokenGroups(tokenizeFfmpegCommand(command));
   if (!tokens.length) return "";
 
@@ -162,8 +155,7 @@ export const highlightFfmpegCommand = (
     .map((token) => {
       const cls = commandTokenClass(token.kind);
       const programOverride =
-        options?.programOverrides &&
-        applyProgramOverride(token.kind, token.text, options.programOverrides);
+        options?.programOverrides && applyProgramOverride(token.kind, token.text, options.programOverrides);
       const text = programOverride ?? token.text;
       const escaped = escapeHtml(text);
       if (!cls) return escaped;

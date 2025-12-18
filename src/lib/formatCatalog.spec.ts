@@ -9,4 +9,3 @@ describe("formatCatalog", () => {
     expect(m2ts2).toBe(true);
   });
 });
-

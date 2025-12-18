@@ -1,30 +1,55 @@
 use std::collections::hash_map::DefaultHasher;
-use std::fs;
-use std::hash::{Hash, Hasher};
+use std::hash::{
+    Hash,
+    Hasher,
+};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::thread;
+use std::{
+    fs,
+    thread,
+};
 
 use anyhow::Result;
 
-use crate::ffui_core::domain::{
-    AutoCompressProgress, AutoCompressResult, FFmpegPreset, JobStatus, SmartScanConfig,
-};
-use crate::ffui_core::settings::{self, AppSettings};
-
 use super::super::state::{
-    Inner, SmartScanBatch, SmartScanBatchStatus, is_known_smart_scan_output_with_inner,
-    notify_smart_scan_listeners, update_smart_scan_batch_with_inner,
+    Inner,
+    SmartScanBatch,
+    SmartScanBatchStatus,
+    is_known_smart_scan_output_with_inner,
+    notify_smart_scan_listeners,
+    update_smart_scan_batch_with_inner,
 };
 use super::super::worker_utils::mark_smart_scan_child_processed;
 use super::audio::handle_audio_file_with_id;
-use super::detection::{is_audio_file, is_image_file, is_video_file};
-use super::helpers::{current_time_millis, next_job_id, notify_queue_listeners};
+use super::detection::{
+    is_audio_file,
+    is_image_file,
+    is_video_file,
+};
+use super::helpers::{
+    current_time_millis,
+    next_job_id,
+    notify_queue_listeners,
+};
 use super::image::handle_image_file_with_id;
 use super::orchestrator_helpers::{
-    insert_audio_stub_job, insert_image_stub_job, set_job_processing,
+    insert_audio_stub_job,
+    insert_image_stub_job,
+    set_job_processing,
 };
 use super::video::enqueue_smart_scan_video_job;
+use crate::ffui_core::domain::{
+    AutoCompressProgress,
+    AutoCompressResult,
+    FFmpegPreset,
+    JobStatus,
+    SmartScanConfig,
+};
+use crate::ffui_core::settings::{
+    self,
+    AppSettings,
+};
 
 pub(crate) fn run_auto_compress(
     inner: &Arc<Inner>,

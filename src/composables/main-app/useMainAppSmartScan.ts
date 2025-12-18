@@ -48,9 +48,7 @@ export interface UseMainAppSmartScanReturn {
 export function useMainAppSmartScan(options: UseMainAppSmartScanOptions): UseMainAppSmartScanReturn {
   const { t, activeTab, jobs, presets, queueError, lastDroppedRoot, dialogManager } = options;
 
-  const smartScanJobs = computed<TranscodeJob[]>(() =>
-    jobs.value.filter((job) => job.source === "smart_scan"),
-  );
+  const smartScanJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "smart_scan"));
 
   const {
     smartConfig,
@@ -113,14 +111,7 @@ export function useMainAppSmartScan(options: UseMainAppSmartScanOptions): UseMai
     if (!hasTauri()) return;
 
     void listen<AutoCompressProgress>("auto-compress://progress", (event) => {
-      const {
-        batchId,
-        totalFilesScanned,
-        totalCandidates,
-        totalProcessed,
-        rootPath,
-        completedAtMs,
-      } = event.payload;
+      const { batchId, totalFilesScanned, totalCandidates, totalProcessed, rootPath, completedAtMs } = event.payload;
       if (!batchId) return;
 
       applySmartScanBatchMetaSnapshot({

@@ -9,15 +9,8 @@ import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
-const invokeMock = vi.fn<
-  (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
->();
-const listenMock = vi.fn<
-  (
-    event: string,
-    handler: (event: { payload: unknown }) => void,
-  ) => Promise<() => void>
->();
+const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
+const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, payload?: Record<string, unknown>) => invokeMock(cmd, payload),

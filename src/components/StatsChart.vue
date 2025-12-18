@@ -18,9 +18,7 @@ const data = computed(() =>
       // 压缩率定义为：输出体积 / 输入体积 * 100
       const ratio = ((output / input) * 100).toFixed(1);
       const speed =
-        p.stats.totalTimeSeconds > 0
-          ? (p.stats.totalInputSizeMB / p.stats.totalTimeSeconds).toFixed(1)
-          : "0";
+        p.stats.totalTimeSeconds > 0 ? (p.stats.totalInputSizeMB / p.stats.totalTimeSeconds).toFixed(1) : "0";
 
       return {
         name: p.name,
@@ -49,11 +47,7 @@ const data = computed(() =>
       </CardHeader>
       <CardContent>
         <div class="space-y-2">
-          <div
-            v-for="entry in data"
-            :key="entry.name"
-            class="flex items-center gap-2 text-xs text-muted-foreground"
-          >
+          <div v-for="entry in data" :key="entry.name" class="flex items-center gap-2 text-xs text-muted-foreground">
             <span class="w-24 truncate">{{ entry.name }}</span>
             <div class="flex-1 h-3 bg-muted rounded overflow-hidden">
               <div
@@ -78,17 +72,10 @@ const data = computed(() =>
       </CardHeader>
       <CardContent>
         <div class="space-y-2">
-          <div
-            v-for="entry in data"
-            :key="entry.name"
-            class="flex items-end gap-2 text-xs text-muted-foreground"
-          >
+          <div v-for="entry in data" :key="entry.name" class="flex items-end gap-2 text-xs text-muted-foreground">
             <span class="w-24 truncate">{{ entry.name }}</span>
             <div class="flex-1 h-20 flex items-end gap-1">
-              <div
-                class="w-4 bg-amber-400 rounded-t"
-                :style="{ height: `${Math.min(entry.speed * 10, 100)}%` }"
-              />
+              <div class="w-4 bg-amber-400 rounded-t" :style="{ height: `${Math.min(entry.speed * 10, 100)}%` }" />
             </div>
             <span class="w-10 text-right text-foreground">
               {{ entry.speed.toFixed(1) }}

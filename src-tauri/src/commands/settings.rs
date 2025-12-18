@@ -7,7 +7,12 @@
 
 use tauri::State;
 
-use crate::ffui_core::{AppSettings, AutoCompressResult, SmartScanConfig, TranscodingEngine};
+use crate::ffui_core::{
+    AppSettings,
+    AutoCompressResult,
+    SmartScanConfig,
+    TranscodingEngine,
+};
 
 /// Get the current application settings.
 #[tauri::command]

@@ -26,22 +26,19 @@ export function useUiAppearanceSync(appSettings: Ref<AppSettings | null>) {
 
   onMounted(async () => {
     if (!hasTauri()) return;
-    unlistenFontDownload = await listen<UiFontDownloadSnapshot>(
-      "ui_font_download",
-      async (event) => {
-        const payload = event.payload;
-        const desired = currentFontId;
-        if (!desired || payload.fontId !== desired) return;
-        if (currentSessionId && payload.sessionId !== currentSessionId) return;
-        if (payload.status !== "ready" || !payload.path) return;
-        await applyDownloadedUiFont({
-          id: payload.fontId,
-          familyName: payload.familyName,
-          path: payload.path,
-          format: payload.format,
-        });
-      },
-    );
+    unlistenFontDownload = await listen<UiFontDownloadSnapshot>("ui_font_download", async (event) => {
+      const payload = event.payload;
+      const desired = currentFontId;
+      if (!desired || payload.fontId !== desired) return;
+      if (currentSessionId && payload.sessionId !== currentSessionId) return;
+      if (payload.status !== "ready" || !payload.path) return;
+      await applyDownloadedUiFont({
+        id: payload.fontId,
+        familyName: payload.familyName,
+        path: payload.path,
+        format: payload.format,
+      });
+    });
   });
 
   onUnmounted(() => {

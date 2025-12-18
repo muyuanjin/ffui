@@ -1,25 +1,55 @@
 use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::hash::{Hash, Hasher};
-use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-
-use anyhow::{Context, Result};
-
-use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, WaitMetadata};
-use crate::ffui_core::settings::{
-    DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, DownloadedToolInfo, DownloadedToolState,
+use std::hash::{
+    Hash,
+    Hasher,
 };
-use crate::ffui_core::tools::{
-    ExternalToolKind, ensure_tool_available, last_tool_download_metadata,
+use std::io::{
+    BufRead,
+    BufReader,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::time::{
+    Duration,
+    SystemTime,
+    UNIX_EPOCH,
+};
+
+use anyhow::{
+    Context,
+    Result,
 };
 
 use super::ffmpeg_args::*;
 use super::state::{
-    Inner, SmartScanBatchStatus, notify_queue_listeners,
-    register_known_smart_scan_output_with_inner, update_smart_scan_batch_with_inner,
+    Inner,
+    SmartScanBatchStatus,
+    notify_queue_listeners,
+    register_known_smart_scan_output_with_inner,
+    update_smart_scan_batch_with_inner,
+};
+use crate::ffui_core::domain::{
+    JobStatus,
+    JobType,
+    MediaInfo,
+    WaitMetadata,
+};
+use crate::ffui_core::settings::{
+    DEFAULT_PROGRESS_UPDATE_INTERVAL_MS,
+    DownloadedToolInfo,
+    DownloadedToolState,
+};
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+    last_tool_download_metadata,
 };
 
 // Implementation is split across smaller include files to keep each source file

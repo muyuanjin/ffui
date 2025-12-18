@@ -259,9 +259,7 @@ const onUpdateSettings = (settings: AppSettings) => {
           class="mt-0.5 rounded border border-amber-500/40 bg-amber-500/5 px-1.5 py-1"
         >
           <p class="text-[9px] leading-snug text-amber-700 dark:text-amber-400">
-            <span class="font-semibold">
-              {{ t("app.settings.toolModeCustomLabel") }}：
-            </span>
+            <span class="font-semibold"> {{ t("app.settings.toolModeCustomLabel") }}： </span>
             {{ t("app.settings.toolModeCustomDescription") }}
           </p>
         </div>
@@ -273,10 +271,7 @@ const onUpdateSettings = (settings: AppSettings) => {
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
 
-        <SettingsNetworkProxySection
-          :app-settings="appSettings"
-          @update:app-settings="onUpdateSettings"
-        />
+        <SettingsNetworkProxySection :app-settings="appSettings" @update:app-settings="onUpdateSettings" />
 
         <div class="py-1">
           <div class="flex items-center justify-between gap-2">
@@ -425,7 +420,13 @@ const onUpdateSettings = (settings: AppSettings) => {
               </div>
 
               <p class="text-[9px] text-muted-foreground font-mono" data-testid="settings-parallelism-summary">
-                {{ t("app.settings.parallelismModeSplitSummary", { cpu: getMaxParallelCpuJobsInputValue(), hw: getMaxParallelHwJobsInputValue(), total: getSplitTotalConcurrency() }) }}
+                {{
+                  t("app.settings.parallelismModeSplitSummary", {
+                    cpu: getMaxParallelCpuJobsInputValue(),
+                    hw: getMaxParallelHwJobsInputValue(),
+                    total: getSplitTotalConcurrency(),
+                  })
+                }}
               </p>
             </template>
           </div>

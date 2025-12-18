@@ -1,10 +1,17 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::time::Instant;
+
+use tauri::Emitter;
 
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
-use tauri::Emitter;
 
 /// Name of the Tauri event used to push external tool status snapshots to the
 /// frontend. The payload is a full Vec<ExternalToolStatus>.
@@ -165,8 +172,7 @@ fn emit_tool_status_event_if_possible() {
 
 pub(super) fn with_download_state<F, R>(kind: ExternalToolKind, f: F) -> R
 where
-    F: FnOnce(&mut ToolDownloadRuntimeState) -> R,
-{
+    F: FnOnce(&mut ToolDownloadRuntimeState) -> R, {
     let mut map = TOOL_DOWNLOAD_STATE
         .lock()
         .expect("TOOL_DOWNLOAD_STATE lock poisoned");

@@ -109,22 +109,22 @@ const queue = {
     desc: "降序",
     collapse: "收起二级排序",
   },
-	  actions: {
-	    // 前端‘等待’动作实际语义为“暂停（保留进度，释放工作线程）”，
-	    // 为避免歧义，将单项操作按钮文案改为“暂停”。
-	    wait: "暂停",
-	    resume: "继续",
-	    restart: "重新开始",
-	    openInputFolder: "打开输入文件夹",
-	    openOutputFolder: "打开输出文件夹",
-	    copyInputPath: "复制输入路径",
-	    copyOutputPath: "复制输出路径",
-	    copyAllInputPaths: "复制所有输入路径",
-	    copyAllOutputPaths: "复制所有输出路径",
-	    moveToPosition: "移动到指定位置",
-	    moveToPositionPrompt: "请输入新的队列位置（1-{max}）：",
-	    bulkCancel: "批量取消",
-	    bulkCancelShort: "取消",
+  actions: {
+    // 前端‘等待’动作实际语义为“暂停（保留进度，释放工作线程）”，
+    // 为避免歧义，将单项操作按钮文案改为“暂停”。
+    wait: "暂停",
+    resume: "继续",
+    restart: "重新开始",
+    openInputFolder: "打开输入文件夹",
+    openOutputFolder: "打开输出文件夹",
+    copyInputPath: "复制输入路径",
+    copyOutputPath: "复制输出路径",
+    copyAllInputPaths: "复制所有输入路径",
+    copyAllOutputPaths: "复制所有输出路径",
+    moveToPosition: "移动到指定位置",
+    moveToPositionPrompt: "请输入新的队列位置（1-{max}）：",
+    bulkCancel: "批量取消",
+    bulkCancelShort: "取消",
     // 批量栏的“等待”亦对应暂停语义，统一命名为“批量暂停”。
     bulkWait: "批量暂停",
     bulkWaitShort: "暂停",

@@ -38,8 +38,7 @@ const titleText = computed(() => {
 });
 
 const currentLocale = computed<AppLocale>({
-  get: () =>
-    isAppLocale(locale.value) ? (locale.value as AppLocale) : DEFAULT_LOCALE,
+  get: () => (isAppLocale(locale.value) ? (locale.value as AppLocale) : DEFAULT_LOCALE),
   set: (value) => {
     locale.value = value;
     emit("localeChange", value);
@@ -59,9 +58,7 @@ const currentLocale = computed<AppLocale>({
       :style="{ width: `${progressPercent}%` }"
     />
     <div class="relative z-10 flex items-center justify-between w-full">
-      <div
-        class="flex items-center gap-3 h-full text-sm font-semibold tracking-wide text-sidebar-foreground/90"
-      >
+      <div class="flex items-center gap-3 h-full text-sm font-semibold tracking-wide text-sidebar-foreground/90">
         <span class="inline-flex h-4 w-4 rounded-full bg-primary/80" />
         <span class="truncate" :title="titleText">
           {{ titleText }}

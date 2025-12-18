@@ -1,9 +1,19 @@
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::ffui_core::domain::{AutoCompressProgress, FFmpegPreset, JobStatus, TranscodeJob};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
 use super::state::{
-    Inner, SmartScanBatchStatus, notify_queue_listeners, notify_smart_scan_listeners,
+    Inner,
+    SmartScanBatchStatus,
+    notify_queue_listeners,
+    notify_smart_scan_listeners,
+};
+use crate::ffui_core::domain::{
+    AutoCompressProgress,
+    FFmpegPreset,
+    JobStatus,
+    TranscodeJob,
 };
 
 pub(super) const MAX_LOG_TAIL_BYTES: usize = 64 * 1024;

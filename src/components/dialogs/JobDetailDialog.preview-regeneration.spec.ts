@@ -7,9 +7,7 @@ import en from "@/locales/en";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => true);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
   const ensureJobPreview = vi.fn(async () => null);
   const cleanupFallbackPreviewFramesAsync = vi.fn(async () => true);
 
@@ -23,9 +21,7 @@ vi.mock("@/lib/backend", () => {
 });
 
 vi.mock("@/lib/ffmpegCommand", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
-    "@/lib/ffmpegCommand",
-  );
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>("@/lib/ffmpegCommand");
   return {
     ...actual,
     highlightFfmpegCommand: (command: string) => command,
@@ -70,9 +66,7 @@ describe("JobDetailDialog preview regeneration", () => {
     const job = makeJob();
 
     (loadPreviewDataUrl as any).mockRejectedValueOnce(new Error("missing preview"));
-    (ensureJobPreview as any).mockResolvedValueOnce(
-      "C:/app-data/previews/regenerated.jpg",
-    );
+    (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/regenerated.jpg");
 
     const wrapper = mount(JobDetailDialog, {
       props: {

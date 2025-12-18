@@ -1,11 +1,20 @@
 use super::discover::discover_candidates;
-use super::probe::{detect_local_tool_version, verify_tool_binary};
+use super::probe::{
+    detect_local_tool_version,
+    verify_tool_binary,
+};
 use super::resolve::{
-    custom_path_for, downloaded_tool_path, looks_like_bare_program_name, resolve_in_path,
+    custom_path_for,
+    downloaded_tool_path,
+    looks_like_bare_program_name,
+    resolve_in_path,
     tool_binary_name,
 };
 use super::runtime_state::snapshot_download_state;
-use super::types::{ExternalToolCandidate, ExternalToolKind};
+use super::types::{
+    ExternalToolCandidate,
+    ExternalToolKind,
+};
 use crate::ffui_core::settings::ExternalToolSettings;
 
 pub fn tool_candidates(

@@ -1,5 +1,6 @@
-use super::*;
 use std::path::Path;
+
+use super::*;
 
 #[test]
 fn derive_instance_key_is_deterministic_and_distinct() {
@@ -13,10 +14,12 @@ fn derive_instance_key_is_deterministic_and_distinct() {
 
 #[cfg(not(windows))]
 mod non_windows {
-    use super::*;
-    use fs2::FileExt;
     use std::fs::OpenOptions;
     use std::time::Duration;
+
+    use fs2::FileExt;
+
+    use super::*;
 
     #[test]
     fn lock_contention_blocks_second_handle() {

@@ -1,10 +1,16 @@
 #[cfg(test)]
 mod domain_contract_tests {
-    use super::super::{
-        job::*, preset::PresetStats, smart_scan::AutoCompressProgress,
-        smart_scan::AutoCompressResult,
+    use serde_json::{
+        Value,
+        json,
     };
-    use serde_json::{Value, json};
+
+    use super::super::job::*;
+    use super::super::preset::PresetStats;
+    use super::super::smart_scan::{
+        AutoCompressProgress,
+        AutoCompressResult,
+    };
 
     #[test]
     fn transcode_job_uses_stable_mb_field_names_and_aliases() {

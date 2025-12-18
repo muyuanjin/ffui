@@ -1,12 +1,18 @@
 use std::collections::HashMap;
 use std::fs;
-use std::process::Command;
-use std::time::{Duration, SystemTime};
-
 #[cfg(windows)]
 use std::fs::File;
 #[cfg(windows)]
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{
+    Read,
+    Seek,
+    SeekFrom,
+};
+use std::process::Command;
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 use super::runtime_state::mark_arch_incompatible_for_session;
 use super::types::*;

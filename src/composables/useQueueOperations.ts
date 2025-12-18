@@ -132,11 +132,9 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const recomputeJobsFromBackend = (backendJobs: TranscodeJob[]) =>
     recomputeJobsFromBackendImpl(backendJobs, stateSyncDeps);
 
-  const applyQueueStateFromBackend = (state: QueueState) =>
-    applyQueueStateFromBackendImpl(state, stateSyncDeps);
+  const applyQueueStateFromBackend = (state: QueueState) => applyQueueStateFromBackendImpl(state, stateSyncDeps);
 
-  const refreshQueueFromBackend = async () =>
-    refreshQueueFromBackendImpl(stateSyncDeps);
+  const refreshQueueFromBackend = async () => refreshQueueFromBackendImpl(stateSyncDeps);
 
   // ----- Single Job Operations -----
 
@@ -150,28 +148,21 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     refreshQueueFromBackend,
   };
 
-  const handleWaitJob = async (jobId: string) =>
-    handleWaitJobImpl(jobId, singleJobOpsDeps);
+  const handleWaitJob = async (jobId: string) => handleWaitJobImpl(jobId, singleJobOpsDeps);
 
-  const handleResumeJob = async (jobId: string) =>
-    handleResumeJobImpl(jobId, singleJobOpsDeps);
+  const handleResumeJob = async (jobId: string) => handleResumeJobImpl(jobId, singleJobOpsDeps);
 
-  const handleRestartJob = async (jobId: string) =>
-    handleRestartJobImpl(jobId, singleJobOpsDeps);
+  const handleRestartJob = async (jobId: string) => handleRestartJobImpl(jobId, singleJobOpsDeps);
 
-  const handleCancelJob = async (jobId: string) =>
-    handleCancelJobImpl(jobId, singleJobOpsDeps);
+  const handleCancelJob = async (jobId: string) => handleCancelJobImpl(jobId, singleJobOpsDeps);
 
   // ----- Enqueue Methods -----
 
-  const addManualJobMock = () =>
-    addManualJobMockImpl(singleJobOpsDeps);
+  const addManualJobMock = () => addManualJobMockImpl(singleJobOpsDeps);
 
-  const enqueueManualJobFromPath = async (path: string) =>
-    enqueueManualJobFromPathImpl(path, singleJobOpsDeps);
+  const enqueueManualJobFromPath = async (path: string) => enqueueManualJobFromPathImpl(path, singleJobOpsDeps);
 
-  const enqueueManualJobsFromPaths = async (paths: string[]) =>
-    enqueueManualJobsFromPathsImpl(paths, singleJobOpsDeps);
+  const enqueueManualJobsFromPaths = async (paths: string[]) => enqueueManualJobsFromPathsImpl(paths, singleJobOpsDeps);
 
   // ----- Bulk Operations -----
 
@@ -188,31 +179,23 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     handleRestartJob,
   };
 
-  const bulkCancelSelectedJobs = async () =>
-    bulkCancelSelectedJobsImpl(bulkOpsDeps);
+  const bulkCancelSelectedJobs = async () => bulkCancelSelectedJobsImpl(bulkOpsDeps);
 
-  const bulkWaitSelectedJobs = async () =>
-    bulkWaitSelectedJobsImpl(bulkOpsDeps);
+  const bulkWaitSelectedJobs = async () => bulkWaitSelectedJobsImpl(bulkOpsDeps);
 
-  const bulkResumeSelectedJobs = async () =>
-    bulkResumeSelectedJobsImpl(bulkOpsDeps);
+  const bulkResumeSelectedJobs = async () => bulkResumeSelectedJobsImpl(bulkOpsDeps);
 
-  const bulkRestartSelectedJobs = async () =>
-    bulkRestartSelectedJobsImpl(bulkOpsDeps);
+  const bulkRestartSelectedJobs = async () => bulkRestartSelectedJobsImpl(bulkOpsDeps);
 
   // ----- Queue Reordering -----
 
-  const buildWaitingQueueIds = (): string[] =>
-    buildWaitingQueueIdsImpl(bulkOpsDeps);
+  const buildWaitingQueueIds = (): string[] => buildWaitingQueueIdsImpl(bulkOpsDeps);
 
-  const reorderWaitingQueue = async (orderedIds: string[]) =>
-    reorderWaitingQueueImpl(orderedIds, bulkOpsDeps);
+  const reorderWaitingQueue = async (orderedIds: string[]) => reorderWaitingQueueImpl(orderedIds, bulkOpsDeps);
 
-  const bulkMoveSelectedJobsToTop = async () =>
-    bulkMoveSelectedJobsToTopImpl(bulkOpsDeps);
+  const bulkMoveSelectedJobsToTop = async () => bulkMoveSelectedJobsToTopImpl(bulkOpsDeps);
 
-  const bulkMoveSelectedJobsToBottom = async () =>
-    bulkMoveSelectedJobsToBottomImpl(bulkOpsDeps);
+  const bulkMoveSelectedJobsToBottom = async () => bulkMoveSelectedJobsToBottomImpl(bulkOpsDeps);
 
   return {
     // Queue State Methods

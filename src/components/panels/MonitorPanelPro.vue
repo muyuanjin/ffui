@@ -44,21 +44,17 @@ const {
     </div>
 
     <!-- CPU核心热力图 -->
-    <CpuHeatmap
-      v-if="cpuHeatmapOption"
-      :chart-option="cpuHeatmapOption"
-      :core-count="perCoreSeries.length"
-    />
+    <CpuHeatmap v-if="cpuHeatmapOption" :chart-option="cpuHeatmapOption" :core-count="perCoreSeries.length" />
 
     <!-- 底部快速指标区 -->
     <div class="metrics-grid">
       <!-- 网络IO -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">{{ t('monitor.networkIo') }}</span>
+          <span class="metric-title">{{ t("monitor.networkIo") }}</span>
           <div class="metric-badges">
-            <span class="badge rx">{{ t('monitor.rx') }}</span>
-            <span class="badge tx">{{ t('monitor.tx') }}</span>
+            <span class="badge rx">{{ t("monitor.rx") }}</span>
+            <span class="badge tx">{{ t("monitor.tx") }}</span>
           </div>
         </div>
         <VChart
@@ -68,22 +64,18 @@ const {
           autoresize
         />
         <div class="metric-values">
-          <span class="value rx">
-            {{ t('monitor.download') }} {{ displayMetrics.netRxMbps.toFixed(2) }} MB/s
-          </span>
-          <span class="value tx">
-            {{ t('monitor.upload') }} {{ displayMetrics.netTxMbps.toFixed(2) }} MB/s
-          </span>
+          <span class="value rx"> {{ t("monitor.download") }} {{ displayMetrics.netRxMbps.toFixed(2) }} MB/s </span>
+          <span class="value tx"> {{ t("monitor.upload") }} {{ displayMetrics.netTxMbps.toFixed(2) }} MB/s </span>
         </div>
       </div>
 
       <!-- 磁盘IO -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">{{ t('monitor.diskIo') }}</span>
+          <span class="metric-title">{{ t("monitor.diskIo") }}</span>
           <div class="metric-badges">
-            <span class="badge read">{{ t('monitor.read') }}</span>
-            <span class="badge write">{{ t('monitor.write') }}</span>
+            <span class="badge read">{{ t("monitor.read") }}</span>
+            <span class="badge write">{{ t("monitor.write") }}</span>
           </div>
         </div>
         <VChart
@@ -93,11 +85,9 @@ const {
           autoresize
         />
         <div class="metric-values">
-          <span class="value read">
-            {{ t('monitor.reading') }} {{ displayMetrics.diskReadMbps.toFixed(2) }} MB/s
-          </span>
+          <span class="value read"> {{ t("monitor.reading") }} {{ displayMetrics.diskReadMbps.toFixed(2) }} MB/s </span>
           <span class="value write">
-            {{ t('monitor.writing') }} {{ displayMetrics.diskWriteMbps.toFixed(2) }} MB/s
+            {{ t("monitor.writing") }} {{ displayMetrics.diskWriteMbps.toFixed(2) }} MB/s
           </span>
         </div>
       </div>
@@ -108,31 +98,21 @@ const {
           <span class="metric-title">CPU / MEMORY / GPU</span>
         </div>
         <div class="resource-stats">
-          <ResourceBar
-            :label="t('monitor.cpu')"
-            :percent="cpuPercent"
-            type="cpu"
-            :has-data="!!latestMetrics"
-          />
+          <ResourceBar :label="t('monitor.cpu')" :percent="cpuPercent" type="cpu" :has-data="!!latestMetrics" />
           <ResourceBar
             :label="t('monitor.memory')"
             :percent="memoryPercent"
             type="memory"
             :has-data="!!latestMetrics"
           />
-          <ResourceBar
-            :label="t('monitor.gpu')"
-            :percent="gpuPercent"
-            type="gpu"
-            :has-data="!!latestMetrics"
-          />
+          <ResourceBar :label="t('monitor.gpu')" :percent="gpuPercent" type="gpu" :has-data="!!latestMetrics" />
         </div>
       </div>
 
       <!-- 系统运行时间 -->
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">{{ t('monitor.transcodeHeatmapToday') }}</span>
+          <span class="metric-title">{{ t("monitor.transcodeHeatmapToday") }}</span>
         </div>
         <TranscodeHeatmapRing
           :active-hours="transcodeActivityToday?.activeHours"

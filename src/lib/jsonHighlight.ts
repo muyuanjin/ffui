@@ -43,9 +43,7 @@ const formatJsonValue = (value: unknown, depth: number): string => {
       return "[]";
     }
 
-    const items = value.map(
-      (item) => `${nextIndent}${formatJsonValue(item, depth + 1)}`,
-    );
+    const items = value.map((item) => `${nextIndent}${formatJsonValue(item, depth + 1)}`);
 
     return `[\n${items.join(",\n")}\n${currentIndent}]`;
   }
@@ -74,9 +72,7 @@ const formatJsonValue = (value: unknown, depth: number): string => {
  * - 解析成功时：使用两空格缩进重新排版，区分 key / string / number / boolean / null。
  * - 解析失败时：返回简单转义后的原始文本，确保至少可见。
  */
-export const highlightJson = (
-  raw: string | null | undefined,
-): string => {
+export const highlightJson = (raw: string | null | undefined): string => {
   if (!raw || !raw.trim()) {
     return "";
   }
@@ -88,4 +84,3 @@ export const highlightJson = (
     return escapeHtml(raw);
   }
 };
-

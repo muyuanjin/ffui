@@ -62,4 +62,3 @@ describe("FallbackMediaPreview fallback controls", () => {
     wrapper.unmount();
   });
 });
-

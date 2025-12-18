@@ -1,7 +1,10 @@
+use std::{
+    env,
+    fs,
+};
+
 use super::*;
 use crate::ffui_core::domain::WaitMetadata;
-use std::env;
-use std::fs;
 
 #[test]
 fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {

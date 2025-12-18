@@ -30,8 +30,7 @@ beforeEach(() => {
 describe("useQueuePreferences", () => {
   it("uses defaults when storage is empty", async () => {
     const { useQueuePreferences } = await loadModule();
-    const { queueViewMode, queueProgressStyle, queueMode, defaults } =
-      useQueuePreferences();
+    const { queueViewMode, queueProgressStyle, queueMode, defaults } = useQueuePreferences();
 
     expect(queueViewMode.value).toBe<QueueViewMode>(defaults.viewMode);
     expect(queueProgressStyle.value).toBe<QueueProgressStyle>(defaults.progressStyle);
@@ -57,8 +56,7 @@ describe("useQueuePreferences", () => {
     setStorage(QUEUE_MODE_STORAGE_KEY, "strange-mode");
 
     const { useQueuePreferences } = await loadModule();
-    const { queueViewMode, queueProgressStyle, queueMode, defaults } =
-      useQueuePreferences();
+    const { queueViewMode, queueProgressStyle, queueMode, defaults } = useQueuePreferences();
 
     expect(queueViewMode.value).toBe<QueueViewMode>(defaults.viewMode);
     expect(queueProgressStyle.value).toBe<QueueProgressStyle>(defaults.progressStyle);
@@ -67,14 +65,8 @@ describe("useQueuePreferences", () => {
 
   it("persists changes back to storage when setters are called", async () => {
     const { useQueuePreferences } = await loadModule();
-    const {
-      queueViewMode,
-      queueProgressStyle,
-      queueMode,
-      setQueueViewMode,
-      setQueueProgressStyle,
-      setQueueMode,
-    } = useQueuePreferences();
+    const { queueViewMode, queueProgressStyle, queueMode, setQueueViewMode, setQueueProgressStyle, setQueueMode } =
+      useQueuePreferences();
 
     setQueueViewMode("compact");
     setQueueProgressStyle("card-fill");
@@ -108,8 +100,7 @@ describe("useQueuePreferences", () => {
     });
 
     const { useQueuePreferences } = await loadModule();
-    const { queueViewMode, queueProgressStyle, queueMode, defaults } =
-      useQueuePreferences();
+    const { queueViewMode, queueProgressStyle, queueMode, defaults } = useQueuePreferences();
 
     expect(queueViewMode.value).toBe<QueueViewMode>(defaults.viewMode);
     expect(queueProgressStyle.value).toBe<QueueProgressStyle>(defaults.progressStyle);

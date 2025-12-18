@@ -16,9 +16,7 @@ import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandVi
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 
 const isTestEnv =
-  typeof import.meta !== "undefined" &&
-  typeof import.meta.env !== "undefined" &&
-  import.meta.env.MODE === "test";
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const props = defineProps<{
   open: boolean;
@@ -86,18 +84,15 @@ const handleInlinePreviewError = async () => {
       return;
     }
 
-	    inlinePreviewRescreenshotAttempted.value = true;
-	    if (!isTestEnv) {
-	      console.warn(
-	        "JobDetailDialog: preview missing or unreadable, attempting regeneration",
-	        error,
-	      );
-	    }
+    inlinePreviewRescreenshotAttempted.value = true;
+    if (!isTestEnv) {
+      console.warn("JobDetailDialog: preview missing or unreadable, attempting regeneration", error);
+    }
 
-	    try {
-	      const regenerated = await ensureJobPreview(props.job.id);
-	      if (regenerated) {
-	        inlinePreviewUrl.value = buildPreviewUrl(regenerated);
+    try {
+      const regenerated = await ensureJobPreview(props.job.id);
+      if (regenerated) {
+        inlinePreviewUrl.value = buildPreviewUrl(regenerated);
         inlinePreviewFallbackLoaded.value = false;
       }
     } catch (regenError) {
@@ -272,10 +267,7 @@ const unknownPresetLabel = computed(() => {
                 </div>
 
                 <div class="flex-1 space-y-2">
-                  <div
-                    data-testid="task-detail-title"
-                    class="text-sm font-semibold text-foreground break-all"
-                  >
+                  <div data-testid="task-detail-title" class="text-sm font-semibold text-foreground break-all">
                     {{ jobFileName || t("jobDetail.title") }}
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
@@ -286,19 +278,25 @@ const unknownPresetLabel = computed(() => {
                       {{ job.source === "smart_scan" ? t("queue.source.smartScan") : t("queue.source.manual") }}
                     </span>
                   </div>
-                <div class="space-y-1 text-[11px]">
-                  <div v-if="preset?.name" class="text-foreground">
-                    {{ t("taskDetail.presetLabel") }}:
-                    <span class="font-medium">{{ preset.name }}</span>
-                    <span v-if="preset.description" class="ml-1 text-muted-foreground">— {{ preset.description }}</span>
-                  </div>
-                  <div v-else-if="job.presetId" class="text-foreground">
-                    {{ t("taskDetail.presetLabel") }}:
-                    <span class="font-medium">
-                      {{ unknownPresetLabel }}
-                    </span>
-                  </div>
-                    <div v-if="jobProcessingSeconds != null" class="text-foreground" data-testid="task-detail-processing-time">
+                  <div class="space-y-1 text-[11px]">
+                    <div v-if="preset?.name" class="text-foreground">
+                      {{ t("taskDetail.presetLabel") }}:
+                      <span class="font-medium">{{ preset.name }}</span>
+                      <span v-if="preset.description" class="ml-1 text-muted-foreground"
+                        >— {{ preset.description }}</span
+                      >
+                    </div>
+                    <div v-else-if="job.presetId" class="text-foreground">
+                      {{ t("taskDetail.presetLabel") }}:
+                      <span class="font-medium">
+                        {{ unknownPresetLabel }}
+                      </span>
+                    </div>
+                    <div
+                      v-if="jobProcessingSeconds != null"
+                      class="text-foreground"
+                      data-testid="task-detail-processing-time"
+                    >
                       {{ t("taskDetail.durationLabel") }}: {{ jobProcessingSeconds.toFixed(1) }} s
                     </div>
                     <div v-if="job.originalSizeMB" class="text-foreground">
@@ -320,9 +318,7 @@ const unknownPresetLabel = computed(() => {
                 </h3>
                 <div class="space-y-1">
                   <div class="flex items-center gap-2">
-                    <span class="shrink-0 text-[11px] text-muted-foreground">
-                      {{ t("taskDetail.inputPath") }}:
-                    </span>
+                    <span class="shrink-0 text-[11px] text-muted-foreground"> {{ t("taskDetail.inputPath") }}: </span>
                     <span data-testid="task-detail-input-path" class="flex-1 break-all text-foreground select-text">
                       {{ job.inputPath || job.filename }}
                     </span>
@@ -336,9 +332,7 @@ const unknownPresetLabel = computed(() => {
                     </Button>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="shrink-0 text-[11px] text-muted-foreground">
-                      {{ t("taskDetail.outputPath") }}:
-                    </span>
+                    <span class="shrink-0 text-[11px] text-muted-foreground"> {{ t("taskDetail.outputPath") }}: </span>
                     <span data-testid="task-detail-output-path" class="flex-1 break-all text-foreground select-text">
                       {{ job.outputPath || "-" }}
                     </span>
@@ -380,9 +374,7 @@ const unknownPresetLabel = computed(() => {
                     {{ t("taskDetail.frameRateLabel") }}
                   </span>
                   <span class="text-foreground">
-                    {{
-                      job.mediaInfo?.frameRate ? `${job.mediaInfo.frameRate.toFixed(2)} fps` : "-"
-                    }}
+                    {{ job.mediaInfo?.frameRate ? `${job.mediaInfo.frameRate.toFixed(2)} fps` : "-" }}
                   </span>
                 </div>
                 <div v-else class="text-[11px] text-muted-foreground">
@@ -466,10 +458,7 @@ const unknownPresetLabel = computed(() => {
                   {{ t("taskDetail.copyLogs") }}
                 </Button>
               </div>
-              <div
-                class="rounded-md bg-muted/40 border border-border/60"
-                data-testid="task-detail-log"
-              >
+              <div class="rounded-md bg-muted/40 border border-border/60" data-testid="task-detail-log">
                 <pre
                   class="max-h-64 overflow-y-auto px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
                   v-html="highlightedLogHtml"

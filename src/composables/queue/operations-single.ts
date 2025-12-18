@@ -60,8 +60,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
       const next = new Set(deps.pausingJobIds.value);
       next.delete(jobId);
       deps.pausingJobIds.value = next;
-      deps.queueError.value =
-        (deps.t?.("queue.error.waitRejected") as string) ?? "";
+      deps.queueError.value = (deps.t?.("queue.error.waitRejected") as string) ?? "";
       return;
     }
 
@@ -71,10 +70,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
         const existingLogs = job.logs ?? [];
         return {
           ...job,
-          logs: [
-            ...existingLogs,
-            "Wait requested from UI; job will pause when ffmpeg reaches a safe point",
-          ],
+          logs: [...existingLogs, "Wait requested from UI; job will pause when ffmpeg reaches a safe point"],
         };
       }
       return job;
@@ -85,8 +81,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     const next = new Set(deps.pausingJobIds.value);
     next.delete(jobId);
     deps.pausingJobIds.value = next;
-    deps.queueError.value =
-      (deps.t?.("queue.error.waitFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.waitFailed") as string) ?? "";
   }
 }
 
@@ -113,8 +108,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
   try {
     const ok = await resumeTranscodeJob(jobId);
     if (!ok) {
-      deps.queueError.value =
-        (deps.t?.("queue.error.resumeRejected") as string) ?? "";
+      deps.queueError.value = (deps.t?.("queue.error.resumeRejected") as string) ?? "";
       return;
     }
 
@@ -125,10 +119,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
         return {
           ...job,
           status: "waiting" as JobStatus,
-          logs: [
-            ...existingLogs,
-            "Resume requested from UI; job re-entered waiting queue",
-          ],
+          logs: [...existingLogs, "Resume requested from UI; job re-entered waiting queue"],
         };
       }
       return job;
@@ -136,8 +127,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to resume job", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.resumeFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.resumeFailed") as string) ?? "";
   }
 }
 
@@ -152,9 +142,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
 
   if (!hasTauri()) {
     deps.jobs.value = deps.jobs.value.map((job) =>
-      job.id === jobId &&
-      job.status !== "completed" &&
-      job.status !== "skipped"
+      job.id === jobId && job.status !== "completed" && job.status !== "skipped"
         ? ({
             ...job,
             status: "waiting" as JobStatus,
@@ -170,8 +158,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
   try {
     const ok = await restartTranscodeJob(jobId);
     if (!ok) {
-      deps.queueError.value =
-        (deps.t?.("queue.error.restartRejected") as string) ?? "";
+      deps.queueError.value = (deps.t?.("queue.error.restartRejected") as string) ?? "";
       return;
     }
 
@@ -191,8 +178,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to restart job", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.restartFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.restartFailed") as string) ?? "";
   }
 }
 
@@ -211,18 +197,13 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
   try {
     const ok = await cancelTranscodeJob(jobId);
     if (!ok) {
-      deps.queueError.value =
-        (deps.t?.("queue.error.cancelRejected") as string) ?? "";
+      deps.queueError.value = (deps.t?.("queue.error.cancelRejected") as string) ?? "";
       return;
     }
 
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
-      if (
-        job.status === "waiting" ||
-        job.status === "queued" ||
-        job.status === "paused"
-      ) {
+      if (job.status === "waiting" || job.status === "queued" || job.status === "paused") {
         return { ...job, status: "cancelled" as JobStatus };
       }
       if (job.status === "processing") {
@@ -230,10 +211,7 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
         return {
           ...job,
           status: "cancelled" as JobStatus,
-          logs: [
-            ...existingLogs,
-            "Cancellation requested from UI; waiting for backend to stop ffmpeg",
-          ],
+          logs: [...existingLogs, "Cancellation requested from UI; waiting for backend to stop ffmpeg"],
         };
       }
       return job;
@@ -241,8 +219,7 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to cancel job", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.cancelFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.cancelFailed") as string) ?? "";
   }
 }
 
@@ -285,16 +262,14 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
 
   if (!hasTauri()) {
     console.error("enqueueManualJobsFromPaths requires Tauri");
-    deps.queueError.value =
-      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
     return;
   }
 
   const preset = deps.manualJobPreset.value ?? deps.presets.value[0];
   if (!preset) {
     console.error("No preset available for manual job");
-    deps.queueError.value =
-      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
     return;
   }
 
@@ -331,8 +306,7 @@ export async function enqueueManualJobsFromPaths(paths: string[], deps: SingleJo
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to enqueue manual jobs from paths", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.enqueueFailed") as string) ?? "";
   }
 }
 

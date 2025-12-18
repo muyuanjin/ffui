@@ -17,14 +17,7 @@ defineProps<{
 
 const { t } = useI18n();
 
-const {
-  snapshots,
-  cpuTotalSeries,
-  perCoreSeries,
-  memorySeries,
-  diskSeries,
-  networkSeries,
-} = useSystemMetrics();
+const { snapshots, cpuTotalSeries, perCoreSeries, memorySeries, diskSeries, networkSeries } = useSystemMetrics();
 
 const MAX_HISTORY_POINTS = 120;
 
@@ -50,9 +43,7 @@ const hasMetrics = computed(() => snapshots.value.length > 0);
 const cpuTotalOption = computed(() => {
   const allPoints = cpuTotalSeries.value;
   const points =
-    allPoints.length > MAX_HISTORY_POINTS
-      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
-      : allPoints;
+    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
@@ -90,16 +81,12 @@ const cpuTotalOption = computed(() => {
 const cpuPerCoreOption = computed(() => {
   const baseAxisAll = cpuTotalSeries.value;
   const axisPoints =
-    baseAxisAll.length > MAX_HISTORY_POINTS
-      ? baseAxisAll.slice(baseAxisAll.length - MAX_HISTORY_POINTS)
-      : baseAxisAll;
+    baseAxisAll.length > MAX_HISTORY_POINTS ? baseAxisAll.slice(baseAxisAll.length - MAX_HISTORY_POINTS) : baseAxisAll;
 
   const series = perCoreSeries.value.map((core) => {
     const valuesAll = core.values;
     const values =
-      valuesAll.length > MAX_HISTORY_POINTS
-        ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS)
-        : valuesAll;
+      valuesAll.length > MAX_HISTORY_POINTS ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS) : valuesAll;
 
     return {
       name: `C${core.coreIndex}`,
@@ -116,9 +103,7 @@ const cpuPerCoreOption = computed(() => {
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
     xAxis: {
       type: "category",
-      data: axisPoints.map((p) =>
-        new Date(p.timestamp).toLocaleTimeString(),
-      ),
+      data: axisPoints.map((p) => new Date(p.timestamp).toLocaleTimeString()),
       boundaryGap: false,
       axisLabel: { show: false },
     },
@@ -144,9 +129,7 @@ const cpuPerCoreOption = computed(() => {
 const memoryOption = computed(() => {
   const allPoints = memorySeries.value;
   const points =
-    allPoints.length > MAX_HISTORY_POINTS
-      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
-      : allPoints;
+    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
@@ -186,9 +169,7 @@ const memoryOption = computed(() => {
 const diskOption = computed(() => {
   const allPoints = diskSeries.value;
   const points =
-    allPoints.length > MAX_HISTORY_POINTS
-      ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS)
-      : allPoints;
+    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
@@ -252,9 +233,7 @@ const networkOption = computed(() => {
   const series = allSeries.flatMap((iface) => {
     const valuesAll = iface.values;
     const values =
-      valuesAll.length > MAX_HISTORY_POINTS
-        ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS)
-        : valuesAll;
+      valuesAll.length > MAX_HISTORY_POINTS ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS) : valuesAll;
 
     return [
       {
@@ -279,9 +258,7 @@ const networkOption = computed(() => {
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
     xAxis: {
       type: "category",
-      data: baseValues.map((p) =>
-        new Date(p.timestamp).toLocaleTimeString(),
-      ),
+      data: baseValues.map((p) => new Date(p.timestamp).toLocaleTimeString()),
       boundaryGap: false,
       axisLabel: { show: false },
     },
@@ -309,20 +286,14 @@ const networkOption = computed(() => {
 
 <template>
   <section class="max-w-6xl mx-auto py-6 text-sm text-muted-foreground">
-    <div
-      v-if="!hasMetrics"
-      class="flex flex-col items-center justify-center h-64 gap-2"
-    >
+    <div v-if="!hasMetrics" class="flex flex-col items-center justify-center h-64 gap-2">
       <p>{{ t("monitor.emptyTitle") }}</p>
       <p class="text-xs text-muted-foreground/80">
         {{ t("monitor.emptyDescription") }}
       </p>
     </div>
 
-    <div
-      v-else
-      class="grid gap-4 lg:grid-cols-2"
-    >
+    <div v-else class="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle class="text-sm">
@@ -330,11 +301,7 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VChart
-            class="w-full h-48"
-            :option="cpuTotalOption"
-            autoresize
-          />
+          <VChart class="w-full h-48" :option="cpuTotalOption" autoresize />
         </CardContent>
       </Card>
 
@@ -352,11 +319,7 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VChart
-            class="w-full h-48"
-            :option="cpuPerCoreOption"
-            autoresize
-          />
+          <VChart class="w-full h-48" :option="cpuPerCoreOption" autoresize />
         </CardContent>
       </Card>
 
@@ -367,11 +330,7 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VChart
-            class="w-full h-48"
-            :option="memoryOption"
-            autoresize
-          />
+          <VChart class="w-full h-48" :option="memoryOption" autoresize />
         </CardContent>
       </Card>
 
@@ -382,11 +341,7 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VChart
-            class="w-full h-48"
-            :option="diskOption"
-            autoresize
-          />
+          <VChart class="w-full h-48" :option="diskOption" autoresize />
         </CardContent>
       </Card>
 
@@ -397,11 +352,7 @@ const networkOption = computed(() => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <VChart
-            class="w-full h-56"
-            :option="networkOption"
-            autoresize
-          />
+          <VChart class="w-full h-56" :option="networkOption" autoresize />
         </CardContent>
       </Card>
 
@@ -414,21 +365,11 @@ const networkOption = computed(() => {
         <CardContent class="text-xs space-y-1">
           <p v-if="latestGpu && latestGpu.available">
             {{ t("monitor.gpuUsage") }}
-            <span class="font-mono text-foreground">
-              {{ latestGpu.gpuPercent ?? 0 }}%
-            </span>
+            <span class="font-mono text-foreground"> {{ latestGpu.gpuPercent ?? 0 }}% </span>
           </p>
-          <p
-            v-if="
-              latestGpu &&
-              latestGpu.available &&
-              latestGpu.memoryPercent !== undefined
-            "
-          >
+          <p v-if="latestGpu && latestGpu.available && latestGpu.memoryPercent !== undefined">
             {{ t("monitor.gpuMemoryUsage") }}
-            <span class="font-mono text-foreground">
-              {{ latestGpu.memoryPercent }}%
-            </span>
+            <span class="font-mono text-foreground"> {{ latestGpu.memoryPercent }}% </span>
           </p>
           <p v-if="latestGpu && !latestGpu.available">
             {{ latestGpu.error ?? (t("monitor.gpuUnavailable") as string) }}

@@ -3,13 +3,7 @@ import type { AudioConfig, SubtitlesConfig } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
@@ -192,7 +186,9 @@ const { t } = useI18n();
                 step="0.1"
                 class="h-9 text-xs"
                 :model-value="audio.targetLufs != null ? String(audio.targetLufs) : ''"
-                :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-24' : audio.loudnessProfile === 'ebuR128' ? '-23' : ''"
+                :placeholder="
+                  audio.loudnessProfile === 'cnBroadcast' ? '-24' : audio.loudnessProfile === 'ebuR128' ? '-23' : ''
+                "
                 @update:model-value="
                   (value) => {
                     const n = Number(value ?? '');
@@ -230,7 +226,9 @@ const { t } = useI18n();
                 step="0.1"
                 class="h-9 text-xs"
                 :model-value="audio.truePeakDb != null ? String(audio.truePeakDb) : ''"
-                :placeholder="audio.loudnessProfile === 'cnBroadcast' ? '-2' : audio.loudnessProfile === 'ebuR128' ? '-1' : ''"
+                :placeholder="
+                  audio.loudnessProfile === 'cnBroadcast' ? '-2' : audio.loudnessProfile === 'ebuR128' ? '-1' : ''
+                "
                 @update:model-value="
                   (value) => {
                     const n = Number(value ?? '');
@@ -273,7 +271,11 @@ const { t } = useI18n();
           </Label>
           <Select
             :model-value="subtitles.strategy ?? 'keep'"
-            @update:model-value="(value) => { subtitles.strategy = value as any; }"
+            @update:model-value="
+              (value) => {
+                subtitles.strategy = value as any;
+              }
+            "
           >
             <SelectTrigger class="h-9 text-xs">
               <SelectValue />

@@ -15,8 +15,7 @@ export const PRESET_OPTIONS: Record<string, string[]> = {
 };
 
 export const GUIDE_TIPS = {
-  crf_x264:
-    "Constant Rate Factor (0-51). Lower is better quality. Recommended: 18-22 for Archive, 23-24 for Balance.",
+  crf_x264: "Constant Rate Factor (0-51). Lower is better quality. Recommended: 18-22 for Archive, 23-24 for Balance.",
   cq_nvenc: "Constant Quality (0-51). NOT comparable to CRF. Rec: 26-28 for good visual quality.",
   crf_av1: "AV1 CRF (0-63). Rec: 32-34 matches x264 CRF 23.",
   preset_x264: "'medium' is balanced. 'slow' gives smaller files for same quality.",

@@ -1,11 +1,14 @@
 use chrono::Local;
 use regex::Regex;
 
-use crate::ffui_core::domain::{
-    EncoderType, FFmpegPreset, OutputFilenameAppend, OutputPolicy, RateControlMode,
-};
-
 use super::utils::random_hex;
+use crate::ffui_core::domain::{
+    EncoderType,
+    FFmpegPreset,
+    OutputFilenameAppend,
+    OutputPolicy,
+    RateControlMode,
+};
 
 pub(super) fn apply_filename_policy(
     base_stem: &str,

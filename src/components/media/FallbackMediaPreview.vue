@@ -243,12 +243,7 @@ onBeforeUnmount(() => {
 
         <div class="flex-1 min-h-0 rounded-md bg-black flex items-center justify-center overflow-hidden">
           <template v-if="frameUrl">
-            <img
-              :src="frameUrl"
-              alt=""
-              class="w-full h-full object-contain"
-              @error="handleFrameImgError"
-            />
+            <img :src="frameUrl" alt="" class="w-full h-full object-contain" @error="handleFrameImgError" />
           </template>
           <template v-else>
             <div class="text-[11px] text-muted-foreground px-3 py-2 text-center">

@@ -42,4 +42,3 @@ describe("useJobComparePlaybackSync", () => {
     vi.useRealTimers();
   });
 });
-

@@ -79,9 +79,7 @@ const refreshOrStart = async () => {
   if (!id || !hasTauri()) return;
 
   const snapshot =
-    typeof fetchOpenSourceFontDownloadSnapshot === "function"
-      ? await fetchOpenSourceFontDownloadSnapshot(id)
-      : null;
+    typeof fetchOpenSourceFontDownloadSnapshot === "function" ? await fetchOpenSourceFontDownloadSnapshot(id) : null;
 
   if (snapshot) {
     download.value = snapshot;
@@ -157,25 +155,18 @@ watch(
           class="h-6 px-2 text-[10px]"
           @click="start"
         >
-          {{ download?.status === 'error' ? t("app.settings.uiOpenSourceDownloadRetry") : t("app.settings.uiOpenSourceDownloadStart") }}
+          {{
+            download?.status === "error"
+              ? t("app.settings.uiOpenSourceDownloadRetry")
+              : t("app.settings.uiOpenSourceDownloadStart")
+          }}
         </Button>
-        <Button
-          v-else
-          variant="outline"
-          size="sm"
-          class="h-6 px-2 text-[10px]"
-          :disabled="cancelling"
-          @click="cancel"
-        >
+        <Button v-else variant="outline" size="sm" class="h-6 px-2 text-[10px]" :disabled="cancelling" @click="cancel">
           {{ t("app.settings.uiOpenSourceDownloadCancel") }}
         </Button>
       </div>
     </div>
 
-    <Progress
-      class="mt-1 h-1.5"
-      :model-value="percent"
-      :variant="variant"
-    />
+    <Progress class="mt-1 h-1.5" :model-value="percent" :variant="variant" />
   </div>
 </template>

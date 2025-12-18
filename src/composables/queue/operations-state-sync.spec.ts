@@ -11,20 +11,13 @@ vi.mock("@/lib/backend", () => ({
   loadQueueStateLite: () => loadQueueStateMock(),
 }));
 
-import {
-  applyQueueStateFromBackend,
-  refreshQueueFromBackend,
-  type StateSyncDeps,
-} from "./operations-state-sync";
+import { applyQueueStateFromBackend, refreshQueueFromBackend, type StateSyncDeps } from "./operations-state-sync";
 
-function makeDeps(
-  overrides: Partial<StateSyncDeps> = {},
-): StateSyncDeps & { jobs: Ref<TranscodeJob[]> } {
+function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { jobs: Ref<TranscodeJob[]> } {
   const jobs = overrides.jobs ?? ref<TranscodeJob[]>([]);
   const smartScanJobs = overrides.smartScanJobs ?? ref<TranscodeJob[]>([]);
   const queueError = overrides.queueError ?? ref<string | null>(null);
-  const lastQueueSnapshotAtMs =
-    overrides.lastQueueSnapshotAtMs ?? ref<number | null>(null);
+  const lastQueueSnapshotAtMs = overrides.lastQueueSnapshotAtMs ?? ref<number | null>(null);
 
   return {
     jobs,
@@ -97,9 +90,7 @@ describe("queue operations state sync", () => {
 
     // 模拟 MainApp 中的实际接线：smartScanJobs 由 jobs 计算而来。
     const jobs = ref<TranscodeJob[]>([smartScanJob]);
-    const smartScanJobs = computed<TranscodeJob[]>(() =>
-      jobs.value.filter((job) => job.source === "smart_scan"),
-    );
+    const smartScanJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "smart_scan"));
 
     const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
       jobs,

@@ -4,11 +4,7 @@ import type { AudioConfig, EncoderType, FFmpegPreset, FilterConfig, VideoConfig 
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "../constants";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
-import {
-  highlightFfmpegCommand,
-  normalizeFfmpegTemplate,
-  getFfmpegCommandPreview,
-} from "@/lib/ffmpegCommand";
+import { highlightFfmpegCommand, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
 import WizardStepBasics from "@/components/parameter-wizard/WizardStepBasics.vue";
 import WizardStepVideo from "@/components/parameter-wizard/WizardStepVideo.vue";
 import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.vue";
@@ -135,13 +131,12 @@ const buildPresetFromState = (): FFmpegPreset => {
     filters: { ...filters } as FilterConfig,
     advancedEnabled: advancedEnabled.value && ffmpegTemplate.value.trim().length > 0,
     ffmpegTemplate: ffmpegTemplate.value.trim() || undefined,
-    stats:
-      props.initialPreset?.stats ?? {
-        usageCount: 0,
-        totalInputSizeMB: 0,
-        totalOutputSizeMB: 0,
-        totalTimeSeconds: 0,
-      },
+    stats: props.initialPreset?.stats ?? {
+      usageCount: 0,
+      totalInputSizeMB: 0,
+      totalOutputSizeMB: 0,
+      totalTimeSeconds: 0,
+    },
   };
 
   return newPreset;
@@ -178,7 +173,7 @@ const handleRecipeSelect = ({
   if (audioPatch) {
     applyAudioPatch(audioPatch);
   }
-   // 当配方明确指定高级模板时，直接切换到高级模式，并用给定模板覆盖现有内容。
+  // 当配方明确指定高级模板时，直接切换到高级模式，并用给定模板覆盖现有内容。
   if (typeof nextAdvancedEnabled === "boolean") {
     advancedEnabled.value = nextAdvancedEnabled;
   }
@@ -266,9 +261,7 @@ const handleParseTemplateFromCommand = () => {
 
 <template>
   <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-    <div
-      class="bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]"
-    >
+    <div class="bg-background w-full max-w-2xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
       <div class="p-6 border-b border-border flex justify-between items-center">
         <div>
           <h2 class="text-xl font-bold text-white">
@@ -372,11 +365,7 @@ const handleParseTemplateFromCommand = () => {
         >
           {{ t("common.next") }} →
         </Button>
-        <Button
-          v-else
-          class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
-          @click="handleSave"
-        >
+        <Button v-else class="px-6 py-2 font-medium flex items-center gap-2 transition-colors" @click="handleSave">
           {{ initialPreset ? t("presetEditor.actions.update") : t("presetEditor.actions.save") }}
         </Button>
       </div>

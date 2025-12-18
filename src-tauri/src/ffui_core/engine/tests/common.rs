@@ -78,10 +78,9 @@ pub(super) fn ffmpeg_available() -> bool {
     // 时才会真正尝试运行 PATH 中的 ffmpeg。
     //
     // 这样可以：
-    // - 保证默认跑 `cargo test` 时不会启动任何外部 ffmpeg 进程，更不会弹出
-    //   “32 位程序无法运行”等系统提示；
-    // - 仍然允许在 CI 或特定开发机上，通过设置环境变量启用真实的 ffmpeg
-    //   集成测试。
+    // - 保证默认跑 `cargo test` 时不会启动任何外部 ffmpeg 进程，更不会弹出 “32
+    //   位程序无法运行”等系统提示；
+    // - 仍然允许在 CI 或特定开发机上，通过设置环境变量启用真实的 ffmpeg 集成测试。
     if std::env::var("FFUI_ENABLE_FFMPEG_INTEGRATION_TESTS")
         .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
         .unwrap_or(false)

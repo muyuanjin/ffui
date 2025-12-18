@@ -1,32 +1,32 @@
 <script setup lang="ts">
-import type { CheckboxRootProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import { Check, Minus } from "lucide-vue-next"
-import { CheckboxIndicator, CheckboxRoot } from "reka-ui"
-import { useVModel } from "@vueuse/core"
-import { cn } from "@/lib/utils"
+import type { CheckboxRootProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { Check, Minus } from "lucide-vue-next";
+import { CheckboxIndicator, CheckboxRoot } from "reka-ui";
+import { useVModel } from "@vueuse/core";
+import { cn } from "@/lib/utils";
 
-type CheckedState = CheckboxRootProps["modelValue"]
+type CheckedState = CheckboxRootProps["modelValue"];
 
 const props = defineProps<
   CheckboxRootProps & {
-    class?: HTMLAttributes["class"]
-    checked?: CheckedState
+    class?: HTMLAttributes["class"];
+    checked?: CheckedState;
   }
->()
+>();
 
 const emits = defineEmits<{
-  (e: "update:checked", value: CheckedState): void
-}>()
+  (e: "update:checked", value: CheckedState): void;
+}>();
 
 // 支持 v-model:checked，同时转发底层 Reka Checkbox 的其它属性。
 const checked = useVModel(props, "checked", emits, {
   passive: true,
   defaultValue: (props.modelValue ?? props.defaultValue ?? false) as CheckedState,
-})
+});
 
-const delegatedProps = reactiveOmit(props, "class", "checked", "modelValue")
+const delegatedProps = reactiveOmit(props, "class", "checked", "modelValue");
 </script>
 
 <template>

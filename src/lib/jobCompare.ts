@@ -25,4 +25,3 @@ export const getJobCompareDisabledReason = (job: TranscodeJob | null | undefined
 
   return null;
 };
-

@@ -260,4 +260,3 @@ describe("JobCompareDialog playback sync", () => {
     }
   });
 });
-

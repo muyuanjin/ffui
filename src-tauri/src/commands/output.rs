@@ -1,6 +1,9 @@
 use tauri::State;
 
-use crate::ffui_core::{OutputPolicy, TranscodingEngine};
+use crate::ffui_core::{
+    OutputPolicy,
+    TranscodingEngine,
+};
 
 /// Preview the derived output path for a given input file and output policy.
 ///

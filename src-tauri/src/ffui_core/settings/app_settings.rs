@@ -1,6 +1,10 @@
 use anyhow::Result;
 
-use super::io::{executable_sidecar_path, read_json_file, write_json_file};
+use super::io::{
+    executable_sidecar_path,
+    read_json_file,
+    write_json_file,
+};
 use super::types::AppSettings;
 
 pub fn load_settings() -> Result<AppSettings> {

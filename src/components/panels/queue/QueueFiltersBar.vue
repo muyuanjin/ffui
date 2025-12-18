@@ -1,20 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
-import type {
-  QueueFilterStatus,
-  QueueFilterKind,
-  QueueSortField,
-  QueueSortDirection,
-} from "@/composables";
+import type { QueueFilterStatus, QueueFilterKind, QueueSortField, QueueSortDirection } from "@/composables";
 import type { QueueMode } from "@/types";
 import QueueFiltersPanel from "./QueueFiltersPanel.vue";
 import { ArrowDownUp, ArrowUpDown, Filter, ListOrdered, ChevronUp, X } from "lucide-vue-next";
@@ -79,9 +68,7 @@ const toggleSelectionBarPinned = () => {
 };
 
 const modeHint = computed(() =>
-  props.queueMode === "queue"
-    ? t("queue.modes.queueHint")
-    : t("queue.modes.displayHint"),
+  props.queueMode === "queue" ? t("queue.modes.queueHint") : t("queue.modes.displayHint"),
 );
 
 watch(
@@ -95,25 +82,16 @@ watch(
 );
 
 const togglePrimarySortDirection = () => {
-  emit(
-    "update:sortPrimaryDirection",
-    props.sortPrimaryDirection === "asc" ? "desc" : "asc",
-  );
+  emit("update:sortPrimaryDirection", props.sortPrimaryDirection === "asc" ? "desc" : "asc");
 };
 
 const toggleSecondarySortDirection = () => {
-  emit(
-    "update:sortSecondaryDirection",
-    props.sortSecondaryDirection === "asc" ? "desc" : "asc",
-  );
+  emit("update:sortSecondaryDirection", props.sortSecondaryDirection === "asc" ? "desc" : "asc");
 };
 </script>
 
 <template>
-  <header
-    data-testid="queue-secondary-header"
-    class="shrink-0 border-b border-border bg-card/60 backdrop-blur"
-  >
+  <header data-testid="queue-secondary-header" class="shrink-0 border-b border-border bg-card/60 backdrop-blur">
     <!-- 主控制栏 - 单行布局 -->
     <div class="px-3 py-1.5 overflow-x-auto">
       <div class="flex items-center justify-between gap-3 min-w-max">
@@ -145,10 +123,7 @@ const toggleSecondarySortDirection = () => {
 
           <!-- 主排序 -->
           <div class="flex items-center gap-1">
-            <span
-              class="text-xs text-muted-foreground whitespace-nowrap"
-              data-testid="queue-sort-primary-label"
-            >
+            <span class="text-xs text-muted-foreground whitespace-nowrap" data-testid="queue-sort-primary-label">
               {{ t("queue.sort.label") }}
             </span>
             <Select
@@ -189,11 +164,7 @@ const toggleSecondarySortDirection = () => {
               <ArrowUpDown v-if="props.sortPrimaryDirection === 'asc'" class="h-3 w-3" />
               <ArrowDownUp v-else class="h-3 w-3" />
               <span class="hidden sm:inline">
-                {{
-                  props.sortPrimaryDirection === "asc"
-                    ? t("queue.sort.asc")
-                    : t("queue.sort.desc")
-                }}
+                {{ props.sortPrimaryDirection === "asc" ? t("queue.sort.asc") : t("queue.sort.desc") }}
               </span>
             </Button>
 
@@ -213,16 +184,9 @@ const toggleSecondarySortDirection = () => {
 
           <!-- 二级排序 (展开时) -->
           <Transition name="fade">
-            <div
-              v-if="secondarySortExpanded"
-              class="flex items-center gap-1"
-              data-testid="queue-secondary-sort-row"
-            >
+            <div v-if="secondarySortExpanded" class="flex items-center gap-1" data-testid="queue-secondary-sort-row">
               <div class="h-4 w-px bg-border/40" />
-              <span
-                class="text-xs text-muted-foreground whitespace-nowrap"
-                data-testid="queue-sort-secondary-label"
-              >
+              <span class="text-xs text-muted-foreground whitespace-nowrap" data-testid="queue-sort-secondary-label">
                 {{ t("queue.sort.secondaryLabel") }}
               </span>
               <Select
@@ -263,11 +227,7 @@ const toggleSecondarySortDirection = () => {
                 <ArrowUpDown v-if="props.sortSecondaryDirection === 'asc'" class="h-3 w-3" />
                 <ArrowDownUp v-else class="h-3 w-3" />
                 <span class="hidden sm:inline">
-                  {{
-                    props.sortSecondaryDirection === "asc"
-                      ? t("queue.sort.asc")
-                      : t("queue.sort.desc")
-                  }}
+                  {{ props.sortSecondaryDirection === "asc" ? t("queue.sort.asc") : t("queue.sort.desc") }}
                 </span>
               </Button>
 

@@ -29,4 +29,3 @@ export const getCurrentWindow = (): MockWindow => sharedWindow;
 // Export a compatible runtime symbol so those imports don't crash when the
 // docs screenshot Vite config aliases the module to this file.
 export class Window extends MockWindow {}
-

@@ -64,18 +64,13 @@ const {
 } = toRefs(props);
 
 // 使用时间显示组合式函数
-const {
-  elapsedTimeDisplay,
-  estimatedTotalTimeDisplay,
-  shouldShowTimeInfo,
-  isTerminalState,
-  isProcessing,
-} = useJobTimeDisplay(toRef(props, "job"));
+const { elapsedTimeDisplay, estimatedTotalTimeDisplay, shouldShowTimeInfo, isTerminalState, isProcessing } =
+  useJobTimeDisplay(toRef(props, "job"));
 
 // 时间显示文本
 const timeDisplayText = computed(() => {
   if (!shouldShowTimeInfo.value) return null;
-  
+
   if (isTerminalState.value) {
     // 终态：显示总耗时
     if (elapsedTimeDisplay.value !== "-") {
@@ -83,12 +78,12 @@ const timeDisplayText = computed(() => {
     }
     return null;
   }
-  
+
   if (isProcessing.value || props.job.status === "paused") {
     // 处理中或暂停：显示已用时间 / 预估总时间
     const elapsed = elapsedTimeDisplay.value;
     const total = estimatedTotalTimeDisplay.value;
-    
+
     if (elapsed !== "-" && total !== "-") {
       return `${elapsed} / ${total}`;
     }
@@ -96,7 +91,7 @@ const timeDisplayText = computed(() => {
       return elapsed;
     }
   }
-  
+
   return null;
 });
 
@@ -105,9 +100,7 @@ const compareDisabledReason = computed(() => {
   return getJobCompareDisabledReason(props.job);
 });
 
-const canCompare = computed(
-  () => isJobCompareEligible(props.job) && compareDisabledReason.value == null,
-);
+const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
 
 const compareDisabledText = computed(() => {
   const reason = compareDisabledReason.value;
@@ -128,7 +121,7 @@ const emit = defineEmits<{
   (e: "cancel", id: string): void;
   (e: "preview", job: TranscodeJob): void;
   (e: "preview-error"): void;
-   (e: "inspect", job: TranscodeJob): void;
+  (e: "inspect", job: TranscodeJob): void;
   (e: "compare", job: TranscodeJob): void;
 }>();
 </script>
@@ -143,9 +136,7 @@ const emit = defineEmits<{
         variant="ghost"
         size="icon-xs"
         class="w-1 h-14 p-0 rounded-full transition-all flex-shrink-0"
-        :class="isSelected
-          ? 'bg-amber-500'
-          : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'"
+        :class="isSelected ? 'bg-amber-500' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'"
         data-testid="queue-item-select-toggle"
         @click.stop="emit('toggle-select', job.id)"
       />
@@ -167,8 +158,7 @@ const emit = defineEmits<{
         :class="{
           'border-emerald-500/60 text-emerald-400 bg-emerald-500/10': job.status === 'completed',
           'border-blue-500/60 text-blue-400 bg-blue-500/10': job.status === 'processing',
-          'border-amber-500/60 text-amber-400 bg-amber-500/10':
-            job.status === 'waiting' || job.status === 'paused',
+          'border-amber-500/60 text-amber-400 bg-amber-500/10': job.status === 'waiting' || job.status === 'paused',
           'border-red-500/60 text-red-400 bg-red-500/10': job.status === 'failed',
           'border-muted-foreground/40 text-muted-foreground bg-muted/40': job.status === 'skipped',
         }"
@@ -206,10 +196,7 @@ const emit = defineEmits<{
             {{ preset.name }}
           </span>
           <span>{{ displayOriginalSize }} MB</span>
-          <span
-            v-if="job.originalCodec"
-            class="uppercase text-muted-foreground border border-border px-1 rounded"
-          >
+          <span v-if="job.originalCodec" class="uppercase text-muted-foreground border border-border px-1 rounded">
             {{ job.originalCodec }}
           </span>
 
@@ -230,11 +217,12 @@ const emit = defineEmits<{
                 'text-amber-400': sizeChangeLevel === 'slight',
                 'text-red-400': sizeChangeLevel === 'severe',
               }"
-            >({{ savedLabel }})</span>
+              >({{ savedLabel }})</span
+            >
           </template>
 
           <span v-if="isSkipped && job.skipReason" class="text-amber-400 italic ml-2">
-            {{ t('queue.skippedPrefix') }} {{ job.skipReason }}
+            {{ t("queue.skippedPrefix") }} {{ job.skipReason }}
           </span>
           <span
             v-if="job.source"
@@ -246,7 +234,7 @@ const emit = defineEmits<{
       </div>
     </div>
 
-  <div class="text-right flex flex-col items-end gap-1.5">
+    <div class="text-right flex flex-col items-end gap-1.5">
       <span
         class="text-xs font-bold uppercase tracking-wide"
         :class="statusTextClass"
@@ -296,7 +284,7 @@ const emit = defineEmits<{
           :title="String(t('queue.actions.wait'))"
           @click.stop="emit('wait', job.id)"
         >
-          {{ t('queue.actions.wait') }}
+          {{ t("queue.actions.wait") }}
         </Button>
         <Button
           v-else-if="isPausing"
@@ -317,7 +305,7 @@ const emit = defineEmits<{
           :title="String(t('queue.actions.resume'))"
           @click.stop="emit('resume', job.id)"
         >
-          {{ t('queue.actions.resume') }}
+          {{ t("queue.actions.resume") }}
         </Button>
         <Button
           v-if="isRestartable"
@@ -328,7 +316,7 @@ const emit = defineEmits<{
           :title="String(t('queue.actions.restart'))"
           @click.stop="emit('restart', job.id)"
         >
-          {{ t('queue.actions.restart') }}
+          {{ t("queue.actions.restart") }}
         </Button>
         <Button
           v-if="isCancellable"
@@ -338,7 +326,7 @@ const emit = defineEmits<{
           :title="String(t('app.actions.cancel'))"
           @click.stop="emit('cancel', job.id)"
         >
-          {{ t('app.actions.cancel') }}
+          {{ t("app.actions.cancel") }}
         </Button>
       </div>
     </div>

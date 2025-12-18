@@ -4,9 +4,7 @@ import type { AppSettings, SmartScanConfig } from "@/types";
 const cloneSmartScanDefaults = (): SmartScanConfig => {
   return {
     ...DEFAULT_SMART_SCAN_CONFIG,
-    outputPolicy: DEFAULT_SMART_SCAN_CONFIG.outputPolicy
-      ? { ...DEFAULT_SMART_SCAN_CONFIG.outputPolicy }
-      : undefined,
+    outputPolicy: DEFAULT_SMART_SCAN_CONFIG.outputPolicy ? { ...DEFAULT_SMART_SCAN_CONFIG.outputPolicy } : undefined,
     videoFilter: {
       enabled: DEFAULT_SMART_SCAN_CONFIG.videoFilter.enabled,
       extensions: [...DEFAULT_SMART_SCAN_CONFIG.videoFilter.extensions],
@@ -36,4 +34,3 @@ export const buildWebFallbackAppSettings = (): AppSettings => {
     taskbarProgressMode: "byEstimatedTime",
   } as AppSettings;
 };
-

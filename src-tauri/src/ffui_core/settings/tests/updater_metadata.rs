@@ -1,5 +1,6 @@
-use super::*;
 use serde_json::Value;
+
+use super::*;
 
 #[test]
 fn app_settings_round_trips_updater_metadata() {

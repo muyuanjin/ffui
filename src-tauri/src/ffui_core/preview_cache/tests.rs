@@ -1,6 +1,7 @@
-use super::*;
 use std::collections::HashSet;
 use std::fs;
+
+use super::*;
 
 #[test]
 fn cleanup_unreferenced_previews_deletes_only_unreferenced_images() {

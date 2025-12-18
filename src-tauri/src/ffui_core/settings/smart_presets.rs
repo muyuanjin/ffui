@@ -3,8 +3,17 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::ffui_core::domain::{
-    AudioConfig, ContainerConfig, FFmpegPreset, FilterConfig, GlobalConfig, HardwareConfig,
-    InputTimelineConfig, MappingConfig, PresetStats, SubtitlesConfig, VideoConfig,
+    AudioConfig,
+    ContainerConfig,
+    FFmpegPreset,
+    FilterConfig,
+    GlobalConfig,
+    HardwareConfig,
+    InputTimelineConfig,
+    MappingConfig,
+    PresetStats,
+    SubtitlesConfig,
+    VideoConfig,
 };
 use crate::ffui_core::settings::presets::default_presets;
 use crate::ffui_core::settings::smart_presets_cpu::smart_presets_for_cpu_only;

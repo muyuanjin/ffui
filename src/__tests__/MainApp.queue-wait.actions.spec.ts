@@ -1,10 +1,5 @@
 // @vitest-environment jsdom
-import {
-  i18n,
-  invokeMock,
-  setQueueJobs,
-  useBackendMock,
-} from "./helpers/mainAppTauriDialog";
+import { i18n, invokeMock, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -245,10 +240,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("processing");
     expect(updatedJob?.logs?.join("\n") ?? "").toContain("Wait requested from UI");
-    expect(invokeMock).toHaveBeenCalledWith(
-      "wait_transcode_job",
-      expect.objectContaining({ jobId }),
-    );
+    expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.objectContaining({ jobId }));
   });
 
   it("wires queue context menu resume action through to resume_transcode_job and updates job status", async () => {
@@ -292,10 +284,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("waiting");
-    expect(invokeMock).toHaveBeenCalledWith(
-      "resume_transcode_job",
-      expect.objectContaining({ jobId }),
-    );
+    expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", expect.objectContaining({ jobId }));
   });
 
   it("opens input and output folders from the queue context menu", async () => {
@@ -442,14 +431,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await vm.handleQueueContextCopyOutputPath();
 
     expect(clipboardWriteText).toHaveBeenCalledTimes(2);
-    expect(clipboardWriteText).toHaveBeenNthCalledWith(
-      1,
-      `${jobA.inputPath}\n${jobB.inputPath}`,
-    );
-    expect(clipboardWriteText).toHaveBeenNthCalledWith(
-      2,
-      `${jobA.outputPath}\n${jobB.outputPath}`,
-    );
+    expect(clipboardWriteText).toHaveBeenNthCalledWith(1, `${jobA.inputPath}\n${jobB.inputPath}`);
+    expect(clipboardWriteText).toHaveBeenNthCalledWith(2, `${jobA.outputPath}\n${jobB.outputPath}`);
   });
-
 });

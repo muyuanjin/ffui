@@ -10,13 +10,9 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const title = computed(() =>
-  props.activeTab === "media" ? t("media.dropTitle") : t("queue.dropTitle"),
-);
+const title = computed(() => (props.activeTab === "media" ? t("media.dropTitle") : t("queue.dropTitle")));
 
-const subtitle = computed(() =>
-  props.activeTab === "media" ? t("media.dropSubtitle") : t("queue.dropSubtitle"),
-);
+const subtitle = computed(() => (props.activeTab === "media" ? t("media.dropSubtitle") : t("queue.dropSubtitle")));
 </script>
 
 <template>
@@ -27,9 +23,7 @@ const subtitle = computed(() =>
     <div
       class="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-blue-400/70 bg-blue-600/60 shadow-lg mb-4"
     >
-      <span class="text-[10px] font-semibold tracking-[0.2em] uppercase text-blue-200">
-        Drop
-      </span>
+      <span class="text-[10px] font-semibold tracking-[0.2em] uppercase text-blue-200"> Drop </span>
     </div>
     <h2 class="text-2xl font-semibold text-white">
       {{ title }}
@@ -39,4 +33,3 @@ const subtitle = computed(() =>
     </p>
   </div>
 </template>
-

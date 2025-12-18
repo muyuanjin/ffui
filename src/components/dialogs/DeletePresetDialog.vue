@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset } from "@/types";
@@ -42,9 +49,12 @@ const handleCancel = () => {
 
       <div v-if="preset" class="py-4">
         <div class="rounded-md border border-border/60 bg-muted/30 p-3 space-y-1 text-xs">
-          <p><span class="text-muted-foreground">{{ t("presetEditor.nameLabel") }}:</span> {{ preset.name }}</p>
+          <p>
+            <span class="text-muted-foreground">{{ t("presetEditor.nameLabel") }}:</span> {{ preset.name }}
+          </p>
           <p v-if="preset.description">
-            <span class="text-muted-foreground">{{ t("presetEditor.descriptionLabel") }}:</span> {{ preset.description }}
+            <span class="text-muted-foreground">{{ t("presetEditor.descriptionLabel") }}:</span>
+            {{ preset.description }}
           </p>
           <p>
             <span class="text-muted-foreground">{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>

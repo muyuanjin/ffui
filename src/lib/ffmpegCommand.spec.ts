@@ -15,13 +15,11 @@ import type {
   VideoConfig,
 } from "@/types";
 
-const splitArgs = (command: string): string[] =>
-  command.split(/\s+/).filter((part) => part.length > 0);
+const splitArgs = (command: string): string[] => command.split(/\s+/).filter((part) => part.length > 0);
 
 describe("ffmpegCommand utilities", () => {
   it("renders highlighted command without changing the plain text content", () => {
-    const cmd =
-      'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
+    const cmd = 'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
 
     const html = highlightFfmpegCommand(cmd);
     // Should contain spans for options / paths.
@@ -42,8 +40,7 @@ describe("ffmpegCommand utilities", () => {
   });
 
   it("expands bare ffmpeg program token to a concrete path when programOverrides are provided", () => {
-    const raw =
-      'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
+    const raw = 'ffmpeg -hide_banner -nostdin -i "C:/videos/input.mp4" -c:v libx264 -crf 23 "C:/videos/output.mp4" -y';
     const resolvedPath = "C:/Program Files/FFmpeg/bin/ffmpeg.exe";
 
     const html = highlightFfmpegCommand(raw, {
@@ -101,8 +98,7 @@ describe("ffmpegCommand utilities", () => {
   });
 
   it("handles commands that already use INPUT/OUTPUT placeholders", () => {
-    const input =
-      'ffmpeg -hide_banner -nostdin -i INPUT -c:v libx264 -crf 23 OUTPUT -y';
+    const input = "ffmpeg -hide_banner -nostdin -i INPUT -c:v libx264 -crf 23 OUTPUT -y";
     const result = normalizeFfmpegTemplate(input);
     expect(result.template).toBe(input);
     expect(result.inputReplaced).toBe(true);
@@ -208,10 +204,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
   });
 
   it("respects audio codec copy vs aac and never mixes re-encode flags into copy mode", () => {
-    const sharedAudioFields: Pick<
-      AudioConfig,
-      "bitrate" | "sampleRateHz" | "channels" | "channelLayout"
-    > = {
+    const sharedAudioFields: Pick<AudioConfig, "bitrate" | "sampleRateHz" | "channels" | "channelLayout"> = {
       bitrate: 192,
       sampleRateHz: 44100,
       channels: 2,

@@ -6,12 +6,8 @@ import { nextTick } from "vue";
 
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 
-const listenMock = vi.fn<
-  (
-    event: string,
-    handler: (event: { payload: { paths: string[] } }) => void,
-  ) => Promise<() => void>
->();
+const listenMock =
+  vi.fn<(event: string, handler: (event: { payload: { paths: string[] } }) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/event", () => {
   return {
@@ -41,23 +37,21 @@ vi.mock("@/lib/backend", async () => {
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia,
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
-    loadAppSettings: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadSmartDefaultPresets: vi.fn(async () => []),
     loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -82,14 +76,12 @@ describe("MainApp media inspect in Tauri mode", () => {
     (inspectMedia as any).mockClear?.();
     (window as any).__TAURI__ = {};
 
-    listenMock.mockImplementation(
-      async (event: string, handler: (event: { payload: { paths: string[] } }) => void) => {
-        if (event === "tauri://drag-drop") {
-          dragDropHandler = handler;
-        }
-        return () => {};
-      },
-    );
+    listenMock.mockImplementation(async (event: string, handler: (event: { payload: { paths: string[] } }) => void) => {
+      if (event === "tauri://drag-drop") {
+        dragDropHandler = handler;
+      }
+      return () => {};
+    });
   });
 
   it("uses tauri://drag-drop to inspect media when dropping files on the media tab", async () => {

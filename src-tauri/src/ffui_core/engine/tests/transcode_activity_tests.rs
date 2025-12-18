@@ -1,6 +1,10 @@
-use super::*;
-use crate::ffui_core::domain::{JobSource, JobType};
 use std::sync::Arc;
+
+use super::*;
+use crate::ffui_core::domain::{
+    JobSource,
+    JobType,
+};
 
 #[test]
 fn paused_jobs_do_not_mark_transcode_activity() {

@@ -15,7 +15,12 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => true,
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
-    importUiFontFile: vi.fn(async () => ({ id: "imported", familyName: "Imported", path: "/tmp/Imported.ttf", format: "ttf" })),
+    importUiFontFile: vi.fn(async () => ({
+      id: "imported",
+      familyName: "Imported",
+      path: "/tmp/Imported.ttf",
+      format: "ttf",
+    })),
   };
 });
 
@@ -133,16 +138,12 @@ describe("SettingsAppearanceSection system font input", () => {
 
     await input.setValue("示例");
     await nextTick();
-    const listEl1 = document.querySelector(
-      '[data-testid="settings-ui-system-font-suggestions"]',
-    ) as HTMLElement | null;
+    const listEl1 = document.querySelector('[data-testid="settings-ui-system-font-suggestions"]') as HTMLElement | null;
     expect(listEl1).toBeTruthy();
     expect(listEl1?.getAttribute("data-state")).toBe("open");
 
     const suggestionItems = Array.from(
-      document.querySelectorAll(
-        '[data-testid="settings-ui-system-font-suggestions"] [role="option"]',
-      ),
+      document.querySelectorAll('[data-testid="settings-ui-system-font-suggestions"] [role="option"]'),
     );
     expect(suggestionItems.length).toBeGreaterThan(0);
     (suggestionItems[0] as HTMLElement).dispatchEvent(
@@ -150,18 +151,14 @@ describe("SettingsAppearanceSection system font input", () => {
     );
     await nextTick();
 
-    const listEl2 = document.querySelector(
-      '[data-testid="settings-ui-system-font-suggestions"]',
-    ) as HTMLElement | null;
+    const listEl2 = document.querySelector('[data-testid="settings-ui-system-font-suggestions"]') as HTMLElement | null;
     expect(listEl2).toBeTruthy();
     expect(listEl2?.getAttribute("data-state")).toBe("closed");
 
     // Edit again without hitting refresh: suggestions should show up again.
     await input.setValue("其");
     await nextTick();
-    const listEl3 = document.querySelector(
-      '[data-testid="settings-ui-system-font-suggestions"]',
-    ) as HTMLElement | null;
+    const listEl3 = document.querySelector('[data-testid="settings-ui-system-font-suggestions"]') as HTMLElement | null;
     expect(listEl3).toBeTruthy();
     expect(listEl3?.getAttribute("data-state")).toBe("open");
 

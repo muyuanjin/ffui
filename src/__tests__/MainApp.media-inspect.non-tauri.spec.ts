@@ -11,20 +11,18 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => false,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => '{"format":{"duration":"60"},"streams":[]}'),
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
-    loadAppSettings: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 

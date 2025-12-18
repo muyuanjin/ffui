@@ -11,11 +11,7 @@ import type {
   ContainerConfig,
   HardwareConfig,
 } from "@/types";
-import {
-  highlightFfmpegCommand,
-  normalizeFfmpegTemplate,
-  getFfmpegCommandPreview,
-} from "@/lib/ffmpegCommand";
+import { highlightFfmpegCommand, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
 
 // ----- Types -----
 
@@ -178,16 +174,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     if (normalizedVideo.encoder !== "libx264") {
       const rawTune = (normalizedVideo as any).tune as string | undefined;
       if (typeof rawTune === "string" && rawTune.trim().length > 0) {
-        const x264OnlyTunes = [
-          "film",
-          "animation",
-          "grain",
-          "stillimage",
-          "psnr",
-          "ssim",
-          "fastdecode",
-          "zerolatency",
-        ];
+        const x264OnlyTunes = ["film", "animation", "grain", "stillimage", "psnr", "ssim", "fastdecode", "zerolatency"];
         if (x264OnlyTunes.includes(rawTune)) {
           delete (normalizedVideo as any).tune;
         }
@@ -201,7 +188,8 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     // - 如果原始预设是智能预设且参数未被修改，保留标记 (true)
     // - 如果参数被修改了，显式清除标记 (false)，防止回退到 ID 前缀判断
     // - 名称和描述的修改不影响智能推荐标记
-    const wasSmartPreset = initialPreset.isSmartPreset === true ||
+    const wasSmartPreset =
+      initialPreset.isSmartPreset === true ||
       (typeof initialPreset.id === "string" && initialPreset.id.startsWith("smart-"));
     const parametersChanged = hasParametersChanged();
     // 如果原本是智能预设，需要显式设置 true 或 false；否则保持 undefined
@@ -239,8 +227,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
       });
 
     if (!source) {
-      parseHint.value =
-        (t?.("presetEditor.advanced.parseEmpty") as string) ?? "";
+      parseHint.value = (t?.("presetEditor.advanced.parseEmpty") as string) ?? "";
       parseHintVariant.value = "warning";
       return;
     }
@@ -250,16 +237,13 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     advancedEnabled.value = true;
 
     if (result.inputReplaced && result.outputReplaced) {
-      parseHint.value =
-        (t?.("presetEditor.advanced.parseOk") as string) ?? "";
+      parseHint.value = (t?.("presetEditor.advanced.parseOk") as string) ?? "";
       parseHintVariant.value = "ok";
     } else if (result.inputReplaced || result.outputReplaced) {
-      parseHint.value =
-        (t?.("presetEditor.advanced.parsePartial") as string) ?? "";
+      parseHint.value = (t?.("presetEditor.advanced.parsePartial") as string) ?? "";
       parseHintVariant.value = "warning";
     } else {
-      parseHint.value =
-        (t?.("presetEditor.advanced.parseFailed") as string) ?? "";
+      parseHint.value = (t?.("presetEditor.advanced.parseFailed") as string) ?? "";
       parseHintVariant.value = "warning";
     }
   };

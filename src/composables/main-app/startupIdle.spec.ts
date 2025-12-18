@@ -35,4 +35,3 @@ describe("scheduleStartupIdle", () => {
     expect(setTimeout).toHaveBeenCalledWith(cb, 0);
   });
 });
-

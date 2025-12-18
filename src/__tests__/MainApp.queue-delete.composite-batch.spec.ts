@@ -28,7 +28,7 @@ describe("MainApp 复合任务删除", () => {
 
   it("右键复合任务卡片后删除，应该调用 delete_smart_scan_batch 并视为整批成功删除", async () => {
     const batchId = "batch-composite-delete";
-    
+
     // 模拟一个复合任务，包含多个已完成的子任务
     const jobs: TranscodeJob[] = [
       {
@@ -100,7 +100,10 @@ describe("MainApp 复合任务删除", () => {
 
     // 模拟用户右键点击复合任务卡片后，选中该批次的所有子任务
     // （这是 handleBatchContextMenu 的行为）
-    setSelectedJobIds(vm, jobs.map((job) => job.id));
+    setSelectedJobIds(
+      vm,
+      jobs.map((job) => job.id),
+    );
 
     // 触发批量删除（复合任务右键菜单 → 从列表删除）
     if (typeof vm.bulkDelete === "function") {
@@ -109,9 +112,7 @@ describe("MainApp 复合任务删除", () => {
     await nextTick();
 
     // 验证：应调用一次 delete_smart_scan_batch，而不是对每个子任务逐个 delete_transcode_job。
-    const deleteBatchCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "delete_smart_scan_batch",
-    );
+    const deleteBatchCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_smart_scan_batch");
     expect(deleteBatchCalls.length).toBe(1);
 
     const singlePayload = deleteBatchCalls[0]?.[1] as any;
@@ -121,7 +122,7 @@ describe("MainApp 复合任务删除", () => {
     });
 
     // 验证：不应该有错误
-    const error = (vm.queueError ?? vm.queueError?.value) ?? null;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
     expect(error).toBeNull();
 
     wrapper.unmount();
@@ -129,7 +130,7 @@ describe("MainApp 复合任务删除", () => {
 
   it("当后端返回 false 时，应该显示删除失败错误", async () => {
     const batchId = "batch-delete-fail";
-    
+
     const jobs: TranscodeJob[] = [
       {
         id: "job-fail-1",
@@ -179,7 +180,7 @@ describe("MainApp 复合任务删除", () => {
     await nextTick();
 
     // 验证：应该显示删除失败错误
-    const error = (vm.queueError ?? vm.queueError?.value) ?? null;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
     const expectedError = (i18n as any).global.t("queue.error.deleteFailed") as string;
     expect(error).toBe(expectedError);
 

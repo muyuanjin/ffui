@@ -50,7 +50,8 @@
   /* Global UI appearance (driven by AppSettings) */
   --ffui-ui-scale: 1;
   --ffui-ui-scale-inv: 1;
-  --ffui-ui-font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+  --ffui-ui-font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
   --ffui-ui-font-size-scale: 1;
   --background: #f9fafb;
   --foreground: #020617;
@@ -226,29 +227,63 @@
 
   /* Scale common Tailwind text size utilities so they follow the user's
      "Text size" setting without changing rem-based layout sizing. */
-  .text-xs { font-size: clamp(10px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-sm { font-size: clamp(11px, calc(14px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-base { font-size: clamp(12px, calc(16px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-lg { font-size: clamp(13px, calc(18px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-xl { font-size: clamp(14px, calc(20px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-2xl { font-size: clamp(16px, calc(24px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-3xl { font-size: clamp(18px, calc(30px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-4xl { font-size: clamp(20px, calc(36px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-5xl { font-size: clamp(24px, calc(48px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-xs {
+    font-size: clamp(10px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-sm {
+    font-size: clamp(11px, calc(14px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-base {
+    font-size: clamp(12px, calc(16px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-lg {
+    font-size: clamp(13px, calc(18px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-xl {
+    font-size: clamp(14px, calc(20px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-2xl {
+    font-size: clamp(16px, calc(24px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-3xl {
+    font-size: clamp(18px, calc(30px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-4xl {
+    font-size: clamp(20px, calc(36px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-5xl {
+    font-size: clamp(24px, calc(48px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
 
   /* Scale the small fixed-px Tailwind font-size utilities (text-[9px], etc.)
      so they follow the user's "Text size" setting, while clamping the minimum
      to keep them readable when the user scales down. */
-  .text-\[8px\] { font-size: clamp(7px, calc(8px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-\[9px\] { font-size: clamp(8px, calc(9px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-\[10px\] { font-size: clamp(9px, calc(10px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-\[11px\] { font-size: clamp(10px, calc(11px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-\[12px\] { font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-  .text-\[13px\] { font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+  .text-\[8px\] {
+    font-size: clamp(7px, calc(8px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-\[9px\] {
+    font-size: clamp(8px, calc(9px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-\[10px\] {
+    font-size: clamp(9px, calc(10px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-\[11px\] {
+    font-size: clamp(10px, calc(11px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-\[12px\] {
+    font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
+  .text-\[13px\] {
+    font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important;
+  }
 
   @media (min-width: 768px) {
-    .md\:text-\[12px\] { font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important; }
-    .md\:text-\[13px\] { font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important; }
+    .md\:text-\[12px\] {
+      font-size: clamp(11px, calc(12px * var(--ffui-ui-font-size-scale)), 999px) !important;
+    }
+    .md\:text-\[13px\] {
+      font-size: clamp(12px, calc(13px * var(--ffui-ui-font-size-scale)), 999px) !important;
+    }
   }
 
   /* Allow text selection where it makes sense */

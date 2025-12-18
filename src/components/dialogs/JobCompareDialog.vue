@@ -5,11 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import type { JobCompareOutput, JobCompareSources, TranscodeJob } from "@/types";
-import {
-  buildPlayableMediaUrl,
-  getJobCompareSources,
-  hasTauri,
-} from "@/lib/backend";
+import { buildPlayableMediaUrl, getJobCompareSources, hasTauri } from "@/lib/backend";
 import CompareViewport, { type CompareMode } from "./job-compare/CompareViewport.vue";
 import { useJobCompareFrames } from "./job-compare/useJobCompareFrames";
 import { useJobComparePlaybackSync } from "./job-compare/useJobComparePlaybackSync";
@@ -37,8 +33,7 @@ const totalDurationSeconds = computed(() => {
 });
 const maxCompareSeconds = computed(() => {
   const reported = sources.value?.maxCompareSeconds;
-  const maxFromSources =
-    typeof reported === "number" && Number.isFinite(reported) && reported > 0 ? reported : null;
+  const maxFromSources = typeof reported === "number" && Number.isFinite(reported) && reported > 0 ? reported : null;
   const total = totalDurationSeconds.value;
   if (maxFromSources != null && total != null) return Math.min(maxFromSources, total);
   if (maxFromSources != null) return maxFromSources;
@@ -151,12 +146,7 @@ const setTimeline = (value: number[] | undefined) => {
 
   const raw = timeline.value[0] ?? 0;
   const max = maxCompareSeconds.value;
-  const clamped =
-    !Number.isFinite(raw) || raw < 0
-      ? 0
-      : Number.isFinite(max) && max > 0
-        ? Math.min(raw, max)
-        : raw;
+  const clamped = !Number.isFinite(raw) || raw < 0 ? 0 : Number.isFinite(max) && max > 0 ? Math.min(raw, max) : raw;
   clearPendingSeek();
   seekVideos(clamped);
 };

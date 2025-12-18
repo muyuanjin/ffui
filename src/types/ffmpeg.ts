@@ -18,16 +18,7 @@ export type AudioLoudnessProfile = "none" | "cnBroadcast" | "ebuR128";
 
 export type OverwriteBehavior = "ask" | "overwrite" | "noOverwrite";
 
-export type LogLevel =
-  | "quiet"
-  | "panic"
-  | "fatal"
-  | "error"
-  | "warning"
-  | "info"
-  | "verbose"
-  | "debug"
-  | "trace";
+export type LogLevel = "quiet" | "panic" | "fatal" | "error" | "warning" | "info" | "verbose" | "debug" | "trace";
 
 export interface GlobalConfig {
   /** Whether to overwrite existing OUTPUT files. Undefined = ffmpeg default. */

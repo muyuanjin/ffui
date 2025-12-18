@@ -18,4 +18,3 @@ export const prepareAppUpdaterProxy = async (): Promise<string | null> => {
   if (!hasTauri()) return null;
   return invoke<string | null>("prepare_app_updater_proxy");
 };
-

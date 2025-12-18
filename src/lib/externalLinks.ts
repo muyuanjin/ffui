@@ -22,4 +22,3 @@ export const openExternalUrl = async (url: string): Promise<void> => {
     console.error("open external url via window.open failed", error);
   }
 };
-

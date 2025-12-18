@@ -21,9 +21,8 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
 };
 
 const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>) => {
-  const existing =
-    (props.appSettings.crashRecoveryLogRetention ??
-      ({} as CrashRecoveryRetention)) as CrashRecoveryRetention;
+  const existing = (props.appSettings.crashRecoveryLogRetention ??
+    ({} as CrashRecoveryRetention)) as CrashRecoveryRetention;
   updateSetting("crashRecoveryLogRetention", { ...existing, ...patch });
 };
 </script>
@@ -39,11 +38,7 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
       @update:model-value="(v) => updateSetting('queuePersistenceMode', v as any)"
     >
       <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
-        <RadioGroupItem
-          id="queue-persistence-none"
-          value="none"
-          class="mt-[2px] h-3 w-3 border-border/50"
-        />
+        <RadioGroupItem id="queue-persistence-none" value="none" class="mt-[2px] h-3 w-3 border-border/50" />
         <span class="text-[10px] leading-snug select-none">
           {{ t("app.settings.queuePersistenceNoneOption") }}
         </span>
@@ -90,9 +85,12 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
               min="0"
               max="5000"
               class="w-16 h-6 text-[10px] font-mono text-center"
-              @update:model-value="(v) => updateCrashRecoveryLogRetention({
-                maxFiles: Number(v),
-              })"
+              @update:model-value="
+                (v) =>
+                  updateCrashRecoveryLogRetention({
+                    maxFiles: Number(v),
+                  })
+              "
             />
           </div>
           <div class="flex items-center justify-between gap-2">
@@ -105,9 +103,12 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
               min="0"
               max="32768"
               class="w-16 h-6 text-[10px] font-mono text-center"
-              @update:model-value="(v) => updateCrashRecoveryLogRetention({
-                maxTotalMb: Number(v),
-              })"
+              @update:model-value="
+                (v) =>
+                  updateCrashRecoveryLogRetention({
+                    maxTotalMb: Number(v),
+                  })
+              "
             />
           </div>
         </div>

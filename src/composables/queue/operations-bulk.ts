@@ -43,9 +43,7 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
  * Only affects jobs with status === "processing".
  */
 export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value
-    .filter((job) => job.status === "processing")
-    .map((job) => job.id);
+  const ids = deps.selectedJobs.value.filter((job) => job.status === "processing").map((job) => job.id);
   for (const id of ids) {
     await deps.handleWaitJob(id);
   }
@@ -56,9 +54,7 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
  * Only affects jobs with status === "paused".
  */
 export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value
-    .filter((job) => job.status === "paused")
-    .map((job) => job.id);
+  const ids = deps.selectedJobs.value.filter((job) => job.status === "paused").map((job) => job.id);
   for (const id of ids) {
     await deps.handleResumeJob(id);
   }
@@ -71,11 +67,7 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
  */
 export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
   const ids = deps.selectedJobs.value
-    .filter(
-      (job) =>
-        job.status !== "completed" &&
-        job.status !== "skipped",
-    )
+    .filter((job) => job.status !== "completed" && job.status !== "skipped")
     .map((job) => job.id);
   for (const id of ids) {
     await deps.handleRestartJob(id);
@@ -90,12 +82,7 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
  */
 export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] {
   const waiting = deps.jobs.value
-    .filter(
-      (job) =>
-        (job.status === "waiting" ||
-          job.status === "queued" ||
-          job.status === "paused"),
-    )
+    .filter((job) => job.status === "waiting" || job.status === "queued" || job.status === "paused")
     .slice()
     .sort((a, b) => {
       const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
@@ -165,19 +152,14 @@ function flattenGroups(groups: WaitingGroup[]): string[] {
   return result;
 }
 
-async function moveSelectedGroupsToEdge(
-  deps: BulkOpsDeps,
-  edge: "top" | "bottom",
-) {
+async function moveSelectedGroupsToEdge(deps: BulkOpsDeps, edge: "top" | "bottom") {
   const byId = new Map(deps.jobs.value.map((job) => [job.id, job]));
   const groups = buildWaitingGroups(deps.jobs.value);
   const waitingIds = flattenGroups(groups);
   if (waitingIds.length === 0) return;
 
   const waitingSet = new Set(waitingIds);
-  const selectedWaitingIds = deps.selectedJobs.value
-    .map((job) => job.id)
-    .filter((id) => waitingSet.has(id));
+  const selectedWaitingIds = deps.selectedJobs.value.map((job) => job.id).filter((id) => waitingSet.has(id));
 
   if (selectedWaitingIds.length === 0) return;
 
@@ -196,29 +178,19 @@ async function moveSelectedGroupsToEdge(
     }
   }
 
-  const isSingleBatchOnly =
-    !hasManualSelected && selectedBatchIds.size === 1;
+  const isSingleBatchOnly = !hasManualSelected && selectedBatchIds.size === 1;
 
   if (isSingleBatchOnly) {
     const batchId = Array.from(selectedBatchIds)[0];
-    const batchGroup = groups.find(
-      (g) => g.kind === "batch" && g.batchId === batchId,
-    );
+    const batchGroup = groups.find((g) => g.kind === "batch" && g.batchId === batchId);
     if (!batchGroup) return;
 
-    const selectedChildren = batchGroup.ids.filter((id) =>
-      selectedWaitingSet.has(id),
-    );
+    const selectedChildren = batchGroup.ids.filter((id) => selectedWaitingSet.has(id));
 
     const fullBatchSelected = selectedChildren.length === batchGroup.ids.length;
     if (!fullBatchSelected) {
-      const remaining = batchGroup.ids.filter(
-        (id) => !selectedWaitingSet.has(id),
-      );
-      batchGroup.ids =
-        edge === "top"
-          ? [...selectedChildren, ...remaining]
-          : [...remaining, ...selectedChildren];
+      const remaining = batchGroup.ids.filter((id) => !selectedWaitingSet.has(id));
+      batchGroup.ids = edge === "top" ? [...selectedChildren, ...remaining] : [...remaining, ...selectedChildren];
 
       const next = flattenGroups(groups);
       await reorderWaitingQueue(next, deps);
@@ -240,9 +212,7 @@ async function moveSelectedGroupsToEdge(
       continue;
     }
 
-    const selectedAnyChild = group.ids.some((id) =>
-      selectedWaitingSet.has(id),
-    );
+    const selectedAnyChild = group.ids.some((id) => selectedWaitingSet.has(id));
     if (selectedAnyChild) {
       selectedGroups.push(group);
     } else {
@@ -253,9 +223,7 @@ async function moveSelectedGroupsToEdge(
   if (selectedGroups.length === 0) return;
 
   const nextGroups =
-    edge === "top"
-      ? [...selectedGroups, ...unselectedGroups]
-      : [...unselectedGroups, ...selectedGroups];
+    edge === "top" ? [...selectedGroups, ...unselectedGroups] : [...unselectedGroups, ...selectedGroups];
 
   const next = flattenGroups(nextGroups);
   await reorderWaitingQueue(next, deps);
@@ -297,16 +265,14 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
   try {
     const ok = await reorderQueue(orderedIds);
     if (!ok) {
-      deps.queueError.value =
-        (deps.t?.("queue.error.reorderRejected") as string) ?? "";
+      deps.queueError.value = (deps.t?.("queue.error.reorderRejected") as string) ?? "";
       return;
     }
     deps.queueError.value = null;
     await deps.refreshQueueFromBackend();
   } catch (error) {
     console.error("Failed to reorder waiting queue", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.reorderFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.reorderFailed") as string) ?? "";
   }
 }
 

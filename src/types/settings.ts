@@ -1,8 +1,4 @@
-import type {
-  ExternalToolSettings,
-  TaskbarProgressMode,
-  TaskbarProgressScope,
-} from "./tools";
+import type { ExternalToolSettings, TaskbarProgressMode, TaskbarProgressScope } from "./tools";
 import type { SmartScanConfig } from "./smart-scan";
 import type { OutputPolicy } from "./output-policy";
 

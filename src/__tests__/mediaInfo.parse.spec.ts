@@ -21,8 +21,7 @@ describe("parseFfprobeJson", () => {
           index: 0,
           codec_type: "video",
           codec_name: "h264",
-          codec_long_name:
-            "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+          codec_long_name: "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
           width: 1920,
           height: 1080,
           avg_frame_rate: "30000/1001",

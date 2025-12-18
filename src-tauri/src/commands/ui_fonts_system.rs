@@ -3,13 +3,23 @@ use super::ui_fonts_types::SystemFontFamily;
 pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
     #[cfg(windows)]
     {
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::{
+            BTreeMap,
+            BTreeSet,
+        };
+
         use windows::Win32::Globalization::GetUserDefaultLocaleName;
         use windows::Win32::Graphics::DirectWrite::{
-            DWRITE_FACTORY_TYPE_SHARED, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection,
+            DWRITE_FACTORY_TYPE_SHARED,
+            DWriteCreateFactory,
+            IDWriteFactory,
+            IDWriteFontCollection,
             IDWriteLocalizedStrings,
         };
-        use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
+        use windows::Win32::System::Com::{
+            COINIT_MULTITHREADED,
+            CoInitializeEx,
+        };
 
         fn get_user_locale_name() -> Option<String> {
             // LOCALE_NAME_MAX_LENGTH is 85 incl. null terminator.
@@ -164,8 +174,9 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
 
     #[cfg(all(not(windows), not(any(target_os = "android", target_os = "ios"))))]
     {
-        use font_kit::source::SystemSource;
         use std::collections::BTreeSet;
+
+        use font_kit::source::SystemSource;
 
         let source = SystemSource::new();
         let handles = source

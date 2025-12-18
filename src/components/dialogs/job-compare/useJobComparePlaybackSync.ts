@@ -1,8 +1,6 @@
 import { ref, type ComputedRef, type Ref } from "vue";
 
-type PlaybackSyncHandle =
-  | { kind: "raf"; id: number }
-  | { kind: "rvfc"; video: HTMLVideoElement; id: number };
+type PlaybackSyncHandle = { kind: "raf"; id: number } | { kind: "rvfc"; video: HTMLVideoElement; id: number };
 
 type SeekHandle = { kind: "raf"; id: number } | { kind: "timeout"; id: number };
 
@@ -285,7 +283,7 @@ export function useJobComparePlaybackSync(options: {
         }
 
         const needsAdjust = Math.abs(drift) >= softSyncSeconds;
-        const correction = needsAdjust ? (1 - drift * rateAdjustGain) : 1;
+        const correction = needsAdjust ? 1 - drift * rateAdjustGain : 1;
         const adjusted = Math.min(1 + maxRateAdjust, Math.max(1 - maxRateAdjust, correction));
         try {
           out.playbackRate = masterRate * adjusted;

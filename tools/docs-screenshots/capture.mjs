@@ -41,7 +41,7 @@ const printHelp = () => {
     "  - Use --settings-capture-height to control how tall the Settings screenshot is.",
     "  - Use --width/--height to change the exported .webp resolution (all panels).",
     "  - If screenshots look soft, prefer --device-scale-factor 1 (avoids downscaling text).",
-    "  - For consistent EN/ZH layout on text-heavy pages, use --ui-font-name (e.g. \"Microsoft YaHei UI\").",
+    '  - For consistent EN/ZH layout on text-heavy pages, use --ui-font-name (e.g. "Microsoft YaHei UI").',
     "  - The script overwrites docs/images/*-{en,zh-CN}.webp.",
     "  - PowerShell tip: avoid `--%` here; use the `--` separator (or call `node ...` directly).",
   ];
@@ -322,7 +322,8 @@ const ensureDir = async (dir) => {
 const convertPngToWebp = async (pngPath, webpPath, targetSize) => {
   const targetWidth = Number(targetSize?.width ?? 0);
   const targetHeight = Number(targetSize?.height ?? 0);
-  const hasTarget = Number.isFinite(targetWidth) && Number.isFinite(targetHeight) && targetWidth > 0 && targetHeight > 0;
+  const hasTarget =
+    Number.isFinite(targetWidth) && Number.isFinite(targetHeight) && targetWidth > 0 && targetHeight > 0;
   const vf = hasTarget ? `scale=${targetWidth}:${targetHeight}:flags=lanczos` : null;
 
   await run(
@@ -347,14 +348,9 @@ const convertPngToWebp = async (pngPath, webpPath, targetSize) => {
   );
 };
 
-const convertPngToWebpWithViewport = async ({
-  pngPath,
-  webpPath,
-  viewport,
-  targetSize,
-  deviceScaleFactor,
-}) => {
-  const dsf = Number.isFinite(Number(deviceScaleFactor)) && Number(deviceScaleFactor) > 0 ? Number(deviceScaleFactor) : 1;
+const convertPngToWebpWithViewport = async ({ pngPath, webpPath, viewport, targetSize, deviceScaleFactor }) => {
+  const dsf =
+    Number.isFinite(Number(deviceScaleFactor)) && Number(deviceScaleFactor) > 0 ? Number(deviceScaleFactor) : 1;
   const captureW = Math.round(Number(viewport?.width ?? 0) * dsf);
   const captureH = Math.round(Number(viewport?.height ?? 0) * dsf);
   const outW = Math.round(Number(targetSize?.width ?? 0));
@@ -568,7 +564,10 @@ const prepareLocalMedia = async (args) => {
     throw new Error(`No video files found under: ${mediaDir}`);
   }
 
-  const pickedVideos = videos.slice().sort((a, b) => a.localeCompare(b)).slice(0, 3);
+  const pickedVideos = videos
+    .slice()
+    .sort((a, b) => a.localeCompare(b))
+    .slice(0, 3);
 
   await mkdir(tmpPublicDir, { recursive: true });
 
@@ -619,10 +618,7 @@ const prepareLocalMedia = async (args) => {
           { cwd: repoRoot, stdio: "inherit" },
         );
       } catch (error) {
-        console.warn(
-          `[docs:screenshots] Failed to extract thumbnail at ${thumbTime}; retrying at 00:00:30`,
-          error,
-        );
+        console.warn(`[docs:screenshots] Failed to extract thumbnail at ${thumbTime}; retrying at 00:00:30`, error);
         // eslint-disable-next-line no-await-in-loop
         await run(
           "ffmpeg",
@@ -870,7 +866,9 @@ const main = async () => {
   try {
     playwright = await import("playwright");
   } catch (error) {
-    throw new Error("Missing Playwright dependency. Run `npm install` first (it will install Playwright).", { cause: error });
+    throw new Error("Missing Playwright dependency. Run `npm install` first (it will install Playwright).", {
+      cause: error,
+    });
   }
 
   const media = await prepareLocalMedia(args);
@@ -895,63 +893,66 @@ const main = async () => {
   }
 
   try {
-    await withDevServer(async ({ baseUrl }) => {
-      for (const locale of LOCALES) {
-        const monitorShot = { ...SHOT_MONITOR, targetSize: outSize };
-        const settingsShot = { ...SETTINGS_SHOT, targetSize: outSize };
-        // eslint-disable-next-line no-await-in-loop
-        await captureScreenshotsForLocale({
-          chromium,
-          baseUrl,
-          locale,
-          viewport: outSize,
-          shots: SHOTS_MAIN,
-          expectedFontSizePercent,
-          expectedUiScalePercent,
-          expectedUiFontName,
-          deviceScaleFactor,
-        });
+    await withDevServer(
+      async ({ baseUrl }) => {
+        for (const locale of LOCALES) {
+          const monitorShot = { ...SHOT_MONITOR, targetSize: outSize };
+          const settingsShot = { ...SETTINGS_SHOT, targetSize: outSize };
+          // eslint-disable-next-line no-await-in-loop
+          await captureScreenshotsForLocale({
+            chromium,
+            baseUrl,
+            locale,
+            viewport: outSize,
+            shots: SHOTS_MAIN,
+            expectedFontSizePercent,
+            expectedUiScalePercent,
+            expectedUiFontName,
+            deviceScaleFactor,
+          });
 
-        // eslint-disable-next-line no-await-in-loop
-        await captureScreenshotsForLocale({
-          chromium,
-          baseUrl,
-          locale,
-          viewport: { width: outSize.width, height: monitorCaptureHeight },
-          shots: [monitorShot],
-          expectedFontSizePercent,
-          expectedUiScalePercent,
-          expectedUiFontName,
-          deviceScaleFactor,
-        });
+          // eslint-disable-next-line no-await-in-loop
+          await captureScreenshotsForLocale({
+            chromium,
+            baseUrl,
+            locale,
+            viewport: { width: outSize.width, height: monitorCaptureHeight },
+            shots: [monitorShot],
+            expectedFontSizePercent,
+            expectedUiScalePercent,
+            expectedUiFontName,
+            deviceScaleFactor,
+          });
 
-        // eslint-disable-next-line no-await-in-loop
-        await captureScreenshotsForLocale({
-          chromium,
-          baseUrl,
-          locale,
-          viewport: { width: outSize.width, height: settingsCaptureHeight },
-          shots: [settingsShot],
-          expectedFontSizePercent,
-          expectedUiScalePercent,
-          expectedUiFontName,
-          deviceScaleFactor,
-        });
+          // eslint-disable-next-line no-await-in-loop
+          await captureScreenshotsForLocale({
+            chromium,
+            baseUrl,
+            locale,
+            viewport: { width: outSize.width, height: settingsCaptureHeight },
+            shots: [settingsShot],
+            expectedFontSizePercent,
+            expectedUiScalePercent,
+            expectedUiFontName,
+            deviceScaleFactor,
+          });
 
-        // eslint-disable-next-line no-await-in-loop
-        await captureScreenshotsForLocale({
-          chromium,
-          baseUrl,
-          locale,
-          viewport: outSize,
-          shots: [SHOT_ONBOARDING],
-          expectedFontSizePercent,
-          expectedUiScalePercent,
-          expectedUiFontName,
-          deviceScaleFactor,
-        });
-      }
-    }, { ...media, port: args.port });
+          // eslint-disable-next-line no-await-in-loop
+          await captureScreenshotsForLocale({
+            chromium,
+            baseUrl,
+            locale,
+            viewport: outSize,
+            shots: [SHOT_ONBOARDING],
+            expectedFontSizePercent,
+            expectedUiScalePercent,
+            expectedUiFontName,
+            deviceScaleFactor,
+          });
+        }
+      },
+      { ...media, port: args.port },
+    );
   } finally {
     await chromium.close();
     await rm(tmpDir, { recursive: true, force: true });

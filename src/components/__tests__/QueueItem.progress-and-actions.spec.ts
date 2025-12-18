@@ -8,17 +8,13 @@ import en from "@/locales/en";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -108,19 +104,11 @@ describe("QueueItem progress and actions", () => {
       global: { plugins: [i18n] },
     });
 
-    expect(
-      cardFillWrapper.find("[data-testid='queue-item-progress-card-fill']").exists(),
-    ).toBe(true);
-    expect(
-      cardFillWrapper.find("[data-testid='queue-item-progress-ripple-card']").exists(),
-    ).toBe(false);
+    expect(cardFillWrapper.find("[data-testid='queue-item-progress-card-fill']").exists()).toBe(true);
+    expect(cardFillWrapper.find("[data-testid='queue-item-progress-ripple-card']").exists()).toBe(false);
 
-    expect(
-      rippleWrapper.find("[data-testid='queue-item-progress-ripple-card']").exists(),
-    ).toBe(true);
-    expect(
-      rippleWrapper.find("[data-testid='queue-item-progress-card-fill']").exists(),
-    ).toBe(false);
+    expect(rippleWrapper.find("[data-testid='queue-item-progress-ripple-card']").exists()).toBe(true);
+    expect(rippleWrapper.find("[data-testid='queue-item-progress-card-fill']").exists()).toBe(false);
   });
 
   it("maps progress percentage to card-level fill width for card-fill and ripple-card styles", () => {

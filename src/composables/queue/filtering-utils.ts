@@ -1,8 +1,5 @@
 import type { TranscodeJob } from "@/types";
-import type {
-  QueueSortDirection,
-  QueueSortField,
-} from "./useQueueFiltering.types";
+import type { QueueSortDirection, QueueSortField } from "./useQueueFiltering.types";
 
 // ----- Helper Functions -----
 

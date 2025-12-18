@@ -10,10 +10,7 @@ import type {
   UseQueueFilteringOptions,
   UseQueueFilteringReturn,
 } from "./queue/useQueueFiltering.types";
-import {
-  createQueueSortingState,
-  type QueueSortingState,
-} from "./queue/queueSorting";
+import { createQueueSortingState, type QueueSortingState } from "./queue/queueSorting";
 
 /**
  * Composable for queue filtering, sorting, and selection.
@@ -63,9 +60,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
           .split(/\s+/)
           .map((t) => t.trim())
           .filter((t) => t.length > 0);
-        const regexToken = tokens.find((token) =>
-          token.toLowerCase().startsWith("regex:"),
-        );
+        const regexToken = tokens.find((token) => token.toLowerCase().startsWith("regex:"));
         if (!regexToken) {
           // No regex token in unified query mode; clear regex state.
           filterRegex.value = null;
@@ -90,8 +85,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
         filterRegexError.value = null;
         lastValidFilterRegex = rx;
       } catch {
-        filterRegexError.value =
-          (t?.("queue.filters.invalidRegex") as string) ?? "";
+        filterRegexError.value = (t?.("queue.filters.invalidRegex") as string) ?? "";
         // Keep using the last valid regex (if any) so the UI remains stable.
         filterRegex.value = lastValidFilterRegex;
       }
@@ -129,8 +123,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     }
 
     if (activeTypeFilters.value.size > 0) {
-      const kind: QueueFilterKind =
-        job.source === "smart_scan" ? "smartScan" : "manual";
+      const kind: QueueFilterKind = job.source === "smart_scan" ? "smartScan" : "manual";
       if (!activeTypeFilters.value.has(kind)) {
         return false;
       }
@@ -263,13 +256,8 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     sortSecondaryDirection,
   });
 
-  const {
-    isJobSelected,
-    toggleJobSelected,
-    clearSelection,
-    selectAllVisibleJobs,
-    invertSelection,
-  } = createSelectionHelpers(selectedJobIds, filteredJobs);
+  const { isJobSelected, toggleJobSelected, clearSelection, selectAllVisibleJobs, invertSelection } =
+    createSelectionHelpers(selectedJobIds, filteredJobs);
 
   // ----- Filter Toggle Methods -----
   const toggleStatusFilter = (status: QueueFilterStatus) => {

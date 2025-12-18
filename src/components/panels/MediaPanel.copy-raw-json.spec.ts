@@ -67,9 +67,7 @@ describe("MediaPanel raw JSON actions", () => {
     const button = wrapper.get("[data-testid='copy-raw-json-btn']");
     await button.trigger("click");
 
-    const writeText = (navigator as any).clipboard.writeText as ReturnType<
-      typeof vi.fn
-    >;
+    const writeText = (navigator as any).clipboard.writeText as ReturnType<typeof vi.fn>;
     expect(writeText).toHaveBeenCalledWith(baseProps.rawJson);
   });
 

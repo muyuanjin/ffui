@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use crate::ffui_core::engine::is_video_file;
 
@@ -67,8 +70,8 @@ fn expand_dir(dir: &Path, recursive: bool, out: &mut Vec<String>, seen: &mut Has
 ///
 /// Ordering rules:
 /// - Input paths are processed in the provided order.
-/// - Directories are expanded in a stable, deterministic order (case-insensitive
-///   lexicographic by entry name) so results are predictable across runs.
+/// - Directories are expanded in a stable, deterministic order (case-insensitive lexicographic by
+///   entry name) so results are predictable across runs.
 pub(crate) fn expand_manual_job_inputs(paths: &[String], recursive: bool) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -103,9 +106,11 @@ pub(crate) fn expand_manual_job_inputs(paths: &[String], recursive: bool) -> Vec
 
 #[cfg(test)]
 mod tests {
-    use super::expand_manual_job_inputs;
     use std::fs;
+
     use tempfile::tempdir;
+
+    use super::expand_manual_job_inputs;
 
     #[test]
     fn expands_directories_in_stable_name_order_and_filters_non_video() {

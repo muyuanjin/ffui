@@ -6,24 +6,18 @@ import { i18n, basePreset, makeJob } from "./queueItemDisplayTestUtils";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
     hasTauri,
     loadPreviewDataUrl,
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
 vi.mock("@/lib/ffmpegCommand", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
-    "@/lib/ffmpegCommand",
-  );
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>("@/lib/ffmpegCommand");
   return {
     ...actual,
     highlightFfmpegCommand: (command: string) => command,
@@ -91,4 +85,3 @@ describe("QueueItem compare button", () => {
     expect(wrapper.emitted("compare")?.[0]?.[0]).toEqual(job);
   });
 });
-

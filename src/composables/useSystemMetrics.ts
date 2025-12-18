@@ -1,18 +1,6 @@
-import {
-  computed,
-  onMounted,
-  onUnmounted,
-  ref,
-  type ComputedRef,
-  type Ref,
-} from "vue";
+import { computed, onMounted, onUnmounted, ref, type ComputedRef, type Ref } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import {
-  hasTauri,
-  metricsSubscribe,
-  metricsUnsubscribe,
-  fetchMetricsHistory,
-} from "@/lib/backend";
+import { hasTauri, metricsSubscribe, metricsUnsubscribe, fetchMetricsHistory } from "@/lib/backend";
 import type { SystemMetricsSnapshot } from "@/types";
 
 export interface UseSystemMetricsOptions {
@@ -74,9 +62,7 @@ export interface UseSystemMetricsReturn {
 const METRICS_EVENT_NAME = "system-metrics://update";
 const MAX_CORES_FOR_CHART = 32;
 
-export function useSystemMetrics(
-  options: UseSystemMetricsOptions = {},
-): UseSystemMetricsReturn {
+export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSystemMetricsReturn {
   const historyLimit = options.historyLimit ?? 600;
   const mockIntervalMs = options.mockIntervalMs ?? 1000;
   const viewUpdateMinIntervalMs = options.viewUpdateMinIntervalMs ?? 0;
@@ -116,10 +102,7 @@ export function useSystemMetrics(
         return Math.max(0, Math.min(100, v));
       });
 
-      const total =
-        cores.length === 0
-          ? 0
-          : cores.reduce((sum, v) => sum + v, 0) / cores.length;
+      const total = cores.length === 0 ? 0 : cores.reduce((sum, v) => sum + v, 0) / cores.length;
 
       const snapshot: SystemMetricsSnapshot = {
         timestamp: now,
@@ -130,11 +113,7 @@ export function useSystemMetrics(
         },
         memory: {
           totalBytes: 16 * 1024 * 1024 * 1024,
-          usedBytes:
-            8 * 1024 * 1024 * 1024 +
-            Math.round(
-              (2 * 1024 * 1024 * 1024 * (1 + Math.sin(t / 5))) / 2,
-            ),
+          usedBytes: 8 * 1024 * 1024 * 1024 + Math.round((2 * 1024 * 1024 * 1024 * (1 + Math.sin(t / 5))) / 2),
         },
         disk: {
           io: [
@@ -157,9 +136,7 @@ export function useSystemMetrics(
         gpu: {
           available: true,
           gpuPercent: Math.round(cpuBase),
-          memoryPercent: Math.round(
-            50 + 30 * Math.sin(t / 6),
-          ),
+          memoryPercent: Math.round(50 + 30 * Math.sin(t / 6)),
           error: undefined,
         },
       };
@@ -202,16 +179,13 @@ export function useSystemMetrics(
 
       try {
         const throttleMs = viewUpdateMinIntervalMs;
-        metricsUnlisten = await listen<SystemMetricsSnapshot>(
-          METRICS_EVENT_NAME,
-          (event) => {
-            const now = Date.now();
-            if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
-              lastPushedAt = now;
-              pushSnapshot(event.payload);
-            }
-          },
-        );
+        metricsUnlisten = await listen<SystemMetricsSnapshot>(METRICS_EVENT_NAME, (event) => {
+          const now = Date.now();
+          if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
+            lastPushedAt = now;
+            pushSnapshot(event.payload);
+          }
+        });
       } catch (error) {
         console.error("Failed to listen for system metrics events:", error);
       }

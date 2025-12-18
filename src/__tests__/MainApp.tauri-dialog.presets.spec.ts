@@ -55,7 +55,8 @@ describe("MainApp Tauri presets", () => {
       save_preset: ({ preset } = {}) => {
         const next = (preset ?? {}) as FFmpegPreset;
         const idx = backendPresets.findIndex((p) => p.id === next.id);
-        if (idx >= 0) backendPresets[idx] = next; else backendPresets.push(next);
+        if (idx >= 0) backendPresets[idx] = next;
+        else backendPresets.push(next);
         return backendPresets;
       },
       enqueue_transcode_job: (payload) => {
@@ -99,7 +100,7 @@ describe("MainApp Tauri presets", () => {
     await vm.addManualJob("files");
     await nextTick();
 
-    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsAfter.length).toBe(1);
     expect(jobsAfter[0].presetId).toBe(newPreset.id);
 
@@ -154,7 +155,8 @@ describe("MainApp Tauri presets", () => {
       save_preset: ({ preset } = {}) => {
         const next = (preset ?? {}) as FFmpegPreset;
         const idx = backendPresets.findIndex((p) => p.id === next.id);
-        if (idx >= 0) backendPresets[idx] = next; else backendPresets.push(next);
+        if (idx >= 0) backendPresets[idx] = next;
+        else backendPresets.push(next);
         return [...backendPresets];
       },
     });
@@ -223,7 +225,13 @@ describe("MainApp Tauri presets", () => {
 
     const initialSettings: AppSettings = {
       ...defaultAppSettings({
-        tools: { autoDownload: true, autoUpdate: false, ffmpegPath: undefined, ffprobePath: undefined, avifencPath: undefined },
+        tools: {
+          autoDownload: true,
+          autoUpdate: false,
+          ffmpegPath: undefined,
+          ffprobePath: undefined,
+          avifencPath: undefined,
+        },
         defaultQueuePresetId: "p2",
         smartScanDefaults: buildSmartScanDefaults({ videoPresetId: "p2" }),
         maxParallelJobs: undefined,

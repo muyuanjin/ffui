@@ -11,12 +11,8 @@ export interface StartupIdleScheduleOptions {
  * starved indefinitely under sustained load. Otherwise we fall back to
  * setTimeout(0).
  */
-export function scheduleStartupIdle(
-  cb: () => void,
-  options: StartupIdleScheduleOptions,
-): void {
-  const win =
-    options.win ?? (typeof window !== "undefined" ? window : undefined);
+export function scheduleStartupIdle(cb: () => void, options: StartupIdleScheduleOptions): void {
+  const win = options.win ?? (typeof window !== "undefined" ? window : undefined);
   if (!win) {
     cb();
     return;
@@ -29,4 +25,3 @@ export function scheduleStartupIdle(
     win.setTimeout(cb, 0);
   }
 }
-

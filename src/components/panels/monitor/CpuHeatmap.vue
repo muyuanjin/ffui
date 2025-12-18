@@ -17,8 +17,8 @@ const { t } = useI18n();
 <template>
   <div class="heatmap-section" v-if="chartOption">
     <div class="section-header">
-      <span class="section-title">{{ t('monitor.cpuHeatmap') }}</span>
-      <span class="section-subtitle">{{ coreCount }} {{ t('monitor.cores') }}</span>
+      <span class="section-title">{{ t("monitor.cpuHeatmap") }}</span>
+      <span class="section-subtitle">{{ coreCount }} {{ t("monitor.cores") }}</span>
     </div>
     <VChart
       class="heatmap-chart"

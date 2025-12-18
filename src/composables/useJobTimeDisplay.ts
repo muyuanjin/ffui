@@ -1,11 +1,6 @@
 import { computed, ref, onMounted, onUnmounted, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
-import {
-  formatElapsedTime,
-  estimateTotalTime,
-  estimateRemainingTime,
-  computeJobElapsedMs,
-} from "@/lib/timeUtils";
+import { formatElapsedTime, estimateTotalTime, estimateRemainingTime, computeJobElapsedMs } from "@/lib/timeUtils";
 
 /**
  * 用于显示任务时间信息的组合式函数
@@ -75,12 +70,7 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
   // 是否是终态（已完成/失败/取消/跳过）
   const isTerminalState = computed(() => {
     const status = job.value.status;
-    return (
-      status === "completed" ||
-      status === "failed" ||
-      status === "cancelled" ||
-      status === "skipped"
-    );
+    return status === "completed" || status === "failed" || status === "cancelled" || status === "skipped";
   });
 
   // 是否正在处理

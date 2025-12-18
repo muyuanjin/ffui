@@ -40,8 +40,7 @@ const presetEditor = {
     bitrateHelp:
       "目标平均码率，单位 kbps。数值越大画质越稳、文件越大；数值越小越容易出现块状和色带。粗略参考：720p≈2–4Mbps，1080p≈4–8Mbps。",
     maxBitrateKbpsLabel: "峰值码率上限 (kbps)",
-    maxBitrateKbpsHelp:
-      "限制码率尖峰，通常略高于目标码率（例如 4000k + maxrate 6000k）。设得过低会让复杂场景被压糊。",
+    maxBitrateKbpsHelp: "限制码率尖峰，通常略高于目标码率（例如 4000k + maxrate 6000k）。设得过低会让复杂场景被压糊。",
     passLabel: "两遍编码 (pass)",
     passSingle: "单遍编码",
     passFirst: "Pass 1（分析）",
@@ -141,8 +140,7 @@ const presetEditor = {
     templateLabel: "ffmpeg 命令模版",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "命令预览",
-    templateHint:
-      "INPUT / OUTPUT 占位符会在实际执行时被具体路径替换；参数面板中的更改会实时反映到预览。",
+    templateHint: "INPUT / OUTPUT 占位符会在实际执行时被具体路径替换；参数面板中的更改会实时反映到预览。",
     parseButton: "从完整命令自动提取 INPUT / OUTPUT 占位符",
     parseEmpty: "请先在上方输入一条完整的 ffmpeg 命令，再尝试解析。",
     parseOk: "已识别并替换命令中的输入/输出路径为 INPUT / OUTPUT 占位符。",
@@ -168,8 +166,7 @@ const presetEditor = {
     overwriteAsk: "遵循 ffmpeg 默认（通常询问或直接失败）",
     overwriteYes: "自动覆盖已存在输出 (-y)",
     overwriteNo: "从不覆盖已存在输出 (-n)",
-    overwriteHelp:
-      "多数场景建议保持默认，只在明确需要重复执行覆盖同一路径时启用 -y。",
+    overwriteHelp: "多数场景建议保持默认，只在明确需要重复执行覆盖同一路径时启用 -y。",
     logLevelLabel: "日志等级 (-loglevel)",
     logLevelPlaceholder: "使用 ffmpeg 默认",
     logLevelHelp: "一般使用 info 即可；排查问题时可以临时提升到 verbose/debug。",
@@ -191,8 +188,7 @@ const presetEditor = {
     durationLabel: "时长/结束时间表达式",
     durationPlaceholder: "例如 00:00:30 或 30",
     accurateSeekLabel: "启用 -accurate_seek（更精确的寻址，可能略慢）",
-    inputHelp:
-      "只有在相应字段非空时才会生成 -ss/-t/-to；不确定时可以全部留空，按整段视频处理。",
+    inputHelp: "只有在相应字段非空时才会生成 -ss/-t/-to；不确定时可以全部留空，按整段视频处理。",
     mappingTitle: "流映射与元数据",
     mapLabel: "显式 -map 规则（每行一条）",
     mapPlaceholder: "例如 0:v:0\\n0:a:0? 仅保留第一路视频与音频",
@@ -219,8 +215,7 @@ const presetEditor = {
     hwaccelOutputFormatPlaceholder: "例如 cuda 或 nv12",
     bitstreamFiltersLabel: "比特流过滤器 (-bsf，每行一个)",
     bitstreamFiltersPlaceholder: "例如 h264_mp4toannexb\\naac_adtstoasc",
-    hardwareHelp:
-      "这些选项偏底层且与硬件/封装器强相关，如无把握建议保持默认，仅通过编码器预设选择是否启用硬件加速。",
+    hardwareHelp: "这些选项偏底层且与硬件/封装器强相关，如无把握建议保持默认，仅通过编码器预设选择是否启用硬件加速。",
     subtitlesTitle: "字幕策略",
     subtitlesStrategyLabel: "处理方式",
     subtitlesKeep: "保留（默认）",
@@ -228,8 +223,7 @@ const presetEditor = {
     subtitlesBurnIn: "烧录到画面（通过滤镜）",
     subtitlesBurnInFilterLabel: "烧录滤镜表达式",
     subtitlesBurnInFilterPlaceholder: "例如 subtitles=INPUT:si=0",
-    subtitlesBurnInHelp:
-      "该表达式会被追加到视频滤镜链中；多轨/复杂字幕场景仍建议通过模板预设手动控制。",
+    subtitlesBurnInHelp: "该表达式会被追加到视频滤镜链中；多轨/复杂字幕场景仍建议通过模板预设手动控制。",
     insightsTitle: "效果雷达图",
     insightsWithStats: "部分指标基于历史任务统计数据",
     insightsNoStats: "暂未有统计数据，基于参数规则估算",

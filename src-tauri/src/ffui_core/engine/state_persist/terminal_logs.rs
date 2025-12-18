@@ -1,16 +1,21 @@
 use std::fs;
 use std::path::PathBuf;
-
 #[cfg(test)]
 use std::sync::Mutex;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
-use crate::ffui_core::domain::{JobStatus, QueueStateLite, TranscodeJob};
-use crate::ffui_core::settings::types::{CrashRecoveryLogRetention, QueuePersistenceMode};
-
 #[cfg(test)]
 use super::AtomicU64;
+use crate::ffui_core::domain::{
+    JobStatus,
+    QueueStateLite,
+    TranscodeJob,
+};
+use crate::ffui_core::settings::types::{
+    CrashRecoveryLogRetention,
+    QueuePersistenceMode,
+};
 
 #[cfg(test)]
 static QUEUE_LOGS_DIR_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =

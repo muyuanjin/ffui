@@ -18,10 +18,7 @@ export function getQueueIconGridClass(queueViewMode: QueueViewMode): string {
   return "grid gap-3 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]";
 }
 
-export function ensureManualPresetId(
-  presets: FFmpegPreset[],
-  manualJobPresetId: Ref<string | null>,
-) {
+export function ensureManualPresetId(presets: FFmpegPreset[], manualJobPresetId: Ref<string | null>) {
   if (!presets || presets.length === 0) {
     manualJobPresetId.value = null;
     return;
@@ -30,4 +27,3 @@ export function ensureManualPresetId(
     manualJobPresetId.value = presets[0].id;
   }
 }
-

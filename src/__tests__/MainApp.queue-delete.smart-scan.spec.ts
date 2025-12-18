@@ -72,16 +72,17 @@ describe("MainApp queue delete behaviour (Smart Scan batches)", () => {
     }
     await nextTick();
 
-    setSelectedJobIds(vm, jobs.map((job) => job.id));
+    setSelectedJobIds(
+      vm,
+      jobs.map((job) => job.id),
+    );
 
     if (typeof vm.bulkDelete === "function") {
       await vm.bulkDelete();
     }
     await nextTick();
 
-    const batchDeleteCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "delete_smart_scan_batch",
-    );
+    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_smart_scan_batch");
     expect(batchDeleteCalls.length).toBe(1);
     const payload = batchDeleteCalls[0]?.[1] as any;
     expect(payload).toMatchObject({
@@ -89,7 +90,7 @@ describe("MainApp queue delete behaviour (Smart Scan batches)", () => {
       batch_id: batchId,
     });
 
-    const error = (vm.queueError ?? vm.queueError?.value) ?? null;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
     expect(error).toBeNull();
 
     wrapper.unmount();
@@ -199,28 +200,26 @@ describe("MainApp queue delete behaviour (Smart Scan batches)", () => {
     }
     await nextTick();
 
-    setSelectedJobIds(vm, jobs.map((job) => job.id));
+    setSelectedJobIds(
+      vm,
+      jobs.map((job) => job.id),
+    );
 
     if (typeof vm.bulkDelete === "function") {
       await vm.bulkDelete();
     }
     await nextTick();
 
-    const batchDeleteCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "delete_smart_scan_batch",
-    );
+    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_smart_scan_batch");
     expect(batchDeleteCalls.length).toBe(1);
 
-    const deleteJobCalls = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "delete_transcode_job",
-    );
+    const deleteJobCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_transcode_job");
     // 手动任务仍然通过 delete_transcode_job 删除，Smart Scan 安全批次走批次级命令。
     expect(deleteJobCalls.length).toBe(1);
     expect(new Set(deletedIds)).toEqual(new Set(["manual-completed"]));
 
-    const error = (vm.queueError ?? vm.queueError?.value) ?? null;
-    const expected =
-      (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
+    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
     expect(error).toBe(expected);
 
     const selected = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
@@ -292,18 +291,11 @@ describe("MainApp queue delete behaviour (Smart Scan batches)", () => {
     await nextTick();
 
     expect(
-      invokeMock.mock.calls.some(
-        ([cmd]) => cmd === "delete_transcode_job" || cmd === "delete_smart_scan_batch",
-      ),
+      invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job" || cmd === "delete_smart_scan_batch"),
     ).toBe(false);
 
-    const error =
-      (vm.queueError ?? vm.queueError?.value) ??
-      null;
-    const expected =
-      (i18n as any).global.t(
-        "queue.error.deleteActiveNotAllowed",
-      ) as string;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
+    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
     expect(error).toBe(expected);
 
     const selected = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;

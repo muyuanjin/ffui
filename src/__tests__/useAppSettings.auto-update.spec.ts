@@ -60,9 +60,7 @@ const TestHost = defineComponent({
 
 describe("useAppSettings auto-update behaviour", () => {
   it("propagates backend remoteVersion so the Settings panel shows the latest available release", async () => {
-    const mockFetchExternalToolStatusesCached = vi.mocked(
-      backend.fetchExternalToolStatusesCached,
-    );
+    const mockFetchExternalToolStatusesCached = vi.mocked(backend.fetchExternalToolStatusesCached);
     mockFetchExternalToolStatusesCached.mockResolvedValueOnce([
       {
         kind: "ffmpeg",
@@ -94,15 +92,11 @@ describe("useAppSettings auto-update behaviour", () => {
 
     wrapper.unmount();
     mockFetchExternalToolStatusesCached.mockReset();
-    mockFetchExternalToolStatusesCached.mockImplementation(
-      async () => [] as ExternalToolStatus[],
-    );
+    mockFetchExternalToolStatusesCached.mockImplementation(async () => [] as ExternalToolStatus[]);
   });
 
   it("only schedules a single auto-download per remote version even if remoteVersion changes after the call", async () => {
-    const mockDownloadExternalToolNow = vi.mocked(
-      backend.downloadExternalToolNow,
-    );
+    const mockDownloadExternalToolNow = vi.mocked(backend.downloadExternalToolNow);
     mockDownloadExternalToolNow.mockReset();
 
     const wrapper = mount(TestHost);
@@ -161,9 +155,7 @@ describe("useAppSettings auto-update behaviour", () => {
   });
 
   it("does not schedule auto-download when a download is already in progress for the same remote version", async () => {
-    const mockDownloadExternalToolNow = vi.mocked(
-      backend.downloadExternalToolNow,
-    );
+    const mockDownloadExternalToolNow = vi.mocked(backend.downloadExternalToolNow);
     mockDownloadExternalToolNow.mockReset();
 
     const wrapper = mount(TestHost);

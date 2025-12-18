@@ -1,4 +1,5 @@
-//! Transcoding engine split into modular components (state, ffmpeg_args, worker, job_runner, smart_scan).
+//! Transcoding engine split into modular components (state, ffmpeg_args, worker, job_runner,
+//! smart_scan).
 
 mod enqueue_bulk;
 mod ffmpeg_args;
@@ -21,34 +22,56 @@ mod tests;
 
 pub(crate) use smart_scan::is_video_file;
 
-// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
+// 测试环境下为 TranscodingEngine::new
+// 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
+//
 #[cfg(test)]
 static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 // 导出 Job Object 初始化函数，供应用启动时调用
-pub use ffmpeg_args::init_child_process_job;
-
 use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
+pub use ffmpeg_args::init_child_process_job;
+use state::{
+    Inner,
+    restore_jobs_from_persisted_queue,
+    snapshot_queue_state,
+    snapshot_queue_state_lite,
+};
 
 use crate::ffui_core::domain::{
-    AutoCompressProgress, AutoCompressResult, FFmpegPreset, JobSource, JobType, OutputPolicy,
-    QueueState, QueueStateLite, SmartScanConfig, TranscodeJob,
+    AutoCompressProgress,
+    AutoCompressResult,
+    FFmpegPreset,
+    JobSource,
+    JobType,
+    OutputPolicy,
+    QueueState,
+    QueueStateLite,
+    SmartScanConfig,
+    TranscodeJob,
 };
 use crate::ffui_core::monitor::{
-    CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
+    CpuUsageSnapshot,
+    GpuUsageSnapshot,
+    sample_cpu_usage,
+    sample_gpu_usage,
 };
-use crate::ffui_core::settings::{self, AppSettings};
+use crate::ffui_core::settings::{
+    self,
+    AppSettings,
+};
 use crate::ffui_core::tools::{
-    ExternalToolKind, ExternalToolStatus, clear_tool_runtime_error,
-    hydrate_last_tool_download_from_settings, hydrate_probe_cache_from_settings,
-    hydrate_remote_version_cache_from_settings, tool_status, update_probe_cache_from_statuses,
-};
-
-use state::{
-    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
+    ExternalToolKind,
+    ExternalToolStatus,
+    clear_tool_runtime_error,
+    hydrate_last_tool_download_from_settings,
+    hydrate_probe_cache_from_settings,
+    hydrate_remote_version_cache_from_settings,
+    tool_status,
+    update_probe_cache_from_statuses,
 };
 
 fn normalize_os_path_string(raw: &str) -> String {
@@ -91,7 +114,10 @@ impl TranscodingEngine {
         let inner = Arc::new(Inner::new(presets, settings));
         {
             use std::sync::atomic::Ordering;
-            use std::time::{SystemTime, UNIX_EPOCH};
+            use std::time::{
+                SystemTime,
+                UNIX_EPOCH,
+            };
 
             // If crash recovery is enabled, pre-bump the job id counter to a
             // high watermark so any new enqueues happening before the recovery
@@ -165,8 +191,7 @@ impl TranscodingEngine {
     #[cfg(test)]
     pub fn register_queue_listener<F>(&self, listener: F)
     where
-        F: Fn(QueueState) + Send + Sync + 'static,
-    {
+        F: Fn(QueueState) + Send + Sync + 'static, {
         let mut listeners = self
             .inner
             .queue_listeners
@@ -178,8 +203,7 @@ impl TranscodingEngine {
     /// Register a listener for lightweight queue state changes.
     pub fn register_queue_lite_listener<F>(&self, listener: F)
     where
-        F: Fn(QueueStateLite) + Send + Sync + 'static,
-    {
+        F: Fn(QueueStateLite) + Send + Sync + 'static, {
         let mut listeners = self
             .inner
             .queue_lite_listeners
@@ -191,8 +215,7 @@ impl TranscodingEngine {
     /// Register a listener for Smart Scan progress updates.
     pub fn register_smart_scan_listener<F>(&self, listener: F)
     where
-        F: Fn(AutoCompressProgress) + Send + Sync + 'static,
-    {
+        F: Fn(AutoCompressProgress) + Send + Sync + 'static, {
         let mut listeners = self
             .inner
             .smart_scan_listeners

@@ -1,10 +1,14 @@
+use super::state::notify_queue_listeners;
+use super::{
+    TranscodingEngine,
+    job_runner,
+};
 use crate::ffui_core::domain::JobType;
 use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-
-use super::TranscodingEngine;
-use super::job_runner;
-use super::state::notify_queue_listeners;
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 impl TranscodingEngine {
     /// Ensure a video job has a readable preview image on disk.
@@ -67,7 +71,10 @@ impl TranscodingEngine {
     ) {
         use std::collections::HashSet;
         use std::fs;
-        use std::path::{Path, PathBuf};
+        use std::path::{
+            Path,
+            PathBuf,
+        };
 
         let previews_root = {
             let exe = std::env::current_exe().ok();

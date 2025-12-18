@@ -1,14 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TranscodeJob } from "../types";
 
-const invokeMock = vi.fn<
-  (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
->();
+const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
 
 vi.mock("@tauri-apps/api/core", () => {
   return {
-    invoke: (cmd: string, payload: Record<string, unknown>) =>
-      invokeMock(cmd, payload),
+    invoke: (cmd: string, payload: Record<string, unknown>) => invokeMock(cmd, payload),
     convertFileSrc: (path: string) => path,
   };
 });
@@ -54,8 +51,7 @@ describe("backend contract", () => {
       logs: [],
       inputPath: "C:/videos/sample.mp4",
       outputPath: "C:/videos/sample.compressed.mp4",
-      ffmpegCommand:
-        'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
+      ffmpegCommand: 'ffmpeg -i "C:/videos/sample.mp4" -c:v libx264 -crf 23 "C:/videos/sample.compressed.mp4"',
       mediaInfo: {
         durationSeconds: 120.5,
         width: 1920,
@@ -238,10 +234,7 @@ describe("backend contract", () => {
   });
 
   it("selectPlayableMediaPath delegates to select_playable_media_path with both name variants", async () => {
-    const candidates = [
-      "C:/videos/missing.compressed.mp4",
-      "C:/videos/source.mp4",
-    ];
+    const candidates = ["C:/videos/missing.compressed.mp4", "C:/videos/source.mp4"];
     const chosen = candidates[1];
 
     // Simulate a Tauri-like environment so selectPlayableMediaPath goes
@@ -266,10 +259,7 @@ describe("backend contract", () => {
   });
 
   it("selectPlayableMediaPath falls back to the first candidate when backend returns null", async () => {
-    const candidates = [
-      "C:/videos/output.mp4",
-      "C:/videos/source.mp4",
-    ];
+    const candidates = ["C:/videos/output.mp4", "C:/videos/source.mp4"];
 
     const originalWindow = (globalThis as any).window;
     (globalThis as any).window = { ...(originalWindow ?? {}), __TAURI__: {} };

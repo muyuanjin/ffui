@@ -92,10 +92,7 @@ describe("SmartScanWizard 默认预设", () => {
   });
 
   it("音频预设 SelectItem 不使用空字符串 value（静态模板校验，兼容 reka-ui 校验）", () => {
-    const source = readFileSync(
-      resolve(__dirname, "../SmartScanWizard.vue"),
-      "utf8",
-    );
+    const source = readFileSync(resolve(__dirname, "../SmartScanWizard.vue"), "utf8");
     expect(source).not.toContain('<SelectItem value="">');
   });
 });

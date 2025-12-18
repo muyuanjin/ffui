@@ -70,4 +70,3 @@ describe("SettingsExternalToolsSection detecting status", () => {
     wrapper.unmount();
   });
 });
-

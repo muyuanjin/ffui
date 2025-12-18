@@ -1,4 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 /// Stable file fingerprint for an external tool binary.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

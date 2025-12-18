@@ -152,9 +152,7 @@ describe("SettingsPanel external tools check updates button", () => {
       manualRemoteCheck: true,
     });
     expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("检查中…");
-    expect(wrapper.get('[data-testid="tool-check-update-hover-log-avifenc"]').text()).toContain(
-      "开始检查更新",
-    );
+    expect(wrapper.get('[data-testid="tool-check-update-hover-log-avifenc"]').text()).toContain("开始检查更新");
 
     resolveRefresh();
     await flushPromises();
@@ -174,9 +172,7 @@ describe("SettingsPanel external tools check updates button", () => {
 
     expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("已检查");
     expect(wrapper.text().match(/已检查/g)?.length ?? 0).toBe(1);
-    expect(wrapper.get('[data-testid="tool-check-update-hover-log-avifenc"]').text()).toContain(
-      "结论：已是最新版本",
-    );
+    expect(wrapper.get('[data-testid="tool-check-update-hover-log-avifenc"]').text()).toContain("结论：已是最新版本");
 
     wrapper.unmount();
   });
@@ -227,9 +223,7 @@ describe("SettingsPanel external tools check updates button", () => {
     await vi.advanceTimersByTimeAsync(20_000);
     await vi.runOnlyPendingTimersAsync();
 
-    expect(wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text()).toContain(
-      "等待状态快照超时",
-    );
+    expect(wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text()).toContain("等待状态快照超时");
     expect(wrapper.text()).not.toContain("已检查");
 
     wrapper.unmount();

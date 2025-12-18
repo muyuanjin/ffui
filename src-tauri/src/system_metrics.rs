@@ -1,16 +1,41 @@
 use std::collections::VecDeque;
-use std::sync::{
-    Arc, Condvar, Mutex,
-    atomic::{AtomicUsize, Ordering},
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
 };
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::sync::{
+    Arc,
+    Condvar,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+    SystemTime,
+    UNIX_EPOCH,
+};
 
-use serde::{Deserialize, Serialize};
-use sysinfo::{NetworkData, Networks, System};
-use tauri::{AppHandle, Emitter, Manager};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use sysinfo::{
+    NetworkData,
+    Networks,
+    System,
+};
+use tauri::{
+    AppHandle,
+    Emitter,
+    Manager,
+};
 
 use crate::ffui_core::{
-    AppSettings, DEFAULT_METRICS_INTERVAL_MS, GpuUsageSnapshot, TranscodingEngine, sample_gpu_usage,
+    AppSettings,
+    DEFAULT_METRICS_INTERVAL_MS,
+    GpuUsageSnapshot,
+    TranscodingEngine,
+    sample_gpu_usage,
 };
 
 /// Canonical event name for streaming system metrics snapshots.

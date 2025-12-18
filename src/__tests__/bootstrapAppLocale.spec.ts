@@ -107,4 +107,3 @@ describe("bootstrapAppLocale", () => {
     expect(saveAppSettings).toHaveBeenCalledTimes(1);
   });
 });
-

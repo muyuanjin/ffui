@@ -6,12 +6,7 @@ import { createI18n } from "vue-i18n";
 
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import zhCN from "@/locales/zh-CN";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  ExternalToolStatus,
-} from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
 const i18n = createI18n({
@@ -60,9 +55,7 @@ const makeToolStatus = (kind: ExternalToolKind): ExternalToolStatus => ({
 
 describe("SettingsExternalToolsSection candidate loading", () => {
   it("caches per-tool candidates, ignores stale results, renders Everything SDK badges, and toggles closed on repeat click", async () => {
-    const resolvers: Partial<
-      Record<ExternalToolKind, (value: ExternalToolCandidate[]) => void>
-    > = {};
+    const resolvers: Partial<Record<ExternalToolKind, (value: ExternalToolCandidate[]) => void>> = {};
     const fetchToolCandidates = vi.fn(
       (kind: ExternalToolKind) =>
         new Promise<ExternalToolCandidate[]>((resolve) => {
@@ -81,9 +74,7 @@ describe("SettingsExternalToolsSection candidate loading", () => {
       },
     });
 
-    const candidateButtons = wrapper
-      .findAll("button")
-      .filter((btn) => btn.text() === "选择已检测路径…");
+    const candidateButtons = wrapper.findAll("button").filter((btn) => btn.text() === "选择已检测路径…");
     expect(candidateButtons).toHaveLength(2);
 
     // Start loading ffmpeg candidates, then quickly switch to ffprobe so
@@ -153,7 +144,7 @@ describe("SettingsExternalToolsSection candidate loading", () => {
           fileSizeBytes: 1024,
           isCurrent: false,
         },
-      ]
+      ],
     );
 
     const wrapper = mount(SettingsExternalToolsSection, {
@@ -167,9 +158,7 @@ describe("SettingsExternalToolsSection candidate loading", () => {
       },
     });
 
-    const openButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text() === "选择已检测路径…");
+    const openButton = wrapper.findAll("button").find((btn) => btn.text() === "选择已检测路径…");
     expect(openButton).toBeTruthy();
     await openButton!.trigger("click");
     await flushPromises();

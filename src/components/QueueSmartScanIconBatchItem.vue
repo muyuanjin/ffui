@@ -30,33 +30,24 @@ const isSelected = computed(() => !!props.selected);
 
 const { t } = useI18n();
 
-const effectiveProgressStyle = computed<QueueProgressStyle>(
-  () => props.progressStyle ?? "bar",
-);
+const effectiveProgressStyle = computed<QueueProgressStyle>(() => props.progressStyle ?? "bar");
 
-const clampedProgress = computed(() =>
-  Math.max(0, Math.min(100, props.batch.overallProgress ?? 0)),
-);
+const clampedProgress = computed(() => Math.max(0, Math.min(100, props.batch.overallProgress ?? 0)));
 
-const showBarProgress = computed(
-  () => clampedProgress.value > 0 && effectiveProgressStyle.value === "bar",
-);
+const showBarProgress = computed(() => clampedProgress.value > 0 && effectiveProgressStyle.value === "bar");
 
-const showCardFillProgress = computed(
-  () => clampedProgress.value > 0 && effectiveProgressStyle.value === "card-fill",
-);
+const showCardFillProgress = computed(() => clampedProgress.value > 0 && effectiveProgressStyle.value === "card-fill");
 
 const showRippleCardProgress = computed(
-  () =>
-    clampedProgress.value > 0 && effectiveProgressStyle.value === "ripple-card",
+  () => clampedProgress.value > 0 && effectiveProgressStyle.value === "ripple-card",
 );
 
 // 根据批次状态计算进度条颜色类
 const progressColorClass = computed(() => {
   const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
-  const hasProcessing = jobs.some(j => j.status === "processing");
-  const hasPaused = jobs.some(j => j.status === "paused" || j.status === "waiting" || j.status === "queued");
-  
+  const hasProcessing = jobs.some((j) => j.status === "processing");
+  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+
   // 全部完成 - 使用与普通任务一致的绿色
   if (completedCount === totalCount && totalCount > 0) {
     return "bg-emerald-500";
@@ -80,9 +71,9 @@ const progressColorClass = computed(() => {
 // 波纹进度条的渐变色类
 const rippleProgressColorClass = computed(() => {
   const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
-  const hasProcessing = jobs.some(j => j.status === "processing");
-  const hasPaused = jobs.some(j => j.status === "paused" || j.status === "waiting" || j.status === "queued");
-  
+  const hasProcessing = jobs.some((j) => j.status === "processing");
+  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+
   if (completedCount === totalCount && totalCount > 0) {
     return "bg-gradient-to-r from-emerald-500/30 via-emerald-500/60 to-emerald-500/30";
   }
@@ -187,17 +178,11 @@ const previewSlots = computed<PreviewSlot[]>(() => {
   return slots;
 });
 
-const videosCount = computed(
-  () => props.batch.jobs.filter((job) => job.type === "video").length,
-);
+const videosCount = computed(() => props.batch.jobs.filter((job) => job.type === "video").length);
 
-const imagesCount = computed(
-  () => props.batch.jobs.filter((job) => job.type === "image").length,
-);
+const imagesCount = computed(() => props.batch.jobs.filter((job) => job.type === "image").length);
 
-const audioCount = computed(
-  () => props.batch.jobs.filter((job) => job.type === "audio").length,
-);
+const audioCount = computed(() => props.batch.jobs.filter((job) => job.type === "audio").length);
 
 const folderName = computed(() => {
   const raw = props.batch.rootPath || "";
@@ -242,37 +227,22 @@ const onContextMenu = (event: MouseEvent) => {
     class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-all cursor-pointer ring-0"
     :class="[
       rootSizeClass,
-      isSelectable && isSelected
-        ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5'
-        : '',
+      isSelectable && isSelected ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5' : '',
     ]"
     data-testid="queue-icon-batch-item"
     @click="onClick"
     @contextmenu.prevent.stop="onContextMenu"
   >
-    <div
-      class="relative w-full bg-muted/40"
-      :class="thumbnailAspectClass"
-    >
-      <div
-        class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40"
-        @click="onPreviewClick"
-      >
-        <div
-          v-for="slot in previewSlots"
-          :key="slot.key"
-          class="bg-background/40 overflow-hidden"
-        >
+    <div class="relative w-full bg-muted/40" :class="thumbnailAspectClass">
+      <div class="absolute inset-0 grid grid-cols-3 grid-rows-3 gap-px bg-muted/40" @click="onPreviewClick">
+        <div v-for="slot in previewSlots" :key="slot.key" class="bg-background/40 overflow-hidden">
           <img
             v-if="slot.previewPath"
             :src="buildPreviewUrl(slot.previewPath) ?? undefined"
             alt=""
             class="h-full w-full object-cover"
           />
-          <div
-            v-else
-            class="h-full w-full bg-muted/60"
-          />
+          <div v-else class="h-full w-full bg-muted/60" />
         </div>
       </div>
 
@@ -283,9 +253,7 @@ const onContextMenu = (event: MouseEvent) => {
         >
           {{ t("queue.source.smartScan") }}
         </Badge>
-        <span
-          class="text-[10px] text-muted-foreground bg-background/80 rounded-full px-1.5 py-0.5"
-        >
+        <span class="text-[10px] text-muted-foreground bg-background/80 rounded-full px-1.5 py-0.5">
           {{ batch.totalProcessed }} / {{ batch.totalCandidates }}
         </span>
       </div>
@@ -294,19 +262,14 @@ const onContextMenu = (event: MouseEvent) => {
       <div
         v-if="isSelectable"
         class="absolute top-1 right-1 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all z-10"
-        :class="isSelected
-          ? 'bg-amber-500 border-amber-500 text-white'
-          : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'"
+        :class="
+          isSelected
+            ? 'bg-amber-500 border-amber-500 text-white'
+            : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'
+        "
         @click.stop="emit('toggle-select', batch.batchId)"
       >
-        <svg
-          v-if="isSelected"
-          class="h-3 w-3"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="3"
-        >
+        <svg v-if="isSelected" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
@@ -319,10 +282,7 @@ const onContextMenu = (event: MouseEvent) => {
       </div>
     </div>
 
-    <div
-      class="relative border-t border-border/40 bg-card/80 overflow-hidden"
-      :class="captionPaddingClass"
-    >
+    <div class="relative border-t border-border/40 bg-card/80 overflow-hidden" :class="captionPaddingClass">
       <!-- 在网格视图中，进度通过底部说明区域的背景表现，避免覆盖预览九宫格。颜色随批次状态变化 -->
       <div
         v-if="showBarProgress"
@@ -337,16 +297,8 @@ const onContextMenu = (event: MouseEvent) => {
         :style="{ width: `${clampedProgress}%` }"
         data-testid="queue-icon-batch-progress-card-fill"
       >
-        <img
-          v-if="firstPreviewUrl"
-          :src="firstPreviewUrl"
-          alt=""
-          class="h-full w-full object-cover opacity-80"
-        />
-        <div
-          v-else
-          class="h-full w-full bg-gradient-to-r from-card/40 via-card/20 to-card/0"
-        />
+        <img v-if="firstPreviewUrl" :src="firstPreviewUrl" alt="" class="h-full w-full object-cover opacity-80" />
+        <div v-else class="h-full w-full bg-gradient-to-r from-card/40 via-card/20 to-card/0" />
       </div>
       <div
         v-else-if="showRippleCardProgress"
@@ -354,23 +306,16 @@ const onContextMenu = (event: MouseEvent) => {
         :style="{ width: `${clampedProgress}%` }"
         data-testid="queue-icon-batch-progress-ripple-card"
       >
-        <div
-          class="h-full w-full opacity-80 animate-pulse"
-          :class="rippleProgressColorClass"
-        />
+        <div class="h-full w-full opacity-80 animate-pulse" :class="rippleProgressColorClass" />
       </div>
 
-      <p
-        class="relative truncate text-[11px] font-medium text-foreground"
-        :title="folderName"
-      >
+      <p class="relative truncate text-[11px] font-medium text-foreground" :title="folderName">
         {{ folderName }}
       </p>
       <p class="relative mt-0.5 text-[10px] text-muted-foreground truncate">
-        {{ videosCount }} {{ t("queue.typeVideo") }} /
-        {{ imagesCount }} {{ t("queue.typeImage") }} /
-        {{ audioCount }} {{ t("queue.typeAudio") }} ·
-        {{ t("queue.status.completed") }} {{ batch.completedCount }} / {{ batch.totalCount - batch.skippedCount }}
+        {{ videosCount }} {{ t("queue.typeVideo") }} / {{ imagesCount }} {{ t("queue.typeImage") }} / {{ audioCount }}
+        {{ t("queue.typeAudio") }} · {{ t("queue.status.completed") }} {{ batch.completedCount }} /
+        {{ batch.totalCount - batch.skippedCount }}
       </p>
     </div>
   </div>

@@ -1,26 +1,43 @@
-use std::fs::{self, OpenOptions};
+use std::fs::{
+    self,
+    OpenOptions,
+};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+#[cfg(not(windows))]
+use std::io::{
+    ErrorKind,
+    Seek,
+    SeekFrom,
+};
+#[cfg(not(windows))]
+use std::net::UdpSocket;
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::OnceLock;
+#[cfg(not(windows))]
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use tauri::AppHandle;
-
-#[cfg(not(windows))]
-use std::io::{ErrorKind, Seek, SeekFrom};
-#[cfg(not(windows))]
-use std::net::UdpSocket;
-#[cfg(not(windows))]
-use std::sync::mpsc;
-
+use anyhow::{
+    Context,
+    Result,
+};
 #[cfg(not(windows))]
 use fs2::FileExt;
 #[cfg(not(windows))]
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
+use tauri::AppHandle;
 #[cfg(not(windows))]
-use tauri::{Manager, UserAttentionType};
+use tauri::{
+    Manager,
+    UserAttentionType,
+};
 
 #[cfg(windows)]
 mod windows_focus;
@@ -225,7 +242,10 @@ pub fn ensure_single_instance_or_focus_existing() -> Result<EnsureOutcome> {
 
 #[cfg(windows)]
 fn ensure_single_instance_windows(exe_path: &Path, instance_key: &str) -> Result<EnsureOutcome> {
-    use windows::Win32::Foundation::{ERROR_ALREADY_EXISTS, GetLastError};
+    use windows::Win32::Foundation::{
+        ERROR_ALREADY_EXISTS,
+        GetLastError,
+    };
     use windows::Win32::System::Threading::CreateMutexW;
 
     let mutex_name = format!("Local\\ffui.{instance_key}");

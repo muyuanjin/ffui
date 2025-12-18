@@ -11,12 +11,7 @@ import SettingsExternalToolsSection from "@/components/panels/SettingsExternalTo
 import SettingsPreviewCacheSection from "@/components/panels/SettingsPreviewCacheSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import SettingsCommunitySection from "@/components/panels/SettingsCommunitySection.vue";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  ExternalToolStatus,
-} from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
 type AppUpdateUiState = {
   configured?: boolean | null;
   autoCheckDefault?: boolean;
@@ -32,36 +27,39 @@ type AppUpdateUiState = {
 };
 const props = withDefaults(
   defineProps<{
-  /** Application settings */
-  appSettings: AppSettings | null;
-  /** External tool statuses */
-  toolStatuses: ExternalToolStatus[];
-  /** Whether tool statuses have been refreshed at least once this session. */
-  toolStatusesFresh?: boolean;
-  /** Trigger an async tool status refresh (non-blocking). */
-  refreshToolStatuses?: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-  }) => Promise<void>;
-  /** App updater UI state snapshot. */
-  appUpdate?: AppUpdateUiState;
-  /** Manually trigger an app update check. */
-  checkForAppUpdate?: (options?: { force?: boolean }) => Promise<void>;
-  /** Download and install the currently available update. */
-  installAppUpdate?: () => Promise<void>;
-  /** Whether settings are being saved */
-  isSavingSettings: boolean;
-  /** Settings save error message */
-  settingsSaveError: string | null;
-  /** Fetch available candidate binaries for a tool kind. */
-  fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
+    /** Application settings */
+    appSettings: AppSettings | null;
+    /** External tool statuses */
+    toolStatuses: ExternalToolStatus[];
+    /** Whether tool statuses have been refreshed at least once this session. */
+    toolStatusesFresh?: boolean;
+    /** Trigger an async tool status refresh (non-blocking). */
+    refreshToolStatuses?: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
+    /** App updater UI state snapshot. */
+    appUpdate?: AppUpdateUiState;
+    /** Manually trigger an app update check. */
+    checkForAppUpdate?: (options?: { force?: boolean }) => Promise<void>;
+    /** Download and install the currently available update. */
+    installAppUpdate?: () => Promise<void>;
+    /** Whether settings are being saved */
+    isSavingSettings: boolean;
+    /** Settings save error message */
+    settingsSaveError: string | null;
+    /** Fetch available candidate binaries for a tool kind. */
+    fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   }>(),
   {
     toolStatusesFresh: true,
     appUpdate: () => ({
-      available: false, checking: false, installing: false,
-      availableVersion: null, currentVersion: null, lastCheckedAtMs: null,
-      downloadedBytes: 0, totalBytes: null, error: null,
+      available: false,
+      checking: false,
+      installing: false,
+      availableVersion: null,
+      currentVersion: null,
+      lastCheckedAtMs: null,
+      downloadedBytes: 0,
+      totalBytes: null,
+      error: null,
     }),
   },
 );
@@ -160,14 +158,16 @@ const systemStatus = computed(() => {
           <span v-else-if="settingsSaveError" class="text-red-500">● {{ settingsSaveError }}</span>
           <span v-else class="text-emerald-500">● {{ t("app.settings.autoSaveHint") }}</span>
         </p>
-        <div class="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-[9px] text-muted-foreground">
+        <div
+          class="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 font-mono text-[9px] text-muted-foreground"
+        >
           <span class="flex items-center gap-1">
             <span class="opacity-60">PLATFORM:</span>
-            <span>{{ hasTauri() ? 'TAURI' : 'WEB' }}</span>
+            <span>{{ hasTauri() ? "TAURI" : "WEB" }}</span>
           </span>
           <span class="flex items-center gap-1">
             <span class="opacity-60">SETTINGS:</span>
-            <span class="text-primary">{{ appSettings ? 'LOADED' : 'LOADING...' }}</span>
+            <span class="text-primary">{{ appSettings ? "LOADED" : "LOADING..." }}</span>
           </span>
           <span class="flex items-center gap-1">
             <span class="opacity-60">STATUS:</span>
@@ -192,7 +192,19 @@ const systemStatus = computed(() => {
   </section>
 </template>
 <style scoped>
-@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
-.animation-delay-200 { animation-delay: 200ms; }
-.animation-delay-400 { animation-delay: 400ms; }
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animation-delay-200 {
+  animation-delay: 200ms;
+}
+.animation-delay-400 {
+  animation-delay: 400ms;
+}
 </style>

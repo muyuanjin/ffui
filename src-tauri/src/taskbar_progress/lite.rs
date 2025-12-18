@@ -1,5 +1,9 @@
 use crate::ffui_core::{
-    JobStatus, QueueStateLite, TaskbarProgressMode, TaskbarProgressScope, TranscodeJobLite,
+    JobStatus,
+    QueueStateLite,
+    TaskbarProgressMode,
+    TaskbarProgressScope,
+    TranscodeJobLite,
 };
 
 fn normalized_job_progress_lite(job: &TranscodeJobLite) -> f64 {
@@ -119,8 +123,14 @@ pub fn update_taskbar_progress_lite(
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,
 ) {
-    use tauri::window::{ProgressBarState, ProgressBarStatus};
-    use tauri::{Manager, UserAttentionType};
+    use tauri::window::{
+        ProgressBarState,
+        ProgressBarStatus,
+    };
+    use tauri::{
+        Manager,
+        UserAttentionType,
+    };
 
     if let Some(window) = app.get_webview_window("main") {
         let completed_queue =

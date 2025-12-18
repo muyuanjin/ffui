@@ -32,10 +32,7 @@ describe("FFmpeg structured preset → command contract (frontend)", () => {
     for (const testCase of fixtures.cases) {
       const preview = getPresetCommandPreview(testCase.preset);
       expect(preview.length).toBeGreaterThan(0);
-      expect(preview).toBe(
-        testCase.expectedCommand,
-      );
+      expect(preview).toBe(testCase.expectedCommand);
     }
   });
 });
-

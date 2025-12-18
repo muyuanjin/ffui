@@ -6,20 +6,11 @@ import { createI18n } from "vue-i18n";
 import QueuePanel from "./QueuePanel.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
-import type {
-  FFmpegPreset,
-  TranscodeJob,
-  CompositeSmartScanTask,
-} from "@/types";
-import type {
-  QueueListItem,
-  QueueFilterStatus,
-  QueueFilterKind,
-} from "@/composables";
+import type { FFmpegPreset, TranscodeJob, CompositeSmartScanTask } from "@/types";
+import type { QueueListItem, QueueFilterStatus, QueueFilterKind } from "@/composables";
 
 vi.mock("@/lib/backend", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   return {
     ...actual,
     hasTauri: () => true,

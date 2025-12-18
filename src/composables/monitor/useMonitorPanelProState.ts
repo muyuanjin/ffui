@@ -21,14 +21,7 @@ const HEATMAP_TIME_WINDOW = 30;
 export function useMonitorPanelProState() {
   const { t } = useI18n();
 
-  const {
-    snapshots,
-    cpuTotalSeries,
-    perCoreSeries,
-    memorySeries,
-    diskSeries,
-    networkSeries,
-  } = useSystemMetrics();
+  const { snapshots, cpuTotalSeries, perCoreSeries, memorySeries, diskSeries, networkSeries } = useSystemMetrics();
 
   const { latestGpu, gpuUsageSeries, gpuMemorySeries } = useGpuMetrics(snapshots);
 
@@ -47,9 +40,7 @@ export function useMonitorPanelProState() {
 
     return {
       cpu: cpuLatest?.value || latest.cpu.total,
-      memory: memoryLatest
-        ? (memoryLatest.usedBytes / memoryLatest.totalBytes) * 100
-        : memoryPercent,
+      memory: memoryLatest ? (memoryLatest.usedBytes / memoryLatest.totalBytes) * 100 : memoryPercent,
       disk: {
         read: latest.disk.io[0]?.readBps || 0,
         write: latest.disk.io[0]?.writeBps || 0,
@@ -76,14 +67,11 @@ export function useMonitorPanelProState() {
     netTxMbps: 0,
   });
 
-  const clampPercent = (value: number): number =>
-    Math.max(0, Math.min(100, value));
+  const clampPercent = (value: number): number => Math.max(0, Math.min(100, value));
 
   const cpuPercent = computed(() => clampPercent(displayMetrics.value.cpu));
   const memoryPercent = computed(() => clampPercent(displayMetrics.value.memory));
-  const gpuPercent = computed(() =>
-    clampPercent(displayMetrics.value.gpuUsage),
-  );
+  const gpuPercent = computed(() => clampPercent(displayMetrics.value.gpuUsage));
 
   watch(
     latestMetrics,
@@ -187,9 +175,7 @@ export function useMonitorPanelProState() {
   });
 
   const heatmapTimeLabels = computed(() =>
-    Array.from({ length: HEATMAP_TIME_WINDOW }, (_, i) =>
-      i % 5 === 0 ? `${-HEATMAP_TIME_WINDOW + i + 1}s` : "",
-    ),
+    Array.from({ length: HEATMAP_TIME_WINDOW }, (_, i) => (i % 5 === 0 ? `${-HEATMAP_TIME_WINDOW + i + 1}s` : "")),
   );
 
   const cpuHeatmapOption = computed(() => {
@@ -239,17 +225,7 @@ export function useMonitorPanelProState() {
         max: 100,
         show: false,
         inRange: {
-          color: [
-            "#001133",
-            "#003366",
-            "#006699",
-            "#0099cc",
-            "#00ccff",
-            "#00ff99",
-            "#ffcc00",
-            "#ff6600",
-            "#ff0033",
-          ],
+          color: ["#001133", "#003366", "#006699", "#0099cc", "#00ccff", "#00ff99", "#ffcc00", "#ff6600", "#ff0033"],
         },
       },
       series: [
@@ -267,10 +243,7 @@ export function useMonitorPanelProState() {
       ],
       tooltip: {
         backgroundColor: "rgba(0, 0, 0, 0.8)",
-        formatter: (params: any) =>
-          `${t("monitor.cpu")} ${params.value[1]}: ${params.value[2].toFixed(
-            1,
-          )}%`,
+        formatter: (params: any) => `${t("monitor.cpu")} ${params.value[1]}: ${params.value[2].toFixed(1)}%`,
       },
     };
   });
@@ -297,10 +270,7 @@ export function useMonitorPanelProState() {
     };
   });
 
-  const miniChartLabels = Array.from(
-    { length: MINI_CHART_WINDOW },
-    () => "",
-  );
+  const miniChartLabels = Array.from({ length: MINI_CHART_WINDOW }, () => "");
 
   const networkChartOption = computed(() => {
     const { rx, tx } = networkMiniSeries.value;
@@ -355,8 +325,7 @@ export function useMonitorPanelProState() {
           if (typeof value !== "number" || Number.isNaN(value)) return "--";
           return `${value.toFixed(2)} MB/s`;
         },
-        formatter: (params: any) =>
-          `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
+        formatter: (params: any) => `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
       },
     };
   });
@@ -436,8 +405,7 @@ export function useMonitorPanelProState() {
           if (typeof value !== "number" || Number.isNaN(value)) return "--";
           return `${value.toFixed(2)} MB/s`;
         },
-        formatter: (params: any) =>
-          `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
+        formatter: (params: any) => `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
       },
     };
   });

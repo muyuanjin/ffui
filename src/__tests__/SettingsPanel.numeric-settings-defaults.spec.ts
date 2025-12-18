@@ -15,7 +15,12 @@ vi.mock("@/lib/backend", () => {
     openDevtools: vi.fn(),
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
-    ensureOpenSourceFontDownloaded: vi.fn(async () => ({ id: "inter", familyName: "Inter", path: "/tmp/Inter.ttf", format: "ttf" })),
+    ensureOpenSourceFontDownloaded: vi.fn(async () => ({
+      id: "inter",
+      familyName: "Inter",
+      path: "/tmp/Inter.ttf",
+      format: "ttf",
+    })),
     fetchExternalToolStatuses: vi.fn(async () => [] as ExternalToolStatus[]),
     fetchExternalToolStatusesCached: vi.fn(async () => [] as ExternalToolStatus[]),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
@@ -73,25 +78,20 @@ describe("SettingsPanel numeric settings defaults", () => {
       },
     });
 
-    const previewInput = wrapper.get(
-      'input[data-testid="settings-preview-capture-percent"]',
-    ).element as HTMLInputElement;
+    const previewInput = wrapper.get('input[data-testid="settings-preview-capture-percent"]')
+      .element as HTMLInputElement;
     expect(previewInput.value).toBe("25");
 
     // Default mode is unified; only the unified cap input should be shown.
-    const maxParallelInput = wrapper.get(
-      'input[data-testid="settings-max-parallel-jobs"]',
-    ).element as HTMLInputElement;
+    const maxParallelInput = wrapper.get('input[data-testid="settings-max-parallel-jobs"]').element as HTMLInputElement;
     expect(maxParallelInput.value).toBe("2");
     expect(wrapper.find('input[data-testid="settings-max-parallel-cpu-jobs"]').exists()).toBe(false);
     expect(wrapper.find('input[data-testid="settings-max-parallel-hw-jobs"]').exists()).toBe(false);
 
-    const progressIntervalInput = wrapper.get(
-      'input[data-testid="settings-progress-update-interval-ms"]',
-    ).element as HTMLInputElement;
-    const metricsIntervalInput = wrapper.get(
-      'input[data-testid="settings-metrics-interval-ms"]',
-    ).element as HTMLInputElement;
+    const progressIntervalInput = wrapper.get('input[data-testid="settings-progress-update-interval-ms"]')
+      .element as HTMLInputElement;
+    const metricsIntervalInput = wrapper.get('input[data-testid="settings-metrics-interval-ms"]')
+      .element as HTMLInputElement;
     expect(progressIntervalInput.value).toBe("250");
     expect(metricsIntervalInput.value).toBe("1000");
 
@@ -119,19 +119,15 @@ describe("SettingsPanel numeric settings defaults", () => {
       },
     });
 
-    const maxParallelInput = wrapper.get(
-      'input[data-testid="settings-max-parallel-jobs"]',
-    ).element as HTMLInputElement;
+    const maxParallelInput = wrapper.get('input[data-testid="settings-max-parallel-jobs"]').element as HTMLInputElement;
     expect(maxParallelInput.value).toBe("4");
     expect(wrapper.find('input[data-testid="settings-max-parallel-cpu-jobs"]').exists()).toBe(false);
     expect(wrapper.find('input[data-testid="settings-max-parallel-hw-jobs"]').exists()).toBe(false);
 
-    const progressIntervalInput = wrapper.get(
-      'input[data-testid="settings-progress-update-interval-ms"]',
-    ).element as HTMLInputElement;
-    const metricsIntervalInput = wrapper.get(
-      'input[data-testid="settings-metrics-interval-ms"]',
-    ).element as HTMLInputElement;
+    const progressIntervalInput = wrapper.get('input[data-testid="settings-progress-update-interval-ms"]')
+      .element as HTMLInputElement;
+    const metricsIntervalInput = wrapper.get('input[data-testid="settings-metrics-interval-ms"]')
+      .element as HTMLInputElement;
     expect(progressIntervalInput.value).toBe("500");
     expect(metricsIntervalInput.value).toBe("2000");
 
@@ -161,12 +157,8 @@ describe("SettingsPanel numeric settings defaults", () => {
 
     expect(wrapper.find('input[data-testid="settings-max-parallel-jobs"]').exists()).toBe(false);
 
-    const cpu = wrapper.get(
-      'input[data-testid="settings-max-parallel-cpu-jobs"]',
-    ).element as HTMLInputElement;
-    const hw = wrapper.get(
-      'input[data-testid="settings-max-parallel-hw-jobs"]',
-    ).element as HTMLInputElement;
+    const cpu = wrapper.get('input[data-testid="settings-max-parallel-cpu-jobs"]').element as HTMLInputElement;
+    const hw = wrapper.get('input[data-testid="settings-max-parallel-hw-jobs"]').element as HTMLInputElement;
 
     expect(cpu.value).toBe("3");
     expect(hw.value).toBe("2");

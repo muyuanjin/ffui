@@ -30,9 +30,7 @@ describe("MainApp non-Tauri manual job flow (web preview)", () => {
 
     const vm: any = wrapper.vm;
     const jobsRef = vm.jobs;
-    const initialLength: number = Array.isArray(jobsRef)
-      ? jobsRef.length
-      : jobsRef?.value?.length ?? 0;
+    const initialLength: number = Array.isArray(jobsRef) ? jobsRef.length : (jobsRef?.value?.length ?? 0);
 
     // Trigger the manual job flow. In pure web mode MainApp is expected to
     // behave as a no-op (queue is managed only by the backend in Tauri).
@@ -42,7 +40,7 @@ describe("MainApp non-Tauri manual job flow (web preview)", () => {
     const updatedJobsRef = vm.jobs;
     const newLength: number = Array.isArray(updatedJobsRef)
       ? updatedJobsRef.length
-      : updatedJobsRef?.value?.length ?? 0;
+      : (updatedJobsRef?.value?.length ?? 0);
 
     expect(newLength).toBe(initialLength);
 

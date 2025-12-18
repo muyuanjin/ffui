@@ -4,12 +4,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Input } from "@/components/ui/input";
 import { computed, toRefs } from "vue";
 import { useI18n } from "vue-i18n";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  ExternalToolStatus,
-} from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
 
 type CheckUpdateLogLevel = "info" | "warn" | "error";
 type CheckUpdateLogEntry = {
@@ -96,10 +91,7 @@ const formatSpeed = (bytesPerSecond?: number): string => {
 };
 
 const candidateHoverTitle = (candidate: ExternalToolCandidate): string => {
-  const size =
-    candidate.fileSizeBytes == null
-      ? t("app.settings.unknownValue")
-      : formatBytes(candidate.fileSizeBytes);
+  const size = candidate.fileSizeBytes == null ? t("app.settings.unknownValue") : formatBytes(candidate.fileSizeBytes);
   const version = candidate.version ?? t("app.settings.unknownValue");
   return [
     candidate.path,
@@ -156,10 +148,10 @@ const copyToClipboard = async (value: string | undefined | null) => {
         >
           {{
             tool.resolvedPath
-              ? t('app.settings.toolStatus.ready')
+              ? t("app.settings.toolStatus.ready")
               : toolStatusesFresh
-                ? t('app.settings.toolStatus.missing')
-                : t('app.settings.toolStatus.detecting')
+                ? t("app.settings.toolStatus.missing")
+                : t("app.settings.toolStatus.detecting")
           }}
         </span>
       </div>
@@ -196,13 +188,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
         </Button>
       </div>
       <div class="mt-0.5 flex items-center justify-between text-[9px]">
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          class="h-auto p-0 text-[9px]"
-          @click="emit('toggleCandidates')"
-        >
+        <Button type="button" variant="link" size="sm" class="h-auto p-0 text-[9px]" @click="emit('toggleCandidates')">
           {{ t("app.settings.selectDetectedPath") }}
         </Button>
         <span v-if="candidatesLoading" class="text-muted-foreground">
@@ -210,10 +196,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
         </span>
       </div>
 
-      <div
-        v-if="candidatesOpen"
-        class="mt-1.5 space-y-0.5 rounded border border-border/30 bg-background/60 p-1.5"
-      >
+      <div v-if="candidatesOpen" class="mt-1.5 space-y-0.5 rounded border border-border/30 bg-background/60 p-1.5">
         <div
           v-if="candidatesLoading && candidates.length === 0"
           class="py-1 text-[9px] text-muted-foreground"
@@ -290,9 +273,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
                     </div>
                   </HoverCardContent>
                 </HoverCard>
-                <span
-                  class="px-1 py-0 rounded-full text-[8px] border border-border/40 text-muted-foreground"
-                >
+                <span class="px-1 py-0 rounded-full text-[8px] border border-border/40 text-muted-foreground">
                   {{ formatCandidateSource(candidate.source) }}
                 </span>
               </div>
@@ -311,11 +292,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
               "
               @click="emit('useCandidate', candidate)"
             >
-              {{
-                candidate.isCurrent
-                  ? t("app.settings.candidateCurrentLabel")
-                  : t("app.settings.useDetectedPath")
-              }}
+              {{ candidate.isCurrent ? t("app.settings.candidateCurrentLabel") : t("app.settings.useDetectedPath") }}
             </Button>
           </div>
         </template>
@@ -338,10 +315,7 @@ const copyToClipboard = async (value: string | undefined | null) => {
       <span v-if="tool.updateAvailable && !tool.lastDownloadError" class="text-amber-600">
         {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
       </span>
-      <span
-        v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError"
-        class="text-emerald-600"
-      >
+      <span v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError" class="text-emerald-600">
         {{ t("app.settings.toolUpToDateHint") }}
       </span>
       <div class="flex items-center gap-1.5">

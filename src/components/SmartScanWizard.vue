@@ -1,11 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import type { FFmpegPreset, SmartScanConfig } from "../types";
-import {
-  VIDEO_EXTENSIONS,
-  IMAGE_EXTENSIONS,
-  AUDIO_EXTENSIONS,
-} from "../constants";
+import { VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS } from "../constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -142,16 +138,11 @@ const setExtensionSelected = (
 };
 
 // 全选/取消全选扩展名
-const selectAllExtensions = (
-  filterKey: "videoFilter" | "imageFilter" | "audioFilter",
-  allExts: string[],
-) => {
+const selectAllExtensions = (filterKey: "videoFilter" | "imageFilter" | "audioFilter", allExts: string[]) => {
   config.value[filterKey].extensions = [...allExts];
 };
 
-const deselectAllExtensions = (
-  filterKey: "videoFilter" | "imageFilter" | "audioFilter",
-) => {
+const deselectAllExtensions = (filterKey: "videoFilter" | "imageFilter" | "audioFilter") => {
   config.value[filterKey].extensions = [];
 };
 
@@ -159,9 +150,7 @@ const deselectAllExtensions = (
 const canStart = computed(() => {
   const hasPath = !!config.value.rootPath?.trim();
   const hasAnyFilter =
-    config.value.videoFilter.enabled ||
-    config.value.imageFilter.enabled ||
-    config.value.audioFilter.enabled;
+    config.value.videoFilter.enabled || config.value.imageFilter.enabled || config.value.audioFilter.enabled;
   return hasPath && hasAnyFilter;
 });
 
@@ -176,7 +165,7 @@ const handleRun = () => {
     @click.self="emit('cancel')"
   >
     <div class="bg-background w-full max-w-4xl rounded-xl shadow-2xl border border-border flex flex-col max-h-[90vh]">
-	      <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/60 rounded-t-xl shrink-0">
+      <div class="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/60 rounded-t-xl shrink-0">
         <div>
           <h2 class="text-xl font-bold text-foreground flex items-center gap-2">
             <span class="bg-emerald-500/20 text-emerald-400 p-1.5 rounded-lg text-sm">▶</span>
@@ -184,16 +173,24 @@ const handleRun = () => {
           </h2>
           <p class="text-muted-foreground text-xs mt-1">{{ t("smartScan.subtitle") }}</p>
         </div>
-        <Button variant="ghost" size="icon" class="text-muted-foreground hover:text-foreground h-8 w-8" @click="emit('cancel')">✕</Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          class="text-muted-foreground hover:text-foreground h-8 w-8"
+          @click="emit('cancel')"
+          >✕</Button
+        >
       </div>
 
-	      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
-	        <div class="bg-primary/10 border border-primary/40 p-3 rounded-lg text-xs text-foreground flex items-start gap-2">
+      <div class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div
+          class="bg-primary/10 border border-primary/40 p-3 rounded-lg text-xs text-foreground flex items-start gap-2"
+        >
           <span class="text-primary shrink-0">!</span>
           <p>{{ t("smartScan.notice") }}</p>
         </div>
 
-	        <div class="space-y-2">
+        <div class="space-y-2">
           <Label class="text-xs font-medium text-foreground">{{ t("smartScan.rootPath") }}</Label>
           <div class="flex gap-2">
             <Input
@@ -205,8 +202,8 @@ const handleRun = () => {
               {{ t("smartScan.browse") }}
             </Button>
           </div>
-	        </div>
-	        <div class="space-y-2">
+        </div>
+        <div class="space-y-2">
           <div class="flex items-center justify-between">
             <Label class="text-xs font-medium text-foreground">{{ t("app.outputSettings") }}</Label>
             <div class="flex items-center gap-2">
@@ -244,9 +241,9 @@ const handleRun = () => {
               :preview-preset-id="config.videoPresetId"
             />
           </div>
-	        </div>
-	        <div class="grid grid-cols-3 gap-4">
-	          <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="space-y-3 p-3 rounded-lg border border-border/60 bg-muted/30">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-bold flex items-center gap-2">
                 <span class="text-emerald-400">▣</span>
@@ -335,13 +332,15 @@ const handleRun = () => {
                     size="sm"
                     class="flex-1 h-7 text-xs"
                     @click="config.imageTargetFormat = 'avif'"
-                  >AVIF</Button>
+                    >AVIF</Button
+                  >
                   <Button
                     :variant="config.imageTargetFormat === 'webp' ? 'default' : 'outline'"
                     size="sm"
                     class="flex-1 h-7 text-xs"
                     @click="config.imageTargetFormat = 'webp'"
-                  >WebP</Button>
+                    >WebP</Button
+                  >
                 </div>
               </div>
 
@@ -460,14 +459,14 @@ const handleRun = () => {
           </div>
         </div>
 
-          <SmartScanSavingConditionSection
-            :saving-condition-type="config.savingConditionType"
-            :min-saving-ratio="config.minSavingRatio"
-            :min-saving-absolute-mb="config.minSavingAbsoluteMB"
-            @update:saving-condition-type="config.savingConditionType = $event"
-            @update:min-saving-ratio="config.minSavingRatio = $event"
-            @update:min-saving-absolute-mb="config.minSavingAbsoluteMB = $event"
-          />
+        <SmartScanSavingConditionSection
+          :saving-condition-type="config.savingConditionType"
+          :min-saving-ratio="config.minSavingRatio"
+          :min-saving-absolute-mb="config.minSavingAbsoluteMB"
+          @update:saving-condition-type="config.savingConditionType = $event"
+          @update:min-saving-ratio="config.minSavingRatio = $event"
+          @update:min-saving-absolute-mb="config.minSavingAbsoluteMB = $event"
+        />
       </div>
 
       <!-- 底部按钮 -->
@@ -479,12 +478,7 @@ const handleRun = () => {
           <Button variant="ghost" size="sm" class="h-9" @click="emit('cancel')">
             {{ t("common.cancel") }}
           </Button>
-          <Button
-            size="sm"
-            class="h-9 px-6 font-bold flex items-center gap-2"
-            :disabled="!canStart"
-            @click="handleRun"
-          >
+          <Button size="sm" class="h-9 px-6 font-bold flex items-center gap-2" :disabled="!canStart" @click="handleRun">
             ▶ {{ t("smartScan.scanButton") }}
           </Button>
         </div>

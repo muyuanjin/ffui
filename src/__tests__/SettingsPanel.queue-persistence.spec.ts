@@ -15,7 +15,12 @@ vi.mock("@/lib/backend", () => {
     openDevtools: vi.fn(),
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
-    ensureOpenSourceFontDownloaded: vi.fn(async () => ({ id: "inter", familyName: "Inter", path: "/tmp/Inter.ttf", format: "ttf" })),
+    ensureOpenSourceFontDownloaded: vi.fn(async () => ({
+      id: "inter",
+      familyName: "Inter",
+      path: "/tmp/Inter.ttf",
+      format: "ttf",
+    })),
     fetchExternalToolStatuses: vi.fn(async () => [] as ExternalToolStatus[]),
     fetchExternalToolStatusesCached: vi.fn(async () => [] as ExternalToolStatus[]),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),

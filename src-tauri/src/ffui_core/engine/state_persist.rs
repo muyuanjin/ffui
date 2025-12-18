@@ -1,22 +1,38 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Condvar, Mutex};
-use std::time::{Duration, Instant};
-
 #[cfg(test)]
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{
+    AtomicU64,
+    Ordering,
+};
+use std::sync::{
+    Condvar,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite};
+use crate::ffui_core::domain::{
+    JobStatus,
+    QueueState,
+    QueueStateLite,
+};
 
 mod terminal_logs;
 
-pub(super) use terminal_logs::{load_persisted_terminal_job_logs, persist_terminal_logs_if_needed};
-
-#[cfg(test)]
-pub(super) use terminal_logs::{override_queue_logs_dir_for_tests, queue_job_log_path};
-
 #[cfg(test)]
 pub(super) use terminal_logs::TERMINAL_LOG_WRITE_COUNT;
+pub(super) use terminal_logs::{
+    load_persisted_terminal_job_logs,
+    persist_terminal_logs_if_needed,
+};
+#[cfg(test)]
+pub(super) use terminal_logs::{
+    override_queue_logs_dir_for_tests,
+    queue_job_log_path,
+};
 
 #[cfg(test)]
 static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =

@@ -19,7 +19,7 @@ function parseArgs(argv) {
           "- Rust checks can run on Windows and/or Linux depending on host + availability.",
           "- rust-platform=both requires both platforms to be runnable on this host.",
           "",
-        ].join("\n")
+        ].join("\n"),
       );
       process.exit(0);
     }
@@ -40,7 +40,7 @@ function stripAnsi(text) {
   return text.replaceAll(
     // eslint-disable-next-line no-control-regex
     /\u001b\[[0-9;]*m/g,
-    ""
+    "",
   );
 }
 
@@ -108,10 +108,7 @@ function commandExists(command) {
 }
 
 function isWsl() {
-  return (
-    process.platform === "linux" &&
-    (process.env.WSL_INTEROP || process.env.WSL_DISTRO_NAME || process.env.WSLENV)
-  );
+  return process.platform === "linux" && (process.env.WSL_INTEROP || process.env.WSL_DISTRO_NAME || process.env.WSLENV);
 }
 
 function wslIsUsableOnWindowsHost() {
@@ -124,7 +121,9 @@ function wslIsUsableOnWindowsHost() {
 function runCaptureSingleLine(command, args, options = {}) {
   const result = spawnSync(command, args, { ...options, encoding: "utf8" });
   if (result.status !== 0) return null;
-  const out = String(result.stdout ?? "").replaceAll("\r", "").trim();
+  const out = String(result.stdout ?? "")
+    .replaceAll("\r", "")
+    .trim();
   return out ? out : null;
 }
 
@@ -208,7 +207,7 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         ["clippy", "--target-dir", "target/win", "--", "-D", "warnings"],
         {
           cwd: rustRootDir,
-        }
+        },
       );
       return;
     }
@@ -216,31 +215,29 @@ function runRustChecksForPlatform(platform, rustRootDir) {
     if (process.platform === "linux") {
       if (!isWsl() || !commandExists("cargo.exe")) {
         throw new Error(
-          "Windows Rust checks require WSL with access to Windows cargo.exe (install Rust on Windows, ensure cargo.exe is in PATH)."
+          "Windows Rust checks require WSL with access to Windows cargo.exe (install Rust on Windows, ensure cargo.exe is in PATH).",
         );
       }
       const winCargoToml = wslPathToWindowsPath(rustCargoToml);
       const winTargetDir = path.win32.join(path.win32.dirname(winCargoToml), "target", "win");
       const wslenv = appendWslenvToken(process.env.WSLENV, "RUSTFLAGS");
 
-      runStep("Rust build (Windows via cargo.exe, warnings as errors)", "cargo.exe", [
-        "build",
-        "--target-dir",
-        winTargetDir,
-        "--manifest-path",
-        winCargoToml,
-      ], {
-        env: { RUSTFLAGS: "-Dwarnings", WSLENV: wslenv },
-      });
-      runStep("Rust tests (Windows via cargo.exe, warnings as errors)", "cargo.exe", [
-        "test",
-        "--target-dir",
-        winTargetDir,
-        "--manifest-path",
-        winCargoToml,
-      ], {
-        env: { RUSTFLAGS: "-Dwarnings", WSLENV: wslenv },
-      });
+      runStep(
+        "Rust build (Windows via cargo.exe, warnings as errors)",
+        "cargo.exe",
+        ["build", "--target-dir", winTargetDir, "--manifest-path", winCargoToml],
+        {
+          env: { RUSTFLAGS: "-Dwarnings", WSLENV: wslenv },
+        },
+      );
+      runStep(
+        "Rust tests (Windows via cargo.exe, warnings as errors)",
+        "cargo.exe",
+        ["test", "--target-dir", winTargetDir, "--manifest-path", winCargoToml],
+        {
+          env: { RUSTFLAGS: "-Dwarnings", WSLENV: wslenv },
+        },
+      );
       runStep("Rust clippy (Windows via cargo.exe, deny warnings)", "cargo.exe", [
         "clippy",
         "--target-dir",
@@ -274,7 +271,7 @@ function runRustChecksForPlatform(platform, rustRootDir) {
         ["clippy", "--target-dir", "target/linux", "--", "-D", "warnings"],
         {
           cwd: rustRootDir,
-        }
+        },
       );
       return;
     }
@@ -289,7 +286,7 @@ function runRustChecksForPlatform(platform, rustRootDir) {
       const wslCargo = resolveWslCargoPathOnWindowsHost();
       if (!wslCargo) {
         throw new Error(
-          "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists."
+          "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
         );
       }
       runStep("Rust build (Linux/WSL, warnings as errors)", "wsl.exe", [
@@ -348,8 +345,7 @@ runNpmStep("Frontend tests (vitest --run)", ["run", "test", "--", "--run"]);
 
 const rustRootDir = "src-tauri";
 const available = {
-  windows:
-    process.platform === "win32" ? commandExists("cargo") : isWsl() ? commandExists("cargo.exe") : false,
+  windows: process.platform === "win32" ? commandExists("cargo") : isWsl() ? commandExists("cargo.exe") : false,
   linux:
     process.platform === "linux"
       ? commandExists("cargo")
@@ -371,25 +367,21 @@ const selected = requested.filter((p) => available[p]);
 
 if (selected.length === 0) {
   process.stderr.write(
-    `ERROR: No Rust platforms available. requested=${requested.join(",")} host=${process.platform}\n`
+    `ERROR: No Rust platforms available. requested=${requested.join(",")} host=${process.platform}\n`,
   );
   process.stderr.write(
-    `Hint: On Windows host, ensure WSL is installed (wsl.exe). On Linux host, install cargo; on WSL, install Rust on Windows so cargo.exe is available.\n`
+    `Hint: On Windows host, ensure WSL is installed (wsl.exe). On Linux host, install cargo; on WSL, install Rust on Windows so cargo.exe is available.\n`,
   );
   process.exit(1);
 }
 
 if (opts.rustPlatform === "both" && selected.length !== 2) {
+  process.stderr.write(`ERROR: rust-platform=both requested, but not all platforms are available on this host.\n`);
   process.stderr.write(
-    `ERROR: rust-platform=both requested, but not all platforms are available on this host.\n`
+    `Available: ${selected.join(",") || "(none)"} | Host: ${process.platform} | WSL: ${isWsl() ? "yes" : "no"}\n`,
   );
   process.stderr.write(
-    `Available: ${selected.join(",") || "(none)"} | Host: ${process.platform} | WSL: ${
-      isWsl() ? "yes" : "no"
-    }\n`
-  );
-  process.stderr.write(
-    `Hint: On Windows, install/enable WSL. On WSL, install Rust on Windows so cargo.exe is available.\n`
+    `Hint: On Windows, install/enable WSL. On WSL, install Rust on Windows so cargo.exe is available.\n`,
   );
   process.exit(1);
 }

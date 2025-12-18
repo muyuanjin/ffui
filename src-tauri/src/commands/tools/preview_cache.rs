@@ -1,8 +1,11 @@
 use tauri::State;
 
 use crate::ffui_core::{
-    TranscodingEngine, cleanup_unreferenced_previews, clear_fallback_frame_cache,
-    previews_root_dir_best_effort, referenced_preview_filenames,
+    TranscodingEngine,
+    cleanup_unreferenced_previews,
+    clear_fallback_frame_cache,
+    previews_root_dir_best_effort,
+    referenced_preview_filenames,
 };
 
 fn wait_for_queue_recovery(engine: &TranscodingEngine) {
@@ -73,10 +76,12 @@ pub fn cleanup_preview_caches_async(engine: State<'_, TranscodingEngine>) -> boo
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
     use std::sync::atomic::Ordering;
+
     use tempfile::tempdir;
+
+    use super::*;
 
     #[test]
     fn cleanup_preview_caches_worker_waits_for_recovery_before_deleting_previews() {

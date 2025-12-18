@@ -2,25 +2,50 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use anyhow::{Context, Result};
-
-use crate::ffui_core::domain::{
-    FFmpegPreset, JobSource, JobStatus, JobType, MediaInfo, OutputDirectoryPolicy,
-    OutputFilenamePolicy, OutputPolicy, SmartScanConfig, TranscodeJob,
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
 };
-use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
-use super::super::ffmpeg_args::configure_background_command;
+use anyhow::{
+    Context,
+    Result,
+};
+
 use super::super::ffmpeg_args::{
-    build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log,
+    build_ffmpeg_args as build_queue_ffmpeg_args,
+    configure_background_command,
+    format_command_for_log,
 };
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
-use super::helpers::{current_time_millis, next_job_id, record_tool_download};
-use super::video_paths::{build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path};
+use super::helpers::{
+    current_time_millis,
+    next_job_id,
+    record_tool_download,
+};
+use super::video_paths::{
+    build_ffmpeg_args,
+    build_video_output_path,
+    build_video_tmp_output_path,
+};
+use crate::ffui_core::domain::{
+    FFmpegPreset,
+    JobSource,
+    JobStatus,
+    JobType,
+    MediaInfo,
+    OutputDirectoryPolicy,
+    OutputFilenamePolicy,
+    OutputPolicy,
+    SmartScanConfig,
+    TranscodeJob,
+};
+use crate::ffui_core::settings::AppSettings;
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 fn detect_video_codec(path: &Path, settings: &AppSettings) -> Result<String> {
     let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;

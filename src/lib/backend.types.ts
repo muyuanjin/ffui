@@ -12,12 +12,7 @@ export interface DownloadedFontInfo {
   format: string;
 }
 
-export type UiFontDownloadStatus =
-  | "starting"
-  | "downloading"
-  | "ready"
-  | "error"
-  | "canceled";
+export type UiFontDownloadStatus = "starting" | "downloading" | "ready" | "error" | "canceled";
 
 export interface UiFontDownloadSnapshot {
   sessionId: number;

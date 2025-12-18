@@ -12,4 +12,3 @@ node scripts/generate-release-notes.mjs vX.Y.Z vA.B.C > releases/vX.Y.Z.md
 ```
 
 Then rewrite the draft into a user-facing bilingual note before tagging.
-

@@ -1,16 +1,32 @@
-use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-use anyhow::{Context, Result};
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    Arc,
+    Mutex,
+};
 use std::time::SystemTime;
 
+use anyhow::{
+    Context,
+    Result,
+};
+use once_cell::sync::Lazy;
+
 use super::preview_cache::previews_root_dir_best_effort;
-use super::{FallbackFramePosition, FallbackFrameQuality};
+use super::{
+    FallbackFramePosition,
+    FallbackFrameQuality,
+};
+use crate::ffui_core::settings::ExternalToolSettings;
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 mod cache;
 use cache::maybe_cleanup_cache_now;
@@ -60,7 +76,10 @@ fn file_fingerprint(path: &Path) -> (u64, Option<u128>) {
 
 fn hash_key(parts: &[&str]) -> u64 {
     use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
+    use std::hash::{
+        Hash,
+        Hasher,
+    };
     let mut hasher = DefaultHasher::new();
     for part in parts {
         part.hash(&mut hasher);
@@ -273,8 +292,9 @@ pub(crate) fn build_concat_list_contents_for_tests(segment_paths: &[PathBuf]) ->
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::fs;
+
+    use super::*;
 
     #[test]
     fn concat_preview_reports_missing_segments_with_os_error() {

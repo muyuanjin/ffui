@@ -9,9 +9,7 @@ import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 
 const isTestEnv =
-  typeof import.meta !== "undefined" &&
-  typeof import.meta.env !== "undefined" &&
-  import.meta.env.MODE === "test";
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const props = defineProps<{
   job: TranscodeJob;
@@ -49,25 +47,17 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const effectiveProgressStyle = computed<QueueProgressStyle>(
-  () => props.progressStyle ?? "bar",
-);
+const effectiveProgressStyle = computed<QueueProgressStyle>(() => props.progressStyle ?? "bar");
 
 const clampedProgress = computed(() => {
   const status = props.job.status;
 
-  if (
-    status === "completed" ||
-    status === "failed" ||
-    status === "skipped" ||
-    status === "cancelled"
-  ) {
+  if (status === "completed" || status === "failed" || status === "skipped" || status === "cancelled") {
     return 100;
   }
 
   if (status === "processing" || status === "paused") {
-    const raw =
-      typeof props.job.progress === "number" ? props.job.progress : 0;
+    const raw = typeof props.job.progress === "number" ? props.job.progress : 0;
     return Math.max(0, Math.min(100, raw));
   }
 
@@ -76,24 +66,17 @@ const clampedProgress = computed(() => {
 });
 
 const showBarProgress = computed(
-  () =>
-    props.job.status !== "waiting" &&
-    props.job.status !== "skipped" &&
-    effectiveProgressStyle.value === "bar",
+  () => props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "bar",
 );
 
 const showCardFillProgress = computed(
   () =>
-    props.job.status !== "waiting" &&
-    props.job.status !== "skipped" &&
-    effectiveProgressStyle.value === "card-fill",
+    props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "card-fill",
 );
 
 const showRippleCardProgress = computed(
   () =>
-    props.job.status !== "waiting" &&
-    props.job.status !== "skipped" &&
-    effectiveProgressStyle.value === "ripple-card",
+    props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "ripple-card",
 );
 
 // 根据任务状态计算进度条颜色类
@@ -141,9 +124,7 @@ const displayStatusKey = computed(() =>
   props.isPausing ? "pausing" : props.job.status === "queued" ? "waiting" : props.job.status,
 );
 
-const statusLabel = computed(
-  () => t(`queue.status.${displayStatusKey.value}`) as string,
-);
+const statusLabel = computed(() => t(`queue.status.${displayStatusKey.value}`) as string);
 
 const statusBadgeClass = computed(() => {
   switch (props.job.status) {
@@ -195,18 +176,13 @@ const isSelectable = computed(() => props.canSelect === true);
 const isSelected = computed(() => !!props.selected);
 
 // 使用时间显示组合式函数
-const {
-  elapsedTimeDisplay,
-  estimatedTotalTimeDisplay,
-  shouldShowTimeInfo,
-  isTerminalState,
-  isProcessing,
-} = useJobTimeDisplay(toRef(props, "job"));
+const { elapsedTimeDisplay, estimatedTotalTimeDisplay, shouldShowTimeInfo, isTerminalState, isProcessing } =
+  useJobTimeDisplay(toRef(props, "job"));
 
 // 时间显示文本（简短版本，适合图标视图）
 const timeDisplayText = computed(() => {
   if (!shouldShowTimeInfo.value) return null;
-  
+
   if (isTerminalState.value) {
     // 终态：显示总耗时
     if (elapsedTimeDisplay.value !== "-") {
@@ -214,12 +190,12 @@ const timeDisplayText = computed(() => {
     }
     return null;
   }
-  
+
   if (isProcessing.value || props.job.status === "paused") {
     // 处理中或暂停：显示已用时间 / 预估总时间
     const elapsed = elapsedTimeDisplay.value;
     const total = estimatedTotalTimeDisplay.value;
-    
+
     if (elapsed !== "-" && total !== "-") {
       return `${elapsed}/${total}`;
     }
@@ -227,7 +203,7 @@ const timeDisplayText = computed(() => {
       return elapsed;
     }
   }
-  
+
   return null;
 });
 
@@ -236,9 +212,7 @@ const compareDisabledReason = computed(() => {
   return getJobCompareDisabledReason(props.job);
 });
 
-const canCompare = computed(
-  () => isJobCompareEligible(props.job) && compareDisabledReason.value == null,
-);
+const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
 
 const compareDisabledText = computed(() => {
   const reason = compareDisabledReason.value;
@@ -281,25 +255,19 @@ const handlePreviewError = async () => {
     previewFallbackLoaded.value = true;
   } catch (error) {
     if (previewRescreenshotAttempted.value) {
-      console.error(
-        "QueueIconItem: failed to load preview via data URL fallback",
-        error,
-      );
+      console.error("QueueIconItem: failed to load preview via data URL fallback", error);
       return;
     }
 
-	    previewRescreenshotAttempted.value = true;
-	    if (!isTestEnv) {
-	      console.warn(
-	        "QueueIconItem: preview missing or unreadable, attempting regeneration",
-	        error,
-	      );
-	    }
+    previewRescreenshotAttempted.value = true;
+    if (!isTestEnv) {
+      console.warn("QueueIconItem: preview missing or unreadable, attempting regeneration", error);
+    }
 
-	    try {
-	      const regenerated = await ensureJobPreview(props.job.id);
-	      if (regenerated) {
-	        previewUrl.value = buildPreviewUrl(regenerated);
+    try {
+      const regenerated = await ensureJobPreview(props.job.id);
+      if (regenerated) {
+        previewUrl.value = buildPreviewUrl(regenerated);
         previewFallbackLoaded.value = false;
       }
     } catch (regenError) {
@@ -340,18 +308,13 @@ const onCardContextMenu = (event: MouseEvent) => {
     class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-all cursor-pointer ring-0"
     :class="[
       rootSizeClass,
-      isSelectable && isSelected
-        ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5'
-        : '',
+      isSelectable && isSelected ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5' : '',
     ]"
     data-testid="queue-icon-item"
     @click="onCardClick"
     @contextmenu.prevent.stop="onCardContextMenu"
   >
-    <div
-      class="relative w-full bg-muted/60"
-      :class="thumbnailAspectClass"
-    >
+    <div class="relative w-full bg-muted/60" :class="thumbnailAspectClass">
       <img
         v-if="previewUrl"
         :src="previewUrl"
@@ -381,32 +344,21 @@ const onCardContextMenu = (event: MouseEvent) => {
       <div
         v-if="isSelectable"
         class="absolute top-1 right-1 h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all"
-        :class="isSelected
-          ? 'bg-amber-500 border-amber-500 text-white'
-          : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'"
+        :class="
+          isSelected
+            ? 'bg-amber-500 border-amber-500 text-white'
+            : 'border-white/60 bg-black/30 hover:border-white hover:bg-black/50'
+        "
       >
-        <svg
-          v-if="isSelected"
-          class="h-3 w-3"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="3"
-        >
+        <svg v-if="isSelected" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
     </div>
 
-    <div
-      class="relative border-t border-border/40 bg-card/80"
-      :class="captionPaddingClass"
-    >
+    <div class="relative border-t border-border/40 bg-card/80" :class="captionPaddingClass">
       <div class="flex items-center gap-1">
-        <p
-          class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground"
-          :title="job.filename"
-        >
+        <p class="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground" :title="job.filename">
           {{ displayFilename }}
         </p>
         <QueueJobWarnings :warnings="job.warnings" />
@@ -414,11 +366,7 @@ const onCardContextMenu = (event: MouseEvent) => {
       <div class="mt-0.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
           <span>{{ statusLabel }}</span>
-          <span
-            v-if="timeDisplayText"
-            class="font-mono"
-            data-testid="queue-icon-item-time-display"
-          >
+          <span v-if="timeDisplayText" class="font-mono" data-testid="queue-icon-item-time-display">
             {{ timeDisplayText }}
           </span>
         </div>

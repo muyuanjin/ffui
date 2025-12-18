@@ -21,4 +21,3 @@ export const openPath = async (path: string): Promise<void> => {
 export const revealItemInDir = async (path: string | string[]): Promise<void> => {
   pushOpened(path);
 };
-

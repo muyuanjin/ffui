@@ -7,23 +7,19 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
   GpuUsageSnapshot,
-		  FFmpegPreset,
-		  JobSource,
-		  JobType,
-		  OutputPolicy,
-		  SmartScanConfig,
-		  QueueState,
-		  QueueStateLite,
-		  TranscodeJob,
-		  SystemMetricsSnapshot,
+  FFmpegPreset,
+  JobSource,
+  JobType,
+  OutputPolicy,
+  SmartScanConfig,
+  QueueState,
+  QueueStateLite,
+  TranscodeJob,
+  SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
 import type { SystemFontFamily } from "./systemFontSearch";
-import type {
-  DownloadedFontInfo,
-  OpenSourceFontInfo,
-  UiFontDownloadSnapshot,
-} from "./backend.types";
+import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 export type {
   AppUpdaterCapabilities,
   DownloadedFontInfo,
@@ -59,9 +55,7 @@ export const listOpenSourceFonts = async (): Promise<OpenSourceFontInfo[]> => {
   return invoke<OpenSourceFontInfo[]>("list_open_source_fonts");
 };
 
-export const startOpenSourceFontDownload = async (
-  fontId: string,
-): Promise<UiFontDownloadSnapshot> => {
+export const startOpenSourceFontDownload = async (fontId: string): Promise<UiFontDownloadSnapshot> => {
   if (!hasTauri()) {
     throw new Error("startOpenSourceFontDownload requires Tauri");
   }
@@ -71,9 +65,7 @@ export const startOpenSourceFontDownload = async (
   });
 };
 
-export const fetchOpenSourceFontDownloadSnapshot = async (
-  fontId: string,
-): Promise<UiFontDownloadSnapshot | null> => {
+export const fetchOpenSourceFontDownloadSnapshot = async (fontId: string): Promise<UiFontDownloadSnapshot | null> => {
   if (!hasTauri()) return null;
   return invoke<UiFontDownloadSnapshot | null>("get_open_source_font_download_snapshot", {
     fontId,
@@ -81,9 +73,7 @@ export const fetchOpenSourceFontDownloadSnapshot = async (
   });
 };
 
-export const cancelOpenSourceFontDownload = async (
-  fontId: string,
-): Promise<boolean> => {
+export const cancelOpenSourceFontDownload = async (fontId: string): Promise<boolean> => {
   if (!hasTauri()) return false;
   return invoke<boolean>("cancel_open_source_font_download", {
     fontId,
@@ -119,16 +109,11 @@ export const loadSmartScanDefaults = async (): Promise<SmartScanConfig> => {
   return invoke<SmartScanConfig>("get_smart_scan_defaults");
 };
 
-export const saveSmartScanDefaults = async (
-  config: SmartScanConfig,
-): Promise<SmartScanConfig> => {
+export const saveSmartScanDefaults = async (config: SmartScanConfig): Promise<SmartScanConfig> => {
   return invoke<SmartScanConfig>("save_smart_scan_defaults", { config });
 };
 
-export const runAutoCompress = async (
-  rootPath: string,
-  config: SmartScanConfig,
-): Promise<AutoCompressResult> => {
+export const runAutoCompress = async (rootPath: string, config: SmartScanConfig): Promise<AutoCompressResult> => {
   return invoke<AutoCompressResult>("run_auto_compress", {
     rootPath,
     root_path: rootPath,
@@ -188,15 +173,11 @@ export const refreshExternalToolStatusesAsync = async (options?: {
   });
 };
 
-export const fetchExternalToolCandidates = async (
-  kind: ExternalToolKind,
-): Promise<ExternalToolCandidate[]> => {
+export const fetchExternalToolCandidates = async (kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => {
   return invoke<ExternalToolCandidate[]>("get_external_tool_candidates", { kind });
 };
 
-export const downloadExternalToolNow = async (
-  kind: ExternalToolKind,
-): Promise<ExternalToolStatus[]> => {
+export const downloadExternalToolNow = async (kind: ExternalToolKind): Promise<ExternalToolStatus[]> => {
   return invoke<ExternalToolStatus[]>("download_external_tool_now", { kind });
 };
 
@@ -224,21 +205,15 @@ export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("get_smart_default_presets");
 };
 
-export const savePresetOnBackend = async (
-  preset: FFmpegPreset,
-): Promise<FFmpegPreset[]> => {
+export const savePresetOnBackend = async (preset: FFmpegPreset): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("save_preset", { preset });
 };
 
-export const deletePresetOnBackend = async (
-  presetId: string,
-): Promise<FFmpegPreset[]> => {
+export const deletePresetOnBackend = async (presetId: string): Promise<FFmpegPreset[]> => {
   return invoke<FFmpegPreset[]>("delete_preset", { presetId, preset_id: presetId });
 };
 
-export const reorderPresetsOnBackend = async (
-  orderedIds: string[],
-): Promise<FFmpegPreset[]> => {
+export const reorderPresetsOnBackend = async (orderedIds: string[]): Promise<FFmpegPreset[]> => {
   // Accept both camelCase and snake_case to stay resilient to Rust-side param names.
   return invoke<FFmpegPreset[]>("reorder_presets", { orderedIds, ordered_ids: orderedIds });
 };
@@ -251,10 +226,7 @@ export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
   return invoke<QueueStateLite>("get_queue_state_lite");
 };
 
-export const expandManualJobInputs = async (
-  paths: string[],
-  options?: { recursive?: boolean },
-): Promise<string[]> => {
+export const expandManualJobInputs = async (paths: string[], options?: { recursive?: boolean }): Promise<string[]> => {
   if (!hasTauri()) return [];
   const normalized = (paths ?? []).filter((p): p is string => typeof p === "string" && p.trim().length > 0);
   if (normalized.length === 0) return [];
@@ -439,9 +411,7 @@ export const inspectMedia = async (path: string): Promise<string> => {
  * original/output files. In pure web/test environments we simply return the
  * first non-empty candidate to keep behaviour predictable and cheap.
  */
-export const selectPlayableMediaPath = async (
-  candidatePaths: string[],
-): Promise<string | null> => {
+export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise<string | null> => {
   const filtered = candidatePaths.filter((p) => !!p);
   if (!filtered.length) return null;
 

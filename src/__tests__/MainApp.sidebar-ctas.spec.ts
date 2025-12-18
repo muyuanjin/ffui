@@ -73,14 +73,9 @@ describe("MainApp sidebar primary actions", () => {
     await nextTick();
 
     const buttons = wrapper.findAll("button");
-    const newPresetButton = buttons.find((btn) =>
-      btn.text().includes("新建预设"),
-    );
+    const newPresetButton = buttons.find((btn) => btn.text().includes("新建预设"));
 
-    expect(
-      newPresetButton,
-      "New Preset button should be visible on the presets tab",
-    ).toBeTruthy();
+    expect(newPresetButton, "New Preset button should be visible on the presets tab").toBeTruthy();
 
     expect(vm.dialogManager?.wizardOpen?.value).toBe(false);
     await newPresetButton!.trigger("click");

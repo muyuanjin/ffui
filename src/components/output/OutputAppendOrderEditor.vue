@@ -22,17 +22,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const fullOrder = computed<OutputFilenameAppend[]>(() =>
-  normalizeAppendOrder(props.filename.appendOrder),
-);
+const fullOrder = computed<OutputFilenameAppend[]>(() => normalizeAppendOrder(props.filename.appendOrder));
 
 const order = ref<OutputFilenameAppend[]>([]);
 watch(
   fullOrder,
   (next) => {
-    const same =
-      order.value.length === next.length &&
-      order.value.every((it, idx) => it === next[idx]);
+    const same = order.value.length === next.length && order.value.every((it, idx) => it === next[idx]);
     if (!same) order.value = [...next];
   },
   { immediate: true },
@@ -75,10 +71,7 @@ const setEnabled = (item: OutputFilenameAppend, enabled: boolean) => {
 
   if (enabled) {
     const current = props.filename.randomSuffixLen;
-    const normalized =
-      typeof current === "number" && Number.isFinite(current) && current > 0
-        ? Math.floor(current)
-        : 6;
+    const normalized = typeof current === "number" && Number.isFinite(current) && current > 0 ? Math.floor(current) : 6;
     emit("update", { randomSuffixLen: normalized });
   } else {
     emit("update", { randomSuffixLen: undefined });
@@ -181,7 +174,9 @@ useSortable(sortableRef, order, {
             <Input
               class="h-8 text-xs"
               :disabled="!isEnabled('random')"
-              :model-value="typeof props.filename.randomSuffixLen === 'number' ? String(props.filename.randomSuffixLen) : ''"
+              :model-value="
+                typeof props.filename.randomSuffixLen === 'number' ? String(props.filename.randomSuffixLen) : ''
+              "
               :data-testid="`append-order-param-random`"
               @update:model-value="updateRandomLen"
             />

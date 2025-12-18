@@ -10,15 +10,10 @@ import { createI18n } from "vue-i18n";
 import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
-import type {
-  FFmpegPreset,
-  TranscodeJob,
-  CompositeSmartScanTask,
-} from "@/types";
+import type { FFmpegPreset, TranscodeJob, CompositeSmartScanTask } from "@/types";
 
 vi.mock("@/lib/backend", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
+  const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   return {
     ...actual,
     hasTauri: () => true,
@@ -91,15 +86,22 @@ const createBatch = (jobs: TranscodeJob[]): CompositeSmartScanTask => ({
 
 // QueueItem 的 stub，用于捕获渲染顺序
 const queueItemStub = {
-  props: ["job", "preset", "canCancel", "canRestart", "canSelect", "selected", "viewMode", "progressStyle", "progressUpdateIntervalMs"],
+  props: [
+    "job",
+    "preset",
+    "canCancel",
+    "canRestart",
+    "canSelect",
+    "selected",
+    "viewMode",
+    "progressStyle",
+    "progressUpdateIntervalMs",
+  ],
   template: `<div data-testid="queue-item-stub" :data-job-id="job.id" :data-filename="job.filename">{{ job.filename }}</div>`,
 };
 
 describe("QueueSmartScanBatchCard 子任务排序", () => {
-  const createWrapper = (
-    jobs: TranscodeJob[],
-    sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number,
-  ) => {
+  const createWrapper = (jobs: TranscodeJob[], sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number) => {
     const batch = createBatch(jobs);
 
     return mount(QueueSmartScanBatchCard, {
@@ -133,9 +135,7 @@ describe("QueueSmartScanBatchCard 子任务排序", () => {
 
     const wrapper = createWrapper(jobs);
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     // 原始顺序
     expect(renderedIds).toEqual(["job-c", "job-a", "job-b"]);
@@ -149,14 +149,11 @@ describe("QueueSmartScanBatchCard 子任务排序", () => {
     ];
 
     // 按文件名升序排序
-    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) =>
-      (a.filename || "").localeCompare(b.filename || "");
+    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) => (a.filename || "").localeCompare(b.filename || "");
 
     const wrapper = createWrapper(jobs, sortByFilenameAsc);
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     // 按文件名排序后的顺序
     expect(renderedIds).toEqual(["job-a", "job-b", "job-c"]);
@@ -170,14 +167,11 @@ describe("QueueSmartScanBatchCard 子任务排序", () => {
     ];
 
     // 按文件名降序排序
-    const sortByFilenameDesc = (a: TranscodeJob, b: TranscodeJob) =>
-      (b.filename || "").localeCompare(a.filename || "");
+    const sortByFilenameDesc = (a: TranscodeJob, b: TranscodeJob) => (b.filename || "").localeCompare(a.filename || "");
 
     const wrapper = createWrapper(jobs, sortByFilenameDesc);
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     // 按文件名降序排序后的顺序
     expect(renderedIds).toEqual(["job-c", "job-b", "job-a"]);
@@ -191,14 +185,11 @@ describe("QueueSmartScanBatchCard 子任务排序", () => {
     ];
 
     // 按开始时间升序排序（startTime 用于表示添加到队列的时间）
-    const sortByStartTimeAsc = (a: TranscodeJob, b: TranscodeJob) =>
-      (a.startTime ?? 0) - (b.startTime ?? 0);
+    const sortByStartTimeAsc = (a: TranscodeJob, b: TranscodeJob) => (a.startTime ?? 0) - (b.startTime ?? 0);
 
     const wrapper = createWrapper(jobs, sortByStartTimeAsc);
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     // 按开始时间排序后的顺序
     expect(renderedIds).toEqual(["job-1", "job-2", "job-3"]);
@@ -211,14 +202,11 @@ describe("QueueSmartScanBatchCard 子任务排序", () => {
       createChildJob("job-a", "alpha.mp4"),
     ];
 
-    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) =>
-      (a.filename || "").localeCompare(b.filename || "");
+    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) => (a.filename || "").localeCompare(b.filename || "");
 
     const wrapper = createWrapper(jobs, sortByFilenameAsc);
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     // skipped 任务被过滤，剩余任务按文件名排序
     expect(renderedIds).toEqual(["job-a", "job-c"]);

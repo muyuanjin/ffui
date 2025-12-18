@@ -37,14 +37,10 @@ export const getVideoRateControlSummary = (video: FFmpegPreset["video"]): string
   if (mode === "cq") return `CQ ${video.qualityValue}`;
   if (mode === "constqp") return `ConstQP ${video.qualityValue}`;
   if (mode === "cbr") {
-    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0
-      ? `CBR ${video.bitrateKbps}k`
-      : "CBR";
+    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0 ? `CBR ${video.bitrateKbps}k` : "CBR";
   }
   if (mode === "vbr") {
-    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0
-      ? `VBR ${video.bitrateKbps}k`
-      : "VBR";
+    return typeof video.bitrateKbps === "number" && video.bitrateKbps > 0 ? `VBR ${video.bitrateKbps}k` : "VBR";
   }
   return String(mode).toUpperCase();
 };

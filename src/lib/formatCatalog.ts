@@ -136,13 +136,37 @@ export const FORMAT_CATALOG: FormatCatalogEntry[] = [
     disabledInVideoPickers: true,
   },
   { value: "ac3", label: "AC-3 (.ac3)", kind: "audio", keywords: kw("ac3", ".ac3"), disabledInVideoPickers: true },
-  { value: "ogg", label: "Ogg (.ogg)", kind: "audio", keywords: kw("ogg", ".ogg", "vorbis"), disabledInVideoPickers: true },
-  { value: "opus", label: "Opus (.opus)", kind: "audio", keywords: kw("opus", ".opus", "ogg"), disabledInVideoPickers: true },
+  {
+    value: "ogg",
+    label: "Ogg (.ogg)",
+    kind: "audio",
+    keywords: kw("ogg", ".ogg", "vorbis"),
+    disabledInVideoPickers: true,
+  },
+  {
+    value: "opus",
+    label: "Opus (.opus)",
+    kind: "audio",
+    keywords: kw("opus", ".opus", "ogg"),
+    disabledInVideoPickers: true,
+  },
 
   // ---- Image formats ----
   { value: "png", label: "PNG (.png)", kind: "image", keywords: kw("png", ".png"), disabledInVideoPickers: true },
-  { value: "jpg", label: "JPG (.jpg)", kind: "image", keywords: kw("jpg", ".jpg", "jpeg", ".jpeg"), disabledInVideoPickers: true },
-  { value: "jpeg", label: "JPEG (.jpeg)", kind: "image", keywords: kw("jpeg", ".jpeg", "jpg", ".jpg"), disabledInVideoPickers: true },
+  {
+    value: "jpg",
+    label: "JPG (.jpg)",
+    kind: "image",
+    keywords: kw("jpg", ".jpg", "jpeg", ".jpeg"),
+    disabledInVideoPickers: true,
+  },
+  {
+    value: "jpeg",
+    label: "JPEG (.jpeg)",
+    kind: "image",
+    keywords: kw("jpeg", ".jpeg", "jpg", ".jpg"),
+    disabledInVideoPickers: true,
+  },
   { value: "webp", label: "WebP (.webp)", kind: "image", keywords: kw("webp", ".webp"), disabledInVideoPickers: true },
   { value: "avif", label: "AVIF (.avif)", kind: "image", keywords: kw("avif", ".avif"), disabledInVideoPickers: true },
   { value: "bmp", label: "BMP (.bmp)", kind: "image", keywords: kw("bmp", ".bmp"), disabledInVideoPickers: true },
@@ -175,4 +199,3 @@ export function groupFormatCatalog(entries: FormatCatalogEntry[]): Record<Format
   }
   return out;
 }
-

@@ -4,16 +4,11 @@ import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
-let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null =
-  null;
+let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 let unlistenCalled = false;
 
-const listenMock = vi.fn<
-  (
-    event: string,
-    handler: (event: { payload: { paths: string[] } }) => void,
-  ) => Promise<() => void>
->();
+const listenMock =
+  vi.fn<(event: string, handler: (event: { payload: { paths: string[] } }) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/event", () => {
   return {
@@ -34,8 +29,8 @@ vi.mock("@tauri-apps/api/window", () => {
 
 vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
-  const enqueueTranscodeJob = vi.fn(async () => ({} as any));
-  const enqueueTranscodeJobs = vi.fn(async () => ([] as any));
+  const enqueueTranscodeJob = vi.fn(async () => ({}) as any);
+  const enqueueTranscodeJobs = vi.fn(async () => [] as any);
   const expandManualJobInputs = vi.fn(async (paths: string[]) => paths);
 
   return {
@@ -43,12 +38,12 @@ vi.mock("@/lib/backend", async () => {
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
-    loadAppSettings: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
     loadSmartDefaultPresets: vi.fn(async () => []),
@@ -59,9 +54,7 @@ vi.mock("@/lib/backend", async () => {
     enqueueTranscodeJob,
     enqueueTranscodeJobs,
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -89,19 +82,14 @@ describe("MainApp Tauri drag & drop integration", () => {
     // Ensure hasTauri() sees a Tauri-like environment.
     (window as any).__TAURI__ = {};
 
-    listenMock.mockImplementation(
-      async (
-        event: string,
-        handler: (event: { payload: { paths: string[] } }) => void,
-      ) => {
-        if (event === "tauri://drag-drop") {
-          dragDropHandler = handler;
-        }
-        return () => {
-          unlistenCalled = true;
-        };
-      },
-    );
+    listenMock.mockImplementation(async (event: string, handler: (event: { payload: { paths: string[] } }) => void) => {
+      if (event === "tauri://drag-drop") {
+        dragDropHandler = handler;
+      }
+      return () => {
+        unlistenCalled = true;
+      };
+    });
   });
 
   it("subscribes to tauri://drag-drop and enqueues manual jobs on the queue tab", async () => {

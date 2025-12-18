@@ -95,9 +95,7 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
     // In Tauri environment, if we can't get the local path, don't create a fake frontend job,
     // otherwise it will be immediately overwritten by backend polling.
     if (!path || typeof path !== "string") {
-      console.error(
-        "Selected file does not expose a native path in Tauri; cannot enqueue backend job from file input",
-      );
+      console.error("Selected file does not expose a native path in Tauri; cannot enqueue backend job from file input");
       queueError.value = (t?.("queue.error.enqueueFailed") as string) ?? "";
       if (input) {
         input.value = "";
@@ -191,9 +189,7 @@ export function useFileInput(options: UseFileInputOptions): UseFileInputReturn {
   };
 
   const handlePathsDroppedOntoQueue = async (paths: string[]) => {
-    const normalized = (paths || []).filter(
-      (p): p is string => typeof p === "string" && p.length > 0,
-    );
+    const normalized = (paths || []).filter((p): p is string => typeof p === "string" && p.length > 0);
     if (normalized.length === 0) return;
 
     // Record the most recent dropped root directory for subsequent Smart Scan.

@@ -1,8 +1,16 @@
+use std::sync::atomic::{
+    AtomicUsize,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+
+use once_cell::sync::Lazy;
+
 use crate::ffui_core::engine::TranscodingEngine;
 use crate::ffui_core::network_proxy;
-use once_cell::sync::Lazy;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 
 static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 

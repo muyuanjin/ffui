@@ -26,14 +26,17 @@ import type { AcceptableValue } from "@/components/ui/select";
 // 视图模式：grid（卡片）或 compact（紧凑列表）
 type ViewMode = "grid" | "compact";
 
-const props = withDefaults(defineProps<{
-  presets: FFmpegPreset[];
-  sortMode?: PresetSortMode;
-  viewMode?: ViewMode;
-}>(), {
-  sortMode: "manual",
-  viewMode: "grid",
-});
+const props = withDefaults(
+  defineProps<{
+    presets: FFmpegPreset[];
+    sortMode?: PresetSortMode;
+    viewMode?: ViewMode;
+  }>(),
+  {
+    sortMode: "manual",
+    viewMode: "grid",
+  },
+);
 
 const emit = defineEmits<{
   edit: [preset: FFmpegPreset];
@@ -50,9 +53,12 @@ const localPresets = ref<FFmpegPreset[]>([...props.presets]);
 const localViewMode = ref<ViewMode>(props.viewMode);
 
 // 监听 viewMode prop 变化
-watch(() => props.viewMode, (newMode) => {
-  localViewMode.value = newMode;
-});
+watch(
+  () => props.viewMode,
+  (newMode) => {
+    localViewMode.value = newMode;
+  },
+);
 
 // 视图模式变化时发出事件
 const handleViewModeChange = (mode: ViewMode) => {
@@ -64,9 +70,12 @@ const handleViewModeChange = (mode: ViewMode) => {
 const localSortMode = ref<PresetSortMode>(props.sortMode);
 
 // 监听 prop 变化
-watch(() => props.sortMode, (newMode) => {
-  localSortMode.value = newMode;
-});
+watch(
+  () => props.sortMode,
+  (newMode) => {
+    localSortMode.value = newMode;
+  },
+);
 
 // 排序模式变化时发出事件
 const handleSortModeChange = (value: AcceptableValue) => {
@@ -145,7 +154,6 @@ useSortable(containerRef, localPresets, {
     emit("reorder", orderedIds);
   },
 });
-
 </script>
 
 <template>
@@ -158,11 +166,7 @@ useSortable(containerRef, localPresets, {
         </span>
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <Select
-          :key="locale"
-          :model-value="localSortMode"
-          @update:model-value="handleSortModeChange"
-        >
+        <Select :key="locale" :model-value="localSortMode" @update:model-value="handleSortModeChange">
           <SelectTrigger class="h-7 w-[100px] text-[11px]">
             <SelectValue>
               {{ currentSortLabel }}
@@ -261,9 +265,7 @@ useSortable(containerRef, localPresets, {
             </div>
           </div>
 
-          <div
-            class="flex items-center justify-end gap-2 text-[10px] text-muted-foreground flex-shrink-0 w-32"
-          >
+          <div class="flex items-center justify-end gap-2 text-[10px] text-muted-foreground flex-shrink-0 w-32">
             <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
             <span
               v-if="getPresetAvgRatio(preset) !== null"
@@ -304,11 +306,7 @@ useSortable(containerRef, localPresets, {
       </div>
     </div>
 
-    <div
-      v-else
-      ref="containerRef"
-      class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch"
-    >
+    <div v-else ref="containerRef" class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch">
       <Card
         v-for="preset in sortedPresets"
         :key="preset.id"
@@ -323,7 +321,9 @@ useSortable(containerRef, localPresets, {
             </div>
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-base leading-tight truncate">{{ preset.name }}</h3>
-              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">{{ getPresetDescription(preset, locale) }}</p>
+              <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                {{ getPresetDescription(preset, locale) }}
+              </p>
               <div class="mt-1 flex items-center flex-wrap gap-1">
                 <span class="text-[10px] text-muted-foreground">
                   {{ t("presetEditor.panel.scenarioLabel") }}：
@@ -379,7 +379,9 @@ useSortable(containerRef, localPresets, {
               </div>
               <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
                 <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.audioLabel") }}</div>
-                <div class="font-mono text-[11px] text-foreground leading-tight">{{ getAudioSummary(preset.audio, t) }}</div>
+                <div class="font-mono text-[11px] text-foreground leading-tight">
+                  {{ getAudioSummary(preset.audio, t) }}
+                </div>
               </div>
             </div>
 
@@ -408,11 +410,17 @@ useSortable(containerRef, localPresets, {
                 <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.containerLabel") }}:</span>
                 <span
                   class="text-[10px] ml-1"
-                  :class="preset.container?.format || preset.container?.movflags?.length ? 'text-foreground font-mono' : 'text-muted-foreground'"
+                  :class="
+                    preset.container?.format || preset.container?.movflags?.length
+                      ? 'text-foreground font-mono'
+                      : 'text-muted-foreground'
+                  "
                 >
                   {{
-                    preset.container?.format
-                      || (preset.container?.movflags?.length ? preset.container.movflags.join("+") : t("presets.containerPlaceholder"))
+                    preset.container?.format ||
+                    (preset.container?.movflags?.length
+                      ? preset.container.movflags.join("+")
+                      : t("presets.containerPlaceholder"))
                   }}
                 </span>
               </div>
@@ -420,8 +428,15 @@ useSortable(containerRef, localPresets, {
 
             <div class="space-y-1">
               <div class="flex items-center justify-between">
-                <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{ t("presets.commandPreviewLabel") }}</span>
-                <Button variant="ghost" size="sm" class="h-5 px-1.5 text-[9px] hover:bg-muted" @click="copyToClipboard(getPresetCommandPreview(preset))">
+                <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{
+                  t("presets.commandPreviewLabel")
+                }}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="h-5 px-1.5 text-[9px] hover:bg-muted"
+                  @click="copyToClipboard(getPresetCommandPreview(preset))"
+                >
                   <Copy class="h-3 w-3 mr-1" />
                   {{ t("presetEditor.advanced.copyButton") }}
                 </Button>
@@ -436,7 +451,9 @@ useSortable(containerRef, localPresets, {
             </div>
           </div>
 
-          <div class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto">
+          <div
+            class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto"
+          >
             <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
             <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
               <span class="truncate">
@@ -447,10 +464,10 @@ useSortable(containerRef, localPresets, {
                 class="font-medium truncate"
                 :class="getRatioColorClass(getPresetAvgRatio(preset))"
               >
-                {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? '0.0' }) }}
+                {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
               </span>
               <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
-                {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? '0.0' }) }}
+                {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
               </span>
             </div>
           </div>

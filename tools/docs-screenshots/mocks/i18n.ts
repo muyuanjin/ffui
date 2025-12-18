@@ -32,4 +32,3 @@ export const i18n = createI18n({
 export function loadLocale(locale: AppLocale) {
   i18n.global.locale.value = locale as any;
 }
-

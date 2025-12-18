@@ -14,7 +14,12 @@
         height: 100%;
         background: #020617;
         color: #e5e7eb;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
       }
 
       #app {
@@ -96,16 +101,16 @@
   </head>
 
   <body data-tauri-drag-region>
-      <div id="app">
-        <div class="boot-shell">
-          <div class="boot-logo">FFUI</div>
-          <div>
+    <div id="app">
+      <div class="boot-shell">
+        <div class="boot-logo">FFUI</div>
+        <div>
           <p class="boot-title">FFUI</p>
           <p class="boot-subtitle">正在启动 FFUI，请稍候…</p>
-          </div>
-          <div class="boot-spinner"></div>
         </div>
+        <div class="boot-spinner"></div>
       </div>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

@@ -137,9 +137,7 @@ export function useJobCompareFrames(options: {
         inputFrameQuality.value = quality;
       } else {
         inputFrameLoading.value = false;
-        inputFrameError.value =
-          (inputResult.reason as Error | undefined)?.message ??
-          String(inputResult.reason);
+        inputFrameError.value = (inputResult.reason as Error | undefined)?.message ?? String(inputResult.reason);
       }
 
       if (outputResult.status === "fulfilled") {
@@ -149,9 +147,7 @@ export function useJobCompareFrames(options: {
         outputFrameQuality.value = quality;
       } else {
         outputFrameLoading.value = false;
-        outputFrameError.value =
-          (outputResult.reason as Error | undefined)?.message ??
-          String(outputResult.reason);
+        outputFrameError.value = (outputResult.reason as Error | undefined)?.message ?? String(outputResult.reason);
       }
     } catch (error) {
       if (token !== requestToken.value) return;
@@ -187,11 +183,7 @@ export function useJobCompareFrames(options: {
   };
 
   const shouldRequest = computed(() => {
-    return (
-      options.open.value &&
-      options.usingFrameCompare.value &&
-      !!options.sources.value?.jobId
-    );
+    return options.open.value && options.usingFrameCompare.value && !!options.sources.value?.jobId;
   });
 
   watch(

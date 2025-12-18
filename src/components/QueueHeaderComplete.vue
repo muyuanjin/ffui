@@ -1,8 +1,5 @@
 <template>
-  <header
-    data-testid="queue-secondary-header"
-    class="queue-header"
-  >
+  <header data-testid="queue-secondary-header" class="queue-header">
     <!-- 主要操作栏 -->
     <div class="queue-header__main">
       <div class="queue-header__controls">
@@ -51,7 +48,7 @@
             >
               <ArrowUpDown v-if="sortDirection === 'asc'" class="w-3 h-3" />
               <ArrowDownUp v-else class="w-3 h-3" />
-              <span class="queue-header__btn-text">{{ sortDirection === 'asc' ? '升序' : '降序' }}</span>
+              <span class="queue-header__btn-text">{{ sortDirection === "asc" ? "升序" : "降序" }}</span>
             </Button>
 
             <Button
@@ -100,7 +97,7 @@
           <span class="queue-header__label">二级排序</span>
           <Select v-model="secondarySortBy" class="queue-header__select queue-header__select--small">
             <SelectTrigger class="queue-header__select-trigger">
-              <SelectValue>{{ secondarySortByText || '无' }}</SelectValue>
+              <SelectValue>{{ secondarySortByText || "无" }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">无</SelectItem>
@@ -161,107 +158,100 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Toggle } from '@/components/ui/toggle'
-import { ArrowUpDown, ArrowDownUp, Filter, ListOrdered } from 'lucide-vue-next'
+import { ref, computed } from "vue";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Toggle } from "@/components/ui/toggle";
+import { ArrowUpDown, ArrowDownUp, Filter, ListOrdered } from "lucide-vue-next";
 
 // Props
 interface Props {
-  totalCount?: number
-  filteredCount?: number
+  totalCount?: number;
+  filteredCount?: number;
 }
 
 withDefaults(defineProps<Props>(), {
   totalCount: 0,
-  filteredCount: 0
-})
+  filteredCount: 0,
+});
 
 // State
-const queueMode = ref('view')
-const sortBy = ref('addedTime')
-const sortDirection = ref<'asc' | 'desc'>('asc')
+const queueMode = ref("view");
+const sortBy = ref("addedTime");
+const sortDirection = ref<"asc" | "desc">("asc");
 // 使用明确的字符串而不是空字符串，避免 SelectItem value 为空导致的运行时错误
-const secondarySortBy = ref<'none' | 'fileName' | 'fileSize' | 'duration'>('none')
-const showSecondarySort = ref(false)
-const showFilters = ref(false)
+const secondarySortBy = ref<"none" | "fileName" | "fileSize" | "duration">("none");
+const showSecondarySort = ref(false);
+const showFilters = ref(false);
 
 const filters = ref({
   status: [] as string[],
-  encoder: [] as string[]
-})
+  encoder: [] as string[],
+});
 
 // Options
 const statusOptions = [
-  { value: 'pending', label: '等待中' },
-  { value: 'running', label: '运行中' },
-  { value: 'completed', label: '已完成' },
-  { value: 'failed', label: '失败' }
-]
+  { value: "pending", label: "等待中" },
+  { value: "running", label: "运行中" },
+  { value: "completed", label: "已完成" },
+  { value: "failed", label: "失败" },
+];
 
 const encoderOptions = [
-  { value: 'h264', label: 'H.264' },
-  { value: 'h265', label: 'H.265' },
-  { value: 'av1', label: 'AV1' },
-  { value: 'vp9', label: 'VP9' }
-]
+  { value: "h264", label: "H.264" },
+  { value: "h265", label: "H.265" },
+  { value: "av1", label: "AV1" },
+  { value: "vp9", label: "VP9" },
+];
 
 // Computed
 const queueModeText = computed(() => {
   const modes: Record<string, string> = {
-    view: '视图排序',
-    priority: '优先级排序',
-    manual: '手动排序'
-  }
-  return modes[queueMode.value] || '视图排序'
-})
+    view: "视图排序",
+    priority: "优先级排序",
+    manual: "手动排序",
+  };
+  return modes[queueMode.value] || "视图排序";
+});
 
 const sortByText = computed(() => {
   const sorts: Record<string, string> = {
-    addedTime: '按添加时间',
-    fileName: '按文件名',
-    fileSize: '按文件大小',
-    duration: '按时长',
-    status: '按状态'
-  }
-  return sorts[sortBy.value] || '按添加时间'
-})
+    addedTime: "按添加时间",
+    fileName: "按文件名",
+    fileSize: "按文件大小",
+    duration: "按时长",
+    status: "按状态",
+  };
+  return sorts[sortBy.value] || "按添加时间";
+});
 
 const secondarySortByText = computed(() => {
   const sorts: Record<string, string> = {
-    fileName: '按文件名',
-    fileSize: '按文件大小',
-    duration: '按时长'
-  }
-  return sorts[secondarySortBy.value] || ''
-})
+    fileName: "按文件名",
+    fileSize: "按文件大小",
+    duration: "按时长",
+  };
+  return sorts[secondarySortBy.value] || "";
+});
 
 const activeFilterCount = computed(() => {
-  return filters.value.status.length + filters.value.encoder.length
-})
+  return filters.value.status.length + filters.value.encoder.length;
+});
 
 // Methods
 const toggleSortDirection = () => {
-  sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
-}
+  sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+};
 
-const toggleFilter = (type: 'status' | 'encoder', value: string) => {
-  const index = filters.value[type].indexOf(value)
+const toggleFilter = (type: "status" | "encoder", value: string) => {
+  const index = filters.value[type].indexOf(value);
   if (index > -1) {
-    filters.value[type].splice(index, 1)
+    filters.value[type].splice(index, 1);
   } else {
-    filters.value[type].push(value)
+    filters.value[type].push(value);
   }
-}
-
+};
 </script>
 
 <style scoped>

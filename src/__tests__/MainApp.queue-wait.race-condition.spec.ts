@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 /**
  * 测试暂停/继续操作的竞态条件处理。
- * 
+ *
  * 当用户快速连续点击"暂停→继续"时，可能出现以下情况：
  * 1. 用户点击暂停 → wait_requests 被设置，任务仍是 Processing
  * 2. 用户立即点击继续 → 后端检测到待处理的暂停请求并取消它
@@ -17,15 +17,8 @@ import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { buildSmartScanDefaults } from "./helpers/smartScanDefaults";
 
-const invokeMock = vi.fn<
-  (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
->();
-const listenMock = vi.fn<
-  (
-    event: string,
-    handler: (event: { payload: unknown }) => void,
-  ) => Promise<() => void>
->();
+const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
+const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, payload?: Record<string, unknown>) => invokeMock(cmd, payload),
@@ -146,10 +139,7 @@ describe("MainApp rapid pause/resume race condition handling", () => {
 
     // 验证 resume 命令被调用
     expect(resumeCalled).toBe(true);
-    expect(invokeMock).toHaveBeenCalledWith(
-      "resume_transcode_job",
-      expect.objectContaining({ jobId }),
-    );
+    expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", expect.objectContaining({ jobId }));
     // 前端不应该显示错误
     expect(vm.queueError).toBeNull();
   });

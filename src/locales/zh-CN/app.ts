@@ -16,8 +16,7 @@ const app = {
   settingsHint: "配置外部工具路径、自动下载、预览以及队列相关行为。",
   settings: {
     externalToolsTitle: "外部工具",
-    externalToolsDescription:
-      "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动管理策略。",
+    externalToolsDescription: "管理 ffmpeg / ffprobe / avifenc 的可用性、自定义路径以及自动管理策略。",
     refreshToolsStatus: "刷新状态",
     checkFfmpegUpdateButton: "检查更新",
     checkToolUpdateButton: "检查更新",
@@ -37,7 +36,8 @@ const app = {
     checkToolUpdateLogSummaryResultToolMissing: "结论：未检测到可执行文件，无法比较版本。",
     checkToolUpdateLogSummaryResultRemoteUnknown: "结论：远端版本未知，无法判断是否最新。",
     checkToolUpdateLogDuration: "耗时：{seconds}s",
-    checkToolUpdateLogTimeout: "等待状态快照超时（{seconds}s）。可能网络不通、GitHub 被阻断或后端仍在检查；可稍后重试。",
+    checkToolUpdateLogTimeout:
+      "等待状态快照超时（{seconds}s）。可能网络不通、GitHub 被阻断或后端仍在检查；可稍后重试。",
     checkToolUpdateLogInvokeError: "发起检查失败：{error}",
     toolStatus: {
       ready: "已就绪",
@@ -72,11 +72,9 @@ const app = {
     downloadInProgress: "正在下载，请稍候...",
     updateAvailableHint: "检测到可用更新：{version}",
     toolUpToDateHint: "已是最新版本",
-    customToolPathFooter:
-      "当设置了自定义路径时优先使用自定义路径，否则从自动下载的 tools 目录或系统 PATH 查找。",
+    customToolPathFooter: "当设置了自定义路径时优先使用自定义路径，否则从自动下载的 tools 目录或系统 PATH 查找。",
     autoDownloadSectionTitle: "自动下载与全局参数",
-    autoDownloadSectionDescription:
-      "从三种模式中选择如何管理外部工具，并配置预览截帧和并行任务上限。",
+    autoDownloadSectionDescription: "从三种模式中选择如何管理外部工具，并配置预览截帧和并行任务上限。",
     autoDownloadTitle: "自动下载",
     autoDownloadDescription: "从三种模式中选择如何管理外部工具。",
     globalParamsTitle: "全局参数",
@@ -85,12 +83,9 @@ const app = {
     toolModeAutoManagedLabel: "自动托管",
     toolModeInstallOnlyLabel: "缺时安装",
     toolModeManualLabel: "手动管理",
-    toolModeAutoManagedDescription:
-      "缺少 ffmpeg / ffprobe / avifenc 时自动下载安装，并在后台保持推荐版本。",
-    toolModeInstallOnlyDescription:
-      "只在系统没有可用工具时自动下载安装；一旦可用，后续更新需手动点击“下载/更新”。",
-    toolModeManualDescription:
-      "完全使用 PATH 或自定义路径，不自动下载安装或更新。适合需要严格控制环境的场景。",
+    toolModeAutoManagedDescription: "缺少 ffmpeg / ffprobe / avifenc 时自动下载安装，并在后台保持推荐版本。",
+    toolModeInstallOnlyDescription: "只在系统没有可用工具时自动下载安装；一旦可用，后续更新需手动点击“下载/更新”。",
+    toolModeManualDescription: "完全使用 PATH 或自定义路径，不自动下载安装或更新。适合需要严格控制环境的场景。",
     toolModeRecommendedBadge: "推荐",
     toolModeCustomLabel: "自定义模式",
     toolModeCustomDescription:
@@ -104,8 +99,7 @@ const app = {
     networkProxyModeCustom: "手动输入",
     networkProxyUrlLabel: "代理地址",
     networkProxyUrlPlaceholder: "例如：http://127.0.0.1:7890",
-    networkProxyUrlHint:
-      "目前仅支持 HTTP/HTTPS 代理（例如 http://host:port）。修改后会立即生效。",
+    networkProxyUrlHint: "目前仅支持 HTTP/HTTPS 代理（例如 http://host:port）。修改后会立即生效。",
     previewCaptureLabel: "预览截帧位置（%）",
     previewCaptureHelp: "相对于视频总时长的百分比，默认 25。",
     parallelismModeLabel: "并行调度模式",
@@ -116,8 +110,7 @@ const app = {
     parallelismModeSplitOption: "CPU / 硬件分别限制",
     parallelismModeSplitSummary: "总并行上限：{total}（CPU {cpu} + 硬件 {hw}）",
     maxParallelJobsLabel: "最大并行转码任务数",
-    maxParallelJobsHelp:
-      "并行上限（≥ 1），默认 2。",
+    maxParallelJobsHelp: "并行上限（≥ 1），默认 2。",
     maxParallelCpuJobsLabel: "最大并行 CPU 转码任务数",
     maxParallelCpuJobsHelp: "仅对软件编码生效（如 x264/x265/SVT-AV1），默认 2。",
     maxParallelHwJobsLabel: "最大并行硬件转码任务数",
@@ -126,8 +119,7 @@ const app = {
     progressUpdateIntervalHelp:
       "控制后端 ffmpeg 汇报进度的间隔，同时影响前端缓冲时长。数值越小越实时，数值越大越平滑。",
     metricsIntervalLabel: "性能监控刷新间隔（毫秒）",
-    metricsIntervalHelp:
-      "控制系统性能监控采样频率。数值越小，监控越连贯，但开销略高；数值越大，刷新更平滑但不够实时。",
+    metricsIntervalHelp: "控制系统性能监控采样频率。数值越小，监控越连贯，但开销略高；数值越大，刷新更平滑但不够实时。",
     queuePersistenceLabel: "任务队列持久化",
     queuePersistenceNoneOption: "关闭（不恢复队列）",
     queuePersistenceCrashRecoveryLiteOption: "恢复队列（仅保留精简日志，推荐）",
@@ -247,8 +239,7 @@ const app = {
   close: "关闭",
   globalProgressLabel: "整体队列进度",
   taskbarProgressModeLabel: "任务栏进度计算方式",
-  taskbarProgressModeHelp:
-    "决定多个任务如何汇总成一个 Windows 任务栏进度条，用于避免进度倒退这类现象。",
+  taskbarProgressModeHelp: "决定多个任务如何汇总成一个 Windows 任务栏进度条，用于避免进度倒退这类现象。",
   taskbarProgressModes: {
     bySize: "按输入体积加权（MB）",
     byDuration: "按媒体时长加权",

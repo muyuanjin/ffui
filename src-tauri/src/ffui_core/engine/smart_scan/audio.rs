@@ -2,21 +2,42 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
+use super::super::ffmpeg_args::{
+    configure_background_command,
+    format_command_for_log,
+};
+use super::super::output_policy_paths::plan_output_path_with_extension;
+use super::super::state::{
+    Inner,
+    register_known_smart_scan_output_with_inner,
+};
+use super::super::worker_utils::recompute_log_tail;
+use super::helpers::{
+    current_time_millis,
+    next_job_id,
+    record_tool_download,
+};
+use super::video_paths::ensure_progress_args;
 use crate::ffui_core::domain::{
-    AudioCodecType, FFmpegPreset, JobSource, JobStatus, JobType, MediaInfo, SmartScanConfig,
+    AudioCodecType,
+    FFmpegPreset,
+    JobSource,
+    JobStatus,
+    JobType,
+    MediaInfo,
+    SmartScanConfig,
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-
-use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
-use super::super::output_policy_paths::plan_output_path_with_extension;
-use super::super::state::{Inner, register_known_smart_scan_output_with_inner};
-use super::super::worker_utils::recompute_log_tail;
-use super::helpers::{current_time_millis, next_job_id, record_tool_download};
-use super::video_paths::ensure_progress_args;
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 /// 根据输入扩展名与目标音频编码，选择与容器兼容的输出扩展名。
 ///

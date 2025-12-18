@@ -16,8 +16,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-(globalThis as any).ResizeObserver =
-  (globalThis as any).ResizeObserver || ResizeObserverMock;
+(globalThis as any).ResizeObserver = (globalThis as any).ResizeObserver || ResizeObserverMock;
 
 const i18n = createI18n({
   legacy: false,
@@ -242,9 +241,7 @@ describe("UltimateParameterPanel", () => {
     });
 
     // 直接点击“更新”按钮，不修改任何编码参数。
-    const saveButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("Update Preset"));
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes("Update Preset"));
     expect(saveButton).toBeTruthy();
     await saveButton!.trigger("click");
 
@@ -309,14 +306,10 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-spatial-aq 1");
     expect(text).toContain("-temporal-aq 1");
 
-    const pixFmtInput = wrapper.find(
-      'input[placeholder="e.g. yuv420p, yuv420p10le, p010le"]',
-    );
+    const pixFmtInput = wrapper.find('input[placeholder="e.g. yuv420p, yuv420p10le, p010le"]');
     expect(pixFmtInput.exists()).toBe(true);
     await pixFmtInput.setValue("yuv420p10le");
-    const gopInput = wrapper.find(
-      'input[placeholder="e.g. 120 for NVENC, 240 for AV1"]',
-    );
+    const gopInput = wrapper.find('input[placeholder="e.g. 120 for NVENC, 240 for AV1"]');
     expect(gopInput.exists()).toBe(true);
     await gopInput.setValue("90");
     await nextTick();

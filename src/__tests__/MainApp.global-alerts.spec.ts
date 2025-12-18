@@ -1,12 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import {
-  i18n,
-  useBackendMock,
-  setQueueJobs,
-  getQueueJobs,
-  defaultAppSettings,
-} from "./helpers/mainAppTauriDialog";
+import { i18n, useBackendMock, setQueueJobs, getQueueJobs, defaultAppSettings } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -67,9 +61,7 @@ describe("MainApp global alerts", () => {
     expect(globalAlerts.text()).toContain(expected);
 
     // The global alert bar must not render inside the scrollable queue panel.
-    expect(wrapper.find("[data-testid='queue-panel'] [data-testid='global-alerts']").exists()).toBe(
-      false,
-    );
+    expect(wrapper.find("[data-testid='queue-panel'] [data-testid='global-alerts']").exists()).toBe(false);
 
     // Dismissing the alert clears the error state.
     await globalAlerts.get("button[aria-label='Dismiss queue alert']").trigger("click");
@@ -79,4 +71,3 @@ describe("MainApp global alerts", () => {
     wrapper.unmount();
   });
 });
-

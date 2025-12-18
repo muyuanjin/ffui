@@ -160,5 +160,4 @@ describe("QueuePanel display mode actions", () => {
     expect(emitted).toBeTruthy();
     expect(emitted?.[0]).toEqual([job.id]);
   });
-}
-);
+});

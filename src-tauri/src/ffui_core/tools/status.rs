@@ -1,13 +1,24 @@
+use std::collections::HashSet;
+
 use super::discover::discover_candidates;
-use super::probe::{detect_local_tool_version, verify_tool_binary};
-use super::resolve::{custom_path_for, downloaded_tool_path, resolve_in_path, tool_binary_name};
+use super::probe::{
+    detect_local_tool_version,
+    verify_tool_binary,
+};
+use super::resolve::{
+    custom_path_for,
+    downloaded_tool_path,
+    resolve_in_path,
+    tool_binary_name,
+};
 use super::runtime_state::{
-    cached_ffmpeg_release_version, cached_libavif_release_version, last_tool_download_metadata,
+    cached_ffmpeg_release_version,
+    cached_libavif_release_version,
+    last_tool_download_metadata,
     snapshot_download_state,
 };
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
-use std::collections::HashSet;
 
 fn parse_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
     let normalized = input.trim().trim_start_matches('v');

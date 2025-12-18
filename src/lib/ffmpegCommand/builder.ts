@@ -60,9 +60,7 @@ const normalizeContainerFormat = (format: string): string => {
  * Build a structured ffmpeg command preview from typed preset fields.
  * This mirrors the logic used by the preset wizard and parameter panel.
  */
-export const buildFfmpegCommandFromStructured = (
-  input: FfmpegCommandPreviewInput,
-): string => {
+export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInput): string => {
   const inputPlaceholder = "INPUT";
   const outputPlaceholder = "OUTPUT";
 
@@ -168,7 +166,7 @@ export const buildFfmpegCommandFromStructured = (
   // "keep all primary streams" behaviour instead of ffmpeg's implicit
   // "pick one best audio and one best video" defaults. The Rust backend
   // enforces the same behaviour when building the real command.
-  if ((!mapping || (!mapping.maps || mapping.maps.length === 0)) && !args.includes("-map")) {
+  if ((!mapping || !mapping.maps || mapping.maps.length === 0) && !args.includes("-map")) {
     args.push("-map", "0");
   }
 
@@ -356,10 +354,7 @@ export const buildFfmpegCommandFromStructured = (
     if (hardware.hwaccelDevice && hardware.hwaccelDevice.trim().length > 0) {
       args.push("-hwaccel_device", hardware.hwaccelDevice.trim());
     }
-    if (
-      hardware.hwaccelOutputFormat &&
-      hardware.hwaccelOutputFormat.trim().length > 0
-    ) {
+    if (hardware.hwaccelOutputFormat && hardware.hwaccelOutputFormat.trim().length > 0) {
       args.push("-hwaccel_output_format", hardware.hwaccelOutputFormat.trim());
     }
     if (hardware.bitstreamFilters && hardware.bitstreamFilters.length > 0) {
@@ -382,9 +377,7 @@ export const buildFfmpegCommandFromStructured = (
  * Compute the effective ffmpeg command preview for a given preset-like input,
  * honoring advanced/template mode when enabled.
  */
-export const getFfmpegCommandPreview = (
-  input: FfmpegCommandPreviewInput,
-): string => {
+export const getFfmpegCommandPreview = (input: FfmpegCommandPreviewInput): string => {
   const template = (input.ffmpegTemplate ?? "").trim();
   if (input.advancedEnabled && template.length > 0) {
     return template;

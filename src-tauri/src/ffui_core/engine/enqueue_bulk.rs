@@ -1,6 +1,9 @@
-use crate::ffui_core::domain::{JobSource, JobType, TranscodeJob};
-
 use super::TranscodingEngine;
+use crate::ffui_core::domain::{
+    JobSource,
+    JobType,
+    TranscodeJob,
+};
 
 impl TranscodingEngine {
     /// Enqueue multiple transcode jobs as a single batch.

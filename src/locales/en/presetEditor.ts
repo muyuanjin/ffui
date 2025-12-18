@@ -26,13 +26,15 @@ const presetEditor = {
     presetLabel: "Preset (Speed vs Efficiency)",
     gopLabel: "GOP size (-g)",
     gopPlaceholder: "e.g. 120 for NVENC, 240 for AV1",
-    gopHelp: "Lower GOP => more frequent keyframes (better seeking, larger size). Higher GOP => better compression (smaller files).",
+    gopHelp:
+      "Lower GOP => more frequent keyframes (better seeking, larger size). Higher GOP => better compression (smaller files).",
     bfLabel: "B-frames (-bf)",
     bfPlaceholder: "e.g. 3",
     bfHelp: "More B-frames usually improve compression efficiency but may be limited on some hardware encoders.",
     pixFmtLabel: "Pixel format (-pix_fmt)",
     pixFmtPlaceholder: "e.g. yuv420p, yuv420p10le, p010le",
-    pixFmtHelp: "yuv420p for maximum compatibility; 10-bit (yuv420p10le/p010le) reduces banding for archive/HQ presets.",
+    pixFmtHelp:
+      "yuv420p for maximum compatibility; 10-bit (yuv420p10le/p010le) reduces banding for archive/HQ presets.",
     rateControlModeLabel: "Rate control mode",
     rateControlHelp:
       "CRF/CQ: quality-first (lower value = better quality, larger files). CBR/VBR: bitrate/size-first (requires a target bitrate). Two-pass makes quality more consistent at the same size but roughly doubles encode time.",
@@ -57,7 +59,8 @@ const presetEditor = {
     rcLookaheadHelp: "Higher values improve bitrate allocation but increase encoder latency and memory use.",
     spatialAqLabel: "Spatial AQ (-spatial-aq)",
     temporalAqLabel: "Temporal AQ (-temporal-aq)",
-    aqHelp: "Spatial AQ may increase size slightly; Temporal AQ often shrinks size while preserving quality. Enable when using HQ presets.",
+    aqHelp:
+      "Spatial AQ may increase size slightly; Temporal AQ often shrinks size while preserving quality. Enable when using HQ presets.",
     tuneLabel: "Tune (-tune)",
     tunePlaceholder: "e.g. film, animation, hq",
     profileLabel: "Profile (-profile:v)",
@@ -127,8 +130,7 @@ const presetEditor = {
       "Constant Quality (0-51). NOT directly comparable to CRF. Lower = better quality and higher bitrate. Recommended: 26-28 for everyday use; above ~32 will look visibly softer.",
     crf_av1:
       "AV1 CRF (0-63). Lower = better quality. Recommended: 32-34 as a general-purpose range, roughly similar to x264 CRF 23; above ~40 compression artifacts become obvious.",
-    preset_x264:
-      "'medium' is a good default. 'slow' yields smaller files at the same visual quality.",
+    preset_x264: "'medium' is a good default. 'slow' yields smaller files at the same visual quality.",
     preset_nvenc:
       "Presets closer to 'p7' give better quality but encode slower; 'p5'/'p4' are common quality-speed trade-offs, while 'p1' is fastest but least efficient.",
     preset_av1: "Higher preset numbers are FASTER. Recommended: 4-6 for a good balance.",
@@ -138,8 +140,7 @@ const presetEditor = {
   },
   advanced: {
     title: "Advanced (Raw ffmpeg command)",
-    description:
-      "Optionally define a full ffmpeg command template. Use INPUT and OUTPUT as placeholders.",
+    description: "Optionally define a full ffmpeg command template. Use INPUT and OUTPUT as placeholders.",
     enabledLabel: "Use custom command instead of generated options",
     templateLabel: "ffmpeg command template",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
@@ -171,12 +172,10 @@ const presetEditor = {
     overwriteAsk: "Follow ffmpeg default (usually ask or fail)",
     overwriteYes: "Always overwrite existing OUTPUT (-y)",
     overwriteNo: "Never overwrite existing OUTPUT (-n)",
-    overwriteHelp:
-      "Most presets can leave this at the default. Only enable -y when you are sure overwriting is safe.",
+    overwriteHelp: "Most presets can leave this at the default. Only enable -y when you are sure overwriting is safe.",
     logLevelLabel: "Log level (-loglevel)",
     logLevelPlaceholder: "Use ffmpeg default",
-    logLevelHelp:
-      "info is usually enough; use verbose/debug/trace only when investigating tricky issues.",
+    logLevelHelp: "info is usually enough; use verbose/debug/trace only when investigating tricky issues.",
     hideBannerLabel: "Hide startup banner (-hide_banner)",
     enableReportLabel: "Write ffmpeg report file in the working directory (-report)",
     globalHelp:
@@ -187,8 +186,7 @@ const presetEditor = {
     seekModeInput: "Before -i (fast seek, less accurate)",
     seekPositionLabel: "Start time expression",
     seekPositionPlaceholder: "e.g. 00:01:23.000 or 90",
-    seekPositionHelp:
-      "Accepts [[hh:]mm:]ss[.ms] or plain seconds. -ss is only emitted when this field is non-empty.",
+    seekPositionHelp: "Accepts [[hh:]mm:]ss[.ms] or plain seconds. -ss is only emitted when this field is non-empty.",
     durationModeLabel: "Trim type (-t / -to)",
     durationModePlaceholder: "Process full input (default)",
     durationModeDuration: "Limit output duration (-t)",

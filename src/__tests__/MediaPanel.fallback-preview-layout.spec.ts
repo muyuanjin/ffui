@@ -75,4 +75,3 @@ describe("MediaPanel fallback preview layout", () => {
     wrapper.unmount();
   });
 });
-

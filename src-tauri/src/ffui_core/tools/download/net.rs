@@ -4,7 +4,12 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{
+    Context,
+    Result,
+    anyhow,
+    bail,
+};
 
 use crate::ffui_core::network_proxy;
 use crate::ffui_core::tools::probe::configure_background_command;
@@ -79,8 +84,7 @@ pub(crate) fn download_file_with_reqwest<F>(
     mut on_progress: F,
 ) -> Result<()>
 where
-    F: FnMut(u64, Option<u64>),
-{
+    F: FnMut(u64, Option<u64>), {
     let dir = dest
         .parent()
         .ok_or_else(|| anyhow!("destination {} has no parent directory", dest.display()))?;
@@ -133,8 +137,7 @@ where
 
 pub(crate) fn download_bytes_with_reqwest<F>(url: &str, mut on_progress: F) -> Result<Vec<u8>>
 where
-    F: FnMut(u64, Option<u64>),
-{
+    F: FnMut(u64, Option<u64>), {
     tauri::async_runtime::block_on(async move {
         let proxy = network_proxy::resolve_effective_proxy_once();
         let client = build_reqwest_client(Duration::from_secs(30), "avifenc download", &proxy)?;
@@ -205,13 +208,22 @@ pub(crate) fn content_length_head(url: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    use std::io::{Read, Write};
+    use std::io::{
+        Read,
+        Write,
+    };
     use std::net::TcpListener;
-    use std::sync::{Mutex, OnceLock};
+    use std::sync::{
+        Mutex,
+        OnceLock,
+    };
     use std::thread;
-    use std::time::{Duration, Instant};
+    use std::time::{
+        Duration,
+        Instant,
+    };
+
+    use super::*;
 
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 

@@ -56,19 +56,17 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
         </p>
         <Select
           :model-value="appSettings.taskbarProgressScope ?? 'allJobs'"
-          @update:model-value="
-            (v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])
-          "
+          @update:model-value="(v) => updateSetting('taskbarProgressScope', v as AppSettings['taskbarProgressScope'])"
         >
           <SelectTrigger class="h-7 text-[10px] bg-background/50 border-border/30">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="allJobs" class="text-[10px]">
-              {{ t('app.taskbarProgressScopes.allJobs') }}
+              {{ t("app.taskbarProgressScopes.allJobs") }}
             </SelectItem>
             <SelectItem value="activeAndQueued" class="text-[10px]">
-              {{ t('app.taskbarProgressScopes.activeAndQueued') }}
+              {{ t("app.taskbarProgressScopes.activeAndQueued") }}
             </SelectItem>
           </SelectContent>
         </Select>
@@ -79,4 +77,3 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
     </CardContent>
   </Card>
 </template>
-

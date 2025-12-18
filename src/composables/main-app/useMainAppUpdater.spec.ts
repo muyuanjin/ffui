@@ -78,9 +78,7 @@ describe("useMainAppUpdater", () => {
 
     expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(1);
     expect(checkMock).toHaveBeenCalledTimes(1);
-    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
-      checkMock.mock.invocationCallOrder[0],
-    );
+    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
 
     expect((wrapper.vm as any).updateAvailable).toBe(true);
     expect((wrapper.vm as any).availableVersion).toBe("0.2.0");
@@ -121,9 +119,7 @@ describe("useMainAppUpdater", () => {
     await (wrapper.vm as any).downloadAndInstallUpdate();
 
     expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(2);
-    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
-      checkMock.mock.invocationCallOrder[0],
-    );
+    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
     expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[1]).toBeLessThan(
       downloadAndInstall.mock.invocationCallOrder[0],
     );
@@ -173,9 +169,7 @@ describe("useMainAppUpdater", () => {
     await (wrapper.vm as any).downloadAndInstallUpdate();
 
     expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(2);
-    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(
-      checkMock.mock.invocationCallOrder[0],
-    );
+    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
     expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[1]).toBeLessThan(
       downloadAndInstall.mock.invocationCallOrder[0],
     );

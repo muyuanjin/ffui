@@ -1,7 +1,13 @@
-use super::*;
-use crate::ffui_core::domain::{JobSource, JobType, TranscodeJob, TranscodeJobLite};
-use crate::ffui_core::settings::types::QueuePersistenceMode;
 use std::time::Duration;
+
+use super::*;
+use crate::ffui_core::domain::{
+    JobSource,
+    JobType,
+    TranscodeJob,
+    TranscodeJobLite,
+};
+use crate::ffui_core::settings::types::QueuePersistenceMode;
 
 fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
     TranscodeJob {

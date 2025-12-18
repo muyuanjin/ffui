@@ -1,5 +1,9 @@
+use serde_json::{
+    Value,
+    json,
+};
+
 use crate::ffui_core::settings::AppSettings;
-use serde_json::{Value, json};
 
 #[test]
 fn app_settings_round_trips_selection_bar_pinned() {

@@ -3,12 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import ExternalToolCard from "@/components/panels/settings-external-tools/ExternalToolCard.vue";
 import { useI18n } from "vue-i18n";
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import type {
-  AppSettings,
-  ExternalToolCandidate,
-  ExternalToolKind,
-  ExternalToolStatus,
-} from "@/types";
+import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
 
 type CheckUpdateLogLevel = "info" | "warn" | "error";
 type CheckUpdateLogEntry = {
@@ -23,10 +18,7 @@ const props = defineProps<{
   /** Whether tool statuses have been refreshed at least once this session. */
   toolStatusesFresh?: boolean;
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
-  refreshToolStatuses?: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-  }) => Promise<void>;
+  refreshToolStatuses?: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -99,11 +91,7 @@ const setCheckUpdateLogs = (kind: ExternalToolKind, logs: CheckUpdateLogEntry[])
   checkUpdateLogsByKind.value = { ...checkUpdateLogsByKind.value, [kind]: logs };
 };
 
-const appendCheckUpdateLog = (
-  kind: ExternalToolKind,
-  message: string,
-  level: CheckUpdateLogLevel = "info",
-) => {
+const appendCheckUpdateLog = (kind: ExternalToolKind, message: string, level: CheckUpdateLogLevel = "info") => {
   const next = [...getCheckUpdateLogs(kind), { atMs: Date.now(), level, message }];
   const MAX_LINES = 80;
   setCheckUpdateLogs(kind, next.length > MAX_LINES ? next.slice(next.length - MAX_LINES) : next);
@@ -128,11 +116,7 @@ watch(
 
     const status = next.find((s) => s.kind === request.kind);
     if (!status) {
-      appendCheckUpdateLog(
-        request.kind,
-        t("app.settings.checkToolUpdateLogSummaryResultToolMissing"),
-        "warn",
-      );
+      appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultToolMissing"), "warn");
     } else {
       appendCheckUpdateLog(
         request.kind,
@@ -154,35 +138,18 @@ watch(
       );
 
       if (!status.resolvedPath) {
-        appendCheckUpdateLog(
-          request.kind,
-          t("app.settings.checkToolUpdateLogSummaryResultToolMissing"),
-          "warn",
-        );
+        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultToolMissing"), "warn");
       } else if (!status.remoteVersion) {
-        appendCheckUpdateLog(
-          request.kind,
-          t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"),
-          "warn",
-        );
+        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"), "warn");
       } else if (status.updateAvailable) {
-        appendCheckUpdateLog(
-          request.kind,
-          t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"),
-        );
+        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"));
       } else {
-        appendCheckUpdateLog(
-          request.kind,
-          t("app.settings.checkToolUpdateLogSummaryResultUpToDate"),
-        );
+        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpToDate"));
       }
     }
 
     const elapsedSeconds = ((Date.now() - request.startedAtMs) / 1000).toFixed(1);
-    appendCheckUpdateLog(
-      request.kind,
-      t("app.settings.checkToolUpdateLogDuration", { seconds: elapsedSeconds }),
-    );
+    appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogDuration", { seconds: elapsedSeconds }));
 
     checkUpdateLoadingKind.value = null;
     checkUpdateActiveRequest.value = null;
@@ -210,11 +177,7 @@ const handleCheckToolUpdate = async (kind: ExternalToolKind) => {
   const timeoutId = window.setTimeout(() => {
     const active = checkUpdateActiveRequest.value;
     if (!active || active.id !== id) return;
-    appendCheckUpdateLog(
-      kind,
-      t("app.settings.checkToolUpdateLogTimeout", { seconds: timeoutSeconds }),
-      "warn",
-    );
+    appendCheckUpdateLog(kind, t("app.settings.checkToolUpdateLogTimeout", { seconds: timeoutSeconds }), "warn");
     checkUpdateLoadingKind.value = null;
     checkUpdateActiveRequest.value = null;
   }, timeoutSeconds * 1000);

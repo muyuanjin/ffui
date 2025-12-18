@@ -76,7 +76,7 @@ export const useFfmpegCommandView = (options: {
   const highlightedHtml = computed(() =>
     highlightFfmpegCommand(effectiveCommand.value, {
       programOverrides: {
-        ffmpeg: showTemplateCommand.value ? null : options.ffmpegResolvedPath.value ?? null,
+        ffmpeg: showTemplateCommand.value ? null : (options.ffmpegResolvedPath.value ?? null),
       },
     }),
   );

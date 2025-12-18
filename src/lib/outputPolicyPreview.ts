@@ -1,12 +1,14 @@
 import type { OutputFilenameAppend, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
-const DEFAULT_APPEND_ORDER: OutputFilenameAppend[] =
-  DEFAULT_OUTPUT_POLICY.filename.appendOrder ?? ["suffix", "timestamp", "encoderQuality", "random"];
+const DEFAULT_APPEND_ORDER: OutputFilenameAppend[] = DEFAULT_OUTPUT_POLICY.filename.appendOrder ?? [
+  "suffix",
+  "timestamp",
+  "encoderQuality",
+  "random",
+];
 
-export function normalizeAppendOrder(
-  order: OutputFilenameAppend[] | undefined,
-): OutputFilenameAppend[] {
+export function normalizeAppendOrder(order: OutputFilenameAppend[] | undefined): OutputFilenameAppend[] {
   const seen = new Set<OutputFilenameAppend>();
   const out: OutputFilenameAppend[] = [];
   for (const item of order ?? []) {
@@ -41,7 +43,9 @@ export function previewOutputPathLocal(inputPath: string, policy: OutputPolicy):
 
   const outExt =
     policy.container.mode === "force"
-      ? String(policy.container.format || ext).trim().replace(/^\./, "") || ext
+      ? String(policy.container.format || ext)
+          .trim()
+          .replace(/^\./, "") || ext
       : policy.container.mode === "keepInput"
         ? ext
         : ext;

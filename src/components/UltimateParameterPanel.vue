@@ -6,12 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
 import { usePresetEditor } from "@/composables";
 import { computePresetInsights } from "@/lib/presetInsights";
@@ -39,9 +34,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const activeTab = ref<
-  "global" | "input" | "mapping" | "video" | "audio" | "filters" | "container" | "hardware"
->("video");
+const activeTab = ref<"global" | "input" | "mapping" | "video" | "audio" | "filters" | "container" | "hardware">(
+  "video",
+);
 
 // Use preset editor composable
 const {
@@ -115,12 +110,7 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
           </div>
           <!-- 右侧：操作按钮 -->
           <div class="flex items-center gap-2 flex-shrink-0">
-            <Button
-              variant="outline"
-              size="sm"
-              class="h-8 px-3 text-[11px]"
-              @click="handleSwitchToWizard"
-            >
+            <Button variant="outline" size="sm" class="h-8 px-3 text-[11px]" @click="handleSwitchToWizard">
               {{ t("presetEditor.actions.backToWizard") }}
             </Button>
             <Button
@@ -138,58 +128,31 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
         </p>
       </div>
 
-      <Tabs
-        v-model="activeTab"
-        class="flex-1 flex min-h-0"
-      >
+      <Tabs v-model="activeTab" class="flex-1 flex min-h-0">
         <div class="w-52 border-r border-border/60 bg-muted/40 p-4">
           <TabsList class="flex flex-col items-stretch gap-1 bg-transparent p-0">
-            <TabsTrigger
-              value="global"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="global" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.globalTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="input"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="input" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.inputTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="mapping"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="mapping" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.mappingTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="video"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="video" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.videoTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="audio"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="audio" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.audioTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="filters"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="filters" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.filtersTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="container"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="container" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.containerTab") }}
             </TabsTrigger>
-            <TabsTrigger
-              value="hardware"
-              class="justify-start w-full text-xs"
-            >
+            <TabsTrigger value="hardware" class="justify-start w-full text-xs">
               {{ t("presetEditor.panel.hardwareTab") }}
             </TabsTrigger>
           </TabsList>
@@ -197,67 +160,35 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
 
         <div class="flex-1 flex min-h-0">
           <div class="flex-1 p-6 overflow-y-auto space-y-4">
-            <TabsContent
-              value="global"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="global" class="mt-0 space-y-4">
               <PresetGlobalTab :global-config="globalConfig" />
             </TabsContent>
 
-            <TabsContent
-              value="input"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="input" class="mt-0 space-y-4">
               <PresetInputTab :input-timeline="inputTimeline" />
             </TabsContent>
 
-            <TabsContent
-              value="mapping"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="mapping" class="mt-0 space-y-4">
               <PresetMappingTab :mapping="mapping" />
             </TabsContent>
 
-            <TabsContent
-              value="video"
-              class="mt-0 space-y-4"
-            >
-              <PresetVideoTab
-                :video="video"
-                :is-copy-encoder="isCopyEncoder"
-                :rate-control-label="rateControlLabel"
-              />
+            <TabsContent value="video" class="mt-0 space-y-4">
+              <PresetVideoTab :video="video" :is-copy-encoder="isCopyEncoder" :rate-control-label="rateControlLabel" />
             </TabsContent>
 
-            <TabsContent
-              value="audio"
-              class="mt-0 space-y-4"
-            >
-              <PresetAudioTab
-                :audio="audio"
-                :subtitles="subtitles"
-                :is-copy-encoder="isCopyEncoder"
-              />
+            <TabsContent value="audio" class="mt-0 space-y-4">
+              <PresetAudioTab :audio="audio" :subtitles="subtitles" :is-copy-encoder="isCopyEncoder" />
             </TabsContent>
 
-            <TabsContent
-              value="filters"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="filters" class="mt-0 space-y-4">
               <PresetFiltersTab :filters="filters" />
             </TabsContent>
 
-            <TabsContent
-              value="container"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="container" class="mt-0 space-y-4">
               <PresetContainerTab :container="container" />
             </TabsContent>
 
-            <TabsContent
-              value="hardware"
-              class="mt-0 space-y-4"
-            >
+            <TabsContent value="hardware" class="mt-0 space-y-4">
               <PresetHardwareTab :hardware="hardware" />
             </TabsContent>
           </div>
@@ -265,29 +196,18 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
           <div class="w-80 border-l border-border/60 bg-muted/40 p-4 flex flex-col gap-3 min-h-0 overflow-y-auto">
             <!-- 效果雷达图 + 简要说明 -->
             <div class="space-y-2 flex-shrink-0">
-              <PresetRadarChart
-                :metrics="currentInsights.radar"
-                :has-stats="currentInsights.hasStats"
-              />
+              <PresetRadarChart :metrics="currentInsights.radar" :has-stats="currentInsights.hasStats" />
               <div class="text-[11px] text-muted-foreground space-y-1">
                 <div>
-                  <span class="font-medium text-foreground">
-                    {{ t("presetEditor.panel.scenarioLabel") }}:
-                  </span>
+                  <span class="font-medium text-foreground"> {{ t("presetEditor.panel.scenarioLabel") }}: </span>
                   <span class="ml-1">
                     {{ t(`presetEditor.panel.scenario.${currentInsights.scenario}`) }}
                   </span>
                 </div>
                 <div>
-                  <span class="font-medium text-foreground">
-                    {{ t("presetEditor.panel.encoderFamilyLabel") }}:
-                  </span>
+                  <span class="font-medium text-foreground"> {{ t("presetEditor.panel.encoderFamilyLabel") }}: </span>
                   <span class="ml-1">
-                    {{
-                      t(
-                        `presetEditor.panel.encoderFamily.${currentInsights.encoderFamily}`,
-                      )
-                    }}
+                    {{ t(`presetEditor.panel.encoderFamily.${currentInsights.encoderFamily}`) }}
                   </span>
                 </div>
                 <div>
@@ -302,10 +222,7 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
                     }}
                   </span>
                 </div>
-                <p
-                  v-if="currentInsights.mayIncreaseSize"
-                  class="text-[11px] text-amber-400"
-                >
+                <p v-if="currentInsights.mayIncreaseSize" class="text-[11px] text-amber-400">
                   {{ t("presetEditor.panel.mayIncreaseSizeWarning") }}
                 </p>
               </div>
@@ -356,10 +273,7 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
         >
           {{ t("common.cancel") }}
         </Button>
-        <Button
-          class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
-          @click="handleSave"
-        >
+        <Button class="px-6 py-2 font-medium flex items-center gap-2 transition-colors" @click="handleSave">
           {{ t("presetEditor.actions.update") }}
         </Button>
       </div>

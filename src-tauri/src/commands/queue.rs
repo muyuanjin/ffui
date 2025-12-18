@@ -10,7 +10,12 @@ use tauri::State;
 
 use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
 use crate::ffui_core::{
-    JobSource, JobType, QueueState, QueueStateLite, TranscodeJob, TranscodingEngine,
+    JobSource,
+    JobType,
+    QueueState,
+    QueueStateLite,
+    TranscodeJob,
+    TranscodingEngine,
 };
 
 /// Get the current state of the transcoding queue.

@@ -52,11 +52,7 @@ watch(
     </SelectTrigger>
     <SelectContent class="w-[320px]">
       <div class="p-1">
-        <Input
-          v-model="query"
-          class="h-8 text-xs"
-          placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..."
-        />
+        <Input v-model="query" class="h-8 text-xs" placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..." />
       </div>
       <Separator class="my-1" />
 
@@ -77,9 +73,7 @@ watch(
           <SelectItem v-for="e in groups.audio" :key="e.value" :value="e.value" :disabled="true">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight">
-                仅音频；当前结构化视频预设不启用
-              </span>
+              <span class="text-[10px] text-muted-foreground leading-tight"> 仅音频；当前结构化视频预设不启用 </span>
             </div>
           </SelectItem>
         </template>
@@ -90,9 +84,7 @@ watch(
           <SelectItem v-for="e in groups.image" :key="e.value" :value="e.value" :disabled="true">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight">
-                图片格式；当前容器设置不启用
-              </span>
+              <span class="text-[10px] text-muted-foreground leading-tight"> 图片格式；当前容器设置不启用 </span>
             </div>
           </SelectItem>
         </template>

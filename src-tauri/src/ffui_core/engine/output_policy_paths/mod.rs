@@ -1,11 +1,18 @@
-use std::path::{Path, PathBuf};
-
-use crate::ffui_core::domain::{
-    FFmpegPreset, JobWarning, OutputContainerPolicy, OutputDirectoryPolicy, OutputPolicy,
+use std::path::{
+    Path,
+    PathBuf,
 };
 
 use super::ffmpeg_args::{
-    infer_output_extension, normalize_container_format as normalize_muxer_format,
+    infer_output_extension,
+    normalize_container_format as normalize_muxer_format,
+};
+use crate::ffui_core::domain::{
+    FFmpegPreset,
+    JobWarning,
+    OutputContainerPolicy,
+    OutputDirectoryPolicy,
+    OutputPolicy,
 };
 
 mod filename;
@@ -13,12 +20,18 @@ mod template;
 mod utils;
 mod webm;
 
-use filename::{apply_filename_policy, sanitize_windows_path_segment};
-use template::infer_template_output_muxer;
-use utils::{normalize_extension_no_dot, random_hex};
-use webm::should_fallback_webm;
-
 use std::sync::atomic::AtomicU64;
+
+use filename::{
+    apply_filename_policy,
+    sanitize_windows_path_segment,
+};
+use template::infer_template_output_muxer;
+use utils::{
+    normalize_extension_no_dot,
+    random_hex,
+};
+use webm::should_fallback_webm;
 
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(1);
 

@@ -37,9 +37,7 @@ export interface UseMainAppPreviewReturn {
 /**
  * Preview dialog state and helpers for queue/jobs.
  */
-export function useMainAppPreview(
-  options: UseMainAppPreviewOptions,
-): UseMainAppPreviewReturn {
+export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainAppPreviewReturn {
   const { presets, dialogManager, t } = options;
 
   const previewUrl = ref<string | null>(null);
@@ -52,10 +50,7 @@ export function useMainAppPreview(
   const previewCandidateIndex = ref<number>(-1);
   const currentPreviewPath = ref<string | null>(null);
 
-  function buildPreviewCandidates(
-    job: TranscodeJob | null,
-    mode: PreviewSourceMode,
-  ): string[] {
+  function buildPreviewCandidates(job: TranscodeJob | null, mode: PreviewSourceMode): string[] {
     if (!job) return [];
 
     const tmpOutput = job.waitMetadata?.tmpOutputPath ?? undefined;
@@ -179,10 +174,7 @@ export function useMainAppPreview(
       previewUrl.value = url;
     } catch (e) {
       console.error("Failed to build preview URL for job:", e);
-      const key =
-        job.type === "image"
-          ? "jobDetail.previewImageError"
-          : "jobDetail.previewVideoError";
+      const key = job.type === "image" ? "jobDetail.previewImageError" : "jobDetail.previewVideoError";
       previewError.value = (t?.(key) as string) ?? "";
     }
   };
@@ -252,9 +244,7 @@ export function useMainAppPreview(
     if (!candidates.length) return;
 
     // 当前预览路径（如果有）应当优先使用，其次再让后端根据存在性做一次筛选。
-    const mergedCandidates = currentPreviewPath.value
-      ? [currentPreviewPath.value, ...candidates]
-      : candidates.slice();
+    const mergedCandidates = currentPreviewPath.value ? [currentPreviewPath.value, ...candidates] : candidates.slice();
     const uniqueCandidates = Array.from(new Set(mergedCandidates));
 
     let path: string | null = null;

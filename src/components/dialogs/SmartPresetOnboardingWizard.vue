@@ -49,17 +49,13 @@ const selectedIds = ref<Set<string>>(new Set());
 // 仅当存在 NVENC 编码器（*_nvenc）时，才认为 NVENC 可用，避免把 QSV/AMF 之类误判为“支持 NVENC”
 const nvencAvailable = computed(() =>
   allPresets.value.some(
-    (p) =>
-      typeof p.video?.encoder === "string" &&
-      (p.video.encoder as string).toLowerCase().includes("nvenc"),
+    (p) => typeof p.video?.encoder === "string" && (p.video.encoder as string).toLowerCase().includes("nvenc"),
   ),
 );
 
 const av1Available = computed(() =>
   allPresets.value.some(
-    (p) =>
-      typeof p.video?.encoder === "string" &&
-      (p.video.encoder as string).toLowerCase().includes("av1"),
+    (p) => typeof p.video?.encoder === "string" && (p.video.encoder as string).toLowerCase().includes("av1"),
   ),
 );
 
@@ -113,8 +109,7 @@ const useCaseOptions = computed(() => [
 ]);
 
 // 用途分类
-const resolveDescription = (preset: FFmpegPreset): string =>
-  resolvePresetDescription(preset, locale.value);
+const resolveDescription = (preset: FFmpegPreset): string => resolvePresetDescription(preset, locale.value);
 
 // 根据用户选择筛选预设
 const filteredPresets = computed(() => {
@@ -257,9 +252,7 @@ const handleCancel = () => {
 };
 
 // 获取选中的预设列表（用于确认页）
-const selectedPresets = computed(() =>
-  allPresets.value.filter((p) => selectedIds.value.has(p.id)),
-);
+const selectedPresets = computed(() => allPresets.value.filter((p) => selectedIds.value.has(p.id)));
 
 // 为智能向导中的预设卡片提供简化版“场景标签”和“体积风险”提示
 const getPresetScenarioLabel = (preset: FFmpegPreset): string => {
@@ -288,208 +281,266 @@ const getPresetRiskBadge = (preset: FFmpegPreset): string | null => {
         {{ t("onboarding.welcomeDescription") }}
       </DialogDescription>
       <div class="bg-background w-full rounded-xl shadow-2xl border border-border flex flex-col max-h-[85vh]">
-      <div class="px-6 py-4 border-b border-border">
-        <div class="flex items-center justify-between mb-3">
-          <DialogTitle class="text-lg font-semibold">{{ t("onboarding.title") }}</DialogTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="h-7 w-7 text-muted-foreground hover:text-foreground"
-            data-testid="preset-setup-wizard-close"
-            @click="handleCancel"
-          >
-            ✕
-          </Button>
-        </div>
-        <div class="flex items-center gap-2">
-          <template v-for="(_, index) in steps" :key="index">
-            <div :class="['h-1.5 flex-1 rounded-full transition-colors', index <= currentStepIndex ? 'bg-primary' : 'bg-muted']" />
-          </template>
-        </div>
-        <p class="text-xs text-muted-foreground mt-2">
-          {{ t("common.stepOf", { step: currentStepIndex + 1, total: steps.length }) }}
-        </p>
-      </div>
-
-      <div class="flex-1 overflow-y-auto px-6 py-5">
-        <div v-if="currentStep === 'welcome'" class="space-y-4" data-testid="preset-setup-wizard-step-welcome">
-          <div class="text-center py-4">
-            <div class="text-4xl mb-4">🎬</div>
-            <h3 class="text-xl font-bold mb-2">{{ t("onboarding.welcomeTitle") }}</h3>
-            <p class="text-muted-foreground text-sm max-w-md mx-auto">{{ t("onboarding.welcomeDescription") }}</p>
-          </div>
-          <div class="bg-muted/50 rounded-lg p-4 space-y-2">
-            <h4 class="text-sm font-medium flex items-center gap-2"><span>🔍</span>{{ t("onboarding.hardwareDetection") }}</h4>
-            <div class="text-xs text-muted-foreground space-y-1">
-              <div v-if="loading" class="flex items-center gap-2"><Spinner class="size-4" />{{ t("common.loading") }}</div>
-              <template v-else-if="!error">
-                <div class="flex items-center gap-2">
-                  <span :class="nvencAvailable ? 'text-green-500' : 'text-yellow-500'">{{ nvencAvailable ? "✓" : "○" }}</span>
-                  {{ nvencAvailable ? t("onboarding.nvencDetected") : t("onboarding.nvencNotDetected") }}
-                </div>
-                <div class="flex items-center gap-2">
-                  <span :class="av1Available ? 'text-green-500' : 'text-yellow-500'">{{ av1Available ? "✓" : "○" }}</span>
-                  {{ av1Available ? t("onboarding.av1Detected") : t("onboarding.av1NotDetected") }}
-                </div>
-              </template>
-              <div v-else class="text-destructive">{{ error }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentStep === 'codec'" class="space-y-4" data-testid="preset-setup-wizard-step-codec">
-          <div class="text-center mb-6">
-            <h3 class="text-lg font-bold mb-1">{{ t("onboarding.codecTitle") }}</h3>
-            <p class="text-muted-foreground text-sm">{{ t("onboarding.codecDescription") }}</p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-3">
-            <Card
-              v-for="option in codecOptions"
-              :key="option.value"
-              :class="['cursor-pointer transition-all', codecPreference === option.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50', option.disabled ? 'opacity-50' : '']"
-              @click="!option.disabled && (codecPreference = option.value as CodecPreference)"
+        <div class="px-6 py-4 border-b border-border">
+          <div class="flex items-center justify-between mb-3">
+            <DialogTitle class="text-lg font-semibold">{{ t("onboarding.title") }}</DialogTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 text-muted-foreground hover:text-foreground"
+              data-testid="preset-setup-wizard-close"
+              @click="handleCancel"
             >
-              <CardContent class="p-4">
-                <div class="text-2xl mb-2">{{ option.icon }}</div>
-                <h4 class="font-medium text-sm">{{ option.title }}</h4>
-                <p class="text-xs text-muted-foreground mt-1">{{ option.desc }}</p>
-                <div v-if="option.disabled" class="text-xs text-yellow-500 mt-2">{{ t("onboarding.requiresNvenc") }}</div>
-              </CardContent>
-            </Card>
+              ✕
+            </Button>
           </div>
+          <div class="flex items-center gap-2">
+            <template v-for="(_, index) in steps" :key="index">
+              <div
+                :class="[
+                  'h-1.5 flex-1 rounded-full transition-colors',
+                  index <= currentStepIndex ? 'bg-primary' : 'bg-muted',
+                ]"
+              />
+            </template>
+          </div>
+          <p class="text-xs text-muted-foreground mt-2">
+            {{ t("common.stepOf", { step: currentStepIndex + 1, total: steps.length }) }}
+          </p>
         </div>
 
-        <div v-else-if="currentStep === 'useCase'" class="space-y-4" data-testid="preset-setup-wizard-step-useCase">
-          <div class="text-center mb-6">
-            <h3 class="text-lg font-bold mb-1">{{ t("onboarding.useCaseTitle") }}</h3>
-            <p class="text-muted-foreground text-sm">{{ t("onboarding.useCaseDescription") }}</p>
-          </div>
-
-          <div class="space-y-3">
-            <Card
-              v-for="option in useCaseOptions"
-              :key="option.value"
-              :class="['cursor-pointer transition-all', useCasePreference === option.value ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:border-primary/50']"
-              @click="useCasePreference = option.value as UseCasePreference"
-            >
-              <CardContent class="p-4 flex items-start gap-4">
-                <div class="text-3xl">{{ option.icon }}</div>
-                <div class="flex-1">
-                  <h4 class="font-medium">{{ option.title }}</h4>
-                  <p class="text-sm text-muted-foreground mt-1">{{ option.desc }}</p>
-                </div>
-                <div :class="['w-5 h-5 rounded-full border-2 flex items-center justify-center', useCasePreference === option.value ? 'border-primary bg-primary' : 'border-muted-foreground/30']">
-                  <span v-if="useCasePreference === option.value" class="text-white text-xs">✓</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <div v-else-if="currentStep === 'presets'" class="space-y-4" data-testid="preset-setup-wizard-step-presets">
-          <div class="flex items-center justify-between mb-2">
-            <div>
-              <h3 class="text-lg font-bold">{{ t("onboarding.presetsTitle") }}</h3>
-              <p class="text-muted-foreground text-xs">{{ t("onboarding.presetsDescription", { count: filteredPresets.length }) }}</p>
+        <div class="flex-1 overflow-y-auto px-6 py-5">
+          <div v-if="currentStep === 'welcome'" class="space-y-4" data-testid="preset-setup-wizard-step-welcome">
+            <div class="text-center py-4">
+              <div class="text-4xl mb-4">🎬</div>
+              <h3 class="text-xl font-bold mb-2">{{ t("onboarding.welcomeTitle") }}</h3>
+              <p class="text-muted-foreground text-sm max-w-md mx-auto">{{ t("onboarding.welcomeDescription") }}</p>
             </div>
-            <div class="flex gap-2">
-              <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectAll">{{ t("onboarding.selectAll") }}</Button>
-              <Button variant="outline" size="sm" class="h-7 text-xs" @click="deselectAll">{{ t("onboarding.deselectAll") }}</Button>
-            </div>
-          </div>
-
-          <div v-if="filteredPresets.length === 0" class="text-center py-8 text-muted-foreground">
-            {{ t("onboarding.noPresetsMatch") }}
-          </div>
-
-          <div v-else class="grid grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto pr-1">
-            <Card
-              v-for="preset in filteredPresets"
-              :key="preset.id"
-              data-testid="preset-setup-wizard-preset-card"
-              :class="['cursor-pointer transition-all', selectedIds.has(preset.id) ? 'border-primary bg-primary/5' : 'border-border/60 hover:border-primary/50']"
-              @click="toggleSelection(preset.id)"
-            >
-              <CardContent class="p-3 flex items-center gap-3">
-                <Checkbox :checked="selectedIds.has(preset.id)" class="pointer-events-none" />
-                <div class="flex-1 min-w-0">
+            <div class="bg-muted/50 rounded-lg p-4 space-y-2">
+              <h4 class="text-sm font-medium flex items-center gap-2">
+                <span>🔍</span>{{ t("onboarding.hardwareDetection") }}
+              </h4>
+              <div class="text-xs text-muted-foreground space-y-1">
+                <div v-if="loading" class="flex items-center gap-2">
+                  <Spinner class="size-4" />{{ t("common.loading") }}
+                </div>
+                <template v-else-if="!error">
                   <div class="flex items-center gap-2">
-                    <h4 class="text-sm font-medium truncate">{{ preset.name }}</h4>
-                    <span class="text-[10px] text-muted-foreground font-mono px-1.5 py-0.5 bg-muted rounded">{{ preset.video.encoder }}</span>
+                    <span :class="nvencAvailable ? 'text-green-500' : 'text-yellow-500'">{{
+                      nvencAvailable ? "✓" : "○"
+                    }}</span>
+                    {{ nvencAvailable ? t("onboarding.nvencDetected") : t("onboarding.nvencNotDetected") }}
                   </div>
-                  <p class="text-xs text-muted-foreground truncate mt-0.5">
-                    {{ resolveDescription(preset) }}
-                  </p>
-                  <div class="mt-0.5 flex items-center flex-wrap gap-1">
-                    <span class="text-[10px] text-muted-foreground">
-                      {{ t("presetEditor.panel.scenarioLabel") }}：
-                      <span class="text-[10px] text-foreground">
-                        {{ getPresetScenarioLabel(preset) }}
-                      </span>
-                    </span>
-                    <span
-                      v-if="getPresetRiskBadge(preset)"
-                      class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
-                    >
-                      {{ getPresetRiskBadge(preset) }}
-                    </span>
+                  <div class="flex items-center gap-2">
+                    <span :class="av1Available ? 'text-green-500' : 'text-yellow-500'">{{
+                      av1Available ? "✓" : "○"
+                    }}</span>
+                    {{ av1Available ? t("onboarding.av1Detected") : t("onboarding.av1NotDetected") }}
                   </div>
-                </div>
-                <div class="text-xs text-muted-foreground text-right shrink-0">
-                  <div>{{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}</div>
-                  <div class="text-[10px]">{{ preset.audio.codec.toUpperCase() }}</div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        <div v-else-if="currentStep === 'confirm'" class="space-y-4" data-testid="preset-setup-wizard-step-confirm">
-          <div class="text-center py-4">
-            <div class="text-4xl mb-4">✅</div>
-            <h3 class="text-xl font-bold mb-2">{{ t("onboarding.confirmTitle") }}</h3>
-            <p class="text-muted-foreground text-sm">{{ t("onboarding.confirmDescription", { count: selectedIds.size }) }}</p>
-          </div>
-
-          <div class="bg-muted/50 rounded-lg p-4">
-            <h4 class="text-sm font-medium mb-3">{{ t("onboarding.selectedPresets") }}</h4>
-            <div class="space-y-2 max-h-[30vh] overflow-y-auto">
-              <div v-for="preset in selectedPresets" :key="preset.id" class="flex items-center justify-between text-sm py-1.5 px-2 bg-background rounded">
-                <span class="truncate">{{ preset.name }}</span>
-                <span class="text-xs text-muted-foreground font-mono">{{ preset.video.encoder }}</span>
+                </template>
+                <div v-else class="text-destructive">{{ error }}</div>
               </div>
             </div>
           </div>
 
-          <div class="pt-2">
-            <Button variant="outline" size="sm" class="w-full justify-start text-xs h-9" @click="handleOpenToolsSettings">
-              <span class="mr-2">⚙️</span>
-              {{ t("presets.openToolsSettingsFromOnboarding") }}
+          <div v-else-if="currentStep === 'codec'" class="space-y-4" data-testid="preset-setup-wizard-step-codec">
+            <div class="text-center mb-6">
+              <h3 class="text-lg font-bold mb-1">{{ t("onboarding.codecTitle") }}</h3>
+              <p class="text-muted-foreground text-sm">{{ t("onboarding.codecDescription") }}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <Card
+                v-for="option in codecOptions"
+                :key="option.value"
+                :class="[
+                  'cursor-pointer transition-all',
+                  codecPreference === option.value
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                    : 'border-border hover:border-primary/50',
+                  option.disabled ? 'opacity-50' : '',
+                ]"
+                @click="!option.disabled && (codecPreference = option.value as CodecPreference)"
+              >
+                <CardContent class="p-4">
+                  <div class="text-2xl mb-2">{{ option.icon }}</div>
+                  <h4 class="font-medium text-sm">{{ option.title }}</h4>
+                  <p class="text-xs text-muted-foreground mt-1">{{ option.desc }}</p>
+                  <div v-if="option.disabled" class="text-xs text-yellow-500 mt-2">
+                    {{ t("onboarding.requiresNvenc") }}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div v-else-if="currentStep === 'useCase'" class="space-y-4" data-testid="preset-setup-wizard-step-useCase">
+            <div class="text-center mb-6">
+              <h3 class="text-lg font-bold mb-1">{{ t("onboarding.useCaseTitle") }}</h3>
+              <p class="text-muted-foreground text-sm">{{ t("onboarding.useCaseDescription") }}</p>
+            </div>
+
+            <div class="space-y-3">
+              <Card
+                v-for="option in useCaseOptions"
+                :key="option.value"
+                :class="[
+                  'cursor-pointer transition-all',
+                  useCasePreference === option.value
+                    ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                    : 'border-border hover:border-primary/50',
+                ]"
+                @click="useCasePreference = option.value as UseCasePreference"
+              >
+                <CardContent class="p-4 flex items-start gap-4">
+                  <div class="text-3xl">{{ option.icon }}</div>
+                  <div class="flex-1">
+                    <h4 class="font-medium">{{ option.title }}</h4>
+                    <p class="text-sm text-muted-foreground mt-1">{{ option.desc }}</p>
+                  </div>
+                  <div
+                    :class="[
+                      'w-5 h-5 rounded-full border-2 flex items-center justify-center',
+                      useCasePreference === option.value ? 'border-primary bg-primary' : 'border-muted-foreground/30',
+                    ]"
+                  >
+                    <span v-if="useCasePreference === option.value" class="text-white text-xs">✓</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div v-else-if="currentStep === 'presets'" class="space-y-4" data-testid="preset-setup-wizard-step-presets">
+            <div class="flex items-center justify-between mb-2">
+              <div>
+                <h3 class="text-lg font-bold">{{ t("onboarding.presetsTitle") }}</h3>
+                <p class="text-muted-foreground text-xs">
+                  {{ t("onboarding.presetsDescription", { count: filteredPresets.length }) }}
+                </p>
+              </div>
+              <div class="flex gap-2">
+                <Button variant="outline" size="sm" class="h-7 text-xs" @click="selectAll">{{
+                  t("onboarding.selectAll")
+                }}</Button>
+                <Button variant="outline" size="sm" class="h-7 text-xs" @click="deselectAll">{{
+                  t("onboarding.deselectAll")
+                }}</Button>
+              </div>
+            </div>
+
+            <div v-if="filteredPresets.length === 0" class="text-center py-8 text-muted-foreground">
+              {{ t("onboarding.noPresetsMatch") }}
+            </div>
+
+            <div v-else class="grid grid-cols-1 gap-2 max-h-[40vh] overflow-y-auto pr-1">
+              <Card
+                v-for="preset in filteredPresets"
+                :key="preset.id"
+                data-testid="preset-setup-wizard-preset-card"
+                :class="[
+                  'cursor-pointer transition-all',
+                  selectedIds.has(preset.id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border/60 hover:border-primary/50',
+                ]"
+                @click="toggleSelection(preset.id)"
+              >
+                <CardContent class="p-3 flex items-center gap-3">
+                  <Checkbox :checked="selectedIds.has(preset.id)" class="pointer-events-none" />
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <h4 class="text-sm font-medium truncate">{{ preset.name }}</h4>
+                      <span class="text-[10px] text-muted-foreground font-mono px-1.5 py-0.5 bg-muted rounded">{{
+                        preset.video.encoder
+                      }}</span>
+                    </div>
+                    <p class="text-xs text-muted-foreground truncate mt-0.5">
+                      {{ resolveDescription(preset) }}
+                    </p>
+                    <div class="mt-0.5 flex items-center flex-wrap gap-1">
+                      <span class="text-[10px] text-muted-foreground">
+                        {{ t("presetEditor.panel.scenarioLabel") }}：
+                        <span class="text-[10px] text-foreground">
+                          {{ getPresetScenarioLabel(preset) }}
+                        </span>
+                      </span>
+                      <span
+                        v-if="getPresetRiskBadge(preset)"
+                        class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
+                      >
+                        {{ getPresetRiskBadge(preset) }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="text-xs text-muted-foreground text-right shrink-0">
+                    <div>{{ preset.video.rateControl.toUpperCase() }} {{ preset.video.qualityValue }}</div>
+                    <div class="text-[10px]">{{ preset.audio.codec.toUpperCase() }}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          <div v-else-if="currentStep === 'confirm'" class="space-y-4" data-testid="preset-setup-wizard-step-confirm">
+            <div class="text-center py-4">
+              <div class="text-4xl mb-4">✅</div>
+              <h3 class="text-xl font-bold mb-2">{{ t("onboarding.confirmTitle") }}</h3>
+              <p class="text-muted-foreground text-sm">
+                {{ t("onboarding.confirmDescription", { count: selectedIds.size }) }}
+              </p>
+            </div>
+
+            <div class="bg-muted/50 rounded-lg p-4">
+              <h4 class="text-sm font-medium mb-3">{{ t("onboarding.selectedPresets") }}</h4>
+              <div class="space-y-2 max-h-[30vh] overflow-y-auto">
+                <div
+                  v-for="preset in selectedPresets"
+                  :key="preset.id"
+                  class="flex items-center justify-between text-sm py-1.5 px-2 bg-background rounded"
+                >
+                  <span class="truncate">{{ preset.name }}</span>
+                  <span class="text-xs text-muted-foreground font-mono">{{ preset.video.encoder }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                class="w-full justify-start text-xs h-9"
+                @click="handleOpenToolsSettings"
+              >
+                <span class="mr-2">⚙️</span>
+                {{ t("presets.openToolsSettingsFromOnboarding") }}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between">
+          <Button v-if="canGoBack" variant="ghost" size="sm" class="h-8" @click="goBack"
+            >← {{ t("common.back") }}</Button
+          >
+          <div v-else />
+          <div class="flex items-center gap-2">
+            <Button variant="ghost" size="sm" class="h-8 text-muted-foreground" @click="handleCancel">
+              {{ t("common.cancel") }}
+            </Button>
+            <Button
+              size="sm"
+              class="h-8 px-4"
+              data-testid="preset-setup-wizard-next"
+              :disabled="currentStep === 'presets' && selectedIds.size === 0"
+              @click="goNext"
+            >
+              {{ currentStep === "confirm" ? t("onboarding.importButton") : t("common.next")
+              }}<span v-if="currentStep !== 'confirm'" class="ml-1">→</span>
             </Button>
           </div>
         </div>
       </div>
-
-      <div class="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between">
-        <Button v-if="canGoBack" variant="ghost" size="sm" class="h-8" @click="goBack">← {{ t("common.back") }}</Button>
-        <div v-else />
-        <div class="flex items-center gap-2">
-          <Button variant="ghost" size="sm" class="h-8 text-muted-foreground" @click="handleCancel">
-            {{ t("common.cancel") }}
-          </Button>
-          <Button
-            size="sm"
-            class="h-8 px-4"
-            data-testid="preset-setup-wizard-next"
-            :disabled="currentStep === 'presets' && selectedIds.size === 0"
-            @click="goNext"
-          >
-            {{ currentStep === "confirm" ? t("onboarding.importButton") : t("common.next") }}<span v-if="currentStep !== 'confirm'" class="ml-1">→</span>
-          </Button>
-        </div>
-      </div>
-        </div>
     </DialogContent>
   </Dialog>
 </template>

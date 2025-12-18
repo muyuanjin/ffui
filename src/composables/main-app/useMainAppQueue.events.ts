@@ -98,10 +98,7 @@ export function useQueueEventListeners({
       if (!hasStuckProcessingJob) return;
 
       const lastSnapshotAt = lastQueueSnapshotAtMs.value;
-      const ageMs =
-        typeof lastSnapshotAt === "number"
-          ? Date.now() - lastSnapshotAt
-          : Number.POSITIVE_INFINITY;
+      const ageMs = typeof lastSnapshotAt === "number" ? Date.now() - lastSnapshotAt : Number.POSITIVE_INFINITY;
 
       if (ageMs > 5000) {
         void refreshQueueFromBackend();
@@ -126,4 +123,3 @@ export function useQueueEventListeners({
     }
   });
 }
-

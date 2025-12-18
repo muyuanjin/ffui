@@ -41,4 +41,3 @@ describe("jobCompare eligibility", () => {
     ).toBe("no-partial-output");
   });
 });
-

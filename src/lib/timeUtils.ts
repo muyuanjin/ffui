@@ -9,12 +9,12 @@
  */
 export function formatElapsedTime(ms: number | null | undefined): string {
   if (ms == null || ms <= 0 || !Number.isFinite(ms)) return "-";
-  
+
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
-  
+
   if (hours > 0) {
     return `${hours}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   }
@@ -29,7 +29,7 @@ export function formatElapsedTime(ms: number | null | undefined): string {
  */
 export function estimateTotalTime(
   elapsedMs: number | null | undefined,
-  progress: number | null | undefined
+  progress: number | null | undefined,
 ): number | null {
   if (
     elapsedMs == null ||
@@ -42,7 +42,7 @@ export function estimateTotalTime(
   ) {
     return null;
   }
-  
+
   // 预估总时间 = 已用时间 / (进度 / 100)
   const estimated = elapsedMs / (progress / 100);
   return Number.isFinite(estimated) ? estimated : null;
@@ -56,11 +56,11 @@ export function estimateTotalTime(
  */
 export function estimateRemainingTime(
   elapsedMs: number | null | undefined,
-  progress: number | null | undefined
+  progress: number | null | undefined,
 ): number | null {
   const totalMs = estimateTotalTime(elapsedMs, progress);
   if (totalMs == null || elapsedMs == null) return null;
-  
+
   const remaining = totalMs - elapsedMs;
   return remaining > 0 ? remaining : null;
 }
@@ -81,15 +81,10 @@ export function computeJobElapsedMs(
     processingStartedMs?: number;
     elapsedMs?: number;
   },
-  nowMs: number
+  nowMs: number,
 ): number | null {
   // 对于已完成的任务，优先使用 elapsedMs，否则基于 startTime/endTime 计算
-  if (
-    job.status === "completed" ||
-    job.status === "failed" ||
-    job.status === "cancelled" ||
-    job.status === "skipped"
-  ) {
+  if (job.status === "completed" || job.status === "failed" || job.status === "cancelled" || job.status === "skipped") {
     if (job.elapsedMs != null && job.elapsedMs > 0) {
       return job.elapsedMs;
     }
@@ -99,12 +94,12 @@ export function computeJobElapsedMs(
     }
     return null;
   }
-  
+
   // 对于暂停的任务，使用 elapsedMs
   if (job.status === "paused") {
     return job.elapsedMs ?? null;
   }
-  
+
   // 对于正在处理的任务，使用后端提供的 elapsedMs（已包含暂停累计时间）
   // 如果没有 elapsedMs，则基于 startTime 计算
   if (job.status === "processing") {
@@ -116,6 +111,6 @@ export function computeJobElapsedMs(
       return nowMs - fallbackStart;
     }
   }
-  
+
   return null;
 }

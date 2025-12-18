@@ -28,13 +28,8 @@ describe("tauri asset protocol scope", () => {
     const openerAllow = openerPermission?.allow ?? [];
     const openerPatterns = openerAllow.map((entry: any) => String(entry?.path ?? ""));
 
-    const expected = sortedUnique([
-      ...openerPatterns,
-      "**/*.[tT][tT][fF]",
-      "**/*.[oO][tT][fF]",
-    ]);
+    const expected = sortedUnique([...openerPatterns, "**/*.[tT][tT][fF]", "**/*.[oO][tT][fF]"]);
 
     expect(scopeList).toEqual(expected);
   });
 });
-

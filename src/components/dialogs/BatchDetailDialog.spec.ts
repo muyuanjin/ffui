@@ -4,21 +4,14 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import type { TranscodeJob } from "@/types";
-import {
-  createMockPreset,
-  createMockJob,
-  createMockBatch,
-  createMountOptions,
-} from "./BatchDetailDialog.test-utils";
+import { createMockPreset, createMockJob, createMockBatch, createMountOptions } from "./BatchDetailDialog.test-utils";
 
 describe("BatchDetailDialog", () => {
   const presets = [createMockPreset("p1")];
 
   describe("滚动功能", () => {
     it("对话框主体使用单一垂直布局容器承载批次详情内容", async () => {
-      const jobs = Array.from({ length: 20 }, (_, i) =>
-        createMockJob(`job-${i}`, "waiting"),
-      );
+      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -34,9 +27,7 @@ describe("BatchDetailDialog", () => {
     });
 
     it("批次详情不再嵌套内部 ScrollArea，避免只有子任务列表可以滚动", async () => {
-      const jobs = Array.from({ length: 20 }, (_, i) =>
-        createMockJob(`job-${i}`, "waiting"),
-      );
+      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -259,19 +250,21 @@ describe("BatchDetailDialog", () => {
       await nextTick();
 
       // 检查9宫格容器存在
-      const previewGrid = wrapper.find('.grid.grid-cols-3');
+      const previewGrid = wrapper.find(".grid.grid-cols-3");
       expect(previewGrid.exists()).toBe(true);
 
       // 应该有9个槽位
-      const slots = previewGrid.findAll('div > div');
+      const slots = previewGrid.findAll("div > div");
       expect(slots.length).toBeGreaterThanOrEqual(9);
     });
 
     it("点击预览图应该触发 previewJob 事件", async () => {
-      const jobs = [{
-        ...createMockJob("job-1", "processing"),
-        previewPath: "/preview/job-1.jpg",
-      }];
+      const jobs = [
+        {
+          ...createMockJob("job-1", "processing"),
+          previewPath: "/preview/job-1.jpg",
+        },
+      ];
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -280,8 +273,8 @@ describe("BatchDetailDialog", () => {
       await nextTick();
 
       // 找到第一个预览槽位并点击
-      const previewGrid = wrapper.find('.grid.grid-cols-3');
-      const firstSlot = previewGrid.find('div > div');
+      const previewGrid = wrapper.find(".grid.grid-cols-3");
+      const firstSlot = previewGrid.find("div > div");
       await firstSlot.trigger("click");
 
       const emitted = wrapper.emitted("previewJob");

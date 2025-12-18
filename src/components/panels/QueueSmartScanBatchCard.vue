@@ -113,21 +113,17 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
     class="border-border/70 bg-card/90 shadow-sm hover:border-primary/40 transition-colors"
     @contextmenu.prevent.stop="emit('contextmenuBatch', { batch, event: $event })"
   >
-    <CardHeader class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer" @click="emit('toggleBatchExpanded', batch.batchId)">
+    <CardHeader
+      class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer"
+      @click="emit('toggleBatchExpanded', batch.batchId)"
+    >
       <div class="space-y-1">
         <div class="flex items-center gap-2">
-          <Checkbox
-            :checked="batchSelectionState"
-            class="h-4 w-4"
-            @click.stop
-            @update:checked="toggleBatchSelection"
-          />
+          <Checkbox :checked="batchSelectionState" class="h-4 w-4" @click.stop @update:checked="toggleBatchSelection" />
           <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
             {{ t("queue.source.smartScan") }}
           </Badge>
-          <span class="text-xs text-muted-foreground">
-            {{ batch.totalProcessed }} / {{ batch.totalCandidates }}
-          </span>
+          <span class="text-xs text-muted-foreground"> {{ batch.totalProcessed }} / {{ batch.totalCandidates }} </span>
         </div>
         <CardTitle class="text-sm font-semibold truncate max-w-lg">
           {{ batch.rootPath || t("smartScan.title") }}
@@ -153,7 +149,11 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
     <CardContent class="pt-0 pb-3 space-y-2">
       <Progress :model-value="batch.overallProgress" :variant="getBatchProgressVariant(batch)" />
       <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-        <span>{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}: {{ batch.jobs.filter((j) => j.type === "video").length }} / {{ batch.jobs.filter((j) => j.type === "image").length }}</span>
+        <span
+          >{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}:
+          {{ batch.jobs.filter((j) => j.type === "video").length }} /
+          {{ batch.jobs.filter((j) => j.type === "image").length }}</span
+        >
         <span>{{ t("queue.status.completed") }}: {{ batch.completedCount }}</span>
         <span v-if="batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ batch.skippedCount }}</span>
         <span v-if="batch.failedCount > 0">{{ t("queue.status.failed") }}: {{ batch.failedCount }}</span>

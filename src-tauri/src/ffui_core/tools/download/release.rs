@@ -1,4 +1,7 @@
-use anyhow::{Result, anyhow};
+use anyhow::{
+    Result,
+    anyhow,
+};
 
 #[cfg(not(test))]
 use crate::ffui_core::network_proxy;
@@ -109,8 +112,9 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
 
 #[cfg(not(test))]
 fn fetch_ffmpeg_release_from_github() -> Option<String> {
-    use serde::Deserialize;
     use std::time::Duration;
+
+    use serde::Deserialize;
 
     tauri::async_runtime::block_on(async move {
         use reqwest::Client;
@@ -144,8 +148,9 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
 
 #[cfg(not(test))]
 fn fetch_libavif_release_from_github() -> Option<String> {
-    use serde::Deserialize;
     use std::time::Duration;
+
+    use serde::Deserialize;
 
     tauri::async_runtime::block_on(async move {
         use reqwest::Client;

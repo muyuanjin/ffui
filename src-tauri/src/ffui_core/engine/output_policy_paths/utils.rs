@@ -1,5 +1,8 @@
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::{
+    Hash,
+    Hasher,
+};
 use std::sync::atomic::Ordering;
 
 pub(super) fn random_hex(len: usize) -> String {

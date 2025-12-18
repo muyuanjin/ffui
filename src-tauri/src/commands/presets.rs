@@ -5,10 +5,15 @@
 //! - Creating and saving new presets
 //! - Deleting existing presets
 
+use std::sync::Arc;
+
 use tauri::State;
 
-use crate::ffui_core::{FFmpegPreset, TranscodingEngine, hardware_smart_default_presets};
-use std::sync::Arc;
+use crate::ffui_core::{
+    FFmpegPreset,
+    TranscodingEngine,
+    hardware_smart_default_presets,
+};
 
 /// Get all available FFmpeg presets.
 #[tauri::command]

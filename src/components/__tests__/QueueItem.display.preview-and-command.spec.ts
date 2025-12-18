@@ -9,9 +9,7 @@ import zhCN from "@/locales/zh-CN";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
   const ensureJobPreview = vi.fn(async () => null);
 
   return {
@@ -19,16 +17,12 @@ vi.mock("@/lib/backend", () => {
     hasTauri,
     loadPreviewDataUrl,
     ensureJobPreview,
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
 vi.mock("@/lib/ffmpegCommand", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>(
-    "@/lib/ffmpegCommand",
-  );
+  const actual = await vi.importActual<typeof import("@/lib/ffmpegCommand")>("@/lib/ffmpegCommand");
   return {
     ...actual,
     highlightFfmpegCommand: (command: string) => command,
@@ -157,9 +151,7 @@ describe("QueueItem display preview & command view", () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
 
     (hasTauri as any).mockReturnValue(true);
-    (loadPreviewDataUrl as any).mockResolvedValueOnce(
-      "data:image/jpeg;base64,FALLBACK=",
-    );
+    (loadPreviewDataUrl as any).mockResolvedValueOnce("data:image/jpeg;base64,FALLBACK=");
 
     const wrapper = mount(QueueItem, {
       props: {
@@ -187,12 +179,8 @@ describe("QueueItem display preview & command view", () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
 
     (hasTauri as any).mockReturnValue(true);
-    (loadPreviewDataUrl as any).mockRejectedValueOnce(
-      new Error("preview missing"),
-    );
-    (ensureJobPreview as any).mockResolvedValueOnce(
-      "C:/app-data/previews/regenerated.jpg",
-    );
+    (loadPreviewDataUrl as any).mockRejectedValueOnce(new Error("preview missing"));
+    (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/regenerated.jpg");
 
     const wrapper = mount(QueueItem, {
       props: {
@@ -268,8 +256,7 @@ describe("QueueItem display preview & command view", () => {
   it("uses i18n labels for the command view toggle and updates on locale change", async () => {
     const job = makeJob({
       status: "completed",
-      ffmpegCommand:
-        'ffmpeg -i "INPUT" -c:v libx264 -crf 23 -preset medium -c:a copy "OUTPUT"',
+      ffmpegCommand: 'ffmpeg -i "INPUT" -c:v libx264 -crf 23 -preset medium -c:a copy "OUTPUT"',
     });
 
     (i18n.global.locale as any).value = "zh-CN";
@@ -285,26 +272,16 @@ describe("QueueItem display preview & command view", () => {
       },
     });
 
-    const toggleButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("显示完整命令"));
+    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("显示完整命令"));
 
-    expect(
-      toggleButton,
-      "command view toggle button should exist",
-    ).toBeTruthy();
+    expect(toggleButton, "command view toggle button should exist").toBeTruthy();
 
     (i18n.global.locale as any).value = "en";
     await nextTick();
 
-    const enToggleButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("Show full command"));
+    const enToggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("Show full command"));
 
-    expect(
-      enToggleButton,
-      "command view toggle should reflect EN label",
-    ).toBeTruthy();
+    expect(enToggleButton, "command view toggle should reflect EN label").toBeTruthy();
   });
 
   it("toggles between template and full command using the raw ffmpegCommand string", async () => {
@@ -329,14 +306,9 @@ describe("QueueItem display preview & command view", () => {
     let pre = wrapper.get("pre");
     expect(pre.text()).toBe(`TEMPLATE:${rawCommand}`);
 
-    const toggleButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("Show full command"));
+    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("Show full command"));
 
-    expect(
-      toggleButton,
-      "command view toggle button should exist",
-    ).toBeTruthy();
+    expect(toggleButton, "command view toggle button should exist").toBeTruthy();
 
     await toggleButton!.trigger("click");
     await nextTick();
@@ -370,9 +342,7 @@ describe("QueueItem display preview & command view", () => {
     expect(copyToClipboard).toHaveBeenCalledWith(`TEMPLATE:${rawCommand}`);
 
     // 切换到 full view 后应复制 raw command。
-    const toggleButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes("Show full command"));
+    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("Show full command"));
     expect(toggleButton).toBeTruthy();
 
     await toggleButton!.trigger("click");

@@ -79,9 +79,7 @@ describe("SettingsPanel interval input UX", () => {
       },
     });
 
-    const progressIntervalInput = wrapper.get(
-      'input[data-testid="settings-progress-update-interval-ms"]',
-    );
+    const progressIntervalInput = wrapper.get('input[data-testid="settings-progress-update-interval-ms"]');
     expect((progressIntervalInput.element as HTMLInputElement).value).toBe("250");
 
     await progressIntervalInput.setValue("");

@@ -3,13 +3,7 @@ import type { HardwareConfig } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
@@ -42,9 +36,7 @@ const { t } = useI18n();
           "
         >
           <SelectTrigger class="h-9 text-xs">
-            <SelectValue
-              :placeholder="t('presetEditor.panel.hwaccelPlaceholder')"
-            />
+            <SelectValue :placeholder="t('presetEditor.panel.hwaccelPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="cuda">cuda</SelectItem>
@@ -96,9 +88,7 @@ const { t } = useI18n();
         </Label>
         <Textarea
           :model-value="(hardware.bitstreamFilters ?? []).join('\n')"
-          :placeholder="
-            t('presetEditor.panel.bitstreamFiltersPlaceholder')
-          "
+          :placeholder="t('presetEditor.panel.bitstreamFiltersPlaceholder')"
           class="min-h-[72px] text-[11px] font-mono"
           @update:model-value="
             (value) => {

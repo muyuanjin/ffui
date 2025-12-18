@@ -12,7 +12,8 @@ import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 
-const isTestEnv = typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
+const isTestEnv =
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 type UiJobStatus = TranscodeJob["status"] | "pausing";
 
 const props = defineProps<{
@@ -71,13 +72,9 @@ const emit = defineEmits<{
   (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
 
-const rowVariant = computed<"detail" | "compact">(
-  () => props.viewMode ?? "detail",
-);
+const rowVariant = computed<"detail" | "compact">(() => props.viewMode ?? "detail");
 const isCompact = computed(() => rowVariant.value === "compact");
-const effectiveStatus = computed<UiJobStatus>(() =>
-  props.isPausing ? "pausing" : props.job.status,
-);
+const effectiveStatus = computed<UiJobStatus>(() => (props.isPausing ? "pausing" : props.job.status));
 
 const statusTextClass = computed(() => {
   switch (effectiveStatus.value) {
@@ -103,9 +100,7 @@ const statusTextClass = computed(() => {
 
 const { t } = useI18n();
 // 将内部 queued 统一映射为 waiting，避免在文案中暴露裸 key。
-const displayStatusKey = computed(() =>
-  effectiveStatus.value === "queued" ? "waiting" : effectiveStatus.value,
-);
+const displayStatusKey = computed(() => (effectiveStatus.value === "queued" ? "waiting" : effectiveStatus.value));
 
 const localizedStatus = computed(() => t(`queue.status.${displayStatusKey.value}`));
 
@@ -135,19 +130,12 @@ const isCancellable = computed(
       props.job.status === "paused"),
 );
 
-const isWaitable = computed(
-  () => props.canWait && props.job.status === "processing" && !props.isPausing,
-);
+const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !props.isPausing);
 
-const isResumable = computed(
-  () => props.canResume && props.job.status === "paused",
-);
+const isResumable = computed(() => props.canResume && props.job.status === "paused");
 
 const isRestartable = computed(
-  () =>
-    props.canRestart &&
-    props.job.status !== "completed" &&
-    props.job.status !== "skipped",
+  () => props.canRestart && props.job.status !== "completed" && props.job.status !== "skipped",
 );
 
 const isSelectable = computed(() => props.canSelect === true);
@@ -205,17 +193,12 @@ const sizeChangeLevel = computed<"decreased" | "slight" | "severe">(() => {
   return increaseRatio >= 1 ? "severe" : "slight";
 });
 
-const {
-  isSkipped,
-  displayedClampedProgress,
-  showBarProgress,
-  showCardFillProgress,
-  showRippleCardProgress,
-} = useSmoothProgress({
-  job: computed(() => props.job),
-  progressStyle: computed(() => props.progressStyle),
-  progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
-});
+const { isSkipped, displayedClampedProgress, showBarProgress, showCardFillProgress, showRippleCardProgress } =
+  useSmoothProgress({
+    job: computed(() => props.job),
+    progressStyle: computed(() => props.progressStyle),
+    progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
+  });
 
 // 根据任务状态计算进度条颜色变体
 const progressVariant = computed<ProgressVariant>(() => {
@@ -305,11 +288,11 @@ watch(
   { immediate: true },
 );
 
-	const handlePreviewError = async () => {
-	  const path = props.job.previewPath;
-	  if (!path) return;
-	  if (!hasTauri()) return;
-	  if (previewFallbackLoaded.value) return;
+const handlePreviewError = async () => {
+  const path = props.job.previewPath;
+  if (!path) return;
+  if (!hasTauri()) return;
+  if (previewFallbackLoaded.value) return;
 
   try {
     const url = await loadPreviewDataUrl(path);
@@ -317,31 +300,28 @@ watch(
     previewFallbackLoaded.value = true;
     await nextTick();
   } catch (error) {
-	    if (previewRescreenshotAttempted.value) {
-	      console.error("QueueItem: failed to load preview via data URL fallback", error);
-	      return;
-	    }
+    if (previewRescreenshotAttempted.value) {
+      console.error("QueueItem: failed to load preview via data URL fallback", error);
+      return;
+    }
 
-	    previewRescreenshotAttempted.value = true;
-	    if (!isTestEnv) {
-	      console.warn(
-	        "QueueItem: preview missing or unreadable, attempting regeneration",
-	        error,
-	      );
-	    }
+    previewRescreenshotAttempted.value = true;
+    if (!isTestEnv) {
+      console.warn("QueueItem: preview missing or unreadable, attempting regeneration", error);
+    }
 
-	    try {
-	      const regenerated = await ensureJobPreview(props.job.id);
-	      if (regenerated) {
-	        previewUrl.value = buildPreviewUrl(regenerated);
-	        previewFallbackLoaded.value = false;
-	        await nextTick();
-	      }
-	    } catch (regenError) {
-	      console.error("QueueItem: failed to regenerate preview", regenError);
-	    }
-	  }
-	};
+    try {
+      const regenerated = await ensureJobPreview(props.job.id);
+      if (regenerated) {
+        previewUrl.value = buildPreviewUrl(regenerated);
+        previewFallbackLoaded.value = false;
+        await nextTick();
+      }
+    } catch (regenError) {
+      console.error("QueueItem: failed to regenerate preview", regenError);
+    }
+  }
+};
 
 const mediaSummary = computed(() => {
   const info = props.job.mediaInfo;
@@ -391,9 +371,7 @@ const onCardContextMenu = (event: MouseEvent) => {
     class="relative mb-3 border-border/60 bg-card/80 transition-all cursor-pointer overflow-hidden ring-0"
     :class="[
       isSkipped ? 'opacity-60 bg-muted/60' : 'hover:border-primary/40',
-      isSelectable && isSelected
-        ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5'
-        : '',
+      isSelectable && isSelected ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5' : '',
       isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
     data-testid="queue-item-card"
@@ -449,20 +427,18 @@ const onCardContextMenu = (event: MouseEvent) => {
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />
-	    <div
-	      v-if="!isCompact && (rawCommand || mediaSummary)"
-	    >
-	      <QueueItemCommandPreview
-	        :raw-command="rawCommand"
-	        :media-summary="mediaSummary"
-	        :has-distinct-template="hasDistinctTemplate"
-	        :command-title="t('taskDetail.commandTitle') as string"
-	        :copy-title="t('taskDetail.copyCommand') as string"
-	        :toggle-label="commandViewToggleLabel"
-	        :highlighted-html="highlightedCommand"
-	        @copy="handleCopyCommand"
-	        @toggle="toggleCommandView"
-	      />
-	    </div>
-	  </Card>
-	</template>
+    <div v-if="!isCompact && (rawCommand || mediaSummary)">
+      <QueueItemCommandPreview
+        :raw-command="rawCommand"
+        :media-summary="mediaSummary"
+        :has-distinct-template="hasDistinctTemplate"
+        :command-title="t('taskDetail.commandTitle') as string"
+        :copy-title="t('taskDetail.copyCommand') as string"
+        :toggle-label="commandViewToggleLabel"
+        :highlighted-html="highlightedCommand"
+        @copy="handleCopyCommand"
+        @toggle="toggleCommandView"
+      />
+    </div>
+  </Card>
+</template>

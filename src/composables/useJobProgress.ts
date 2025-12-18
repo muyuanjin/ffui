@@ -1,11 +1,6 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import gsap from "gsap";
-import type {
-  TranscodeJob,
-  AppSettings,
-  TaskbarProgressMode,
-  TaskbarProgressScope,
-} from "@/types";
+import type { TranscodeJob, AppSettings, TaskbarProgressMode, TaskbarProgressScope } from "@/types";
 
 // ----- Constants -----
 
@@ -36,15 +31,9 @@ export const normalizedJobProgressForAggregate = (job: TranscodeJob): number => 
  * Calculate the weight for a job in taskbar progress aggregation.
  * Weight is determined by the taskbar progress mode setting.
  */
-export const taskbarJobWeightForAggregate = (
-  job: TranscodeJob,
-  mode: TaskbarProgressMode,
-): number => {
+export const taskbarJobWeightForAggregate = (job: TranscodeJob, mode: TaskbarProgressMode): number => {
   const media = job.mediaInfo;
-  const sizeMb = Math.max(
-    typeof media?.sizeMB === "number" ? media.sizeMB : job.originalSizeMB ?? 0,
-    0,
-  );
+  const sizeMb = Math.max(typeof media?.sizeMB === "number" ? media.sizeMB : (job.originalSizeMB ?? 0), 0);
   const durationSeconds = Math.max(media?.durationSeconds ?? 0, 0);
   const estimatedSeconds = Math.max(job.estimatedSeconds ?? 0, 0);
 
@@ -79,10 +68,7 @@ export const taskbarJobWeightForAggregate = (
 };
 
 const isTerminalStatus = (status: TranscodeJob["status"]) =>
-  status === "completed" ||
-  status === "failed" ||
-  status === "skipped" ||
-  status === "cancelled";
+  status === "completed" || status === "failed" || status === "skipped" || status === "cancelled";
 
 // ----- Composable -----
 
@@ -144,16 +130,12 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     const list = jobs.value;
     if (!list || list.length === 0) return null;
 
-    const mode: TaskbarProgressMode =
-      appSettings.value?.taskbarProgressMode ?? "byEstimatedTime";
-    const scope: TaskbarProgressScope =
-      appSettings.value?.taskbarProgressScope ?? "allJobs";
+    const mode: TaskbarProgressMode = appSettings.value?.taskbarProgressMode ?? "byEstimatedTime";
+    const scope: TaskbarProgressScope = appSettings.value?.taskbarProgressScope ?? "allJobs";
 
     const hasNonTerminal = list.some((job) => !isTerminalStatus(job.status));
     const eligibleJobs =
-      scope === "activeAndQueued" && hasNonTerminal
-        ? list.filter((job) => !isTerminalStatus(job.status))
-        : list;
+      scope === "activeAndQueued" && hasNonTerminal ? list.filter((job) => !isTerminalStatus(job.status)) : list;
     if (eligibleJobs.length === 0) return null;
 
     let totalWeight = 0;
@@ -202,7 +184,7 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     }
 
     // 优化：缩短动画时长，使用更线性的缓动
-    const durationSec = Math.min(Math.max(durationMs * 0.5 / 1000, 0.05), 0.3);
+    const durationSec = Math.min(Math.max((durationMs * 0.5) / 1000, 0.05), 0.3);
     const state = { value: headerProgressPercent.value };
 
     headerProgressTween = gsap.to(state, {
@@ -220,43 +202,40 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
   };
 
   // ----- Header Progress Animation Watch -----
-  watch(
-    [globalTaskbarProgressPercent, hasActiveJobs],
-    ([percent, active]) => {
-      if (percent != null && active) {
-        animateHeaderProgressTo(percent);
-        headerProgressVisible.value = true;
-        headerProgressFading.value = false;
-        if (headerProgressFadeTimer !== undefined) {
-          window.clearTimeout(headerProgressFadeTimer);
-          headerProgressFadeTimer = undefined;
-        }
-        return;
-      }
-
-      // No active work or queue is empty: fade out the header progress effect.
-      if (!headerProgressVisible.value) {
-        headerProgressPercent.value = percent ?? 0;
-        headerProgressFading.value = false;
-        return;
-      }
-
-      headerProgressFading.value = true;
+  watch([globalTaskbarProgressPercent, hasActiveJobs], ([percent, active]) => {
+    if (percent != null && active) {
+      animateHeaderProgressTo(percent);
+      headerProgressVisible.value = true;
+      headerProgressFading.value = false;
       if (headerProgressFadeTimer !== undefined) {
         window.clearTimeout(headerProgressFadeTimer);
-      }
-      headerProgressFadeTimer = window.setTimeout(() => {
-        if (headerProgressTween) {
-          headerProgressTween.kill();
-          headerProgressTween = null;
-        }
-        headerProgressVisible.value = false;
-        headerProgressFading.value = false;
-        headerProgressPercent.value = 0;
         headerProgressFadeTimer = undefined;
-      }, 400); // 缩短淡出时间到400ms
-    },
-  );
+      }
+      return;
+    }
+
+    // No active work or queue is empty: fade out the header progress effect.
+    if (!headerProgressVisible.value) {
+      headerProgressPercent.value = percent ?? 0;
+      headerProgressFading.value = false;
+      return;
+    }
+
+    headerProgressFading.value = true;
+    if (headerProgressFadeTimer !== undefined) {
+      window.clearTimeout(headerProgressFadeTimer);
+    }
+    headerProgressFadeTimer = window.setTimeout(() => {
+      if (headerProgressTween) {
+        headerProgressTween.kill();
+        headerProgressTween = null;
+      }
+      headerProgressVisible.value = false;
+      headerProgressFading.value = false;
+      headerProgressPercent.value = 0;
+      headerProgressFadeTimer = undefined;
+    }, 400); // 缩短淡出时间到400ms
+  });
 
   // ----- Cleanup -----
   const cleanup = () => {

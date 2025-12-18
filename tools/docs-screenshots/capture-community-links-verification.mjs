@@ -161,10 +161,10 @@ const main = async () => {
       await page.waitForSelector("[data-testid='ffui-sidebar']", { timeout: 90_000 });
 
       await page.evaluate(() => {
-        (window).__FFUI_OPENED_URLS__ = [];
+        window.__FFUI_OPENED_URLS__ = [];
         window.open = (url, target, features) => {
           try {
-            (window).__FFUI_OPENED_URLS__.push(String(url));
+            window.__FFUI_OPENED_URLS__.push(String(url));
           } catch {
             // ignore
           }
@@ -181,7 +181,7 @@ const main = async () => {
         el.click();
       });
       await page.waitForTimeout(50);
-      const openedAfterLogo = await page.evaluate(() => (window).__FFUI_OPENED_URLS__.slice());
+      const openedAfterLogo = await page.evaluate(() => window.__FFUI_OPENED_URLS__.slice());
       if (!openedAfterLogo.includes(FFUI_GITHUB_REPO_URL)) {
         throw new Error(
           `Expected sidebar logo click to open ${FFUI_GITHUB_REPO_URL}, but got: ${JSON.stringify(openedAfterLogo)}`,
@@ -209,16 +209,14 @@ const main = async () => {
       });
       await page.waitForTimeout(50);
 
-      const opened = await page.evaluate(() => (window).__FFUI_OPENED_URLS__.slice());
+      const opened = await page.evaluate(() => window.__FFUI_OPENED_URLS__.slice());
       if (!opened.includes(FFUI_GITHUB_NEW_ISSUE_URL)) {
         throw new Error(
           `Expected report issue click to open ${FFUI_GITHUB_NEW_ISSUE_URL}, but got: ${JSON.stringify(opened)}`,
         );
       }
       if (!opened.includes(FFUI_GITHUB_REPO_URL)) {
-        throw new Error(
-          `Expected star/repo click to open ${FFUI_GITHUB_REPO_URL}, but got: ${JSON.stringify(opened)}`,
-        );
+        throw new Error(`Expected star/repo click to open ${FFUI_GITHUB_REPO_URL}, but got: ${JSON.stringify(opened)}`);
       }
     } finally {
       await browser.close();

@@ -7,15 +7,9 @@ import { buildSmartScanDefaults } from "./smartScanDefaults";
 
 export const dialogOpenMock = vi.fn();
 export const dialogMessageMock = vi.fn();
-export const invokeMock = vi.fn<
-  (cmd: string, payload?: Record<string, unknown>) => Promise<unknown>
->();
-export const listenMock = vi.fn<
-  (
-    event: string,
-    handler: (event: { payload: unknown }) => void,
-  ) => Promise<() => void>
->();
+export const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
+export const listenMock =
+  vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
 
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
 let smartScanProgressHandler: ((event: { payload: unknown }) => void) | null = null;
@@ -24,8 +18,7 @@ let queueJobs: TranscodeJob[] = [];
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: (options: Record<string, unknown>) => dialogOpenMock(options),
-  message: (message: string, options?: Record<string, unknown>) =>
-    dialogMessageMock(message, options),
+  message: (message: string, options?: Record<string, unknown>) => dialogMessageMock(message, options),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -161,9 +154,7 @@ export function defaultBackendResponse(cmd: string): unknown {
   }
 }
 
-export function useBackendMock(
-  overrides: Record<string, (payload?: Record<string, unknown>) => unknown>,
-): void {
+export function useBackendMock(overrides: Record<string, (payload?: Record<string, unknown>) => unknown>): void {
   invokeMock.mockImplementation((cmd: string, payload?: Record<string, unknown>) => {
     const handler =
       overrides[cmd] ??
@@ -174,8 +165,7 @@ export function useBackendMock(
       return Promise.resolve(handler(payload));
     }
     if (cmd === "expand_manual_job_inputs") {
-      const raw =
-        (payload?.paths ?? payload?.inputPaths ?? payload?.input_paths) as unknown;
+      const raw = (payload?.paths ?? payload?.inputPaths ?? payload?.input_paths) as unknown;
       if (Array.isArray(raw)) {
         return Promise.resolve(raw.filter((p) => typeof p === "string" && p.length > 0));
       }
@@ -196,16 +186,14 @@ beforeEach(() => {
   smartScanProgressHandler = null;
   dragDropHandler = null;
 
-  listenMock.mockImplementation(
-    async (event: string, handler: (event: { payload: unknown }) => void) => {
-      if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {
-        queueStateHandler = handler;
-      } else if (event === "auto-compress://progress") {
-        smartScanProgressHandler = handler;
-      } else if (event === "tauri://drag-drop") {
-        dragDropHandler = handler as any;
-      }
-      return () => {};
-    },
-  );
+  listenMock.mockImplementation(async (event: string, handler: (event: { payload: unknown }) => void) => {
+    if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {
+      queueStateHandler = handler;
+    } else if (event === "auto-compress://progress") {
+      smartScanProgressHandler = handler;
+    } else if (event === "tauri://drag-drop") {
+      dragDropHandler = handler as any;
+    }
+    return () => {};
+  });
 });

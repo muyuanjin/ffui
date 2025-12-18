@@ -1,9 +1,15 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{
+    Mutex,
+    OnceLock,
+};
 
 use anyhow::Result;
 use nvml_wrapper::Nvml;
 use nvml_wrapper::error::NvmlError;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use sysinfo::System;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

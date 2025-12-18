@@ -1,14 +1,23 @@
-use anyhow::Result;
-
-use crate::ffui_core::domain::{
-    AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, PresetStats,
-    RateControlMode, VideoConfig,
-};
-
-use super::io::{executable_sidecar_path, read_json_file, write_json_file};
-
 #[cfg(test)]
 use std::sync::Mutex;
+
+use anyhow::Result;
+
+use super::io::{
+    executable_sidecar_path,
+    read_json_file,
+    write_json_file,
+};
+use crate::ffui_core::domain::{
+    AudioCodecType,
+    AudioConfig,
+    EncoderType,
+    FFmpegPreset,
+    FilterConfig,
+    PresetStats,
+    RateControlMode,
+    VideoConfig,
+};
 
 // Many unit tests (and some integration-style tests) touch the same
 // `{binary}.presets.json` sidecar path next to the test executable.

@@ -1,6 +1,8 @@
-use super::*;
-use crate::ffui_core::settings::{io::write_json_file, presets::default_presets};
 use std::fs;
+
+use super::*;
+use crate::ffui_core::settings::io::write_json_file;
+use crate::ffui_core::settings::presets::default_presets;
 
 #[test]
 fn load_presets_provides_defaults_when_file_missing_or_empty() {

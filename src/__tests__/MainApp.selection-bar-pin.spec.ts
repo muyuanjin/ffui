@@ -6,9 +6,7 @@ import { nextTick } from "vue";
 
 let resolveAppSettings: ((settings: any) => void) | null = null;
 
-const listenMock = vi.fn<
-  (event: string, handler: (event: any) => void) => Promise<() => void>
->();
+const listenMock = vi.fn<(event: string, handler: (event: any) => void) => Promise<() => void>>();
 
 vi.mock("@tauri-apps/api/event", () => {
   return {
@@ -42,11 +40,11 @@ vi.mock("@/lib/backend", async () => {
     hasTauri: () => true,
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
     loadAppSettings,
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
@@ -54,11 +52,9 @@ vi.mock("@/lib/backend", async () => {
     loadPresets: vi.fn(async () => []),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings,
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 
@@ -153,9 +149,7 @@ describe("MainApp queue selection toolbar pin", () => {
     await flushPromises();
 
     // UI 上应立即切换为“取消固定”。
-    expect(
-      secondary.find('button[title="Unpin toolbar"]').exists(),
-    ).toBe(true);
+    expect(secondary.find('button[title="Unpin toolbar"]').exists()).toBe(true);
 
     // 此时模拟后端设置晚到且带有 selectionBarPinned=false。
     const backendSettings: AppSettings = {
@@ -186,23 +180,16 @@ describe("MainApp queue selection toolbar pin", () => {
     await flushPromises();
     await nextTick();
 
-    const secondaryAfter = wrapper.get(
-      "[data-testid='queue-secondary-header']",
-    );
+    const secondaryAfter = wrapper.get("[data-testid='queue-secondary-header']");
 
     // 加载设置后仍应保持已固定状态，按钮为“取消固定”。
-    expect(
-      secondaryAfter.find('button[title="Unpin toolbar"]').exists(),
-    ).toBe(true);
+    expect(secondaryAfter.find('button[title="Unpin toolbar"]').exists()).toBe(true);
 
-    const appSettings =
-      (vm.settings?.appSettings?.value as AppSettings | null) ?? null;
+    const appSettings = (vm.settings?.appSettings?.value as AppSettings | null) ?? null;
     expect(appSettings?.selectionBarPinned).toBe(true);
-    expect(
-      (saveAppSettingsMock as any).mock.calls.some(
-        (call: any[]) => call?.[0]?.selectionBarPinned === true,
-      ),
-    ).toBe(true);
+    expect((saveAppSettingsMock as any).mock.calls.some((call: any[]) => call?.[0]?.selectionBarPinned === true)).toBe(
+      true,
+    );
 
     wrapper.unmount();
   });

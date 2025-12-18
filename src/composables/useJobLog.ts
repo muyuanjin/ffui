@@ -111,18 +111,12 @@ export const highlightFfmpegProgressLogLine = (line: string): string => {
         cls = "text-sky-300";
       } else if (lower.startsWith("bitrate=")) {
         cls = "text-amber-300";
-      } else if (
-        lower.startsWith("time=") ||
-        lower.startsWith("out_time=") ||
-        lower.startsWith("out_time_ms=")
-      ) {
+      } else if (lower.startsWith("time=") || lower.startsWith("out_time=") || lower.startsWith("out_time_ms=")) {
         cls = "text-lime-300";
       } else if (lower.startsWith("speed=")) {
         cls = "text-purple-300";
       } else if (lower.startsWith("progress=")) {
-        cls = lower.includes("end")
-          ? "text-emerald-400 font-semibold"
-          : "text-muted-foreground";
+        cls = lower.includes("end") ? "text-emerald-400 font-semibold" : "text-muted-foreground";
       }
 
       const escaped = escapeHtml(segment);
@@ -146,8 +140,7 @@ export const renderHighlightedLogLine = (entry: LogLineEntry): string => {
     // `command: ffmpeg ...` 日志：前缀保持原样，命令部分复用 ffmpegCommand 的高亮逻辑。
     const idx = entry.text.toLowerCase().indexOf("command:");
     const prefix = idx >= 0 ? entry.text.slice(0, idx + "command:".length) : "command:";
-    const rest =
-      idx >= 0 ? entry.text.slice(idx + "command:".length).trimStart() : entry.text;
+    const rest = idx >= 0 ? entry.text.slice(idx + "command:".length).trimStart() : entry.text;
     const highlightedCmd = highlightFfmpegCommand(rest);
     contentHtml = `${escapeHtml(prefix)} ${highlightedCmd}`;
   } else {
@@ -224,8 +217,7 @@ export const flushStructuredProgressBlock = (
 
   // If, for some reason, we failed to pick any fields, fall back to a simple
   // space-joined view of the raw lines so no diagnostic information is lost.
-  const text =
-    parts.length > 0 ? parts.join("  ") : block.rawLines.join(" ").replace(/\s+/g, " ");
+  const text = parts.length > 0 ? parts.join("  ") : block.rawLines.join(" ").replace(/\s+/g, " ");
 
   entries.push({
     text,

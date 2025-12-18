@@ -7,9 +7,7 @@ import en from "@/locales/en";
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
-  const loadPreviewDataUrl = vi.fn(
-    async (path: string) => `data:image/jpeg;base64,TEST:${path}`,
-  );
+  const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
   const ensureJobPreview = vi.fn(async () => null);
 
   return {
@@ -237,12 +235,8 @@ describe("QueueIconItem", () => {
     });
 
     (hasTauri as any).mockReturnValue(true);
-    (loadPreviewDataUrl as any).mockRejectedValueOnce(
-      new Error("preview missing"),
-    );
-    (ensureJobPreview as any).mockResolvedValueOnce(
-      "C:/app-data/previews/regenerated.jpg",
-    );
+    (loadPreviewDataUrl as any).mockRejectedValueOnce(new Error("preview missing"));
+    (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/regenerated.jpg");
 
     const wrapper = mount(QueueIconItem, {
       props: {
@@ -307,9 +301,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const cardFillContainer = cardFillWrapper.get(
-      "[data-testid='queue-icon-item-progress-card-fill']",
-    );
+    const cardFillContainer = cardFillWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const cardFillEl = cardFillContainer.element as HTMLDivElement;
     expect(cardFillEl.style.width).toBe("42%");
 
@@ -324,9 +316,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const rippleContainer = rippleWrapper.get(
-      "[data-testid='queue-icon-item-progress-ripple-card']",
-    );
+    const rippleContainer = rippleWrapper.get("[data-testid='queue-icon-item-progress-ripple-card']");
     const rippleEl = rippleContainer.element as HTMLDivElement;
     expect(rippleEl.style.width).toBe("42%");
 
@@ -347,9 +337,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const belowContainer = belowWrapper.get(
-      "[data-testid='queue-icon-item-progress-card-fill']",
-    );
+    const belowContainer = belowWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const belowEl = belowContainer.element as HTMLDivElement;
     expect(belowEl.style.width).toBe("0%");
 
@@ -370,9 +358,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const aboveContainer = aboveWrapper.get(
-      "[data-testid='queue-icon-item-progress-card-fill']",
-    );
+    const aboveContainer = aboveWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const aboveEl = aboveContainer.element as HTMLDivElement;
     expect(aboveEl.style.width).toBe("100%");
   });
@@ -395,9 +381,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const progressContainer = wrapper.get(
-      "[data-testid='queue-icon-item-progress-container']",
-    );
+    const progressContainer = wrapper.get("[data-testid='queue-icon-item-progress-container']");
     expect(progressContainer.classes()).toContain("mt-1.5");
     expect(progressContainer.classes()).not.toContain("absolute");
   });
@@ -422,9 +406,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    const container = wrapper.get(
-      "[data-testid='queue-icon-item-progress-card-fill']",
-    );
+    const container = wrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const el = container.element as HTMLDivElement;
     expect(el.style.width).toBe("100%");
   });

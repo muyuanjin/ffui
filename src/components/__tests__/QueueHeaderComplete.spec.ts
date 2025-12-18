@@ -9,10 +9,7 @@ import QueueHeaderComplete from "@/components/QueueHeaderComplete.vue";
 describe("QueueHeaderComplete SelectItem value 校验", () => {
   it("所有 SelectItem 的 value 都不是空字符串", () => {
     // 静态模板级别的防御性检查，确保不会再次引入空字符串 value 的 SelectItem
-    const source = readFileSync(
-      resolve(__dirname, "../QueueHeaderComplete.vue"),
-      "utf8",
-    );
+    const source = readFileSync(resolve(__dirname, "../QueueHeaderComplete.vue"), "utf8");
     expect(source).not.toContain('<SelectItem value="">');
 
     // 同时简单挂载一次组件，确保基本渲染路径保持可用

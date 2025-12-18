@@ -132,8 +132,7 @@ const run = async () => {
         const shouldAutoDump =
           typeof import.meta !== "undefined" &&
           typeof import.meta.env !== "undefined" &&
-          (import.meta.env.DEV ||
-            import.meta.env.VITE_AUTO_DUMP_STARTUP_METRICS === "1");
+          (import.meta.env.DEV || import.meta.env.VITE_AUTO_DUMP_STARTUP_METRICS === "1");
 
         if (shouldAutoDump) {
           window.setTimeout(() => {

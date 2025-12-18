@@ -15,7 +15,12 @@ vi.mock("@/lib/backend", () => {
     openDevtools: vi.fn(),
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
-    ensureOpenSourceFontDownloaded: vi.fn(async () => ({ id: "inter", familyName: "Inter", path: "/tmp/Inter.ttf", format: "ttf" })),
+    ensureOpenSourceFontDownloaded: vi.fn(async () => ({
+      id: "inter",
+      familyName: "Inter",
+      path: "/tmp/Inter.ttf",
+      format: "ttf",
+    })),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
@@ -228,7 +233,7 @@ describe("SettingsPanel external tool download status", () => {
     const text = wrapper.text();
     expect(text).toContain("已是最新版本");
 
-    expect(wrapper.find("[data-testid=\"tool-download-action\"]").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="tool-download-action"]').exists()).toBe(false);
 
     wrapper.unmount();
   });

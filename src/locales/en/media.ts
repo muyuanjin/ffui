@@ -5,13 +5,11 @@ const media = {
   chooseFile: "Choose media file…",
   inspecting: "Inspecting…",
   emptyTitle: "Drop or choose a video/image file",
-  emptyDescription:
-    "Only one media file is shown at a time. Dropping a new file replaces the previous one.",
+  emptyDescription: "Only one media file is shown at a time. Dropping a new file replaces the previous one.",
   typeVideo: "Video",
   typeImage: "Image",
   dropTitle: "Drop media file onto the window",
-  dropSubtitle:
-    "Release to inspect this media file only in the Media Info panel",
+  dropSubtitle: "Release to inspect this media file only in the Media Info panel",
   sections: {
     preview: "Preview",
     summary: "Summary",
@@ -35,13 +33,11 @@ const media = {
     },
     fileSize: {
       label: "File size",
-      tooltip:
-        "Actual size from the filesystem. Displayed with automatic KB/MB/GB units.",
+      tooltip: "Actual size from the filesystem. Displayed with automatic KB/MB/GB units.",
     },
     createdAt: {
       label: "Created at",
-      tooltip:
-        "Creation time of the file on this filesystem (if the platform exposes it).",
+      tooltip: "Creation time of the file on this filesystem (if the platform exposes it).",
     },
     modifiedAt: {
       label: "Modified at",
@@ -49,13 +45,11 @@ const media = {
     },
     accessedAt: {
       label: "Accessed at",
-      tooltip:
-        "Last time the file was accessed. Some platforms may not maintain this timestamp.",
+      tooltip: "Last time the file was accessed. Some platforms may not maintain this timestamp.",
     },
     duration: {
       label: "Duration",
-      tooltip:
-        "Total media duration reported by ffprobe, formatted as hours:minutes:seconds.",
+      tooltip: "Total media duration reported by ffprobe, formatted as hours:minutes:seconds.",
     },
     resolution: {
       label: "Resolution",
@@ -63,58 +57,47 @@ const media = {
     },
     frameRate: {
       label: "Frame rate",
-      tooltip:
-        "Average frames per second (FPS) reported by ffprobe for the main video stream.",
+      tooltip: "Average frames per second (FPS) reported by ffprobe for the main video stream.",
     },
     videoCodec: {
       label: "Video codec",
-      tooltip:
-        "Codec used by the primary video stream (e.g. h264, hevc, av1).",
+      tooltip: "Codec used by the primary video stream (e.g. h264, hevc, av1).",
     },
     audioCodec: {
       label: "Audio codec",
-      tooltip:
-        "Codec used by the primary audio stream (e.g. aac, opus). Empty if there is no audio.",
+      tooltip: "Codec used by the primary audio stream (e.g. aac, opus). Empty if there is no audio.",
     },
     formatName: {
       label: "Container format",
-      tooltip:
-        "Short container identifier reported by ffprobe, e.g. mov,mp4,m4a,3gp.",
+      tooltip: "Short container identifier reported by ffprobe, e.g. mov,mp4,m4a,3gp.",
     },
     formatLongName: {
       label: "Container description",
-      tooltip:
-        "Human-readable container description, e.g. QuickTime / MOV / MP4.",
+      tooltip: "Human-readable container description, e.g. QuickTime / MOV / MP4.",
     },
     bitRate: {
       label: "Overall bitrate",
-      tooltip:
-        "Average container-level bitrate in kilobits per second (kbps).",
+      tooltip: "Average container-level bitrate in kilobits per second (kbps).",
     },
     tags: {
       label: "Format tags",
-      tooltip:
-        "Metadata tags attached at the container level, such as title or artist.",
+      tooltip: "Metadata tags attached at the container level, such as title or artist.",
     },
     streamCodec: {
       label: "Stream codec",
-      tooltip:
-        "Codec name and optional long name for this individual stream (video, audio, subtitle, etc.).",
+      tooltip: "Codec name and optional long name for this individual stream (video, audio, subtitle, etc.).",
     },
     streamResolution: {
       label: "Stream resolution",
-      tooltip:
-        "Resolution of this video stream. Only available for video streams.",
+      tooltip: "Resolution of this video stream. Only available for video streams.",
     },
     streamFrameRate: {
       label: "Stream frame rate",
-      tooltip:
-        "Frame rate of this video stream. Only available when ffprobe exposes it.",
+      tooltip: "Frame rate of this video stream. Only available when ffprobe exposes it.",
     },
     streamSampleRate: {
       label: "Sample rate",
-      tooltip:
-        "Audio sample rate of this stream in hertz (Hz). Only applies to audio streams.",
+      tooltip: "Audio sample rate of this stream in hertz (Hz). Only applies to audio streams.",
     },
     streamChannels: {
       label: "Channels",
@@ -122,18 +105,15 @@ const media = {
     },
     streamLayout: {
       label: "Channel layout",
-      tooltip:
-        "Channel layout description for the audio stream, such as stereo or 5.1.",
+      tooltip: "Channel layout description for the audio stream, such as stereo or 5.1.",
     },
     streamBitRate: {
       label: "Stream bitrate",
-      tooltip:
-        "Average bitrate for this individual stream in kilobits per second (kbps).",
+      tooltip: "Average bitrate for this individual stream in kilobits per second (kbps).",
     },
     streamTags: {
       label: "Stream tags",
-      tooltip:
-        "Metadata tags attached to this specific stream, such as language or title.",
+      tooltip: "Metadata tags attached to this specific stream, such as language or title.",
     },
   },
   noStreams: "ffprobe did not report any streams for this media.",

@@ -52,4 +52,3 @@ export function useTranscodeActivityToday(): UseTranscodeActivityTodayReturn {
 
   return { activity, refresh };
 }
-

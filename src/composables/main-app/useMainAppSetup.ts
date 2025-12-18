@@ -36,16 +36,13 @@ export function useMainAppSetup() {
   // In tests, the gate starts open for deterministic behaviour.
   const startupIdleReady = ref(false);
   const isTestEnv =
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.MODE === "test";
+    typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
   if (isTestEnv || typeof window === "undefined") {
     startupIdleReady.value = true;
   } else {
     const rawTimeoutMs =
-      typeof import.meta !== "undefined" &&
-      typeof import.meta.env !== "undefined"
+      typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined"
         ? Number(import.meta.env.VITE_STARTUP_IDLE_TIMEOUT_MS)
         : NaN;
     const idleTimeoutMs = Number.isFinite(rawTimeoutMs) ? rawTimeoutMs : 1200;
@@ -163,12 +160,8 @@ export function useMainAppSetup() {
     monitor: () => t("app.monitorHint"),
     settings: () => t("app.settingsHint"),
   } as const;
-  const currentTitle = computed(
-    () => titleForTab[shell.activeTab.value]?.() ?? titleForTab.queue(),
-  );
-  const currentSubtitle = computed(
-    () => subtitleForTab[shell.activeTab.value]?.() ?? "",
-  );
+  const currentTitle = computed(() => titleForTab[shell.activeTab.value]?.() ?? titleForTab.queue());
+  const currentSubtitle = computed(() => subtitleForTab[shell.activeTab.value]?.() ?? "");
 
   // One-time smart preset onboarding: when AppSettings are loaded in a Tauri
   // environment and onboardingCompleted is false/undefined, automatically
@@ -271,9 +264,7 @@ export function useMainAppSetup() {
     { flush: "post" },
   );
   // 选择操作栏固定状态（从 AppSettings 读取）
-  const selectionBarPinned = computed(
-    () => settings.appSettings.value?.selectionBarPinned ?? false,
-  );
+  const selectionBarPinned = computed(() => settings.appSettings.value?.selectionBarPinned ?? false);
   // 更新选择操作栏固定状态
   const setSelectionBarPinned = (pinned: boolean) => {
     // 即使 appSettings 尚未加载，也允许更新（会在内存中创建临时设置）
@@ -295,13 +286,9 @@ export function useMainAppSetup() {
   // auto-download and PATH lookup) and fall back to the custom path stored in
   // AppSettings when status snapshots are not yet available.
   const ffmpegResolvedPath = computed(() => {
-    const status = settings.toolStatuses.value.find(
-      (s) => s.kind === "ffmpeg",
-    );
+    const status = settings.toolStatuses.value.find((s) => s.kind === "ffmpeg");
     if (status?.resolvedPath) return status.resolvedPath;
-    const tools = (settings.appSettings.value as any)?.tools as
-      | import("@/types").ExternalToolSettings
-      | undefined;
+    const tools = (settings.appSettings.value as any)?.tools as import("@/types").ExternalToolSettings | undefined;
     return tools?.ffmpegPath ?? null;
   });
   const queuePanelProps = createQueuePanelProps({

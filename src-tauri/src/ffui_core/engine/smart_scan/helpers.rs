@@ -1,10 +1,18 @@
 use std::sync::atomic::Ordering;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{
+    SystemTime,
+    UNIX_EPOCH,
+};
 
+use super::super::state::{
+    Inner,
+    notify_queue_listeners as notify_engine_queue_listeners,
+};
 use crate::ffui_core::settings;
-use crate::ffui_core::tools::{ExternalToolKind, last_tool_download_metadata};
-
-use super::super::state::{Inner, notify_queue_listeners as notify_engine_queue_listeners};
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    last_tool_download_metadata,
+};
 
 pub(crate) fn current_time_millis() -> u64 {
     SystemTime::now()
@@ -23,7 +31,10 @@ pub(crate) fn record_tool_download(inner: &Inner, kind: ExternalToolKind, binary
     let settings_ref = &mut state.settings;
     let tools = &mut settings_ref.tools;
 
-    use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
+    use crate::ffui_core::settings::{
+        DownloadedToolInfo,
+        DownloadedToolState,
+    };
 
     let downloaded = tools
         .downloaded

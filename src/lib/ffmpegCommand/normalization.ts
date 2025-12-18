@@ -14,8 +14,7 @@ export interface TemplateParseResult {
 /**
  * 去除字符串两端的引号（双引号或单引号）
  */
-const stripQuotes = (value: string): string =>
-  value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
+const stripQuotes = (value: string): string => value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
 
 /**
  * 检测字符串是否具有输入占位符的特征

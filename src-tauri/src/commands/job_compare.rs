@@ -4,12 +4,21 @@
 //! and are designed to support the "compare window" UI without generating any
 //! proxy videos.
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tauri::State;
 
 use crate::ffui_core::{
-    FallbackFramePosition, FallbackFrameQuality, JobStatus, JobType, TranscodeJob,
-    TranscodingEngine, extract_concat_preview_frame, extract_fallback_frame,
+    FallbackFramePosition,
+    FallbackFrameQuality,
+    JobStatus,
+    JobType,
+    TranscodeJob,
+    TranscodingEngine,
+    extract_concat_preview_frame,
+    extract_fallback_frame,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -324,9 +333,13 @@ pub fn extract_job_compare_concat_frame(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::ffui_core::{MediaInfo, WaitMetadata};
     use std::path::PathBuf;
+
+    use super::*;
+    use crate::ffui_core::{
+        MediaInfo,
+        WaitMetadata,
+    };
 
     fn sample_video_job(status: JobStatus) -> TranscodeJob {
         TranscodeJob {

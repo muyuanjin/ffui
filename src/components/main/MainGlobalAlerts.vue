@@ -75,16 +75,8 @@ const alertClass = (variant: AlertVariant) =>
         role="alert"
         aria-live="polite"
       >
-        <TriangleAlert
-          v-if="alert.variant === 'warning'"
-          class="h-4 w-4"
-          aria-hidden="true"
-        />
-        <OctagonX
-          v-else
-          class="h-4 w-4"
-          aria-hidden="true"
-        />
+        <TriangleAlert v-if="alert.variant === 'warning'" class="h-4 w-4" aria-hidden="true" />
+        <OctagonX v-else class="h-4 w-4" aria-hidden="true" />
         <div>
           <AlertTitle class="text-xs">
             {{ alert.id }}

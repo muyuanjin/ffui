@@ -1,6 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use super::resolve::{looks_like_bare_program_name, resolve_in_path_with_env};
+use super::resolve::{
+    looks_like_bare_program_name,
+    resolve_in_path_with_env,
+};
 use super::types::ExternalToolKind;
 
 #[derive(Debug, Clone)]
@@ -124,7 +130,12 @@ fn env_override_for(kind: ExternalToolKind) -> Option<String> {
 #[cfg(windows)]
 fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
     use windows::Win32::System::Registry::{
-        HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, REG_VALUE_TYPE, RegOpenKeyExW,
+        HKEY,
+        HKEY_CURRENT_USER,
+        HKEY_LOCAL_MACHINE,
+        KEY_READ,
+        REG_VALUE_TYPE,
+        RegOpenKeyExW,
         RegQueryValueExW,
     };
     use windows::core::PCWSTR;

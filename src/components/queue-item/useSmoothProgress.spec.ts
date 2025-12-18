@@ -25,17 +25,18 @@ vi.mock("gsap", () => {
   };
 });
 
-const makeJob = (overrides: Partial<TranscodeJob> = {}): TranscodeJob => ({
-  id: "job-1",
-  status: "processing",
-  progress: 0,
-  type: "video",
-  source: "manual",
-  filename: "foo.mp4",
-  createdAtMs: Date.now(),
-  updatedAtMs: Date.now(),
-  ...overrides,
-} as TranscodeJob);
+const makeJob = (overrides: Partial<TranscodeJob> = {}): TranscodeJob =>
+  ({
+    id: "job-1",
+    status: "processing",
+    progress: 0,
+    type: "video",
+    source: "manual",
+    filename: "foo.mp4",
+    createdAtMs: Date.now(),
+    updatedAtMs: Date.now(),
+    ...overrides,
+  }) as TranscodeJob;
 
 const mountComposable = (job: Ref<TranscodeJob>) => {
   const wrapper = mount({

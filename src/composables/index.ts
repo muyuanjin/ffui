@@ -2,12 +2,7 @@
 // Usage: import { useJobLog, useQueueFiltering, ... } from '@/composables'
 
 export { useJobLog } from "./useJobLog";
-export type {
-  LogLineKind,
-  LogLineEntry,
-  UseJobLogOptions,
-  UseJobLogReturn,
-} from "./useJobLog";
+export type { LogLineKind, LogLineEntry, UseJobLogOptions, UseJobLogReturn } from "./useJobLog";
 
 export { useQueueFiltering } from "./useQueueFiltering";
 export type {
@@ -21,16 +16,10 @@ export type {
 } from "./queue/useQueueFiltering.types";
 
 export { useJobProgress } from "./useJobProgress";
-export type {
-  UseJobProgressOptions,
-  UseJobProgressReturn,
-} from "./useJobProgress";
+export type { UseJobProgressOptions, UseJobProgressReturn } from "./useJobProgress";
 
 export { useQueueOperations } from "./useQueueOperations";
-export type {
-  UseQueueOperationsOptions,
-  UseQueueOperationsReturn,
-} from "./useQueueOperations";
+export type { UseQueueOperationsOptions, UseQueueOperationsReturn } from "./useQueueOperations";
 
 export { useSmartScan } from "./useSmartScan";
 export type {
@@ -41,22 +30,13 @@ export type {
 } from "./useSmartScan";
 
 export { usePresetManagement } from "./usePresetManagement";
-export type {
-  UsePresetManagementOptions,
-  UsePresetManagementReturn,
-} from "./usePresetManagement";
+export type { UsePresetManagementOptions, UsePresetManagementReturn } from "./usePresetManagement";
 
 export { useFileInput } from "./useFileInput";
-export type {
-  UseFileInputOptions,
-  UseFileInputReturn,
-} from "./useFileInput";
+export type { UseFileInputOptions, UseFileInputReturn } from "./useFileInput";
 
 export { useAppSettings } from "./useAppSettings";
-export type {
-  UseAppSettingsOptions,
-  UseAppSettingsReturn,
-} from "./useAppSettings";
+export type { UseAppSettingsOptions, UseAppSettingsReturn } from "./useAppSettings";
 
 export { useWindowControls } from "./useWindowControls";
 
@@ -80,11 +60,7 @@ export type {
 } from "./useSystemMetrics";
 
 export { usePresetEditor } from "./usePresetEditor";
-export type {
-  PresetEditorState,
-  UsePresetEditorOptions,
-  UsePresetEditorReturn,
-} from "./usePresetEditor";
+export type { PresetEditorState, UsePresetEditorOptions, UsePresetEditorReturn } from "./usePresetEditor";
 
 // Re-export commonly used helper functions
 export {
@@ -97,13 +73,6 @@ export {
   parseAndHighlightLog,
 } from "./useJobLog";
 
-export {
-  comparePrimitive,
-  getJobSortValue,
-  compareJobsByField,
-} from "./queue/filtering-utils";
+export { comparePrimitive, getJobSortValue, compareJobsByField } from "./queue/filtering-utils";
 
-export {
-  normalizedJobProgressForAggregate,
-  taskbarJobWeightForAggregate,
-} from "./useJobProgress";
+export { normalizedJobProgressForAggregate, taskbarJobWeightForAggregate } from "./useJobProgress";

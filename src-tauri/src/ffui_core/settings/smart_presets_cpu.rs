@@ -1,6 +1,12 @@
 use crate::ffui_core::domain::{
-    AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, PresetStats,
-    RateControlMode, VideoConfig,
+    AudioCodecType,
+    AudioConfig,
+    EncoderType,
+    FFmpegPreset,
+    FilterConfig,
+    PresetStats,
+    RateControlMode,
+    VideoConfig,
 };
 
 fn empty_stats() -> PresetStats {
@@ -17,9 +23,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
         FFmpegPreset {
             id: "smart-hevc-fast".to_string(),
             name: "H.264 Fast".to_string(),
-            description:
-                "x264 CRF 23 preset medium keeping source resolution for fast, broadly compatible output."
-                    .to_string(),
+            description: "x264 CRF 23 preset medium keeping source resolution for fast, broadly compatible output.".to_string(),
             description_i18n: None,
             global: None,
             input: None,
@@ -55,14 +59,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 loudness_range: None,
                 true_peak_db: None,
             },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
+            filters: FilterConfig { scale: None, crop: None, fps: None, vf_chain: None, af_chain: None, filter_complex: None },
             subtitles: None,
             container: None,
             hardware: None,
@@ -110,14 +107,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 loudness_range: None,
                 true_peak_db: None,
             },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
+            filters: FilterConfig { scale: None, crop: None, fps: None, vf_chain: None, af_chain: None, filter_complex: None },
             subtitles: None,
             container: None,
             hardware: None,
@@ -129,9 +119,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
         FFmpegPreset {
             id: "smart-av1-fast".to_string(),
             name: "AV1 Fast (SVT)".to_string(),
-            description:
-                "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression."
-                    .to_string(),
+            description: "libsvtav1 CRF 34 preset 6, 10-bit output keeping source resolution for high-efficiency fast compression.".to_string(),
             description_i18n: None,
             global: None,
             input: None,
@@ -167,14 +155,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 loudness_range: None,
                 true_peak_db: None,
             },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
+            filters: FilterConfig { scale: None, crop: None, fps: None, vf_chain: None, af_chain: None, filter_complex: None },
             subtitles: None,
             container: None,
             hardware: None,
@@ -186,9 +167,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
         FFmpegPreset {
             id: "smart-av1-archive".to_string(),
             name: "AV1 Archival (SVT)".to_string(),
-            description:
-                "libsvtav1 CRF 24 preset 6, 10-bit output tuned for visually lossless archival."
-                    .to_string(),
+            description: "libsvtav1 CRF 24 preset 6, 10-bit output tuned for visually lossless archival.".to_string(),
             description_i18n: None,
             global: None,
             input: None,
@@ -224,14 +203,7 @@ pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {
                 loudness_range: None,
                 true_peak_db: None,
             },
-            filters: FilterConfig {
-                scale: None,
-                crop: None,
-                fps: None,
-                vf_chain: None,
-                af_chain: None,
-                filter_complex: None,
-            },
+            filters: FilterConfig { scale: None, crop: None, fps: None, vf_chain: None, af_chain: None, filter_complex: None },
             subtitles: None,
             container: None,
             hardware: None,

@@ -13,20 +13,13 @@ interface UseSmoothProgressOptions {
 export function useSmoothProgress(options: UseSmoothProgressOptions) {
   const isSkipped = computed(() => options.job.value.status === "skipped");
 
-  const effectiveProgressStyle = computed<QueueProgressStyle>(
-    () => options.progressStyle.value ?? "bar",
-  );
+  const effectiveProgressStyle = computed<QueueProgressStyle>(() => options.progressStyle.value ?? "bar");
 
   const clampedProgress = computed(() => {
     const status = options.job.value.status;
     const progress = options.job.value.progress;
 
-    if (
-      status === "completed" ||
-      status === "failed" ||
-      status === "skipped" ||
-      status === "cancelled"
-    ) {
+    if (status === "completed" || status === "failed" || status === "skipped" || status === "cancelled") {
       return 100;
     }
 
@@ -39,9 +32,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   });
 
   const displayedProgress = ref(clampedProgress.value);
-  const displayedClampedProgress = computed(() =>
-    Math.max(0, Math.min(100, displayedProgress.value)),
-  );
+  const displayedClampedProgress = computed(() => Math.max(0, Math.min(100, displayedProgress.value)));
 
   const effectiveProgressIntervalMs = computed(() => {
     const raw = options.progressUpdateIntervalMs?.value;
@@ -145,12 +136,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
         return;
       }
 
-      if (
-        status === "completed" ||
-        status === "failed" ||
-        status === "cancelled" ||
-        status === "skipped"
-      ) {
+      if (status === "completed" || status === "failed" || status === "cancelled" || status === "skipped") {
         cancelProgressAnimation();
         displayedProgress.value = clampedProgress.value;
         return;
@@ -167,24 +153,15 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   );
 
   const showBarProgress = computed(
-    () =>
-      !isSkipped.value &&
-      options.job.value.status !== "waiting" &&
-      effectiveProgressStyle.value === "bar",
+    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "bar",
   );
 
   const showCardFillProgress = computed(
-    () =>
-      !isSkipped.value &&
-      options.job.value.status !== "waiting" &&
-      effectiveProgressStyle.value === "card-fill",
+    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "card-fill",
   );
 
   const showRippleCardProgress = computed(
-    () =>
-      !isSkipped.value &&
-      options.job.value.status !== "waiting" &&
-      effectiveProgressStyle.value === "ripple-card",
+    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "ripple-card",
   );
 
   onUnmounted(() => {

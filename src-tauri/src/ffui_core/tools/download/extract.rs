@@ -2,7 +2,11 @@ use std::fs;
 use std::io::Cursor;
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{
+    Context,
+    Result,
+    anyhow,
+};
 
 pub(crate) fn extract_avifenc_from_zip(data: &[u8], dest: &Path) -> Result<()> {
     let reader = Cursor::new(data);

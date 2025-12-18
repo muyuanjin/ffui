@@ -106,10 +106,8 @@ const handleContextMenuCompare = () => {
 // 子任务操作按钮的可用性判断
 const canWaitJob = (job: TranscodeJob) => job.status === "processing";
 const canResumeJob = (job: TranscodeJob) => job.status === "paused";
-const canRestartJob = (job: TranscodeJob) =>
-  job.status !== "completed" && job.status !== "skipped";
-const canCancelJob = (job: TranscodeJob) =>
-  ["waiting", "queued", "processing", "paused"].includes(job.status);
+const canRestartJob = (job: TranscodeJob) => job.status !== "completed" && job.status !== "skipped";
+const canCancelJob = (job: TranscodeJob) => ["waiting", "queued", "processing", "paused"].includes(job.status);
 
 const formatBytes = (mb: number | null | undefined): string => {
   if (mb == null || mb <= 0) return "-";
@@ -249,11 +247,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         </DialogDescription>
       </DialogHeader>
 
-      <div
-        v-if="batch"
-        class="flex flex-col gap-4 flex-1 min-h-0"
-        data-testid="batch-detail-body"
-      >
+      <div v-if="batch" class="flex flex-col gap-4 flex-1 min-h-0" data-testid="batch-detail-body">
         <!-- 9宫格预览图 -->
         <div class="flex-shrink-0">
           <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden bg-muted/40 max-h-36">
@@ -269,10 +263,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
                 alt=""
                 class="h-full w-full object-cover"
               />
-              <div
-                v-else
-                class="h-full w-full bg-muted/60 flex items-center justify-center"
-              >
+              <div v-else class="h-full w-full bg-muted/60 flex items-center justify-center">
                 <span v-if="slot.job" class="text-[10px] text-muted-foreground truncate px-1">
                   {{ slot.job.filename?.split(/[/\\]/).pop() }}
                 </span>
@@ -284,7 +275,8 @@ const onPreviewClick = (job: TranscodeJob | null) => {
                 :class="{
                   'bg-emerald-500': slot.job.status === 'completed',
                   'bg-blue-500 animate-pulse': slot.job.status === 'processing',
-                  'bg-amber-500': slot.job.status === 'waiting' || slot.job.status === 'queued' || slot.job.status === 'paused',
+                  'bg-amber-500':
+                    slot.job.status === 'waiting' || slot.job.status === 'queued' || slot.job.status === 'paused',
                   'bg-red-500': slot.job.status === 'failed',
                   'bg-muted-foreground': slot.job.status === 'skipped' || slot.job.status === 'cancelled',
                 }"
@@ -310,11 +302,15 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.processing") }}</span>
-            <span class="text-lg font-semibold text-blue-400">{{ batch.jobs.filter((j) => j.status === "processing").length }}</span>
+            <span class="text-lg font-semibold text-blue-400">{{
+              batch.jobs.filter((j) => j.status === "processing").length
+            }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.waiting") }}</span>
-            <span class="text-lg font-semibold text-yellow-400">{{ batch.jobs.filter((j) => j.status === "waiting" || j.status === "queued").length }}</span>
+            <span class="text-lg font-semibold text-yellow-400">{{
+              batch.jobs.filter((j) => j.status === "waiting" || j.status === "queued").length
+            }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.failed") }}</span>
@@ -335,7 +331,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         <!-- Job list header -->
         <div class="flex items-center justify-between text-xs text-muted-foreground flex-shrink-0">
           <span class="font-medium">{{ t("app.tabs.queue") }}</span>
-          <span>{{ batch.jobs.filter((j) => j.status !== 'skipped').length }} {{ t("smartScan.subtitle") }}</span>
+          <span>{{ batch.jobs.filter((j) => j.status !== "skipped").length }} {{ t("smartScan.subtitle") }}</span>
         </div>
 
         <!-- Job list - 依赖整个对话框的垂直滚动，不再单独嵌套一层 ScrollArea，避免只有内层列表可以滚动的体验问题。 -->
@@ -380,13 +376,13 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         :has-selection="false"
         :can-reveal-input-path="!!contextMenuJob?.inputPath"
         :can-reveal-output-path="!!contextMenuJob?.outputPath"
-	        @close="closeContextMenu"
-	        @inspect="handleContextMenuInspect"
-	        @compare="handleContextMenuCompare"
-	        @wait="handleContextMenuWait"
-	        @resume="handleContextMenuResume"
-	        @restart="handleContextMenuRestart"
-	        @cancel="handleContextMenuCancel"
+        @close="closeContextMenu"
+        @inspect="handleContextMenuInspect"
+        @compare="handleContextMenuCompare"
+        @wait="handleContextMenuWait"
+        @resume="handleContextMenuResume"
+        @restart="handleContextMenuRestart"
+        @cancel="handleContextMenuCancel"
       />
     </DialogContent>
   </Dialog>

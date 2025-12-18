@@ -1,7 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
+
+use tauri::Manager;
 
 use super::ui_fonts_types::DownloadedFontInfo;
-use tauri::Manager;
 
 const IMPORTED_FONT_ID: &str = "imported";
 const IMPORTED_FONT_FAMILY: &str = "FFUI Imported";

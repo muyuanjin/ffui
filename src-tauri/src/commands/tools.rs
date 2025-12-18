@@ -8,14 +8,29 @@
 
 use std::path::PathBuf;
 
-use tauri::{AppHandle, State, WebviewWindow};
-
-use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
-use crate::ffui_core::{
-    CpuUsageSnapshot, ExternalToolCandidate, ExternalToolStatus, GpuUsageSnapshot,
-    TranscodeActivityToday, TranscodingEngine,
+use tauri::{
+    AppHandle,
+    State,
+    WebviewWindow,
 };
-use crate::system_metrics::{MetricsSnapshot, MetricsState};
+
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    force_download_tool_binary,
+    verify_tool_binary,
+};
+use crate::ffui_core::{
+    CpuUsageSnapshot,
+    ExternalToolCandidate,
+    ExternalToolStatus,
+    GpuUsageSnapshot,
+    TranscodeActivityToday,
+    TranscodingEngine,
+};
+use crate::system_metrics::{
+    MetricsSnapshot,
+    MetricsState,
+};
 
 pub(crate) mod fallback_preview;
 pub(crate) mod playable_media;
@@ -108,9 +123,7 @@ pub fn download_external_tool_now(
                         if verify_tool_binary(path_str, kind, "download") {
                             engine_clone.record_manual_tool_download(kind, path_str);
                         } else {
-                            eprintln!(
-                                "forced download for {kind:?} produced a binary that failed verification at {path_str}"
-                            );
+                            eprintln!("forced download for {kind:?} produced a binary that failed verification at {path_str}");
                         }
                     }
                 }
@@ -222,7 +235,8 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
 
     let bytes = fs::read(&canonical).map_err(|e| e.to_string())?;
 
-    use base64::{Engine as _, engine::general_purpose};
+    use base64::Engine as _;
+    use base64::engine::general_purpose;
     let encoded = general_purpose::STANDARD.encode(&bytes);
 
     Ok(format!("data:{mime};base64,{encoded}"))
@@ -269,7 +283,10 @@ mod tests {
     #[test]
     fn get_preview_data_url_rejects_paths_outside_preview_root() {
         use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{
+            SystemTime,
+            UNIX_EPOCH,
+        };
 
         let tmp_dir = std::env::temp_dir();
         let timestamp = SystemTime::now()

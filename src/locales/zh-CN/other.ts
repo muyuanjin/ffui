@@ -40,8 +40,7 @@ const other = {
   smartScan: {
     title: "批量压缩转码",
     subtitle: "递归扫描并压缩媒体文件",
-    notice:
-      "满足特定条件（已是高效编码、小文件或压缩收益太低）的文件会被自动跳过。",
+    notice: "满足特定条件（已是高效编码、小文件或压缩收益太低）的文件会被自动跳过。",
     rootPath: "扫描路径",
     rootPathPlaceholder: "输入或粘贴文件夹路径，或点击浏览选择",
     browse: "浏览…",
@@ -49,10 +48,8 @@ const other = {
     replaceOriginal: "替换原文件",
     replaceOriginalHint: "不勾选则保留原文件，相当于批量转码",
     keepOriginalsBatchTranscode: "输出为新文件",
-    keepOriginalsBatchTranscodeHint:
-      "选择该模式会保留原文件；输出目录与文件名将按“输出设置”中的规则生成。",
-    replaceOriginalOutputPolicyHint:
-      "替换原文件：输出目录与文件名将强制与输入一致；容器与文件时间保留仍会生效。",
+    keepOriginalsBatchTranscodeHint: "选择该模式会保留原文件；输出目录与文件名将按“输出设置”中的规则生成。",
+    replaceOriginalOutputPolicyHint: "替换原文件：输出目录与文件名将强制与输入一致；容器与文件时间保留仍会生效。",
     videoStrategy: "视频",
     targetPreset: "转码预设",
     targetPresetPlaceholder: "选择预设",
@@ -72,11 +69,9 @@ const other = {
     savingByRatio: "按压缩率",
     savingByAbsolute: "按节省空间",
     minSavingRatioLabel: "最低压缩率",
-    minSavingRatioHelp:
-      "如果压缩后文件大于原始体积的 {ratio}%，结果会被丢弃（不划算）。",
+    minSavingRatioHelp: "如果压缩后文件大于原始体积的 {ratio}%，结果会被丢弃（不划算）。",
     minSavingAbsoluteLabel: "最低节省空间",
-    minSavingAbsoluteHelp:
-      "如果压缩后节省的空间小于 {size} MB，结果会被丢弃（不划算）。",
+    minSavingAbsoluteHelp: "如果压缩后节省的空间小于 {size} MB，结果会被丢弃（不划算）。",
     scanButton: "扫描并压缩",
   },
   outputPolicy: {
@@ -121,11 +116,9 @@ const other = {
       output: "预期输出",
       pick: "选择",
       loading: "更新中…",
-      lockHint:
-        "当前启用了“替换原文件”，Smart Scan 会强制输出目录与文件名；此处预览已按该规则计算。",
+      lockHint: "当前启用了“替换原文件”，Smart Scan 会强制输出目录与文件名；此处预览已按该规则计算。",
     },
-    smartScanLockHint:
-      "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器与文件时间保留仍会生效。",
+    smartScanLockHint: "启用“替换原文件”时，输出目录与文件名将以原文件为准；容器与文件时间保留仍会生效。",
   },
   taskDetail: {
     title: "任务详情",
@@ -207,7 +200,8 @@ const other = {
       tmpOutput: "临时输出",
       unknown: "所选文件",
     },
-    previewDescriptionAuto: "自动预览当前任务（优先选择可用文件）。当前：{source}；如无法播放，可切换来源或用系统播放器打开。",
+    previewDescriptionAuto:
+      "自动预览当前任务（优先选择可用文件）。当前：{source}；如无法播放，可切换来源或用系统播放器打开。",
     previewDescriptionWithSource: "预览当前任务的{source}文件；如无法播放，可以尝试使用系统播放器打开对应文件。",
     previewVideoError: "无法直接播放视频（WebView2 可能不支持该格式）。可用帧预览，或用系统播放器打开。",
     previewImageError: "无法加载图片预览，文件可能正在被占用或已损坏；可以尝试使用系统图片查看器打开。",
@@ -248,8 +242,7 @@ const other = {
   },
   previewFallback: {
     title: "原生播放失败",
-    nativePlaybackFailed:
-      "WebView2 可能不支持该格式。可用帧预览，或用系统播放器打开。",
+    nativePlaybackFailed: "WebView2 可能不支持该格式。可用帧预览，或用系统播放器打开。",
     hint: "拖动时会优先请求更快的低清帧；松手后会加载更清晰的帧。",
     loadingFrame: "正在加载预览帧…",
     noFrame: "暂无预览帧",
@@ -321,8 +314,7 @@ const other = {
   },
   monitor: {
     emptyTitle: "正在等待系统性能数据...",
-    emptyDescription:
-      "在 Tauri 环境中打开应用并保持「性能」视图可见即可开始采样；浏览器模式下会使用模拟数据。",
+    emptyDescription: "在 Tauri 环境中打开应用并保持「性能」视图可见即可开始采样；浏览器模式下会使用模拟数据。",
     cpuOverall: "CPU 总体",
     cpuPerCore: "CPU 按核心",
     cpuPerCoreSuffix: "(前 {count} 个核心)",

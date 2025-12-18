@@ -43,8 +43,7 @@ const updateDirectory = (mode: OutputPolicy["directory"]["mode"], directory?: st
 
 const updateContainerMode = (mode: OutputPolicy["container"]["mode"]) => {
   if (mode === "force") {
-    const current =
-      policy.value.container.mode === "force" ? policy.value.container.format : "mkv";
+    const current = policy.value.container.mode === "force" ? policy.value.container.format : "mkv";
     updatePolicy({ container: { mode: "force", format: current } });
     return;
   }
@@ -153,8 +152,7 @@ const effectivePolicyForPreview = computed<OutputPolicy>(() => {
   };
 });
 
-const computeLocalPreview = () =>
-  previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value);
+const computeLocalPreview = () => previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value);
 
 const refreshPreview = () => {
   if (previewTimer) window.clearTimeout(previewTimer);
@@ -183,11 +181,10 @@ const refreshPreview = () => {
   }, 250);
 };
 
-watch(
-  () => [previewInputPath.value, props.previewPresetId, effectivePolicyForPreview.value],
-  refreshPreview,
-  { immediate: true, deep: true },
-);
+watch(() => [previewInputPath.value, props.previewPresetId, effectivePolicyForPreview.value], refreshPreview, {
+  immediate: true,
+  deep: true,
+});
 
 onBeforeUnmount(() => {
   if (previewTimer) window.clearTimeout(previewTimer);
@@ -354,24 +351,15 @@ const pickPreviewFile = async () => {
       <Label class="text-xs">{{ t("outputPolicy.preserveTimes") }}</Label>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
         <div class="flex items-center gap-2">
-          <Checkbox
-            :checked="preserveTimes.created"
-            @update:checked="(v) => updatePreserveTimes({ created: !!v })"
-          />
+          <Checkbox :checked="preserveTimes.created" @update:checked="(v) => updatePreserveTimes({ created: !!v })" />
           <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesCreated") }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <Checkbox
-            :checked="preserveTimes.modified"
-            @update:checked="(v) => updatePreserveTimes({ modified: !!v })"
-          />
+          <Checkbox :checked="preserveTimes.modified" @update:checked="(v) => updatePreserveTimes({ modified: !!v })" />
           <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesModified") }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <Checkbox
-            :checked="preserveTimes.accessed"
-            @update:checked="(v) => updatePreserveTimes({ accessed: !!v })"
-          />
+          <Checkbox :checked="preserveTimes.accessed" @update:checked="(v) => updatePreserveTimes({ accessed: !!v })" />
           <span class="text-xs text-foreground">{{ t("outputPolicy.preserveTimesAccessed") }}</span>
         </div>
       </div>

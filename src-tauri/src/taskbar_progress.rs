@@ -1,5 +1,9 @@
 use crate::ffui_core::{
-    JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope, TranscodeJob,
+    JobStatus,
+    QueueState,
+    TaskbarProgressMode,
+    TaskbarProgressScope,
+    TranscodeJob,
 };
 
 mod lite;
@@ -144,7 +148,10 @@ pub fn acknowledge_taskbar_completion(
     scope: TaskbarProgressScope,
 ) {
     use tauri::Manager;
-    use tauri::window::{ProgressBarState, ProgressBarStatus};
+    use tauri::window::{
+        ProgressBarState,
+        ProgressBarStatus,
+    };
 
     // Only clear when the logical taskbar progress is a completed bar.
     if let Some(progress) = compute_taskbar_progress(state, mode, scope) {
@@ -172,7 +179,11 @@ pub fn acknowledge_taskbar_completion(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffui_core::{JobSource, JobType, TranscodeJob};
+    use crate::ffui_core::{
+        JobSource,
+        JobType,
+        TranscodeJob,
+    };
 
     fn make_job(id: &str, status: JobStatus, progress: f64) -> TranscodeJob {
         TranscodeJob {

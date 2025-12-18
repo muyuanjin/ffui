@@ -91,9 +91,7 @@ const parseFrameRate = (token: unknown): number | undefined => {
 
 const normalizeTags = (raw: unknown): Record<string, string> | undefined => {
   if (!raw || typeof raw !== "object") return undefined;
-  const entries = Object.entries(raw as Record<string, unknown>).filter(
-    ([, v]) => typeof v === "string" && v !== "",
-  );
+  const entries = Object.entries(raw as Record<string, unknown>).filter(([, v]) => typeof v === "string" && v !== "");
   if (entries.length === 0) return undefined;
   return Object.fromEntries(entries) as Record<string, string>;
 };
@@ -126,61 +124,31 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
           const duration = parseNumber(formatRaw.duration);
 
           return {
-            formatName:
-              typeof formatRaw.format_name === "string"
-                ? formatRaw.format_name
-                : undefined,
-            formatLongName:
-              typeof formatRaw.format_long_name === "string"
-                ? formatRaw.format_long_name
-                : undefined,
+            formatName: typeof formatRaw.format_name === "string" ? formatRaw.format_name : undefined,
+            formatLongName: typeof formatRaw.format_long_name === "string" ? formatRaw.format_long_name : undefined,
             durationSeconds: duration,
-            sizeMB:
-              typeof sizeBytes === "number"
-                ? sizeBytes / (1024 * 1024)
-                : undefined,
-            bitRateKbps:
-              typeof bitRate === "number" ? bitRate / 1000 : undefined,
+            sizeMB: typeof sizeBytes === "number" ? sizeBytes / (1024 * 1024) : undefined,
+            bitRateKbps: typeof bitRate === "number" ? bitRate / 1000 : undefined,
             tags: normalizeTags(formatRaw.tags),
           };
         })()
       : null;
 
-  const videoStreamRaw =
-    streamsRaw.find((s) => s && s.codec_type === "video") ?? null;
-  const audioStreamRaw =
-    streamsRaw.find((s) => s && s.codec_type === "audio") ?? null;
+  const videoStreamRaw = streamsRaw.find((s) => s && s.codec_type === "video") ?? null;
+  const audioStreamRaw = streamsRaw.find((s) => s && s.codec_type === "audio") ?? null;
 
-  const durationSeconds =
-    parseNumber(formatRaw?.duration) ??
-    parseNumber(videoStreamRaw?.duration) ??
-    undefined;
+  const durationSeconds = parseNumber(formatRaw?.duration) ?? parseNumber(videoStreamRaw?.duration) ?? undefined;
 
   const sizeBytes = parseInteger(formatRaw?.size);
-  const sizeMB =
-    typeof sizeBytes === "number" ? sizeBytes / (1024 * 1024) : undefined;
+  const sizeMB = typeof sizeBytes === "number" ? sizeBytes / (1024 * 1024) : undefined;
 
-  const width =
-    typeof videoStreamRaw?.width === "number"
-      ? (videoStreamRaw.width as number)
-      : undefined;
-  const height =
-    typeof videoStreamRaw?.height === "number"
-      ? (videoStreamRaw.height as number)
-      : undefined;
+  const width = typeof videoStreamRaw?.width === "number" ? (videoStreamRaw.width as number) : undefined;
+  const height = typeof videoStreamRaw?.height === "number" ? (videoStreamRaw.height as number) : undefined;
 
-  const frameRate =
-    parseFrameRate(videoStreamRaw?.avg_frame_rate) ??
-    parseFrameRate(videoStreamRaw?.r_frame_rate);
+  const frameRate = parseFrameRate(videoStreamRaw?.avg_frame_rate) ?? parseFrameRate(videoStreamRaw?.r_frame_rate);
 
-  const videoCodec =
-    typeof videoStreamRaw?.codec_name === "string"
-      ? (videoStreamRaw.codec_name as string)
-      : undefined;
-  const audioCodec =
-    typeof audioStreamRaw?.codec_name === "string"
-      ? (audioStreamRaw.codec_name as string)
-      : undefined;
+  const videoCodec = typeof videoStreamRaw?.codec_name === "string" ? (videoStreamRaw.codec_name as string) : undefined;
+  const audioCodec = typeof audioStreamRaw?.codec_name === "string" ? (audioStreamRaw.codec_name as string) : undefined;
 
   const summary: MediaInfo = {
     durationSeconds: durationSeconds ?? undefined,
@@ -195,34 +163,16 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
   const streams: MediaStreamSummary[] = streamsRaw.map((s) => {
     if (!s || typeof s !== "object") return {};
 
-    const index =
-      typeof s.index === "number" && Number.isFinite(s.index)
-        ? (s.index as number)
-        : undefined;
-    const codecType =
-      typeof s.codec_type === "string" ? (s.codec_type as string) : undefined;
-    const codecName =
-      typeof s.codec_name === "string" ? (s.codec_name as string) : undefined;
-    const codecLongName =
-      typeof s.codec_long_name === "string"
-        ? (s.codec_long_name as string)
-        : undefined;
-    const widthVal =
-      typeof s.width === "number" && Number.isFinite(s.width)
-        ? (s.width as number)
-        : undefined;
-    const heightVal =
-      typeof s.height === "number" && Number.isFinite(s.height)
-        ? (s.height as number)
-        : undefined;
-    const frameRateVal =
-      parseFrameRate(s.avg_frame_rate) ?? parseFrameRate(s.r_frame_rate);
+    const index = typeof s.index === "number" && Number.isFinite(s.index) ? (s.index as number) : undefined;
+    const codecType = typeof s.codec_type === "string" ? (s.codec_type as string) : undefined;
+    const codecName = typeof s.codec_name === "string" ? (s.codec_name as string) : undefined;
+    const codecLongName = typeof s.codec_long_name === "string" ? (s.codec_long_name as string) : undefined;
+    const widthVal = typeof s.width === "number" && Number.isFinite(s.width) ? (s.width as number) : undefined;
+    const heightVal = typeof s.height === "number" && Number.isFinite(s.height) ? (s.height as number) : undefined;
+    const frameRateVal = parseFrameRate(s.avg_frame_rate) ?? parseFrameRate(s.r_frame_rate);
     const sampleRateHz = parseInteger(s.sample_rate);
     const channels = parseInteger(s.channels);
-    const channelLayout =
-      typeof s.channel_layout === "string"
-        ? (s.channel_layout as string)
-        : undefined;
+    const channelLayout = typeof s.channel_layout === "string" ? (s.channel_layout as string) : undefined;
     const bitRate = parseInteger(s.bit_rate);
 
     return {
@@ -236,30 +186,17 @@ export const parseFfprobeJson = (output: string): ParsedMediaAnalysis => {
       sampleRateHz,
       channels,
       channelLayout,
-      bitRateKbps:
-        typeof bitRate === "number" ? bitRate / 1000 : undefined,
+      bitRateKbps: typeof bitRate === "number" ? bitRate / 1000 : undefined,
       tags: normalizeTags(s.tags),
     };
   });
   const file: MediaFileInfo | null =
     fileRaw && typeof fileRaw === "object"
       ? {
-          path:
-            typeof fileRaw.path === "string" && fileRaw.path !== ""
-              ? (fileRaw.path as string)
-              : undefined,
-          exists:
-            typeof fileRaw.exists === "boolean"
-              ? (fileRaw.exists as boolean)
-              : undefined,
-          isFile:
-            typeof fileRaw.isFile === "boolean"
-              ? (fileRaw.isFile as boolean)
-              : undefined,
-          isDir:
-            typeof fileRaw.isDir === "boolean"
-              ? (fileRaw.isDir as boolean)
-              : undefined,
+          path: typeof fileRaw.path === "string" && fileRaw.path !== "" ? (fileRaw.path as string) : undefined,
+          exists: typeof fileRaw.exists === "boolean" ? (fileRaw.exists as boolean) : undefined,
+          isFile: typeof fileRaw.isFile === "boolean" ? (fileRaw.isFile as boolean) : undefined,
+          isDir: typeof fileRaw.isDir === "boolean" ? (fileRaw.isDir as boolean) : undefined,
           sizeBytes: parseInteger(fileRaw.sizeBytes),
           createdMs: parseInteger(fileRaw.createdMs),
           modifiedMs: parseInteger(fileRaw.modifiedMs),

@@ -1,9 +1,18 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, RwLock};
+use std::sync::atomic::{
+    AtomicBool,
+    Ordering,
+};
+use std::sync::{
+    Mutex,
+    RwLock,
+};
 
 use once_cell::sync::Lazy;
 
-use crate::ffui_core::settings::{NetworkProxyMode, NetworkProxySettings};
+use crate::ffui_core::settings::{
+    NetworkProxyMode,
+    NetworkProxySettings,
+};
 
 #[derive(Debug, Clone)]
 struct NetworkProxyConfig {
@@ -211,9 +220,16 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
 fn proxy_from_windows_inet_settings() -> Option<String> {
     use windows::Win32::Foundation::ERROR_SUCCESS;
     use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ, RegGetValueW,
+        HKEY_CURRENT_USER,
+        RRF_RT_REG_DWORD,
+        RRF_RT_REG_EXPAND_SZ,
+        RRF_RT_REG_SZ,
+        RegGetValueW,
     };
-    use windows::core::{HSTRING, PCWSTR};
+    use windows::core::{
+        HSTRING,
+        PCWSTR,
+    };
 
     const SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
 
@@ -366,9 +382,13 @@ pub(crate) fn install_test_platform_proxy_hook(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Mutex;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{
+        AtomicUsize,
+        Ordering,
+    };
+
+    use super::*;
 
     static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 

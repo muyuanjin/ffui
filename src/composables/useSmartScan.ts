@@ -1,12 +1,5 @@
 import { computed, ref, type Ref, type ComputedRef } from "vue";
-import type {
-  TranscodeJob,
-  SmartScanConfig,
-  CompositeSmartScanTask,
-  JobStatus,
-  JobType,
-  FFmpegPreset,
-} from "@/types";
+import type { TranscodeJob, SmartScanConfig, CompositeSmartScanTask, JobStatus, JobType, FFmpegPreset } from "@/types";
 import { DEFAULT_SMART_SCAN_CONFIG, EXTENSIONS } from "@/constants";
 import { hasTauri, runAutoCompress } from "@/lib/backend";
 
@@ -107,18 +100,9 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
 
     const next: SmartScanBatchMeta = {
       rootPath: snapshot.rootPath || prev?.rootPath || "",
-      totalFilesScanned: Math.max(
-        prev?.totalFilesScanned ?? 0,
-        snapshot.totalFilesScanned,
-      ),
-      totalCandidates: Math.max(
-        prev?.totalCandidates ?? 0,
-        snapshot.totalCandidates,
-      ),
-      totalProcessed: Math.max(
-        prev?.totalProcessed ?? 0,
-        snapshot.totalProcessed,
-      ),
+      totalFilesScanned: Math.max(prev?.totalFilesScanned ?? 0, snapshot.totalFilesScanned),
+      totalCandidates: Math.max(prev?.totalCandidates ?? 0, snapshot.totalCandidates),
+      totalProcessed: Math.max(prev?.totalProcessed ?? 0, snapshot.totalProcessed),
       startedAtMs: prev?.startedAtMs ?? snapshot.startedAtMs,
       completedAtMs: snapshot.completedAtMs ?? prev?.completedAtMs,
     };
@@ -149,10 +133,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
     }
 
     const metaById = smartScanBatchMeta.value;
-    const allBatchIds = new Set<string>([
-      ...Object.keys(metaById),
-      ...Object.keys(byBatch),
-    ]);
+    const allBatchIds = new Set<string>([...Object.keys(metaById), ...Object.keys(byBatch)]);
 
     const tasks: CompositeSmartScanTask[] = [];
 
@@ -189,10 +170,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
           case "processing":
           case "paused":
             progressSum += (job.progress ?? 0) / 100;
-            if (
-              !currentJob ||
-              (job.startTime ?? 0) > (currentJob.startTime ?? 0)
-            ) {
+            if (!currentJob || (job.startTime ?? 0) > (currentJob.startTime ?? 0)) {
               currentJob = job;
             }
             break;
@@ -201,8 +179,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         }
       }
 
-      const locallyProcessedCount =
-        completedCount + skippedCount + failedCount + cancelledCount;
+      const locallyProcessedCount = completedCount + skippedCount + failedCount + cancelledCount;
 
       const totalCandidates = meta?.totalCandidates ?? totalCount;
       const totalProcessed = meta?.totalProcessed ?? locallyProcessedCount;
@@ -221,8 +198,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         continue;
       }
 
-      const overallProgress =
-        totalCount > 0 ? (progressSum / totalCount) * 100 : 0;
+      const overallProgress = totalCount > 0 ? (progressSum / totalCount) * 100 : 0;
 
       const rootPathFromMeta = meta?.rootPath;
       let rootPath = rootPathFromMeta ?? "";
@@ -284,8 +260,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
     if (config.videoFilter.enabled) enabledKinds.push("video");
     if (config.imageFilter.enabled) enabledKinds.push("image");
     if (config.audioFilter.enabled) enabledKinds.push("audio");
-    const kinds: JobType[] =
-      enabledKinds.length > 0 ? enabledKinds : (["video", "image"] as JobType[]);
+    const kinds: JobType[] = enabledKinds.length > 0 ? enabledKinds : (["video", "image"] as JobType[]);
 
     for (let i = 0; i < count; i += 1) {
       const kind: JobType = kinds[Math.floor(Math.random() * kinds.length)];
@@ -334,10 +309,7 @@ export function useSmartScan(options: UseSmartScanOptions): UseSmartScanReturn {
         }
       }
 
-      const presetIdForKind =
-        kind === "audio"
-          ? config.audioPresetId || ""
-          : config.videoPresetId;
+      const presetIdForKind = kind === "audio" ? config.audioPresetId || "" : config.videoPresetId;
 
       found.push({
         id: `${Date.now().toString()}-${i}`,

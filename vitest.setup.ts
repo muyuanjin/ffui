@@ -13,8 +13,7 @@ const autoUnmountWrappers = new Set<any>();
 vi.mock("@vue/test-utils", async () => {
   const actual = await vi.importActual<typeof import("@vue/test-utils")>("@vue/test-utils");
 
-  const wrapMount =
-    <T extends (...args: any[]) => any>(mountFn: T) =>
+  const wrapMount = <T extends (...args: any[]) => any>(mountFn: T) =>
     ((component: any, options: any = {}) => {
       if (typeof document !== "undefined" && options?.attachTo == null) {
         const wrapper = mountFn(component, { ...options, attachTo: document.body });

@@ -52,8 +52,7 @@ describe("useSystemMetrics", () => {
     await vi.advanceTimersByTimeAsync(5_000);
 
     const metrics = hook!;
-    const { snapshots, cpuTotalSeries, memorySeries, diskSeries, networkSeries } =
-      metrics;
+    const { snapshots, cpuTotalSeries, memorySeries, diskSeries, networkSeries } = metrics;
 
     expect(snapshots.value.length).toBeGreaterThan(0);
     expect(snapshots.value.length).toBeLessThanOrEqual(5);
@@ -64,10 +63,7 @@ describe("useSystemMetrics", () => {
     expect(diskSeries.value.length).toBe(snapshots.value.length);
 
     // Network series groups points by interface name.
-    const totalNetworkPoints = networkSeries.value.reduce(
-      (sum, iface) => sum + iface.values.length,
-      0,
-    );
+    const totalNetworkPoints = networkSeries.value.reduce((sum, iface) => sum + iface.values.length, 0);
     expect(totalNetworkPoints).toBe(snapshots.value.length);
 
     await wrapper.unmount();

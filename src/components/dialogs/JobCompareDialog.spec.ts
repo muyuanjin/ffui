@@ -178,9 +178,7 @@ describe("JobCompareDialog", () => {
         await Promise.resolve();
       }
 
-      const lowCalls = (extractJobCompareFrame as any).mock.calls.filter(
-        (args: any[]) => args?.[0]?.quality === "low",
-      );
+      const lowCalls = (extractJobCompareFrame as any).mock.calls.filter((args: any[]) => args?.[0]?.quality === "low");
       expect(lowCalls.length).toBeGreaterThan(0);
 
       vi.advanceTimersByTime(260);
@@ -336,5 +334,4 @@ describe("JobCompareDialog", () => {
 
     expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:05");
   });
-
 });

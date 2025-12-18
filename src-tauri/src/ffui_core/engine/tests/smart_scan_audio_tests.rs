@@ -8,7 +8,8 @@ fn smart_scan_enqueues_audio_candidates_when_enabled() {
     let audio = dir.join("sample-audio.mp3");
     {
         let mut file = File::create(&audio).expect("create audio file for Smart Scan audio test");
-        // 1KB 小文件，配合较大的 min_audio_size_kb 触发“体积过小直接跳过”分支，避免在单元测试中真正运行 ffmpeg。
+        // 1KB 小文件，配合较大的 min_audio_size_kb 触发“体积过小直接跳过”分支，避免在单元测试中真正运行
+        // ffmpeg。
         file.write_all(&[0u8; 1024])
             .expect("write data for Smart Scan audio test");
     }

@@ -1,10 +1,5 @@
 import type { FFmpegPreset, SmartScanConfig } from "@/types";
-import {
-  DEFAULT_SMART_SCAN_CONFIG,
-  VIDEO_EXTENSIONS,
-  IMAGE_EXTENSIONS,
-  AUDIO_EXTENSIONS,
-} from "@/constants";
+import { DEFAULT_SMART_SCAN_CONFIG, VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS } from "@/constants";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
 export function buildSmartScanConfig(args: {
@@ -20,11 +15,7 @@ export function buildSmartScanConfig(args: {
       ...(DEFAULT_SMART_SCAN_CONFIG.outputPolicy ?? DEFAULT_OUTPUT_POLICY),
       ...(initialConfig?.outputPolicy ?? {}),
     },
-    videoPresetId:
-      initialConfig?.videoPresetId ||
-      defaultVideoPresetId ||
-      presets[0]?.id ||
-      "",
+    videoPresetId: initialConfig?.videoPresetId || defaultVideoPresetId || presets[0]?.id || "",
     videoFilter: {
       enabled: initialConfig?.videoFilter?.enabled ?? true,
       extensions: [...(initialConfig?.videoFilter?.extensions ?? VIDEO_EXTENSIONS)],
@@ -39,4 +30,3 @@ export function buildSmartScanConfig(args: {
     },
   };
 }
-

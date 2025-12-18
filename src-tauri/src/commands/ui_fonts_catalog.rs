@@ -6,24 +6,21 @@ pub fn open_source_fonts_catalog() -> Vec<(String, String, String, String, Strin
             "Inter (Open source)".to_string(),
             "Inter".to_string(),
             "ttf".to_string(),
-            "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf"
-                .to_string(),
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf".to_string(),
         ),
         (
             "jetbrains-mono".to_string(),
             "JetBrains Mono (Open source)".to_string(),
             "JetBrains Mono".to_string(),
             "ttf".to_string(),
-            "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf/JetBrainsMono-Regular.ttf"
-                .to_string(),
+            "https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf/JetBrainsMono-Regular.ttf".to_string(),
         ),
         (
             "noto-sans-sc".to_string(),
             "Noto Sans SC (Open source)".to_string(),
             "Noto Sans SC".to_string(),
             "ttf".to_string(),
-            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf"
-                .to_string(),
+            "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf".to_string(),
         ),
     ]
 }

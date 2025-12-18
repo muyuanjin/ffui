@@ -67,9 +67,7 @@ describe("StatsChart", () => {
   });
 
   it("压缩率为 0-100 以内时，进度条宽度不会超出 0-100%", () => {
-    const presets: FFmpegPreset[] = [
-      makePreset({ id: "p-1", name: "Small", inputMB: 100, outputMB: 30, seconds: 10 }),
-    ];
+    const presets: FFmpegPreset[] = [makePreset({ id: "p-1", name: "Small", inputMB: 100, outputMB: 30, seconds: 10 })];
 
     const wrapper = mount(StatsChart, {
       props: { presets },
@@ -86,4 +84,3 @@ describe("StatsChart", () => {
     wrapper.unmount();
   });
 });
-

@@ -1,7 +1,13 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::{
+    HashSet,
+    VecDeque,
+};
 use std::sync::Arc;
 
-use super::super::state::{Inner, notify_queue_listeners};
+use super::super::state::{
+    Inner,
+    notify_queue_listeners,
+};
 
 /// Reorder the waiting queue according to the provided ordered job ids.
 /// Job ids not present in `ordered_ids` keep their relative order at the

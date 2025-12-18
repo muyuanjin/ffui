@@ -25,12 +25,12 @@ vi.mock("@/lib/backend", () => ({
   hasTauri: vi.fn(() => false),
   buildPreviewUrl: vi.fn((path: string | null) => path),
   inspectMedia: vi.fn(async () => "{}"),
-  fetchCpuUsage: vi.fn(async () => ({} as any)),
+  fetchCpuUsage: vi.fn(async () => ({}) as any),
   fetchExternalToolStatuses: vi.fn(async () => []),
   fetchExternalToolStatusesCached: vi.fn(async () => []),
   refreshExternalToolStatusesAsync: vi.fn(async () => true),
-  fetchGpuUsage: vi.fn(async () => ({} as any)),
-  loadAppSettings: vi.fn(async () => ({} as any)),
+  fetchGpuUsage: vi.fn(async () => ({}) as any),
+  loadAppSettings: vi.fn(async () => ({}) as any),
   loadQueueState: vi.fn(async () => ({ jobs: [] })),
   loadQueueStateLite: vi.fn(async () => ({ jobs: [] })),
   loadJobDetail: vi.fn(async () => null),
@@ -38,11 +38,9 @@ vi.mock("@/lib/backend", () => ({
   loadPresets: vi.fn(async () => []),
   runAutoCompress: vi.fn(async () => ({ jobs: [] })),
   saveAppSettings: vi.fn(async (settings: any) => settings),
-  enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+  enqueueTranscodeJob: vi.fn(async () => ({}) as any),
   cancelTranscodeJob: vi.fn(async () => true),
-  selectPlayableMediaPath: vi.fn(
-    async (candidates: string[]) => candidates[0] ?? null,
-  ),
+  selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
 }));
 
 const i18n = createI18n({
@@ -97,12 +95,8 @@ describe("MainApp task detail surface - logs", () => {
 
     await nextTick();
 
-    const commandHtml = document.querySelector(
-      "[data-testid='task-detail-command'] pre",
-    )?.innerHTML;
-    const commandText = document.querySelector(
-      "[data-testid='task-detail-command']",
-    )?.textContent;
+    const commandHtml = document.querySelector("[data-testid='task-detail-command'] pre")?.innerHTML;
+    const commandText = document.querySelector("[data-testid='task-detail-command']")?.textContent;
     // 任务已开始过/已完成时，默认展示后端实际执行的完整命令（可复制复现）。
     expect(commandText || "").toContain(rawCommand);
     // 高亮 HTML 中应包含若干 span，说明命令被 token 化着色
@@ -135,9 +129,7 @@ describe("MainApp task detail surface - logs", () => {
 
     await nextTick();
 
-    const logEl = document.querySelector(
-      "[data-testid='task-detail-log']",
-    ) as HTMLElement | null;
+    const logEl = document.querySelector("[data-testid='task-detail-log']") as HTMLElement | null;
     const text = logEl?.textContent || "";
     // 文本应包含两行内容且没有额外空白；这里用行前缀粗略校验。
     expect(text).toContain("line1");
@@ -173,9 +165,7 @@ describe("MainApp task detail surface - logs", () => {
 
     await nextTick();
 
-    const logEl = document.querySelector(
-      "[data-testid='task-detail-log']",
-    ) as HTMLElement | null;
+    const logEl = document.querySelector("[data-testid='task-detail-log']") as HTMLElement | null;
     // 结构化进度块折叠逻辑在 useJobLog 内部单测覆盖，这里只确认日志容器存在即可。
     expect(logEl).toBeTruthy();
 
@@ -270,15 +260,12 @@ describe("MainApp task detail surface - logs", () => {
     // The truncated tail should not appear once the full logs are hydrated.
     expect(text).not.toContain("tail-only");
 
-    const copyButton = document.querySelector(
-      "[data-testid='task-detail-copy-logs']",
-    ) as HTMLButtonElement | null;
+    const copyButton = document.querySelector("[data-testid='task-detail-copy-logs']") as HTMLButtonElement | null;
     const clipboard = (navigator as any).clipboard;
     clipboard.writeText.mockClear();
     await copyButton?.click();
 
-    const lastCall =
-      clipboard.writeText.mock.calls[clipboard.writeText.mock.calls.length - 1];
+    const lastCall = clipboard.writeText.mock.calls[clipboard.writeText.mock.calls.length - 1];
     expect(lastCall?.[0]).toBe("full-start\nfull-mid\nfull-end");
 
     wrapper.unmount();

@@ -47,21 +47,11 @@ const axes = computed(() =>
         {{ t("presetEditor.panel.insightsTitle") }}
       </h3>
       <span class="text-[10px] text-muted-foreground">
-        {{
-          hasStats
-            ? t("presetEditor.panel.insightsWithStats")
-            : t("presetEditor.panel.insightsNoStats")
-        }}
+        {{ hasStats ? t("presetEditor.panel.insightsWithStats") : t("presetEditor.panel.insightsNoStats") }}
       </span>
     </div>
 
-    <svg
-      width="128"
-      height="128"
-      viewBox="0 0 128 128"
-      class="mx-auto block"
-      aria-hidden="true"
-    >
+    <svg width="128" height="128" viewBox="0 0 128 128" class="mx-auto block" aria-hidden="true">
       <!-- 背景网格圆 -->
       <circle
         v-for="level in [0.25, 0.5, 0.75, 1]"
@@ -86,11 +76,7 @@ const axes = computed(() =>
       />
 
       <!-- 雷达多边形 -->
-      <polygon
-        :points="polygonPoints"
-        class="fill-primary/30 stroke-primary"
-        stroke-width="1"
-      />
+      <polygon :points="polygonPoints" class="fill-primary/30 stroke-primary" stroke-width="1" />
 
       <!-- 轴标签 -->
       <text
@@ -126,4 +112,3 @@ const axes = computed(() =>
     </div>
   </div>
 </template>
-

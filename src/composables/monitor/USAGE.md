@@ -7,6 +7,7 @@
 ### 1. useChartDataBuffer.ts
 
 **导出项：**
+
 - `DEFAULT_SMOOTH_ALPHA` (常量)
 - `MINI_CHART_WINDOW` (常量)
 - `GPU_CHART_WINDOW` (常量)
@@ -18,9 +19,11 @@
 ### 2. useGpuMetrics.ts
 
 **导出项：**
+
 - `useGpuMetrics(snapshots)` (函数)
 
 **返回值：**
+
 - `latestGpu` - 最新的 GPU 快照
 - `gpuHistory` - GPU 历史数据点
 - `gpuUsageSeries` - 平滑后的 GPU 使用率序列
@@ -31,9 +34,11 @@
 ### 3. useMonitorUptime.ts
 
 **导出项：**
+
 - `useMonitorUptime(snapshots)` (函数)
 
 **返回值：**
+
 - `monitorUptime` - 监控在线时长对象 `{ days, hours, minutes, totalSeconds }`
 - `monitorUptimeProgressPercent` - 在线时长进度百分比
 
@@ -51,7 +56,7 @@ import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
 import { useI18n } from "vue-i18n";
 
-const { snapshots, /* ... */ } = useSystemMetrics();
+const { snapshots /* ... */ } = useSystemMetrics();
 
 const MAX_HISTORY_POINTS = 60;
 const DEFAULT_SMOOTH_ALPHA = 0.25;
@@ -76,13 +81,9 @@ const gpuHistory = computed(() => {
   // ... 实现代码
 });
 
-const gpuUsageSeries = computed(() =>
-  smoothEma(gpuHistory.value.map((p) => p.usage)),
-);
+const gpuUsageSeries = computed(() => smoothEma(gpuHistory.value.map((p) => p.usage)));
 
-const gpuMemorySeries = computed(() =>
-  smoothEma(gpuHistory.value.map((p) => p.memory)),
-);
+const gpuMemorySeries = computed(() => smoothEma(gpuHistory.value.map((p) => p.memory)));
 ```
 
 ### 重构后的代码：
@@ -105,30 +106,15 @@ import {
   useMonitorUptime,
 } from "@/composables/monitor";
 
-const {
-  snapshots,
-  cpuTotalSeries,
-  perCoreSeries,
-  memorySeries,
-  diskSeries,
-  networkSeries,
-} = useSystemMetrics();
+const { snapshots, cpuTotalSeries, perCoreSeries, memorySeries, diskSeries, networkSeries } = useSystemMetrics();
 
 const { t } = useI18n();
 
 // 使用 GPU 指标 composable
-const {
-  latestGpu,
-  gpuHistory,
-  gpuUsageSeries,
-  gpuMemorySeries,
-} = useGpuMetrics(snapshots);
+const { latestGpu, gpuHistory, gpuUsageSeries, gpuMemorySeries } = useGpuMetrics(snapshots);
 
 // 使用监控在线时长 composable
-const {
-  monitorUptime,
-  monitorUptimeProgressPercent,
-} = useMonitorUptime(snapshots);
+const { monitorUptime, monitorUptimeProgressPercent } = useMonitorUptime(snapshots);
 
 // 其余代码保持不变...
 ```

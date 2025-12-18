@@ -3,13 +3,7 @@ import type { InputTimelineConfig } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
@@ -34,7 +28,11 @@ const { t } = useI18n();
         </Label>
         <Select
           :model-value="inputTimeline.seekMode ?? 'output'"
-          @update:model-value="(value) => { inputTimeline.seekMode = value as any; }"
+          @update:model-value="
+            (value) => {
+              inputTimeline.seekMode = value as any;
+            }
+          "
         >
           <SelectTrigger class="h-9 text-xs">
             <SelectValue />
@@ -85,9 +83,7 @@ const { t } = useI18n();
           "
         >
           <SelectTrigger class="h-9 text-xs">
-            <SelectValue
-              :placeholder="t('presetEditor.panel.durationModePlaceholder')"
-            />
+            <SelectValue :placeholder="t('presetEditor.panel.durationModePlaceholder')" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="duration">
@@ -118,10 +114,7 @@ const { t } = useI18n();
     </div>
 
     <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-      <Checkbox
-        v-model:checked="inputTimeline.accurateSeek"
-        class="h-3 w-3 border-border bg-background"
-      />
+      <Checkbox v-model:checked="inputTimeline.accurateSeek" class="h-3 w-3 border-border bg-background" />
       <span>
         {{ t("presetEditor.panel.accurateSeekLabel") }}
       </span>

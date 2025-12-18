@@ -1,20 +1,15 @@
 <script setup lang="ts">
-		import { computed, onMounted, ref, watch } from "vue";
-		import { useI18n } from "vue-i18n";
-		import { Button } from "@/components/ui/button";
-		import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-		import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-		import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
-		import type { AppSettings } from "@/types";
-		import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
-		import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
-	import SettingsAppearanceUiFontFilePicker from "@/components/panels/SettingsAppearanceUiFontFilePicker.vue";
-	import {
-	  fetchSystemFontFamilies,
-	  hasTauri,
-	  listOpenSourceFonts,
-	  type OpenSourceFontInfo,
-	} from "@/lib/backend";
+import { computed, onMounted, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxAnchor, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
+import type { AppSettings } from "@/types";
+import SettingsOpenSourceFontDownloadStatus from "@/components/panels/SettingsOpenSourceFontDownloadStatus.vue";
+import { getSystemFontSuggestions, resolveSystemFontFamilyName, type SystemFontFamily } from "@/lib/systemFontSearch";
+import SettingsAppearanceUiFontFilePicker from "@/components/panels/SettingsAppearanceUiFontFilePicker.vue";
+import { fetchSystemFontFamilies, hasTauri, listOpenSourceFonts, type OpenSourceFontInfo } from "@/lib/backend";
 const props = defineProps<{
   appSettings: AppSettings | null;
 }>();
@@ -58,7 +53,22 @@ const uiFontSizePxModel = computed<string>({
 });
 const percentOptions = Array.from({ length: 31 }, (_, i) => 50 + i * 5);
 const fontSizePxOptions = Array.from({ length: 21 }, (_, i) => 12 + i);
-const scaleOptionTone = (p: number) => (p === 100 ? "ffui-select-option--default" : p < 80 || p > 140 ? "ffui-select-option--extreme" : p >= 90 && p <= 120 ? "ffui-select-option--recommended" : ""), fontSizeOptionTone = (px: number) => (px === 16 ? "ffui-select-option--default" : px < 13 || px > 22 ? "ffui-select-option--extreme" : px >= 14 && px <= 20 ? "ffui-select-option--recommended" : "");
+const scaleOptionTone = (p: number) =>
+    p === 100
+      ? "ffui-select-option--default"
+      : p < 80 || p > 140
+        ? "ffui-select-option--extreme"
+        : p >= 90 && p <= 120
+          ? "ffui-select-option--recommended"
+          : "",
+  fontSizeOptionTone = (px: number) =>
+    px === 16
+      ? "ffui-select-option--default"
+      : px < 13 || px > 22
+        ? "ffui-select-option--extreme"
+        : px >= 14 && px <= 20
+          ? "ffui-select-option--recommended"
+          : "";
 const systemFonts = ref<SystemFontFamily[]>([]);
 const systemFontsLoading = ref(false);
 const openSourceFonts = ref<OpenSourceFontInfo[]>([]);
@@ -270,10 +280,10 @@ const onSystemFontSuggestionSelected = (value: string) => {
   systemFontSuggestionsSuppressed.value = true;
   commitSystemFontNameNow();
 };
-	const uiOpenSourceFontIdModel = computed<string>({
-	  get() {
-	    return props.appSettings?.uiFontDownloadId ?? "";
-	  },
+const uiOpenSourceFontIdModel = computed<string>({
+  get() {
+    return props.appSettings?.uiFontDownloadId ?? "";
+  },
   set(value) {
     if (!props.appSettings) return;
     const id = String(value ?? "").trim();
@@ -287,9 +297,9 @@ const onSystemFontSuggestionSelected = (value: string) => {
       uiFontFileSourceName: undefined,
     };
     emit("update:appSettings", next);
-	  },
-	});
-	</script>
+  },
+});
+</script>
 <template>
   <Card class="border-border/50 bg-card/95 shadow-sm" :data-locale="locale">
     <CardHeader class="py-2 px-3 border-b border-border/30">
@@ -308,7 +318,14 @@ const onSystemFontSuggestionSelected = (value: string) => {
             <Select v-model="uiScalePercentModel">
               <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="p in percentOptions" :key="p" :value="String(p)" class="text-[11px]" :class="scaleOptionTone(p)">{{ p }}%</SelectItem>
+                <SelectItem
+                  v-for="p in percentOptions"
+                  :key="p"
+                  :value="String(p)"
+                  class="text-[11px]"
+                  :class="scaleOptionTone(p)"
+                  >{{ p }}%</SelectItem
+                >
               </SelectContent>
             </Select>
             <p class="text-[9px] text-muted-foreground leading-snug">{{ t("app.settings.uiScaleHelp") }}</p>
@@ -318,7 +335,14 @@ const onSystemFontSuggestionSelected = (value: string) => {
             <Select v-model="uiFontSizePxModel">
               <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="px in fontSizePxOptions" :key="px" :value="String(px)" class="text-[11px]" :class="fontSizeOptionTone(px)">{{ px }}px</SelectItem>
+                <SelectItem
+                  v-for="px in fontSizePxOptions"
+                  :key="px"
+                  :value="String(px)"
+                  class="text-[11px]"
+                  :class="fontSizeOptionTone(px)"
+                  >{{ px }}px</SelectItem
+                >
               </SelectContent>
             </Select>
             <p class="text-[9px] text-muted-foreground leading-snug">{{ t("app.settings.uiFontSizeHelp") }}</p>
@@ -373,7 +397,12 @@ const onSystemFontSuggestionSelected = (value: string) => {
         </div>
         <div class="relative">
           <Combobox
-            :open="!systemFontsLoading && systemFontSuggestions.length > 0 && systemFontFocused && !systemFontSuggestionsSuppressed"
+            :open="
+              !systemFontsLoading &&
+              systemFontSuggestions.length > 0 &&
+              systemFontFocused &&
+              !systemFontSuggestionsSuppressed
+            "
             :model-value="appSettings?.uiFontName ?? ''"
             @update:model-value="(v) => onSystemFontSuggestionSelected(String(v ?? ''))"
           >
@@ -436,7 +465,9 @@ const onSystemFontSuggestionSelected = (value: string) => {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="f in openSourceFonts" :key="f.id" :value="f.id" class="text-[11px]">{{ f.name }}</SelectItem>
+            <SelectItem v-for="f in openSourceFonts" :key="f.id" :value="f.id" class="text-[11px]">{{
+              f.name
+            }}</SelectItem>
           </SelectContent>
         </Select>
         <p class="text-[9px] text-muted-foreground leading-snug">
@@ -444,11 +475,11 @@ const onSystemFontSuggestionSelected = (value: string) => {
         </p>
         <SettingsOpenSourceFontDownloadStatus :font-id="appSettings.uiFontDownloadId ?? null" />
       </div>
-	      <SettingsAppearanceUiFontFilePicker
-	        v-else-if="uiFontModeModel === 'file' && appSettings"
-	        :app-settings="appSettings"
-	        @update:appSettings="emit('update:appSettings', $event)"
-	      />
+      <SettingsAppearanceUiFontFilePicker
+        v-else-if="uiFontModeModel === 'file' && appSettings"
+        :app-settings="appSettings"
+        @update:appSettings="emit('update:appSettings', $event)"
+      />
 
       <div class="flex items-center justify-between gap-2 pt-1">
         <p class="text-[10px] text-muted-foreground">

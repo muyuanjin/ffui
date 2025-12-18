@@ -23,9 +23,7 @@ export type QueueSortField =
 
 export type QueueSortDirection = "asc" | "desc";
 
-export type QueueListItem =
-  | { kind: "batch"; batch: CompositeSmartScanTask }
-  | { kind: "job"; job: TranscodeJob };
+export type QueueListItem = { kind: "batch"; batch: CompositeSmartScanTask } | { kind: "job"; job: TranscodeJob };
 
 // ----- Composable options & return shape -----
 

@@ -41,11 +41,7 @@ const onPointerUp = (event: PointerEvent) => {
 </script>
 
 <template>
-  <div
-    ref="rootEl"
-    class="absolute inset-0 pointer-events-none"
-    data-testid="job-compare-wipe-handle"
-  >
+  <div ref="rootEl" class="absolute inset-0 pointer-events-none" data-testid="job-compare-wipe-handle">
     <div
       class="absolute top-0 bottom-0 pointer-events-auto cursor-ew-resize z-20"
       :style="{ left: `${props.modelValue}%`, transform: 'translateX(-50%)' }"

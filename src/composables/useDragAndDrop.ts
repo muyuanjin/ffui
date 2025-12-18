@@ -35,10 +35,10 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   const isFileDragEvent = (e: DragEvent): boolean => {
     // In browsers, dataTransfer.types contains 'Files' when dragging files from OS.
     const types = e.dataTransfer?.types;
-    if (types && Array.from(types).includes('Files')) return true;
+    if (types && Array.from(types).includes("Files")) return true;
     // Some environments expose items with kind === 'file'.
     const items = e.dataTransfer?.items;
-    if (items && Array.from(items).some((it) => (it as any)?.kind === 'file')) return true;
+    if (items && Array.from(items).some((it) => (it as any)?.kind === "file")) return true;
     // During drop, some environments only populate `dataTransfer.files`.
     const filesLen = (e as any)?.dataTransfer?.files?.length ?? 0;
     if (filesLen > 0) return true;
@@ -83,15 +83,12 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
     if (hasTauri()) {
       // Tauri 拖放监听
       try {
-        dragDropUnlisten = await listen<{ paths: string[] }>(
-          "tauri://drag-drop",
-          (event) => {
-            const paths = event.payload.paths;
-            if (paths && paths.length > 0 && onFilesDropped) {
-              onFilesDropped(paths);
-            }
-          },
-        );
+        dragDropUnlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
+          const paths = event.payload.paths;
+          if (paths && paths.length > 0 && onFilesDropped) {
+            onFilesDropped(paths);
+          }
+        });
       } catch (error) {
         console.error("Failed to listen for tauri drag-drop events:", error);
         dragDropUnlisten = null;

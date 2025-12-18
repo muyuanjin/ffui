@@ -5,9 +5,7 @@ import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
 
 const openPathMock = vi.fn();
-const selectPlayableMediaPathMock = vi.fn(
-  async (candidates: string[]) => candidates[0] ?? null,
-);
+const selectPlayableMediaPathMock = vi.fn(async (candidates: string[]) => candidates[0] ?? null);
 
 // Silence noisy console errors/warnings that can recurse in jsdom.
 // This is safe because assertions in this suite don't rely on console output.
@@ -59,23 +57,22 @@ vi.mock("@/lib/backend", () => {
     fetchAppUpdaterCapabilities: vi.fn(async () => ({ configured: true })),
     buildPreviewUrl: (path: string | null) => path,
     inspectMedia: vi.fn(async () => "{}"),
-    fetchCpuUsage: vi.fn(async () => ({} as any)),
+    fetchCpuUsage: vi.fn(async () => ({}) as any),
     fetchExternalToolStatuses: vi.fn(async () => []),
     fetchExternalToolStatusesCached: vi.fn(async () => []),
     refreshExternalToolStatusesAsync: vi.fn(async () => true),
-    fetchGpuUsage: vi.fn(async () => ({} as any)),
-    loadAppSettings: vi.fn(async () => ({} as any)),
+    fetchGpuUsage: vi.fn(async () => ({}) as any),
+    loadAppSettings: vi.fn(async () => ({}) as any),
     loadQueueState: vi.fn(async () => ({ jobs: [] })),
     runAutoCompress: vi.fn(async () => ({ jobs: [] })),
     saveAppSettings: vi.fn(async (settings: any) => settings),
     loadPresets: vi.fn(async () => []),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
     loadPreviewDataUrl,
     // In tests we only ever call this with the candidate list, so we forward
     // the first argument to the underlying mock with an explicit tuple type.
-    selectPlayableMediaPath: (candidates: string[]) =>
-      selectPlayableMediaPathMock(candidates),
+    selectPlayableMediaPath: (candidates: string[]) => selectPlayableMediaPathMock(candidates),
   };
 });
 
@@ -108,9 +105,7 @@ describe("MainApp Tauri preview fallback", () => {
     (loadQueueState as any).mockClear?.();
     openPathMock.mockClear();
     selectPlayableMediaPathMock.mockReset();
-    selectPlayableMediaPathMock.mockImplementation(
-      async (candidates: string[]) => candidates[0] ?? null,
-    );
+    selectPlayableMediaPathMock.mockImplementation(async (candidates: string[]) => candidates[0] ?? null);
   });
 
   it("opens expanded preview dialog when queue thumbnail is clicked in Tauri mode", async () => {
@@ -251,7 +246,9 @@ describe("MainApp Tauri preview fallback", () => {
 
     // Simulate the backend existence check: waiting jobs generally don't have the final output yet,
     // so the backend should skip outputPath and fall back to inputPath.
-    selectPlayableMediaPathMock.mockImplementationOnce(async (candidates: string[]) => candidates[1] ?? candidates[0] ?? null);
+    selectPlayableMediaPathMock.mockImplementationOnce(
+      async (candidates: string[]) => candidates[1] ?? candidates[0] ?? null,
+    );
 
     if (typeof vm.openJobPreviewFromQueue === "function") {
       await vm.openJobPreviewFromQueue(job);
@@ -405,8 +402,7 @@ describe("MainApp Tauri preview fallback", () => {
     // Simulate the Tauri helper skipping the missing output file and
     // returning the original input as the only existing playable candidate.
     selectPlayableMediaPathMock.mockImplementationOnce(
-      async (candidates: string[]) =>
-        candidates.find((p) => p === job.inputPath) ?? candidates[0] ?? null,
+      async (candidates: string[]) => candidates.find((p) => p === job.inputPath) ?? candidates[0] ?? null,
     );
 
     if (Array.isArray(vm.jobs)) {

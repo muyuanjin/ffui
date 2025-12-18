@@ -87,12 +87,7 @@ const previewSourceModeModel = computed<PreviewSourceMode>({
 });
 
 const videoSourcePath = computed(() => {
-  return (
-    previewPath.value ||
-    props.job?.outputPath ||
-    props.job?.inputPath ||
-    null
-  );
+  return previewPath.value || props.job?.outputPath || props.job?.inputPath || null;
 });
 
 const forceFallback = computed(() => !isImage.value && !!error.value);
@@ -178,11 +173,7 @@ watch(
             @copy-path="emit('copyPath')"
           />
         </template>
-        <p
-          v-else
-          data-testid="task-detail-expanded-fallback"
-          class="text-[11px] text-muted-foreground"
-        >
+        <p v-else data-testid="task-detail-expanded-fallback" class="text-[11px] text-muted-foreground">
           {{ t("jobDetail.noPreview") }}
         </p>
       </div>

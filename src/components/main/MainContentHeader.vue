@@ -169,7 +169,9 @@ const hoverPreviewAppendText = computed(() => {
   if (policy.filename.appendTimestamp) parts.push(t("outputPolicy.name.timestamp"));
   if (policy.filename.appendEncoderQuality) parts.push(t("outputPolicy.name.encoderTag"));
   if (typeof policy.filename.randomSuffixLen === "number" && policy.filename.randomSuffixLen > 0) {
-    parts.push(`${t("outputPolicy.name.random")}（${t("outputPolicy.name.randomHint")}：${policy.filename.randomSuffixLen}）`);
+    parts.push(
+      `${t("outputPolicy.name.random")}（${t("outputPolicy.name.randomHint")}：${policy.filename.randomSuffixLen}）`,
+    );
   }
 
   return parts.length > 0 ? parts.join(" · ") : none;
@@ -221,7 +223,9 @@ const hoverPreviewExample = computed(() => {
 </script>
 
 <template>
-  <header class="shrink-0 px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex items-center justify-between gap-2">
+  <header
+    class="shrink-0 px-4 py-2 border-b border-border bg-card/60 backdrop-blur flex items-center justify-between gap-2"
+  >
     <div class="flex flex-col gap-1">
       <div class="flex items-center gap-3 min-h-8">
         <h2 class="text-xl font-semibold tracking-tight text-foreground">
@@ -302,7 +306,10 @@ const hoverPreviewExample = computed(() => {
         <span class="text-xs text-muted-foreground whitespace-nowrap">
           {{ t("app.queueDefaultPresetLabel") }}
         </span>
-        <Select :model-value="manualJobPresetId" @update:model-value="(v) => emit('update:manualJobPresetId', v as string)">
+        <Select
+          :model-value="manualJobPresetId"
+          @update:model-value="(v) => emit('update:manualJobPresetId', v as string)"
+        >
           <SelectTrigger
             data-testid="ffui-queue-default-preset-trigger"
             class="h-7 px-3 py-0 text-xs rounded-full min-w-[160px] font-semibold bg-primary/90 text-primary-foreground shadow hover:bg-[#f9a825]/90 focus-visible:ring-1 focus-visible:ring-ring !border-transparent data-[state=open]:bg-primary/90"
@@ -317,7 +324,10 @@ const hoverPreviewExample = computed(() => {
         </Select>
       </div>
 
-      <Select :model-value="queueViewModeModel" @update:model-value="(v) => emit('update:queueViewModeModel', v as string)">
+      <Select
+        :model-value="queueViewModeModel"
+        @update:model-value="(v) => emit('update:queueViewModeModel', v as string)"
+      >
         <SelectTrigger
           data-testid="ffui-queue-view-mode-trigger"
           class="h-7 px-2 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground min-w-[104px]"

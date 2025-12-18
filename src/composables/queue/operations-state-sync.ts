@@ -3,9 +3,7 @@ import type { TranscodeJob, QueueState, QueueStateLite } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 
 const isTestEnv =
-  typeof import.meta !== "undefined" &&
-  typeof import.meta.env !== "undefined" &&
-  import.meta.env.MODE === "test";
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const startupNowMs = () => {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -89,10 +87,7 @@ function detectNewlyCompletedJobs(
  * Updates jobs list, records snapshot timestamp, and triggers onJobCompleted
  * for jobs that have newly transitioned into the `completed` state.
  */
-export function applyQueueStateFromBackend(
-  state: QueueState | QueueStateLite,
-  deps: StateSyncDeps,
-) {
+export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, deps: StateSyncDeps) {
   const backendJobs = state.jobs ?? [];
 
   if (!firstQueueStateLiteApplied) {
@@ -103,9 +98,7 @@ export function applyQueueStateFromBackend(
     if (!isTestEnv && !loggedQueueStateLiteApplied) {
       loggedQueueStateLiteApplied = true;
       updateStartupMetrics({ firstQueueStateLiteJobs: backendJobs.length });
-      console.log(
-        `[perf] first QueueStateLite applied: jobs=${backendJobs.length}`,
-      );
+      console.log(`[perf] first QueueStateLite applied: jobs=${backendJobs.length}`);
     }
   }
 
@@ -141,7 +134,6 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to refresh queue state", error);
-    deps.queueError.value =
-      (deps.t?.("queue.error.loadFailed") as string) ?? "";
+    deps.queueError.value = (deps.t?.("queue.error.loadFailed") as string) ?? "";
   }
 }

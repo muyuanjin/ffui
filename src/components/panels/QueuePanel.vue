@@ -12,14 +12,18 @@ import type {
   QueueProgressStyle,
   QueueMode,
 } from "@/types";
-import type { QueueFilterStatus, QueueFilterKind, QueueSortField, QueueSortDirection, QueueListItem } from "@/composables";
+import type {
+  QueueFilterStatus,
+  QueueFilterKind,
+  QueueSortField,
+  QueueSortDirection,
+  QueueListItem,
+} from "@/composables";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
-const QueueSmartScanIconBatchItem = defineAsyncComponent(
-  () => import("@/components/QueueSmartScanIconBatchItem.vue"),
-);
+const QueueSmartScanIconBatchItem = defineAsyncComponent(() => import("@/components/QueueSmartScanIconBatchItem.vue"));
 
 const props = defineProps<{
   // Queue items
@@ -56,7 +60,7 @@ const props = defineProps<{
   sortPrimaryDirection: QueueSortDirection;
   hasSelection: boolean;
   hasActiveFilters: boolean;
-   /** IDs of currently selected jobs for visual checkboxes. */
+  /** IDs of currently selected jobs for visual checkboxes. */
   selectedJobIds: Set<string>;
   selectedCount: number;
 
@@ -189,9 +193,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
       v-if="queueJobsForDisplay.length === 0 && !hasSmartScanBatches && !hasActiveFilters"
       class="text-center py-16 text-muted-foreground border-2 border-dashed border-border rounded-xl hover:border-sidebar-ring/70 hover:text-foreground transition-all"
     >
-      <div
-        class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70"
-      >
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-md border border-border bg-card/70">
         <span class="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground whitespace-nowrap">
           {{ t("app.tabs.queue") }}
         </span>
@@ -203,7 +205,9 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
         {{ t("app.emptyQueue.subtitle") }}
       </p>
       <div class="mt-6 flex items-center justify-center">
-        <div class="relative grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-md after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35">
+        <div
+          class="relative grid w-full max-w-xs grid-cols-2 overflow-hidden rounded-md after:absolute after:inset-y-2 after:left-1/2 after:w-px after:-translate-x-1/2 after:bg-white/35"
+        >
           <Button size="lg" class="rounded-none font-semibold text-white" @click="emit('addJobFiles')">
             {{ t("app.actions.addJobFiles") }}
           </Button>
@@ -224,10 +228,7 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
       <!-- Icon view mode -->
       <div v-if="isIconViewMode">
         <div data-testid="queue-icon-grid" :class="iconGridClass">
-          <template
-            v-for="item in iconViewItems"
-            :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
-          >
+          <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
             <QueueIconItem
               v-if="item.kind === 'job'"
               :job="item.job"
@@ -398,7 +399,9 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
               @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
             />
             <QueueItem
-              v-else-if="item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)"
+              v-else-if="
+                item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)
+              "
               :job="item.job"
               :is-pausing="pausingJobIds.has(item.job.id)"
               :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"

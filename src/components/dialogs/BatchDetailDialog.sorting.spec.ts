@@ -4,12 +4,7 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import type { TranscodeJob } from "@/types";
-import {
-  createMockBatch,
-  createMockJob,
-  createMockPreset,
-  createMountOptions,
-} from "./BatchDetailDialog.test-utils";
+import { createMockBatch, createMockJob, createMockPreset, createMountOptions } from "./BatchDetailDialog.test-utils";
 
 describe("BatchDetailDialog 子任务排序", () => {
   const presets = [createMockPreset("p1")];
@@ -27,9 +22,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     await flushPromises();
     await nextTick();
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     expect(renderedIds).toEqual(["job-c", "job-a", "job-b"]);
   });
@@ -42,8 +35,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     ];
     const batch = createMockBatch(jobs);
 
-    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) =>
-      (a.filename || "").localeCompare(b.filename || "");
+    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) => (a.filename || "").localeCompare(b.filename || "");
 
     const wrapper = mount(BatchDetailDialog, {
       ...createMountOptions(batch, presets),
@@ -56,9 +48,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     await flushPromises();
     await nextTick();
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     expect(renderedIds).toEqual(["job-a", "job-b", "job-c"]);
   });
@@ -71,8 +61,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     ];
     const batch = createMockBatch(jobs);
 
-    const sortByFilenameDesc = (a: TranscodeJob, b: TranscodeJob) =>
-      (b.filename || "").localeCompare(a.filename || "");
+    const sortByFilenameDesc = (a: TranscodeJob, b: TranscodeJob) => (b.filename || "").localeCompare(a.filename || "");
 
     const wrapper = mount(BatchDetailDialog, {
       ...createMountOptions(batch, presets),
@@ -85,9 +74,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     await flushPromises();
     await nextTick();
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     expect(renderedIds).toEqual(["job-c", "job-b", "job-a"]);
   });
@@ -100,8 +87,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     ];
     const batch = createMockBatch(jobs);
 
-    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) =>
-      (a.filename || "").localeCompare(b.filename || "");
+    const sortByFilenameAsc = (a: TranscodeJob, b: TranscodeJob) => (a.filename || "").localeCompare(b.filename || "");
 
     const wrapper = mount(BatchDetailDialog, {
       ...createMountOptions(batch, presets),
@@ -114,9 +100,7 @@ describe("BatchDetailDialog 子任务排序", () => {
     await flushPromises();
     await nextTick();
 
-    const renderedIds = wrapper
-      .findAll("[data-testid='queue-item-stub']")
-      .map((el) => el.attributes("data-job-id"));
+    const renderedIds = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
 
     expect(renderedIds).toEqual(["job-a", "job-c"]);
     expect(renderedIds).not.toContain("job-skipped");

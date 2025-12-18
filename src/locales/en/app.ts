@@ -37,7 +37,8 @@ const app = {
     checkToolUpdateLogSummaryResultToolMissing: "Result: executable not found; cannot compare versions.",
     checkToolUpdateLogSummaryResultRemoteUnknown: "Result: remote version unknown; cannot determine.",
     checkToolUpdateLogDuration: "Elapsed: {seconds}s",
-    checkToolUpdateLogTimeout: "Timed out waiting for status snapshot ({seconds}s). The backend may still be checking, or network/GitHub might be blocked; try again later.",
+    checkToolUpdateLogTimeout:
+      "Timed out waiting for status snapshot ({seconds}s). The backend may still be checking, or network/GitHub might be blocked; try again later.",
     checkToolUpdateLogInvokeError: "Failed to start check: {error}",
     toolStatus: {
       ready: "Ready",
@@ -45,8 +46,7 @@ const app = {
       missing: "Not found",
     },
     currentToolPathLabel: "Resolved path",
-    toolNotFoundHelp:
-      "Executable not found; the app will try to auto-download it when needed (if enabled).",
+    toolNotFoundHelp: "Executable not found; the app will try to auto-download it when needed (if enabled).",
     customToolPathLabel: "Custom path (takes precedence)",
     customToolPathPlaceholder: "Leave empty to search PATH or the auto-download directory",
     selectDetectedPath: "Choose detected path…",
@@ -108,25 +108,21 @@ const app = {
     networkProxyUrlHint:
       "Currently supports HTTP/HTTPS proxies (e.g. http://host:port). Changes take effect immediately.",
     previewCaptureLabel: "Preview capture position (%)",
-    previewCaptureHelp:
-      "Percentage of total video duration used when capturing thumbnails; default is 25.",
+    previewCaptureHelp: "Percentage of total video duration used when capturing thumbnails; default is 25.",
     parallelismModeLabel: "Concurrency mode",
     parallelismModeHelp:
-      "Choose \"Unified cap\" or \"CPU/hardware split\". Only the limits that apply to the selected mode are shown below.",
+      'Choose "Unified cap" or "CPU/hardware split". Only the limits that apply to the selected mode are shown below.',
     parallelismModeTooltip:
       "Unified cap: all jobs share a single concurrency limit.\nCPU/hardware split: CPU (software) and hardware-encoded jobs are limited separately; total concurrency = CPU cap + hardware cap.",
     parallelismModeUnifiedOption: "Unified cap (default)",
     parallelismModeSplitOption: "Split CPU / hardware caps",
     parallelismModeSplitSummary: "Total cap: {total} (CPU {cpu} + HW {hw})",
     maxParallelJobsLabel: "Max parallel transcode jobs",
-    maxParallelJobsHelp:
-      "Upper bound (>= 1). Default is 2.",
+    maxParallelJobsHelp: "Upper bound (>= 1). Default is 2.",
     maxParallelCpuJobsLabel: "Max parallel CPU transcode jobs",
-    maxParallelCpuJobsHelp:
-      "Applies to software encoders (e.g. x264/x265/SVT-AV1). Default is 2.",
+    maxParallelCpuJobsHelp: "Applies to software encoders (e.g. x264/x265/SVT-AV1). Default is 2.",
     maxParallelHwJobsLabel: "Max parallel hardware transcode jobs",
-    maxParallelHwJobsHelp:
-      "Applies to hardware encoders (e.g. NVENC/QSV/AMF). Default is 1.",
+    maxParallelHwJobsHelp: "Applies to hardware encoders (e.g. NVENC/QSV/AMF). Default is 1.",
     progressUpdateIntervalLabel: "Progress update interval (ms)",
     progressUpdateIntervalHelp:
       "Controls how often the backend reports ffmpeg progress and how much buffering the UI uses. Smaller values are more real-time; larger values are smoother.",
@@ -135,10 +131,8 @@ const app = {
       "Controls how frequently system performance metrics are sampled. Smaller values feel more continuous but cost more resources; larger values are cheaper but less real-time.",
     queuePersistenceLabel: "Queue crash-recovery persistence",
     queuePersistenceNoneOption: "Off (do not restore queue)",
-    queuePersistenceCrashRecoveryLiteOption:
-      "Restore queue (slim logs only, recommended)",
-    queuePersistenceCrashRecoveryFullOption:
-      "Restore queue + keep full logs for terminal jobs (more disk usage)",
+    queuePersistenceCrashRecoveryLiteOption: "Restore queue (slim logs only, recommended)",
+    queuePersistenceCrashRecoveryFullOption: "Restore queue + keep full logs for terminal jobs (more disk usage)",
     queuePersistenceCrashRecoveryFullHint:
       "Full logs are written only when jobs finish and stored as one .log file per job. Set retention limits to prevent unbounded disk usage.",
     crashRecoveryMaxLogFilesLabel: "Max log files",
@@ -147,11 +141,9 @@ const app = {
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
     appUpdateTitle: "App updates",
-    appUpdateDescription:
-      "Check for new FFUI versions on GitHub Releases.",
+    appUpdateDescription: "Check for new FFUI versions on GitHub Releases.",
     appUpdateUnavailableHint: "In-app updates are available only in the desktop app.",
-    appUpdateNotConfiguredHint:
-      "In-app updates are disabled for this build (missing updater public key).",
+    appUpdateNotConfiguredHint: "In-app updates are disabled for this build (missing updater public key).",
     checkForUpdatesButton: "Check updates",
     installUpdateButton: "Install",
     autoCheckUpdatesLabel: "Auto-check on startup",
@@ -163,13 +155,15 @@ const app = {
     appUpToDateHint: "Up to date",
     appUpdateErrorHint: "Update check failed: {error}",
     appearanceTitle: "Appearance",
-    appearanceDescription: "Adjust global UI scale and font family. Changes apply immediately and are saved automatically.",
+    appearanceDescription:
+      "Adjust global UI scale and font family. Changes apply immediately and are saved automatically.",
     uiScaleLabel: "UI scale",
     uiScaleHelp: "Affects the entire app.",
     uiFontSizeLabel: "Text size",
     uiFontSizeHelp: "Adjusts the base text size without changing overall layout scaling.",
     uiFontModeLabel: "Font mode",
-    uiFontModeHelp: "Use the default font, pick an installed system font, download an open-source font, or import a font file.",
+    uiFontModeHelp:
+      "Use the default font, pick an installed system font, download an open-source font, or import a font file.",
     uiFontModes: {
       default: "System default",
       system: "Installed system font",
@@ -193,7 +187,8 @@ const app = {
     clearFontFile: "Clear",
     currentFontFileLabel: "Current file:",
     noFontFileSelected: "No font file selected.",
-    uiFontFileHelp: "Choose a local .ttf/.otf font file; it will be copied into the app data directory and used globally.",
+    uiFontFileHelp:
+      "Choose a local .ttf/.otf font file; it will be copied into the app data directory and used globally.",
     uiOpenSourceDownloadIdle: "Ready to download.",
     uiOpenSourceDownloadStarting: "Starting download…",
     uiOpenSourceDownloadDownloading: "Downloading…",
@@ -209,10 +204,8 @@ const app = {
     uiAppearancePreview: "Preview:",
     resetUiAppearanceButton: "Reset",
     devtoolsSectionTitle: "Developer tools",
-    devtoolsSectionDescription:
-      "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
-    devtoolsWindowHint:
-      "Open Devtools.",
+    devtoolsSectionDescription: "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
+    devtoolsWindowHint: "Open Devtools.",
     previewCacheSectionTitle: "Preview cache",
     previewCacheSectionDescription:
       "Manage cached preview images and fallback scrub frames stored under the app-managed previews directory.",
@@ -259,8 +252,7 @@ const app = {
   close: "Close",
   globalProgressLabel: "Overall queue progress",
   taskbarProgressModeLabel: "Taskbar progress mode",
-  taskbarProgressModeHelp:
-    "Controls how multiple jobs are combined into a single Windows taskbar progress bar.",
+  taskbarProgressModeHelp: "Controls how multiple jobs are combined into a single Windows taskbar progress bar.",
   taskbarProgressModes: {
     bySize: "Weight by input size (MB)",
     byDuration: "Weight by media duration",
@@ -274,8 +266,7 @@ const app = {
     activeAndQueued: "Only active and queued jobs",
   },
   openDevtools: "Open Devtools",
-  openDevtoolsUnavailable:
-    "Running in pure web mode; use your browser's devtools instead.",
+  openDevtoolsUnavailable: "Running in pure web mode; use your browser's devtools instead.",
   openRepo: "Open GitHub repo",
   actions: {
     addJob: "Add transcode job",

@@ -1,6 +1,8 @@
-use super::*;
-use serde_json::Value;
 use std::time::Instant;
+
+use serde_json::Value;
+
+use super::*;
 
 #[test]
 fn metrics_sampler_does_not_init_sysinfo_while_unsubscribed() {

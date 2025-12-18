@@ -7,8 +7,7 @@ const invokeMock = vi.fn<(cmd: string, payload?: unknown) => Promise<unknown>>(a
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, payload?: unknown) =>
-    payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload),
+  invoke: (cmd: string, payload?: unknown) => (payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload)),
   convertFileSrc: (path: string) => path,
 }));
 
@@ -25,4 +24,3 @@ describe("backend transcode activity contract", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_transcode_activity_today");
   });
 });
-

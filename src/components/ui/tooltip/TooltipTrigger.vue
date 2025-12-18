@@ -10,4 +10,3 @@ const props = defineProps<TooltipTriggerProps>();
     <slot />
   </TooltipTrigger>
 </template>
-

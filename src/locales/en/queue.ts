@@ -109,20 +109,20 @@ const queue = {
     desc: "Descending",
     collapse: "Collapse secondary sort",
   },
-	  actions: {
-	    wait: "Wait",
-	    resume: "Resume",
-	    restart: "Restart",
-	    openInputFolder: "Open input folder",
-	    openOutputFolder: "Open output folder",
-	    copyInputPath: "Copy input path",
-	    copyOutputPath: "Copy output path",
-	    copyAllInputPaths: "Copy all input paths",
-	    copyAllOutputPaths: "Copy all output paths",
-	    moveToPosition: "Move to position…",
-	    moveToPositionPrompt: "Enter a new queue position (1-{max}):",
-	    bulkCancel: "Stop",
-	    bulkCancelShort: "Stop",
+  actions: {
+    wait: "Wait",
+    resume: "Resume",
+    restart: "Restart",
+    openInputFolder: "Open input folder",
+    openOutputFolder: "Open output folder",
+    copyInputPath: "Copy input path",
+    copyOutputPath: "Copy output path",
+    copyAllInputPaths: "Copy all input paths",
+    copyAllOutputPaths: "Copy all output paths",
+    moveToPosition: "Move to position…",
+    moveToPositionPrompt: "Enter a new queue position (1-{max}):",
+    bulkCancel: "Stop",
+    bulkCancelShort: "Stop",
     bulkWait: "Pause",
     bulkWaitShort: "Pause",
     bulkResume: "Resume",
@@ -137,36 +137,23 @@ const queue = {
     bulkDeleteShort: "Remove",
   },
   error: {
-    loadFailed:
-      "Failed to refresh queue state. Make sure the backend is running and external tools are configured.",
-    enqueueFailed:
-      "Failed to enqueue job. Please check external tool availability or auto-download settings.",
-    cancelRejected:
-      "The backend refused to cancel this job. It may have already finished or is not cancellable.",
-    cancelFailed:
-      "Error while cancelling job. Please retry later or verify external tool settings.",
+    loadFailed: "Failed to refresh queue state. Make sure the backend is running and external tools are configured.",
+    enqueueFailed: "Failed to enqueue job. Please check external tool availability or auto-download settings.",
+    cancelRejected: "The backend refused to cancel this job. It may have already finished or is not cancellable.",
+    cancelFailed: "Error while cancelling job. Please retry later or verify external tool settings.",
     autoCompressFailed:
       "Smart Scan failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
     waitRejected:
       "The backend refused to put this job into wait state. It may have already finished or is not running.",
-    waitFailed:
-      "Error while applying the wait operation. Please retry later or verify external tool settings.",
-    resumeRejected:
-      "The backend refused to resume this job. Its state may have changed.",
-    resumeFailed:
-      "Error while resuming the job. Please retry later or verify external tool settings.",
-    restartRejected:
-      "The backend refused to restart this job. Its state may have changed.",
-    restartFailed:
-      "Error while restarting the job. Please retry later or verify external tool settings.",
-    reorderRejected:
-      "The backend refused to reorder the waiting queue. The queue may have changed.",
-    reorderFailed:
-      "Error while reordering the waiting queue. Please retry later or verify external tool settings.",
-    deleteActiveNotAllowed:
-      "Cannot delete jobs that are still running or waiting. Please stop or complete them first.",
-    deleteFailed:
-      "Failed to delete some jobs from the queue. Please retry later or check backend logs.",
+    waitFailed: "Error while applying the wait operation. Please retry later or verify external tool settings.",
+    resumeRejected: "The backend refused to resume this job. Its state may have changed.",
+    resumeFailed: "Error while resuming the job. Please retry later or verify external tool settings.",
+    restartRejected: "The backend refused to restart this job. Its state may have changed.",
+    restartFailed: "Error while restarting the job. Please retry later or verify external tool settings.",
+    reorderRejected: "The backend refused to reorder the waiting queue. The queue may have changed.",
+    reorderFailed: "Error while reordering the waiting queue. Please retry later or verify external tool settings.",
+    deleteActiveNotAllowed: "Cannot delete jobs that are still running or waiting. Please stop or complete them first.",
+    deleteFailed: "Failed to delete some jobs from the queue. Please retry later or check backend logs.",
   },
 } as const;
 

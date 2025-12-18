@@ -1,12 +1,7 @@
 import type { AppSettings } from "@/types";
 import { isAppLocale, type AppLocale } from "@/i18n";
 
-export type BootstrapLocaleSource =
-  | "forced"
-  | "saved"
-  | "plugin-os"
-  | "navigator"
-  | "fallback";
+export type BootstrapLocaleSource = "forced" | "saved" | "plugin-os" | "navigator" | "fallback";
 
 export interface BootstrapAppLocaleResult {
   locale: AppLocale;
@@ -107,9 +102,7 @@ const resolveFromNavigator = (options: BootstrapAppLocaleOptions): AppLocale | n
   return null;
 };
 
-export async function bootstrapAppLocale(
-  options: BootstrapAppLocaleOptions,
-): Promise<BootstrapAppLocaleResult> {
+export async function bootstrapAppLocale(options: BootstrapAppLocaleOptions): Promise<BootstrapAppLocaleResult> {
   const forced = readForcedLocale(options);
   if (forced) {
     return { locale: forced, source: "forced", persisted: false };
@@ -178,4 +171,3 @@ export async function bootstrapAppLocale(
     persisted: false,
   };
 }
-

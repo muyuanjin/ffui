@@ -94,12 +94,10 @@ vi.mock("@/lib/backend", async () => {
     saveAppSettings: vi.fn(async (settings: any) => settings),
     savePresetOnBackend: vi.fn(async (preset: any) => [preset]),
     deletePresetOnBackend: vi.fn(async () => []),
-    enqueueTranscodeJob: vi.fn(async () => ({} as any)),
+    enqueueTranscodeJob: vi.fn(async () => ({}) as any),
     cancelTranscodeJob: vi.fn(async () => true),
     openDevtools: (...args: any[]) => openDevtoolsMock(...args),
-    selectPlayableMediaPath: vi.fn(
-      async (candidates: string[]) => candidates[0] ?? null,
-    ),
+    selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
   };
 });
 

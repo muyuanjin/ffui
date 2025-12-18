@@ -91,4 +91,3 @@ describe("useMainAppPreview source switching does not flicker", () => {
     wrapper.unmount();
   });
 });
-

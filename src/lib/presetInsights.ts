@@ -51,8 +51,7 @@ export interface PresetInsights {
   isBeginnerFriendly: boolean;
 }
 
-const clamp = (value: number, min: number, max: number): number =>
-  value < min ? min : value > max ? max : value;
+const clamp = (value: number, min: number, max: number): number => (value < min ? min : value > max ? max : value);
 
 const encoderFamilyOf = (preset: FFmpegPreset): PresetEncoderFamily => {
   const enc = String(preset.video?.encoder ?? "").toLowerCase();
@@ -206,7 +205,10 @@ const computeQualityScore = (preset: FFmpegPreset): number => {
   return clamp(score, 1, 5);
 };
 
-const computeSizeSavingScore = (preset: FFmpegPreset, ratio: number | null): { score: number; mayIncreaseSize: boolean } => {
+const computeSizeSavingScore = (
+  preset: FFmpegPreset,
+  ratio: number | null,
+): { score: number; mayIncreaseSize: boolean } => {
   // 若有真实统计数据，优先使用：ratio = 输出 / 输入 * 100，越小越省空间
   if (ratio != null) {
     let score: number;
@@ -240,10 +242,7 @@ const computeSizeSavingScore = (preset: FFmpegPreset, ratio: number | null): { s
     else if (q >= 30) score += 0.5;
   }
 
-  let mayIncrease =
-    (rc === "constqp" && q <= 22) ||
-    (rc === "crf" && q <= 18) ||
-    (rc === "cq" && q <= 20);
+  let mayIncrease = (rc === "constqp" && q <= 22) || (rc === "crf" && q <= 18) || (rc === "cq" && q <= 20);
 
   // 对“极可能放大体积”的预设，体积压缩评分上限收紧到 2，避免给用户造成“很省空间”的错觉
   if (mayIncrease && score > 2) {
@@ -335,10 +334,7 @@ export const computePresetInsights = (preset: FFmpegPreset): PresetInsights => {
   const ratio = getPresetAvgRatio(preset);
   const speed = getPresetAvgSpeed(preset);
   const radarQuality = computeQualityScore(preset);
-  const { score: radarSizeSaving, mayIncreaseSize: sizeMayIncrease } = computeSizeSavingScore(
-    preset,
-    ratio,
-  );
+  const { score: radarSizeSaving, mayIncreaseSize: sizeMayIncrease } = computeSizeSavingScore(preset, ratio);
   const radarSpeed = computeSpeedScore(preset, speed);
   const radarCompatibility = computeCompatibilityScore(preset);
   const radarPopularity = computePopularityScore(preset);

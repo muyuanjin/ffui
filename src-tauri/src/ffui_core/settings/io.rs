@@ -1,10 +1,22 @@
 use std::fs;
-use std::io::{BufReader, Write};
-use std::path::{Path, PathBuf};
+use std::io::{
+    BufReader,
+    Write,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 
 struct CachedExeInfo {
     dir: PathBuf,

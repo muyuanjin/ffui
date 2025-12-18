@@ -11,12 +11,23 @@ mod taskbar_progress;
 #[cfg(not(windows))]
 mod taskbar_progress {}
 
-use std::{thread, time::Duration};
+use std::thread;
+use std::time::Duration;
 
-use tauri::{Emitter, Manager};
+use tauri::{
+    Emitter,
+    Manager,
+};
 
-use crate::ffui_core::{AutoCompressProgress, TranscodingEngine, init_child_process_job};
-use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
+use crate::ffui_core::{
+    AutoCompressProgress,
+    TranscodingEngine,
+    init_child_process_job,
+};
+use crate::system_metrics::{
+    MetricsState,
+    spawn_metrics_sampler,
+};
 
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
@@ -135,12 +146,9 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 if commands::updater::updater_is_configured(app.config()) {
-                    app.handle()
-                        .plugin(tauri_plugin_updater::Builder::new().build())?;
+                    app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 } else {
-                    eprintln!(
-                        "tauri-plugin-updater disabled: missing/placeholder updater pubkey or endpoints"
-                    );
+                    eprintln!("tauri-plugin-updater disabled: missing/placeholder updater pubkey or endpoints");
                 }
             }
 
@@ -152,8 +160,12 @@ pub fn run() {
             {
                 use windows::Win32::Foundation::HWND;
                 use windows::Win32::UI::WindowsAndMessaging::{
-                    CHANGEFILTERSTRUCT, ChangeWindowMessageFilterEx, MSGFLT_ALLOW,
-                    WINDOW_MESSAGE_FILTER_ACTION, WM_COPYDATA, WM_DROPFILES,
+                    CHANGEFILTERSTRUCT,
+                    ChangeWindowMessageFilterEx,
+                    MSGFLT_ALLOW,
+                    WINDOW_MESSAGE_FILTER_ACTION,
+                    WM_COPYDATA,
+                    WM_DROPFILES,
                 };
 
                 if let Some(window) = app.get_webview_window("main")
@@ -167,10 +179,8 @@ pub fn run() {
                     // 需要放行的消息包括：
                     //   WM_DROPFILES、WM_COPYDATA 和 0x0049（内部的 WM_COPYGLOBALDATA）。
                     unsafe {
-                        let mut filter: CHANGEFILTERSTRUCT = CHANGEFILTERSTRUCT {
-                            cbSize: std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32,
-                            ExtStatus: Default::default(),
-                        };
+                        let mut filter: CHANGEFILTERSTRUCT =
+                            CHANGEFILTERSTRUCT { cbSize: std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32, ExtStatus: Default::default() };
 
                         let hwnd = HWND(hwnd.0);
                         let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
@@ -178,12 +188,7 @@ pub fn run() {
                         for msg in messages {
                             filter.cbSize = std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32;
                             filter.ExtStatus = Default::default();
-                            let _ = ChangeWindowMessageFilterEx(
-                                hwnd,
-                                msg,
-                                WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0),
-                                Some(&mut filter),
-                            );
+                            let _ = ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&mut filter));
                         }
                     }
                 }
@@ -223,9 +228,7 @@ pub fn run() {
                 let engine = app.state::<TranscodingEngine>();
                 let event_handle = handle.clone();
                 engine.register_smart_scan_listener(move |progress: AutoCompressProgress| {
-                    if let Err(err) =
-                        event_handle.emit("auto-compress://progress", progress.clone())
-                    {
+                    if let Err(err) = event_handle.emit("auto-compress://progress", progress.clone()) {
                         eprintln!("failed to emit auto-compress progress event: {err}");
                     }
                 });
@@ -256,14 +259,18 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use crate::commands::tools::get_preview_data_url;
     use crate::commands::tools::playable_media::select_playable_media_path;
-    use std::collections::BTreeSet;
 
     #[test]
     fn get_preview_data_url_builds_data_url_prefix() {
         use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{
+            SystemTime,
+            UNIX_EPOCH,
+        };
 
         // Write a small dummy JPEG-like payload into the previews directory and
         // ensure the helper returns a data URL with the expected prefix.
@@ -289,7 +296,10 @@ mod tests {
     #[test]
     fn select_playable_media_path_prefers_first_existing_candidate() {
         use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{
+            SystemTime,
+            UNIX_EPOCH,
+        };
 
         // Create a temporary file on disk so we can exercise the helper against
         // both missing and existing candidates without relying on any fixed
@@ -325,7 +335,10 @@ mod tests {
     #[test]
     fn select_playable_media_path_trims_and_picks_existing_file() {
         use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{
+            SystemTime,
+            UNIX_EPOCH,
+        };
 
         let tmp_dir = std::env::temp_dir();
         let timestamp = SystemTime::now()
@@ -352,7 +365,10 @@ mod tests {
 
     #[test]
     fn select_playable_media_path_falls_back_to_first_non_empty_candidate() {
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::{
+            SystemTime,
+            UNIX_EPOCH,
+        };
 
         let tmp_dir = std::env::temp_dir();
         let timestamp = SystemTime::now()
@@ -374,9 +390,10 @@ mod tests {
 
     #[test]
     fn asset_protocol_scope_aligns_with_opener_allowlist_and_ui_fonts() {
-        use serde_json::Value;
         use std::fs;
         use std::path::PathBuf;
+
+        use serde_json::Value;
 
         let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
 

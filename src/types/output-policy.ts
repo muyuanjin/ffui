@@ -1,11 +1,6 @@
-export type OutputContainerPolicy =
-  | { mode: "default" }
-  | { mode: "keepInput" }
-  | { mode: "force"; format: string };
+export type OutputContainerPolicy = { mode: "default" } | { mode: "keepInput" } | { mode: "force"; format: string };
 
-export type OutputDirectoryPolicy =
-  | { mode: "sameAsInput" }
-  | { mode: "fixed"; directory: string };
+export type OutputDirectoryPolicy = { mode: "sameAsInput" } | { mode: "fixed"; directory: string };
 
 export interface OutputFilenameRegexReplace {
   pattern: string;

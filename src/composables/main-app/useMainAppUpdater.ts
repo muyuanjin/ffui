@@ -1,11 +1,6 @@
 import { computed, onMounted, ref, watch, type Ref } from "vue";
 import type { AppSettings } from "@/types";
-import {
-  fetchAppUpdaterCapabilities,
-  hasTauri,
-  prepareAppUpdaterProxy,
-  saveAppSettings,
-} from "@/lib/backend";
+import { fetchAppUpdaterCapabilities, hasTauri, prepareAppUpdaterProxy, saveAppSettings } from "@/lib/backend";
 
 export interface UseMainAppUpdaterOptions {
   appSettings: Ref<AppSettings | null>;
@@ -18,18 +13,12 @@ const DEFAULT_UPDATE_CHECK_TTL_MS = 24 * 60 * 60 * 1000;
 
 function isTestEnv(): boolean {
   return (
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.MODE === "test"
+    typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test"
   );
 }
 
 function isDevEnv(): boolean {
-  return (
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.DEV === true
-  );
+  return typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.DEV === true;
 }
 
 function coerceBoolean(value: unknown, fallback: boolean): boolean {
@@ -237,8 +226,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   // Restore cached values from persisted AppSettings so the UI can show the
   // last-known state immediately after settings load.
   const recomputeUpdateAvailable = () => {
-    updateAvailable.value =
-      updaterConfigured.value === true && !!availableVersion.value;
+    updateAvailable.value = updaterConfigured.value === true && !!availableVersion.value;
   };
 
   watch(

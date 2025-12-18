@@ -43,9 +43,7 @@ describe("PresetPanel 音频摘要展示", () => {
   it("AAC 无比特率时显示为 'AAC' 而不是 'AAC 0k'", () => {
     const wrapper = mount(PresetPanel, {
       props: {
-        presets: [
-          makePreset("p1", { codec: "aac" }),
-        ],
+        presets: [makePreset("p1", { codec: "aac" })],
       },
       global: { plugins: [i18n] },
     });
@@ -59,9 +57,7 @@ describe("PresetPanel 音频摘要展示", () => {
   it("AAC 有比特率时显示 'AAC 192k'", () => {
     const wrapper = mount(PresetPanel, {
       props: {
-        presets: [
-          makePreset("p1", { codec: "aac", bitrate: 192 }),
-        ],
+        presets: [makePreset("p1", { codec: "aac", bitrate: 192 })],
       },
       global: { plugins: [i18n] },
     });

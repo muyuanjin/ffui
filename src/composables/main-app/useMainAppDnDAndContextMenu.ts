@@ -30,13 +30,8 @@ export interface UseMainAppDnDAndContextMenuReturn {
 export function useMainAppDnDAndContextMenu(
   options: UseMainAppDnDAndContextMenuOptions,
 ): UseMainAppDnDAndContextMenuReturn {
-  const {
-    activeTab,
-    inspectMediaForPath,
-    enqueueManualJobsFromPaths,
-    selectedJobIds,
-    bulkMoveSelectedJobsToTopInner,
-  } = options;
+  const { activeTab, inspectMediaForPath, enqueueManualJobsFromPaths, selectedJobIds, bulkMoveSelectedJobsToTopInner } =
+    options;
 
   const handleTauriFileDrop = async (paths: string[]) => {
     if (!paths || paths.length === 0) return;

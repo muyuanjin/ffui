@@ -11,7 +11,10 @@ mod ui_fonts_types;
 
 pub use ui_fonts_downloads::UiFontDownloadManager;
 pub use ui_fonts_types::{
-    DownloadedFontInfo, OpenSourceFontInfo, SystemFontFamily, UiFontDownloadSnapshot,
+    DownloadedFontInfo,
+    OpenSourceFontInfo,
+    SystemFontFamily,
+    UiFontDownloadSnapshot,
 };
 
 #[tauri::command]

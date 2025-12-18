@@ -2,13 +2,7 @@
 import type { ContainerConfig } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { useI18n } from "vue-i18n";
 import { computed, ref } from "vue";
@@ -49,17 +43,11 @@ const groups = computed(() => groupFormatCatalog(filtered.value));
           "
         >
           <SelectTrigger class="h-9 text-xs">
-            <SelectValue
-              :placeholder="t('presetEditor.panel.formatPlaceholder')"
-            />
+            <SelectValue :placeholder="t('presetEditor.panel.formatPlaceholder')" />
           </SelectTrigger>
           <SelectContent>
             <div class="p-1">
-              <Input
-                v-model="query"
-                class="h-8 text-xs"
-                placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..."
-              />
+              <Input v-model="query" class="h-8 text-xs" placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..." />
             </div>
             <Separator class="my-1" />
             <SelectItem value="__auto__">

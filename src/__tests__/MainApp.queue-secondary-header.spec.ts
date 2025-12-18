@@ -160,9 +160,7 @@ describe("MainApp queue secondary header", () => {
     expect(secondary.text()).not.toContain("Selected 2");
     const bulkCancelLabel = (en as any).queue.actions.bulkCancel as string;
     const bulkButtonsBefore = secondary.findAll("button");
-    expect(
-      bulkButtonsBefore.some((btn) => btn.text() === bulkCancelLabel),
-    ).toBe(false);
+    expect(bulkButtonsBefore.some((btn) => btn.text() === bulkCancelLabel)).toBe(false);
 
     // 选中所有可见任务后，显示选中数量，并启用批量操作按钮。
     if (typeof vm.selectAllVisibleJobs === "function") {
@@ -172,9 +170,7 @@ describe("MainApp queue secondary header", () => {
 
     // 有选中时，显示选中数量，并出现批量操作按钮。
     const bulkButtonsAfter = secondary.findAll("button");
-    const bulkCancel = bulkButtonsAfter.find(
-      (btn) => btn.text() === bulkCancelLabel,
-    );
+    const bulkCancel = bulkButtonsAfter.find((btn) => btn.text() === bulkCancelLabel);
     expect(secondary.text()).toContain("Selected 2");
     expect(bulkCancel).toBeTruthy();
 

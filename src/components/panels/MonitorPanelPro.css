@@ -1,14 +1,13 @@
 .monitor-pro {
   padding: 1rem;
   background: linear-gradient(135deg, #0a0e1a 0%, #0f1923 100%);
-  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial,
-    sans-serif;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   position: relative;
   overflow: hidden;
 }
 
 .monitor-pro::before {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background-image:
@@ -53,7 +52,7 @@
 }
 
 .gauge-card::before {
-  content: '';
+  content: "";
   position: absolute;
   top: -2px;
   left: -2px;
@@ -97,7 +96,7 @@
 }
 
 .metric-card::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(135deg, transparent, rgba(0, 255, 255, 0.1));
@@ -171,8 +170,7 @@
 }
 
 .value {
-  font-family: 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial,
-    sans-serif;
+  font-family: "Noto Sans SC", "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
 }
 
 .value.rx,
@@ -233,4 +231,3 @@
     grid-template-columns: 1fr;
   }
 }
-

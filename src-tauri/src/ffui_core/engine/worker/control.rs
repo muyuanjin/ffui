@@ -1,9 +1,14 @@
 use std::sync::Arc;
 
+use super::super::state::{
+    Inner,
+    notify_queue_listeners,
+};
+use super::super::worker_utils::{
+    current_time_millis,
+    recompute_log_tail,
+};
 use crate::ffui_core::domain::JobStatus;
-
-use super::super::state::{Inner, notify_queue_listeners};
-use super::super::worker_utils::{current_time_millis, recompute_log_tail};
 
 /// Cancel a job by ID.
 ///
@@ -291,8 +296,8 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
 /// Permanently delete all Smart Scan child jobs for a given batch id.
 ///
 /// 语义约定：
-/// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且
-///   当前没有处于 active_jobs 状态时才执行删除；否则直接返回 false，不做任何修改；
+/// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且 当前没有处于
+///   active_jobs 状态时才执行删除；否则直接返回 false，不做任何修改；
 /// - 删除成功后会同时清理队列中的相关 bookkeeping（queue / cancelled / wait / restart）；
 /// - 当该批次所有子任务都被移除后，连同 smart_scan_batches 中的批次元数据一并移除，
 ///   这样前端复合任务卡片也会从队列中消失。

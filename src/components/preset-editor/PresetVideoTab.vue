@@ -4,13 +4,7 @@ import type { VideoConfig } from "@/types";
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "@/constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
 
@@ -27,9 +21,7 @@ const { t } = useI18n();
 const AUTO_VALUE = "__auto__";
 
 const isNvencEncoder = computed(
-  () =>
-    typeof video.encoder === "string" &&
-    video.encoder.toLowerCase().includes("nvenc"),
+  () => typeof video.encoder === "string" && video.encoder.toLowerCase().includes("nvenc"),
 );
 
 const isX264Encoder = computed(() => video.encoder === "libx264");
@@ -67,11 +59,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
           <SelectValue :placeholder="t('presetEditor.video.encoderPlaceholder')" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem
-            v-for="opt in ENCODER_OPTIONS"
-            :key="opt.value"
-            :value="opt.value"
-          >
+          <SelectItem v-for="opt in ENCODER_OPTIONS" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </SelectItem>
         </SelectContent>
@@ -133,24 +121,10 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem
-                v-if="video.encoder !== 'hevc_nvenc'"
-                value="crf"
-              >
-                CRF
-              </SelectItem>
-              <SelectItem
-                v-else
-                value="cq"
-              >
-                CQ
-              </SelectItem>
-              <SelectItem value="vbr">
-                VBR
-              </SelectItem>
-              <SelectItem value="cbr">
-                CBR
-              </SelectItem>
+              <SelectItem v-if="video.encoder !== 'hevc_nvenc'" value="crf"> CRF </SelectItem>
+              <SelectItem v-else value="cq"> CQ </SelectItem>
+              <SelectItem value="vbr"> VBR </SelectItem>
+              <SelectItem value="cbr"> CBR </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -172,10 +146,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
         </div>
       </div>
 
-      <div
-        v-if="video.rateControl === 'vbr' || video.rateControl === 'cbr'"
-        class="grid grid-cols-2 gap-2"
-      >
+      <div v-if="video.rateControl === 'vbr' || video.rateControl === 'cbr'" class="grid grid-cols-2 gap-2">
         <div>
           <Label class="text-xs mb-1 block">{{ t("presetEditor.video.maxBitrateKbpsLabel") }}</Label>
           <Input
@@ -238,11 +209,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem
-              v-for="p in PRESET_OPTIONS[video.encoder]"
-              :key="p"
-              :value="p"
-            >
+            <SelectItem v-for="p in PRESET_OPTIONS[video.encoder]" :key="p" :value="p">
               {{ p }}
             </SelectItem>
           </SelectContent>

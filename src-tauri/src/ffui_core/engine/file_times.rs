@@ -59,10 +59,20 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
     use std::os::windows::ffi::OsStrExt;
     use std::time::UNIX_EPOCH;
 
-    use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE};
+    use windows::Win32::Foundation::{
+        CloseHandle,
+        FILETIME,
+        HANDLE,
+    };
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
-        FILE_SHARE_WRITE, FILE_WRITE_ATTRIBUTES, OPEN_EXISTING, SetFileTime,
+        CreateFileW,
+        FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_SHARE_DELETE,
+        FILE_SHARE_READ,
+        FILE_SHARE_WRITE,
+        FILE_WRITE_ATTRIBUTES,
+        OPEN_EXISTING,
+        SetFileTime,
     };
 
     let wide: Vec<u16> = path

@@ -1,20 +1,37 @@
+#[cfg(test)]
+use std::cell::Cell;
+use std::collections::{
+    HashMap,
+    HashSet,
+    VecDeque,
+};
+use std::path::Path;
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+};
+use std::sync::{
+    Arc,
+    Condvar,
+    Mutex,
+};
+
+use super::state_persist::{
+    peek_last_persisted_queue_state_lite,
+    persist_queue_state_lite,
+    persist_terminal_logs_if_needed,
+};
 use crate::ffui_core::domain::{
-    AutoCompressProgress, FFmpegPreset, MediaInfo, QueueState, QueueStateLite, TranscodeJob,
+    AutoCompressProgress,
+    FFmpegPreset,
+    MediaInfo,
+    QueueState,
+    QueueStateLite,
+    TranscodeJob,
     TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
-#[cfg(test)]
-use std::cell::Cell;
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::path::Path;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Condvar, Mutex};
-
-use super::state_persist::{
-    peek_last_persisted_queue_state_lite, persist_queue_state_lite, persist_terminal_logs_if_needed,
-};
 
 mod restore;
 
@@ -279,8 +296,7 @@ pub(super) fn update_smart_scan_batch_with_inner<F>(
     force_notify: bool,
     f: F,
 ) where
-    F: FnOnce(&mut SmartScanBatch),
-{
+    F: FnOnce(&mut SmartScanBatch), {
     let progress = {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let batch = match state.smart_scan_batches.get_mut(batch_id) {

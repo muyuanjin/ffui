@@ -46,9 +46,42 @@ describe("MainApp queue filters", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-wait", filename: "wait.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
-      { id: "job-process", filename: "process.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "processing", progress: 10, logs: [] },
-      { id: "job-scan", filename: "scan.mp4", type: "video", source: "smart_scan", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "completed", progress: 100, logs: [] },
+      {
+        id: "job-wait",
+        filename: "wait.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+      {
+        id: "job-process",
+        filename: "process.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "processing",
+        progress: 10,
+        logs: [],
+      },
+      {
+        id: "job-scan",
+        filename: "scan.mp4",
+        type: "video",
+        source: "smart_scan",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "completed",
+        progress: 100,
+        logs: [],
+      },
     ];
 
     setJobs(vm, jobs);
@@ -70,8 +103,30 @@ describe("MainApp queue filters", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-1", filename: "movie-1080p.mp4", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
-      { id: "job-2", filename: "movie-4k.mkv", type: "video", source: "manual", originalSizeMB: 10, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
+      {
+        id: "job-1",
+        filename: "movie-1080p.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+      {
+        id: "job-2",
+        filename: "movie-4k.mkv",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
     ];
 
     setJobs(vm, jobs);
@@ -99,8 +154,30 @@ describe("MainApp queue filters", () => {
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
     const jobs: TranscodeJob[] = [
-      { id: "job-small", filename: "clip-small.mp4", type: "video", source: "manual", originalSizeMB: 5, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
-      { id: "job-big", filename: "clip-big.mp4", type: "video", source: "manual", originalSizeMB: 500, originalCodec: "h264", presetId: "p1", status: "waiting", progress: 0, logs: [] },
+      {
+        id: "job-small",
+        filename: "clip-small.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 5,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
+      {
+        id: "job-big",
+        filename: "clip-big.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 500,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "waiting",
+        progress: 0,
+        logs: [],
+      },
     ];
 
     setJobs(vm, jobs);
@@ -160,8 +237,7 @@ describe("MainApp queue filters", () => {
     ];
 
     setJobs(vm, jobs);
-    if ("filterText" in vm)
-      vm.filterText = "building size>100 regex:.*building.*";
+    if ("filterText" in vm) vm.filterText = "building size>100 regex:.*building.*";
     await nextTick();
 
     const filtered = getFilteredJobs(vm);

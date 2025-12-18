@@ -4,14 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import type { EncoderType, VideoConfig } from "@/types";
 
-const {
-  video,
-  encoderOptions,
-  presetOptions,
-  rateControlLabel,
-  isCopyEncoder,
-  t,
-} = defineProps<{
+const { video, encoderOptions, presetOptions, rateControlLabel, isCopyEncoder, t } = defineProps<{
   video: VideoConfig;
   encoderOptions: { value: EncoderType; label: string }[];
   presetOptions: Record<string, string[]>;

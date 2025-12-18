@@ -1,6 +1,13 @@
-use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
+use serde_json::{
+    Value,
+    json,
+};
+
+use super::types::{
+    DEFAULT_UI_SCALE_PERCENT,
+    UiFontFamily,
+};
 use super::*;
-use serde_json::{Value, json};
 
 mod network_proxy;
 mod presets_loading;
@@ -318,10 +325,7 @@ fn app_settings_round_trips_downloaded_tool_metadata() {
         ffmpeg: Some(DownloadedToolInfo {
             version: Some("6.1".to_string()),
             tag: Some("b6.1".to_string()),
-            source_url: Some(
-                "https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1/ffmpeg-win32-x64"
-                    .to_string(),
-            ),
+            source_url: Some("https://github.com/eugeneware/ffmpeg-static/releases/download/b6.1/ffmpeg-win32-x64".to_string()),
             downloaded_at: Some(1_735_000_000_000),
         }),
         ffprobe: None,

@@ -53,9 +53,7 @@ export interface UseQueueContextMenuReturn {
   handleQueueContextCopyOutputPath: () => Promise<void>;
 }
 
-export function useQueueContextMenu(
-  options: UseQueueContextMenuOptions,
-): UseQueueContextMenuReturn {
+export function useQueueContextMenu(options: UseQueueContextMenuOptions): UseQueueContextMenuReturn {
   const {
     jobs,
     selectedJobIds,
@@ -80,21 +78,16 @@ export function useQueueContextMenu(
   const queueContextMenuY = ref(0);
   const queueContextMenuJobId = ref<string | null>(null);
 
-  const queueContextMenuJob = computed(() =>
-    jobs.value.find((job) => job.id === queueContextMenuJobId.value) ?? null,
-  );
+  const queueContextMenuJob = computed(() => jobs.value.find((job) => job.id === queueContextMenuJobId.value) ?? null);
 
-  const queueContextMenuJobStatus = computed<JobStatus | undefined>(
-    () => queueContextMenuJob.value?.status,
-  );
+  const queueContextMenuJobStatus = computed<JobStatus | undefined>(() => queueContextMenuJob.value?.status);
 
   const normalisePathOrNull = (value: string | undefined | null): string | null => {
     const path = (value ?? "").trim();
     return path ? path : null;
   };
 
-  const getJobInputPath = (job: TranscodeJob): string | null =>
-    normalisePathOrNull(job.inputPath || job.filename);
+  const getJobInputPath = (job: TranscodeJob): string | null => normalisePathOrNull(job.inputPath || job.filename);
 
   const getJobOutputPath = (job: TranscodeJob): string | null =>
     normalisePathOrNull(job.outputPath || job.waitMetadata?.tmpOutputPath);
@@ -111,17 +104,11 @@ export function useQueueContextMenu(
     return getJobOutputPath(job);
   });
 
-  const queueContextMenuCanRevealInputPath = computed(
-    () => hasTauri() && !!queueContextMenuInputPath.value,
-  );
+  const queueContextMenuCanRevealInputPath = computed(() => hasTauri() && !!queueContextMenuInputPath.value);
 
-  const queueContextMenuCanRevealOutputPath = computed(
-    () => hasTauri() && !!queueContextMenuOutputPath.value,
-  );
+  const queueContextMenuCanRevealOutputPath = computed(() => hasTauri() && !!queueContextMenuOutputPath.value);
 
-  const selectedJobs = computed(() =>
-    jobs.value.filter((job) => selectedJobIds.value.has(job.id)),
-  );
+  const selectedJobs = computed(() => jobs.value.filter((job) => selectedJobIds.value.has(job.id)));
 
   const buildCopyText = (paths: Array<string | null>) => {
     const compact = paths.filter((path): path is string => !!path);

@@ -13,8 +13,7 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-(globalThis as any).ResizeObserver =
-  (globalThis as any).ResizeObserver || ResizeObserverMock;
+(globalThis as any).ResizeObserver = (globalThis as any).ResizeObserver || ResizeObserverMock;
 
 // 注意：vue-i18n 的类型推导对大型 messages 对象会产生“Type instantiation is excessively deep”。
 // 在测试里使用宽松 schema，避免在这里耗尽类型推导深度。
@@ -43,27 +42,21 @@ describe("ParameterWizard", () => {
     // Step 1: choose the fast NVENC recipe to switch encoder to hevc_nvenc.
     const fastNvencLabel = t("presetEditor.recipes.fastTranscode");
     const recipeButtons = wrapper.findAll("button");
-    const fastNvencButton = recipeButtons.find((btn) =>
-      btn.text().includes(fastNvencLabel),
-    );
+    const fastNvencButton = recipeButtons.find((btn) => btn.text().includes(fastNvencLabel));
     expect(fastNvencButton).toBeTruthy();
     await fastNvencButton!.trigger("click");
 
     const nextLabel = t("common.next");
     // Recipe 会把 step 设置为 2，这里依次点击 Next 直到最后一步再保存。
     for (let i = 0; i < 3; i += 1) {
-      const nextButton = wrapper
-        .findAll("button")
-        .find((btn) => btn.text().includes(nextLabel));
+      const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
       expect(nextButton).toBeTruthy();
       await nextButton!.trigger("click");
     }
 
     // Final step: click the save button which triggers handleSave.
     const saveLabel = t("presetEditor.actions.save");
-    const saveButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes(saveLabel));
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(saveLabel));
     expect(saveButton).toBeTruthy();
     await saveButton!.trigger("click");
 
@@ -91,31 +84,23 @@ describe("ParameterWizard", () => {
     const nextLabel = t("common.next");
     // 从基础信息依次点击 Next 进入到音频步骤（第 4 步）。
     for (let i = 0; i < 3; i += 1) {
-      const nextButton = wrapper
-        .findAll("button")
-        .find((btn) => btn.text().includes(nextLabel));
+      const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
       expect(nextButton).toBeTruthy();
       await nextButton!.trigger("click");
     }
 
     const aacLabel = t("presetEditor.audio.aacTitle");
-    const aacButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes(aacLabel));
+    const aacButton = wrapper.findAll("button").find((btn) => btn.text().includes(aacLabel));
     expect(aacButton).toBeTruthy();
     await aacButton!.trigger("click");
 
     // 继续到最后一步并保存预设。
-    const nextButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes(nextLabel));
+    const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
     expect(nextButton).toBeTruthy();
     await nextButton!.trigger("click");
 
     const saveLabel = t("presetEditor.actions.save");
-    const saveButton = wrapper
-      .findAll("button")
-      .find((btn) => btn.text().includes(saveLabel));
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(saveLabel));
     expect(saveButton).toBeTruthy();
     await saveButton!.trigger("click");
 

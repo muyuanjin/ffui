@@ -1,10 +1,7 @@
 import type { ComputedRef, Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 
-export function createSelectionHelpers(
-  selectedJobIds: Ref<Set<string>>,
-  filteredJobs: ComputedRef<TranscodeJob[]>,
-) {
+export function createSelectionHelpers(selectedJobIds: Ref<Set<string>>, filteredJobs: ComputedRef<TranscodeJob[]>) {
   const isJobSelected = (jobId: string): boolean => selectedJobIds.value.has(jobId);
 
   const toggleJobSelected = (jobId: string) => {

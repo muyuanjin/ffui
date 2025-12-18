@@ -4,8 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const invokeMock = vi.fn<(cmd: string, payload?: unknown) => Promise<unknown>>();
 
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: (cmd: string, payload?: unknown) =>
-    payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload),
+  invoke: (cmd: string, payload?: unknown) => (payload === undefined ? invokeMock(cmd) : invokeMock(cmd, payload)),
   convertFileSrc: (path: string) => path,
 }));
 
@@ -25,4 +24,3 @@ describe("backend app updater capabilities contract", () => {
     expect(caps).toEqual({ configured: true });
   });
 });
-

@@ -1,9 +1,19 @@
-use anyhow::{Context, Result};
-use once_cell::sync::Lazy;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime};
+use std::time::{
+    Duration,
+    SystemTime,
+};
+
+use anyhow::{
+    Context,
+    Result,
+};
+use once_cell::sync::Lazy;
 
 const DEFAULT_FALLBACK_CACHE_MAX_BYTES: u64 = 1024 * 1024 * 1024; // 1 GiB
 const DEFAULT_FALLBACK_CACHE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60); // 30 days

@@ -3,10 +3,7 @@ import { Button } from "@/components/ui/button";
 </script>
 
 <template>
-  <header
-    data-testid="queue-secondary-header"
-    class="shrink-0 border-b border-border bg-card/60 backdrop-blur"
-  >
+  <header data-testid="queue-secondary-header" class="shrink-0 border-b border-border bg-card/60 backdrop-blur">
     <!-- 主要操作栏 -->
     <div class="px-3 py-1.5">
       <div class="flex items-center justify-between gap-4">
@@ -23,7 +20,7 @@ import { Button } from "@/components/ui/button";
             >
               <span>视图排序</span>
               <svg class="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m6 9 6 6 6-6"/>
+                <path d="m6 9 6 6 6-6" />
               </svg>
             </Button>
           </div>
@@ -37,25 +34,25 @@ import { Button } from "@/components/ui/button";
             <Button type="button" class="queue-select-button">
               <span>按添加时间</span>
               <svg class="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m6 9 6 6 6-6"/>
+                <path d="m6 9 6 6 6-6" />
               </svg>
             </Button>
 
             <Button type="button" class="queue-action-button" data-testid="queue-sort-primary-direction-toggle">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="m3 16 4 4 4-4"/>
-                <path d="M7 20V4"/>
-                <path d="m21 8-4-4-4 4"/>
-                <path d="M17 4v16"/>
+                <path d="m3 16 4 4 4-4" />
+                <path d="M7 20V4" />
+                <path d="m21 8-4-4-4 4" />
+                <path d="M17 4v16" />
               </svg>
               <span>升序</span>
             </Button>
 
             <Button type="button" class="queue-action-button" data-testid="queue-secondary-sort-expand">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M3 13h18"/>
-                <path d="M3 7h12"/>
-                <path d="M3 19h6"/>
+                <path d="M3 13h18" />
+                <path d="M3 7h12" />
+                <path d="M3 19h6" />
               </svg>
               <span>二级排序</span>
             </Button>
@@ -71,8 +68,14 @@ import { Button } from "@/components/ui/button";
 
           <!-- 筛选按钮 -->
           <Button type="button" class="queue-action-button group">
-            <svg class="w-3 h-3 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+            <svg
+              class="w-3 h-3 transition-transform group-hover:scale-110"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z" />
             </svg>
             <span>筛选</span>
           </Button>

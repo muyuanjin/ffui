@@ -63,9 +63,7 @@ describe("MainApp queue delete behaviour", () => {
     await nextTick();
 
     // No delete_transcode_job call should have been issued.
-    expect(
-      invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job"),
-    ).toBe(false);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job")).toBe(false);
 
     // An error message should be surfaced to guide the user.
     expect(vm.queueError ?? vm.queueError?.value).toBeTruthy();
@@ -140,29 +138,20 @@ describe("MainApp queue delete behaviour", () => {
     await nextTick();
 
     // The backend delete command should be called only for the completed job.
-    expect(
-      invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job"),
-    ).toBe(true);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job")).toBe(true);
     expect(deletedIds).toContain("job-completed");
     expect(deletedIds).not.toContain("job-processing");
 
     // UI 队列中应只剩下仍在 processing 的任务。
-    const uiJobs = (vm.queueJobsForDisplay ?? vm.queueJobsForDisplay?.value) as
-      | TranscodeJob[]
-      | undefined;
+    const uiJobs = (vm.queueJobsForDisplay ?? vm.queueJobsForDisplay?.value) as TranscodeJob[] | undefined;
     const remainingIds = (uiJobs ?? []).map((job) => job.id);
     expect(remainingIds).toContain("job-processing");
     expect(remainingIds).not.toContain("job-completed");
 
     // When some selected jobs are still active,已经完成的任务会被删除，
     // 但应提示用户“正在运行或排队中的任务不能直接从列表删除”而不是“部分任务删除失败”。
-    const error =
-      (vm.queueError ?? vm.queueError?.value) ??
-      null;
-    const expected =
-      (i18n as any).global.t(
-        "queue.error.deleteActiveNotAllowed",
-      ) as string;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
+    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
     expect(error).toBe(expected);
 
     wrapper.unmount();
@@ -218,16 +207,12 @@ describe("MainApp queue delete behaviour", () => {
     }
     await nextTick();
 
-    const error =
-      (vm.queueError ?? vm.queueError?.value) ??
-      null;
-    const failedMessage =
-      (i18n as any).global.t("queue.error.deleteFailed") as string;
+    const error = vm.queueError ?? vm.queueError?.value ?? null;
+    const failedMessage = (i18n as any).global.t("queue.error.deleteFailed") as string;
 
     // 任务已经不在队列快照中时，不应该提示“部分任务删除失败”。
     expect(error).not.toBe(failedMessage);
 
     wrapper.unmount();
   });
-
 });

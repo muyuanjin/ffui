@@ -1,12 +1,16 @@
 #[cfg(test)]
 mod tools_tests_probe {
     use std::env;
-    use std::fs::{self, File};
+    use std::fs::{
+        self,
+        File,
+    };
     use std::io::Write;
 
     #[test]
     fn verify_tool_binary_handles_tools_that_fail_on_long_version_flag() {
-        use crate::ffui_core::tools::{ExternalToolKind, probe::verify_tool_binary};
+        use crate::ffui_core::tools::ExternalToolKind;
+        use crate::ffui_core::tools::probe::verify_tool_binary;
 
         let dir = env::temp_dir();
 
@@ -59,7 +63,8 @@ mod tools_tests_probe {
 
     #[test]
     fn verify_avifenc_binary_treats_non_zero_exit_as_available() {
-        use crate::ffui_core::tools::{ExternalToolKind, probe::verify_tool_binary};
+        use crate::ffui_core::tools::ExternalToolKind;
+        use crate::ffui_core::tools::probe::verify_tool_binary;
 
         let dir = env::temp_dir();
 
@@ -117,7 +122,10 @@ mod tools_tests_probe {
     #[test]
     fn tool_status_does_not_spawn_ffmpeg_twice_for_version() {
         use crate::ffui_core::settings::ExternalToolSettings;
-        use crate::ffui_core::tools::{ExternalToolKind, tool_status};
+        use crate::ffui_core::tools::{
+            ExternalToolKind,
+            tool_status,
+        };
 
         let dir = tempfile::tempdir().expect("create temp dir for tool_status spawn test");
         let counter_path = dir.path().join("ffui_ffmpeg_spawn_count.txt");
@@ -194,7 +202,9 @@ mod tools_tests_probe {
     fn persisted_probe_cache_avoids_spawning_on_subsequent_startup() {
         use crate::ffui_core::settings::ExternalToolSettings;
         use crate::ffui_core::tools::{
-            ExternalToolKind, hydrate_probe_cache_from_settings, tool_status,
+            ExternalToolKind,
+            hydrate_probe_cache_from_settings,
+            tool_status,
             update_probe_cache_from_statuses,
         };
 

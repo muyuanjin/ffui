@@ -1,13 +1,30 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::sync::atomic::{
+    AtomicBool,
+    AtomicU64,
+    Ordering,
+};
+use std::sync::{
+    Arc,
+    Mutex,
+};
+use std::time::{
+    Duration,
+    Instant,
+};
 
-use tauri::{Emitter, Manager};
+use tauri::{
+    Emitter,
+    Manager,
+};
 
 use super::ui_fonts_catalog::open_source_fonts_catalog;
-use super::ui_fonts_types::{DownloadedFontInfo, UiFontDownloadSnapshot, UiFontDownloadStatus};
+use super::ui_fonts_types::{
+    DownloadedFontInfo,
+    UiFontDownloadSnapshot,
+    UiFontDownloadStatus,
+};
 use crate::ffui_core::network_proxy;
 
 pub struct UiFontDownloadManager {
@@ -74,8 +91,7 @@ impl UiFontDownloadJob {
 
     fn update_snapshot<F>(&self, f: F) -> UiFontDownloadSnapshot
     where
-        F: FnOnce(&mut UiFontDownloadSnapshot),
-    {
+        F: FnOnce(&mut UiFontDownloadSnapshot), {
         let mut guard = self
             .snapshot
             .lock()

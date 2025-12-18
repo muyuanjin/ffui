@@ -13,4 +13,3 @@ const forwarded = useForwardPropsEmits(props, emits);
     <slot />
   </TooltipRoot>
 </template>
-

@@ -12,17 +12,22 @@ use std::sync::Mutex;
 
 #[cfg(windows)]
 use once_cell::sync::Lazy;
-
 #[cfg(windows)]
 use windows::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+    AssignProcessToJobObject,
+    CreateJobObjectW,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JobObjectExtendedLimitInformation,
     SetInformationJobObject,
 };
 #[cfg(windows)]
-use windows::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
+use windows::Win32::System::Threading::{
+    OpenProcess,
+    PROCESS_ALL_ACCESS,
+};
 
 /// 包装 Job Object 句柄的原始指针，使其可以跨线程安全使用
 ///

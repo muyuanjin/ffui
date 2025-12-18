@@ -11,12 +11,7 @@ export function inferUiFontFormatFromPath(path: string): UiFontFormat | null {
   return null;
 }
 
-export function ensureFontFaceLoaded(options: {
-  id: string;
-  familyName: string;
-  assetUrl: string;
-  format: string;
-}) {
+export function ensureFontFaceLoaded(options: { id: string; familyName: string; assetUrl: string; format: string }) {
   if (typeof document === "undefined") return;
 
   const styleId = `ffui-font-face-${options.id}`;
@@ -56,11 +51,7 @@ export async function applyDownloadedUiFont(downloaded: DownloadedFontInfo) {
   }
 }
 
-export async function applyUiFontFilePath(options: {
-  path: string;
-  familyName: string;
-  id?: string;
-}) {
+export async function applyUiFontFilePath(options: { path: string; familyName: string; id?: string }) {
   if (!hasTauri()) return;
   const format = inferUiFontFormatFromPath(options.path) ?? "ttf";
   await applyDownloadedUiFont({
@@ -71,9 +62,7 @@ export async function applyUiFontFilePath(options: {
   });
 }
 
-export async function startOpenSourceFontDownload(
-  fontId: string,
-): Promise<UiFontDownloadSnapshot | null> {
+export async function startOpenSourceFontDownload(fontId: string): Promise<UiFontDownloadSnapshot | null> {
   if (!hasTauri()) return null;
   const snapshot = await startOpenSourceFontDownloadInBackend(fontId);
   if (snapshot.status === "ready" && snapshot.path) {

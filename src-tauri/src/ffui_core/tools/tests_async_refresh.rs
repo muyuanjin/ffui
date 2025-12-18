@@ -2,8 +2,11 @@
 mod tools_tests_async_refresh {
     use crate::ffui_core::tools::tests_runtime::TEST_MUTEX;
     use crate::ffui_core::tools::{
-        ExternalToolKind, ExternalToolStatus, finish_tool_status_refresh,
-        try_begin_tool_status_refresh, ttl_hit,
+        ExternalToolKind,
+        ExternalToolStatus,
+        finish_tool_status_refresh,
+        try_begin_tool_status_refresh,
+        ttl_hit,
     };
 
     #[test]

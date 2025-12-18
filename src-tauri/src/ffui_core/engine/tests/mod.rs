@@ -1,23 +1,50 @@
+use std::env;
+use std::fs::{
+    self,
+    File,
+};
+use std::io::Write;
+use std::path::PathBuf;
+use std::process::{
+    Command,
+    Stdio,
+};
+use std::sync::{
+    Arc as TestArc,
+    Mutex as TestMutex,
+};
+
 use super::ffmpeg_args::*;
 use super::job_runner::*;
 use super::smart_scan::*;
 use super::state::*;
 use super::worker::*;
 use super::*;
-use crate::ffui_core::ImageTargetFormat;
-use crate::ffui_core::JobStatus;
 use crate::ffui_core::domain::{
-    AudioCodecType, AudioConfig, ContainerConfig, DurationMode, EncoderType, FilterConfig,
-    GlobalConfig, HardwareConfig, InputTimelineConfig, MappingConfig, MediaInfo, OverwriteBehavior,
-    PresetStats, RateControlMode, SeekMode, SubtitleStrategy, SubtitlesConfig, VideoConfig,
+    AudioCodecType,
+    AudioConfig,
+    ContainerConfig,
+    DurationMode,
+    EncoderType,
+    FilterConfig,
+    GlobalConfig,
+    HardwareConfig,
+    InputTimelineConfig,
+    MappingConfig,
+    MediaInfo,
+    OverwriteBehavior,
+    PresetStats,
+    RateControlMode,
+    SeekMode,
+    SubtitleStrategy,
+    SubtitlesConfig,
+    VideoConfig,
 };
 use crate::ffui_core::settings::AppSettings;
-use std::env;
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::sync::{Arc as TestArc, Mutex as TestMutex};
+use crate::ffui_core::{
+    ImageTargetFormat,
+    JobStatus,
+};
 
 mod common;
 

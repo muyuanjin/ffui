@@ -3,8 +3,7 @@ import type { CommandToken } from "./tokenizer";
 /**
  * 移除字符串首尾的引号（双引号和单引号）
  */
-const stripQuotes = (value: string): string =>
-  value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
+const stripQuotes = (value: string): string => value.replace(/^"+|"+$/g, "").replace(/^'+|'+$/g, "");
 
 /**
  * 为命令行标记分配分组信息

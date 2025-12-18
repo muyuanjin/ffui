@@ -17,8 +17,7 @@ const i18n = createI18n({
 
 const queueItemStub = {
   props: ["job", "preset", "canCancel", "viewMode", "progressStyle"],
-  template:
-    '<div data-testid="queue-item-stub" @click="$emit(\'inspect\', job)"></div>',
+  template: '<div data-testid="queue-item-stub" @click="$emit(\'inspect\', job)"></div>',
 };
 
 const queueIconItemStub = {
@@ -120,9 +119,7 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
     await toggleButton.trigger("click");
     await nextTick();
 
-    const childrenContainer = firstCard.find(
-      '[data-testid="smart-scan-batch-children"]',
-    );
+    const childrenContainer = firstCard.find('[data-testid="smart-scan-batch-children"]');
     expect(childrenContainer.exists()).toBe(true);
 
     const childItems = childrenContainer.findAll('[data-testid="queue-item-stub"]');
@@ -131,10 +128,7 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
     await childItems[0].trigger("click");
     await nextTick();
 
-    const selected =
-      vm.dialogManager && vm.dialogManager.selectedJob
-        ? vm.dialogManager.selectedJob.value
-        : null;
+    const selected = vm.dialogManager && vm.dialogManager.selectedJob ? vm.dialogManager.selectedJob.value : null;
 
     expect(selected).toBeTruthy();
     expect(selected.source).toBe("smart_scan");
@@ -276,8 +270,7 @@ describe("MainApp Smart Scan composite batches (non-Tauri)", () => {
 
     // Composite 计算结果中应包含该批次。
     const composite =
-      (vm.compositeSmartScanTasks &&
-        "value" in vm.compositeSmartScanTasks
+      (vm.compositeSmartScanTasks && "value" in vm.compositeSmartScanTasks
         ? vm.compositeSmartScanTasks.value
         : vm.compositeSmartScanTasks) ?? [];
     expect(Array.isArray(composite) ? composite.length : 0).toBeGreaterThan(0);

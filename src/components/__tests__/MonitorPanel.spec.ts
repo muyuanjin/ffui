@@ -13,7 +13,7 @@ vi.mock("vue-echarts", () => ({
   default: {
     name: "VChart",
     props: ["option", "autoresize"],
-    template: "<div class=\"vchart-stub\" />",
+    template: '<div class="vchart-stub" />',
   },
 }));
 
@@ -21,9 +21,7 @@ vi.mock("vue-echarts", () => ({
 // by mutating the shared `snapshots` ref.
 const snapshots = ref<SystemMetricsSnapshot[]>([]);
 
-const cpuTotalSeries = computed(() =>
-  snapshots.value.map((s) => ({ timestamp: s.timestamp, value: s.cpu.total })),
-);
+const cpuTotalSeries = computed(() => snapshots.value.map((s) => ({ timestamp: s.timestamp, value: s.cpu.total })));
 
 const perCoreSeries = computed(() => {
   if (snapshots.value.length === 0) return [];

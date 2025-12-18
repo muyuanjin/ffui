@@ -395,8 +395,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
       inputPath: v3,
       outputPath: o3,
       previewPath: poster3,
-      ffmpegCommand:
-        `ffmpeg -hide_banner -y -i \"${v3}\" -c:v libx264 -preset slow -crf 18 -vf \"scale=-2:1080\" -c:a copy \"${o3}\"`,
+      ffmpegCommand: `ffmpeg -hide_banner -y -i \"${v3}\" -c:v libx264 -preset slow -crf 18 -vf \"scale=-2:1080\" -c:a copy \"${o3}\"`,
       logs: [
         "frame=  9012 fps= 78 q=-1.0 size=  740MiB time=00:05:00.00 bitrate=20200.0kbits/s speed=2.6x",
         "video:720MiB audio:0MiB subtitle:0MiB other streams:0MiB global headers:0MiB muxing overhead: 2.345%",
@@ -419,8 +418,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
       inputPath: v1,
       outputPath: o1,
       previewPath: poster1,
-      ffmpegCommand:
-        `ffmpeg -hide_banner -y -i \"${v1}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o1}\"`,
+      ffmpegCommand: `ffmpeg -hide_banner -y -i \"${v1}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o1}\"`,
       logs: [
         "ffmpeg version N-121700-g36e5576a44",
         `Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '${v1}':`,
@@ -441,8 +439,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
       inputPath: v2,
       outputPath: o2,
       previewPath: poster2,
-      ffmpegCommand:
-        `ffmpeg -hide_banner -y -i \"${v2}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o2}\"`,
+      ffmpegCommand: `ffmpeg -hide_banner -y -i \"${v2}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${o2}\"`,
       logs: [],
       estimatedSeconds: 300,
     },
@@ -471,9 +468,7 @@ export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null>
 
 const normalizeStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter((item) => item.length > 0);
+  return value.map((item) => (typeof item === "string" ? item.trim() : "")).filter((item) => item.length > 0);
 };
 
 const inferFilename = (value: string): string => {
@@ -513,10 +508,7 @@ const makeEnqueuedJob = (params: {
   };
 };
 
-export const expandManualJobInputs = async (
-  paths: string[],
-  options?: { recursive?: boolean },
-): Promise<string[]> => {
+export const expandManualJobInputs = async (paths: string[], options?: { recursive?: boolean }): Promise<string[]> => {
   const normalized = normalizeStringArray(paths);
   if (normalized.length === 0) return [];
   // In docs screenshot mode we don't touch the filesystem; return the inputs.
@@ -526,14 +518,16 @@ export const expandManualJobInputs = async (
 };
 
 export const enqueueTranscodeJob = async (
-  paramsOrPath: {
-    filename: string;
-    jobType: string;
-    source: string;
-    originalSizeMb: number;
-    originalCodec?: string;
-    presetId: string;
-  } | string,
+  paramsOrPath:
+    | {
+        filename: string;
+        jobType: string;
+        source: string;
+        originalSizeMb: number;
+        originalCodec?: string;
+        presetId: string;
+      }
+    | string,
   maybePresetId?: string,
 ): Promise<TranscodeJob> => {
   if (typeof paramsOrPath === "string") {

@@ -92,4 +92,3 @@ describe("PresetPanel scenario and risk labels", () => {
     wrapper.unmount();
   });
 });
-

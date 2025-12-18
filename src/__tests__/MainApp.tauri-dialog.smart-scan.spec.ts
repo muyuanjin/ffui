@@ -341,9 +341,7 @@ describe("MainApp Smart Scan integration", () => {
     await vm.runSmartScan(config);
     await nextTick();
 
-    const callsBefore = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "get_queue_state_lite",
-    ).length;
+    const callsBefore = invokeMock.mock.calls.filter(([cmd]) => cmd === "get_queue_state_lite").length;
 
     const job: TranscodeJob = {
       id: "job-progress-1",
@@ -373,9 +371,7 @@ describe("MainApp Smart Scan integration", () => {
     await nextTick();
     await nextTick();
 
-    const callsAfter = invokeMock.mock.calls.filter(
-      ([cmd]) => cmd === "get_queue_state_lite",
-    ).length;
+    const callsAfter = invokeMock.mock.calls.filter(([cmd]) => cmd === "get_queue_state_lite").length;
     expect(callsAfter).toBeGreaterThan(callsBefore);
 
     wrapper.unmount();
@@ -429,8 +425,7 @@ describe("MainApp Smart Scan integration", () => {
 
     // 初始状态：只有批次元数据，没有任何队列子任务，复合卡片会以“空批次”形式出现。
     let tasks: any[] =
-      (vm.compositeSmartScanTasks &&
-        "value" in vm.compositeSmartScanTasks
+      (vm.compositeSmartScanTasks && "value" in vm.compositeSmartScanTasks
         ? vm.compositeSmartScanTasks.value
         : vm.compositeSmartScanTasks) ?? [];
     expect(tasks.length).toBe(1);
@@ -451,8 +446,7 @@ describe("MainApp Smart Scan integration", () => {
 
     // 修复后的 useSmartScan 应在“无候选且批次已完成”且队列中没有任何子任务时隐藏空的复合任务卡片。
     tasks =
-      (vm.compositeSmartScanTasks &&
-        "value" in vm.compositeSmartScanTasks
+      (vm.compositeSmartScanTasks && "value" in vm.compositeSmartScanTasks
         ? vm.compositeSmartScanTasks.value
         : vm.compositeSmartScanTasks) ?? [];
     expect(tasks.length).toBe(0);

@@ -14,7 +14,12 @@ vi.mock("@/lib/backend", () => {
     hasTauri: () => true,
     fetchSystemFontFamilies: vi.fn(async () => []),
     listOpenSourceFonts: vi.fn(async () => []),
-    importUiFontFile: vi.fn(async () => ({ id: "imported", familyName: "Imported", path: "/tmp/Imported.ttf", format: "ttf" })),
+    importUiFontFile: vi.fn(async () => ({
+      id: "imported",
+      familyName: "Imported",
+      path: "/tmp/Imported.ttf",
+      format: "ttf",
+    })),
   };
 });
 

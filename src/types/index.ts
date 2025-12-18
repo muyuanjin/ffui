@@ -71,12 +71,7 @@ export type {
 } from "./tools";
 
 // Smart scan types
-export type {
-  SmartScanConfig,
-  AutoCompressResult,
-  AutoCompressProgress,
-  CompositeSmartScanTask,
-} from "./smart-scan";
+export type { SmartScanConfig, AutoCompressResult, AutoCompressProgress, CompositeSmartScanTask } from "./smart-scan";
 
 // Output policy types
 export type {

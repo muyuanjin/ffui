@@ -45,9 +45,7 @@ const tabMetaByKey: Record<ActiveTab, TabMeta> = {
 };
 
 const activeMeta = computed(() => tabMetaByKey[activeTab]);
-const processingCount = computed(
-  () => jobs.filter((j) => j.status === "processing").length,
-);
+const processingCount = computed(() => jobs.filter((j) => j.status === "processing").length);
 
 const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings") => {
   emit("update:activeTab", tab);
@@ -75,11 +73,7 @@ const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
               class="mt-2 rounded-lg border border-sidebar-border/70 bg-sidebar-accent/30 px-3 py-2 h-[58px] flex items-center gap-2 overflow-hidden"
               data-testid="ffui-sidebar-active-info"
             >
-              <component
-                :is="activeMeta.Icon"
-                class="h-4 w-4 shrink-0 text-sidebar-primary"
-                aria-hidden="true"
-              />
+              <component :is="activeMeta.Icon" class="h-4 w-4 shrink-0 text-sidebar-primary" aria-hidden="true" />
               <div class="min-w-0 flex-1">
                 <div
                   class="text-sm font-semibold text-sidebar-foreground leading-5 truncate"
@@ -118,10 +112,7 @@ const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
           <ListTodo class="h-4 w-4 shrink-0 opacity-90" aria-hidden="true" />
           <span class="truncate">{{ t("app.tabs.queue") }}</span>
         </span>
-        <span
-          v-if="processingCount > 0"
-          class="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
-        />
+        <span v-if="processingCount > 0" class="ml-auto w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
       </Button>
       <Button
         data-testid="ffui-tab-presets"

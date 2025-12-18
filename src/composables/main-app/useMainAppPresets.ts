@@ -15,9 +15,7 @@ import type { UseMainAppShellReturn } from "./useMainAppShell";
 import type { UseMainAppDialogsReturn } from "./useMainAppDialogs";
 
 const isTestEnv =
-  typeof import.meta !== "undefined" &&
-  typeof import.meta.env !== "undefined" &&
-  import.meta.env.MODE === "test";
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const startupNowMs = () => {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -345,9 +343,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     const shouldReplaceExisting = options?.replaceExisting || onlyLegacyDefaults;
 
     if (shouldReplaceExisting) {
-      const idsToRemove = presets.value
-        .filter((preset) => !selectedIds.has(preset.id))
-        .map((preset) => preset.id);
+      const idsToRemove = presets.value.filter((preset) => !selectedIds.has(preset.id)).map((preset) => preset.id);
 
       let latestPresets = selectedPresets;
 

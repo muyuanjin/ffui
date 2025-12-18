@@ -2,20 +2,39 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::{
+    Context,
+    Result,
+};
 
+use super::super::ffmpeg_args::{
+    configure_background_command,
+    format_command_for_log,
+};
+use super::super::output_policy_paths::plan_output_path_with_extension;
+use super::super::state::{
+    Inner,
+    register_known_smart_scan_output_with_inner,
+};
+use super::super::worker_utils::recompute_log_tail;
+use super::helpers::{
+    current_time_millis,
+    next_job_id,
+    record_tool_download,
+};
 use crate::ffui_core::domain::{
-    JobSource, JobStatus, JobType, MediaInfo, SmartScanConfig, TranscodeJob,
+    JobSource,
+    JobStatus,
+    JobType,
+    MediaInfo,
+    SmartScanConfig,
+    TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-
-use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
-use super::super::output_policy_paths::plan_output_path_with_extension;
-use super::super::state::Inner;
-use super::super::state::register_known_smart_scan_output_with_inner;
-use super::super::worker_utils::recompute_log_tail;
-use super::helpers::{current_time_millis, next_job_id, record_tool_download};
+use crate::ffui_core::tools::{
+    ExternalToolKind,
+    ensure_tool_available,
+};
 
 #[cfg(test)]
 pub(crate) fn handle_image_file(
@@ -141,8 +160,9 @@ pub(crate) fn handle_image_file_with_id(
         return Ok(job);
     }
 
-    // Compute output path based on Smart Scan output policy (extension is driven by image target format).
-    // Note: current Smart Scan image pipeline encodes AVIF; `imageTargetFormat` may be extended later.
+    // Compute output path based on Smart Scan output policy (extension is driven by image target
+    // format). Note: current Smart Scan image pipeline encodes AVIF; `imageTargetFormat` may be
+    // extended later.
     let (avif_target, tmp_output) = {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let target = plan_output_path_with_extension(
@@ -196,8 +216,8 @@ pub(crate) fn handle_image_file_with_id(
             let avifenc_path: String = avifenc_path;
             if did_download {
                 job.logs.push(format!(
-                        "auto-download: avifenc was downloaded automatically according to current settings (path: {avifenc_path})"
-                    ));
+                    "auto-download: avifenc was downloaded automatically according to current settings (path: {avifenc_path})"
+                ));
                 // Persist avifenc download metadata so future runs can reuse it.
                 record_tool_download(inner, ExternalToolKind::Avifenc, &avifenc_path);
             }
@@ -292,14 +312,12 @@ pub(crate) fn handle_image_file_with_id(
                     // 若用户勾选“替换原文件”，尝试将源图片移入系统回收站（最佳努力）。
                     if config.replace_original {
                         match trash::delete(path) {
-                            Ok(()) => job.logs.push(format!(
-                                "replace original: moved source image {} to recycle bin",
-                                path.display()
-                            )),
-                            Err(err) => job.logs.push(format!(
-                                "replace original: failed to move source image {} to recycle bin: {err}",
-                                path.display()
-                            )),
+                            Ok(()) => job
+                                .logs
+                                .push(format!("replace original: moved source image {} to recycle bin", path.display())),
+                            Err(err) => job
+                                .logs
+                                .push(format!("replace original: failed to move source image {} to recycle bin: {err}", path.display())),
                         }
                     }
 

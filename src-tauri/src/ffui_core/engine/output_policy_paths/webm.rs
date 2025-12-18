@@ -1,6 +1,9 @@
-use crate::ffui_core::domain::{AudioCodecType, EncoderType, FFmpegPreset};
-
 use super::template::infer_template_output_codecs;
+use crate::ffui_core::domain::{
+    AudioCodecType,
+    EncoderType,
+    FFmpegPreset,
+};
 
 pub(super) fn should_fallback_webm(preset: Option<&FFmpegPreset>, input_ext: Option<&str>) -> bool {
     let Some(preset) = preset else {

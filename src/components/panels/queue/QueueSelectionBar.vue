@@ -1,37 +1,50 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
-	import { Button } from "@/components/ui/button";
-	import { useI18n } from "vue-i18n";
-	import type { QueueMode } from "@/types";
-	import QueueSelectionBarSizers from "./QueueSelectionBarSizers.vue";
-	import { CheckSquare, Square, X, Hourglass, Play, RefreshCw, ArrowUp, ArrowDown, XCircle, Trash2, Pin, PinOff } from "lucide-vue-next";
-	const props = defineProps<{
-	  selectionBarPinned: boolean;
-	  selectedCount: number;
-	  queueMode: QueueMode;
+import { Button } from "@/components/ui/button";
+import { useI18n } from "vue-i18n";
+import type { QueueMode } from "@/types";
+import QueueSelectionBarSizers from "./QueueSelectionBarSizers.vue";
+import {
+  CheckSquare,
+  Square,
+  X,
+  Hourglass,
+  Play,
+  RefreshCw,
+  ArrowUp,
+  ArrowDown,
+  XCircle,
+  Trash2,
+  Pin,
+  PinOff,
+} from "lucide-vue-next";
+const props = defineProps<{
+  selectionBarPinned: boolean;
+  selectedCount: number;
+  queueMode: QueueMode;
 }>();
-	const emit = defineEmits<{
-	  (e: "select-all-visible-jobs"): void;
-	  (e: "invert-selection"): void;
-	  (e: "clear-selection"): void;
-	  (e: "bulk-wait"): void;
-	  (e: "bulk-resume"): void;
-	  (e: "bulk-cancel"): void;
-	  (e: "bulk-restart" | "bulk-move-to-top" | "bulk-move-to-bottom" | "bulk-delete"): void;
-	  (e: "toggle-selection-bar-pinned"): void;
-	}>();
-	const { t, locale } = useI18n();
-	const emitTogglePin = () => emit("toggle-selection-bar-pinned");
-	const viewportEl = ref<HTMLDivElement | null>(null);
-	const fullSizerRowEl = ref<HTMLDivElement | null>(null);
-	const shortSizerRowEl = ref<HTMLDivElement | null>(null);
-	const setFullSizerRowEl = (el: HTMLDivElement | null) => {
-	  fullSizerRowEl.value = el;
-	};
-	const setShortSizerRowEl = (el: HTMLDivElement | null) => {
-	  shortSizerRowEl.value = el;
-	};
-	const density = ref<"full" | "short" | "icon">("full");
+const emit = defineEmits<{
+  (e: "select-all-visible-jobs"): void;
+  (e: "invert-selection"): void;
+  (e: "clear-selection"): void;
+  (e: "bulk-wait"): void;
+  (e: "bulk-resume"): void;
+  (e: "bulk-cancel"): void;
+  (e: "bulk-restart" | "bulk-move-to-top" | "bulk-move-to-bottom" | "bulk-delete"): void;
+  (e: "toggle-selection-bar-pinned"): void;
+}>();
+const { t, locale } = useI18n();
+const emitTogglePin = () => emit("toggle-selection-bar-pinned");
+const viewportEl = ref<HTMLDivElement | null>(null);
+const fullSizerRowEl = ref<HTMLDivElement | null>(null);
+const shortSizerRowEl = ref<HTMLDivElement | null>(null);
+const setFullSizerRowEl = (el: HTMLDivElement | null) => {
+  fullSizerRowEl.value = el;
+};
+const setShortSizerRowEl = (el: HTMLDivElement | null) => {
+  shortSizerRowEl.value = el;
+};
+const density = ref<"full" | "short" | "icon">("full");
 
 let resizeObserver: ResizeObserver | null = null;
 const updateDensityFromOverflow = () => {
@@ -93,10 +106,7 @@ watch(
 </script>
 
 <template>
-  <div
-    class="queue-selection-bar border-t border-border/60 px-3 py-1.5 bg-accent/5"
-    :data-density="density"
-  >
+  <div class="queue-selection-bar border-t border-border/60 px-3 py-1.5 bg-accent/5" :data-density="density">
     <div
       ref="viewportEl"
       class="queue-selection-bar__viewport"
@@ -108,12 +118,12 @@ watch(
           density === 'full' ? 'gap-2' : 'gap-1.5',
         ]"
       >
-	        <div class="flex items-center gap-2 shrink-0">
-	          <span
-	            class="text-xs font-medium text-foreground whitespace-nowrap"
-	            :title="t('queue.selection.selectedCount', { count: props.selectedCount })"
-	            data-testid="queue-selection-count"
-	          >
+        <div class="flex items-center gap-2 shrink-0">
+          <span
+            class="text-xs font-medium text-foreground whitespace-nowrap"
+            :title="t('queue.selection.selectedCount', { count: props.selectedCount })"
+            data-testid="queue-selection-count"
+          >
             <span v-if="density === 'full'" class="queue-selection-bar__count-full">
               {{ t("queue.selection.selectedCount", { count: props.selectedCount }) }}
             </span>
@@ -122,15 +132,15 @@ watch(
             </span>
             <span v-else class="queue-selection-bar__count-icon" aria-hidden="true">
               {{ props.selectedCount }}
-	            </span>
-	          </span>
+            </span>
+          </span>
 
-	          <div class="flex items-center gap-1">
-	            <Button
-	              type="button"
-	              variant="ghost"
-	              size="sm"
-	              class="queue-selection-bar__button"
+          <div class="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="queue-selection-bar__button"
               :class="buttonLayoutClass()"
               @click="emit('select-all-visible-jobs')"
               :title="t('queue.selection.selectAll')"
@@ -181,9 +191,9 @@ watch(
               <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.clearShort") }}
               </span>
-	            </Button>
-	          </div>
-	        </div>
+            </Button>
+          </div>
+        </div>
 
         <div class="flex items-center gap-1">
           <Button
@@ -243,14 +253,14 @@ watch(
             </span>
           </Button>
 
-	          <Button
-	            type="button"
-	            variant="ghost"
-	            size="sm"
-	            class="queue-selection-bar__button"
-	            :class="iconOnlyButtonLayoutClass()"
-	            :disabled="props.queueMode !== 'queue'"
-	            @click="emit('bulk-restart')"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="queue-selection-bar__button"
+            :class="iconOnlyButtonLayoutClass()"
+            :disabled="props.queueMode !== 'queue'"
+            @click="emit('bulk-restart')"
             :title="t('queue.actions.bulkRestart')"
             :aria-label="t('queue.actions.bulkRestart')"
           >
@@ -262,14 +272,14 @@ watch(
 
           <div v-if="density === 'full'" class="h-4 w-px bg-border/40 mx-1" />
 
-	          <Button
-	            type="button"
-	            variant="ghost"
-	            size="sm"
-	            class="queue-selection-bar__button"
-	            :class="iconOnlyButtonLayoutClass()"
-	            :disabled="props.queueMode !== 'queue'"
-	            @click="emit('bulk-move-to-top')"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="queue-selection-bar__button"
+            :class="iconOnlyButtonLayoutClass()"
+            :disabled="props.queueMode !== 'queue'"
+            @click="emit('bulk-move-to-top')"
             :title="t('queue.actions.bulkMoveToTop')"
             :aria-label="t('queue.actions.bulkMoveToTop')"
           >
@@ -279,14 +289,14 @@ watch(
             </span>
           </Button>
 
-	          <Button
-	            type="button"
-	            variant="ghost"
-	            size="sm"
-	            class="queue-selection-bar__button"
-	            :class="iconOnlyButtonLayoutClass()"
-	            :disabled="props.queueMode !== 'queue'"
-	            @click="emit('bulk-move-to-bottom')"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="queue-selection-bar__button"
+            :class="iconOnlyButtonLayoutClass()"
+            :disabled="props.queueMode !== 'queue'"
+            @click="emit('bulk-move-to-bottom')"
             :title="t('queue.actions.bulkMoveToBottom')"
             :aria-label="t('queue.actions.bulkMoveToBottom')"
           >
@@ -298,26 +308,26 @@ watch(
 
           <div v-if="density === 'full'" class="h-4 w-px bg-border/40 mx-1" />
 
-	          <Button
-	            type="button"
-	            variant="ghost"
-	            size="sm"
-	            class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
-	            :class="iconOnlyButtonLayoutClass()"
-	            @click="emit('bulk-delete')"
-	            :title="t('queue.actions.bulkDelete')"
-	            :aria-label="t('queue.actions.bulkDelete')"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
+            :class="iconOnlyButtonLayoutClass()"
+            @click="emit('bulk-delete')"
+            :title="t('queue.actions.bulkDelete')"
+            :aria-label="t('queue.actions.bulkDelete')"
           >
             <Trash2 class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkDelete") }}
             </span>
-	          </Button>
+          </Button>
 
-	          <Button
-	            type="button"
-	            variant="ghost"
-	            size="sm"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
             class="queue-selection-bar__button"
             :class="[iconOnlyButtonLayoutClass(), { 'text-primary': props.selectionBarPinned }]"
             @click="emitTogglePin"
@@ -329,22 +339,22 @@ watch(
           </Button>
         </div>
       </div>
-	    </div>
+    </div>
 
-	    <QueueSelectionBarSizers
-	      :selected-count="props.selectedCount"
-	      :set-full-sizer-row-el="setFullSizerRowEl"
-	      :set-short-sizer-row-el="setShortSizerRowEl"
-	    />
-	  </div>
-	</template>
+    <QueueSelectionBarSizers
+      :selected-count="props.selectedCount"
+      :set-full-sizer-row-el="setFullSizerRowEl"
+      :set-short-sizer-row-el="setShortSizerRowEl"
+    />
+  </div>
+</template>
 
 <style scoped>
 .queue-selection-bar {
   position: relative;
 }
 
-	.queue-selection-bar__viewport {
-	  min-width: 0;
-	}
-	</style>
+.queue-selection-bar__viewport {
+  min-width: 0;
+}
+</style>

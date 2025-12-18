@@ -1,12 +1,25 @@
-use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
+use std::collections::{
+    HashSet,
+    VecDeque,
+};
+use std::path::{
+    Path,
+    PathBuf,
+};
 
-use crate::ffui_core::domain::{JobStatus, JobType, QueueState, WaitMetadata};
-use crate::ffui_core::settings::types::QueuePersistenceMode;
-
-use super::super::state_persist::{load_persisted_queue_state, load_persisted_terminal_job_logs};
+use super::super::state_persist::{
+    load_persisted_queue_state,
+    load_persisted_terminal_job_logs,
+};
 use super::super::worker_utils::recompute_log_tail;
 use super::Inner;
+use crate::ffui_core::domain::{
+    JobStatus,
+    JobType,
+    QueueState,
+    WaitMetadata,
+};
+use crate::ffui_core::settings::types::QueuePersistenceMode;
 
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
     // Respect the configured queue persistence mode; when disabled we skip

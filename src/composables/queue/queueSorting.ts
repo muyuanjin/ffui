@@ -2,10 +2,7 @@ import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { compareJobsByField, getJobSortValue } from "./filtering-utils";
 import { progressiveMergeSort } from "./progressiveSort";
-import type {
-  QueueSortDirection,
-  QueueSortField,
-} from "./useQueueFiltering.types";
+import type { QueueSortDirection, QueueSortField } from "./useQueueFiltering.types";
 
 // Thresholds for progressive sorting of large queues. For small/medium lists
 // we keep the simple synchronous sort; for very large lists we first sort a
@@ -35,16 +32,8 @@ export interface QueueSortingState {
   compareJobsInWaitingGroup: (a: TranscodeJob, b: TranscodeJob) => number;
 }
 
-export function createQueueSortingState(
-  deps: QueueSortingDeps,
-): QueueSortingState {
-  const {
-    filteredJobs,
-    sortPrimary,
-    sortPrimaryDirection,
-    sortSecondary,
-    sortSecondaryDirection,
-  } = deps;
+export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingState {
+  const { filteredJobs, sortPrimary, sortPrimaryDirection, sortSecondary, sortSecondaryDirection } = deps;
 
   const hasPrimarySortTies = computed(() => {
     const list = filteredJobs.value;
@@ -74,19 +63,9 @@ export function createQueueSortingState(
   });
 
   const compareJobsByConfiguredFields = (a: TranscodeJob, b: TranscodeJob): number => {
-    let result = compareJobsByField(
-      a,
-      b,
-      sortPrimary.value,
-      sortPrimaryDirection.value,
-    );
+    let result = compareJobsByField(a, b, sortPrimary.value, sortPrimaryDirection.value);
     if (result !== 0) return result;
-    result = compareJobsByField(
-      a,
-      b,
-      sortSecondary.value,
-      sortSecondaryDirection.value,
-    );
+    result = compareJobsByField(a, b, sortSecondary.value, sortSecondaryDirection.value);
     return result;
   };
 
@@ -130,9 +109,7 @@ export function createQueueSortingState(
   const displayModeSortedJobsInternal = ref<TranscodeJob[]>([]);
 
   const isTestEnv =
-    typeof import.meta !== "undefined" &&
-    typeof import.meta.env !== "undefined" &&
-    import.meta.env.MODE === "test";
+    typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
   const yieldToMainThread = (): Promise<void> => {
     if (typeof window === "undefined") return Promise.resolve();
@@ -161,17 +138,11 @@ export function createQueueSortingState(
 
       const list = jobs.slice();
 
-      if (
-        typeof window === "undefined" ||
-        isTestEnv ||
-        list.length <= LARGE_QUEUE_SORT_THRESHOLD
-      ) {
+      if (typeof window === "undefined" || isTestEnv || list.length <= LARGE_QUEUE_SORT_THRESHOLD) {
         // Small/medium lists: keep the simple synchronous sort so behaviour
         // stays predictable and easy to reason about.
         cancelLargeQueueSort();
-        displayModeSortedJobsInternal.value = list.sort((a, b) =>
-          compareJobsForDisplay(a, b),
-        );
+        displayModeSortedJobsInternal.value = list.sort((a, b) => compareJobsForDisplay(a, b));
         return;
       }
 
@@ -196,9 +167,7 @@ export function createQueueSortingState(
     return displayModeSortedJobsInternal.value;
   });
 
-  const manualQueueJobs = computed<TranscodeJob[]>(() =>
-    filteredJobs.value.filter((job) => !job.batchId),
-  );
+  const manualQueueJobs = computed<TranscodeJob[]>(() => filteredJobs.value.filter((job) => !job.batchId));
 
   const queueModeProcessingJobs = computed<TranscodeJob[]>(() =>
     manualQueueJobs.value
@@ -209,12 +178,7 @@ export function createQueueSortingState(
 
   const queueModeWaitingJobs = computed<TranscodeJob[]>(() =>
     manualQueueJobs.value
-      .filter(
-        (job) =>
-          job.status === "waiting" ||
-          job.status === "queued" ||
-          job.status === "paused",
-      )
+      .filter((job) => job.status === "waiting" || job.status === "queued" || job.status === "paused")
       .slice()
       .sort((a, b) => compareJobsInWaitingGroup(a, b)),
   );

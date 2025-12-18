@@ -17,13 +17,7 @@ export type JobSource = "manual" | "smart_scan";
  * dynamic cards, etc.) can be added in future changes while keeping the
  * enum stable for persisted preferences.
  */
-export type QueueViewMode =
-  | "compact"
-  | "detail"
-  | "icon-small"
-  | "icon-medium"
-  | "icon-large"
-  | "dynamic-card";
+export type QueueViewMode = "compact" | "detail" | "icon-small" | "icon-medium" | "icon-large" | "dynamic-card";
 
 /**
  * Queue interaction modes:

@@ -23,10 +23,7 @@ const emit = defineEmits<{
     <div class="flex items-center justify-between text-[11px] text-muted-foreground">
       <div class="flex items-center gap-2 min-w-0">
         <span class="flex-shrink-0">{{ props.commandTitle }}</span>
-        <span
-          v-if="props.mediaSummary"
-          class="inline-flex items-center rounded bg-muted px-1.5 py-0.5"
-        >
+        <span v-if="props.mediaSummary" class="inline-flex items-center rounded bg-muted px-1.5 py-0.5">
           {{ props.mediaSummary }}
         </span>
       </div>
@@ -62,4 +59,3 @@ const emit = defineEmits<{
     />
   </div>
 </template>
-

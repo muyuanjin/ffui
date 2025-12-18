@@ -24,9 +24,7 @@ export function useGpuMetrics(snapshots: { value: SystemMetricsSnapshot[] }) {
     return null;
   });
 
-  const gpuHistory = computed<
-    Array<{ timestamp: number; usage: number; memory: number }>
-  >(() => {
+  const gpuHistory = computed<Array<{ timestamp: number; usage: number; memory: number }>>(() => {
     const points: Array<{ timestamp: number; usage: number; memory: number }> = [];
     for (const s of snapshots.value) {
       const gpu = s.gpu;
@@ -40,13 +38,9 @@ export function useGpuMetrics(snapshots: { value: SystemMetricsSnapshot[] }) {
   });
 
   // GPU 曲线做一次轻度平滑，减少闪烁
-  const gpuUsageSeries = computed(() =>
-    smoothEma(gpuHistory.value.map((p) => p.usage)),
-  );
+  const gpuUsageSeries = computed(() => smoothEma(gpuHistory.value.map((p) => p.usage)));
 
-  const gpuMemorySeries = computed(() =>
-    smoothEma(gpuHistory.value.map((p) => p.memory)),
-  );
+  const gpuMemorySeries = computed(() => smoothEma(gpuHistory.value.map((p) => p.memory)));
 
   return {
     latestGpu,

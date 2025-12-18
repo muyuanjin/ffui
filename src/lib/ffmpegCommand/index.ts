@@ -5,39 +5,19 @@
  */
 
 // 导出类型
-export type {
-  CommandTokenKind,
-  CommandToken,
-} from './tokenizer'
+export type { CommandTokenKind, CommandToken } from "./tokenizer";
 
-export type {
-  TemplateParseResult,
-} from './normalization'
+export type { TemplateParseResult } from "./normalization";
 
-export type {
-  FfmpegCommandPreviewInput,
-} from './builder'
+export type { FfmpegCommandPreviewInput } from "./builder";
 
 // 导出工具函数
-export {
-  escapeHtml,
-  tokenizeFfmpegCommand,
-} from './tokenizer'
+export { escapeHtml, tokenizeFfmpegCommand } from "./tokenizer";
 
-export {
-  assignCommandTokenGroups,
-} from './grouping'
+export { assignCommandTokenGroups } from "./grouping";
 
-export {
-  highlightFfmpegCommand,
-} from './rendering'
+export { highlightFfmpegCommand } from "./rendering";
 
-export {
-  normalizeFfmpegTemplate,
-} from './normalization'
+export { normalizeFfmpegTemplate } from "./normalization";
 
-export {
-  buildFfmpegCommandFromStructured,
-  getFfmpegCommandPreview,
-  getPresetCommandPreview,
-} from './builder'
+export { buildFfmpegCommandFromStructured, getFfmpegCommandPreview, getPresetCommandPreview } from "./builder";

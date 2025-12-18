@@ -53,10 +53,7 @@ const canUseStorage = () => {
   }
 };
 
-const readFromStorage = <T>(
-  key: string,
-  validate: (value: unknown) => value is T,
-): T | null => {
+const readFromStorage = <T>(key: string, validate: (value: unknown) => value is T): T | null => {
   if (!canUseStorage()) return null;
   try {
     const raw = window.localStorage.getItem(key);
@@ -80,19 +77,13 @@ const writeToStorage = <T>(key: string, value: T) => {
 const ensureInitialized = () => {
   if (initialized) return;
 
-  const storedViewMode = readFromStorage<QueueViewMode>(
-    QUEUE_VIEW_MODE_STORAGE_KEY,
-    isQueueViewMode,
-  );
+  const storedViewMode = readFromStorage<QueueViewMode>(QUEUE_VIEW_MODE_STORAGE_KEY, isQueueViewMode);
   const storedProgressStyle = readFromStorage<QueueProgressStyle>(
     QUEUE_PROGRESS_STYLE_STORAGE_KEY,
     isQueueProgressStyle,
   );
 
-  const storedQueueMode = readFromStorage<QueueMode>(
-    QUEUE_MODE_STORAGE_KEY,
-    isQueueMode,
-  );
+  const storedQueueMode = readFromStorage<QueueMode>(QUEUE_MODE_STORAGE_KEY, isQueueMode);
 
   if (storedViewMode) {
     queueViewMode.value = storedViewMode;

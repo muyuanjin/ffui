@@ -8,7 +8,13 @@ import type { FormatCatalogEntry } from "@/lib/formatCatalog";
 describe("FormatSelect trigger label", () => {
   it("shows only the short label in the trigger (not the note/description)", () => {
     const entries: FormatCatalogEntry[] = [
-      { value: "webm", label: "WebM (.webm)", kind: "video", keywords: ["webm"], note: "仅支持 VP8/VP9/AV1 视频 + Opus/Vorbis 音频" },
+      {
+        value: "webm",
+        label: "WebM (.webm)",
+        kind: "video",
+        keywords: ["webm"],
+        note: "仅支持 VP8/VP9/AV1 视频 + Opus/Vorbis 音频",
+      },
     ];
 
     const wrapper = mount(FormatSelect, {
@@ -33,4 +39,3 @@ describe("FormatSelect trigger label", () => {
     expect(wrapper.text()).not.toContain("仅支持 VP8/VP9/AV1");
   });
 });
-

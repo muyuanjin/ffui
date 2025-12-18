@@ -29,12 +29,8 @@ describe("Sidebar", () => {
       },
     });
 
-    expect(wrapper.get("[data-testid='ffui-sidebar-active-title']").text()).toBe(
-      "Transcode Queue",
-    );
-    expect(wrapper.get("[data-testid='ffui-sidebar-active-hint']").text()).toContain(
-      "Manage the transcoding queue",
-    );
+    expect(wrapper.get("[data-testid='ffui-sidebar-active-title']").text()).toBe("Transcode Queue");
+    expect(wrapper.get("[data-testid='ffui-sidebar-active-hint']").text()).toContain("Manage the transcoding queue");
   });
 
   it("renders an icon for each navigation item", () => {
@@ -71,10 +67,6 @@ describe("Sidebar", () => {
 
     await wrapper.get("[data-testid='ffui-sidebar-logo-link']").trigger("click");
 
-    expect(openSpy).toHaveBeenCalledWith(
-      FFUI_GITHUB_REPO_URL,
-      "_blank",
-      "noopener,noreferrer",
-    );
+    expect(openSpy).toHaveBeenCalledWith(FFUI_GITHUB_REPO_URL, "_blank", "noopener,noreferrer");
   });
 });

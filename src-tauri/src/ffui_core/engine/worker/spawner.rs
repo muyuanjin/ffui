@@ -1,15 +1,21 @@
 use std::sync::Arc;
 use std::thread;
 
-use crate::ffui_core::domain::JobStatus;
-
-use super::super::job_runner;
-use super::super::state::{Inner, notify_queue_listeners};
-use super::super::transcode_activity;
+use super::super::state::{
+    Inner,
+    notify_queue_listeners,
+};
 use super::super::worker_utils::{
-    current_time_millis, mark_smart_scan_child_processed, recompute_log_tail,
+    current_time_millis,
+    mark_smart_scan_child_processed,
+    recompute_log_tail,
+};
+use super::super::{
+    job_runner,
+    transcode_activity,
 };
 use super::selection::next_job_for_worker_locked;
+use crate::ffui_core::domain::JobStatus;
 
 /// Spawn (or extend) worker threads to satisfy current concurrency settings.
 pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {

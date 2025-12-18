@@ -134,8 +134,7 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
     try {
       await refreshQueueFromBackend();
     } catch {
-      queueError.value =
-        (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
+      queueError.value = (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
       selectedJobIds.value = new Set();
       return;
     }
@@ -144,21 +143,12 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       const currentJobs = jobs.value;
       const failedStillPresent = currentJobs.filter((job) => failedJobIds.includes(job.id));
 
-      const failedTerminalStillPresent = failedStillPresent.filter((job) =>
-        isTerminalStatus(job.status),
-      );
-      const failedNonTerminalNow = failedStillPresent.filter(
-        (job) => !isTerminalStatus(job.status),
-      );
+      const failedTerminalStillPresent = failedStillPresent.filter((job) => isTerminalStatus(job.status));
+      const failedNonTerminalNow = failedStillPresent.filter((job) => !isTerminalStatus(job.status));
 
       if (failedTerminalStillPresent.length > 0) {
-        queueError.value =
-          (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
-      } else if (
-        failedNonTerminalNow.length > 0 ||
-        nonTerminalJobs.length > 0 ||
-        blockedBatchIds.size > 0
-      ) {
+        queueError.value = (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
+      } else if (failedNonTerminalNow.length > 0 || nonTerminalJobs.length > 0 || blockedBatchIds.size > 0) {
         queueError.value =
           (t("queue.error.deleteActiveNotAllowed") as string) ??
           "Cannot delete jobs that are still running; please stop them first.";

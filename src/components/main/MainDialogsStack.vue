@@ -112,7 +112,7 @@ const openCompareFromJobDetail = () => {
   <DeletePresetDialog
     :open="!!presetPendingDelete"
     :preset="presetPendingDelete"
-    @update:open="$event => $event ? undefined : emit('cancelDeletePreset')"
+    @update:open="($event) => ($event ? undefined : emit('cancelDeletePreset'))"
     @confirm="emit('confirmDeletePreset')"
     @cancel="emit('cancelDeletePreset')"
   />
@@ -124,7 +124,11 @@ const openCompareFromJobDetail = () => {
     :job-detail-log-text="jobDetailLogText"
     :highlighted-log-html="highlightedLogHtml"
     :ffmpeg-resolved-path="ffmpegResolvedPath"
-    @update:open="(val) => { if (!val) emit('closeJobDetail'); }"
+    @update:open="
+      (val) => {
+        if (!val) emit('closeJobDetail');
+      }
+    "
     @expand-preview="emit('handleJobDetailExpandPreview')"
     @compare="openCompareFromJobDetail"
     @copy-command="emit('copyToClipboard', dialogManager.selectedJob.value?.ffmpegCommand || '')"
@@ -137,7 +141,11 @@ const openCompareFromJobDetail = () => {
     :progress-style="queueProgressStyle"
     :progress-update-interval-ms="progressUpdateIntervalMs"
     :sort-compare-fn="sortCompareFn"
-    @update:open="(val) => { if (!val) emit('closeBatchDetail'); }"
+    @update:open="
+      (val) => {
+        if (!val) emit('closeBatchDetail');
+      }
+    "
     @inspect-job="dialogManager.openJobDetail($event)"
     @preview-job="emit('openJobPreviewFromQueue', $event)"
     @compare-job="dialogManager.openJobCompare($event)"
@@ -155,24 +163,41 @@ const openCompareFromJobDetail = () => {
     :preview-path="previewPath"
     :is-image="previewIsImage"
     :error="previewError"
-    @update:open="(open) => { if (!open) emit('closeExpandedPreview'); }"
+    @update:open="
+      (open) => {
+        if (!open) emit('closeExpandedPreview');
+      }
+    "
     @update:preview-source-mode="(mode) => emit('setPreviewSourceMode', mode)"
     @video-error="emit('handleExpandedPreviewError')"
     @image-error="emit('handleExpandedImagePreviewError')"
     @open-in-system-player="emit('openPreviewInSystemPlayer')"
-    @copy-path="emit('copyToClipboard', previewPath || dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '')"
+    @copy-path="
+      emit(
+        'copyToClipboard',
+        previewPath || dialogManager.selectedJob.value?.inputPath || dialogManager.selectedJob.value?.outputPath || '',
+      )
+    "
   />
 
   <JobCompareDialog
     :open="dialogManager.jobCompareOpen.value"
     :job="dialogManager.selectedJob.value"
-    @update:open="(open) => { if (!open) dialogManager.closeJobCompare(); }"
+    @update:open="
+      (open) => {
+        if (!open) dialogManager.closeJobCompare();
+      }
+    "
   />
 
   <SmartPresetOnboardingWizard
     v-if="dialogManager.smartPresetImportOpen.value"
     :open="dialogManager.smartPresetImportOpen.value"
-    @update:open="(open) => { if (!open) dialogManager.closeSmartPresetImport(); }"
+    @update:open="
+      (open) => {
+        if (!open) dialogManager.closeSmartPresetImport();
+      }
+    "
     @confirmed="(presets) => emit('importSmartPackConfirmed', presets)"
     @openToolsSettings="emit('openToolsSettings')"
   />

@@ -1,12 +1,17 @@
-use super::*;
-use crate::ffui_core::domain::{
-    OutputContainerPolicy, OutputDirectoryPolicy, OutputFilenameAppend, OutputFilenamePolicy,
-    OutputPolicy,
-};
 use regex::Regex;
 
 use super::super::output_policy_paths::{
-    plan_output_path_with_extension, plan_video_output_path, preview_video_output_path,
+    plan_output_path_with_extension,
+    plan_video_output_path,
+    preview_video_output_path,
+};
+use super::*;
+use crate::ffui_core::domain::{
+    OutputContainerPolicy,
+    OutputDirectoryPolicy,
+    OutputFilenameAppend,
+    OutputFilenamePolicy,
+    OutputPolicy,
 };
 
 #[test]

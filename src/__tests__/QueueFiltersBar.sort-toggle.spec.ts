@@ -25,10 +25,8 @@ function createWrapper(options?: {
   sortSecondaryDirection?: QueueSortDirection;
   hasPrimarySortTies?: boolean;
 }) {
-  const sortPrimaryDirection: QueueSortDirection =
-    options?.sortPrimaryDirection ?? "asc";
-  const sortSecondaryDirection: QueueSortDirection =
-    options?.sortSecondaryDirection ?? "asc";
+  const sortPrimaryDirection: QueueSortDirection = options?.sortPrimaryDirection ?? "asc";
+  const sortSecondaryDirection: QueueSortDirection = options?.sortSecondaryDirection ?? "asc";
   const hasPrimarySortTies = options?.hasPrimarySortTies ?? false;
 
   const statusSet = new Set<QueueFilterStatus>();
@@ -64,9 +62,7 @@ function createWrapper(options?: {
 describe("QueueFiltersBar sort direction toggles", () => {
   it("toggles primary sort direction between asc and desc via a single button", async () => {
     const wrapper = createWrapper({ sortPrimaryDirection: "asc" });
-    const toggle = wrapper.get(
-      "[data-testid='queue-sort-primary-direction-toggle']",
-    );
+    const toggle = wrapper.get("[data-testid='queue-sort-primary-direction-toggle']");
 
     // 初始为升序
     expect(toggle.text()).toBe((en as any).queue.sort.asc);
@@ -95,9 +91,7 @@ describe("QueueFiltersBar sort direction toggles", () => {
       sortSecondaryDirection: "desc",
       hasPrimarySortTies: true,
     });
-    const toggle = wrapper.get(
-      "[data-testid='queue-sort-secondary-direction-toggle']",
-    );
+    const toggle = wrapper.get("[data-testid='queue-sort-secondary-direction-toggle']");
 
     // 初始为降序
     expect(toggle.text()).toBe((en as any).queue.sort.desc);

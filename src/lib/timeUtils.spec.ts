@@ -1,11 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import {
-  formatElapsedTime,
-  estimateTotalTime,
-  estimateRemainingTime,
-  computeJobElapsedMs,
-} from "./timeUtils";
+import { formatElapsedTime, estimateTotalTime, estimateRemainingTime, computeJobElapsedMs } from "./timeUtils";
 
 describe("timeUtils", () => {
   describe("formatElapsedTime", () => {

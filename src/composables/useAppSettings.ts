@@ -20,9 +20,7 @@ import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 
 const isTestEnv =
-  typeof import.meta !== "undefined" &&
-  typeof import.meta.env !== "undefined" &&
-  import.meta.env.MODE === "test";
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const startupNowMs = () => {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -66,12 +64,7 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
 
   // Legacy generic families (sans/mono) are no longer surfaced in Settings.
   const family = next.uiFontFamily;
-  if (
-    (family === "sans" || family === "mono") &&
-    !next.uiFontName &&
-    !next.uiFontDownloadId &&
-    !next.uiFontFilePath
-  ) {
+  if ((family === "sans" || family === "mono") && !next.uiFontName && !next.uiFontDownloadId && !next.uiFontFilePath) {
     next.uiFontFamily = "system";
   }
 
@@ -117,10 +110,7 @@ export interface UseAppSettingsReturn {
   /** Schedule settings save (with debouncing). */
   scheduleSaveSettings: () => void;
   /** Refresh external tool statuses. */
-  refreshToolStatuses: (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-  }) => Promise<void>;
+  refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
   /** Manually trigger download/update for a given tool kind. */
   downloadToolNow: (kind: ExternalToolKind) => Promise<void>;
   /** Enumerate available candidate binaries for a tool. */
@@ -247,18 +237,14 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       } catch (error) {
         console.error("Failed to save settings", error);
         settingsSaveError.value =
-          (t?.("app.settings.saveErrorGeneric") as string) ??
-          "Failed to save settings. Please try again later.";
+          (t?.("app.settings.saveErrorGeneric") as string) ?? "Failed to save settings. Please try again later.";
       } finally {
         isSavingSettings.value = false;
       }
     }, 0);
   };
 
-  const refreshToolStatuses = async (options?: {
-    remoteCheck?: boolean;
-    manualRemoteCheck?: boolean;
-  }) => {
+  const refreshToolStatuses = async (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => {
     if (!hasTauri()) return;
     try {
       const remoteCheck = options?.remoteCheck ?? false;
@@ -303,22 +289,19 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
 
     try {
-      toolStatusUnlisten = await listen<ExternalToolStatus[]>(
-        "ffui://external-tool-status",
-        (event) => {
-          if (Array.isArray(event.payload)) {
-            toolStatuses.value = event.payload;
-            toolStatusesFresh.value = true;
-            if (awaitingToolsRefreshEvent) {
-              awaitingToolsRefreshEvent = false;
-              updateStartupMetrics({ toolsRefreshReceivedAtMs: startupNowMs() });
-              if (typeof performance !== "undefined" && "mark" in performance) {
-                performance.mark("tools_refresh_received");
-              }
+      toolStatusUnlisten = await listen<ExternalToolStatus[]>("ffui://external-tool-status", (event) => {
+        if (Array.isArray(event.payload)) {
+          toolStatuses.value = event.payload;
+          toolStatusesFresh.value = true;
+          if (awaitingToolsRefreshEvent) {
+            awaitingToolsRefreshEvent = false;
+            updateStartupMetrics({ toolsRefreshReceivedAtMs: startupNowMs() });
+            if (typeof performance !== "undefined" && "mark" in performance) {
+              performance.mark("tools_refresh_received");
             }
           }
-        },
-      );
+        }
+      });
     } catch (error) {
       console.error("Failed to subscribe to external tool status events", error);
     }
@@ -399,8 +382,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   watch(
     () => ({
       statuses: toolStatuses.value,
-      autoUpdateEnabled:
-        (appSettings.value as any)?.tools?.autoUpdate ?? false,
+      autoUpdateEnabled: (appSettings.value as any)?.tools?.autoUpdate ?? false,
     }),
     async ({ statuses, autoUpdateEnabled }) => {
       if (!hasTauri() || !autoUpdateEnabled) return;

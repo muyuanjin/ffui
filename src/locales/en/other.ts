@@ -9,7 +9,8 @@ const other = {
   onboarding: {
     title: "Preset Setup Wizard",
     welcomeTitle: "Welcome to FFUI",
-    welcomeDescription: "Let us recommend the best transcoding presets based on your hardware and preferences. Just a few steps to get started.",
+    welcomeDescription:
+      "Let us recommend the best transcoding presets based on your hardware and preferences. Just a few steps to get started.",
     hardwareDetection: "Hardware Detection",
     nvencDetected: "NVIDIA NVENC hardware encoding detected",
     nvencNotDetected: "No NVIDIA NVENC detected (software encoding will be used)",
@@ -72,11 +73,9 @@ const other = {
     savingByRatio: "By ratio",
     savingByAbsolute: "By saved space",
     minSavingRatioLabel: "Minimum saving ratio",
-    minSavingRatioHelp:
-      "If compressed file is larger than {ratio}% of original, it will be discarded (not worth it).",
+    minSavingRatioHelp: "If compressed file is larger than {ratio}% of original, it will be discarded (not worth it).",
     minSavingAbsoluteLabel: "Minimum saved space",
-    minSavingAbsoluteHelp:
-      "If saved space is less than {size} MB, result will be discarded (not worth it).",
+    minSavingAbsoluteHelp: "If saved space is less than {size} MB, result will be discarded (not worth it).",
     scanButton: "Scan & Compress",
   },
   outputPolicy: {
@@ -210,8 +209,7 @@ const other = {
       "Preview the current job output. If playback fails, you can still open the file in your system player.",
     previewDescriptionAuto:
       "Preview job media (auto picks a usable source). Currently: {source}. If playback fails, switch source or open it in your system player.",
-    previewDescriptionWithSource:
-      "Preview the job {source}. If playback fails, open it in your system player.",
+    previewDescriptionWithSource: "Preview the job {source}. If playback fails, open it in your system player.",
     previewVideoError:
       "Unable to play this video in-app (WebView2 may not support this format). You can still scrub frames or open it in your system player.",
     previewImageError:
@@ -315,10 +313,8 @@ const other = {
     importSmartPackDescription:
       "Suggests H.26x / AV1 presets for fast compression and visually lossless archival based on current hardware. Imported presets remain fully editable.",
     openToolsSettingsFromOnboarding: "Configure FFmpeg / external tools…",
-    hardwareSummaryNvenc:
-      "Detected NVIDIA / NVENC: the preset pack will prefer H.265 hardware-accelerated presets.",
-    hardwareSummaryCpuOnly:
-      "No NVIDIA NVENC detected: the preset pack will use H.264 / AV1 (SVT) software presets.",
+    hardwareSummaryNvenc: "Detected NVIDIA / NVENC: the preset pack will prefer H.265 hardware-accelerated presets.",
+    hardwareSummaryCpuOnly: "No NVIDIA NVENC detected: the preset pack will use H.264 / AV1 (SVT) software presets.",
     hardwareSummaryAv1: "AV1 encoding support detected.",
     mayIncreaseSizeShort: "May increase size",
   },

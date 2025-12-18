@@ -1,7 +1,14 @@
-use anyhow::{Context, Result};
 use std::collections::HashSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{
+    Path,
+    PathBuf,
+};
+
+use anyhow::{
+    Context,
+    Result,
+};
 
 pub(crate) fn previews_root_dir_best_effort() -> Result<PathBuf> {
     let exe = std::env::current_exe().context("current_exe failed")?;

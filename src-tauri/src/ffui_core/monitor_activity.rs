@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::{
+    Deserialize,
+    Serialize,
+};
 use tauri::Emitter;
 
 /// Name of the Tauri event used to push today's transcode activity buckets to

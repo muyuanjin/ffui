@@ -70,7 +70,7 @@ describe("QueueSmartScanIconBatchItem", () => {
       await nextTick();
 
       // 应该有选中指示器（圆形复选框）
-      const selectIndicator = wrapper.find('.rounded-full.border-2');
+      const selectIndicator = wrapper.find(".rounded-full.border-2");
       expect(selectIndicator.exists()).toBe(true);
     });
 
@@ -94,7 +94,7 @@ describe("QueueSmartScanIconBatchItem", () => {
       await nextTick();
 
       // 应该显示进度标签
-      const progressLabel = wrapper.find('.font-mono');
+      const progressLabel = wrapper.find(".font-mono");
       expect(progressLabel.exists()).toBe(true);
       expect(progressLabel.text()).toContain("50%");
     });
@@ -120,10 +120,10 @@ describe("QueueSmartScanIconBatchItem", () => {
 
       // 根元素应该有选中样式
       const root = wrapper.find('[data-testid="queue-icon-batch-item"]');
-      expect(root.classes()).toContain('border-amber-500/70');
+      expect(root.classes()).toContain("border-amber-500/70");
 
       // 选中指示器应该有勾选图标
-      const checkIcon = wrapper.find('svg');
+      const checkIcon = wrapper.find("svg");
       expect(checkIcon.exists()).toBe(true);
     });
 
@@ -215,10 +215,7 @@ describe("QueueSmartScanIconBatchItem", () => {
 
   describe("进度条颜色", () => {
     it("全部任务完成时进度条应该显示绿色（与普通任务一致）", async () => {
-      const jobs = [
-        createMockJob("job-1", "completed"),
-        createMockJob("job-2", "completed"),
-      ];
+      const jobs = [createMockJob("job-1", "completed"), createMockJob("job-2", "completed")];
       const batch = createMockBatch(jobs);
       // 设置100%进度和正确的完成计数
       batch.overallProgress = 100;
@@ -241,15 +238,12 @@ describe("QueueSmartScanIconBatchItem", () => {
       const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
       expect(progressBar.exists()).toBe(true);
       // 验证使用完整的绿色而不是透明度版本
-      expect(progressBar.classes()).toContain('bg-emerald-500');
-      expect(progressBar.classes()).not.toContain('bg-emerald-500/40');
+      expect(progressBar.classes()).toContain("bg-emerald-500");
+      expect(progressBar.classes()).not.toContain("bg-emerald-500/40");
     });
 
     it("有失败任务时进度条应该显示红色", async () => {
-      const jobs = [
-        createMockJob("job-1", "completed"),
-        createMockJob("job-2", "failed"),
-      ];
+      const jobs = [createMockJob("job-1", "completed"), createMockJob("job-2", "failed")];
       const batch = createMockBatch(jobs);
       batch.overallProgress = 50;
       batch.completedCount = 1;
@@ -271,14 +265,11 @@ describe("QueueSmartScanIconBatchItem", () => {
 
       const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
       expect(progressBar.exists()).toBe(true);
-      expect(progressBar.classes()).toContain('bg-red-500/40');
+      expect(progressBar.classes()).toContain("bg-red-500/40");
     });
 
     it("有暂停任务时进度条应该显示黄色", async () => {
-      const jobs = [
-        createMockJob("job-1", "completed"),
-        createMockJob("job-2", "paused"),
-      ];
+      const jobs = [createMockJob("job-1", "completed"), createMockJob("job-2", "paused")];
       const batch = createMockBatch(jobs);
       batch.overallProgress = 50;
       batch.completedCount = 1;
@@ -299,14 +290,11 @@ describe("QueueSmartScanIconBatchItem", () => {
 
       const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
       expect(progressBar.exists()).toBe(true);
-      expect(progressBar.classes()).toContain('bg-amber-500/40');
+      expect(progressBar.classes()).toContain("bg-amber-500/40");
     });
 
     it("处理中任务时进度条应该显示默认蓝色", async () => {
-      const jobs = [
-        createMockJob("job-1", "completed"),
-        createMockJob("job-2", "processing"),
-      ];
+      const jobs = [createMockJob("job-1", "completed"), createMockJob("job-2", "processing")];
       const batch = createMockBatch(jobs);
       batch.overallProgress = 75;
       batch.completedCount = 1;
@@ -327,15 +315,13 @@ describe("QueueSmartScanIconBatchItem", () => {
 
       const progressBar = wrapper.find('[data-testid="queue-icon-batch-progress-bar"]');
       expect(progressBar.exists()).toBe(true);
-      expect(progressBar.classes()).toContain('bg-primary/40');
+      expect(progressBar.classes()).toContain("bg-primary/40");
     });
   });
 
   describe("9宫格预览", () => {
     it("应该渲染9个预览槽位", async () => {
-      const jobs = Array.from({ length: 5 }, (_, i) =>
-        createMockJob(`job-${i}`, "waiting"),
-      );
+      const jobs = Array.from({ length: 5 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(QueueSmartScanIconBatchItem, {
@@ -352,18 +338,16 @@ describe("QueueSmartScanIconBatchItem", () => {
       await nextTick();
 
       // 检查9宫格容器
-      const grid = wrapper.find('.grid.grid-cols-3.grid-rows-3');
+      const grid = wrapper.find(".grid.grid-cols-3.grid-rows-3");
       expect(grid.exists()).toBe(true);
 
       // 应该有9个直接子槽位（使用 :scope > div 选择直接子元素）
-      const slots = grid.findAll(':scope > div');
+      const slots = grid.findAll(":scope > div");
       expect(slots.length).toBe(9);
     });
 
     it("在可选中模式下点击9宫格预览应该弹出详情而不是选中", async () => {
-      const jobs = Array.from({ length: 3 }, (_, i) =>
-        createMockJob(`job-${i}`, "waiting"),
-      );
+      const jobs = Array.from({ length: 3 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(QueueSmartScanIconBatchItem, {

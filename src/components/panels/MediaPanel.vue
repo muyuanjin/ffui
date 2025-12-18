@@ -36,11 +36,7 @@ const hasMedia = computed(() => !!props.inspectedPath && !!props.analysis);
 
 const fileInfo = computed<MediaFileInfo | null>(() => props.analysis?.file ?? null);
 const durationSeconds = computed(() => {
-  return (
-    props.analysis?.summary?.durationSeconds ??
-    props.analysis?.format?.durationSeconds ??
-    null
-  );
+  return props.analysis?.summary?.durationSeconds ?? props.analysis?.format?.durationSeconds ?? null;
 });
 
 const fileName = computed(() => {
@@ -75,9 +71,7 @@ const streamsForDisplay = computed(() => {
   return mapStreamsForDisplay(props.analysis);
 });
 
-const hasRawJson = computed(
-  () => typeof props.rawJson === "string" && props.rawJson.trim().length > 0,
-);
+const hasRawJson = computed(() => typeof props.rawJson === "string" && props.rawJson.trim().length > 0);
 
 const highlightedRawJsonHtml = computed(() => highlightJson(props.rawJson));
 
@@ -85,11 +79,7 @@ const copyRawJson = async () => {
   if (!hasRawJson.value || !props.rawJson) return;
 
   try {
-    if (
-      typeof navigator !== "undefined" &&
-      "clipboard" in navigator &&
-      (navigator as any).clipboard?.writeText
-    ) {
+    if (typeof navigator !== "undefined" && "clipboard" in navigator && (navigator as any).clipboard?.writeText) {
       await navigator.clipboard.writeText(props.rawJson);
       return;
     }
@@ -135,19 +125,10 @@ const openInspectedInSystemPlayer = async () => {
         </p>
       </div>
       <div class="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          :disabled="!hasMedia"
-          @click="emit('clear')"
-        >
+        <Button variant="outline" size="sm" :disabled="!hasMedia" @click="emit('clear')">
           {{ t("media.clearCurrent") }}
         </Button>
-        <Button
-          size="sm"
-          :disabled="inspecting"
-          @click="emit('inspectRequested')"
-        >
+        <Button size="sm" :disabled="inspecting" @click="emit('inspectRequested')">
           {{ inspecting ? t("media.inspecting") : t("media.chooseFile") }}
         </Button>
       </div>
@@ -160,10 +141,7 @@ const openInspectedInSystemPlayer = async () => {
       {{ error }}
     </div>
 
-    <div
-      v-if="hasMedia"
-      class="grid gap-4 lg:grid-cols-3"
-    >
+    <div v-if="hasMedia" class="grid gap-4 lg:grid-cols-3">
       <Card class="lg:col-span-1 flex flex-col">
         <CardHeader>
           <CardTitle class="text-sm">
@@ -211,15 +189,8 @@ const openInspectedInSystemPlayer = async () => {
         </CardHeader>
         <CardContent class="select-text">
           <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
-            <div
-              v-for="field in summaryFields"
-              :key="field.key"
-              class="flex flex-col gap-0.5"
-            >
-              <span
-                class="text-foreground/80"
-                :title="field.tooltip as string"
-              >
+            <div v-for="field in summaryFields" :key="field.key" class="flex flex-col gap-0.5">
+              <span class="text-foreground/80" :title="field.tooltip as string">
                 {{ field.label }}
               </span>
               <span class="text-muted-foreground">
@@ -247,10 +218,7 @@ const openInspectedInSystemPlayer = async () => {
       </p>
     </Button>
 
-    <div
-      v-if="hasMedia"
-      class="grid gap-4 lg:grid-cols-2"
-    >
+    <div v-if="hasMedia" class="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <CardTitle class="text-sm">
@@ -259,15 +227,8 @@ const openInspectedInSystemPlayer = async () => {
         </CardHeader>
         <CardContent class="space-y-3 text-xs select-text">
           <div class="grid grid-cols-2 gap-x-6 gap-y-2">
-            <div
-              v-for="field in formatFields.basic"
-              :key="field.key"
-              class="flex flex-col gap-0.5"
-            >
-              <span
-                class="text-foreground/80"
-                :title="field.tooltip as string"
-              >
+            <div v-for="field in formatFields.basic" :key="field.key" class="flex flex-col gap-0.5">
+              <span class="text-foreground/80" :title="field.tooltip as string">
                 {{ field.label }}
               </span>
               <span class="text-muted-foreground">
@@ -277,10 +238,7 @@ const openInspectedInSystemPlayer = async () => {
           </div>
 
           <div v-if="formatFields.tags.length > 0">
-            <p
-              class="text-foreground/80 mb-1"
-              :title="t('media.fields.tags.tooltip') as string"
-            >
+            <p class="text-foreground/80 mb-1" :title="t('media.fields.tags.tooltip') as string">
               {{ t("media.fields.tags.label") }}
             </p>
             <div class="flex flex-wrap gap-1.5">
@@ -304,10 +262,7 @@ const openInspectedInSystemPlayer = async () => {
         </CardHeader>
         <CardContent class="text-xs select-text">
           <ScrollArea class="max-h-72 pr-3">
-            <div
-              v-if="streamsForDisplay.length === 0"
-              class="text-muted-foreground text-[11px]"
-            >
+            <div v-if="streamsForDisplay.length === 0" class="text-muted-foreground text-[11px]">
               {{ t("media.noStreams") }}
             </div>
             <div
@@ -315,50 +270,32 @@ const openInspectedInSystemPlayer = async () => {
               :key="stream.id"
               class="mb-3 last:mb-0 pb-3 border-b border-border/50 last:border-b-0"
             >
-              <p class="font-medium text-foreground mb-1">
-                #{{ stream.id }} · {{ stream.type }}
-              </p>
+              <p class="font-medium text-foreground mb-1">#{{ stream.id }} · {{ stream.type }}</p>
               <div class="grid grid-cols-2 gap-x-4 gap-y-1">
                 <div>
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamCodec.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamCodec.tooltip') as string">
                     {{ t("media.fields.streamCodec.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
                     {{ stream.raw.codecName || "-" }}
-                    <span
-                      v-if="stream.raw.codecLongName"
-                      class="text-[10px] text-muted-foreground/80"
-                    >
+                    <span v-if="stream.raw.codecLongName" class="text-[10px] text-muted-foreground/80">
                       ({{ stream.raw.codecLongName }})
                     </span>
                   </span>
                 </div>
                 <div v-if="stream.isVideo">
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamResolution.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamResolution.tooltip') as string">
                     {{ t("media.fields.streamResolution.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
-                    <template
-                      v-if="stream.raw.width && stream.raw.height"
-                    >
+                    <template v-if="stream.raw.width && stream.raw.height">
                       {{ stream.raw.width }}x{{ stream.raw.height }}
                     </template>
-                    <template v-else>
-                      -
-                    </template>
+                    <template v-else> - </template>
                   </span>
                 </div>
                 <div v-if="stream.isVideo">
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamFrameRate.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamFrameRate.tooltip') as string">
                     {{ t("media.fields.streamFrameRate.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
@@ -366,26 +303,16 @@ const openInspectedInSystemPlayer = async () => {
                   </span>
                 </div>
                 <div v-if="stream.isAudio">
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamSampleRate.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamSampleRate.tooltip') as string">
                     {{ t("media.fields.streamSampleRate.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
-                    <template v-if="stream.raw.sampleRateHz">
-                      {{ stream.raw.sampleRateHz }} Hz
-                    </template>
-                    <template v-else>
-                      -
-                    </template>
+                    <template v-if="stream.raw.sampleRateHz"> {{ stream.raw.sampleRateHz }} Hz </template>
+                    <template v-else> - </template>
                   </span>
                 </div>
                 <div v-if="stream.isAudio">
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamChannels.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamChannels.tooltip') as string">
                     {{ t("media.fields.streamChannels.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
@@ -393,10 +320,7 @@ const openInspectedInSystemPlayer = async () => {
                   </span>
                 </div>
                 <div v-if="stream.isAudio">
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamLayout.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamLayout.tooltip') as string">
                     {{ t("media.fields.streamLayout.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
@@ -404,31 +328,18 @@ const openInspectedInSystemPlayer = async () => {
                   </span>
                 </div>
                 <div>
-                  <span
-                    class="text-foreground/80"
-                    :title="t('media.fields.streamBitRate.tooltip') as string"
-                  >
+                  <span class="text-foreground/80" :title="t('media.fields.streamBitRate.tooltip') as string">
                     {{ t("media.fields.streamBitRate.label") }}
                   </span>
                   <span class="ml-1 text-muted-foreground">
-                    <template v-if="stream.raw.bitRateKbps">
-                      {{ Math.round(stream.raw.bitRateKbps) }} kbps
-                    </template>
-                    <template v-else>
-                      -
-                    </template>
+                    <template v-if="stream.raw.bitRateKbps"> {{ Math.round(stream.raw.bitRateKbps) }} kbps </template>
+                    <template v-else> - </template>
                   </span>
                 </div>
               </div>
 
-              <div
-                v-if="stream.raw.tags && Object.keys(stream.raw.tags).length > 0"
-                class="mt-2"
-              >
-                <p
-                  class="text-foreground/80 mb-1"
-                  :title="t('media.fields.streamTags.tooltip') as string"
-                >
+              <div v-if="stream.raw.tags && Object.keys(stream.raw.tags).length > 0" class="mt-2">
+                <p class="text-foreground/80 mb-1" :title="t('media.fields.streamTags.tooltip') as string">
                   {{ t("media.fields.streamTags.label") }}
                 </p>
                 <div class="flex flex-wrap gap-1.5">
@@ -446,10 +357,7 @@ const openInspectedInSystemPlayer = async () => {
         </CardContent>
       </Card>
 
-      <Card
-        v-if="hasRawJson"
-        class="lg:col-span-2"
-      >
+      <Card v-if="hasRawJson" class="lg:col-span-2">
         <CardHeader class="flex items-center justify-between gap-2">
           <CardTitle class="text-sm">
             {{ t("media.sections.raw") }}

@@ -1,8 +1,12 @@
+use std::env;
+use std::fs::{
+    self,
+    File,
+};
+use std::io::Write;
+
 use super::*;
 use crate::ffui_core::domain::WaitMetadata;
-use std::env;
-use std::fs::{self, File};
-use std::io::Write;
 
 #[test]
 fn plan_resume_paths_uses_next_segment_for_initial_resume() {

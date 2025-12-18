@@ -73,4 +73,3 @@ export function useSmartScanQueueRefresh(options: UseSmartScanQueueRefreshOption
 }
 
 export default useSmartScanQueueRefresh;
-

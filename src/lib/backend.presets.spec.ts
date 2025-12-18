@@ -1,24 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { FFmpegPreset } from "../types";
 
-const invokeMock = vi.fn<
-  (cmd: string, payload: Record<string, unknown>) => Promise<unknown>
->();
+const invokeMock = vi.fn<(cmd: string, payload: Record<string, unknown>) => Promise<unknown>>();
 
 vi.mock("@tauri-apps/api/core", () => {
   return {
-    invoke: (cmd: string, payload: Record<string, unknown>) =>
-      invokeMock(cmd, payload),
+    invoke: (cmd: string, payload: Record<string, unknown>) => invokeMock(cmd, payload),
     convertFileSrc: (path: string) => path,
   };
 });
 
-import {
-  loadPresets,
-  loadSmartDefaultPresets,
-  savePresetOnBackend,
-  deletePresetOnBackend,
-} from "./backend";
+import { loadPresets, loadSmartDefaultPresets, savePresetOnBackend, deletePresetOnBackend } from "./backend";
 
 describe("backend contract - presets", () => {
   beforeEach(() => {

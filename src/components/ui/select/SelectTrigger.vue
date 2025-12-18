@@ -1,30 +1,34 @@
 <script setup lang="ts">
-import type { SelectTriggerProps } from "reka-ui"
-import type { HTMLAttributes } from "vue"
-import { reactiveOmit } from "@vueuse/core"
-import { ChevronDown } from "lucide-vue-next"
-import { SelectIcon, SelectTrigger, useForwardProps } from "reka-ui"
-import { cn } from "@/lib/utils"
+import type { SelectTriggerProps } from "reka-ui";
+import type { HTMLAttributes } from "vue";
+import { reactiveOmit } from "@vueuse/core";
+import { ChevronDown } from "lucide-vue-next";
+import { SelectIcon, SelectTrigger, useForwardProps } from "reka-ui";
+import { cn } from "@/lib/utils";
 
-const props = defineProps<SelectTriggerProps & {
-  class?: HTMLAttributes["class"]
-  /** 悬浮提示文字，用于显示被截断的完整内容 */
-  title?: string
-}>()
+const props = defineProps<
+  SelectTriggerProps & {
+    class?: HTMLAttributes["class"];
+    /** 悬浮提示文字，用于显示被截断的完整内容 */
+    title?: string;
+  }
+>();
 
-const delegatedProps = reactiveOmit(props, "class", "title")
+const delegatedProps = reactiveOmit(props, "class", "title");
 
-const forwardedProps = useForwardProps(delegatedProps)
+const forwardedProps = useForwardProps(delegatedProps);
 </script>
 
 <template>
   <SelectTrigger
     v-bind="forwardedProps"
     :title="props.title"
-    :class="cn(
-      'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
-      props.class,
-    )"
+    :class="
+      cn(
+        'flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background data-[placeholder]:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+        props.class,
+      )
+    "
   >
     <div class="flex-1 min-w-0 overflow-hidden flex items-center justify-center text-center [&>span]:truncate">
       <slot />

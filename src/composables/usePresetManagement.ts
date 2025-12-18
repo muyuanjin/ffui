@@ -1,12 +1,6 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import type { FFmpegPreset, TranscodeJob, AppSettings } from "@/types";
-import {
-  hasTauri,
-  loadPresets,
-  savePresetOnBackend,
-  deletePresetOnBackend,
-  saveAppSettings,
-} from "@/lib/backend";
+import { hasTauri, loadPresets, savePresetOnBackend, deletePresetOnBackend, saveAppSettings } from "@/lib/backend";
 
 // ----- Composable -----
 

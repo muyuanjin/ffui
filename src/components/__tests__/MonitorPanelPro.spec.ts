@@ -16,7 +16,7 @@ vi.mock("vue-echarts", () => ({
   default: {
     name: "VChart",
     props: ["option", "autoresize"],
-    template: "<div class=\"vchart-stub\" />",
+    template: '<div class="vchart-stub" />',
   },
 }));
 
@@ -43,9 +43,7 @@ const i18n = createI18n({
 // by mutating the shared `snapshots` ref.
 const snapshots = ref<SystemMetricsSnapshot[]>([]);
 
-const cpuTotalSeries = computed(() =>
-  snapshots.value.map((s) => ({ timestamp: s.timestamp, value: s.cpu.total })),
-);
+const cpuTotalSeries = computed(() => snapshots.value.map((s) => ({ timestamp: s.timestamp, value: s.cpu.total })));
 
 const perCoreSeries = computed(() => {
   if (snapshots.value.length === 0) return [];
@@ -114,42 +112,36 @@ vi.mock("@/composables", () => ({
 
 import MonitorPanelPro from "../panels/MonitorPanelPro.vue";
 
-const makeSnapshot = (
-  timestamp: number,
-  cores: number,
-  interfaces: number,
-): SystemMetricsSnapshot => ({
-  timestamp,
-  uptimeSeconds: 3600,
-  cpu: {
-    cores: Array.from(
-      { length: cores },
-      (_, idx) => (idx * 3 + (timestamp % 100)) % 100,
-    ),
-    total: 50,
-  },
-  memory: {
-    usedBytes: 8 * 1024 * 1024 * 1024,
-    totalBytes: 16 * 1024 * 1024 * 1024,
-  },
-  disk: {
-    io: [
-      {
-        device: "total",
-        readBps: 1_000_000,
-        writeBps: 500_000,
-      },
-    ],
-  },
-  network: {
-    interfaces: Array.from({ length: interfaces }, (_, idx) => ({
-      name: `eth${idx}`,
-      rxBps: 2_000_000 + idx * 100_000,
-      txBps: 1_000_000 + idx * 50_000,
-    })),
-  },
-  // GPU 字段在这里留空即可，组件会自动回退到 0 / "--"。
-} as SystemMetricsSnapshot);
+const makeSnapshot = (timestamp: number, cores: number, interfaces: number): SystemMetricsSnapshot =>
+  ({
+    timestamp,
+    uptimeSeconds: 3600,
+    cpu: {
+      cores: Array.from({ length: cores }, (_, idx) => (idx * 3 + (timestamp % 100)) % 100),
+      total: 50,
+    },
+    memory: {
+      usedBytes: 8 * 1024 * 1024 * 1024,
+      totalBytes: 16 * 1024 * 1024 * 1024,
+    },
+    disk: {
+      io: [
+        {
+          device: "total",
+          readBps: 1_000_000,
+          writeBps: 500_000,
+        },
+      ],
+    },
+    network: {
+      interfaces: Array.from({ length: interfaces }, (_, idx) => ({
+        name: `eth${idx}`,
+        rxBps: 2_000_000 + idx * 100_000,
+        txBps: 1_000_000 + idx * 50_000,
+      })),
+    },
+    // GPU 字段在这里留空即可，组件会自动回退到 0 / "--"。
+  }) as SystemMetricsSnapshot;
 
 describe("MonitorPanelPro", () => {
   beforeEach(() => {
@@ -190,7 +182,7 @@ describe("MonitorPanelPro", () => {
     expect(wrapper.text()).toContain("TODAY ACTIVITY");
 
     // Heatmap ring should render 24 segments.
-    expect(wrapper.findAll("[data-testid=\"transcode-heatmap-segment\"]").length).toBe(24);
+    expect(wrapper.findAll('[data-testid="transcode-heatmap-segment"]').length).toBe(24);
   });
 
   it("renders CPU / MEMORY / GPU summary as bar meters instead of plain numbers", () => {
@@ -210,9 +202,7 @@ describe("MonitorPanelPro", () => {
       },
     });
 
-    const summaryCard = wrapper
-      .findAll(".metric-card")
-      .find((card) => card.text().includes("CPU / MEMORY / GPU"));
+    const summaryCard = wrapper.findAll(".metric-card").find((card) => card.text().includes("CPU / MEMORY / GPU"));
 
     expect(summaryCard, "CPU / MEMORY / GPU summary card should exist").toBeTruthy();
 

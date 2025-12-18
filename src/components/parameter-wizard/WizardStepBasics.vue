@@ -126,8 +126,7 @@ const applyRecipe = (payload: {
           @click="
             applyRecipe({
               nameKey: 'presetEditor.recipes.hevcVisuallyLossless',
-              description:
-                'HEVC NVENC constqp main10, tuned for visually lossless archival with 10‑bit output.',
+              description: 'HEVC NVENC constqp main10, tuned for visually lossless archival with 10‑bit output.',
               video: {
                 encoder: 'hevc_nvenc',
               },

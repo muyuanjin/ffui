@@ -1,10 +1,12 @@
-use std::path::{Path, PathBuf};
-
-use crate::ffui_core::domain::FFmpegPreset;
-use crate::ffui_core::engine::ffmpeg_args::infer_output_extension;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 #[cfg(test)]
 use super::super::state::EngineState;
+use crate::ffui_core::domain::FFmpegPreset;
+use crate::ffui_core::engine::ffmpeg_args::infer_output_extension;
 
 pub(super) fn build_video_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));

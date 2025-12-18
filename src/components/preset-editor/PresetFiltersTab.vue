@@ -40,9 +40,9 @@ const { t } = useI18n();
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div>
-        <Label class="block text-xs mb-1">
-          {{ t("presetEditor.filters.cropLabel") }}
+        <div>
+          <Label class="block text-xs mb-1">
+            {{ t("presetEditor.filters.cropLabel") }}
           </Label>
           <Input
             :model-value="filters.crop ?? ''"
@@ -81,9 +81,7 @@ const { t } = useI18n();
         </Label>
         <Textarea
           :model-value="filters.vfChain ?? ''"
-          :placeholder="
-            t('presetEditor.filters.vfChainPlaceholder')
-          "
+          :placeholder="t('presetEditor.filters.vfChainPlaceholder')"
           class="min-h-[60px] text-[11px] font-mono"
           @update:model-value="
             (value) => {
@@ -117,9 +115,7 @@ const { t } = useI18n();
         </Label>
         <Textarea
           :model-value="filters.filterComplex ?? ''"
-          :placeholder="
-            t('presetEditor.filters.filterComplexPlaceholder')
-          "
+          :placeholder="t('presetEditor.filters.filterComplexPlaceholder')"
           class="min-h-[72px] text-[11px] font-mono"
           @update:model-value="
             (value) => {

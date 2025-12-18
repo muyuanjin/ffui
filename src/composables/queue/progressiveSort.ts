@@ -23,15 +23,7 @@ export async function progressiveMergeSort<T>(
   items: readonly T[],
   options: ProgressiveMergeSortOptions<T>,
 ): Promise<T[]> {
-  const {
-    compare,
-    chunkSize,
-    initialBatchSize,
-    yieldEveryItems,
-    yieldFn,
-    onPartial,
-    isCancelled,
-  } = options;
+  const { compare, chunkSize, initialBatchSize, yieldEveryItems, yieldFn, onPartial, isCancelled } = options;
 
   if (!items.length) return [];
 

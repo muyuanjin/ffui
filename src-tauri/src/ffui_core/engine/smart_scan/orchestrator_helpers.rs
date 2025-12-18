@@ -1,12 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use crate::ffui_core::domain::{
-    JobSource, JobStatus, JobType, MediaInfo, SmartScanConfig, TranscodeJob,
-};
-
 use super::super::state::Inner;
 use super::helpers::current_time_millis;
+use crate::ffui_core::domain::{
+    JobSource,
+    JobStatus,
+    JobType,
+    MediaInfo,
+    SmartScanConfig,
+    TranscodeJob,
+};
 
 pub(super) fn insert_image_stub_job(
     inner: &Inner,

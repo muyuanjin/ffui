@@ -46,7 +46,7 @@ describe("MainApp queue event handling", () => {
     }
     await nextTick();
 
-    const jobsBefore = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsBefore = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsBefore.length).toBe(1);
     expect(jobsBefore[0].progress).toBe(0);
 
@@ -59,7 +59,7 @@ describe("MainApp queue event handling", () => {
     emitQueueState(getQueueJobs());
     await nextTick();
 
-    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : vm.jobs?.value ?? [];
+    const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsAfter.length).toBe(1);
     expect(jobsAfter[0].progress).toBe(65);
 

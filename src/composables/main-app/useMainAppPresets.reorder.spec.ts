@@ -38,11 +38,7 @@ const mountComposable = (options: Parameters<typeof useMainAppPresets>[0]) => {
 
 describe("useMainAppPresets handleReorderPresets", () => {
   it("reorders local presets according to orderedIds even without Tauri backend", async () => {
-    const presets = ref<FFmpegPreset[]>([
-      makePreset("p1", "One"),
-      makePreset("p2", "Two"),
-      makePreset("p3", "Three"),
-    ]);
+    const presets = ref<FFmpegPreset[]>([makePreset("p1", "One"), makePreset("p2", "Two"), makePreset("p3", "Three")]);
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
 
