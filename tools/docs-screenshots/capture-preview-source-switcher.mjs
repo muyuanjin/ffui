@@ -116,6 +116,36 @@ const waitForHttpOk = async (url, timeoutMs) => {
   }
 };
 
+const assertLocatorStableDuring = async (locator, action, options = {}) => {
+  const durationMs = Number(options.durationMs ?? 450);
+  const sampleMs = Number(options.sampleMs ?? 25);
+  const label = String(options.label ?? "target");
+
+  let flickered = false;
+  const start = Date.now();
+
+  const watcher = (async () => {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (Date.now() - start > durationMs) return;
+      const box = await locator.boundingBox().catch(() => null);
+      if (!box) {
+        flickered = true;
+        return;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(sampleMs);
+    }
+  })();
+
+  await action();
+  await watcher;
+
+  if (flickered) {
+    throw new Error(`${label} flickered (detached/hidden) during action`);
+  }
+};
+
 const withDevServer = async (fn, options = {}) => {
   const viteBin = path.join(repoRoot, "node_modules", "vite", "bin", "vite.js");
   const configPath = path.join(repoRoot, "tools", "docs-screenshots", "vite.config.screenshots.ts");
@@ -181,20 +211,34 @@ const main = async () => {
         await dialog.waitFor({ state: "visible", timeout: 30_000 });
 
         await sleep(400);
-        await dialog.screenshot({ path: path.join(args.outDir, `preview-${args.locale}-auto.png`) });
-
-        const outputToggle = page.locator("[data-testid='expanded-preview-source-output']");
-        if ((await outputToggle.count()) > 0) {
-          await outputToggle.click({ force: true });
-          await sleep(400);
-          await dialog.screenshot({ path: path.join(args.outDir, `preview-${args.locale}-output.png`) });
-        }
+        await dialog.screenshot({ path: path.join(args.outDir, `preview-${args.locale}-default.png`) });
 
         const inputToggle = page.locator("[data-testid='expanded-preview-source-input']");
         if ((await inputToggle.count()) > 0) {
-          await inputToggle.click({ force: true });
+          await assertLocatorStableDuring(
+            dialog,
+            async () => {
+              await inputToggle.click({ force: true });
+              await sleep(250);
+            },
+            { label: "Expanded preview dialog" },
+          );
           await sleep(400);
           await dialog.screenshot({ path: path.join(args.outDir, `preview-${args.locale}-input.png`) });
+        }
+
+        const outputToggle = page.locator("[data-testid='expanded-preview-source-output']");
+        if ((await outputToggle.count()) > 0) {
+          await assertLocatorStableDuring(
+            dialog,
+            async () => {
+              await outputToggle.click({ force: true });
+              await sleep(250);
+            },
+            { label: "Expanded preview dialog" },
+          );
+          await sleep(400);
+          await dialog.screenshot({ path: path.join(args.outDir, `preview-${args.locale}-output.png`) });
         }
       } finally {
         await browser.close();

@@ -76,11 +76,6 @@ const resolvedPreviewSourceLabel = computed(() => {
 });
 
 const descriptionText = computed(() => {
-  if (previewSourceMode.value === "auto") {
-    return t("jobDetail.previewDescriptionAuto", {
-      source: resolvedPreviewSourceLabel.value,
-    }) as string;
-  }
   return t("jobDetail.previewDescriptionWithSource", {
     source: resolvedPreviewSourceLabel.value,
   }) as string;
@@ -133,11 +128,11 @@ watch(
             <Tabs v-model="previewSourceModeModel" class="shrink-0">
               <TabsList class="h-6 bg-background/50 border border-border/30 p-0.5">
                 <TabsTrigger
-                  value="auto"
-                  data-testid="expanded-preview-source-auto"
+                  value="input"
+                  data-testid="expanded-preview-source-input"
                   class="h-5 px-2 text-[10px] leading-none"
                 >
-                  {{ t("jobDetail.previewSourceMode.auto") }}
+                  {{ t("jobDetail.previewSourceMode.input") }}
                 </TabsTrigger>
                 <TabsTrigger
                   value="output"
@@ -145,13 +140,6 @@ watch(
                   class="h-5 px-2 text-[10px] leading-none"
                 >
                   {{ t("jobDetail.previewSourceMode.output") }}
-                </TabsTrigger>
-                <TabsTrigger
-                  value="input"
-                  data-testid="expanded-preview-source-input"
-                  class="h-5 px-2 text-[10px] leading-none"
-                >
-                  {{ t("jobDetail.previewSourceMode.input") }}
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -162,7 +150,7 @@ watch(
         </DialogDescription>
       </DialogHeader>
       <div
-        class="mt-2 relative w-full max-h-[70vh] rounded-md bg-black flex items-center justify-center overflow-hidden"
+        class="mt-2 relative w-full max-h-[70vh] aspect-video rounded-md bg-black flex items-center justify-center overflow-hidden"
         data-testid="expanded-preview-surface"
       >
         <template v-if="previewUrl">

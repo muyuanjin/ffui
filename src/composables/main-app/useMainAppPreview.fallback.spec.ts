@@ -71,7 +71,7 @@ describe("useMainAppPreview fallback path selection", () => {
     wrapper.unmount();
   });
 
-  it("does not silently switch across input/output when a forced source mode is selected", async () => {
+  it("falls back across input/output based on selected source mode ordering", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;
 
@@ -93,22 +93,23 @@ describe("useMainAppPreview fallback path selection", () => {
     await vm.openJobPreviewFromQueue(job);
     await nextTick();
 
-    // Default is auto and prefers output first for completed jobs.
-    expect(vm.previewSourceMode).toBe("auto");
-    expect(vm.previewUrl).toBe(job.outputPath);
-
-    // Force output: playback error should not jump to input.
-    await vm.setPreviewSourceMode("output");
-    await nextTick();
-
+    // 默认优先输出（completed 任务应先尝试 outputPath）。
     expect(vm.previewSourceMode).toBe("output");
     expect(vm.previewUrl).toBe(job.outputPath);
+
+    // 手动切到输入：应先尝试 inputPath。
+    await vm.setPreviewSourceMode("input");
+    await nextTick();
+
+    expect(vm.previewSourceMode).toBe("input");
+    expect(vm.previewUrl).toBe(job.inputPath);
 
     vm.handleExpandedPreviewError();
     await nextTick();
 
+    // 输入无法播放时应回退到输出（若仍有可用候选，不应立即展示错误）。
     expect(vm.previewUrl).toBe(job.outputPath);
-    expect(vm.previewError).not.toBeNull();
+    expect(vm.previewError).toBeNull();
 
     wrapper.unmount();
   });

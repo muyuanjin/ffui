@@ -249,6 +249,10 @@ describe("MainApp Tauri preview fallback", () => {
 
     await nextTick();
 
+    // Simulate the backend existence check: waiting jobs generally don't have the final output yet,
+    // so the backend should skip outputPath and fall back to inputPath.
+    selectPlayableMediaPathMock.mockImplementationOnce(async (candidates: string[]) => candidates[1] ?? candidates[0] ?? null);
+
     if (typeof vm.openJobPreviewFromQueue === "function") {
       await vm.openJobPreviewFromQueue(job);
     }
@@ -357,8 +361,15 @@ describe("MainApp Tauri preview fallback", () => {
     await nextTick();
 
     expect(vm.dialogManager.previewOpen.value).toBe(true);
-    expect(vm.previewUrl).toBe(job.inputPath);
+    // Failed jobs may still have an outputPath on the job record, so we start by trying the output first.
+    expect(vm.previewUrl).toBe(job.outputPath);
     expect(vm.previewIsImage).toBe(false);
+
+    // Simulate native playback failure: the preview should fall back to the input path.
+    vm.handleExpandedPreviewError();
+    await nextTick();
+
+    expect(vm.previewUrl).toBe(job.inputPath);
 
     wrapper.unmount();
   });
