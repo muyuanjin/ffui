@@ -13,10 +13,21 @@ const delegatedProps = reactiveOmit(props, "class");
 
 <template>
   <ScrollAreaRoot v-bind="delegatedProps" :class="cn('relative overflow-hidden', props.class)">
-    <ScrollAreaViewport class="h-full w-full rounded-[inherit]">
+    <ScrollAreaViewport class="ffui-scroll-area-viewport h-full w-full rounded-[inherit]">
       <slot />
     </ScrollAreaViewport>
     <ScrollBar />
     <ScrollAreaCorner />
   </ScrollAreaRoot>
 </template>
+
+<style scoped>
+/* Reka ScrollAreaViewport wraps slot content in an extra <div>. Give it a
+   height context so descendants using `h-full` can actually fill the viewport,
+   while keeping natural scroll height when content is taller. */
+:deep(.ffui-scroll-area-viewport > div) {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+</style>

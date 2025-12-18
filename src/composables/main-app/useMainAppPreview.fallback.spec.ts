@@ -34,7 +34,7 @@ const TestHarness = defineComponent({
 });
 
 describe("useMainAppPreview fallback path selection", () => {
-  it("handleExpandedPreviewError falls back to the next candidate path when the first one fails", async () => {
+  it("handleExpandedPreviewError keeps the selected path and enables frame fallback", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;
 
@@ -60,18 +60,17 @@ describe("useMainAppPreview fallback path selection", () => {
     expect(vm.previewUrl).toBe(job.outputPath);
     expect(vm.previewError).toBeNull();
 
-    // 模拟 <video> 播放失败，预览逻辑应尝试下一个候选路径（inputPath）。
+    // 模拟 <video> 播放失败：保持当前路径，并进入帧预览兜底。
     vm.handleExpandedPreviewError();
     await nextTick();
 
-    expect(vm.previewUrl).toBe(job.inputPath);
-    // 仍然不应立即展示错误文案，因为还有可用的备用路径。
-    expect(vm.previewError).toBeNull();
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewError).toBeTruthy();
 
     wrapper.unmount();
   });
 
-  it("falls back across input/output based on selected source mode ordering", async () => {
+  it("switches to input when the user selects input mode", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;
 
@@ -103,13 +102,6 @@ describe("useMainAppPreview fallback path selection", () => {
 
     expect(vm.previewSourceMode).toBe("input");
     expect(vm.previewUrl).toBe(job.inputPath);
-
-    vm.handleExpandedPreviewError();
-    await nextTick();
-
-    // 输入无法播放时应回退到输出（若仍有可用候选，不应立即展示错误）。
-    expect(vm.previewUrl).toBe(job.outputPath);
-    expect(vm.previewError).toBeNull();
 
     wrapper.unmount();
   });

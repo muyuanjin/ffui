@@ -131,6 +131,67 @@ describe("QueuePanel layout responsiveness", () => {
     expect(panel.classes()).not.toContain("max-w-4xl");
   });
 
+  it("lets the 3D carousel mode fill the available height", () => {
+    const job = makeJob();
+    const items: QueueListItem[] = [{ kind: "job", job }];
+
+    const wrapper = mount(QueuePanel, {
+      props: {
+        queueJobsForDisplay: [job],
+        visibleQueueItems: items,
+        iconViewItems: items,
+        queueModeProcessingJobs: [],
+        queueModeWaitingItems: [],
+        queueModeWaitingBatchIds: new Set<string>(),
+        pausingJobIds: new Set<string>(),
+        presets: [basePreset],
+
+        queueViewMode: "carousel-3d",
+        ffmpegResolvedPath: null,
+        queueProgressStyle: "bar",
+        queueMode: "display",
+        isIconViewMode: false,
+        isCarousel3dViewMode: true,
+        carouselAutoRotationSpeed: 0,
+        iconViewSize: "small",
+        iconGridClass: getQueueIconGridClass("icon-small"),
+        queueRowVariant: "detail",
+        progressUpdateIntervalMs: 500,
+        hasBatchCompressBatches: false,
+
+        activeStatusFilters: new Set<QueueFilterStatus>(),
+        activeTypeFilters: new Set<QueueFilterKind>(),
+        filterText: "",
+        filterUseRegex: false,
+        filterRegexError: null,
+        sortPrimary: "addedTime",
+        sortPrimaryDirection: "desc",
+        hasSelection: false,
+        hasActiveFilters: false,
+        selectedJobIds: new Set<string>(),
+        selectedCount: 0,
+
+        expandedBatchIds: new Set<string>(),
+        queueError: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+          QueueIconItem: true,
+          QueueBatchCompressIconBatchItem: true,
+          QueueBatchCompressBatchCard: true,
+          QueueCarousel3DView: true,
+        },
+      },
+    });
+
+    const wrapperEl = wrapper.get("[data-testid='ffui-queue-carousel-3d-wrapper']");
+    expect(wrapperEl.classes()).toContain("flex");
+    expect(wrapperEl.classes()).toContain("flex-1");
+    expect(wrapperEl.classes()).toContain("min-h-0");
+  });
+
   it("renders an auto-fit icon grid when icon mode is enabled", () => {
     const job = makeJob();
     const items: QueueListItem[] = [{ kind: "job", job }];

@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, reactive } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch, reactive, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
 import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Folder } from "lucide-vue-next";
-import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
+import QueueCarousel3DHeader from "@/components/queue-item/QueueCarousel3DHeader.vue";
+import QueueCarousel3DFooter from "@/components/queue-item/QueueCarousel3DFooter.vue";
+import QueueCarousel3DCardContent from "@/components/queue-item/QueueCarousel3DCardContent.vue";
 import {
+  computeCarousel3DLayout,
   computeCarouselCardStyle,
-  getProgressVariant,
-  getStatusClass,
-  getTypeIcon,
+  getCarouselDisplayFilename,
+  isCarouselItemSelected,
   isCarouselCardVisible,
 } from "./queueCarousel3dView.helpers";
 
@@ -42,10 +40,37 @@ const isDragging = ref(false);
 const dragStartX = ref(0);
 const dragOffset = ref(0);
 const containerRef = ref<HTMLElement | null>(null);
+const stageRef = ref<HTMLElement | null>(null);
 
 const previewCache = reactive<Record<string, string | null>>({});
 
 let autoRotationTimer: ReturnType<typeof setInterval> | null = null;
+let stageResizeObserver: ResizeObserver | null = null;
+let stageResizeFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+const stageLayout = ref(
+  computeCarousel3DLayout({
+    stageWidth: 0,
+    stageHeight: 0,
+  }),
+);
+
+const refreshStageLayout = () => {
+  const el = stageRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  stageLayout.value = computeCarousel3DLayout({ stageWidth: rect.width, stageHeight: rect.height });
+};
+
+const scheduleStageLayoutRefresh = () => {
+  if (stageResizeFallbackTimer) clearTimeout(stageResizeFallbackTimer);
+  stageResizeFallbackTimer = setTimeout(() => {
+    stageResizeFallbackTimer = null;
+    refreshStageLayout();
+  }, 0);
+};
+
+const carouselLayout = computed(() => stageLayout.value);
 
 const displayedItems = computed(() => {
   return props.items.slice(0, Math.min(props.items.length, 50));
@@ -117,6 +142,7 @@ const getCardStyle = (index: number) => {
     totalCards: displayedItems.value.length,
     isDragging: isDragging.value,
     dragOffset: dragOffset.value,
+    layout: stageLayout.value,
   });
 };
 
@@ -261,30 +287,42 @@ watch(
 
 onMounted(() => {
   containerRef.value?.addEventListener("wheel", handleWheel, { passive: false });
+  nextTick(() => {
+    refreshStageLayout();
+  });
+  if (typeof ResizeObserver !== "undefined") {
+    stageResizeObserver = new ResizeObserver(() => {
+      scheduleStageLayoutRefresh();
+    });
+    if (stageRef.value) stageResizeObserver.observe(stageRef.value);
+  } else if (typeof window !== "undefined") {
+    window.addEventListener("resize", scheduleStageLayoutRefresh, { passive: true });
+  }
   startAutoRotation();
 });
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener("wheel", handleWheel);
+  if (stageResizeObserver) {
+    stageResizeObserver.disconnect();
+    stageResizeObserver = null;
+  }
+  if (typeof window !== "undefined") {
+    window.removeEventListener("resize", scheduleStageLayoutRefresh as any);
+  }
+  if (stageResizeFallbackTimer) {
+    clearTimeout(stageResizeFallbackTimer);
+    stageResizeFallbackTimer = null;
+  }
   stopAutoRotation();
 });
 
 const isItemSelected = (item: QueueListItem): boolean => {
-  if (item.kind === "job") {
-    return props.selectedJobIds.has(item.job.id);
-  }
-  return item.batch.jobs.every((j) => props.selectedJobIds.has(j.id));
+  return isCarouselItemSelected(item, props.selectedJobIds);
 };
 
 const getDisplayFilename = (item: QueueListItem): string => {
-  if (item.kind === "batch") {
-    return item.batch.rootPath?.split(/[/\\]/).pop() || t("batchCompress.title");
-  }
-  const name = item.job.filename || "";
-  const slash = name.lastIndexOf("/");
-  const backslash = name.lastIndexOf("\\");
-  const idx = Math.max(slash, backslash);
-  return idx >= 0 ? name.slice(idx + 1) : name;
+  return getCarouselDisplayFilename(item, (key) => t(key) as string);
 };
 </script>
 
@@ -293,7 +331,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
     v-if="displayedItems.length > 0"
     ref="containerRef"
     data-testid="ffui-carousel-3d-container"
-    class="carousel-3d-container relative select-none outline-none flex flex-1 min-h-0 w-full flex-col items-center py-3 h-full"
+    class="carousel-3d-container relative select-none outline-none flex flex-1 w-full flex-col items-center py-2 min-h-[calc(100vh-220px)]"
     tabindex="0"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
@@ -301,162 +339,55 @@ const getDisplayFilename = (item: QueueListItem): string => {
     @pointercancel="handlePointerUp"
     @keydown="handleKeyDown"
   >
-    <!-- 标题栏 -->
-    <div data-testid="ffui-carousel-3d-header" class="flex items-center justify-between w-full mb-3 px-4 relative z-10">
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-medium text-foreground">{{ t("app.tabs.queue") }}</span>
-        <Badge variant="secondary" class="text-xs px-1.5 py-0">
-          {{ items.length }}
-        </Badge>
-      </div>
-      <span class="text-xs text-muted-foreground font-mono"> {{ activeIndex + 1 }} / {{ displayedItems.length }} </span>
-    </div>
+    <QueueCarousel3DHeader
+      :total-items="items.length"
+      :active-index="activeIndex"
+      :displayed-length="displayedItems.length"
+    />
 
-    <!-- 卡片轮播区域 - 使用更大的高度 -->
+    <!-- 卡片轮播区域 - 填满剩余空间 -->
     <!-- NOTE: `z-0` creates a stacking context so card `zIndex` cannot cover header/pagination/hint. -->
-    <div data-testid="ffui-carousel-3d-stage" class="relative z-0 w-full flex-1 min-h-[380px]">
-      <div class="absolute inset-0 flex items-center justify-center overflow-visible">
+    <div ref="stageRef" data-testid="ffui-carousel-3d-stage" class="relative z-0 w-full flex-1 min-h-[320px]">
+      <div class="absolute inset-0 flex items-end justify-center overflow-visible">
         <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
           <div
             v-if="isCardVisible(index)"
             data-testid="ffui-carousel-3d-card"
             :data-active="index === activeIndex ? 'true' : 'false'"
-            class="carousel-card absolute rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50"
+            :data-index="String(index)"
+            class="carousel-card absolute rounded-xl border border-border/60 bg-card/95 shadow-xl overflow-hidden cursor-pointer hover:border-primary/50 flex flex-col"
             :class="{
               'ring-2 ring-primary/60 border-primary/70': index === activeIndex,
               'ring-2 ring-amber-500/60 border-amber-500/70': isItemSelected(item),
             }"
             :style="{
               ...getCardStyle(index),
-              width: 'calc(100% - 2rem)',
-              height: 'calc(100% - 1rem)',
+              width: `${carouselLayout.cardWidth}px`,
+              height: `${carouselLayout.cardHeight}px`,
             }"
             @click="handleCardClick(index, item)"
             @dblclick="handleCardDoubleClick(item)"
             @contextmenu="handleCardContextMenu($event, item)"
           >
-            <div class="relative h-[55%] bg-muted/50 overflow-hidden">
-              <img
-                v-if="getPreviewUrl(item)"
-                :src="getPreviewUrl(item) ?? undefined"
-                alt=""
-                class="w-full h-full object-cover"
-              />
-              <div v-else class="w-full h-full flex items-center justify-center">
-                <component
-                  :is="item.kind === 'batch' ? Folder : getTypeIcon(item.kind === 'job' ? item.job.type : 'video')"
-                  class="h-16 w-16 text-muted-foreground/30"
-                />
-              </div>
-
-              <div class="absolute top-2 left-2">
-                <Badge
-                  v-if="item.kind === 'job'"
-                  variant="outline"
-                  class="px-1.5 py-0.5 text-[10px] font-medium"
-                  :class="getStatusClass(item.job.status)"
-                >
-                  {{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}
-                </Badge>
-                <Badge
-                  v-else
-                  variant="outline"
-                  class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300 bg-blue-500/20"
-                >
-                  {{ t("queue.source.batchCompress") }}
-                </Badge>
-              </div>
-
-              <div
-                v-if="isItemSelected(item)"
-                class="absolute top-2 right-2 h-6 w-6 rounded-full bg-amber-500 border-2 border-amber-500 text-white flex items-center justify-center"
-              >
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            </div>
-
-            <div class="p-3 space-y-2">
-              <div class="flex items-center gap-2">
-                <p class="flex-1 text-sm font-medium text-foreground truncate" :title="getDisplayFilename(item)">
-                  {{ getDisplayFilename(item) }}
-                </p>
-                <QueueJobWarnings v-if="item.kind === 'job'" :warnings="item.job.warnings" />
-              </div>
-
-              <div v-if="item.kind === 'job'" class="space-y-1">
-                <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span>{{ t(`queue.status.${item.job.status === "queued" ? "waiting" : item.job.status}`) }}</span>
-                  <span v-if="item.job.progress > 0 && item.job.progress < 100" class="font-mono">
-                    {{ Math.round(item.job.progress) }}%
-                  </span>
-                </div>
-                <Progress
-                  v-if="item.job.status !== 'waiting' && item.job.status !== 'skipped'"
-                  :model-value="item.job.progress"
-                  :variant="getProgressVariant(item.job.status) as any"
-                  class="h-1.5"
-                />
-              </div>
-
-              <div v-else class="space-y-1">
-                <div class="flex items-center justify-between text-[11px] text-muted-foreground">
-                  <span> {{ item.batch.completedCount }} / {{ item.batch.totalCandidates }} </span>
-                  <span class="font-mono">{{ Math.round(item.batch.overallProgress) }}%</span>
-                </div>
-                <Progress :model-value="item.batch.overallProgress" class="h-1.5" />
-              </div>
-
-              <div class="flex items-center justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  class="h-auto p-0 text-[10px]"
-                  @click.stop="item.kind === 'job' ? emit('inspectJob', item.job) : emit('openBatchDetail', item.batch)"
-                >
-                  {{ t("jobDetail.title") }}
-                </Button>
-                <Button
-                  v-if="item.kind === 'job' && item.job.type === 'video'"
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  class="h-auto p-0 text-[10px]"
-                  @click.stop="emit('compareJob', item.job)"
-                >
-                  {{ t("jobCompare.open") }}
-                </Button>
-              </div>
-            </div>
+            <QueueCarousel3DCardContent
+              :item="item"
+              :preview-url="getPreviewUrl(item)"
+              :display-filename="getDisplayFilename(item)"
+              :selected="isItemSelected(item)"
+              @inspect-job="emit('inspectJob', $event)"
+              @open-batch-detail="emit('openBatchDetail', $event)"
+              @compare-job="emit('compareJob', $event)"
+            />
           </div>
         </template>
       </div>
     </div>
 
-    <!-- 导航点 -->
-    <div
-      v-if="displayedItems.length > 1"
-      data-testid="ffui-carousel-3d-pagination"
-      class="flex justify-center items-center gap-1 mt-3 relative z-10"
-    >
-      <button
-        v-for="(_, index) in displayedItems.slice(0, 15)"
-        :key="index"
-        class="w-1.5 h-1.5 rounded-full transition-all"
-        :class="index === activeIndex ? 'bg-primary w-3' : 'bg-muted-foreground/30 hover:bg-muted-foreground/50'"
-        @click="activeIndex = index"
-      />
-      <span v-if="displayedItems.length > 15" class="text-[9px] text-muted-foreground/60 ml-1">
-        +{{ displayedItems.length - 15 }}
-      </span>
-    </div>
-
-    <!-- 提示文字 -->
-    <p data-testid="ffui-carousel-3d-hint" class="text-center text-[10px] text-muted-foreground/60 mt-2 relative z-10">
-      {{ t("queue.skippedStackHint") }}
-    </p>
+    <QueueCarousel3DFooter
+      :active-index="activeIndex"
+      :displayed-length="displayedItems.length"
+      @select-index="activeIndex = $event"
+    />
   </div>
 </template>
 

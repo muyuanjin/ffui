@@ -82,15 +82,104 @@ const waitFor = async (fn, { timeoutMs = 30000, intervalMs = 200 } = {}) => {
   }
 };
 
+const assert3dCardsAreActuallyVisible = async ({ page, stage, activeCard, sideCards }) => {
+  const stageBox = await stage.boundingBox();
+  const activeBox = await activeCard.boundingBox();
+  const activeIndex = await activeCard.getAttribute("data-index");
+
+  if (!stageBox || !activeBox || !activeIndex) {
+    throw new Error("Missing bounding boxes for 3D visibility verification.");
+  }
+
+  // Ensure the active card leaves enough margin so adjacent cards can peek out.
+  const widthRatio = activeBox.width / stageBox.width;
+  if (widthRatio > 0.9) {
+    throw new Error(`Active card is too wide for 3D effect (ratio=${widthRatio.toFixed(3)}).`);
+  }
+
+  const within = (box, p) => {
+    const eps = 0.5;
+    return (
+      p.x + eps >= box.x && p.x <= box.x + box.width - eps && p.y + eps >= box.y && p.y <= box.y + box.height - eps
+    );
+  };
+
+  const isInsideActive = (p) => within(activeBox, p);
+  const isInsideStage = (p) => within(stageBox, p);
+
+  const trySamplePoint = async ({ box }) => {
+    const midY = box.y + box.height / 2;
+    const candidates = [
+      { x: box.x + 2, y: midY },
+      { x: box.x + box.width - 2, y: midY },
+    ].filter((p) => isInsideStage(p) && within(box, p) && !isInsideActive(p));
+
+    for (const pick of candidates) {
+      // eslint-disable-next-line no-await-in-loop
+      const topmost = await page.evaluate(({ x, y }) => {
+        const el = document.elementFromPoint(x, y);
+        const card = el?.closest?.("[data-testid='ffui-carousel-3d-card']");
+        return {
+          index: card?.getAttribute("data-index") ?? null,
+          active: card?.getAttribute("data-active") ?? null,
+        };
+      }, pick);
+
+      if (topmost.index && topmost.index !== activeIndex && topmost.active !== "true") {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // We don't care which adjacent card is visible, only that at least one is.
+  for (const card of sideCards) {
+    const box = await card.boundingBox();
+    if (!box) continue;
+    // eslint-disable-next-line no-await-in-loop
+    const ok = await trySamplePoint({ box });
+    if (ok) return;
+  }
+
+  throw new Error("No adjacent 3D carousel card is visibly peeking outside the active card.");
+};
+
+const assertCarouselUsesMostOfQueueHeight = async ({ queuePanel, carouselRoot }) => {
+  const queueBox = await queuePanel.boundingBox();
+  const carouselBox = await carouselRoot.boundingBox();
+  if (!queueBox || !carouselBox) {
+    throw new Error("Missing bounding boxes for carousel height verification.");
+  }
+  const ratio = carouselBox.height / queueBox.height;
+  // Guardrail: 3D carousel should fill the queue panel area instead of collapsing to min-height,
+  // otherwise users see a large empty region below the carousel.
+  if (ratio < 0.72) {
+    throw new Error(`3D carousel container height is too small (ratio=${ratio.toFixed(3)}).`);
+  }
+};
+
+const assertCarouselHintPinnedToBottom = async ({ queuePanel, hint }) => {
+  const queueBox = await queuePanel.boundingBox();
+  const hintBox = await hint.boundingBox();
+  if (!queueBox || !hintBox) {
+    throw new Error("Missing bounding boxes for carousel hint verification.");
+  }
+
+  const bottomGap = queueBox.y + queueBox.height - (hintBox.y + hintBox.height);
+  if (bottomGap > 24) {
+    throw new Error(`Carousel hint is not pinned near the bottom (gap=${bottomGap.toFixed(1)}px).`);
+  }
+};
+
 const main = async () => {
   const outDir = path.join(repoRoot, "tools/docs-screenshots/artifacts/carousel-3d-verification");
   await fs.mkdir(outDir, { recursive: true });
 
-  const captureOne = async ({ baseUrl }) => {
+  const captureOne = async ({ baseUrl, viewport, outBase }) => {
     const browser = await chromium.launch({ headless: true });
     try {
       const context = await browser.newContext({
-        viewport: { width: 1440, height: 900 },
+        viewport,
         deviceScaleFactor: 1,
       });
       const page = await context.newPage();
@@ -112,7 +201,7 @@ const main = async () => {
       await sleep(500);
 
       // Take screenshot of default view first
-      await page.screenshot({ path: path.join(outDir, "queue-default.png"), fullPage: false });
+      await page.screenshot({ path: path.join(outDir, `queue-default-${outBase}.png`), fullPage: false });
 
       // Find and click the view mode selector to switch to carousel-3d
       const viewModeTrigger = page.locator("[data-testid='ffui-queue-view-mode-trigger']");
@@ -129,18 +218,26 @@ const main = async () => {
       }
 
       // Take screenshot of carousel view
-      await page.screenshot({ path: path.join(outDir, "queue-carousel-3d.png"), fullPage: false });
+      await page.screenshot({ path: path.join(outDir, `queue-carousel-3d-${outBase}.png`), fullPage: false });
 
       const carouselRoot = page.locator("[data-testid='ffui-carousel-3d-container']");
       await waitFor(async () => (await carouselRoot.count()) > 0);
 
       const activeCard = page.locator("[data-testid='ffui-carousel-3d-card'][data-active='true']");
+      const sideCards = [
+        page.locator("[data-testid='ffui-carousel-3d-card'][data-index='1']").first(),
+        page.locator("[data-testid='ffui-carousel-3d-card'][data-index='2']").first(),
+        page.locator("[data-testid='ffui-carousel-3d-card'][data-index='3']").first(),
+      ];
       const header = page.locator("[data-testid='ffui-carousel-3d-header']");
       const pagination = page.locator("[data-testid='ffui-carousel-3d-pagination']");
+      const stage = page.locator("[data-testid='ffui-carousel-3d-stage']");
 
       await waitFor(async () => (await activeCard.count()) > 0);
+      await waitFor(async () => (await sideCards[0].count()) > 0);
       await waitFor(async () => (await header.count()) > 0);
       await waitFor(async () => (await pagination.count()) > 0);
+      await waitFor(async () => (await stage.count()) > 0);
 
       const activeCardBox = await activeCard.first().boundingBox();
       const headerBox = await header.first().boundingBox();
@@ -163,13 +260,32 @@ const main = async () => {
         throw new Error(`Active card overlaps pagination (paginationTop=${paginationTop}, cardBottom=${cardBottom}).`);
       }
 
-      await carouselRoot.screenshot({ path: path.join(outDir, "carousel-3d-container.png") });
-      await pagination.screenshot({ path: path.join(outDir, "carousel-3d-pagination.png") });
+      await assert3dCardsAreActuallyVisible({
+        page,
+        stage: stage.first(),
+        activeCard: activeCard.first(),
+        sideCards,
+      });
+
+      await carouselRoot.screenshot({ path: path.join(outDir, `carousel-3d-container-${outBase}.png`) });
+      await pagination.screenshot({ path: path.join(outDir, `carousel-3d-pagination-${outBase}.png`) });
 
       // Also capture just the main content area
       const mainContent = page.locator("main");
       if ((await mainContent.count()) > 0) {
-        await mainContent.screenshot({ path: path.join(outDir, "carousel-3d-main.png") });
+        await mainContent.screenshot({ path: path.join(outDir, `carousel-3d-main-${outBase}.png`) });
+      }
+
+      const queuePanel = page.locator("[data-testid='queue-panel']");
+      if ((await queuePanel.count()) > 0) {
+        await assertCarouselUsesMostOfQueueHeight({
+          queuePanel: queuePanel.first(),
+          carouselRoot: carouselRoot.first(),
+        });
+        await assertCarouselHintPinnedToBottom({
+          queuePanel: queuePanel.first(),
+          hint: page.locator("[data-testid='ffui-carousel-3d-hint']").first(),
+        });
       }
 
       console.log(`Screenshots saved to: ${outDir}`);
@@ -179,7 +295,8 @@ const main = async () => {
   };
 
   await withDevServer({ startPort: 5173 }, async ({ baseUrl }) => {
-    await captureOne({ baseUrl });
+    await captureOne({ baseUrl, viewport: { width: 1440, height: 900 }, outBase: "default" });
+    await captureOne({ baseUrl, viewport: { width: 2559, height: 1385 }, outBase: "fullscreen" });
   });
 };
 

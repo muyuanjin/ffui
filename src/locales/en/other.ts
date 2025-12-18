@@ -214,6 +214,8 @@ const other = {
       "Unable to play this video in-app (WebView2 may not support this format). You can still scrub frames or open it in your system player.",
     previewImageError:
       "Unable to load image preview. The file may be in use or corrupted; try opening it in your system player.",
+    outputNotReady: "Output is not ready yet (waiting for a temp output file).",
+    outputNotAvailable: "Output path is not available for this job.",
   },
   jobCompare: {
     title: "Compare",

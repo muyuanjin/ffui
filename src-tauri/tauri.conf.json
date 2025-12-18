@@ -21,7 +21,7 @@
         "maximizable": true,
         "minimizable": true,
         "backgroundColor": "#020617",
-        "visible": true,
+        "visible": false,
         "dragDropEnabled": true
       }
     ],

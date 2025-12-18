@@ -205,6 +205,8 @@ const other = {
     previewDescriptionWithSource: "预览当前任务的{source}文件；如无法播放，可以尝试使用系统播放器打开对应文件。",
     previewVideoError: "无法直接播放视频（WebView2 可能不支持该格式）。可用帧预览，或用系统播放器打开。",
     previewImageError: "无法加载图片预览，文件可能正在被占用或已损坏；可以尝试使用系统图片查看器打开。",
+    outputNotReady: "输出尚未就绪（等待生成临时输出文件）。",
+    outputNotAvailable: "该任务暂无可用的输出路径。",
   },
   jobCompare: {
     title: "对比",
