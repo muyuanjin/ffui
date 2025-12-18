@@ -31,7 +31,6 @@ const {
   presets,
   currentTitle,
   currentSubtitle,
-
   // 队列过滤与排序
   activeStatusFilters,
   activeTypeFilters,
@@ -56,7 +55,6 @@ const {
   selectAllVisibleJobs,
   invertSelection,
   clearSelection,
-
   // 队列视图与操作
   queueViewModeModel,
   queuePanelProps,
@@ -65,6 +63,8 @@ const {
   startSmartScan,
   setQueueViewMode,
   setQueueProgressStyle,
+  carouselAutoRotationSpeed,
+  setCarouselAutoRotationSpeed,
   handleCancelJob,
   handleWaitJob,
   handleResumeJob,
@@ -72,7 +72,6 @@ const {
   toggleJobSelected,
   toggleBatchExpanded,
   openBatchDetail,
-
   // 队列批量操作
   bulkCancel,
   bulkWait,
@@ -278,9 +277,11 @@ defineExpose({
           :queue-view-mode-model="queueViewModeModel"
           :preset-sort-mode="presetSortMode"
           :queue-output-policy="queueOutputPolicy"
+          :carousel-auto-rotation-speed="carouselAutoRotationSpeed"
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
           @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
           @update:queueOutputPolicy="(v) => setQueueOutputPolicy(v)"
+          @update:carouselAutoRotationSpeed="(v) => setCarouselAutoRotationSpeed(v)"
           @openPresetWizard="dialogManager.openWizard()"
         />
 

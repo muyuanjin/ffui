@@ -9,6 +9,7 @@ import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import { buildPreviewUrl } from "@/lib/backend";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
+const SkippedItemsStack = defineAsyncComponent(() => import("@/components/queue-item/SkippedItemsStack.vue"));
 
 const props = defineProps<{
   /** Whether dialog is open */
@@ -33,6 +34,12 @@ const sortedJobs = computed<TranscodeJob[]>(() => {
     return jobs;
   }
   return jobs.slice().sort(props.sortCompareFn);
+});
+
+/** 跳过的任务列表 */
+const skippedJobs = computed<TranscodeJob[]>(() => {
+  if (!props.batch) return [];
+  return props.batch.jobs.filter((j) => j.status === "skipped");
 });
 
 const emit = defineEmits<{
@@ -359,10 +366,12 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           />
         </div>
 
-        <!-- Skipped items -->
-        <div v-if="batch.skippedCount > 0" class="text-xs text-muted-foreground flex-shrink-0">
-          {{ t("queue.status.skipped") }}: {{ batch.skippedCount }} {{ t("smartScan.subtitle") }}
-        </div>
+        <!-- Skipped items stack -->
+        <SkippedItemsStack
+          v-if="skippedJobs.length > 0"
+          :skipped-jobs="skippedJobs"
+          class="flex-shrink-0 border border-border/40 rounded-lg p-3 bg-muted/20"
+        />
       </div>
 
       <!-- 右键菜单 -->

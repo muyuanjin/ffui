@@ -129,6 +129,8 @@ describe("QueuePanel Smart Scan icon batch interactions", () => {
         queueProgressStyle: "bar",
         queueMode: "display",
         isIconViewMode: true,
+        isCarousel3dViewMode: false,
+        carouselAutoRotationSpeed: 0,
         iconViewSize: "small",
         iconGridClass: "grid-cols-1",
         queueRowVariant: "compact",

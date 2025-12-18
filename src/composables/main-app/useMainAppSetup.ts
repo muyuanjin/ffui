@@ -307,6 +307,8 @@ export function useMainAppSetup() {
     queueProgressStyleModel: queue.queueProgressStyleModel,
     queueMode: queue.queueMode,
     isIconViewMode: queue.isIconViewMode,
+    isCarousel3dViewMode: queue.isCarousel3dViewMode,
+    carouselAutoRotationSpeed: queue.carouselAutoRotationSpeed,
     iconViewSize: queue.iconViewSize,
     iconGridClass: queue.iconGridClass,
     queueRowVariant: queue.queueRowVariant,

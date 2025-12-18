@@ -23,6 +23,8 @@ interface QueuePanelBindingsInput {
   queueProgressStyleModel: Ref<QueueProgressStyle>;
   queueMode: Ref<QueueMode>;
   isIconViewMode: Ref<boolean>;
+  isCarousel3dViewMode: Ref<boolean>;
+  carouselAutoRotationSpeed: Ref<number>;
   iconViewSize: Ref<"small" | "medium" | "large">;
   iconGridClass: Ref<string>;
   queueRowVariant: Ref<"detail" | "compact">;
@@ -58,6 +60,8 @@ export const createQueuePanelProps = (input: QueuePanelBindingsInput) =>
     queueProgressStyle: input.queueProgressStyleModel.value,
     queueMode: input.queueMode.value,
     isIconViewMode: input.isIconViewMode.value,
+    isCarousel3dViewMode: input.isCarousel3dViewMode.value,
+    carouselAutoRotationSpeed: input.carouselAutoRotationSpeed.value,
     iconViewSize: input.iconViewSize.value,
     iconGridClass: input.iconGridClass.value,
     queueRowVariant: input.queueRowVariant.value,

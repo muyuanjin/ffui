@@ -4,110 +4,17 @@ import QueueSmartScanBatchCard from "./QueueSmartScanBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
-import type {
-  TranscodeJob,
-  FFmpegPreset,
-  CompositeSmartScanTask,
-  QueueViewMode,
-  QueueProgressStyle,
-  QueueMode,
-} from "@/types";
-import type {
-  QueueFilterStatus,
-  QueueFilterKind,
-  QueueSortField,
-  QueueSortDirection,
-  QueueListItem,
-} from "@/composables";
+import type { TranscodeJob, CompositeSmartScanTask } from "@/types";
+import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
 const QueueSmartScanIconBatchItem = defineAsyncComponent(() => import("@/components/QueueSmartScanIconBatchItem.vue"));
+const QueueCarousel3DView = defineAsyncComponent(() => import("@/components/queue-item/QueueCarousel3DView.vue"));
 
-const props = defineProps<{
-  // Queue items
-  queueJobsForDisplay: TranscodeJob[];
-  visibleQueueItems: QueueListItem[];
-  iconViewItems: QueueListItem[];
-  queueModeProcessingJobs: TranscodeJob[];
-  queueModeWaitingItems: QueueListItem[];
-  queueModeWaitingBatchIds: Set<string>;
-  /** UI-only: jobs that have requested pause but are still processing. */
-  pausingJobIds: Set<string>;
-  presets: FFmpegPreset[];
-
-  // View settings
-  queueViewMode: QueueViewMode;
-  /** Resolved ffmpeg executable path from backend/tool status (if known). */
-  ffmpegResolvedPath?: string | null;
-  queueProgressStyle: QueueProgressStyle;
-  queueMode: QueueMode;
-  isIconViewMode: boolean;
-  iconViewSize: "small" | "medium" | "large";
-  iconGridClass: string;
-  queueRowVariant: "detail" | "compact";
-  progressUpdateIntervalMs: number;
-  hasSmartScanBatches: boolean;
-
-  // Filter/sort state
-  activeStatusFilters: Set<QueueFilterStatus>;
-  activeTypeFilters: Set<QueueFilterKind>;
-  filterText: string;
-  filterUseRegex: boolean;
-  filterRegexError: string | null;
-  sortPrimary: QueueSortField;
-  sortPrimaryDirection: QueueSortDirection;
-  hasSelection: boolean;
-  hasActiveFilters: boolean;
-  /** IDs of currently selected jobs for visual checkboxes. */
-  selectedJobIds: Set<string>;
-  selectedCount: number;
-
-  // Batch expansion
-  expandedBatchIds: Set<string>;
-
-  /** 排序比较函数，用于对批次子任务进行排序 */
-  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
-}>();
-
-const emit = defineEmits<{
-  "update:queueViewMode": [value: QueueViewMode];
-  "update:queueProgressStyle": [value: QueueProgressStyle];
-  "update:queueMode": [value: QueueMode];
-  "update:filterText": [value: string];
-  "update:sortPrimary": [value: QueueSortField];
-  "update:sortPrimaryDirection": [value: QueueSortDirection];
-  addJobFiles: [];
-  addJobFolder: [];
-  toggleStatusFilter: [status: QueueFilterStatus];
-  toggleTypeFilter: [kind: QueueFilterKind];
-  toggleFilterRegexMode: [];
-  resetQueueFilters: [];
-  selectAllVisibleJobs: [];
-  invertSelection: [];
-  clearSelection: [];
-  bulkCancel: [];
-  bulkWait: [];
-  bulkResume: [];
-  bulkRestart: [];
-  bulkMoveToTop: [];
-  bulkMoveToBottom: [];
-  bulkDelete: [];
-  cancelJob: [jobId: string];
-  waitJob: [jobId: string];
-  resumeJob: [jobId: string];
-  restartJob: [jobId: string];
-  toggleJobSelected: [jobId: string];
-  inspectJob: [job: TranscodeJob];
-  previewJob: [job: TranscodeJob];
-  compareJob: [job: TranscodeJob];
-  toggleBatchExpanded: [batchId: string];
-  openBatchDetail: [batch: CompositeSmartScanTask];
-  isJobSelected: [jobId: string];
-  openJobContextMenu: [payload: { job: TranscodeJob; event: MouseEvent }];
-  openBulkContextMenu: [event: MouseEvent];
-}>();
+const props = defineProps<QueuePanelProps>();
+const emit = defineEmits<QueuePanelEmits>();
 
 const { t } = useI18n();
 
@@ -225,8 +132,26 @@ const handleBatchContextMenu = (batch: CompositeSmartScanTask, event: MouseEvent
 
     <!-- Queue content -->
     <div v-else>
+      <!-- 3D Carousel view mode -->
+      <div v-if="isCarousel3dViewMode">
+        <QueueCarousel3DView
+          :items="visibleQueueItems"
+          :selected-job-ids="selectedJobIds"
+          :progress-style="queueProgressStyle"
+          :auto-rotation-speed="carouselAutoRotationSpeed"
+          @toggle-job-selected="emit('toggleJobSelected', $event)"
+          @inspect-job="emit('inspectJob', $event)"
+          @preview-job="emit('previewJob', $event)"
+          @compare-job="emit('compareJob', $event)"
+          @open-job-context-menu="emit('openJobContextMenu', $event)"
+          @open-batch-detail="emit('openBatchDetail', $event)"
+          @toggle-batch-selection="handleToggleBatchSelection($event)"
+          @contextmenu-batch="(payload) => handleBatchContextMenu(payload.batch, payload.event)"
+        />
+      </div>
+
       <!-- Icon view mode -->
-      <div v-if="isIconViewMode">
+      <div v-else-if="isIconViewMode">
         <div data-testid="queue-icon-grid" :class="iconGridClass">
           <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
             <QueueIconItem

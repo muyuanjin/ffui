@@ -10,6 +10,7 @@ import { useI18n } from "vue-i18n";
 import type { CompositeSmartScanTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
+const SkippedItemsStack = defineAsyncComponent(() => import("@/components/queue-item/SkippedItemsStack.vue"));
 
 const props = defineProps<{
   batch: CompositeSmartScanTask;
@@ -32,6 +33,11 @@ const sortedJobs = computed<TranscodeJob[]>(() => {
     return jobs;
   }
   return jobs.slice().sort(props.sortCompareFn);
+});
+
+/** 跳过的任务列表 */
+const skippedJobs = computed<TranscodeJob[]>(() => {
+  return props.batch.jobs.filter((j) => j.status === "skipped");
 });
 
 const emit = defineEmits<{
@@ -150,9 +156,10 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
       <Progress :model-value="batch.overallProgress" :variant="getBatchProgressVariant(batch)" />
       <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
         <span
-          >{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }}:
+          >{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }} / {{ t("queue.typeAudio") }}:
           {{ batch.jobs.filter((j) => j.type === "video").length }} /
-          {{ batch.jobs.filter((j) => j.type === "image").length }}</span
+          {{ batch.jobs.filter((j) => j.type === "image").length }} /
+          {{ batch.jobs.filter((j) => j.type === "audio").length }}</span
         >
         <span>{{ t("queue.status.completed") }}: {{ batch.completedCount }}</span>
         <span v-if="batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ batch.skippedCount }}</span>
@@ -181,6 +188,13 @@ const getBatchProgressVariant = (batch: CompositeSmartScanTask): ProgressVariant
           @preview="emit('previewJob', $event)"
           @compare="emit('compareJob', $event)"
           @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
+        />
+
+        <!-- Skipped items stack -->
+        <SkippedItemsStack
+          v-if="skippedJobs.length > 0"
+          :skipped-jobs="skippedJobs"
+          class="border border-border/40 rounded-lg p-3 bg-muted/20"
         />
       </div>
     </CardContent>

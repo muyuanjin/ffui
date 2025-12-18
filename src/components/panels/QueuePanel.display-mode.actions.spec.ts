@@ -122,6 +122,8 @@ describe("QueuePanel display mode actions", () => {
         queueProgressStyle: "bar",
         queueMode: "display",
         isIconViewMode: false,
+        isCarousel3dViewMode: false,
+        carouselAutoRotationSpeed: 0,
         iconViewSize: "small",
         iconGridClass: "",
         queueRowVariant: "detail",

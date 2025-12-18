@@ -60,14 +60,17 @@ export interface UseMainAppQueueReturn extends Pick<
   queueViewMode: Ref<QueueViewMode>;
   queueProgressStyle: Ref<QueueProgressStyle>;
   queueMode: Ref<QueueMode>;
+  carouselAutoRotationSpeed: Ref<number>;
   setQueueViewMode: (mode: QueueViewMode) => void;
   setQueueProgressStyle: (style: QueueProgressStyle) => void;
   setQueueMode: (mode: QueueMode) => void;
+  setCarouselAutoRotationSpeed: (speed: number) => void;
   queueViewModeModel: Ref<QueueViewMode>;
   queueModeModel: Ref<QueueMode>;
   queueProgressStyleModel: Ref<QueueProgressStyle>;
   queueRowVariant: ComputedRef<"detail" | "compact">;
   isIconViewMode: ComputedRef<boolean>;
+  isCarousel3dViewMode: ComputedRef<boolean>;
   iconViewSize: ComputedRef<"small" | "medium" | "large">;
   iconGridClass: ComputedRef<string>;
 
@@ -123,8 +126,16 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = options;
 
   // Queue view preferences
-  const { queueViewMode, queueProgressStyle, queueMode, setQueueViewMode, setQueueProgressStyle, setQueueMode } =
-    useQueuePreferences();
+  const {
+    queueViewMode,
+    queueProgressStyle,
+    queueMode,
+    carouselAutoRotationSpeed,
+    setQueueViewMode,
+    setQueueProgressStyle,
+    setQueueMode,
+    setCarouselAutoRotationSpeed,
+  } = useQueuePreferences();
 
   const queueViewModeModel = computed<QueueViewMode>({
     get: () => queueViewMode.value,
@@ -151,6 +162,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
       queueViewMode.value === "icon-medium" ||
       queueViewMode.value === "icon-large",
   );
+
+  const isCarousel3dViewMode = computed(() => queueViewMode.value === "carousel-3d");
 
   const iconViewSize = computed<"small" | "medium" | "large">(() => {
     if (queueViewMode.value === "icon-large") return "large";
@@ -401,14 +414,17 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     queueViewMode,
     queueProgressStyle,
     queueMode,
+    carouselAutoRotationSpeed,
     setQueueViewMode,
     setQueueProgressStyle,
     setQueueMode,
+    setCarouselAutoRotationSpeed,
     queueViewModeModel,
     queueModeModel,
     queueProgressStyleModel,
     queueRowVariant,
     isIconViewMode,
+    isCarousel3dViewMode,
     iconViewSize,
     iconGridClass,
 

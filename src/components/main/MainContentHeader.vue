@@ -22,6 +22,7 @@ const props = defineProps<{
   queueViewModeModel: string;
   presetSortMode?: PresetSortMode;
   queueOutputPolicy?: OutputPolicy;
+  carouselAutoRotationSpeed?: number;
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ const emit = defineEmits<{
   (e: "update:queueViewModeModel", value: string): void;
   (e: "openPresetWizard"): void;
   (e: "update:queueOutputPolicy", value: OutputPolicy): void;
+  (e: "update:carouselAutoRotationSpeed", value: number): void;
 }>();
 
 const { t } = useI18n();
@@ -44,10 +46,14 @@ const queueViewModeLabelKey = computed(() => {
       return "queue.viewModes.iconMedium";
     case "icon-large":
       return "queue.viewModes.iconLarge";
+    case "carousel-3d":
+      return "queue.viewModes.carousel3d";
     default:
       return `queue.viewModes.${props.queueViewModeModel}`;
   }
 });
+
+const isCarouselMode = computed(() => props.queueViewModeModel === "carousel-3d");
 
 const outputDialogOpen = ref(false);
 const effectiveOutputPolicy = computed<OutputPolicy>(() => props.queueOutputPolicy ?? DEFAULT_OUTPUT_POLICY);
@@ -335,13 +341,45 @@ const hoverPreviewExample = computed(() => {
           <SelectValue>{{ t(queueViewModeLabelKey) }}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="detail">{{ t("queue.viewModes.detail") }}</SelectItem>
-          <SelectItem value="compact">{{ t("queue.viewModes.compact") }}</SelectItem>
-          <SelectItem value="icon-small">{{ t("queue.viewModes.iconSmall") }}</SelectItem>
-          <SelectItem value="icon-medium">{{ t("queue.viewModes.iconMedium") }}</SelectItem>
-          <SelectItem value="icon-large">{{ t("queue.viewModes.iconLarge") }}</SelectItem>
+          <SelectItem value="detail" data-testid="ffui-queue-view-mode-detail">{{
+            t("queue.viewModes.detail")
+          }}</SelectItem>
+          <SelectItem value="compact" data-testid="ffui-queue-view-mode-compact">{{
+            t("queue.viewModes.compact")
+          }}</SelectItem>
+          <SelectItem value="icon-small" data-testid="ffui-queue-view-mode-icon-small">{{
+            t("queue.viewModes.iconSmall")
+          }}</SelectItem>
+          <SelectItem value="icon-medium" data-testid="ffui-queue-view-mode-icon-medium">{{
+            t("queue.viewModes.iconMedium")
+          }}</SelectItem>
+          <SelectItem value="icon-large" data-testid="ffui-queue-view-mode-icon-large">{{
+            t("queue.viewModes.iconLarge")
+          }}</SelectItem>
+          <SelectItem value="carousel-3d" data-testid="ffui-queue-view-mode-carousel-3d">{{
+            t("queue.viewModes.carousel3d")
+          }}</SelectItem>
         </SelectContent>
       </Select>
+
+      <div v-if="isCarouselMode" class="flex items-center gap-2">
+        <span class="text-[10px] text-muted-foreground whitespace-nowrap">
+          {{ t("queue.carouselSpeedLabel") }}
+        </span>
+        <input
+          type="range"
+          min="0"
+          max="10"
+          step="1"
+          :value="carouselAutoRotationSpeed ?? 0"
+          class="w-20 h-1 accent-primary cursor-pointer"
+          :title="t('queue.carouselSpeedHint') as string"
+          @input="(e) => emit('update:carouselAutoRotationSpeed', Number((e.target as HTMLInputElement).value))"
+        />
+        <span class="text-[10px] text-muted-foreground font-mono w-4 text-center">
+          {{ carouselAutoRotationSpeed ?? 0 }}
+        </span>
+      </div>
     </div>
 
     <div v-else-if="activeTab === 'presets'" class="flex items-center gap-3">
