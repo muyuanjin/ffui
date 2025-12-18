@@ -8,7 +8,7 @@ import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
 
 describe("MainApp global alerts", () => {
-  it("surfaces queue deletion warnings under the header (outside the scroll area)", async () => {
+  it("surfaces queue deletion warnings as an overlay (without inserting a new layout row)", async () => {
     const jobs: TranscodeJob[] = [
       {
         id: "job-processing",
@@ -59,6 +59,7 @@ describe("MainApp global alerts", () => {
 
     const globalAlerts = wrapper.get("[data-testid='global-alerts']");
     expect(globalAlerts.text()).toContain(expected);
+    expect(globalAlerts.classes()).toContain("h-0");
 
     // The global alert bar must not render inside the scrollable queue panel.
     expect(wrapper.find("[data-testid='queue-panel'] [data-testid='global-alerts']").exists()).toBe(false);

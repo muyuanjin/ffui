@@ -314,6 +314,7 @@ watch(
             size="sm"
             class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
             :class="iconOnlyButtonLayoutClass()"
+            data-testid="queue-selection-bulk-delete"
             @click="emit('bulk-delete')"
             :title="t('queue.actions.bulkDelete')"
             :aria-label="t('queue.actions.bulkDelete')"

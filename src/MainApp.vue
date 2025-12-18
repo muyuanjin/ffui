@@ -285,15 +285,6 @@ defineExpose({
           @openPresetWizard="dialogManager.openWizard()"
         />
 
-        <MainGlobalAlerts
-          :queue-error="queueError"
-          :media-inspect-error="mediaInspectError"
-          :settings-save-error="settingsSaveError"
-          @clearQueueError="queueError = null"
-          @clearMediaInspectError="mediaInspectError = null"
-          @clearSettingsSaveError="settingsSaveError = null"
-        />
-
         <QueueFiltersBar
           v-if="activeTab === 'queue'"
           :active-status-filters="activeStatusFilters"
@@ -334,6 +325,15 @@ defineExpose({
           @bulk-move-to-bottom="bulkMoveToBottom"
           @bulk-delete="bulkDelete"
           @update:selectionBarPinned="setSelectionBarPinned"
+        />
+
+        <MainGlobalAlerts
+          :queue-error="queueError"
+          :media-inspect-error="mediaInspectError"
+          :settings-save-error="settingsSaveError"
+          @clearQueueError="queueError = null"
+          @clearMediaInspectError="mediaInspectError = null"
+          @clearSettingsSaveError="settingsSaveError = null"
         />
 
         <ScrollArea class="flex-1">
