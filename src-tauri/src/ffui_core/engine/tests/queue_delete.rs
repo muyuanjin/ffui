@@ -390,3 +390,96 @@ fn delete_smart_scan_batch_rejects_when_children_are_not_terminal() {
         );
     }
 }
+
+#[test]
+fn delete_smart_scan_batch_succeeds_when_status_is_running_but_all_children_are_terminal() {
+    let engine = make_engine_with_preset();
+
+    let batch_id = "smart-scan-batch-running-but-terminal".to_string();
+    let job1_id = "smart-scan-child-terminal-1".to_string();
+    let job2_id = "smart-scan-child-terminal-2".to_string();
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+
+        // 兼容旧状态：批次 status 可能残留为 Running，但只要统计已完成且子任务均为终态，
+        // delete_smart_scan_batch 仍应允许删除。
+        state.smart_scan_batches.insert(
+            batch_id.clone(),
+            SmartScanBatch {
+                batch_id: batch_id.clone(),
+                root_path: "C:/videos".to_string(),
+                replace_original: false,
+                status: SmartScanBatchStatus::Running,
+                total_files_scanned: 2,
+                total_candidates: 2,
+                total_processed: 2,
+                child_job_ids: vec![job1_id.clone(), job2_id.clone()],
+                started_at_ms: 0,
+                completed_at_ms: None,
+            },
+        );
+
+        let base_job = |id: &str, status: JobStatus| TranscodeJob {
+            id: id.to_string(),
+            filename: format!("C:/videos/{id}.mp4"),
+            job_type: JobType::Video,
+            source: JobSource::SmartScan,
+            queue_order: None,
+            original_size_mb: 10.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status,
+            progress: 100.0,
+            start_time: Some(current_time_millis()),
+            end_time: Some(current_time_millis()),
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: Some(5.0),
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: Some(format!("C:/videos/{id}.mp4")),
+            output_path: Some(format!("C:/videos/{id}.compressed.mp4")),
+            output_policy: None,
+            ffmpeg_command: None,
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: Some(batch_id.clone()),
+            wait_metadata: None,
+        };
+
+        state
+            .jobs
+            .insert(job1_id.clone(), base_job(&job1_id, JobStatus::Completed));
+        state
+            .jobs
+            .insert(job2_id.clone(), base_job(&job2_id, JobStatus::Skipped));
+    }
+
+    assert!(
+        engine.delete_smart_scan_batch(&batch_id),
+        "delete_smart_scan_batch must succeed when batch is logically complete even if status is Running",
+    );
+
+    let snapshot_after = engine.queue_state();
+    assert!(
+        !snapshot_after
+            .jobs
+            .iter()
+            .any(|j| j.batch_id.as_deref() == Some(batch_id.as_str())),
+        "all Smart Scan children should be removed after successful delete_smart_scan_batch",
+    );
+
+    {
+        let state = engine.inner.state.lock().expect("engine state poisoned");
+        assert!(
+            !state.smart_scan_batches.contains_key(&batch_id),
+            "batch metadata should be removed after successful delete_smart_scan_batch",
+        );
+    }
+}

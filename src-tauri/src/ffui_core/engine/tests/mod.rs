@@ -75,6 +75,7 @@ mod queue_recovery_tests;
 mod queue_selection_input_lock;
 mod queue_wait_and_restart;
 mod smart_scan_audio_tests;
+mod smart_scan_delete_all_skipped;
 mod smart_scan_delete_no_children;
 mod smart_scan_enqueue_tests;
 mod smart_scan_name_tests;

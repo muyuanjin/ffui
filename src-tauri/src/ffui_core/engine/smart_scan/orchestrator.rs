@@ -322,6 +322,20 @@ fn run_auto_compress_background(
             if batch.completed_at_ms.is_none() {
                 batch.completed_at_ms = Some(current_time_millis());
             }
+        } else if batch.total_processed >= batch.total_candidates
+            && !matches!(
+                batch.status,
+                SmartScanBatchStatus::Completed | SmartScanBatchStatus::Failed
+            )
+        {
+            // All candidates have been processed. This covers cases where every
+            // Smart Scan child job is immediately terminal at enqueue time
+            // (e.g. size threshold or codec skip), so no worker thread will ever
+            // "finish" a job and advance the batch status later.
+            batch.status = SmartScanBatchStatus::Completed;
+            if batch.completed_at_ms.is_none() {
+                batch.completed_at_ms = Some(current_time_millis());
+            }
         } else if matches!(batch.status, SmartScanBatchStatus::Scanning) {
             batch.status = SmartScanBatchStatus::Running;
         }

@@ -315,8 +315,14 @@ pub(in crate::ffui_core::engine) fn delete_smart_scan_batch(
             None => return false,
         };
 
-        // 如果批次仍处于 Scanning/Running 等非终态，则拒绝删除，交由前端提示。
-        if !matches!(batch.status, SmartScanBatchStatus::Completed) {
+        // 兼容旧状态/边缘状态：即便批次 status 没有被标记为 Completed，只要批次已“逻辑完成”
+        //（processed >= candidates）就允许删除，以避免前端出现无法删除的“空壳复合任务”。
+        //
+        // 同时保持防御性：对于仍处于 Scanning 且未完成统计的批次，一律拒绝删除。
+        let batch_is_deletable = matches!(batch.status, SmartScanBatchStatus::Completed)
+            || (!matches!(batch.status, SmartScanBatchStatus::Scanning)
+                && batch.total_processed >= batch.total_candidates);
+        if !batch_is_deletable {
             return false;
         }
 
