@@ -11,6 +11,7 @@ import {
   loadPreviewDataUrl,
   type FallbackFrameQuality,
 } from "@/lib/backend";
+import { createScrubFrameScheduler } from "@/lib/scrubFrameScheduler";
 
 const props = withDefaults(
   defineProps<{
@@ -63,26 +64,60 @@ const resetVideoControls = () => {
 
 const hasSourcePath = computed(() => typeof props.sourcePath === "string" && !!props.sourcePath);
 
-const lowTimer = ref<number | null>(null);
-const highTimer = ref<number | null>(null);
-const requestToken = ref(0);
+const requestKey = computed(() => {
+  const sourcePath = typeof props.sourcePath === "string" ? props.sourcePath.trim() : "";
+  if (!sourcePath) return null;
+  const raw = scrubPercent.value[0] ?? 50;
+  const percent = Number.isFinite(raw) ? Math.round(raw) : 50;
+  return `${sourcePath}|${Math.min(Math.max(percent, 0), 100)}`;
+});
 
-const clearTimers = () => {
-  if (lowTimer.value != null) {
-    window.clearTimeout(lowTimer.value);
-    lowTimer.value = null;
+const requestFrame = async (quality: FallbackFrameQuality, token: number) => {
+  if (!fallbackMode.value) return;
+  if (!hasSourcePath.value || !props.sourcePath) return;
+  if (!hasTauri()) return;
+
+  frameLoading.value = true;
+  frameError.value = null;
+
+  try {
+    const path = await extractFallbackPreviewFrame({
+      sourcePath: props.sourcePath,
+      positionPercent: scrubPercent.value[0] ?? 50,
+      durationSeconds: props.durationSeconds ?? null,
+      quality,
+    });
+
+    if (!scheduler.isTokenCurrent(token)) return;
+    if (!fallbackMode.value) return;
+
+    framePath.value = path;
+    frameUrl.value = buildPreviewUrl(path);
+    frameLoading.value = false;
+  } catch (error) {
+    if (!scheduler.isTokenCurrent(token)) return;
+    frameLoading.value = false;
+    frameError.value = (error as Error)?.message ?? String(error);
   }
-  if (highTimer.value != null) {
-    window.clearTimeout(highTimer.value);
-    highTimer.value = null;
-  }
+};
+
+const scheduler = createScrubFrameScheduler({
+  lowDelayMs: 120,
+  lowMode: "debounce",
+  request: requestFrame,
+});
+
+const cancelFrameRequests = () => {
+  scheduler.cancel();
 };
 
 const enterFallbackMode = () => {
   if (!hasSourcePath.value) return;
   fallbackMode.value = true;
   frameError.value = null;
-  void requestFrame("high");
+  const key = requestKey.value;
+  if (!key) return;
+  scheduler.requestHighNow(key);
 };
 
 watch(
@@ -95,7 +130,7 @@ watch(
     frameUrl.value = null;
     frameLoading.value = false;
     scrubPercent.value = [50];
-    clearTimers();
+    cancelFrameRequests();
     resetVideoControls();
   },
   { immediate: true },
@@ -108,38 +143,11 @@ watch(
       enterFallbackMode();
     } else {
       fallbackMode.value = false;
+      cancelFrameRequests();
     }
   },
   { immediate: true },
 );
-
-async function requestFrame(quality: FallbackFrameQuality) {
-  if (!hasSourcePath.value || !props.sourcePath) return;
-  if (!hasTauri()) return;
-
-  const token = ++requestToken.value;
-  frameLoading.value = true;
-  frameError.value = null;
-
-  try {
-    const path = await extractFallbackPreviewFrame({
-      sourcePath: props.sourcePath,
-      positionPercent: scrubPercent.value[0] ?? 50,
-      durationSeconds: props.durationSeconds ?? null,
-      quality,
-    });
-
-    if (token !== requestToken.value) return;
-
-    framePath.value = path;
-    frameUrl.value = buildPreviewUrl(path);
-    frameLoading.value = false;
-  } catch (error) {
-    if (token !== requestToken.value) return;
-    frameLoading.value = false;
-    frameError.value = (error as Error)?.message ?? String(error);
-  }
-}
 
 const handleFrameImgError = async () => {
   const path = framePath.value;
@@ -155,14 +163,17 @@ const handleFrameImgError = async () => {
 
 const scheduleLowFrame = () => {
   if (!fallbackMode.value) return;
-  if (lowTimer.value != null) window.clearTimeout(lowTimer.value);
-  lowTimer.value = window.setTimeout(() => void requestFrame("low"), 120);
+  const key = requestKey.value;
+  if (!key) return;
+  scheduler.scheduleLow(key);
 };
 
 const commitHighFrame = () => {
   if (!fallbackMode.value) return;
-  clearTimers();
-  void requestFrame("high");
+  const key = requestKey.value;
+  if (!key) return;
+  scheduler.clearTimers();
+  scheduler.requestHighNow(key);
 };
 
 const handleVideoInteraction = () => {
@@ -207,7 +218,7 @@ const warningText = computed(() => {
 });
 
 onBeforeUnmount(() => {
-  clearTimers();
+  cancelFrameRequests();
 });
 </script>
 

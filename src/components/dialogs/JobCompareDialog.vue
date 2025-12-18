@@ -113,6 +113,7 @@ const {
   outputFrameQuality,
   clearFrameTimers,
   resetFrames,
+  requestHighFramesNow,
   handleFrameImgError,
 } = frames;
 const getViewportEl = () => viewportRef.value?.getContainerEl?.() ?? null;
@@ -426,6 +427,7 @@ function formatTime(seconds: number) {
           :model-value="[clampedTimelineSeconds]"
           data-testid="job-compare-timeline"
           @update:model-value="setTimeline"
+          @valueCommit="() => requestHighFramesNow()"
         />
       </div>
     </DialogContent>

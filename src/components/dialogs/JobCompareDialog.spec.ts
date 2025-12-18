@@ -55,7 +55,7 @@ const stubs = {
   Slider: {
     inheritAttrs: false,
     props: ["modelValue", "max"],
-    emits: ["update:modelValue"],
+    emits: ["update:modelValue", "valueCommit"],
     template: `<input type="range" v-bind="$attrs" :max="max" :value="(modelValue && modelValue[0]) || 0" @input="$emit('update:modelValue',[Number($event.target.value)])" />`,
   },
   Button: {
@@ -174,16 +174,13 @@ describe("JobCompareDialog", () => {
       const slider = wrapper.get('[data-testid="job-compare-timeline"]');
       for (let i = 0; i < 10; i += 1) {
         await slider.setValue(String(i));
-        vi.advanceTimersByTime(20);
-        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(20);
       }
 
       const lowCalls = (extractJobCompareFrame as any).mock.calls.filter((args: any[]) => args?.[0]?.quality === "low");
       expect(lowCalls.length).toBeGreaterThan(0);
 
-      vi.advanceTimersByTime(260);
-      await Promise.resolve();
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(260);
 
       const highCalls = (extractJobCompareFrame as any).mock.calls.filter(
         (args: any[]) => args?.[0]?.quality === "high",

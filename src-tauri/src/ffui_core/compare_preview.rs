@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{
     Path,
@@ -135,6 +136,77 @@ fn build_concat_list_contents(segment_paths: &[PathBuf]) -> String {
     out
 }
 
+fn two_stage_seek_args(position_seconds: f64) -> (String, String) {
+    if !position_seconds.is_finite() {
+        return ("0.000".to_string(), "0.000".to_string());
+    }
+
+    let seek_seconds = position_seconds.max(0.0);
+    let fast_seek_seconds = (seek_seconds - 3.0).max(0.0);
+    let accurate_offset_seconds = (seek_seconds - fast_seek_seconds).max(0.0);
+    (
+        format!("{fast_seek_seconds:.3}"),
+        format!("{accurate_offset_seconds:.3}"),
+    )
+}
+
+fn build_concat_ffmpeg_args(
+    list_path: &Path,
+    position_seconds: f64,
+    quality: FallbackFrameQuality,
+    tmp_path: &Path,
+) -> Vec<OsString> {
+    let (fast_ss_arg, accurate_ss_arg) = two_stage_seek_args(position_seconds);
+    let mut out: Vec<OsString> = Vec::new();
+
+    out.push("-y".into());
+    out.push("-v".into());
+    out.push("error".into());
+    out.push("-hide_banner".into());
+
+    // Two-stage seek for concat previews:
+    // - First `-ss` (input option) fast-seeks near the target time.
+    // - Second `-ss` (output option) decodes forward for frame accuracy.
+    // Putting the only `-ss` after `-i` forces decoding from the start and is
+    // catastrophic for long-duration scrubs.
+    out.push("-ss".into());
+    out.push(fast_ss_arg.into());
+
+    out.push("-f".into());
+    out.push("concat".into());
+    out.push("-safe".into());
+    out.push("0".into());
+    out.push("-i".into());
+    out.push(list_path.as_os_str().to_os_string());
+
+    out.push("-ss".into());
+    out.push(accurate_ss_arg.into());
+    out.push("-frames:v".into());
+    out.push("1".into());
+    out.push("-an".into());
+
+    match quality {
+        FallbackFrameQuality::Low => {
+            out.push("-vf".into());
+            out.push("scale=-2:360".into());
+            out.push("-q:v".into());
+            out.push("10".into());
+        }
+        FallbackFrameQuality::High => {
+            out.push("-q:v".into());
+            out.push("3".into());
+        }
+    }
+
+    out.push("-f".into());
+    out.push("image2".into());
+    out.push("-c:v".into());
+    out.push("mjpeg".into());
+    out.push(tmp_path.as_os_str().to_os_string());
+
+    out
+}
+
 pub(crate) fn extract_concat_preview_frame(
     segment_paths: &[String],
     tools: &ExternalToolSettings,
@@ -223,35 +295,8 @@ pub(crate) fn extract_concat_preview_frame(
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
 
-    cmd.arg("-y")
-        .arg("-v")
-        .arg("error")
-        .arg("-hide_banner")
-        .arg("-f")
-        .arg("concat")
-        .arg("-safe")
-        .arg("0")
-        .arg("-i")
-        .arg(list_path.as_os_str())
-        .arg("-ss")
-        .arg(format!("{:.3}", position_seconds.max(0.0)))
-        .arg("-frames:v")
-        .arg("1");
-
-    match quality {
-        FallbackFrameQuality::Low => {
-            cmd.arg("-vf").arg("scale=-2:360").arg("-q:v").arg("10");
-        }
-        FallbackFrameQuality::High => {
-            cmd.arg("-q:v").arg("3");
-        }
-    }
-
-    cmd.arg("-f")
-        .arg("image2")
-        .arg("-c:v")
-        .arg("mjpeg")
-        .arg(tmp_path.as_os_str());
+    let args = build_concat_ffmpeg_args(&list_path, position_seconds, quality, &tmp_path);
+    cmd.args(args);
 
     let output = cmd
         .output()
@@ -328,6 +373,86 @@ mod tests {
         assert!(
             msg.contains("os error"),
             "should include OS error details: {msg}"
+        );
+    }
+
+    #[test]
+    fn concat_preview_ffmpeg_args_use_two_stage_seek_and_disable_audio() {
+        let list_path = PathBuf::from("concat.list");
+        let tmp_path = PathBuf::from("frame.part");
+
+        let args_low =
+            build_concat_ffmpeg_args(&list_path, 12.345, FallbackFrameQuality::Low, &tmp_path);
+        let args_low: Vec<String> = args_low
+            .iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+
+        let ss_indices: Vec<usize> = args_low
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| (v == "-ss").then_some(i))
+            .collect();
+        assert_eq!(ss_indices.len(), 2, "expected two -ss occurrences");
+
+        let i_index = args_low
+            .iter()
+            .position(|v| v == "-i")
+            .expect("expected -i arg");
+
+        assert!(
+            ss_indices[0] < i_index,
+            "first -ss must be an input option before -i: {args_low:?}"
+        );
+        assert!(
+            ss_indices[1] > i_index,
+            "second -ss must be an output option after -i: {args_low:?}"
+        );
+
+        assert_eq!(
+            args_low.get(ss_indices[0] + 1).map(String::as_str),
+            Some("9.345")
+        );
+        assert_eq!(
+            args_low.get(ss_indices[1] + 1).map(String::as_str),
+            Some("3.000")
+        );
+
+        assert_eq!(
+            args_low.get(i_index + 1).map(String::as_str),
+            Some("concat.list"),
+            "list path should follow -i"
+        );
+        assert!(
+            args_low.iter().any(|v| v == "-an"),
+            "concat previews should disable audio decoding: {args_low:?}"
+        );
+        assert!(
+            args_low.iter().any(|v| v == "-vf"),
+            "low-quality concat previews should apply a scale filter: {args_low:?}"
+        );
+        assert!(
+            args_low.windows(2).any(|w| w == ["-q:v", "10"]),
+            "low-quality concat previews should use a high q:v value: {args_low:?}"
+        );
+
+        let args_high =
+            build_concat_ffmpeg_args(&list_path, 1.0, FallbackFrameQuality::High, &tmp_path);
+        let args_high: Vec<String> = args_high
+            .iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+        assert!(
+            args_high.windows(2).any(|w| w == ["-ss", "0.000"]),
+            "fast seek should clamp to zero near the start: {args_high:?}"
+        );
+        assert!(
+            args_high.windows(2).any(|w| w == ["-ss", "1.000"]),
+            "accurate offset should match requested seconds near the start: {args_high:?}"
+        );
+        assert!(
+            args_high.windows(2).any(|w| w == ["-q:v", "3"]),
+            "high-quality concat previews should use q:v=3: {args_high:?}"
         );
     }
 }

@@ -54,7 +54,7 @@ const stubs = {
   Slider: {
     inheritAttrs: false,
     props: ["modelValue", "max"],
-    emits: ["update:modelValue"],
+    emits: ["update:modelValue", "valueCommit"],
     template: `<input type="range" v-bind="$attrs" :max="max" :value="(modelValue && modelValue[0]) || 0" @input="$emit('update:modelValue',[Number($event.target.value)])" />`,
   },
   Button: {
