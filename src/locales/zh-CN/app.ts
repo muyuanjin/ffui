@@ -247,10 +247,10 @@ const app = {
   },
   taskbarProgressScopeLabel: "任务栏进度统计范围",
   taskbarProgressScopeHelp:
-    "可选择忽略已结束的任务，避免新一批任务加入时进度条起点过高；若队列全部结束仍会显示 100%；仅统计进行中/排队任务时，多任务并行完成可能出现小幅回落，属于预期行为。",
+    "可选择忽略上一轮已结束的任务，避免新一批任务加入时进度条起点过高；当同一轮队列仍有 waiting/queued 任务时，会将已完成的任务计入完成度，避免复合/串行任务在批次切换时进度归零；若队列全部结束仍会显示 100%。",
   taskbarProgressScopes: {
     allJobs: "包含全部任务（含已结束，默认）",
-    activeAndQueued: "仅统计进行中与排队中的任务",
+    activeAndQueued: "仅统计进行中/排队/等待的任务（忽略上一轮已结束）",
   },
   openDevtools: "打开开发者工具",
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",

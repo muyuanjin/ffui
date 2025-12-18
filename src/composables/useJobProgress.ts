@@ -134,8 +134,32 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     const scope: TaskbarProgressScope = appSettings.value?.taskbarProgressScope ?? "allJobs";
 
     const hasNonTerminal = list.some((job) => !isTerminalStatus(job.status));
-    const eligibleJobs =
-      scope === "activeAndQueued" && hasNonTerminal ? list.filter((job) => !isTerminalStatus(job.status)) : list;
+    let eligibleJobs = list;
+    if (scope === "activeAndQueued" && hasNonTerminal) {
+      // When the user opts to ignore completed jobs, we still want a serial
+      // queue (or composite batch) to report steady progress instead of
+      // resetting to 0% between tasks. To achieve this, include terminal jobs
+      // that belong to the same "enqueue cohort" as the currently non-terminal
+      // jobs. This also preserves the original intent: when a new round of
+      // work starts after the previous queue is finished, older completed jobs
+      // should not cause a high starting percentage.
+      const cohortStart = Math.min(
+        ...list
+          .filter((job) => !isTerminalStatus(job.status))
+          .map((job) => (typeof job.startTime === "number" ? job.startTime : Number.POSITIVE_INFINITY)),
+      );
+
+      if (Number.isFinite(cohortStart)) {
+        eligibleJobs = list.filter((job) => {
+          if (!isTerminalStatus(job.status)) return true;
+          return typeof job.startTime === "number" && job.startTime >= cohortStart;
+        });
+      } else {
+        // Fallback: if no enqueue timestamps are available, preserve the
+        // previous behaviour (non-terminal only).
+        eligibleJobs = list.filter((job) => !isTerminalStatus(job.status));
+      }
+    }
     if (eligibleJobs.length === 0) return null;
 
     let totalWeight = 0;

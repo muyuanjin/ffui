@@ -362,6 +362,18 @@ const resolvePosterEnv = (key: string): string | undefined => {
   return v;
 };
 
+const readQueryParam = (key: string): string | undefined => {
+  try {
+    if (typeof window === "undefined") return undefined;
+    const raw = window.location?.search ?? "";
+    const value = new URLSearchParams(raw).get(key);
+    const trimmed = String(value ?? "").trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const buildQueueJobs = (): TranscodeJob[] => {
   const now = 1_700_000_000_000;
 
@@ -376,6 +388,57 @@ const buildQueueJobs = (): TranscodeJob[] => {
   const o1 = `${v1}.compressed.mp4`;
   const o2 = `${v2}.compressed.mp4`;
   const o3 = `${v3}.archive.mp4`;
+
+  const queueScenario = readQueryParam("ffuiQueueScenario");
+  if (queueScenario === "taskbar-progress-scope-serial") {
+    // Scenario for verifying taskbar/titlebar aggregated progress behaviour:
+    // when "active/queued/waiting only" is enabled, completed jobs from the
+    // same run should still contribute so progress doesn't reset between
+    // serial tasks.
+    const cohortStart = now - 120_000;
+    return [
+      {
+        id: "docs-job-completed",
+        filename: v3,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 1024,
+        originalCodec: "hevc",
+        presetId: "p2",
+        status: "completed",
+        progress: 100,
+        startTime: cohortStart,
+        processingStartedMs: cohortStart + 10_000,
+        endTime: cohortStart + 60_000,
+        outputSizeMB: 740,
+        inputPath: v3,
+        outputPath: o3,
+        previewPath: poster3,
+        ffmpegCommand: `ffmpeg -hide_banner -y -i \"${v3}\" ... \"${o3}\"`,
+        logs: [],
+        estimatedSeconds: 600,
+      },
+      {
+        id: "docs-job-processing",
+        filename: v1,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 1024,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "processing",
+        progress: 10,
+        startTime: cohortStart,
+        processingStartedMs: cohortStart + 70_000,
+        inputPath: v1,
+        outputPath: o1,
+        previewPath: poster1,
+        ffmpegCommand: `ffmpeg -hide_banner -y -i \"${v1}\" ... \"${o1}\"`,
+        logs: [],
+        estimatedSeconds: 600,
+      },
+    ];
+  }
 
   return [
     {

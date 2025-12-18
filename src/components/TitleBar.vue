@@ -49,10 +49,12 @@ const currentLocale = computed<AppLocale>({
 <template>
   <header
     data-tauri-drag-region
+    data-testid="ffui-titlebar"
     class="relative flex items-center justify-between h-10 px-4 border-b border-border bg-secondary/90 backdrop-blur-sm select-none overflow-hidden"
   >
     <div
       v-if="progressVisible"
+      data-testid="ffui-titlebar-progress"
       class="absolute inset-y-0 left-0 pointer-events-none transition-[width,opacity] duration-300 ease-linear z-0 bg-gradient-to-r from-emerald-500/50 via-cyan-400/50 to-fuchsia-500/50 shadow-lg"
       :class="progressFading ? 'opacity-0' : 'opacity-100'"
       :style="{ width: `${progressPercent}%` }"

@@ -147,6 +147,7 @@ describe("MainApp global aggregated progress", () => {
       progress: 100,
       logs: [],
       estimatedSeconds: 10,
+      startTime: 1000,
     };
 
     const waitingJob: TranscodeJob = {
@@ -154,16 +155,85 @@ describe("MainApp global aggregated progress", () => {
       filename: "new.mp4",
       type: "video",
       source: "manual",
-      originalSizeMB: 5,
+      originalSizeMB: 10,
       originalCodec: "h264",
       presetId: "preset-1",
       status: "waiting",
       progress: 0,
       logs: [],
       estimatedSeconds: 10,
+      startTime: 1000,
     };
 
     setJobs(vm, [completedJob, waitingJob]);
+    await nextTick();
+
+    // Terminal jobs from the same enqueue cohort should be counted so serial
+    // queues do not reset progress to 0% between tasks.
+    expect(vm.globalTaskbarProgressPercent).toBeCloseTo(50, 6);
+
+    wrapper.unmount();
+  });
+
+  it("ignores completed jobs from a previous cohort when scope is activeAndQueued", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const vm: any = wrapper.vm;
+
+    const settings: AppSettings = {
+      tools: {
+        ffmpegPath: undefined,
+        ffprobePath: undefined,
+        avifencPath: undefined,
+        autoDownload: false,
+        autoUpdate: false,
+        downloaded: undefined,
+      },
+      smartScanDefaults: buildSmartScanDefaults(),
+      previewCapturePercent: 25,
+      defaultQueuePresetId: undefined,
+      maxParallelJobs: undefined,
+      taskbarProgressMode: "bySize",
+      taskbarProgressScope: "activeAndQueued",
+    };
+
+    vm.appSettings = settings;
+
+    const completedOld: TranscodeJob = {
+      id: "old",
+      filename: "old.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      estimatedSeconds: 10,
+      startTime: 1000,
+    };
+
+    const waitingNew: TranscodeJob = {
+      id: "new",
+      filename: "new.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+      estimatedSeconds: 10,
+      startTime: 2000,
+    };
+
+    setJobs(vm, [completedOld, waitingNew]);
     await nextTick();
 
     expect(vm.globalTaskbarProgressPercent).toBe(0);

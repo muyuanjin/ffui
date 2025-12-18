@@ -260,10 +260,10 @@ const app = {
   },
   taskbarProgressScopeLabel: "Taskbar progress scope",
   taskbarProgressScopeHelp:
-    "Ignore completed jobs when new work starts to avoid a high starting percentage; still shows 100% when everything is done; when counting only active/queued jobs, taskbar progress may dip slightly as parallel jobs finish—this is expected.",
+    "Ignore completed jobs from a previous run so new work does not start at a high percentage; when the current run still has waiting/queued jobs, completed jobs are counted toward the run's completion (prevents resets between serial/composite tasks); still shows 100% when everything is done.",
   taskbarProgressScopes: {
     allJobs: "Include all jobs (default, completed included)",
-    activeAndQueued: "Only active and queued jobs",
+    activeAndQueued: "Only active/queued/waiting jobs (ignore previous completed)",
   },
   openDevtools: "Open Devtools",
   openDevtoolsUnavailable: "Running in pure web mode; use your browser's devtools instead.",

@@ -7,6 +7,7 @@ import {
   hasTauri,
   loadPreviewDataUrl,
 } from "@/lib/backend";
+import { createScrubFrameScheduler } from "@/lib/scrubFrameScheduler";
 
 export function useJobCompareFrames(options: {
   open: Ref<boolean>;
@@ -28,23 +29,21 @@ export function useJobCompareFrames(options: {
   const outputFrameLoading = ref(false);
   const outputFrameQuality = ref<"low" | "high" | null>(null);
 
-  const requestToken = ref(0);
-  const lowTimer = ref<number | null>(null);
-  const highTimer = ref<number | null>(null);
-  const lastLowRequestAtMs = ref(0);
+  const buildRequestKey = () => {
+    const job = options.job.value;
+    const s = options.sources.value;
+    if (!options.open.value || !job || !s) return null;
+    if (!hasTauri()) return null;
+    if (!options.usingFrameCompare.value) return null;
 
-  const clearTimers = () => {
-    if (lowTimer.value != null) {
-      window.clearTimeout(lowTimer.value);
-      lowTimer.value = null;
-    }
-    if (highTimer.value != null) {
-      window.clearTimeout(highTimer.value);
-      highTimer.value = null;
-    }
+    const rawSeconds = options.clampedTimelineSeconds.value;
+    const safeSeconds = Number.isFinite(rawSeconds) && rawSeconds >= 0 ? rawSeconds : 0;
+    const normalized = Math.round(safeSeconds * 1000) / 1000;
+    return `${job.id}|${normalized.toFixed(3)}`;
   };
 
   const resetFrames = () => {
+    scheduler.cancel();
     inputFramePath.value = null;
     inputFrameUrl.value = null;
     inputFrameError.value = null;
@@ -55,17 +54,15 @@ export function useJobCompareFrames(options: {
     outputFrameError.value = null;
     outputFrameLoading.value = false;
     outputFrameQuality.value = null;
-    lastLowRequestAtMs.value = 0;
   };
 
-  const requestFrames = async (quality: "low" | "high") => {
+  const requestFrames = async (quality: "low" | "high", token: number) => {
     const job = options.job.value;
     const s = options.sources.value;
     if (!options.open.value || !job || !s) return;
     if (!hasTauri()) return;
     if (!options.usingFrameCompare.value) return;
 
-    const token = ++requestToken.value;
     const positionSeconds = options.clampedTimelineSeconds.value;
     const inPath = s.inputPath;
     const out = s.output;
@@ -78,79 +75,83 @@ export function useJobCompareFrames(options: {
     }
 
     try {
-      const inputPromise = extractJobCompareFrame({
-        jobId: job.id,
-        sourcePath: inPath,
-        positionSeconds,
-        durationSeconds: options.totalDurationSeconds.value,
-        quality,
-      });
-
-      const outputPromise = (async () => {
-        if (out.kind === "completed") {
-          return extractJobCompareFrame({
-            jobId: job.id,
-            sourcePath: out.outputPath,
-            positionSeconds,
-            durationSeconds: options.totalDurationSeconds.value,
-            quality,
-          });
-        }
-
-        if (out.activeSegmentPath) {
-          return extractJobCompareFrame({
-            jobId: job.id,
-            sourcePath: out.activeSegmentPath,
-            positionSeconds,
-            durationSeconds: options.totalDurationSeconds.value,
-            quality,
-          });
-        }
-
-        if (out.segmentPaths.length >= 2) {
-          return extractJobCompareConcatFrame({
-            jobId: job.id,
-            segmentPaths: out.segmentPaths,
-            positionSeconds,
-            quality,
-          });
-        }
-
-        const single = out.segmentPaths[0];
-        if (!single) throw new Error("missing output segment");
-        return extractJobCompareFrame({
+      try {
+        const inputResult = await extractJobCompareFrame({
           jobId: job.id,
-          sourcePath: single,
+          sourcePath: inPath,
           positionSeconds,
           durationSeconds: options.totalDurationSeconds.value,
           quality,
         });
-      })();
 
-      const [inputResult, outputResult] = await Promise.allSettled([inputPromise, outputPromise]);
-      if (token !== requestToken.value) return;
+        if (!scheduler.isTokenCurrent(token)) return;
 
-      if (inputResult.status === "fulfilled") {
-        inputFramePath.value = inputResult.value;
-        inputFrameUrl.value = buildPreviewUrl(inputResult.value);
+        inputFramePath.value = inputResult;
+        inputFrameUrl.value = buildPreviewUrl(inputResult);
         inputFrameLoading.value = false;
         inputFrameQuality.value = quality;
-      } else {
+      } catch (error) {
+        if (!scheduler.isTokenCurrent(token)) return;
         inputFrameLoading.value = false;
-        inputFrameError.value = (inputResult.reason as Error | undefined)?.message ?? String(inputResult.reason);
+        inputFrameError.value = (error as Error | undefined)?.message ?? String(error);
       }
 
-      if (outputResult.status === "fulfilled") {
-        outputFramePath.value = outputResult.value;
-        outputFrameUrl.value = buildPreviewUrl(outputResult.value);
+      if (!scheduler.isTokenCurrent(token)) return;
+
+      try {
+        const outputResult = await (async () => {
+          if (out.kind === "completed") {
+            return extractJobCompareFrame({
+              jobId: job.id,
+              sourcePath: out.outputPath,
+              positionSeconds,
+              durationSeconds: options.totalDurationSeconds.value,
+              quality,
+            });
+          }
+
+          if (out.activeSegmentPath) {
+            return extractJobCompareFrame({
+              jobId: job.id,
+              sourcePath: out.activeSegmentPath,
+              positionSeconds,
+              durationSeconds: options.totalDurationSeconds.value,
+              quality,
+            });
+          }
+
+          if (out.segmentPaths.length >= 2) {
+            return extractJobCompareConcatFrame({
+              jobId: job.id,
+              segmentPaths: out.segmentPaths,
+              positionSeconds,
+              quality,
+            });
+          }
+
+          const single = out.segmentPaths[0];
+          if (!single) throw new Error("missing output segment");
+          return extractJobCompareFrame({
+            jobId: job.id,
+            sourcePath: single,
+            positionSeconds,
+            durationSeconds: options.totalDurationSeconds.value,
+            quality,
+          });
+        })();
+
+        if (!scheduler.isTokenCurrent(token)) return;
+
+        outputFramePath.value = outputResult;
+        outputFrameUrl.value = buildPreviewUrl(outputResult);
         outputFrameLoading.value = false;
         outputFrameQuality.value = quality;
-      } else {
+      } catch (error) {
+        if (!scheduler.isTokenCurrent(token)) return;
         outputFrameLoading.value = false;
-        outputFrameError.value = (outputResult.reason as Error | undefined)?.message ?? String(outputResult.reason);
+        outputFrameError.value = (error as Error | undefined)?.message ?? String(error);
       }
     } catch (error) {
-      if (token !== requestToken.value) return;
       const msg = (error as Error)?.message ?? String(error);
       // Should be rare: `Promise.allSettled` handles per-side failures.
       inputFrameLoading.value = false;
@@ -160,26 +161,25 @@ export function useJobCompareFrames(options: {
     }
   };
 
+  const scheduler = createScrubFrameScheduler({
+    lowDelayMs: 120,
+    lowMode: "throttle",
+    highDelayMs: 240,
+    request: requestFrames,
+  });
+
   const scheduleLowFrames = () => {
-    const lowThrottleMs = 120;
-    const highDebounceMs = 240;
+    const key = buildRequestKey();
+    if (!key) return;
+    scheduler.scheduleHighDebounced(key);
+    scheduler.scheduleLow(key);
+  };
 
-    if (highTimer.value != null) {
-      window.clearTimeout(highTimer.value);
-      highTimer.value = null;
-    }
-    highTimer.value = window.setTimeout(() => void requestFrames("high"), highDebounceMs);
-
-    if (lowTimer.value != null) return;
-
-    const now = Date.now();
-    const elapsed = now - lastLowRequestAtMs.value;
-    const delay = elapsed >= lowThrottleMs ? 0 : lowThrottleMs - elapsed;
-    lowTimer.value = window.setTimeout(() => {
-      lowTimer.value = null;
-      lastLowRequestAtMs.value = Date.now();
-      void requestFrames("low");
-    }, delay);
+  const requestHighFramesNow = () => {
+    const key = buildRequestKey();
+    if (!key) return;
+    scheduler.clearTimers();
+    scheduler.requestHighNow(key);
   };
 
   const shouldRequest = computed(() => {
@@ -192,7 +192,9 @@ export function useJobCompareFrames(options: {
       if (!enabled) return;
       scheduleLowFrames();
     },
-    { immediate: true },
+    // Frame requests should respond immediately to scrubbing; keeping this
+    // synchronous also makes timer-driven upgrades deterministic in tests.
+    { immediate: true, flush: "sync" },
   );
 
   const handleFrameImgError = async (side: "input" | "output") => {
@@ -212,7 +214,7 @@ export function useJobCompareFrames(options: {
   };
 
   onBeforeUnmount(() => {
-    clearTimers();
+    scheduler.cancel();
   });
 
   return {
@@ -224,8 +226,9 @@ export function useJobCompareFrames(options: {
     outputFrameLoading,
     outputFrameError,
     outputFrameQuality,
-    clearFrameTimers: clearTimers,
+    clearFrameTimers: scheduler.cancel,
     resetFrames,
+    requestHighFramesNow,
     handleFrameImgError,
   };
 }

@@ -17,6 +17,47 @@ fn is_terminal(status: &JobStatus) -> bool {
     )
 }
 
+fn cohort_start_ms_for_active_scope(state: &QueueState) -> Option<u64> {
+    state
+        .jobs
+        .iter()
+        .filter(|job| !is_terminal(&job.status))
+        .filter_map(|job| job.start_time)
+        .min()
+}
+
+fn eligible_jobs_for_scope<'a>(
+    state: &'a QueueState,
+    scope: TaskbarProgressScope,
+) -> Box<dyn Iterator<Item = &'a TranscodeJob> + 'a> {
+    match scope {
+        TaskbarProgressScope::AllJobs => Box::new(state.jobs.iter()),
+        TaskbarProgressScope::ActiveAndQueued => {
+            let has_non_terminal = state.jobs.iter().any(|job| !is_terminal(&job.status));
+            if !has_non_terminal {
+                // Fall back to AllJobs so a completed queue still reports 100%.
+                return Box::new(state.jobs.iter());
+            }
+
+            let cohort_start_ms = cohort_start_ms_for_active_scope(state);
+            Box::new(state.jobs.iter().filter(move |job| {
+                if !is_terminal(&job.status) {
+                    return true;
+                }
+                // Only count terminal jobs that belong to the same enqueue cohort
+                // as the currently active/waiting jobs. This prevents progress
+                // from resetting to 0% between serial tasks (including composite
+                // Smart Scan batches) while still ignoring older completed jobs
+                // when a new round of work starts.
+                match cohort_start_ms {
+                    Some(start_ms) => job.start_time.map(|t| t >= start_ms).unwrap_or(false),
+                    None => false,
+                }
+            }))
+        }
+    }
+}
+
 fn normalized_job_progress(job: &TranscodeJob) -> f64 {
     if is_terminal(&job.status) {
         1.0
@@ -95,27 +136,14 @@ pub fn compute_taskbar_progress(
         return None;
     }
 
-    let has_non_terminal = state.jobs.iter().any(|job| !is_terminal(&job.status));
-
     let mut weighted_total = 0.0f64;
     let mut total_weight = 0.0f64;
 
-    let use_non_terminal_only = scope == TaskbarProgressScope::ActiveAndQueued && has_non_terminal;
-
-    if use_non_terminal_only {
-        for job in state.jobs.iter().filter(|job| !is_terminal(&job.status)) {
-            let w = job_weight(job, mode);
-            let p = normalized_job_progress(job);
-            weighted_total += w * p;
-            total_weight += w;
-        }
-    } else {
-        for job in &state.jobs {
-            let w = job_weight(job, mode);
-            let p = normalized_job_progress(job);
-            weighted_total += w * p;
-            total_weight += w;
-        }
+    for job in eligible_jobs_for_scope(state, scope) {
+        let w = job_weight(job, mode);
+        let p = normalized_job_progress(job);
+        weighted_total += w * p;
+        total_weight += w;
     }
 
     if total_weight <= 0.0 {
@@ -186,6 +214,15 @@ mod tests {
     };
 
     fn make_job(id: &str, status: JobStatus, progress: f64) -> TranscodeJob {
+        make_job_with_start(id, status, progress, Some(0))
+    }
+
+    fn make_job_with_start(
+        id: &str,
+        status: JobStatus,
+        progress: f64,
+        start_time: Option<u64>,
+    ) -> TranscodeJob {
         TranscodeJob {
             id: id.to_string(),
             filename: format!("{id}.mp4"),
@@ -197,7 +234,7 @@ mod tests {
             preset_id: "preset-1".to_string(),
             status,
             progress,
-            start_time: Some(0),
+            start_time,
             end_time: None,
             processing_started_ms: None,
             elapsed_ms: None,
@@ -307,9 +344,10 @@ mod tests {
     fn active_scope_excludes_terminal_jobs_when_non_terminal_present() {
         let state = QueueState {
             jobs: vec![
-                make_job("1", JobStatus::Completed, 100.0),
-                make_job("2", JobStatus::Failed, 100.0),
-                make_job("3", JobStatus::Waiting, 0.0),
+                make_job_with_start("1", JobStatus::Completed, 100.0, Some(1)),
+                make_job_with_start("2", JobStatus::Failed, 100.0, Some(1)),
+                // New cohort (e.g. a fresh queue run) starts after the earlier jobs.
+                make_job_with_start("3", JobStatus::Waiting, 0.0, Some(10)),
             ],
         };
 
@@ -321,7 +359,29 @@ mod tests {
         .expect("progress expected");
         assert_eq!(
             progress, 0.0,
-            "active scope should ignore terminal jobs when non-terminal jobs exist"
+            "active scope should ignore terminal jobs from an earlier cohort when new work starts"
+        );
+    }
+
+    #[test]
+    fn active_scope_counts_terminal_jobs_from_same_cohort_to_avoid_resets() {
+        let state = QueueState {
+            jobs: vec![
+                make_job_with_start("1", JobStatus::Completed, 100.0, Some(10)),
+                make_job_with_start("2", JobStatus::Waiting, 0.0, Some(10)),
+            ],
+        };
+
+        let progress = compute_taskbar_progress(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::ActiveAndQueued,
+        )
+        .expect("progress expected");
+
+        assert!(
+            (progress - 0.5).abs() < f64::EPSILON,
+            "serial queues should not reset progress to 0% between tasks (got {progress})"
         );
     }
 

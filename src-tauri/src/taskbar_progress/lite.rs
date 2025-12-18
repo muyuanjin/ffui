@@ -6,6 +6,45 @@ use crate::ffui_core::{
     TranscodeJobLite,
 };
 
+fn cohort_start_ms_for_active_scope_lite(state: &QueueStateLite) -> Option<u64> {
+    state
+        .jobs
+        .iter()
+        .filter(|job| !super::is_terminal(&job.status))
+        .filter_map(|job| job.start_time)
+        .min()
+}
+
+fn eligible_jobs_for_scope_lite<'a>(
+    state: &'a QueueStateLite,
+    scope: TaskbarProgressScope,
+) -> Box<dyn Iterator<Item = &'a TranscodeJobLite> + 'a> {
+    match scope {
+        TaskbarProgressScope::AllJobs => Box::new(state.jobs.iter()),
+        TaskbarProgressScope::ActiveAndQueued => {
+            let has_non_terminal = state
+                .jobs
+                .iter()
+                .any(|job| !super::is_terminal(&job.status));
+            if !has_non_terminal {
+                // Fall back to AllJobs so a completed queue still reports 100%.
+                return Box::new(state.jobs.iter());
+            }
+
+            let cohort_start_ms = cohort_start_ms_for_active_scope_lite(state);
+            Box::new(state.jobs.iter().filter(move |job| {
+                if !super::is_terminal(&job.status) {
+                    return true;
+                }
+                match cohort_start_ms {
+                    Some(start_ms) => job.start_time.map(|t| t >= start_ms).unwrap_or(false),
+                    None => false,
+                }
+            }))
+        }
+    }
+}
+
 fn normalized_job_progress_lite(job: &TranscodeJobLite) -> f64 {
     if super::is_terminal(&job.status) {
         1.0
@@ -78,34 +117,14 @@ fn compute_taskbar_progress_lite(
         return None;
     }
 
-    let has_non_terminal = state
-        .jobs
-        .iter()
-        .any(|job| !super::is_terminal(&job.status));
-
     let mut weighted_total = 0.0f64;
     let mut total_weight = 0.0f64;
 
-    let use_non_terminal_only = scope == TaskbarProgressScope::ActiveAndQueued && has_non_terminal;
-
-    if use_non_terminal_only {
-        for job in state
-            .jobs
-            .iter()
-            .filter(|job| !super::is_terminal(&job.status))
-        {
-            let w = job_weight_lite(job, mode);
-            let p = normalized_job_progress_lite(job);
-            weighted_total += w * p;
-            total_weight += w;
-        }
-    } else {
-        for job in &state.jobs {
-            let w = job_weight_lite(job, mode);
-            let p = normalized_job_progress_lite(job);
-            weighted_total += w * p;
-            total_weight += w;
-        }
+    for job in eligible_jobs_for_scope_lite(state, scope) {
+        let w = job_weight_lite(job, mode);
+        let p = normalized_job_progress_lite(job);
+        weighted_total += w * p;
+        total_weight += w;
     }
 
     if total_weight <= 0.0 {
@@ -205,4 +224,95 @@ pub fn update_taskbar_progress_lite(
     _scope: TaskbarProgressScope,
 ) {
     // No-op on non-Windows platforms.
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffui_core::{
+        JobSource,
+        JobType,
+        QueueState,
+        TranscodeJob,
+    };
+
+    fn make_full_job_with_start(
+        id: &str,
+        status: JobStatus,
+        progress: f64,
+        start_time: Option<u64>,
+    ) -> TranscodeJob {
+        TranscodeJob {
+            id: id.to_string(),
+            filename: format!("{id}.mp4"),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: None,
+            original_size_mb: 10.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status,
+            progress,
+            start_time,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: None,
+            output_path: None,
+            output_policy: None,
+            ffmpeg_command: None,
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: None,
+            wait_metadata: None,
+        }
+    }
+
+    fn make_lite_state(jobs: Vec<TranscodeJob>) -> QueueStateLite {
+        let full = QueueState { jobs };
+        QueueStateLite::from(&full)
+    }
+
+    #[test]
+    fn active_scope_counts_terminal_jobs_from_same_cohort_in_lite() {
+        let state = make_lite_state(vec![
+            make_full_job_with_start("1", JobStatus::Completed, 100.0, Some(10)),
+            make_full_job_with_start("2", JobStatus::Processing, 0.0, Some(10)),
+        ]);
+
+        let progress = compute_taskbar_progress_lite(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::ActiveAndQueued,
+        )
+        .expect("progress expected");
+
+        // (1.0 + 0.0) / 2 = 0.5
+        assert!((progress - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn active_scope_ignores_terminal_jobs_from_previous_cohort_in_lite() {
+        let state = make_lite_state(vec![
+            make_full_job_with_start("old", JobStatus::Completed, 100.0, Some(1)),
+            make_full_job_with_start("new", JobStatus::Processing, 0.0, Some(10)),
+        ]);
+
+        let progress = compute_taskbar_progress_lite(
+            &state,
+            TaskbarProgressMode::BySize,
+            TaskbarProgressScope::ActiveAndQueued,
+        )
+        .expect("progress expected");
+
+        assert_eq!(progress, 0.0);
+    }
 }
