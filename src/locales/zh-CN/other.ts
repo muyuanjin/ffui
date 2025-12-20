@@ -148,6 +148,8 @@ const other = {
     copyCommand: "复制命令",
     copyTemplateCommand: "复制模板命令",
     commandFallback: "该任务没有可用的完整命令行。",
+    runLabel: "第 {n} 次",
+    allRuns: "全部运行",
     logsTitle: "日志",
     copyLogs: "复制日志",
     showFullLog: "查看完整日志",

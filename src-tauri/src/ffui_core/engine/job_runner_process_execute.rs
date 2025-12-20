@@ -302,14 +302,13 @@ fn execute_transcode_job(
                 let code_desc = match status.code() {
                     Some(code) => format!("exit code {code}"),
                     None => "terminated by signal".to_string(),
-                };
-                let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
-                job.failure_reason = Some(reason.clone());
-                job.logs.push(reason);
-                recompute_log_tail(job);
-            }
-        }
-        let _ = fs::remove_file(&tmp_output);
+	                };
+	                let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
+	                job.failure_reason = Some(reason.clone());
+	                super::worker_utils::append_job_log_line(job, reason);
+	            }
+	        }
+	        let _ = fs::remove_file(&tmp_output);
         mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
@@ -342,14 +341,13 @@ fn execute_transcode_job(
                     job.status = JobStatus::Failed;
                     job.progress = 100.0;
                     job.end_time = Some(current_time_millis());
-                    let reason =
-                        format!("ffmpeg concat failed when resuming from partial output: {err:#}");
-                    job.failure_reason = Some(reason.clone());
-                    job.logs.push(reason);
-                    recompute_log_tail(job);
-                }
-            }
-            let _ = fs::remove_file(&tmp_output);
+	                    let reason =
+	                        format!("ffmpeg concat failed when resuming from partial output: {err:#}");
+	                    job.failure_reason = Some(reason.clone());
+	                    super::worker_utils::append_job_log_line(job, reason);
+	                }
+	            }
+	            let _ = fs::remove_file(&tmp_output);
             mark_batch_compress_child_processed(inner, job_id);
             return Ok(());
         }
@@ -452,14 +450,15 @@ fn execute_transcode_job(
                 );
             }
 
-            job.logs.push(format!(
-                "Completed in {:.1}s, output size {:.2} MB",
-                elapsed,
-                job.output_size_mb.unwrap_or(0.0)
-            ));
-            recompute_log_tail(job);
+            super::worker_utils::append_job_log_line(
+                job,
+                format!(
+                    "Completed in {:.1}s, output size {:.2} MB",
+                    elapsed,
+                    job.output_size_mb.unwrap_or(0.0)
+                ),
+            );
         }
-
         // Update preset statistics for completed jobs.
         if original_size_bytes > 0 && final_output_size_bytes > 0 && elapsed > 0.0 {
             let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
@@ -475,18 +474,19 @@ fn execute_transcode_job(
             let _ = crate::ffui_core::settings::save_presets(presets);
         }
     }
-
     if preserve_times_policy.any()
         && let Some(times) = input_times.as_ref()
         && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         if let Some(job) = state.jobs.get_mut(job_id) {
-            job.logs.push(format!(
-                "preserve file times: failed to apply timestamps to {}: {err}",
-                final_output_path.display()
-            ));
-            recompute_log_tail(job);
+            super::worker_utils::append_job_log_line(
+                job,
+                format!(
+                    "preserve file times: failed to apply timestamps to {}: {err}",
+                    final_output_path.display()
+                ),
+            );
         }
     }
 

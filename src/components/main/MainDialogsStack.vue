@@ -25,6 +25,7 @@ const props = withDefaults(
     queueProgressStyle: QueueProgressStyle;
     progressUpdateIntervalMs: number;
     selectedJobPreset: FFmpegPreset | null;
+    jobDetailJob?: TranscodeJob | null;
     jobDetailLogText: string;
     highlightedLogHtml: string;
     previewUrl: string | null;
@@ -37,6 +38,7 @@ const props = withDefaults(
     sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
   }>(),
   {
+    jobDetailJob: null,
     presetsPendingBatchDelete: () => [],
   },
 );
@@ -51,6 +53,7 @@ const {
   queueProgressStyle,
   progressUpdateIntervalMs,
   selectedJobPreset,
+  jobDetailJob,
   jobDetailLogText,
   highlightedLogHtml,
   previewUrl,
@@ -141,7 +144,7 @@ const openCompareFromJobDetail = () => {
 
   <JobDetailDialog
     :open="dialogManager.jobDetailOpen.value"
-    :job="dialogManager.selectedJob.value"
+    :job="jobDetailJob || dialogManager.selectedJob.value"
     :preset="selectedJobPreset"
     :job-detail-log-text="jobDetailLogText"
     :highlighted-log-html="highlightedLogHtml"

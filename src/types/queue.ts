@@ -91,6 +91,15 @@ export interface JobWarning {
   message: string;
 }
 
+export interface JobRun {
+  /** Copy-safe command string for this run (quoted, user-facing). */
+  command: string;
+  /** Log lines emitted during this run (bounded). */
+  logs?: string[];
+  /** Best-effort wall-clock start time for this run in milliseconds since epoch. */
+  startedAtMs?: number;
+}
+
 export interface TranscodeJob {
   id: string;
   filename: string;
@@ -127,6 +136,8 @@ export interface TranscodeJob {
   outputPolicy?: OutputPolicy;
   /** Human-readable ffmpeg command used for this job. */
   ffmpegCommand?: string;
+  /** Ordered history of external tool invocations for this job. */
+  runs?: JobRun[];
   /** Compact media metadata for the job's input file. */
   mediaInfo?: MediaInfo;
   /** Optional estimated processing time in seconds for this job, used for aggregated progress weighting. */
@@ -157,7 +168,7 @@ export interface TranscodeJob {
  * path to keep startup and high-frequency queue updates cheap, but it may
  * still carry bounded log head/tail snippets for crash recovery UX.
  */
-export type TranscodeJobLite = Omit<TranscodeJob, "logs"> & {
+export type TranscodeJobLite = Omit<TranscodeJob, "logs" | "runs"> & {
   /** Optional head snippet of logs (bounded) for crash recovery UX. */
   logHead?: string[];
 };

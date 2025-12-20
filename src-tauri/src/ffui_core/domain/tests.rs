@@ -30,7 +30,7 @@ mod domain_contract_tests {
             processing_started_ms: Some(10),
             elapsed_ms: Some(12345),
             output_size_mb: Some(45.0),
-            logs: Vec::new(),
+            logs: vec!["line-1".to_string()],
             log_head: None,
             skip_reason: None,
             input_path: Some("C:/videos/input.mp4".to_string()),
@@ -39,6 +39,12 @@ mod domain_contract_tests {
             ffmpeg_command: Some(
                 "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT".to_string(),
             ),
+            runs: vec![JobRun {
+                command: "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT"
+                    .to_string(),
+                logs: vec!["line-1".to_string()],
+                started_at_ms: Some(123),
+            }],
             media_info: Some(MediaInfo {
                 duration_seconds: Some(120.5),
                 width: Some(1920),
@@ -105,6 +111,29 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("ffmpegCommand present"),
             "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT"
+        );
+        let runs = value
+            .get("runs")
+            .and_then(Value::as_array)
+            .expect("runs array present");
+        assert_eq!(runs.len(), 1);
+        assert_eq!(
+            runs[0]
+                .get("command")
+                .and_then(Value::as_str)
+                .expect("runs[0].command present"),
+            "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT"
+        );
+        assert_eq!(
+            runs[0]
+                .get("startedAtMs")
+                .and_then(Value::as_u64)
+                .expect("runs[0].startedAtMs present"),
+            123
+        );
+        assert!(
+            runs[0].get("logs").and_then(Value::as_array).is_some(),
+            "runs[0].logs must be present as an array"
         );
         let wait = value
             .get("waitMetadata")
@@ -225,6 +254,31 @@ mod domain_contract_tests {
     }
 
     #[test]
+    fn transcode_job_can_upgrade_legacy_logs_into_run_history() {
+        let legacy_json = json!({
+            "id": "legacy-runs",
+            "filename": "legacy.mp4",
+            "type": "video",
+            "source": "manual",
+            "originalSizeMB": 50.0,
+            "presetId": "preset-1",
+            "status": "waiting",
+            "progress": 0.0,
+            "ffmpegCommand": "ffmpeg -i in out",
+            "logs": ["a", "b"],
+        });
+
+        let mut decoded: TranscodeJob =
+            serde_json::from_value(legacy_json).expect("deserialize legacy TranscodeJob");
+        assert!(decoded.runs.is_empty(), "legacy JSON does not carry runs");
+
+        decoded.ensure_run_history_from_legacy();
+        assert_eq!(decoded.runs.len(), 1);
+        assert_eq!(decoded.runs[0].command, "ffmpeg -i in out");
+        assert_eq!(decoded.runs[0].logs, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
     fn preset_stats_uses_stable_mb_field_names_and_aliases() {
         let stats = PresetStats {
             usage_count: 1,
@@ -291,6 +345,7 @@ mod domain_contract_tests {
             output_path: Some("C:/videos/output.mp4".to_string()),
             output_policy: None,
             ffmpeg_command: None,
+            runs: Vec::new(),
             media_info: None,
             estimated_seconds: None,
             preview_path: None,

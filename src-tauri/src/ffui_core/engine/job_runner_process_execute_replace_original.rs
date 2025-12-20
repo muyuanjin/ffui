@@ -19,34 +19,45 @@ fn apply_replace_original_video_output(
     let candidate_final = final_dir.join(format!("{stem}.{ext}"));
 
     match trash::delete(input_path) {
-        Ok(()) => job.logs.push(format!(
-            "replace original: moved source video {} to recycle bin",
-            input_path.display()
-        )),
-        Err(err) => job.logs.push(format!(
-            "replace original: failed to move source video {} to recycle bin: {err}",
-            input_path.display()
-        )),
+        Ok(()) => super::worker_utils::append_job_log_line(
+            job,
+            format!(
+                "replace original: moved source video {} to recycle bin",
+                input_path.display()
+            ),
+        ),
+        Err(err) => super::worker_utils::append_job_log_line(
+            job,
+            format!(
+                "replace original: failed to move source video {} to recycle bin: {err}",
+                input_path.display()
+            ),
+        ),
     }
 
     if output_path != candidate_final {
         match std::fs::rename(output_path, &candidate_final) {
             Ok(()) => {
-                job.logs.push(format!(
-                    "replace original: renamed compressed output to {}",
-                    candidate_final.display()
-                ));
+                super::worker_utils::append_job_log_line(
+                    job,
+                    format!(
+                        "replace original: renamed compressed output to {}",
+                        candidate_final.display()
+                    ),
+                );
                 job.output_path = Some(candidate_final.to_string_lossy().into_owned());
                 *final_output_path = candidate_final;
             }
-            Err(err) => job.logs.push(format!(
-                "replace original: failed to rename output {} -> {}: {err}",
-                output_path.display(),
-                candidate_final.display()
-            )),
+            Err(err) => super::worker_utils::append_job_log_line(
+                job,
+                format!(
+                    "replace original: failed to rename output {} -> {}: {err}",
+                    output_path.display(),
+                    candidate_final.display()
+                ),
+            ),
         }
     } else {
         *final_output_path = candidate_final;
     }
 }
-

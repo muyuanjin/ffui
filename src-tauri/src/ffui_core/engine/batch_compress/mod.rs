@@ -8,6 +8,7 @@ mod audio;
 mod detection;
 mod helpers;
 mod image;
+mod image_encode_avif;
 mod orchestrator;
 mod orchestrator_helpers;
 #[cfg(not(test))]

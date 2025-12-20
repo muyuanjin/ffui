@@ -182,6 +182,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
             output_path: None,
             output_policy: None,
             ffmpeg_command: None,
+            runs: Vec::new(),
             media_info: Some(MediaInfo {
                 duration_seconds: Some(0.5),
                 width: None,
@@ -298,6 +299,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
             output_path: None,
             output_policy: None,
             ffmpeg_command: None,
+            runs: Vec::new(),
             media_info: Some(MediaInfo {
                 duration_seconds: Some(0.5),
                 width: None,

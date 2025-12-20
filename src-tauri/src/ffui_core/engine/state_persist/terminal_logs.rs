@@ -5,9 +5,15 @@ use std::sync::Mutex;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
+use serde::{
+    Deserialize,
+    Serialize,
+};
+
 #[cfg(test)]
 use super::AtomicU64;
 use crate::ffui_core::domain::{
+    JobRun,
     JobStatus,
     QueueStateLite,
     TranscodeJob,
@@ -89,7 +95,14 @@ pub(in crate::ffui_core::engine) fn is_terminal_status(status: &JobStatus) -> bo
 #[cfg(test)]
 pub(in crate::ffui_core::engine) static TERMINAL_LOG_WRITE_COUNT: AtomicU64 = AtomicU64::new(0);
 
-fn persist_terminal_job_log(job_id: &str, logs: &[String]) {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedTerminalJobRunHistory {
+    version: u8,
+    runs: Vec<JobRun>,
+}
+
+fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
     let path = match queue_job_log_path(job_id) {
         Some(p) => p,
         None => return,
@@ -109,19 +122,17 @@ fn persist_terminal_job_log(job_id: &str, logs: &[String]) {
     let tmp_path = path.with_extension("tmp");
     match fs::File::create(&tmp_path) {
         Ok(mut file) => {
-            use std::io::Write;
-            for (idx, line) in logs.iter().enumerate() {
-                if idx > 0 {
-                    let _ = file.write_all(b"\n");
-                }
-                if let Err(err) = file.write_all(line.as_bytes()) {
-                    eprintln!(
-                        "failed to write terminal job log {}: {err:#}",
-                        tmp_path.display()
-                    );
-                    let _ = fs::remove_file(&tmp_path);
-                    return;
-                }
+            let payload = PersistedTerminalJobRunHistory {
+                version: 1,
+                runs: runs.to_vec(),
+            };
+            if let Err(err) = serde_json::to_writer(&mut file, &payload) {
+                eprintln!(
+                    "failed to write terminal job run history {}: {err:#}",
+                    tmp_path.display()
+                );
+                let _ = fs::remove_file(&tmp_path);
+                return;
             }
             if let Err(err) = fs::rename(&tmp_path, &path) {
                 eprintln!(
@@ -217,7 +228,7 @@ fn enforce_terminal_log_retention(retention: CrashRecoveryLogRetention) {
 pub(in crate::ffui_core::engine) fn load_persisted_terminal_job_logs(
     job_ids: &[String],
     retention: CrashRecoveryLogRetention,
-) -> Vec<(String, Vec<String>)> {
+) -> Vec<(String, Vec<JobRun>)> {
     // Apply retention before reading so we don't load logs that are about to be deleted.
     enforce_terminal_log_retention(retention);
 
@@ -230,13 +241,30 @@ pub(in crate::ffui_core::engine) fn load_persisted_terminal_job_logs(
             Ok(s) => s,
             Err(_) => continue,
         };
+
+        if let Ok(payload) = serde_json::from_str::<PersistedTerminalJobRunHistory>(&data)
+            && !payload.runs.is_empty()
+        {
+            results.push((job_id.clone(), payload.runs));
+            continue;
+        }
+
+        // Backward-compatibility: older versions stored a plain newline-delimited
+        // log file. Load it as a single run with an unknown command.
         let lines = data
             .lines()
             .map(|s| s.to_string())
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
         if !lines.is_empty() {
-            results.push((job_id.clone(), lines));
+            results.push((
+                job_id.clone(),
+                vec![JobRun {
+                    command: String::new(),
+                    logs: lines,
+                    started_at_ms: None,
+                }],
+            ));
         }
     }
     results
@@ -273,10 +301,20 @@ pub(in crate::ffui_core::engine) fn persist_terminal_logs_if_needed(
         let Some(full) = resolve_full_job(job.id.as_str()) else {
             continue;
         };
-        if full.logs.is_empty() {
+        if full.logs.is_empty() && full.runs.is_empty() {
             continue;
         }
-        persist_terminal_job_log(job.id.as_str(), &full.logs);
+
+        let runs = if !full.runs.is_empty() {
+            full.runs.clone()
+        } else {
+            vec![JobRun {
+                command: full.ffmpeg_command.clone().unwrap_or_default(),
+                logs: full.logs.clone(),
+                started_at_ms: full.start_time,
+            }]
+        };
+        persist_terminal_job_run_history(job.id.as_str(), &runs);
     }
 
     enforce_terminal_log_retention(retention);

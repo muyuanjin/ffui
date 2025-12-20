@@ -20,7 +20,10 @@ use super::super::state::{
     notify_batch_compress_listeners,
     update_batch_compress_batch_with_inner,
 };
-use super::super::worker_utils::mark_batch_compress_child_processed;
+use super::super::worker_utils::{
+    append_job_log_line,
+    mark_batch_compress_child_processed,
+};
 use super::audio::handle_audio_file_with_id;
 use super::detection::{
     is_audio_file,
@@ -397,7 +400,7 @@ fn run_auto_compress_background(
                                 let reason =
                                     format!("Batch Compress media compression failed: {err:#}");
                                 job.failure_reason = Some(reason.clone());
-                                job.logs.push(reason);
+                                append_job_log_line(job, reason);
                             }
                         }
                     }

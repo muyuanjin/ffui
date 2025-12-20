@@ -265,6 +265,7 @@ mod tests {
             output_path: None,
             output_policy: None,
             ffmpeg_command: None,
+            runs: Vec::new(),
             media_info: None,
             estimated_seconds: None,
             preview_path: None,

@@ -16,7 +16,7 @@ use super::super::state::{
     Inner,
     register_known_batch_compress_output_with_inner,
 };
-use super::super::worker_utils::recompute_log_tail;
+use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
     current_time_millis,
     next_job_id,
@@ -127,6 +127,7 @@ pub(crate) fn handle_audio_file_with_id(
         output_path: None,
         output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
+        runs: Vec::new(),
         media_info: Some(MediaInfo {
             duration_seconds: None,
             width: None,
@@ -158,9 +159,12 @@ pub(crate) fn handle_audio_file_with_id(
         ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
 
     if did_download {
-        job.logs.push(format!(
-            "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
-        ));
+        append_job_log_line(
+            &mut job,
+            format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ),
+        );
         record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
     }
 
@@ -370,7 +374,12 @@ pub(crate) fn handle_audio_file_with_id(
 
     let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &args);
     job.ffmpeg_command = Some(ffmpeg_cmd.clone());
-    job.logs.push(format!("command: {ffmpeg_cmd}"));
+    if let Some(run) = job.runs.first_mut()
+        && run.command.is_empty()
+    {
+        run.command = ffmpeg_cmd.clone();
+    }
+    append_job_log_line(&mut job, format!("command: {ffmpeg_cmd}"));
 
     let start_ms = current_time_millis();
     job.start_time = Some(start_ms);
@@ -386,10 +395,11 @@ pub(crate) fn handle_audio_file_with_id(
         job.status = JobStatus::Failed;
         job.progress = 100.0;
         job.end_time = Some(current_time_millis());
-        job.logs
-            .push(String::from_utf8_lossy(&output.stderr).to_string());
+        append_job_log_line(
+            &mut job,
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        );
         let _ = fs::remove_file(&tmp_output);
-        recompute_log_tail(&mut job);
         return Ok(job);
     }
 
@@ -404,7 +414,6 @@ pub(crate) fn handle_audio_file_with_id(
         job.progress = 100.0;
         job.end_time = Some(current_time_millis());
         job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
-        recompute_log_tail(&mut job);
         return Ok(job);
     }
 
@@ -420,10 +429,13 @@ pub(crate) fn handle_audio_file_with_id(
         && let Some(times) = input_times.as_ref()
         && let Err(err) = super::super::file_times::apply_file_times(&output_path, times)
     {
-        job.logs.push(format!(
-            "preserve file times: failed to apply timestamps to {}: {err}",
-            output_path.display()
-        ));
+        append_job_log_line(
+            &mut job,
+            format!(
+                "preserve file times: failed to apply timestamps to {}: {err}",
+                output_path.display()
+            ),
+        );
     }
 
     // 将最终输出注册为 Batch Compress 已知输出，避免后续批次重复压缩。
@@ -437,18 +449,22 @@ pub(crate) fn handle_audio_file_with_id(
     // 如果用户勾选了“替换原文件”，尝试将源音频移入系统回收站（最佳努力）。
     if config.replace_original {
         match trash::delete(path) {
-            Ok(()) => job.logs.push(format!(
-                "replace original: moved source audio {} to recycle bin",
-                path.display()
-            )),
-            Err(err) => job.logs.push(format!(
-                "replace original: failed to move source audio {} to recycle bin: {err}",
-                path.display()
-            )),
+            Ok(()) => append_job_log_line(
+                &mut job,
+                format!(
+                    "replace original: moved source audio {} to recycle bin",
+                    path.display()
+                ),
+            ),
+            Err(err) => append_job_log_line(
+                &mut job,
+                format!(
+                    "replace original: failed to move source audio {} to recycle bin: {err}",
+                    path.display()
+                ),
+            ),
         }
     }
-
-    recompute_log_tail(&mut job);
 
     Ok(job)
 }

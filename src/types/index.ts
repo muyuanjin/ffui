@@ -32,6 +32,7 @@ export type {
   QueueProgressStyle,
   MediaInfo,
   JobWarning,
+  JobRun,
   WaitMetadata,
   JobCompareOutput,
   JobCompareSources,

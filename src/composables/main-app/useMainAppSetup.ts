@@ -374,7 +374,7 @@ export function useMainAppSetup() {
     handleQueueContextCopyOutputPath,
   } = queueContextMenu;
 
-  const { jobDetailLogText, highlightedLogHtml } = useJobLog({
+  const { jobDetailLogText, jobDetailJob, highlightedLogHtml } = useJobLog({
     selectedJob: dialogManager.selectedJob,
   });
 
@@ -402,6 +402,7 @@ export function useMainAppSetup() {
     currentTitle,
     currentSubtitle,
     selectedJobForDetail,
+    jobDetailJob,
     globalTaskbarProgressPercent: settings.globalTaskbarProgressPercent,
     compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
     batchCompressBatchMeta: batchCompress.batchCompressBatchMeta,

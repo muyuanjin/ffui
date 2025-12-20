@@ -274,4 +274,82 @@ describe("MainApp task detail surface - logs", () => {
 
     wrapper.unmount();
   });
+
+  it("supports per-run command and log switching with copy semantics", async () => {
+    const job: TranscodeJob = {
+      id: "job-10",
+      filename: "C:/videos/sample10.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: Date.now() - 5000,
+      endTime: Date.now(),
+      runs: [
+        { command: "ffmpeg -i in.mp4 out.mp4", logs: ["r1-a", "r1-b"] },
+        { command: "ffmpeg -ss 1 -i in.mp4 out.mp4", logs: ["r2-a"] },
+      ],
+    } as any;
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    vm.selectedJobForDetail = job;
+
+    await nextTick();
+
+    const clipboard = (navigator as any).clipboard;
+    clipboard.writeText.mockClear();
+
+    const commandText = document.querySelector("[data-testid='task-detail-command']")?.textContent || "";
+    expect(commandText).toContain("ffmpeg -i in.mp4 out.mp4");
+
+    const copyCommandButton = document.querySelector(
+      "[data-testid='task-detail-copy-command']",
+    ) as HTMLButtonElement | null;
+    await copyCommandButton?.click();
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("ffmpeg -i in.mp4 out.mp4");
+
+    const commandRunSelect = document.querySelector(
+      "[data-testid='task-detail-command-run-select']",
+    ) as HTMLSelectElement | null;
+    expect(commandRunSelect).toBeTruthy();
+    if (commandRunSelect) {
+      commandRunSelect.value = "1";
+      commandRunSelect.dispatchEvent(new Event("change"));
+    }
+    await nextTick();
+
+    const commandText2 = document.querySelector("[data-testid='task-detail-command']")?.textContent || "";
+    expect(commandText2).toContain("ffmpeg -ss 1 -i in.mp4 out.mp4");
+    clipboard.writeText.mockClear();
+    await copyCommandButton?.click();
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("ffmpeg -ss 1 -i in.mp4 out.mp4");
+
+    const copyLogsButton = document.querySelector("[data-testid='task-detail-copy-logs']") as HTMLButtonElement | null;
+    clipboard.writeText.mockClear();
+    await copyLogsButton?.click();
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("r1-a\nr1-b\nr2-a");
+
+    const logRunSelect = document.querySelector(
+      "[data-testid='task-detail-log-run-select']",
+    ) as HTMLSelectElement | null;
+    expect(logRunSelect).toBeTruthy();
+    if (logRunSelect) {
+      logRunSelect.value = "1";
+      logRunSelect.dispatchEvent(new Event("change"));
+    }
+    await nextTick();
+
+    const logText = document.querySelector("[data-testid='task-detail-log']")?.textContent || "";
+    expect(logText).toContain("r2-a");
+    expect(logText).not.toContain("r1-a");
+    clipboard.writeText.mockClear();
+    await copyLogsButton?.click();
+    expect(clipboard.writeText).toHaveBeenLastCalledWith("r2-a");
+
+    wrapper.unmount();
+  });
 });

@@ -88,6 +88,20 @@ pub struct MediaInfo {
     pub size_mb: Option<f64>,
 }
 
+/// Represents a single external tool "run" for a job (e.g. the initial ffmpeg
+/// launch, a resume run with `-ss ...`, or a retry after restart).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRun {
+    /// Copy-safe command string for this run (quoted, user-facing).
+    pub command: String,
+    /// Log lines emitted during this run (bounded).
+    #[serde(default)]
+    pub logs: Vec<String>,
+    /// Best-effort wall-clock start time for this run in milliseconds since epoch.
+    pub started_at_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJob {
@@ -144,6 +158,12 @@ pub struct TranscodeJob {
     /// Human-readable ffmpeg command line used for this job, with quoted
     /// arguments so it can be copy/pasted from the UI.
     pub ffmpeg_command: Option<String>,
+    /// Ordered history of external tool invocations for this job.
+    ///
+    /// This binds a per-run command string to the corresponding log lines so
+    /// pause/resume/restart scenarios remain debuggable.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs: Vec<JobRun>,
     /// Compact media metadata derived from ffprobe or existing job fields.
     pub media_info: Option<MediaInfo>,
     /// Optional estimated processing time in seconds for this job. This is
@@ -177,6 +197,26 @@ pub struct TranscodeJob {
     /// core `TranscodeJob` shape stable while allowing future resume/crash-
     /// recovery strategies to evolve.
     pub wait_metadata: Option<WaitMetadata>,
+}
+
+impl TranscodeJob {
+    /// Best-effort migration hook for legacy persisted jobs that only stored a
+    /// single `ffmpegCommand` + flat `logs[]` without explicit run history.
+    pub fn ensure_run_history_from_legacy(&mut self) {
+        if !self.runs.is_empty() {
+            return;
+        }
+
+        if self.ffmpeg_command.is_none() && self.logs.is_empty() {
+            return;
+        }
+
+        self.runs.push(JobRun {
+            command: self.ffmpeg_command.clone().unwrap_or_default(),
+            logs: self.logs.clone(),
+            started_at_ms: self.start_time,
+        });
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -332,6 +372,18 @@ impl From<TranscodeJobLite> for TranscodeJob {
         // The optional `logHead` / `logTail` snippets are used for UI display,
         // while full logs may be restored via per-job files in CrashRecoveryFull.
 
+        let runs = job
+            .ffmpeg_command
+            .as_deref()
+            .map(|cmd| {
+                vec![JobRun {
+                    command: cmd.to_string(),
+                    logs: Vec::new(),
+                    started_at_ms: None,
+                }]
+            })
+            .unwrap_or_default();
+
         Self {
             id: job.id,
             filename: job.filename,
@@ -355,6 +407,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             output_path: job.output_path,
             output_policy: job.output_policy,
             ffmpeg_command: job.ffmpeg_command,
+            runs,
             media_info: job.media_info,
             estimated_seconds: job.estimated_seconds,
             preview_path: job.preview_path,

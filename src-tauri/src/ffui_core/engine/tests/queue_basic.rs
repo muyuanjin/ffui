@@ -348,6 +348,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 output_path: None,
                 output_policy: None,
                 ffmpeg_command: None,
+                runs: Vec::new(),
                 media_info: Some(MediaInfo {
                     duration_seconds: Some(120.0),
                     width: None,

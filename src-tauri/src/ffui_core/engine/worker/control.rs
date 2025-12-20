@@ -5,8 +5,8 @@ use super::super::state::{
     notify_queue_listeners,
 };
 use super::super::worker_utils::{
+    append_job_log_line,
     current_time_millis,
-    recompute_log_tail,
 };
 use crate::ffui_core::domain::JobStatus;
 
@@ -35,9 +35,8 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     job.status = JobStatus::Cancelled;
                     job.progress = 0.0;
                     job.end_time = Some(current_time_millis());
-                    job.logs.push("Cancelled before start".to_string());
+                    append_job_log_line(job, "Cancelled before start".to_string());
                     job.log_head = None;
-                    recompute_log_tail(job);
                 }
                 // Any stale flags become irrelevant.
                 state.cancelled_jobs.remove(job_id);
@@ -69,10 +68,9 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     job.status = JobStatus::Cancelled;
                     job.progress = 0.0;
                     job.end_time = Some(current_time_millis());
-                    job.logs.push("Cancelled while paused".to_string());
+                    append_job_log_line(job, "Cancelled while paused".to_string());
                     job.log_head = None;
                     job.wait_metadata = None;
-                    recompute_log_tail(job);
                 }
                 state.cancelled_jobs.remove(job_id);
                 state.wait_requests.remove(job_id);
@@ -170,11 +168,11 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                     false
                 } else {
                     if let Some(job) = state.jobs.get_mut(job_id) {
-                        job.logs.push(
+                        append_job_log_line(
+                            job,
                             "Resume requested while wait was pending; cancelling wait request"
                                 .to_string(),
                         );
-                        recompute_log_tail(job);
                     }
                     should_notify = true;
                     true
@@ -222,10 +220,11 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
                 job.failure_reason = None;
                 job.skip_reason = None;
                 job.wait_metadata = None;
-                job.logs
-                    .push("Restart requested from UI; job will re-run from 0%".to_string());
+                append_job_log_line(
+                    job,
+                    "Restart requested from UI; job will re-run from 0%".to_string(),
+                );
                 job.log_head = None;
-                recompute_log_tail(job);
 
                 if !state.queue.iter().any(|id| id == job_id) {
                     state.queue.push_back(job_id.to_string());

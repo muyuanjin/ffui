@@ -365,6 +365,7 @@ mod tests {
             output_path: Some("C:/videos/output.mp4".to_string()),
             output_policy: None,
             ffmpeg_command: None,
+            runs: Vec::new(),
             media_info: Some(MediaInfo {
                 duration_seconds: Some(120.0),
                 width: None,

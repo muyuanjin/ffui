@@ -12,11 +12,48 @@ use super::state::{
 use crate::ffui_core::domain::{
     AutoCompressProgress,
     FFmpegPreset,
+    JobRun,
     JobStatus,
     TranscodeJob,
 };
 
 pub(super) const MAX_LOG_TAIL_BYTES: usize = 64 * 1024;
+pub(super) const MAX_LOG_LINES: usize = 500;
+
+fn is_critical_log_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("error")
+        || lower.contains("failed")
+        || lower.contains("exited with")
+        || lower.contains("invalid")
+        || lower.trim_start().starts_with("command:")
+}
+
+fn ensure_job_run_for_logs(job: &mut TranscodeJob, started_at_ms: u64) {
+    if !job.runs.is_empty() {
+        return;
+    }
+
+    let command = job.ffmpeg_command.clone().unwrap_or_default();
+    job.runs.push(JobRun {
+        command,
+        logs: Vec::new(),
+        started_at_ms: Some(started_at_ms),
+    });
+}
+
+fn sync_job_logs_with_runs_if_needed(job: &mut TranscodeJob) {
+    let run_total: usize = job.runs.iter().map(|r| r.logs.len()).sum();
+    if run_total == job.logs.len() {
+        return;
+    }
+
+    let mut rebuilt: Vec<String> = Vec::with_capacity(run_total);
+    for run in &job.runs {
+        rebuilt.extend(run.logs.iter().cloned());
+    }
+    job.logs = rebuilt;
+}
 
 /// Returns the current time in milliseconds since UNIX epoch.
 pub(super) fn current_time_millis() -> u64 {
@@ -41,6 +78,88 @@ pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
     } else {
         job.log_tail = Some(joined);
     }
+}
+
+/// Keep log lines bounded while preserving "critical" diagnostics.
+///
+/// This trims by removing the oldest non-critical lines across runs first,
+/// keeping recent output while ensuring critical lines survive as long as
+/// possible. When all remaining lines are critical, it drops the oldest.
+pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
+    if job.logs.len() <= MAX_LOG_LINES {
+        return;
+    }
+
+    if job.runs.is_empty() && !job.logs.is_empty() {
+        // Legacy/migrated job: attach existing flat logs to a single run so
+        // future appends stay consistent.
+        let command = job.ffmpeg_command.clone().unwrap_or_default();
+        job.runs.push(JobRun {
+            command,
+            logs: job.logs.clone(),
+            started_at_ms: job.start_time,
+        });
+    }
+
+    // If the run logs drifted from the flat logs (should not happen after
+    // migration), rebuild the flat view from runs before trimming.
+    if !job.runs.is_empty() {
+        sync_job_logs_with_runs_if_needed(job);
+    }
+
+    while job.logs.len() > MAX_LOG_LINES {
+        let mut removed = false;
+        let mut prefix = 0usize;
+
+        for run in job.runs.iter_mut() {
+            if run.logs.is_empty() {
+                continue;
+            }
+
+            if let Some(local_idx) = run.logs.iter().position(|line| !is_critical_log_line(line)) {
+                run.logs.remove(local_idx);
+                job.logs.remove(prefix + local_idx);
+                removed = true;
+                break;
+            }
+
+            prefix = prefix.saturating_add(run.logs.len());
+        }
+
+        if removed {
+            continue;
+        }
+
+        // All remaining lines are critical; drop the oldest available line.
+        let prefix = 0usize;
+        for run in job.runs.iter_mut() {
+            if run.logs.is_empty() {
+                continue;
+            }
+            run.logs.remove(0);
+            job.logs.remove(prefix);
+            removed = true;
+            break;
+        }
+
+        if !removed {
+            break;
+        }
+    }
+}
+
+pub(super) fn append_job_log_line(job: &mut TranscodeJob, line: impl Into<String>) {
+    let now_ms = current_time_millis();
+    ensure_job_run_for_logs(job, now_ms);
+
+    let line = line.into();
+    job.logs.push(line.clone());
+    if let Some(run) = job.runs.last_mut() {
+        run.logs.push(line);
+    }
+
+    trim_job_logs_with_priority(job);
+    recompute_log_tail(job);
 }
 
 /// Estimate the expected duration in seconds for a job based on preset statistics.

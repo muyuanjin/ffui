@@ -182,6 +182,11 @@ fn log_external_command_stores_full_command_in_job_logs() {
         .get(&job.id)
         .expect("job should be present after logging command");
     let last_log = stored.logs.last().expect("at least one log entry");
+    let last_run = stored.runs.last().expect("run history should be present");
+    let last_run_log = last_run
+        .logs
+        .last()
+        .expect("run should include the command log line");
 
     assert!(
         last_log.contains("ffmpeg"),
@@ -194,6 +199,99 @@ fn log_external_command_stores_full_command_in_job_logs() {
     assert!(
         last_log.contains("C:/Videos/output.tmp.mp4"),
         "log should include the output path"
+    );
+    assert!(
+        last_run_log.contains("\"C:/Videos/input file.mp4\""),
+        "run log should quote arguments with spaces"
+    );
+
+    drop(state_lock);
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
+fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_command() {
+    let dir = env::temp_dir();
+    let path = dir.join("ffui_test_log_command_resume.mp4");
+
+    {
+        let mut file = File::create(&path).expect("create temp video file for resume log test");
+        file.write_all(&[0u8; 1024])
+            .expect("write data for resume log test");
+    }
+
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        path.to_string_lossy().into_owned(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let initial_cmd = {
+        let state_lock = engine.inner.state.lock().expect("engine state poisoned");
+        state_lock
+            .jobs
+            .get(&job.id)
+            .and_then(|j| j.ffmpeg_command.clone())
+            .unwrap_or_default()
+    };
+
+    // Simulate a paused/resumable job so the next ffmpeg spawn represents a new run.
+    {
+        let mut state_lock = engine.inner.state.lock().expect("engine state poisoned");
+        let stored = state_lock.jobs.get_mut(&job.id).expect("job present");
+        stored.status = JobStatus::Paused;
+        stored.progress = 42.0;
+        stored.wait_metadata = Some(crate::ffui_core::domain::WaitMetadata {
+            last_progress_percent: Some(42.0),
+            processed_wall_millis: Some(1234),
+            processed_seconds: Some(1.0),
+            tmp_output_path: None,
+            segments: None,
+        });
+        if let Some(run) = stored.runs.first_mut() {
+            run.started_at_ms = Some(1);
+        }
+    }
+
+    let args = vec![
+        "-ss".to_string(),
+        "1".to_string(),
+        "-i".to_string(),
+        "C:/Videos/input.mp4".to_string(),
+        "C:/Videos/output.tmp.mp4".to_string(),
+    ];
+    log_external_command(&engine.inner, &job.id, "ffmpeg", &args);
+
+    let state_lock = engine.inner.state.lock().expect("engine state poisoned");
+    let stored = state_lock
+        .jobs
+        .get(&job.id)
+        .expect("job should be present after logging command");
+
+    assert_eq!(
+        stored.ffmpeg_command.as_deref().unwrap_or(""),
+        initial_cmd.as_str(),
+        "initial/full command must remain stable even after resume run logging"
+    );
+    assert!(
+        stored.runs.len() >= 2,
+        "resume logging should create a new run entry"
+    );
+    let last_run = stored.runs.last().expect("last run exists");
+    assert!(
+        last_run.command.contains("-ss"),
+        "resume run command should include resume flags"
+    );
+    assert!(
+        last_run
+            .logs
+            .iter()
+            .any(|l| l.contains("command:") && l.contains("-ss")),
+        "resume run logs should include the executed command line"
     );
 
     drop(state_lock);

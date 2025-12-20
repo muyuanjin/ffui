@@ -111,9 +111,44 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
 pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, args: &[String]) {
     let mut state = inner.state.lock().expect("engine state poisoned");
     if let Some(job) = state.jobs.get_mut(job_id) {
+        let now_ms = super::worker_utils::current_time_millis();
         let cmd = format_command_for_log(program, args);
-        job.ffmpeg_command = Some(cmd.clone());
-        job.logs.push(format!("command: {cmd}"));
+
+        // Ensure the first/full command stays stable: only set ffmpeg_command
+        // when it is still unset (enqueue normally pre-populates it).
+        if job.ffmpeg_command.is_none() {
+            job.ffmpeg_command = Some(cmd.clone());
+        }
+
+        // Each ffmpeg launch (initial run, resume, retry) becomes a distinct run.
+        // If enqueue created a placeholder Run 1 (started_at_ms == None), we
+        // attach this first launch to that run instead of creating Run 2.
+        if job.runs.is_empty() {
+            let initial = job.ffmpeg_command.clone().unwrap_or_else(|| cmd.clone());
+            job.runs.push(crate::ffui_core::domain::JobRun {
+                command: initial,
+                logs: Vec::new(),
+                started_at_ms: Some(now_ms),
+            });
+        } else if let Some(last) = job.runs.last_mut()
+            && last.started_at_ms.is_none()
+            && job.progress <= 0.0
+            && job.wait_metadata.is_none()
+        {
+            last.started_at_ms = Some(now_ms);
+            if last.command.is_empty() {
+                last.command = job.ffmpeg_command.clone().unwrap_or_else(|| cmd.clone());
+            }
+        } else {
+            job.runs.push(crate::ffui_core::domain::JobRun {
+                command: cmd.clone(),
+                logs: Vec::new(),
+                started_at_ms: Some(now_ms),
+            });
+        }
+
+        let command_line = format!("command: {cmd}");
+        super::worker_utils::append_job_log_line(job, command_line);
 
         // If the advanced ffmpeg template or args force a very restrictive log
         // level (for example `-v error` or `-loglevel quiet`), ffmpeg will not
@@ -130,12 +165,10 @@ pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, a
                 || a.eq_ignore_ascii_case("fatal")
                 || a.eq_ignore_ascii_case("panic")
         }) {
-            job.logs.push(
+            let warning =
                 "warning: detected restricted loglevel; progress may remain at 0% until completion"
-                    .to_string(),
-            );
+                    .to_string();
+            super::worker_utils::append_job_log_line(job, warning);
         }
-
-        recompute_log_tail(job);
     }
 }

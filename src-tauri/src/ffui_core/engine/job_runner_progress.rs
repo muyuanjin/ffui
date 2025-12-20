@@ -2,68 +2,8 @@
 // Progress tracking and logging
 // ============================================================================
 
-use super::worker_utils::recompute_log_tail;
 use super::transcode_activity;
-
-// Keep a bounded window of recent logs while prioritizing diagnostic lines.
-// MAX_LOG_LINES caps in-memory lines; recompute_log_tail (from worker_utils)
-// enforces the byte-level tail used by the UI.
-const MAX_LOG_LINES: usize = 500;
-
-fn is_critical_log_line(line: &str) -> bool {
-    let lower = line.to_ascii_lowercase();
-    lower.contains("error")
-        || lower.contains("failed")
-        || lower.contains("exited with")
-        || lower.contains("invalid")
-        || lower.trim_start().starts_with("command:")
-}
-
-fn trim_logs_with_priority(logs: &mut Vec<String>) {
-    if logs.len() <= MAX_LOG_LINES {
-        return;
-    }
-
-    // Snapshot all critical lines before trimming so they can be re-inserted if needed.
-    let critical_lines: Vec<String> = logs
-        .iter()
-        .filter(|line| is_critical_log_line(line))
-        .cloned()
-        .collect();
-
-    // Start with a simple tail window to keep the most recent output.
-    let mut trimmed: Vec<String> = logs
-        .iter()
-        .rev()
-        .take(MAX_LOG_LINES)
-        .cloned()
-        .collect();
-    trimmed.reverse();
-
-    // Ensure every critical line survives trimming. When space is tight, evict
-    // the oldest non-critical lines first.
-    for critical in critical_lines {
-        if trimmed.contains(&critical) {
-            continue;
-        }
-
-        if trimmed.len() >= MAX_LOG_LINES {
-            if let Some(drop_idx) = trimmed
-                .iter()
-                .position(|line| !is_critical_log_line(line))
-            {
-                trimmed.remove(drop_idx);
-            } else {
-                // All remaining lines are critical; drop the oldest.
-                trimmed.remove(0);
-            }
-        }
-
-        trimmed.insert(0, critical);
-    }
-
-    *logs = trimmed;
-}
+use super::worker_utils::append_job_log_line;
 
 pub(super) fn update_job_progress(
     inner: &Inner,
@@ -127,9 +67,7 @@ pub(super) fn update_job_progress(
                 // view hard to read without improving diagnostics, while also
                 // generating noisy queue snapshots with no useful content.
                 if !line.trim().is_empty() {
-                    job.logs.push(line.to_string());
-                    trim_logs_with_priority(&mut job.logs);
-                    recompute_log_tail(job);
+                    append_job_log_line(job, line.to_string());
 
                     // Even when ffmpeg does not emit the traditional "time=... speed=..."
                     // progress lines (for example due to loglevel changes or custom

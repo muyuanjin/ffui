@@ -154,6 +154,8 @@ const other = {
     copyCommand: "Copy command",
     copyTemplateCommand: "Copy template command",
     commandFallback: "Command line is not available for this job.",
+    runLabel: "Run {n}",
+    allRuns: "All runs",
     logsTitle: "Logs",
     copyLogs: "Copy logs",
     showFullLog: "Show full log",

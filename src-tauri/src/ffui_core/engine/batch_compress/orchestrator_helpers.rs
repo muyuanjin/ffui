@@ -55,6 +55,7 @@ pub(super) fn insert_image_stub_job(
         output_path: None,
         output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
+        runs: Vec::new(),
         media_info: Some(MediaInfo {
             duration_seconds: None,
             width: None,
@@ -122,6 +123,7 @@ pub(super) fn insert_audio_stub_job(
         output_path: None,
         output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
+        runs: Vec::new(),
         media_info: Some(MediaInfo {
             duration_seconds: None,
             width: None,

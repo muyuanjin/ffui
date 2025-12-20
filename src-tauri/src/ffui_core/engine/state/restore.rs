@@ -11,7 +11,10 @@ use super::super::state_persist::{
     load_persisted_queue_state,
     load_persisted_terminal_job_logs,
 };
-use super::super::worker_utils::recompute_log_tail;
+use super::super::worker_utils::{
+    append_job_log_line,
+    recompute_log_tail,
+};
 use super::Inner;
 use crate::ffui_core::domain::{
     JobStatus,
@@ -74,10 +77,31 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
     let mut snapshot = snapshot;
     if !terminal_logs.is_empty() {
         use std::collections::HashMap;
-        let map: HashMap<String, Vec<String>> = terminal_logs.into_iter().collect();
+        let map: HashMap<String, Vec<crate::ffui_core::domain::JobRun>> =
+            terminal_logs.into_iter().collect();
         for job in snapshot.jobs.iter_mut() {
-            if let Some(lines) = map.get(&job.id) {
-                job.logs = lines.clone();
+            if let Some(runs) = map.get(&job.id) {
+                job.runs = runs.clone();
+                job.logs = runs
+                    .iter()
+                    .flat_map(|r| r.logs.iter().cloned())
+                    .collect::<Vec<_>>();
+                if let Some(first) = job.runs.first_mut()
+                    && first.command.trim().is_empty()
+                    && let Some(cmd) = job.ffmpeg_command.clone()
+                    && !cmd.trim().is_empty()
+                {
+                    first.command = cmd;
+                }
+                if job.ffmpeg_command.is_none()
+                    && let Some(cmd) = job
+                        .runs
+                        .first()
+                        .map(|r| r.command.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                {
+                    job.ffmpeg_command = Some(cmd);
+                }
                 job.log_head = None;
                 recompute_log_tail(job);
             }
@@ -114,6 +138,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         let mut state = inner.state.lock().expect("engine state poisoned");
 
         for mut job in snapshot.jobs {
+            job.ensure_run_history_from_legacy();
             let id = job.id.clone();
 
             // If a job with the same id was already enqueued in this run,
@@ -126,12 +151,12 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // they do not auto-resume on startup but remain recoverable.
             if job.status == JobStatus::Processing {
                 job.status = JobStatus::Paused;
-                job.logs.push(
+                append_job_log_line(
+                    &mut job,
                     "Recovered after unexpected shutdown; job did not finish in previous run."
                         .to_string(),
                 );
                 job.log_head = None;
-                recompute_log_tail(&mut job);
             }
 
             let persisted_order = job.queue_order;

@@ -149,9 +149,10 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
                 job.failure_reason = None;
                 job.skip_reason = None;
                 job.wait_metadata = None;
-                job.logs
-                    .push("Restart requested from UI; job will re-run from 0%".to_string());
-                recompute_log_tail(job);
+                super::worker_utils::append_job_log_line(
+                    job,
+                    "Restart requested from UI; job will re-run from 0%".to_string(),
+                );
 
                 if !state.queue.iter().any(|id| id == job_id) {
                     state.queue.push_back(job_id.to_string());
@@ -160,8 +161,7 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
                 job.status = JobStatus::Cancelled;
                 job.progress = 0.0;
                 job.end_time = Some(current_time_millis());
-                job.logs.push("Cancelled by user".to_string());
-                recompute_log_tail(job);
+                super::worker_utils::append_job_log_line(job, "Cancelled by user".to_string());
             }
         }
 

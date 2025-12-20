@@ -6,9 +6,9 @@ use super::super::state::{
     notify_queue_listeners,
 };
 use super::super::worker_utils::{
+    append_job_log_line,
     current_time_millis,
     mark_batch_compress_child_processed,
-    recompute_log_tail,
 };
 use super::super::{
     job_runner,
@@ -87,8 +87,7 @@ fn worker_loop(inner: Arc<Inner>) {
                     job.end_time = Some(current_time_millis());
                     let reason = format!("Transcode failed: {err:#}");
                     job.failure_reason = Some(reason.clone());
-                    job.logs.push(reason);
-                    recompute_log_tail(job);
+                    append_job_log_line(job, reason);
                 }
             }
             mark_batch_compress_child_processed(&inner, &job_id);

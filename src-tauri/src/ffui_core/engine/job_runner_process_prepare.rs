@@ -197,8 +197,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                     job.end_time = Some(current_time_millis());
                     let reason = format!("No preset found for preset id '{preset_id}'");
                     job.failure_reason = Some(reason.clone());
-                    job.logs.push(reason);
-                    recompute_log_tail(job);
+                    super::worker_utils::append_job_log_line(job, reason);
                 }
             }
             mark_batch_compress_child_processed(inner, job_id);
@@ -218,10 +217,12 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         {
             let mut state = inner.state.lock().expect("engine state poisoned");
             if let Some(job) = state.jobs.get_mut(job_id) {
-                job.logs.push(format!(
+                super::worker_utils::append_job_log_line(
+                    job,
+                    format!(
                     "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
-                ));
-                recompute_log_tail(job);
+                ),
+                );
             }
         }
         // Persist metadata for the newly downloaded ffmpeg binary.
@@ -314,16 +315,18 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             if let Some(job) = state.jobs.get_mut(job_id)
                 && let Some(job_meta) = job.wait_metadata.as_mut()
             {
-                job_meta.processed_seconds = Some(processed);
-                job_meta.segments = meta.segments.clone();
-                job_meta.tmp_output_path = meta.tmp_output_path.clone();
-                job.logs.push(format!(
-                    "resume: recomputed processedSeconds from segment durations: {processed:.6}s"
-                ));
-                recompute_log_tail(job);
-            }
-        }
-    }
+	                job_meta.processed_seconds = Some(processed);
+	                job_meta.segments = meta.segments.clone();
+	                job_meta.tmp_output_path = meta.tmp_output_path.clone();
+	                super::worker_utils::append_job_log_line(
+	                    job,
+	                    format!(
+	                        "resume: recomputed processedSeconds from segment durations: {processed:.6}s"
+	                    ),
+	                );
+	            }
+	        }
+	    }
 
     let (mut resume_from_seconds, mut existing_segments, tmp_output) = plan_resume_paths(
         job_id,

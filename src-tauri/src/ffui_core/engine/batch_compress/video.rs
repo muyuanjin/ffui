@@ -19,6 +19,7 @@ use super::super::ffmpeg_args::{
 };
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
+use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
     current_time_millis,
     next_job_id,
@@ -36,6 +37,7 @@ use super::video_paths::{
 use crate::ffui_core::domain::{
     BatchCompressConfig,
     FFmpegPreset,
+    JobRun,
     JobSource,
     JobStatus,
     JobType,
@@ -82,6 +84,15 @@ pub(crate) fn handle_video_file(
     for w in &warnings {
         logs.push(format!("warning: {}", w.message));
     }
+    let runs = if logs.is_empty() {
+        Vec::new()
+    } else {
+        vec![JobRun {
+            command: String::new(),
+            logs: logs.clone(),
+            started_at_ms: None,
+        }]
+    };
 
     let mut job = TranscodeJob {
         id: next_job_id(inner),
@@ -106,6 +117,7 @@ pub(crate) fn handle_video_file(
         output_path: Some(output_path),
         output_policy: Some(config.output_policy.clone()),
         ffmpeg_command: None,
+        runs,
         media_info: Some(MediaInfo {
             duration_seconds: None,
             width: None,
@@ -175,9 +187,12 @@ pub(crate) fn handle_video_file(
     let args = build_ffmpeg_args(&preset, path, &tmp_output);
 
     if did_download {
-        job.logs.push(format!(
-            "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
-        ));
+        append_job_log_line(
+            &mut job,
+            format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ),
+        );
         record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
     }
 
@@ -203,8 +218,10 @@ pub(crate) fn handle_video_file(
                 .unwrap_or_default()
                 .as_millis() as u64,
         );
-        job.logs
-            .push(String::from_utf8_lossy(&output.stderr).to_string());
+        append_job_log_line(
+            &mut job,
+            String::from_utf8_lossy(&output.stderr).to_string(),
+        );
         let _ = fs::remove_file(&tmp_output);
         return Ok(job);
     }
@@ -304,6 +321,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
         output_path: None,
         output_policy: Some(output_policy.clone()),
         ffmpeg_command: None,
+        runs: Vec::new(),
         media_info: Some(MediaInfo {
             duration_seconds: None,
             width: None,
@@ -372,7 +390,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
     let output_path = output_plan.output_path;
     if !output_plan.warnings.is_empty() {
         for w in &output_plan.warnings {
-            job.logs.push(format!("warning: {}", w.message));
+            append_job_log_line(&mut job, format!("warning: {}", w.message));
         }
         job.warnings = output_plan.warnings;
     }
@@ -384,6 +402,12 @@ pub(crate) fn enqueue_batch_compress_video_job(
     let planned_args =
         build_queue_ffmpeg_args(preset, path, &output_path, false, Some(&output_policy));
     job.ffmpeg_command = Some(format_command_for_log("ffmpeg", &planned_args));
+    if let Some(run) = job.runs.first_mut()
+        && run.command.is_empty()
+        && job.ffmpeg_command.is_some()
+    {
+        run.command = job.ffmpeg_command.clone().unwrap_or_default();
+    }
     job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);
 
     // Insert the job into the waiting queue while keeping Batch Compress batch

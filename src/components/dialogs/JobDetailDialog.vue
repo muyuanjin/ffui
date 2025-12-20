@@ -1,36 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useI18n } from "vue-i18n";
-import {
-  buildJobPreviewUrl,
-  cleanupFallbackPreviewFramesAsync,
-  ensureJobPreview,
-  hasTauri,
-  loadPreviewDataUrl,
-} from "@/lib/backend";
-import type { TranscodeJob, FFmpegPreset } from "@/types";
-import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
-import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
+import { isJobCompareEligible } from "@/lib/jobCompare";
+import { useJobDetailDialogState, type JobDetailDialogProps } from "./useJobDetailDialogState";
 
-const isTestEnv =
-  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-
-const props = defineProps<{
-  open: boolean;
-  job: TranscodeJob | null;
-  preset: FFmpegPreset | null;
-  jobDetailLogText: string;
-  highlightedLogHtml: string;
-  /**
-   * Resolved FFmpeg executable path from backend/tool status (if known).
-   * Used to expand bare `ffmpeg` program tokens into the concrete path in
-   * the "full command" view so users can copy the exact binary invocation.
-   */
-  ffmpegResolvedPath?: string | null;
-}>();
+const props = defineProps<JobDetailDialogProps>();
 
 const emit = defineEmits<{
   "update:open": [value: boolean];
@@ -41,160 +17,29 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-// --- Preview handling ---
-const inlinePreviewUrl = ref<string | null>(null);
-const inlinePreviewFallbackLoaded = ref(false);
-const inlinePreviewRescreenshotAttempted = ref(false);
-
-watch(
-  () => props.open,
-  (open, prev) => {
-    if (prev && !open && hasTauri()) {
-      void cleanupFallbackPreviewFramesAsync();
-    }
-  },
-);
-
-watch(
-  () => ({ previewPath: props.job?.previewPath, previewRevision: props.job?.previewRevision }),
-  ({ previewPath, previewRevision }) => {
-    inlinePreviewFallbackLoaded.value = false;
-    inlinePreviewRescreenshotAttempted.value = false;
-    if (!previewPath) {
-      inlinePreviewUrl.value = null;
-      return;
-    }
-    inlinePreviewUrl.value = buildJobPreviewUrl(previewPath, previewRevision);
-  },
-  { immediate: true },
-);
-
-const handleInlinePreviewError = async () => {
-  const path = props.job?.previewPath;
-  if (!path) return;
-  if (!hasTauri()) return;
-  if (inlinePreviewFallbackLoaded.value) return;
-
-  try {
-    inlinePreviewUrl.value = await loadPreviewDataUrl(path);
-    inlinePreviewFallbackLoaded.value = true;
-  } catch (error) {
-    if (inlinePreviewRescreenshotAttempted.value || !props.job) {
-      console.error("JobDetailDialog: failed to load inline preview via data URL fallback", error);
-      return;
-    }
-
-    inlinePreviewRescreenshotAttempted.value = true;
-    if (!isTestEnv) {
-      console.warn("JobDetailDialog: preview missing or unreadable, attempting regeneration", error);
-    }
-
-    try {
-      const regenerated = await ensureJobPreview(props.job.id);
-      if (regenerated) {
-        inlinePreviewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
-        inlinePreviewFallbackLoaded.value = false;
-      }
-    } catch (regenError) {
-      console.error("JobDetailDialog: failed to regenerate preview", regenError);
-    }
-  }
-};
-
-const copyToClipboard = async (value: string | undefined | null) => {
-  if (!value) return;
-  try {
-    await navigator.clipboard.writeText(value);
-  } catch {
-    const textarea = document.createElement("textarea");
-    textarea.value = value;
-    textarea.style.position = "fixed";
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-  }
-};
-
-// --- Derived data ---
-const statusBadgeClass = computed(() => {
-  if (!props.job) return "";
-  const status = props.job.status;
-  if (status === "completed") return "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
-  if (status === "processing") return "bg-blue-500/20 text-blue-400 border-blue-500/40";
-  if (status === "failed") return "bg-destructive/20 text-destructive border-destructive/40";
-  if (status === "cancelled") return "bg-orange-500/20 text-orange-400 border-orange-500/40";
-  if (status === "waiting" || status === "queued") return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
-  if (status === "paused") return "bg-purple-500/20 text-purple-400 border-purple-500/40";
-  if (status === "skipped") return "bg-gray-500/20 text-gray-400 border-gray-500/40";
-  return "bg-muted text-muted-foreground border-border";
-});
-
-const compareDisabledReason = computed(() => getJobCompareDisabledReason(props.job));
-const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
-const compareDisabledText = computed(() => {
-  const reason = compareDisabledReason.value;
-  if (!reason) return null;
-  if (reason === "not-video") return t("jobCompare.disabled.notVideo") as string;
-  if (reason === "status") return t("jobCompare.disabled.status") as string;
-  if (reason === "no-output") return t("jobCompare.disabled.noOutput") as string;
-  if (reason === "no-partial-output") return t("jobCompare.disabled.noPartialOutput") as string;
-  return t("jobCompare.disabled.unavailable") as string;
-});
-
-const jobFileName = computed(() => {
-  const path = props.job?.filename || "";
-  if (!path) return "";
-  const normalised = path.replace(/\\/g, "/");
-  const idx = normalised.lastIndexOf("/");
-  return idx >= 0 ? normalised.slice(idx + 1) : normalised;
-});
-
-const jobDetailRawCommand = computed(() => props.job?.ffmpegCommand ?? "");
 const {
-  effectiveCommand: jobDetailEffectiveCommand,
-  hasDistinctTemplate: jobDetailHasDistinctTemplate,
-  highlightedHtml: highlightedCommandHtml,
-  templateCommand: jobDetailTemplateCommand,
-  toggle: toggleCommandView,
-  toggleLabel: commandViewToggleLabel,
-} = useFfmpegCommandView({
-  jobId: computed(() => props.job?.id),
-  status: computed(() => props.job?.status),
-  rawCommand: jobDetailRawCommand,
-  ffmpegResolvedPath: computed(() => props.ffmpegResolvedPath),
-  t: (key) => t(key) as string,
-});
-
-const jobDetailLogText = computed(() => props.jobDetailLogText || "");
-
-// 任务耗时（秒）：优先使用后端累计的 elapsedMs（仅统计实际处理时间），
-// 若缺失则退回到 startTime/endTime 差值（近似总耗时），并在处理中时用当前时间估算。
-const jobProcessingSeconds = computed(() => {
-  const job = props.job;
-  if (!job) return null;
-
-  // 1) 优先采用后端提供的累计处理时间（毫秒）
-  if (job.elapsedMs != null && job.elapsedMs > 0 && Number.isFinite(job.elapsedMs)) {
-    return job.elapsedMs / 1000;
-  }
-
-  // 2) 回退到基于开始/结束时间的近似值（优先使用 processingStartedMs）
-  const fallbackStart = job.processingStartedMs ?? job.startTime;
-  if (!fallbackStart) return null;
-  const endMs = job.endTime ?? Date.now();
-  if (endMs <= fallbackStart) return null;
-  return (endMs - fallbackStart) / 1000;
-});
-
-const unknownPresetLabel = computed(() => {
-  const id = props.job?.presetId;
-  if (!id) return "";
-  const translated = t("taskDetail.unknownPreset", { id }) as string;
-  if (translated && translated !== "taskDetail.unknownPreset") return translated;
-  return `Unknown preset (${id})`;
-});
+  selectedCommandRun,
+  selectedLogRun,
+  effectiveRuns,
+  inlinePreviewUrl,
+  handleInlinePreviewError,
+  copyToClipboard,
+  statusBadgeClass,
+  canCompare,
+  compareDisabledText,
+  jobFileName,
+  jobDetailRawCommand,
+  jobDetailEffectiveCommand,
+  jobDetailHasDistinctTemplate,
+  highlightedCommandHtml,
+  jobDetailTemplateCommand,
+  toggleCommandView,
+  commandViewToggleLabel,
+  displayedLogText,
+  highlightedLogHtml,
+  jobProcessingSeconds,
+  unknownPresetLabel,
+} = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)));
 </script>
 
 <template>
@@ -390,6 +235,16 @@ const unknownPresetLabel = computed(() => {
                   <h3 class="text-xs font-semibold">
                     {{ t("taskDetail.commandTitle") }}
                   </h3>
+                  <select
+                    v-if="effectiveRuns.length > 1"
+                    v-model="selectedCommandRun"
+                    class="h-6 rounded-md border border-border bg-muted/40 px-2 text-[10px] text-foreground"
+                    data-testid="task-detail-command-run-select"
+                  >
+                    <option v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
+                      {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
+                    </option>
+                  </select>
                   <Button
                     v-if="jobDetailHasDistinctTemplate"
                     type="button"
@@ -440,20 +295,33 @@ const unknownPresetLabel = computed(() => {
 
             <!-- Logs -->
             <div
-              v-if="jobDetailLogText"
+              v-if="displayedLogText"
               class="space-y-2 rounded-md border border-border bg-background px-3 py-3"
               data-testid="task-detail-log"
             >
               <div class="flex items-center justify-between gap-2">
-                <h3 class="text-xs font-semibold">
-                  {{ t("taskDetail.logsTitle") }}
-                </h3>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-xs font-semibold">
+                    {{ t("taskDetail.logsTitle") }}
+                  </h3>
+                  <select
+                    v-if="effectiveRuns.length > 1"
+                    v-model="selectedLogRun"
+                    class="h-6 rounded-md border border-border bg-muted/40 px-2 text-[10px] text-foreground"
+                    data-testid="task-detail-log-run-select"
+                  >
+                    <option value="all">{{ t("taskDetail.allRuns") }}</option>
+                    <option v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
+                      {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
+                    </option>
+                  </select>
+                </div>
                 <Button
                   variant="outline"
                   size="xs"
                   class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
                   data-testid="task-detail-copy-logs"
-                  @click="copyToClipboard(jobDetailLogText)"
+                  @click="copyToClipboard(displayedLogText)"
                 >
                   {{ t("taskDetail.copyLogs") }}
                 </Button>
