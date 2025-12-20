@@ -84,70 +84,72 @@ const statusLabel = computed(() => {
 </script>
 
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm">
+  <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col" data-testid="settings-card-app-update">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.appUpdateTitle") }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="p-2 space-y-2">
-      <div class="flex items-start justify-between gap-2">
-        <p class="text-[10px] text-muted-foreground leading-snug">
-          {{ t("app.settings.appUpdateDescription") }}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-6 px-2 text-[10px] shrink-0"
-          data-testid="settings-check-updates"
-          :disabled="!hasTauri() || appUpdate.configured === false || appUpdate.checking || appUpdate.installing"
-          @click="checkForAppUpdate?.({ force: true })"
-        >
-          {{ t("app.settings.checkForUpdatesButton") }}
-        </Button>
-      </div>
+    <CardContent class="p-2 flex flex-col flex-1">
+      <div class="flex flex-col flex-1 justify-between gap-2">
+        <div class="flex items-start justify-between gap-2">
+          <p class="text-[10px] text-muted-foreground leading-snug">
+            {{ t("app.settings.appUpdateDescription") }}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-6 px-2 text-[10px] shrink-0"
+            data-testid="settings-check-updates"
+            :disabled="!hasTauri() || appUpdate.configured === false || appUpdate.checking || appUpdate.installing"
+            @click="checkForAppUpdate?.({ force: true })"
+          >
+            {{ t("app.settings.checkForUpdatesButton") }}
+          </Button>
+        </div>
 
-      <div class="flex items-center justify-between gap-2">
-        <label class="flex items-center gap-2">
-          <Checkbox
-            v-model:checked="autoCheckModel"
-            class="h-3 w-3 border-border/50"
-            data-testid="settings-auto-check-updates"
-            :disabled="!hasTauri() || appUpdate.configured === false"
-          />
-          <span class="text-[10px] text-foreground">
-            {{ t("app.settings.autoCheckUpdatesLabel") }}
+        <div class="flex items-center justify-between gap-2">
+          <label class="flex items-center gap-2">
+            <Checkbox
+              v-model:checked="autoCheckModel"
+              class="h-3 w-3 border-border/50"
+              data-testid="settings-auto-check-updates"
+              :disabled="!hasTauri() || appUpdate.configured === false"
+            />
+            <span class="text-[10px] text-foreground">
+              {{ t("app.settings.autoCheckUpdatesLabel") }}
+            </span>
+          </label>
+
+          <span v-if="appUpdate.lastCheckedAtMs" class="text-[9px] text-muted-foreground">
+            {{ t("app.settings.lastCheckedAtLabel") }}
+            {{ new Date(appUpdate.lastCheckedAtMs).toLocaleString() }}
           </span>
-        </label>
+        </div>
 
-        <span v-if="appUpdate.lastCheckedAtMs" class="text-[9px] text-muted-foreground">
-          {{ t("app.settings.lastCheckedAtLabel") }}
-          {{ new Date(appUpdate.lastCheckedAtMs).toLocaleString() }}
-        </span>
-      </div>
-
-      <div class="flex items-start justify-between gap-2">
-        <p
-          class="text-[10px] leading-snug"
-          :class="appUpdate.error ? 'text-red-500' : appUpdate.available ? 'text-sky-400' : 'text-muted-foreground'"
-          data-testid="settings-update-status"
-        >
-          {{ statusLabel }}
-          <span v-if="progressLabel" class="block text-[9px] text-muted-foreground mt-0.5">
-            {{ t("app.settings.downloadProgressLabel") }} {{ progressLabel }}
-          </span>
-        </p>
-        <Button
-          v-if="appUpdate.available"
-          variant="default"
-          size="sm"
-          class="h-6 px-2 text-[10px] shrink-0"
-          data-testid="settings-install-update"
-          :disabled="!hasTauri() || appUpdate.configured === false || appUpdate.checking || appUpdate.installing"
-          @click="installAppUpdate?.()"
-        >
-          {{ t("app.settings.installUpdateButton") }}
-        </Button>
+        <div class="flex items-start justify-between gap-2">
+          <p
+            class="text-[10px] leading-snug"
+            :class="appUpdate.error ? 'text-red-500' : appUpdate.available ? 'text-sky-400' : 'text-muted-foreground'"
+            data-testid="settings-update-status"
+          >
+            {{ statusLabel }}
+            <span v-if="progressLabel" class="block text-[9px] text-muted-foreground mt-0.5">
+              {{ t("app.settings.downloadProgressLabel") }} {{ progressLabel }}
+            </span>
+          </p>
+          <Button
+            v-if="appUpdate.available"
+            variant="default"
+            size="sm"
+            class="h-6 px-2 text-[10px] shrink-0"
+            data-testid="settings-install-update"
+            :disabled="!hasTauri() || appUpdate.configured === false || appUpdate.checking || appUpdate.installing"
+            @click="installAppUpdate?.()"
+          >
+            {{ t("app.settings.installUpdateButton") }}
+          </Button>
+        </div>
       </div>
     </CardContent>
   </Card>

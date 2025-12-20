@@ -6,6 +6,8 @@ import type { AppSettings } from "@/types";
 
 const props = defineProps<{
   appSettings: AppSettings;
+  adaptiveFill?: boolean;
+  hideTitle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -28,12 +30,14 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
 </script>
 
 <template>
-  <div class="py-1 space-y-1.5">
-    <p class="text-[11px] font-medium text-foreground">
+  <div class="py-1 space-y-1.5 flex flex-col min-h-0">
+    <p v-if="!hideTitle" class="text-[11px] font-medium text-foreground">
       {{ t("app.settings.queuePersistenceLabel") }}
     </p>
     <RadioGroup
+      data-testid="settings-queue-persistence-mode-group"
       class="grid gap-0.5"
+      :class="adaptiveFill ? 'auto-rows-min content-between flex-1' : ''"
       :model-value="appSettings.queuePersistenceMode ?? 'none'"
       @update:model-value="(v) => updateSetting('queuePersistenceMode', v as any)"
     >

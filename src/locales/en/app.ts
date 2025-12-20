@@ -15,7 +15,7 @@ const app = {
   monitorHint: "Inspect CPU/GPU and other performance metrics.",
   settingsHint: "Configure external tool paths, auto-download, preview, and queue behaviour.",
   settings: {
-    externalToolsTitle: "External tools",
+    externalToolsTitle: "Tool management",
     externalToolsDescription:
       "Manage ffmpeg / ffprobe / avifenc availability, custom paths, and how the app manages these tools.",
     refreshToolsStatus: "Refresh status",
@@ -75,9 +75,8 @@ const app = {
     toolUpToDateHint: "Up to date",
     customToolPathFooter:
       "When a custom path is set, it takes precedence; otherwise the app searches the auto-downloaded tools directory or system PATH.",
-    autoDownloadSectionTitle: "Auto-download & global behaviour",
-    autoDownloadSectionDescription:
-      "Choose how the app manages external tools, and configure preview capture and queue limits.",
+    autoDownloadSectionTitle: "Auto-download",
+    autoDownloadSectionDescription: "Choose how the app auto-downloads and auto-updates external tools.",
     autoDownloadTitle: "Auto-download",
     autoDownloadDescription: "Choose how the app manages external tools.",
     globalParamsTitle: "Global parameters",
@@ -107,6 +106,7 @@ const app = {
     networkProxyUrlPlaceholder: "e.g. http://127.0.0.1:7890",
     networkProxyUrlHint:
       "Currently supports HTTP/HTTPS proxies (e.g. http://host:port). Changes take effect immediately.",
+    performanceConcurrencyTitle: "Concurrency",
     previewCaptureLabel: "Preview capture position (%)",
     previewCaptureHelp: "Percentage of total video duration used when capturing thumbnails; default is 25.",
     parallelismModeLabel: "Concurrency mode",
@@ -123,12 +123,15 @@ const app = {
     maxParallelCpuJobsHelp: "Applies to software encoders (e.g. x264/x265/SVT-AV1). Default is 2.",
     maxParallelHwJobsLabel: "Max parallel hardware transcode jobs",
     maxParallelHwJobsHelp: "Applies to hardware encoders (e.g. NVENC/QSV/AMF). Default is 1.",
+    refreshFrequencyTitle: "Refresh rates",
     progressUpdateIntervalLabel: "Progress update interval (ms)",
     progressUpdateIntervalHelp:
       "Controls how often the backend reports ffmpeg progress and how much buffering the UI uses. Smaller values are more real-time; larger values are smoother.",
     metricsIntervalLabel: "Performance monitoring interval (ms)",
     metricsIntervalHelp:
       "Controls how frequently system performance metrics are sampled. Smaller values feel more continuous but cost more resources; larger values are cheaper but less real-time.",
+    queueRecoveryTitle: "Queue recovery",
+    queueRecoveryDescription: "Configure crash recovery and log retention limits.",
     queuePersistenceLabel: "Queue crash-recovery persistence",
     queuePersistenceNoneOption: "Off (do not restore queue)",
     queuePersistenceCrashRecoveryLiteOption: "Restore queue (slim logs only, recommended)",
@@ -203,12 +206,12 @@ const app = {
     refreshFonts: "Refresh",
     uiAppearancePreview: "Preview:",
     resetUiAppearanceButton: "Reset",
+    progressDisplayTitle: "Progress display",
     devtoolsSectionTitle: "Developer tools",
     devtoolsSectionDescription: "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
     devtoolsWindowHint: "Open Devtools.",
-    previewCacheSectionTitle: "Preview cache",
-    previewCacheSectionDescription:
-      "Manage cached preview images and fallback scrub frames stored under the app-managed previews directory.",
+    previewCacheSectionTitle: "Preview settings",
+    previewCacheSectionDescription: "Configure preview capture position and manage cached preview assets.",
     previewCacheSectionHint: "Cleanup runs in the background and will not block the UI.",
     previewCacheCleanupButton: "Clean up",
     previewCacheCleaning: "Cleaning…",
@@ -217,7 +220,7 @@ const app = {
     previewCacheCleanupErrorButton: "Error",
     previewCacheCleanupStarted: "Cleanup has been started in the background.",
     previewCacheCleanupNotStarted: "Cleanup could not be started.",
-    dataRootSectionTitle: "Data & storage",
+    dataRootSectionTitle: "Data storage",
     dataRootSectionDescription:
       "Choose where FFUI keeps settings, presets, cache, and logs. Export or import config bundles, or reset app-managed data.",
     dataRootFallbackTitle: "Portable mode fallback",
@@ -248,8 +251,7 @@ const app = {
     dataRootClearSuccess: "App data cleared and defaults restored.",
     dataRootStatusIdle: "Ready.",
     dataRootDesktopOnly: "Desktop app required to manage data storage.",
-    dataRootDesktopHint: "Data management actions run only in the desktop app.",
-    communityTitle: "Community",
+    communityTitle: "Community support",
     communityBadge: "Open source · GitHub",
     openRepoButton: "Open repo",
     authorLabel: "Author:",

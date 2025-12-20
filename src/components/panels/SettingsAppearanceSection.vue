@@ -289,7 +289,7 @@ const uiOpenSourceFontIdModel = computed<string>({
 });
 </script>
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm" :data-locale="locale">
+  <Card class="border-border/50 bg-card/95 shadow-sm" data-testid="settings-card-appearance" :data-locale="locale">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.appearanceTitle") }}

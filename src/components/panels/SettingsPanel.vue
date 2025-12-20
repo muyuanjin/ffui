@@ -6,9 +6,13 @@ import { useI18n } from "vue-i18n";
 import { hasTauri, openDevtools } from "@/lib/backend";
 import SettingsAppUpdatesSection from "@/components/panels/SettingsAppUpdatesSection.vue";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
-import SettingsEngineSection from "@/components/panels/SettingsEngineSection.vue";
+import SettingsAutoDownloadSection from "@/components/panels/SettingsAutoDownloadSection.vue";
+import SettingsNetworkProxyCard from "@/components/panels/SettingsNetworkProxyCard.vue";
+import SettingsPerformanceConcurrencySection from "@/components/panels/SettingsPerformanceConcurrencySection.vue";
+import SettingsRefreshFrequencySection from "@/components/panels/SettingsRefreshFrequencySection.vue";
+import SettingsQueueRecoverySection from "@/components/panels/SettingsQueueRecoverySection.vue";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
-import SettingsPreviewCacheSection from "@/components/panels/SettingsPreviewCacheSection.vue";
+import SettingsPreviewSection from "@/components/panels/SettingsPreviewSection.vue";
 import SettingsDataStorageSection from "@/components/panels/SettingsDataStorageSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import SettingsCommunitySection from "@/components/panels/SettingsCommunitySection.vue";
@@ -87,8 +91,8 @@ const systemStatus = computed(() => {
 
 <template>
   <section class="max-w-7xl mx-auto px-3 py-2 min-h-full flex flex-col" data-testid="settings-panel">
-    <div class="grid gap-2 items-stretch lg:grid-cols-12 flex-1 min-h-0">
-      <div class="lg:col-span-8 flex flex-col gap-2 min-h-0">
+    <div class="grid gap-2 items-stretch lg:grid-cols-12 grow shrink-0" data-testid="settings-panel-grid">
+      <div class="lg:col-span-8 flex flex-col gap-2" data-testid="settings-left-column">
         <SettingsExternalToolsSection
           :app-settings="appSettings"
           :tool-statuses="toolStatuses"
@@ -98,18 +102,37 @@ const systemStatus = computed(() => {
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
           @downloadTool="(kind) => emit('downloadTool', kind)"
         />
-        <SettingsEngineSection
+
+        <SettingsAutoDownloadSection
+          class="lg:flex-[1]"
           :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsNetworkProxyCard
+          :app-settings="appSettings"
+          @update:app-settings="(s) => emit('update:appSettings', s)"
+        />
+
+        <SettingsPerformanceConcurrencySection
+          class="lg:flex-[2]"
+          :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsQueueRecoverySection
+          :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsDataStorageSection
+          class="lg:flex-[4]"
+          :reload-presets="reloadPresets"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
       </div>
 
-      <div class="lg:col-span-4 flex flex-col gap-2 min-h-0">
-        <SettingsAppearanceSection
-          :app-settings="appSettings"
-          @update:app-settings="(settings) => emit('update:appSettings', settings)"
-        />
-
+      <div class="lg:col-span-4 flex flex-col gap-2" data-testid="settings-right-column">
         <SettingsAppUpdatesSection
           :app-settings="appSettings"
           :app-update="appUpdate"
@@ -118,17 +141,32 @@ const systemStatus = computed(() => {
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
 
-        <SettingsTaskbarProgressSection
+        <SettingsAppearanceSection
           :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
-        <SettingsPreviewCacheSection />
-        <SettingsDataStorageSection
-          :reload-presets="reloadPresets"
+
+        <SettingsPreviewSection
+          class="lg:flex-1"
+          :app-settings="appSettings"
+          @update:app-settings="(s) => emit('update:appSettings', s)"
+        />
+
+        <SettingsTaskbarProgressSection
+          class="lg:flex-1"
+          :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
+
+        <SettingsRefreshFrequencySection
+          class="lg:flex-1"
+          :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
         <SettingsCommunitySection />
-        <Card class="border-border/50 bg-card/95 shadow-sm">
+
+        <Card class="border-border/50 bg-card/95 shadow-sm" data-testid="settings-card-devtools">
           <CardHeader class="py-2 px-3 border-b border-border/30">
             <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
               {{ t("app.settings.devtoolsSectionTitle") }}

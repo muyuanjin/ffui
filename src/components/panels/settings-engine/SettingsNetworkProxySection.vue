@@ -64,7 +64,7 @@ const commitNetworkProxyUrlDraft = () => {
   <div class="py-1" data-testid="settings-network-proxy">
     <div class="flex items-center justify-between gap-2">
       <label class="text-[11px] font-medium text-foreground">
-        {{ t("app.settings.networkProxyTitle") }}
+        {{ t("app.settings.networkProxyModeLabel") }}
       </label>
       <RadioGroup
         class="flex items-center justify-end gap-2"

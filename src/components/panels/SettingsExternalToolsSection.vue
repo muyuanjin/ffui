@@ -303,14 +303,14 @@ const showRecentlyCheckedHint = (kind: ExternalToolKind): boolean => {
 </script>
 
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col min-h-0">
+  <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col" data-testid="settings-card-tool-management">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.externalToolsTitle") }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="p-2 flex-1 min-h-0">
-      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3 content-between h-full">
+    <CardContent class="p-2">
+      <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3" data-testid="settings-tool-management-grid">
         <ExternalToolCard
           v-for="tool in toolStatuses"
           :key="tool.kind"

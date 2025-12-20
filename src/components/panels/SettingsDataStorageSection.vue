@@ -212,143 +212,141 @@ const handleClearAll = async () => {
 </script>
 
 <template>
-  <Card class="border-border/50 bg-card/95 shadow-sm" data-testid="settings-data-storage">
+  <Card class="border-border/50 bg-card/95 shadow-sm flex flex-col" data-testid="settings-card-data-storage">
     <CardHeader class="py-2 px-3 border-b border-border/30">
       <CardTitle class="text-xs font-semibold tracking-wide uppercase text-muted-foreground">
         {{ t("app.settings.dataRootSectionTitle") }}
       </CardTitle>
     </CardHeader>
-    <CardContent class="p-2 space-y-2">
-      <p class="text-[10px] text-muted-foreground leading-snug">
-        {{ t("app.settings.dataRootSectionDescription") }}
-      </p>
+    <CardContent class="p-2 flex flex-col flex-1">
+      <div class="grid auto-rows-min content-between gap-2 flex-1">
+        <p class="text-[10px] text-muted-foreground leading-snug">
+          {{ t("app.settings.dataRootSectionDescription") }}
+        </p>
 
-      <Alert
-        v-if="dataRootInfo?.fallbackNoticePending"
-        class="border-amber-500/40 bg-amber-500/10"
-        data-testid="settings-data-root-fallback-notice"
-      >
-        <AlertTitle class="text-[11px]">{{ t("app.settings.dataRootFallbackTitle") }}</AlertTitle>
-        <AlertDescription class="text-[10px] leading-snug">
-          {{ t("app.settings.dataRootFallbackNotice") }}
-        </AlertDescription>
-        <Button
-          variant="outline"
-          size="sm"
-          class="mt-2 h-6 px-2 text-[10px]"
-          data-testid="settings-data-root-fallback-dismiss"
-          @click="dismissFallbackNotice"
+        <Alert
+          v-if="dataRootInfo?.fallbackNoticePending"
+          class="border-amber-500/40 bg-amber-500/10"
+          data-testid="settings-data-root-fallback-notice"
         >
-          {{ t("app.settings.dataRootFallbackDismiss") }}
-        </Button>
-      </Alert>
+          <AlertTitle class="text-[11px]">{{ t("app.settings.dataRootFallbackTitle") }}</AlertTitle>
+          <AlertDescription class="text-[10px] leading-snug">
+            {{ t("app.settings.dataRootFallbackNotice") }}
+          </AlertDescription>
+          <Button
+            variant="outline"
+            size="sm"
+            class="mt-2 h-6 px-2 text-[10px]"
+            data-testid="settings-data-root-fallback-dismiss"
+            @click="dismissFallbackNotice"
+          >
+            {{ t("app.settings.dataRootFallbackDismiss") }}
+          </Button>
+        </Alert>
 
-      <div class="flex items-center justify-between gap-2">
-        <div>
-          <p class="text-[11px] font-medium text-foreground">
-            {{ t("app.settings.dataRootModeLabel") }}
-          </p>
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-[11px] font-medium text-foreground">
+              {{ t("app.settings.dataRootModeLabel") }}
+            </p>
+            <p class="text-[9px] text-muted-foreground">
+              {{ t("app.settings.dataRootModeHint") }}
+            </p>
+          </div>
+          <Select v-model="desiredModeModel" :disabled="!dataRootInfo || activeAction === 'mode'">
+            <SelectTrigger
+              class="h-7 text-[10px] bg-background/50 border-border/30"
+              data-testid="settings-data-root-mode-trigger"
+            >
+              <SelectValue>{{ t(`app.settings.dataRootModes.${desiredModeModel}`) }}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="system" class="text-[10px]" data-testid="settings-data-root-mode-system">
+                {{ t("app.settings.dataRootModes.system") }}
+              </SelectItem>
+              <SelectItem value="portable" class="text-[10px]" data-testid="settings-data-root-mode-portable">
+                {{ t("app.settings.dataRootModes.portable") }}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div class="space-y-1">
           <p class="text-[9px] text-muted-foreground">
-            {{ t("app.settings.dataRootModeHint") }}
+            {{ t("app.settings.dataRootEffectiveLabel") }}
+            <span class="font-medium text-foreground">{{ effectiveModeLabel }}</span>
+          </p>
+          <p v-if="dataRootInfo?.switchPending" class="text-[9px] text-amber-600">
+            {{ t("app.settings.dataRootSwitchPending") }}
+          </p>
+          <p class="text-[9px] text-muted-foreground break-all">
+            {{ t("app.settings.dataRootPathLabel") }}
+            <span class="font-mono text-foreground">{{ dataRootPath || t("app.settings.unknownValue") }}</span>
+          </p>
+          <p v-if="dataRootError" class="text-[9px] text-destructive">
+            {{ dataRootError }}
           </p>
         </div>
-        <Select v-model="desiredModeModel" :disabled="!dataRootInfo || activeAction === 'mode'">
-          <SelectTrigger
-            class="h-7 text-[10px] bg-background/50 border-border/30"
-            data-testid="settings-data-root-mode-trigger"
-          >
-            <SelectValue>{{ t(`app.settings.dataRootModes.${desiredModeModel}`) }}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="system" class="text-[10px]" data-testid="settings-data-root-mode-system">
-              {{ t("app.settings.dataRootModes.system") }}
-            </SelectItem>
-            <SelectItem value="portable" class="text-[10px]" data-testid="settings-data-root-mode-portable">
-              {{ t("app.settings.dataRootModes.portable") }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+
+        <div class="grid gap-1">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootOpenLabel") }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px]"
+              data-testid="settings-data-root-open"
+              :disabled="activeAction === 'open'"
+              @click="handleOpenDir"
+            >
+              {{ t("app.settings.dataRootOpenButton") }}
+            </Button>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootExportLabel") }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px]"
+              data-testid="settings-data-root-export"
+              :disabled="activeAction === 'export'"
+              @click="handleExportConfig"
+            >
+              {{ t("app.settings.dataRootExportButton") }}
+            </Button>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootImportLabel") }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px]"
+              data-testid="settings-data-root-import"
+              :disabled="activeAction === 'import'"
+              @click="handleImportConfig"
+            >
+              {{ t("app.settings.dataRootImportButton") }}
+            </Button>
+          </div>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootClearLabel") }}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-6 px-2 text-[10px] border-destructive/60 text-destructive hover:bg-destructive/10"
+              data-testid="settings-data-root-clear"
+              :disabled="activeAction === 'clear'"
+              @click="handleClearAll"
+            >
+              {{ t("app.settings.dataRootClearButton") }}
+            </Button>
+          </div>
+        </div>
+
+        <p class="min-h-[14px] text-[9px]" :class="statusClass" data-testid="settings-data-root-status">
+          {{ actionStatus?.message ?? t("app.settings.dataRootStatusIdle") }}
+        </p>
       </div>
-
-      <div class="space-y-1">
-        <p class="text-[9px] text-muted-foreground">
-          {{ t("app.settings.dataRootEffectiveLabel") }}
-          <span class="font-medium text-foreground">{{ effectiveModeLabel }}</span>
-        </p>
-        <p v-if="dataRootInfo?.switchPending" class="text-[9px] text-amber-600">
-          {{ t("app.settings.dataRootSwitchPending") }}
-        </p>
-        <p class="text-[9px] text-muted-foreground break-all">
-          {{ t("app.settings.dataRootPathLabel") }}
-          <span class="font-mono text-foreground">{{ dataRootPath || t("app.settings.unknownValue") }}</span>
-        </p>
-        <p v-if="dataRootError" class="text-[9px] text-destructive">
-          {{ dataRootError }}
-        </p>
-      </div>
-
-      <div class="grid gap-1">
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootOpenLabel") }}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="settings-data-root-open"
-            :disabled="activeAction === 'open'"
-            @click="handleOpenDir"
-          >
-            {{ t("app.settings.dataRootOpenButton") }}
-          </Button>
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootExportLabel") }}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="settings-data-root-export"
-            :disabled="activeAction === 'export'"
-            @click="handleExportConfig"
-          >
-            {{ t("app.settings.dataRootExportButton") }}
-          </Button>
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootImportLabel") }}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px]"
-            data-testid="settings-data-root-import"
-            :disabled="activeAction === 'import'"
-            @click="handleImportConfig"
-          >
-            {{ t("app.settings.dataRootImportButton") }}
-          </Button>
-        </div>
-        <div class="flex items-center justify-between gap-2">
-          <span class="text-[10px] text-muted-foreground">{{ t("app.settings.dataRootClearLabel") }}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-6 px-2 text-[10px] border-destructive/60 text-destructive hover:bg-destructive/10"
-            data-testid="settings-data-root-clear"
-            :disabled="activeAction === 'clear'"
-            @click="handleClearAll"
-          >
-            {{ t("app.settings.dataRootClearButton") }}
-          </Button>
-        </div>
-      </div>
-
-      <p class="min-h-[14px] text-[9px]" :class="statusClass" data-testid="settings-data-root-status">
-        {{ actionStatus?.message ?? t("app.settings.dataRootStatusIdle") }}
-      </p>
-
-      <p class="text-[9px] text-muted-foreground leading-snug">
-        {{ t("app.settings.dataRootDesktopHint") }}
-      </p>
     </CardContent>
   </Card>
 </template>
