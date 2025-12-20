@@ -1,14 +1,14 @@
 use anyhow::Result;
 
 use super::io::{
-    executable_sidecar_path,
     read_json_file,
     write_json_file,
 };
 use super::types::AppSettings;
+use crate::ffui_core::data_root::settings_path;
 
 pub fn load_settings() -> Result<AppSettings> {
-    let path = executable_sidecar_path("settings.json")?;
+    let path = settings_path()?;
     if !path.exists() {
         return Ok(AppSettings::default());
     }
@@ -18,6 +18,6 @@ pub fn load_settings() -> Result<AppSettings> {
 }
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {
-    let path = executable_sidecar_path("settings.json")?;
+    let path = settings_path()?;
     write_json_file(&path, settings)
 }

@@ -1,6 +1,5 @@
 #[cfg(all(test, not(windows)))]
 mod tools_tests_manager {
-    use std::env;
     use std::fs::{
         self,
         File,
@@ -32,10 +31,15 @@ mod tools_tests_manager {
             probe_cache: None,
         };
 
-        // 在可执行旁的 tools 目录构造一个“下载过的” ffprobe 假二进制。
+        // 在数据根目录的 tools 子目录构造一个“下载过的” ffprobe 假二进制。
         // 选择 ffprobe 是为了避免与其它测试对 ffmpeg 的潜在并发。
-        let exe = env::current_exe().expect("current_exe");
-        let tools_dir = exe.parent().expect("exe dir").join("tools");
+        let tmp_root = tempfile::tempdir().expect("temp data root");
+        let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+            tmp_root.path().to_path_buf(),
+        );
+        let tools_dir = tmp_root
+            .path()
+            .join(crate::ffui_core::data_root::TOOLS_DIRNAME);
         fs::create_dir_all(&tools_dir).expect("mkdir tools");
 
         let bin = tools_dir.join("ffprobe");

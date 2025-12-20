@@ -51,6 +51,7 @@ export interface UseMainAppPresetsReturn {
     presetsToImport: FFmpegPreset[],
     options?: { replaceExisting?: boolean },
   ) => Promise<void>;
+  reloadPresets: () => Promise<void>;
   updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
@@ -189,6 +190,19 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     }
     const durationSeconds = (job.endTime - job.startTime) / 1000;
     updatePresetStats(job.presetId, input, output, durationSeconds);
+  };
+
+  const reloadPresets = async () => {
+    if (!hasTauri()) return;
+    try {
+      const loaded = await loadPresets();
+      if (Array.isArray(loaded) && loaded.length > 0) {
+        presets.value = loaded;
+        ensureManualPresetId();
+      }
+    } catch (error) {
+      console.error("Failed to reload presets from backend:", error);
+    }
   };
 
   const handleSavePreset = async (preset: FFmpegPreset) => {
@@ -437,6 +451,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     handleSavePreset,
     handleReorderPresets,
     handleImportSmartPackConfirmed,
+    reloadPresets,
     updatePresetStats,
     handleCompletedJobFromBackend,
     requestDeletePreset,

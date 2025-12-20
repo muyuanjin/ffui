@@ -97,3 +97,6 @@ export type {
   NetworkProxyMode,
   NetworkProxySettings,
 } from "./settings";
+
+// Data root + config bundle types
+export type { DataRootMode, DataRootInfo, ConfigBundleExportResult, ConfigBundleImportResult } from "./data-root";

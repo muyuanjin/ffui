@@ -243,6 +243,14 @@ impl TranscodingEngine {
         Ok(state.presets.clone())
     }
 
+    /// Replace the full preset list with the provided snapshot.
+    pub fn replace_presets(&self, next: Vec<FFmpegPreset>) -> Result<Arc<Vec<FFmpegPreset>>> {
+        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        state.presets = Arc::new(next);
+        settings::save_presets(&state.presets)?;
+        Ok(state.presets.clone())
+    }
+
     /// Delete a preset by ID.
     pub fn delete_preset(&self, preset_id: &str) -> Result<Arc<Vec<FFmpegPreset>>> {
         let mut state = self.inner.state.lock().expect("engine state poisoned");

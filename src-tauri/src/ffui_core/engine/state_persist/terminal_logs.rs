@@ -56,10 +56,7 @@ fn queue_logs_dir() -> Option<PathBuf> {
         }
     }
 
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    let stem = exe.file_stem()?.to_str()?;
-    Some(dir.join(format!("{stem}.queue-logs")))
+    crate::ffui_core::queue_logs_dir().ok()
 }
 
 pub(in crate::ffui_core::engine) fn queue_job_log_path(job_id: &str) -> Option<PathBuf> {

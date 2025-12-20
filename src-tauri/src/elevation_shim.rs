@@ -242,19 +242,15 @@ mod tests {
 
     #[test]
     fn mark_skip_for_children_sets_and_detects_flag() {
+        let _lock = crate::test_support::env_lock();
+        let _guard = crate::test_support::EnvVarGuard::capture([SKIP_FLAG_ENV]);
+
         // 确保起始环境里没有跳过标记。
-        unsafe {
-            std::env::remove_var(SKIP_FLAG_ENV);
-        }
+        crate::test_support::remove_env(SKIP_FLAG_ENV);
         assert!(!should_skip_shim());
 
         // 调用 mark_skip_for_children 后，should_skip_shim 必须返回 true。
         mark_skip_for_children();
         assert!(should_skip_shim());
-
-        // 清理环境，避免污染其他测试。
-        unsafe {
-            std::env::remove_var(SKIP_FLAG_ENV);
-        }
     }
 }

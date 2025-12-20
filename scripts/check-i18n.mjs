@@ -133,6 +133,8 @@ function main() {
     return;
   }
 
+  process.exitCode = 1;
+
   if (missingEn.length > 0) {
     console.log("\\nMissing in EN:");
     for (const k of missingEn.sort()) {

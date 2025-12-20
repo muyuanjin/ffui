@@ -1,8 +1,4 @@
-use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 use anyhow::{
     Context,
@@ -76,15 +72,7 @@ pub fn resolve_tool_path(
 }
 
 pub(super) fn tools_dir() -> Result<PathBuf> {
-    let exe = std::env::current_exe().context("failed to resolve current executable")?;
-    let dir = exe
-        .parent()
-        .map(Path::to_path_buf)
-        .context("failed to resolve executable directory")?;
-    let tools = dir.join("tools");
-    fs::create_dir_all(&tools)
-        .with_context(|| format!("failed to create tools directory {}", tools.display()))?;
-    Ok(tools)
+    crate::ffui_core::tools_dir().context("failed to resolve tools directory")
 }
 
 pub(super) fn downloaded_tool_filename(base: &str) -> String {

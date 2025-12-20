@@ -80,7 +80,6 @@ const {
   bulkMoveToTop,
   bulkMoveToBottom,
   bulkDelete,
-
   // 媒体检查
   isInspectingMedia,
   mediaInspectError,
@@ -91,7 +90,6 @@ const {
   inspectedRawJson,
   openMediaFileDialog,
   clearInspectedMedia,
-
   // 设置与外部工具
   appSettings,
   toolStatuses,
@@ -157,6 +155,7 @@ const {
   openPresetEditor,
   requestDeletePreset,
   handleReorderPresets,
+  reloadPresets,
   smartConfig,
   queueProgressStyle,
   progressUpdateIntervalMs,
@@ -396,6 +395,7 @@ defineExpose({
               :refresh-tool-statuses="settings.refreshToolStatuses"
               :is-saving-settings="isSavingSettings"
               :settings-save-error="settingsSaveError"
+              :reload-presets="reloadPresets"
               :app-update="{
                 configured: updaterConfigured,
                 autoCheckDefault,

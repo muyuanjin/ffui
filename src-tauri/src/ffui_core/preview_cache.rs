@@ -11,11 +11,7 @@ use anyhow::{
 };
 
 pub(crate) fn previews_root_dir_best_effort() -> Result<PathBuf> {
-    let exe = std::env::current_exe().context("current_exe failed")?;
-    let exe_dir = exe
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("current_exe has no parent directory"))?;
-    Ok(exe_dir.join("previews"))
+    crate::ffui_core::previews_dir()
 }
 
 pub(crate) fn referenced_preview_filenames(

@@ -77,14 +77,8 @@ impl TranscodingEngine {
             PathBuf,
         };
 
-        let previews_root = {
-            let exe = std::env::current_exe().ok();
-            exe.as_ref()
-                .and_then(|p| p.parent())
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join("previews")
-        };
+        let previews_root = crate::ffui_core::previews_dir()
+            .unwrap_or_else(|_| PathBuf::from(".").join("previews"));
 
         let jobs_snapshot: Vec<(String, String, Option<f64>)> = {
             let state = self.inner.state.lock().expect("engine state poisoned");

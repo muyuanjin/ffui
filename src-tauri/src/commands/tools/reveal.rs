@@ -102,7 +102,7 @@ fn execute_reveal_command(_cmd: &RevealCommand) -> Result<(), String> {
     Ok(())
 }
 
-pub(super) fn reveal_path_in_folder_impl(path: String) -> Result<(), String> {
+pub(crate) fn reveal_path_in_folder_impl(path: String) -> Result<(), String> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err("path is empty".to_string());

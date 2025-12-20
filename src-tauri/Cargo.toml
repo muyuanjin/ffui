@@ -75,3 +75,8 @@ panic = "abort"
 strip = true
 debug = 0
 incremental = false
+
+[profile.check-all]
+inherits = "dev"
+debug = 0
+incremental = false

@@ -79,10 +79,7 @@ fn queue_state_sidecar_path() -> Option<PathBuf> {
         }
     }
 
-    let exe = std::env::current_exe().ok()?;
-    let dir = exe.parent()?;
-    let stem = exe.file_stem()?.to_str()?;
-    Some(dir.join(format!("{stem}.queue-state.json")))
+    crate::ffui_core::queue_state_path().ok()
 }
 
 pub(super) fn load_persisted_queue_state() -> Option<QueueState> {

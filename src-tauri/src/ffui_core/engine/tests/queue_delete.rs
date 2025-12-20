@@ -2,6 +2,10 @@ use super::*;
 
 #[test]
 fn delete_job_only_allows_terminal_statuses() {
+    let data_root = tempfile::tempdir().expect("temp data root");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
     let engine = TranscodingEngine::new().expect("failed to create engine");
 
     // Enqueue a waiting job.

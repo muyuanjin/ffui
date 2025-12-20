@@ -243,16 +243,7 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
 }
 
 fn preview_root_dir_for_security() -> Result<PathBuf, String> {
-    use std::env;
-
-    let exe = env::current_exe().map_err(|e| format!("current_exe failed: {e}"))?;
-    let exe_dir = exe
-        .parent()
-        .ok_or_else(|| "current_exe has no parent directory".to_string())?;
-    let exe_dir_canon = exe_dir
-        .canonicalize()
-        .map_err(|e| format!("failed to canonicalize exe directory: {e}"))?;
-    Ok(exe_dir_canon.join("previews"))
+    crate::ffui_core::previews_dir().map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -293,6 +284,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
+        let data_root = tmp_dir.join(format!("ffui_test_data_root_{timestamp}"));
+        let preview_root = data_root.join("previews");
+        let _ = fs::create_dir_all(&preview_root);
+        let data_root_guard = crate::ffui_core::override_data_root_dir_for_tests(data_root);
         let path = tmp_dir.join(format!("ffui_test_outside_{timestamp}.jpg"));
 
         fs::write(&path, b"dummy-bytes").expect("failed to write outside preview file");
@@ -303,6 +298,7 @@ mod tests {
             err.contains("outside the previews directory"),
             "unexpected error message for outside preview path: {err}"
         );
+        drop(data_root_guard);
     }
 }
 

@@ -2,6 +2,20 @@ use super::*;
 
 #[test]
 fn presets_snapshot_is_reused_and_cow_on_mutation() {
+    use std::time::{
+        SystemTime,
+        UNIX_EPOCH,
+    };
+
+    let tmp_dir = std::env::temp_dir();
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let data_root = tmp_dir.join(format!("ffui_test_data_root_{timestamp}"));
+    let _ = std::fs::create_dir_all(&data_root);
+    let data_root_guard = crate::ffui_core::override_data_root_dir_for_tests(data_root);
+
     let engine = make_engine_with_preset();
 
     let before = engine.presets();
@@ -44,4 +58,5 @@ fn presets_snapshot_is_reused_and_cow_on_mutation() {
         updated.name, preset.name,
         "updated snapshot should reflect the mutation"
     );
+    drop(data_root_guard);
 }

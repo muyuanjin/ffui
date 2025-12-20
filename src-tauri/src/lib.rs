@@ -4,6 +4,9 @@ mod queue_events;
 mod single_instance;
 mod system_metrics;
 
+#[cfg(test)]
+pub mod test_support;
+
 // Taskbar progress APIs are Windows-only; on other platforms we keep the module
 // present but empty so `-D warnings` does not fail due to unused helpers.
 #[cfg(windows)]
@@ -70,11 +73,9 @@ pub fn run() {
         );
     }
 
-    let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");
     let metrics_state = MetricsState::default();
 
     let mut builder = tauri::Builder::default()
-        .manage(engine)
         .manage(metrics_state.clone())
         .manage(commands::ui_fonts::UiFontDownloadManager::default());
 
@@ -116,6 +117,13 @@ pub fn run() {
             commands::settings::get_batch_compress_defaults,
             commands::settings::save_batch_compress_defaults,
             commands::settings::run_auto_compress,
+            commands::data_root::get_data_root_info,
+            commands::data_root::set_data_root_mode,
+            commands::data_root::acknowledge_data_root_fallback_notice,
+            commands::data_root::open_data_root_dir,
+            commands::data_root::export_config_bundle,
+            commands::data_root::import_config_bundle,
+            commands::data_root::clear_all_app_data,
             commands::ui_fonts::get_system_font_families,
             commands::ui_fonts::list_open_source_fonts,
             commands::ui_fonts::start_open_source_font_download,
@@ -162,6 +170,10 @@ pub fn run() {
             if let Some(server) = focus_server.take() {
                 server.spawn(app.handle().clone());
             }
+
+            let _data_root = crate::ffui_core::init_data_root(app.handle())?;
+            let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");
+            app.manage(engine);
 
             #[cfg(windows)]
             {
@@ -279,14 +291,17 @@ mod tests {
             UNIX_EPOCH,
         };
 
+        let tmp_dir = std::env::temp_dir();
         // Write a small dummy JPEG-like payload into the previews directory and
         // ensure the helper returns a data URL with the expected prefix.
-        let preview_root = crate::commands::tools::preview_root_dir_for_tests();
-        let _ = fs::create_dir_all(&preview_root);
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
+        let data_root = tmp_dir.join(format!("ffui_test_data_root_{timestamp}"));
+        let data_root_guard = crate::ffui_core::override_data_root_dir_for_tests(data_root);
+        let preview_root = crate::commands::tools::preview_root_dir_for_tests();
+        let _ = fs::create_dir_all(&preview_root);
         let path = preview_root.join(format!("ffui_test_preview_{timestamp}.jpg"));
 
         fs::write(&path, b"dummy-preview-bytes").expect("failed to write preview test file");
@@ -298,6 +313,7 @@ mod tests {
             url.starts_with("data:image/jpeg;base64,"),
             "preview data url must start with JPEG data URL prefix, got: {url}"
         );
+        drop(data_root_guard);
     }
 
     #[test]

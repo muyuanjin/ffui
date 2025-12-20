@@ -184,13 +184,7 @@ pub(super) fn concat_video_segments(
 }
 
 fn preview_root_dir() -> PathBuf {
-    let exe = std::env::current_exe().ok();
-    let dir = exe
-        .as_ref()
-        .and_then(|p| p.parent())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    dir.join("previews")
+    crate::ffui_core::previews_dir().unwrap_or_else(|_| PathBuf::from(".").join("previews"))
 }
 
 pub(super) fn build_preview_output_path(input: &Path, capture_percent: u8) -> PathBuf {

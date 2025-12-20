@@ -62,13 +62,9 @@ fn configure_background_command(cmd: &mut Command) {
 #[cfg(not(windows))]
 fn configure_background_command(_cmd: &mut Command) {}
 fn previews_root_dir() -> Result<PathBuf> {
-    let exe = std::env::current_exe().context("current_exe failed")?;
-    let exe_dir = exe
-        .parent()
-        .ok_or_else(|| anyhow::anyhow!("current_exe has no parent directory"))?;
     // Avoid canonicalizing on Windows: `std::fs::canonicalize` may introduce a
     // `\\?\` verbatim prefix, and some FFmpeg builds fail to open such paths.
-    Ok(exe_dir.join("previews"))
+    crate::ffui_core::previews_dir()
 }
 fn fallback_cache_root_dir() -> Result<PathBuf> {
     Ok(previews_root_dir()?.join("fallback-cache"))

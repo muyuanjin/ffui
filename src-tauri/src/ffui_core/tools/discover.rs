@@ -253,13 +253,11 @@ fn sort_by_proximity(paths: &mut [PathBuf]) {
     fn norm(p: &Path) -> String {
         p.to_string_lossy().replace('/', "\\").to_ascii_lowercase()
     }
-    let exe_dir = std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
-    let (exe_dir_s, tools_dir_s) = if let Some(dir) = exe_dir {
-        let exe_s = norm(&dir);
-        let tools_s = norm(&dir.join("tools"));
-        (exe_s, tools_s)
+    let data_root = crate::ffui_core::data_root_dir().ok();
+    let (data_root_s, tools_dir_s) = if let Some(dir) = data_root {
+        let root_s = norm(&dir);
+        let tools_s = norm(&dir.join(crate::ffui_core::data_root::TOOLS_DIRNAME));
+        (root_s, tools_s)
     } else {
         (String::new(), String::new())
     };
@@ -273,7 +271,7 @@ fn sort_by_proximity(paths: &mut [PathBuf]) {
         let rank = |s: &str| -> (u8, usize) {
             if !tools_dir_s.is_empty() && s.starts_with(&tools_dir_s) {
                 (0, s.len())
-            } else if !exe_dir_s.is_empty() && s.starts_with(&exe_dir_s) {
+            } else if !data_root_s.is_empty() && s.starts_with(&data_root_s) {
                 (1, s.len())
             } else if !windir_s.is_empty() && s.starts_with(&windir_s) {
                 (2, s.len())
@@ -320,15 +318,10 @@ mod tests {
         let fake = dir.path().join("ffmpeg");
         std::fs::write(&fake, b"#!/bin/sh\nexit 0").expect("write fake tool");
 
-        // These test-only env tweaks are confined to this thread, and we
-        // restore the variable immediately afterwards.
-        unsafe {
-            std::env::set_var("FFUI_FFMPEG", &fake);
-        }
+        let _lock = crate::test_support::env_lock();
+        let _guard = crate::test_support::EnvVarGuard::capture(["FFUI_FFMPEG"]);
+        crate::test_support::set_env("FFUI_FFMPEG", &fake);
         let candidates = super::discover_candidates("ffmpeg", ExternalToolKind::Ffmpeg);
-        unsafe {
-            std::env::remove_var("FFUI_FFMPEG");
-        }
 
         assert!(
             candidates

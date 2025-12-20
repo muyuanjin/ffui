@@ -7,8 +7,10 @@ use crate::ffui_core::settings::presets::default_presets;
 #[test]
 fn load_presets_provides_defaults_when_file_missing_or_empty() {
     presets::with_presets_sidecar_lock(|| {
-        let path = super::io::executable_sidecar_path("presets.json")
-            .expect("resolve presets sidecar path for test");
+        let dir = tempfile::tempdir().expect("temp data root");
+        let _guard =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
+        let path = crate::ffui_core::presets_path().expect("resolve presets path for test");
         // Ensure we start from a clean state with no presets.json.
         let _ = fs::remove_file(&path);
         let presets = load_presets().expect("load_presets should succeed without file");
@@ -38,8 +40,10 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
 #[test]
 fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
     presets::with_presets_sidecar_lock(|| {
-        let path = super::io::executable_sidecar_path("presets.json")
-            .expect("resolve presets sidecar path for test");
+        let dir = tempfile::tempdir().expect("temp data root");
+        let _guard =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
+        let path = crate::ffui_core::presets_path().expect("resolve presets path for test");
         // Start from a clean state.
         let _ = fs::remove_file(&path);
         // Simulate a user who deleted the built-in "Universal 1080p" preset (p1)

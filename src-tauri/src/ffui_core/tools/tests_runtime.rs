@@ -145,6 +145,9 @@ mod tools_tests_runtime {
     #[test]
     fn tool_status_uses_env_discovery_for_avifenc() {
         let _guard = TEST_MUTEX.lock().unwrap();
+        let _env_lock = crate::test_support::env_lock();
+        let _env_guard =
+            crate::test_support::EnvVarGuard::capture(["PATH", "FFUI_AVIFENC", "FFUI_TOOL"]);
 
         {
             let mut map = TOOL_DOWNLOAD_STATE
@@ -188,21 +191,9 @@ mod tools_tests_runtime {
                 .expect("mark fake avifenc script as executable");
         }
 
-        let original_path = std::env::var("PATH").ok();
-        let original_env_avifenc = std::env::var("FFUI_AVIFENC").ok();
-        let original_env_tool = std::env::var("FFUI_TOOL").ok();
-
-        fn set_env<K: AsRef<std::ffi::OsStr>, V: AsRef<std::ffi::OsStr>>(k: K, v: V) {
-            unsafe { std::env::set_var(k, v) }
-        }
-
-        fn remove_env<K: AsRef<std::ffi::OsStr>>(k: K) {
-            unsafe { std::env::remove_var(k) }
-        }
-
-        set_env("PATH", "");
-        set_env("FFUI_AVIFENC", &avifenc_path);
-        remove_env("FFUI_TOOL");
+        crate::test_support::set_env("PATH", "");
+        crate::test_support::set_env("FFUI_AVIFENC", &avifenc_path);
+        crate::test_support::remove_env("FFUI_TOOL");
 
         let settings = ExternalToolSettings {
             ffmpeg_path: None,
@@ -216,22 +207,6 @@ mod tools_tests_runtime {
         };
 
         let status = crate::ffui_core::tools::tool_status(ExternalToolKind::Avifenc, &settings);
-
-        if let Some(v) = original_path {
-            set_env("PATH", v);
-        } else {
-            remove_env("PATH");
-        }
-        if let Some(v) = original_env_avifenc {
-            set_env("FFUI_AVIFENC", v);
-        } else {
-            remove_env("FFUI_AVIFENC");
-        }
-        if let Some(v) = original_env_tool {
-            set_env("FFUI_TOOL", v);
-        } else {
-            remove_env("FFUI_TOOL");
-        }
 
         assert_eq!(
             status.resolved_path.as_deref(),

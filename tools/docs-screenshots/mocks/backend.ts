@@ -2,6 +2,10 @@ import type {
   AppSettings,
   AutoCompressResult,
   CpuUsageSnapshot,
+  ConfigBundleExportResult,
+  ConfigBundleImportResult,
+  DataRootInfo,
+  DataRootMode,
   ExternalToolCandidate,
   ExternalToolKind,
   ExternalToolStatus,
@@ -69,7 +73,7 @@ const resolveUiFontName = (): string | null => {
   return v.length > 0 ? v : null;
 };
 
-export const hasTauri = () => true;
+export const hasTauri = () => false;
 
 export const buildPreviewUrl = (path: string | null | undefined): string | null => {
   if (!path) return null;
@@ -233,6 +237,68 @@ export const loadAppSettings = async (): Promise<AppSettings> => {
 export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
   appSettingsSnapshot = settings;
   return settings;
+};
+
+let dataRootInfoSnapshot: DataRootInfo = {
+  desiredMode: "system",
+  effectiveMode: "system",
+  dataRoot: "C:/Users/Docs/AppData/Roaming/FFUI",
+  systemRoot: "C:/Users/Docs/AppData/Roaming/FFUI",
+  portableRoot: "D:/FFUI-Portable",
+  fallbackActive: false,
+  fallbackNoticePending: false,
+  switchPending: false,
+};
+
+export const fetchDataRootInfo = async (): Promise<DataRootInfo> => {
+  return dataRootInfoSnapshot;
+};
+
+export const setDataRootMode = async (mode: DataRootMode): Promise<DataRootInfo> => {
+  const root = mode === "portable" ? dataRootInfoSnapshot.portableRoot : dataRootInfoSnapshot.systemRoot;
+  dataRootInfoSnapshot = {
+    ...dataRootInfoSnapshot,
+    desiredMode: mode,
+    effectiveMode: mode,
+    dataRoot: root,
+    fallbackActive: false,
+    fallbackNoticePending: false,
+    switchPending: false,
+  };
+  return dataRootInfoSnapshot;
+};
+
+export const acknowledgeDataRootFallbackNotice = async (): Promise<boolean> => {
+  dataRootInfoSnapshot = { ...dataRootInfoSnapshot, fallbackNoticePending: false };
+  return true;
+};
+
+export const openDataRootDir = async (): Promise<void> => {};
+
+export const exportConfigBundle = async (targetPath: string): Promise<ConfigBundleExportResult> => {
+  const presets = await loadPresets();
+  return {
+    path: targetPath,
+    appVersion: "docs-screenshot",
+    exportedAtMs: Date.now(),
+    presetCount: presets.length,
+  };
+};
+
+export const importConfigBundle = async (_sourcePath: string): Promise<ConfigBundleImportResult> => {
+  const settings = await loadAppSettings();
+  const presets = await loadPresets();
+  return {
+    settings,
+    presetCount: presets.length,
+    schemaVersion: 1,
+    appVersion: "docs-screenshot",
+  };
+};
+
+export const clearAllAppData = async (): Promise<AppSettings> => {
+  appSettingsSnapshot = makeAppSettings();
+  return appSettingsSnapshot;
 };
 
 export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolStatus[]> => {

@@ -9,6 +9,7 @@ import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSec
 import SettingsEngineSection from "@/components/panels/SettingsEngineSection.vue";
 import SettingsExternalToolsSection from "@/components/panels/SettingsExternalToolsSection.vue";
 import SettingsPreviewCacheSection from "@/components/panels/SettingsPreviewCacheSection.vue";
+import SettingsDataStorageSection from "@/components/panels/SettingsDataStorageSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import SettingsCommunitySection from "@/components/panels/SettingsCommunitySection.vue";
 import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
@@ -45,6 +46,8 @@ const props = withDefaults(
     isSavingSettings: boolean;
     /** Settings save error message */
     settingsSaveError: string | null;
+    /** Reload presets from backend after data imports. */
+    reloadPresets?: () => Promise<void>;
     /** Fetch available candidate binaries for a tool kind. */
     fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   }>(),
@@ -120,6 +123,10 @@ const systemStatus = computed(() => {
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />
         <SettingsPreviewCacheSection />
+        <SettingsDataStorageSection
+          :reload-presets="reloadPresets"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
         <SettingsCommunitySection />
         <Card class="border-border/50 bg-card/95 shadow-sm">
           <CardHeader class="py-2 px-3 border-b border-border/30">

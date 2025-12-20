@@ -6,6 +6,7 @@
 //! - `settings`: App settings and batch compress configuration
 //! - `tools`: System monitoring and tool management
 
+pub mod data_root;
 pub mod job_compare;
 pub mod output;
 pub mod presets;

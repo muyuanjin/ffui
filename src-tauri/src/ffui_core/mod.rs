@@ -1,4 +1,6 @@
 mod compare_preview;
+mod config_bundle;
+mod data_root;
 mod domain;
 mod engine;
 mod fallback_preview;
@@ -15,6 +17,31 @@ pub(crate) use compare_preview::extract_concat_preview_frame;
 pub(crate) use compare_preview::{
     build_concat_list_contents_for_tests,
     compare_frames_dir_for_tests,
+};
+pub(crate) use config_bundle::{
+    ConfigBundleExportResult,
+    ConfigBundleImportResult,
+    export_config_bundle,
+    read_config_bundle,
+};
+pub(crate) use data_root::{
+    DataRootInfo,
+    DataRootMode,
+    acknowledge_fallback_notice,
+    clear_app_data_root,
+    data_root_dir,
+    data_root_info,
+    init_data_root,
+    previews_dir,
+    queue_logs_dir,
+    queue_state_path,
+    set_desired_mode as set_data_root_mode,
+    tools_dir,
+};
+#[cfg(test)]
+pub(crate) use data_root::{
+    override_data_root_dir_for_tests,
+    presets_path,
 };
 pub use domain::*;
 pub use engine::{
@@ -44,6 +71,7 @@ pub(crate) use preview_cache::{
     previews_root_dir_best_effort,
     referenced_preview_filenames,
 };
+pub(crate) use settings::load_presets;
 #[cfg_attr(not(windows), allow(unused_imports))]
 pub use settings::{
     AppSettings,

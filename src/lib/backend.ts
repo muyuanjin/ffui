@@ -20,6 +20,7 @@ import type {
 } from "../types";
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
+import { hasTauri } from "./backend.core";
 export type {
   AppUpdaterCapabilities,
   DownloadedFontInfo,
@@ -27,13 +28,16 @@ export type {
   UiFontDownloadStatus,
   UiFontDownloadSnapshot,
 } from "./backend.types";
-export const hasTauri = () => {
-  if (typeof window === "undefined") return false;
-  const w = window as any;
-  // In Tauri 2, `__TAURI_IPC__` is always present in the webview. `__TAURI__`
-  // exists only when `withGlobalTauri` is enabled. We treat either as Tauri.
-  return "__TAURI_IPC__" in w || "__TAURI__" in w;
-};
+export { hasTauri } from "./backend.core";
+export {
+  acknowledgeDataRootFallbackNotice,
+  clearAllAppData,
+  exportConfigBundle,
+  fetchDataRootInfo,
+  importConfigBundle,
+  openDataRootDir,
+  setDataRootMode,
+} from "./backend.data-root";
 
 export { fetchAppUpdaterCapabilities, prepareAppUpdaterProxy } from "./backend.updater";
 

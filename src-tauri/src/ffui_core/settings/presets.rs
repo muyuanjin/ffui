@@ -4,10 +4,10 @@ use std::sync::Mutex;
 use anyhow::Result;
 
 use super::io::{
-    executable_sidecar_path,
     read_json_file,
     write_json_file,
 };
+use crate::ffui_core::data_root::presets_path;
 use crate::ffui_core::domain::{
     AudioCodecType,
     AudioConfig,
@@ -20,9 +20,9 @@ use crate::ffui_core::domain::{
 };
 
 // Many unit tests (and some integration-style tests) touch the same
-// `{binary}.presets.json` sidecar path next to the test executable.
-// Guard this path under `cfg(test)` so unrelated tests cannot race and
-// accidentally overwrite or observe a partially-updated file.
+// shared presets file path. Guard this path under `cfg(test)` so
+// unrelated tests cannot race and accidentally overwrite or observe a
+// partially-updated file.
 #[cfg(test)]
 static PRESETS_SIDECAR_MUTEX: Mutex<()> = Mutex::new(());
 
@@ -194,7 +194,7 @@ pub(super) fn default_presets() -> Vec<FFmpegPreset> {
 
 pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
     with_presets_sidecar_lock(|| {
-        let path = executable_sidecar_path("presets.json")?;
+        let path = presets_path()?;
         // When there is no presets.json yet (fresh install), or when the file is
         // unreadable/empty, fall back to the built-in defaults so well-known
         // presets like "Universal 1080p" (id p1) are always present for the
@@ -219,7 +219,7 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
 
 pub fn save_presets(presets: &[FFmpegPreset]) -> Result<()> {
     with_presets_sidecar_lock(|| {
-        let path = executable_sidecar_path("presets.json")?;
+        let path = presets_path()?;
         write_json_file(&path, presets)
     })
 }

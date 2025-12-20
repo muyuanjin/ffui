@@ -213,10 +213,7 @@ mod tests {
         Write,
     };
     use std::net::TcpListener;
-    use std::sync::{
-        Mutex,
-        OnceLock,
-    };
+    use std::sync::MutexGuard;
     use std::thread;
     use std::time::{
         Duration,
@@ -224,17 +221,27 @@ mod tests {
     };
 
     use super::*;
+    use crate::test_support::{
+        EnvVarGuard,
+        env_lock,
+        remove_env,
+        set_env,
+    };
 
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn clear_proxy_env_for_test() {
-        let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
-        let _guard = lock.lock().expect("ENV_LOCK poisoned");
-
+    fn prepare_proxy_env_for_test() -> (MutexGuard<'static, ()>, EnvVarGuard) {
+        let lock = env_lock();
+        let guard = EnvVarGuard::capture([
+            "HTTPS_PROXY",
+            "https_proxy",
+            "HTTP_PROXY",
+            "http_proxy",
+            "NO_PROXY",
+        ]);
         for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-            unsafe { std::env::remove_var(key) };
+            remove_env(key);
         }
-        unsafe { std::env::set_var("NO_PROXY", "127.0.0.1,localhost") };
+        set_env("NO_PROXY", "127.0.0.1,localhost");
+        (lock, guard)
     }
 
     fn spawn_local_http_server(body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
@@ -311,7 +318,7 @@ mod tests {
 
     #[test]
     fn reqwest_helpers_can_download_from_local_server() {
-        clear_proxy_env_for_test();
+        let (_env_lock, _env_guard) = prepare_proxy_env_for_test();
 
         let body = b"hello from ffui".to_vec();
         let (url, server_handle) = spawn_local_http_server(body.clone());
