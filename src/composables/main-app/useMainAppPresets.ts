@@ -13,6 +13,7 @@ import {
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { UseMainAppShellReturn } from "./useMainAppShell";
 import type { UseMainAppDialogsReturn } from "./useMainAppDialogs";
+import { usePresetLibraryActions } from "./presets/usePresetLibraryActions";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -35,6 +36,7 @@ let loggedPresetsLoad = false;
 
 export interface UseMainAppPresetsOptions {
   t: (key: string) => string;
+  locale: Ref<string>;
   presets: Ref<FFmpegPreset[]>;
   presetsLoadedFromBackend: Ref<boolean>;
   manualJobPresetId: Ref<string | null>;
@@ -45,6 +47,15 @@ export interface UseMainAppPresetsOptions {
 export interface UseMainAppPresetsReturn {
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   presetPendingDelete: Ref<FFmpegPreset | null>;
+  presetsPendingBatchDelete: ComputedRef<FFmpegPreset[]>;
+  requestBatchDeletePresets: (presetIds: string[]) => void;
+  confirmBatchDeletePresets: () => Promise<void>;
+  cancelBatchDeletePresets: () => void;
+  duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
+  importPresetsBundleFromFile: () => Promise<void>;
+  exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
+  exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
+  exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
   handleImportSmartPackConfirmed: (
@@ -101,7 +112,7 @@ const LEGACY_DEFAULT_PRESET_IDS = new Set(INITIAL_PRESETS.map((preset) => preset
  * AppSettings (defaultQueuePresetId) is handled in useMainAppSettings.
  */
 export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainAppPresetsReturn {
-  const { presets, presetsLoadedFromBackend, manualJobPresetId, dialogManager, shell } = options;
+  const { presets, presetsLoadedFromBackend, manualJobPresetId, dialogManager, shell, locale } = options;
 
   // Initialize with local presets so the UI is immediately usable.
   if (presets.value.length === 0) {
@@ -131,6 +142,13 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   };
 
   ensureManualPresetId();
+
+  const libraryActions = usePresetLibraryActions({
+    locale,
+    presets,
+    ensureManualPresetId,
+    shell,
+  });
 
   const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
     presets.value = presets.value.map((preset) =>
@@ -448,6 +466,15 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
   return {
     manualJobPreset,
     presetPendingDelete,
+    presetsPendingBatchDelete: libraryActions.presetsPendingBatchDelete,
+    requestBatchDeletePresets: libraryActions.requestBatchDeletePresets,
+    confirmBatchDeletePresets: libraryActions.confirmBatchDeletePresets,
+    cancelBatchDeletePresets: libraryActions.cancelBatchDeletePresets,
+    duplicatePreset: libraryActions.duplicatePreset,
+    importPresetsBundleFromFile: libraryActions.importPresetsBundleFromFile,
+    exportSelectedPresetsBundleToFile: libraryActions.exportSelectedPresetsBundleToFile,
+    exportSelectedPresetsBundleToClipboard: libraryActions.exportSelectedPresetsBundleToClipboard,
+    exportPresetToFile: libraryActions.exportPresetToFile,
     handleSavePreset,
     handleReorderPresets,
     handleImportSmartPackConfirmed,

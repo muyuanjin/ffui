@@ -42,6 +42,7 @@ describe("useMainAppPresets.handleCompletedJobFromBackend", () => {
     // 设为 true 避免 onMounted 的自动加载干扰本用例，聚焦 handleCompletedJobFromBackend 的刷新逻辑。
     const presetsLoadedFromBackend = ref(true);
     const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
 
     loadPresetsMock.mockResolvedValueOnce([backendUpdated]);
 
@@ -49,6 +50,7 @@ describe("useMainAppPresets.handleCompletedJobFromBackend", () => {
       setup() {
         const composable = useMainAppPresets({
           t: (key: string) => key,
+          locale,
           presets,
           presetsLoadedFromBackend,
           manualJobPresetId,

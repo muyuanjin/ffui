@@ -38,8 +38,8 @@ export {
   openDataRootDir,
   setDataRootMode,
 } from "./backend.data-root";
-
 export { fetchAppUpdaterCapabilities, prepareAppUpdaterProxy } from "./backend.updater";
+export { exportPresetsBundle, readPresetsBundle } from "./backend.presets-bundle";
 
 export const loadAppSettings = async (): Promise<AppSettings> => {
   return invoke<AppSettings>("get_app_settings");

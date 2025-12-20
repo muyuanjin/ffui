@@ -309,42 +309,69 @@ export interface UseJobLogReturn {
 export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   const { selectedJob } = options;
 
-  const effectiveJob = ref<TranscodeJob | null>(null);
+  // Full job detail (including complete logs) is intentionally fetched on-demand
+  // for the task detail dialog. Queue snapshots (QueueStateLite) omit `logs` to
+  // keep high-frequency updates cheap, so UI must not treat `selectedJob.logs`
+  // as authoritative in Tauri mode.
+  const hydratedDetailById = ref<Record<string, TranscodeJob | undefined>>({});
+  const hydrationInFlightById = new Map<string, Promise<void>>();
 
   const maybeHydrateFromBackend = async (job: TranscodeJob | null) => {
     if (!job) return;
     if (!hasTauri()) return;
     if (!job.id) return;
-    if (job.logs && job.logs.length > 0) return;
+    if (hydratedDetailById.value[job.id]) return;
+    const existingInFlight = hydrationInFlightById.get(job.id);
+    if (existingInFlight) {
+      await existingInFlight;
+      return;
+    }
 
     try {
-      const full = await loadJobDetail(job.id);
-      // Only apply the fetched detail if it still matches the currently
-      // selected job to avoid races when the user switches selection.
-      if (full && full.id === (selectedJob.value && selectedJob.value.id)) {
-        effectiveJob.value = full;
-      }
+      const inFlight = (async () => {
+        const full = await loadJobDetail(job.id);
+        if (!full) return;
+        hydratedDetailById.value = { ...hydratedDetailById.value, [job.id]: full };
+      })();
+      hydrationInFlightById.set(job.id, inFlight);
+      await inFlight;
     } catch (error) {
       console.error("Failed to load job detail from backend", error);
+    } finally {
+      hydrationInFlightById.delete(job.id);
     }
   };
 
   watch(
     selectedJob,
     (job) => {
-      effectiveJob.value = job;
       void maybeHydrateFromBackend(job);
     },
     { immediate: true },
   );
 
   const jobDetailLogText = computed<string>(() => {
-    const job = effectiveJob.value;
+    const job = selectedJob.value;
     if (!job) return "";
+
+    const normalizeTail = (tailRaw: unknown): string => {
+      if (!tailRaw) return "";
+      if (Array.isArray(tailRaw)) return tailRaw.join("\n");
+      return String(tailRaw);
+    };
+
+    // In Tauri mode, always prefer the hydrated backend detail logs and never
+    // treat queue-selected `job.logs` as authoritative (it may contain UI-only
+    // optimistic messages or be incomplete).
+    if (hasTauri() && job.id) {
+      const hydrated = hydratedDetailById.value[job.id] ?? null;
+      const full = hydrated?.logs?.length ? hydrated.logs.join("\n") : "";
+      const tail = normalizeTail(hydrated?.logTail ?? job.logTail);
+      return full || tail;
+    }
+
     const full = job.logs?.length ? job.logs.join("\n") : "";
-    const tailRaw = job.logTail ?? "";
-    const tail = Array.isArray(tailRaw) ? tailRaw.join("\n") : tailRaw;
-    // 优先使用内存中的完整日志；若不可用则回退到后端提供的尾部日志，避免只看到截断末尾。
+    const tail = normalizeTail(job.logTail);
     return full || tail;
   });
 

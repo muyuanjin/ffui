@@ -74,6 +74,46 @@ describe("queue operations state sync", () => {
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
   });
 
+  it("applyQueueStateFromBackend preserves job object identity for unchanged rows to keep scrolling smooth", () => {
+    const previousJob: TranscodeJob = {
+      id: "job-1",
+      filename: "C:/videos/progress.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: ["line-1"],
+      outputPath: "C:/videos/out.mp4",
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([previousJob]),
+      batchCompressJobs: ref<TranscodeJob[]>([]),
+    });
+
+    const previousReactive = deps.jobs.value[0];
+
+    const backendJob: TranscodeJob = {
+      ...previousJob,
+      progress: 12,
+    };
+    delete (backendJob as any).logs;
+    delete (backendJob as any).outputPath;
+
+    applyQueueStateFromBackend({ jobs: [backendJob] }, deps);
+
+    expect(deps.jobs.value).toHaveLength(1);
+    expect(deps.jobs.value[0]).toBe(previousReactive);
+    expect(deps.jobs.value[0].progress).toBe(12);
+    // Lite snapshots omit heavy log history; missing fields should clear stale values.
+    expect(deps.jobs.value[0].logs).toBeUndefined();
+    // Missing optional fields in the snapshot should clear stale values.
+    expect(deps.jobs.value[0].outputPath).toBeUndefined();
+  });
+
   it("applyQueueStateFromBackend does not duplicate batch compress jobs that already exist in backend snapshot", () => {
     const batchCompressJob: TranscodeJob = {
       id: "scan-1",

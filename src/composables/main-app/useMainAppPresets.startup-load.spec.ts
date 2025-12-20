@@ -40,6 +40,7 @@ describe("useMainAppPresets startup load", () => {
     const presets = ref<FFmpegPreset[]>([]);
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
 
     mount(
       defineComponent({
@@ -47,6 +48,7 @@ describe("useMainAppPresets startup load", () => {
         setup() {
           useMainAppPresets({
             t: (key: string) => key,
+            locale,
             presets,
             presetsLoadedFromBackend,
             manualJobPresetId,

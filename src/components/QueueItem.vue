@@ -369,7 +369,7 @@ const onCardContextMenu = (event: MouseEvent) => {
 
 <template>
   <Card
-    class="relative mb-3 border-border/60 bg-card/80 transition-all cursor-pointer overflow-hidden ring-0"
+    class="relative mb-3 border-border/60 bg-card/80 transition-colors cursor-pointer overflow-hidden ring-0"
     :class="[
       isSkipped ? 'opacity-60 bg-muted/60' : 'hover:border-primary/40',
       isSelectable && isSelected ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5' : '',

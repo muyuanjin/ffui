@@ -76,4 +76,42 @@ describe("PresetPanel 语言切换", () => {
 
     wrapper.unmount();
   });
+
+  it("内置预设标签在切换语言后立即更新", async () => {
+    const i18n = createI18n({
+      legacy: false,
+      locale: "en",
+      messages: {
+        en: en as any,
+        "zh-CN": zhCN as any,
+      },
+    });
+
+    const smartPreset: FFmpegPreset = {
+      ...makePreset(),
+      id: "smart-av1-nvenc-hq-constqp18",
+      isSmartPreset: true,
+    };
+
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets: [smartPreset],
+        sortMode: "manual",
+        viewMode: "grid",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await nextTick();
+    expect(wrapper.text()).toContain("Built-in");
+
+    i18n.global.locale.value = "zh-CN";
+    await nextTick();
+    await nextTick();
+    expect(wrapper.text()).toContain("内置");
+
+    wrapper.unmount();
+  });
 });

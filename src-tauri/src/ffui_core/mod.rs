@@ -8,6 +8,7 @@ pub(crate) mod input_expand;
 mod monitor;
 mod monitor_activity;
 pub(crate) mod network_proxy;
+mod preset_bundle;
 mod preview_cache;
 mod settings;
 pub mod tools;
@@ -65,6 +66,12 @@ pub use monitor_activity::TranscodeActivityToday;
 pub(crate) use monitor_activity::{
     emit_transcode_activity_today_if_possible,
     set_app_handle as set_transcode_activity_app_handle,
+};
+pub(crate) use preset_bundle::{
+    PresetBundle,
+    PresetBundleExportResult,
+    export_presets_bundle,
+    read_presets_bundle,
 };
 pub(crate) use preview_cache::{
     cleanup_unreferenced_previews,

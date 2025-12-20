@@ -25,11 +25,13 @@ describe("useMainAppPresets stats aggregation", () => {
     const presets = ref<FFmpegPreset[]>([makePreset()]);
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
 
     const wrapper = mount({
       setup() {
         const composable = useMainAppPresets({
           t: (key: string) => key,
+          locale,
           presets,
           presetsLoadedFromBackend,
           manualJobPresetId,

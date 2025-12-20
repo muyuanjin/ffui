@@ -15,7 +15,7 @@ function getJobsFromVm(vm: any): TranscodeJob[] {
 }
 
 describe("MainApp queue wait/resume/restart in Tauri mode", () => {
-  it("sends wait_transcode_job and keeps the job processing while showing a UI log entry", async () => {
+  it("sends wait_transcode_job and keeps the job processing without polluting ffmpeg logs", async () => {
     const jobId = "job-wait-1";
     setQueueJobs([
       {
@@ -50,7 +50,9 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("processing");
-    expect(updatedJob?.logs?.join("\n") ?? "").toContain("Wait requested from UI");
+    expect(updatedJob?.logs ?? []).toEqual([]);
+    const pausingIds: Set<string> | undefined = vm.pausingJobIds?.value ?? vm.pausingJobIds;
+    expect(pausingIds?.has(jobId)).toBe(true);
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.any(Object));
   });
 
@@ -239,7 +241,9 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("processing");
-    expect(updatedJob?.logs?.join("\n") ?? "").toContain("Wait requested from UI");
+    expect(updatedJob?.logs ?? []).toEqual([]);
+    const pausingIds: Set<string> | undefined = vm.pausingJobIds?.value ?? vm.pausingJobIds;
+    expect(pausingIds?.has(jobId)).toBe(true);
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.objectContaining({ jobId }));
   });
 

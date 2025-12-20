@@ -298,6 +298,8 @@ const app = {
     confirmDelete: "确认删除",
     deletePresetConfirmTitle: "删除预设",
     deletePresetConfirmMessage: "确定要删除这个预设吗？",
+    deletePresetsConfirmTitle: "删除预设",
+    deletePresetsConfirmMessage: "确定要删除 {count} 个预设吗？",
     cancel: "取消",
     confirm: "确认删除",
     close: "关闭",

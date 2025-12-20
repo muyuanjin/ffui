@@ -100,3 +100,6 @@ export type {
 
 // Data root + config bundle types
 export type { DataRootMode, DataRootInfo, ConfigBundleExportResult, ConfigBundleImportResult } from "./data-root";
+
+// Preset-only bundle types
+export type { PresetBundle, PresetBundleExportResult } from "./preset-bundle";

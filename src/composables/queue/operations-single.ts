@@ -36,7 +36,7 @@ export interface SingleJobOpsDeps {
 /**
  * Wait (pause) a processing job.
  * In non-Tauri mode, updates job status locally.
- * In Tauri mode, calls backend and updates job with logs.
+ * In Tauri mode, calls backend and updates UI-only state (no log injection).
  */
 export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
   if (!jobId) return;
@@ -67,10 +67,8 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
       if (job.status === "processing") {
-        const existingLogs = job.logs ?? [];
         return {
           ...job,
-          logs: [...existingLogs, "Wait requested from UI; job will pause when ffmpeg reaches a safe point"],
         };
       }
       return job;
@@ -88,7 +86,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
 /**
  * Resume a paused job.
  * In non-Tauri mode, updates job status locally.
- * In Tauri mode, calls backend and updates job with logs.
+ * In Tauri mode, calls backend and updates status (no log injection).
  */
 export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
   if (!jobId) return;
@@ -115,11 +113,9 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
       if (job.status === "paused") {
-        const existingLogs = job.logs ?? [];
         return {
           ...job,
           status: "waiting" as JobStatus,
-          logs: [...existingLogs, "Resume requested from UI; job re-entered waiting queue"],
         };
       }
       return job;
@@ -185,7 +181,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
 /**
  * Cancel a job.
  * Immediately sets status to cancelled for waiting/queued/paused jobs.
- * For processing jobs, logs cancellation request and waits for backend.
+ * For processing jobs, updates status immediately after backend accepts the request.
  */
 export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
   if (!jobId) return;
@@ -207,11 +203,9 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
         return { ...job, status: "cancelled" as JobStatus };
       }
       if (job.status === "processing") {
-        const existingLogs = job.logs ?? [];
         return {
           ...job,
           status: "cancelled" as JobStatus,
-          logs: [...existingLogs, "Cancellation requested from UI; waiting for backend to stop ffmpeg"],
         };
       }
       return job;

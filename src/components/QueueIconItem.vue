@@ -305,7 +305,7 @@ const onCardContextMenu = (event: MouseEvent) => {
 
 <template>
   <div
-    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-all cursor-pointer ring-0"
+    class="relative rounded-lg border border-border/60 bg-card/80 overflow-hidden hover:border-primary/60 transition-colors cursor-pointer ring-0"
     :class="[
       rootSizeClass,
       isSelectable && isSelected ? 'border-amber-500/70 !ring-1 ring-amber-500/60 bg-amber-500/5' : '',

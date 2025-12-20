@@ -11,6 +11,62 @@ export interface UseMainAppUpdaterOptions {
 
 const DEFAULT_UPDATE_CHECK_TTL_MS = 24 * 60 * 60 * 1000;
 
+type ParsedSemver = {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string[] | null;
+};
+
+function parseSemver(raw: string): ParsedSemver | null {
+  if (typeof raw !== "string") return null;
+  const cleaned = raw.trim().replace(/^v/i, "").split("+")[0] ?? "";
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?/.exec(cleaned);
+  if (!match) return null;
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (!Number.isFinite(major) || !Number.isFinite(minor) || !Number.isFinite(patch)) return null;
+  const prereleaseRaw = match[4];
+  const prerelease = typeof prereleaseRaw === "string" && prereleaseRaw.length > 0 ? prereleaseRaw.split(".") : null;
+  return { major, minor, patch, prerelease };
+}
+
+function compareSemver(aRaw: string, bRaw: string): number | null {
+  const a = parseSemver(aRaw);
+  const b = parseSemver(bRaw);
+  if (!a || !b) return null;
+
+  if (a.major !== b.major) return a.major > b.major ? 1 : -1;
+  if (a.minor !== b.minor) return a.minor > b.minor ? 1 : -1;
+  if (a.patch !== b.patch) return a.patch > b.patch ? 1 : -1;
+
+  const aPre = a.prerelease;
+  const bPre = b.prerelease;
+  if (!aPre && !bPre) return 0;
+  if (!aPre && bPre) return 1;
+  if (aPre && !bPre) return -1;
+  if (!aPre || !bPre) return 0;
+
+  const max = Math.max(aPre.length, bPre.length);
+  for (let i = 0; i < max; i++) {
+    const ai = aPre[i];
+    const bi = bPre[i];
+    if (ai == null && bi == null) return 0;
+    if (ai == null) return -1;
+    if (bi == null) return 1;
+    if (ai === bi) continue;
+
+    const aNum = /^\d+$/.test(ai) ? Number(ai) : null;
+    const bNum = /^\d+$/.test(bi) ? Number(bi) : null;
+    if (aNum != null && bNum != null) return aNum > bNum ? 1 : -1;
+    if (aNum != null && bNum == null) return -1;
+    if (aNum == null && bNum != null) return 1;
+    return ai > bi ? 1 : -1;
+  }
+  return 0;
+}
+
 function isTestEnv(): boolean {
   return (
     typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test"
@@ -68,6 +124,31 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     await updaterCapabilitiesPromise;
   };
 
+  let currentVersionPromise: Promise<void> | null = null;
+
+  const ensureCurrentVersionLoaded = async () => {
+    if (!hasTauri()) return;
+    if (typeof currentVersion.value === "string" && currentVersion.value.trim().length > 0) return;
+    if (!currentVersionPromise) {
+      currentVersionPromise = (async () => {
+        try {
+          const { getVersion } = await import("@tauri-apps/api/app");
+          const version = await getVersion();
+          if (typeof version === "string" && version.trim().length > 0) {
+            currentVersion.value = version;
+          }
+        } catch (error) {
+          if (!isTestEnv()) {
+            console.error("Failed to load current app version", error);
+          }
+        } finally {
+          currentVersionPromise = null;
+        }
+      })();
+    }
+    await currentVersionPromise;
+  };
+
   const autoCheckEnabled = computed<boolean>(() => {
     const raw = (appSettings.value as any)?.updater?.autoCheck;
     const configured = updaterConfigured.value === true;
@@ -91,6 +172,24 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     scheduleSaveSettings();
   };
 
+  const clearStaleCachedAvailableVersion = () => {
+    const available = availableVersion.value;
+    const current = currentVersion.value;
+    if (!available || !current) return;
+    const cmp = compareSemver(available, current);
+    if (cmp == null) return;
+    if (cmp > 0) return;
+
+    updateHandle = null;
+    availableVersion.value = null;
+    updateAvailable.value = false;
+
+    const persistedAvailable = (appSettings.value as any)?.updater?.availableVersion;
+    if (typeof persistedAvailable === "string" && persistedAvailable.trim().length > 0) {
+      persistUpdaterPatch({ availableVersion: undefined });
+    }
+  };
+
   const shouldCheckByTtl = () => {
     const settings = appSettings.value;
     if (!settings) return false;
@@ -104,6 +203,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     if (!hasTauri()) return;
     if (!appSettings.value) return;
     if (isCheckingForUpdate.value || isInstallingUpdate.value) return;
+    await ensureCurrentVersionLoaded();
     await ensureUpdaterCapabilitiesLoaded();
     if (updaterConfigured.value !== true) return;
 
@@ -129,9 +229,12 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
 
       if (update) {
         updateHandle = update;
-        updateAvailable.value = true;
         availableVersion.value = update.version ?? null;
-        currentVersion.value = update.currentVersion ?? null;
+        if (currentVersion.value == null) {
+          currentVersion.value = update.currentVersion ?? null;
+        }
+        clearStaleCachedAvailableVersion();
+        updateAvailable.value = updaterConfigured.value === true && availableVersion.value != null;
         persistUpdaterPatch({
           lastCheckedAtMs: now,
           availableVersion: update.version ?? undefined,
@@ -139,7 +242,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       } else {
         updateAvailable.value = false;
         availableVersion.value = null;
-        currentVersion.value = null;
+        await ensureCurrentVersionLoaded();
         persistUpdaterPatch({
           lastCheckedAtMs: now,
           availableVersion: undefined,
@@ -226,7 +329,20 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   // Restore cached values from persisted AppSettings so the UI can show the
   // last-known state immediately after settings load.
   const recomputeUpdateAvailable = () => {
-    updateAvailable.value = updaterConfigured.value === true && !!availableVersion.value;
+    if (updaterConfigured.value !== true) {
+      updateAvailable.value = false;
+      return;
+    }
+    if (!availableVersion.value) {
+      updateAvailable.value = false;
+      return;
+    }
+    if (!currentVersion.value) {
+      updateAvailable.value = false;
+      return;
+    }
+    const cmp = compareSemver(availableVersion.value, currentVersion.value);
+    updateAvailable.value = cmp == null ? true : cmp > 0;
   };
 
   watch(
@@ -237,7 +353,10 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       const available = (next as any)?.updater?.availableVersion;
       lastCheckedAtMs.value = typeof checkedAt === "number" ? checkedAt : null;
       availableVersion.value = typeof available === "string" ? available : null;
-      recomputeUpdateAvailable();
+      void ensureCurrentVersionLoaded().finally(() => {
+        clearStaleCachedAvailableVersion();
+        recomputeUpdateAvailable();
+      });
     },
     { flush: "post" },
   );
@@ -245,6 +364,18 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   watch(
     updaterConfigured,
     () => {
+      void ensureCurrentVersionLoaded().finally(() => {
+        clearStaleCachedAvailableVersion();
+      });
+      recomputeUpdateAvailable();
+    },
+    { flush: "post" },
+  );
+
+  watch(
+    currentVersion,
+    () => {
+      clearStaleCachedAvailableVersion();
       recomputeUpdateAvailable();
     },
     { flush: "post" },
@@ -267,7 +398,9 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   };
 
   onMounted(() => {
+    void ensureCurrentVersionLoaded();
     void ensureUpdaterCapabilitiesLoaded().finally(() => {
+      clearStaleCachedAvailableVersion();
       maybeAutoCheck();
     });
   });

@@ -299,10 +299,12 @@ describe("MainApp Tauri manual job flow", () => {
     expect(jobsAfter.length).toBe(1);
     const jobAfter = jobsAfter[0];
     expect(jobAfter.status).toBe("cancelled");
-    const hasUiCancellationLog = jobAfter.logs.some((line: string) =>
+    // Queue snapshots in Tauri mode must not inject UI-only lines into ffmpeg logs.
+    const logs = Array.isArray(jobAfter.logs) ? jobAfter.logs : [];
+    const hasUiCancellationLog = logs.some((line: string) =>
       line.includes("Cancellation requested from UI; waiting for backend to stop ffmpeg"),
     );
-    expect(hasUiCancellationLog).toBe(true);
+    expect(hasUiCancellationLog).toBe(false);
 
     wrapper.unmount();
   });

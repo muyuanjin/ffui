@@ -1,0 +1,257 @@
+<script setup lang="ts">
+import { toRefs } from "vue";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
+import { copyToClipboard } from "@/lib/copyToClipboard";
+import { getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
+import { useI18n } from "vue-i18n";
+import type { FFmpegPreset } from "@/types";
+import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download } from "lucide-vue-next";
+import {
+  getAudioSummary,
+  getFiltersSummary,
+  getPresetDescription,
+  getPresetRiskBadge,
+  getPresetScenarioLabel,
+  getRatioColorClass,
+  getSubtitleSummary,
+  getVideoRateControlSummary,
+  isSmartPreset,
+} from "../presetHelpers";
+
+const props = defineProps<{
+  preset: FFmpegPreset;
+  selected: boolean;
+}>();
+
+const { preset, selected } = toRefs(props);
+
+const emit = defineEmits<{
+  (e: "toggle-select", presetId: string): void;
+  (e: "duplicate", preset: FFmpegPreset): void;
+  (e: "exportPresetToFile", preset: FFmpegPreset): void;
+  (e: "edit", preset: FFmpegPreset): void;
+  (e: "delete", preset: FFmpegPreset): void;
+}>();
+
+const { t, locale } = useI18n();
+
+const handleCardClick = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  if (!target) return;
+
+  const shouldIgnore = !!target.closest(
+    "button, a, input, textarea, select, [role='button'], .drag-handle, pre, code, [data-no-select-toggle]",
+  );
+  if (shouldIgnore) return;
+
+  emit("toggle-select", preset.value.id);
+};
+</script>
+
+<template>
+  <Card
+    class="relative group overflow-hidden border border-border/50 bg-card/95 backdrop-blur hover:shadow-md transition-all duration-200 h-full flex flex-col"
+    data-testid="preset-card-root"
+    :data-preset-id="preset.id"
+    @click="handleCardClick"
+  >
+    <CardHeader class="pb-3 pt-3 px-4">
+      <div class="flex items-start gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          class="w-1 h-10 p-0 rounded-full transition-all flex-shrink-0"
+          :class="selected ? 'bg-amber-500' : 'bg-muted-foreground/30'"
+          data-testid="preset-select-toggle"
+          :title="t('presets.toggleSelect')"
+          @click.stop="emit('toggle-select', preset.id)"
+        />
+        <div
+          class="drag-handle cursor-grab active:cursor-grabbing p-1 -ml-1 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+          @click.stop
+        >
+          <GripVertical class="w-4 h-4" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-base leading-tight truncate">{{ preset.name }}</h3>
+          <p class="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+            {{ getPresetDescription(preset, locale) }}
+          </p>
+          <div class="mt-1 flex items-center flex-wrap gap-1">
+            <span class="text-[10px] text-muted-foreground">
+              {{ t("presetEditor.panel.scenarioLabel") }}：
+              <span class="text-[10px] text-foreground">
+                {{ getPresetScenarioLabel(preset, t) }}
+              </span>
+            </span>
+            <span
+              v-if="getPresetRiskBadge(preset, t)"
+              class="inline-flex items-center rounded-full border border-amber-500/50 text-amber-500 px-1.5 py-0.5 text-[9px] font-medium"
+            >
+              {{ getPresetRiskBadge(preset, t) }}
+            </span>
+          </div>
+        </div>
+        <div class="flex items-start gap-1.5 flex-shrink-0">
+          <span
+            v-if="isSmartPreset(preset)"
+            class="inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[9px] font-medium border border-primary/40"
+          >
+            {{ t("presets.recommendedSmart") }}
+          </span>
+          <div class="grid grid-cols-2 gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              data-testid="preset-card-duplicate"
+              :title="t('presets.duplicatePreset')"
+              @click="emit('duplicate', preset)"
+            >
+              <CopyPlus class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              data-testid="preset-card-export"
+              :title="t('presets.exportPresetToFile')"
+              @click="emit('exportPresetToFile', preset)"
+            >
+              <Download class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              :title="t('presetEditor.actions.edit')"
+              @click="emit('edit', preset)"
+            >
+              <Edit class="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="h-7 w-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              :title="t('app.actions.deletePreset')"
+              @click="emit('delete', preset)"
+            >
+              <Trash2 class="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </CardHeader>
+
+    <CardContent class="px-4 pb-3 pt-0 flex-1 flex flex-col space-y-2.5">
+      <div class="flex-1 flex flex-col space-y-2.5">
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
+            <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.videoLabel") }}</div>
+            <div class="font-mono text-[11px] text-foreground leading-tight">{{ preset.video.encoder }}</div>
+            <div class="font-mono text-[10px] text-primary mt-0.5">
+              {{ getVideoRateControlSummary(preset.video) }}
+              <span v-if="preset.video.pass" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
+            </div>
+          </div>
+          <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">
+            <div class="text-[10px] text-muted-foreground font-medium mb-0.5">{{ t("presets.audioLabel") }}</div>
+            <div class="font-mono text-[11px] text-foreground leading-tight">
+              {{ getAudioSummary(preset.audio, t) }}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+            <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.filtersLabel") }}:</span>
+            <span class="text-[10px] text-foreground ml-1">{{ getFiltersSummary(preset, t) }}</span>
+          </div>
+          <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+            <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.subtitlesLabel") }}:</span>
+            <span class="text-[10px] text-foreground ml-1">{{ getSubtitleSummary(preset, t) }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+            <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.hardwareLabel") }}:</span>
+            <span
+              class="text-[10px] ml-1"
+              :class="preset.hardware?.hwaccel ? 'text-amber-500 font-mono' : 'text-muted-foreground'"
+            >
+              {{ preset.hardware?.hwaccel || t("presets.hardwarePlaceholder") }}
+            </span>
+          </div>
+          <div class="bg-background/50 rounded px-2 py-1 border border-border/20">
+            <span class="text-[10px] text-muted-foreground font-medium">{{ t("presets.containerLabel") }}:</span>
+            <span
+              class="text-[10px] ml-1"
+              :class="
+                preset.container?.format || preset.container?.movflags?.length
+                  ? 'text-foreground font-mono'
+                  : 'text-muted-foreground'
+              "
+            >
+              {{
+                preset.container?.format ||
+                (preset.container?.movflags?.length
+                  ? preset.container.movflags.join("+")
+                  : t("presets.containerPlaceholder"))
+              }}
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{
+              t("presets.commandPreviewLabel")
+            }}</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              class="h-5 px-1.5 text-[9px] hover:bg-muted"
+              :title="t('presetEditor.advanced.copyButton')"
+              @click="copyToClipboard(getPresetCommandPreview(preset))"
+            >
+              <Copy class="h-3 w-3 mr-1" />
+              {{ t("presetEditor.advanced.copyButton") }}
+            </Button>
+          </div>
+          <p class="text-[9px] text-muted-foreground">
+            {{ t("presets.commandPreviewHint") }}
+          </p>
+          <pre
+            class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
+            v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
+          />
+        </div>
+      </div>
+
+      <div
+        class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto"
+      >
+        <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
+        <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
+          <span class="truncate">
+            {{ t("presets.totalIn", { gb: (preset.stats.totalInputSizeMB / 1024).toFixed(1) }) }}
+          </span>
+          <span
+            v-if="getPresetAvgRatio(preset) !== null"
+            class="font-medium truncate"
+            :class="getRatioColorClass(getPresetAvgRatio(preset))"
+          >
+            {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
+          </span>
+          <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
+            {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
+          </span>
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+</template>

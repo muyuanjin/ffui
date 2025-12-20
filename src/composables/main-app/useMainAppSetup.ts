@@ -73,6 +73,7 @@ export function useMainAppSetup() {
 
   const presetsModule = useMainAppPresets({
     t,
+    locale,
     presets,
     presetsLoadedFromBackend,
     manualJobPresetId,

@@ -311,6 +311,8 @@ const app = {
     confirmDelete: "Confirm delete",
     deletePresetConfirmTitle: "Delete preset",
     deletePresetConfirmMessage: "Are you sure you want to delete this preset?",
+    deletePresetsConfirmTitle: "Delete presets",
+    deletePresetsConfirmMessage: "Are you sure you want to delete {count} presets?",
     cancel: "Cancel",
     confirm: "Confirm",
     close: "Close",

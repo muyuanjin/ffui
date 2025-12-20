@@ -25,6 +25,51 @@ let loggedQueueRefresh = false;
 let firstQueueStateLiteApplied = false;
 const FIRST_QUEUE_STATE_LITE_MARK = "first_queue_state_lite_applied";
 
+const isObject = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
+  const prevAny = previous as any;
+  const nextAny = next as any;
+
+  // Remove properties that are missing from the backend snapshot (treat missing as undefined),
+  // ensuring the in-memory job list stays aligned with the backend source of truth.
+  for (const key of Object.keys(prevAny)) {
+    if (!(key in nextAny)) {
+      delete prevAny[key];
+    }
+  }
+
+  for (const [key, value] of Object.entries(nextAny)) {
+    const prevValue = prevAny[key];
+
+    // Preserve array/object references when they are structurally equal to avoid
+    // triggering needless component updates.
+    if (Array.isArray(prevValue) && Array.isArray(value)) {
+      if (prevValue.length === value.length && prevValue.every((v: unknown, idx: number) => v === value[idx])) {
+        continue;
+      }
+    } else if (isObject(prevValue) && isObject(value)) {
+      // Common fast-path: if both are plain objects with the same JSON-ish shape,
+      // keep the previous reference. This is intentionally shallow to stay cheap.
+      const prevKeys = Object.keys(prevValue);
+      const nextKeys = Object.keys(value);
+      if (
+        prevKeys.length === nextKeys.length &&
+        prevKeys.every((k) => k in value) &&
+        prevKeys.every((k) => (prevValue as any)[k] === (value as any)[k])
+      ) {
+        continue;
+      }
+    }
+
+    if (prevValue !== value) {
+      prevAny[key] = value;
+    }
+  }
+}
+
 /**
  * State sync function dependencies.
  */
@@ -51,14 +96,29 @@ export function recomputeJobsFromBackend(
   backendJobs: TranscodeJob[],
   deps: Pick<StateSyncDeps, "jobs" | "batchCompressJobs">,
 ) {
-  // 现在后端队列快照是唯一事实来源：
-  // - 任何“本地 Batch Compress 临时队列”都不再与后端快照合并，
-  // - 这样可以避免后端已经删除 Batch Compress 子任务但前端仍残留的 UI 不一致问题。
+  // Backend queue snapshots are the single source of truth:
+  // - Do not merge any local "Batch Compress temp queue" entries.
+  // - This prevents UI from keeping stale jobs that the backend already removed.
   //
-  // batchCompressJobs 仍保留在依赖中，仅为向后兼容接口签名和未来扩展。
+  // For UI smoothness, preserve existing job object identities by id and patch
+  // fields in place so unchanged rows don't re-render on every lite snapshot.
   void deps.batchCompressJobs;
 
-  deps.jobs.value = [...backendJobs];
+  const previousJobs = deps.jobs.value;
+  const previousById = new Map(previousJobs.map((job) => [job.id, job]));
+
+  const nextJobs: TranscodeJob[] = [];
+  for (const backendJob of backendJobs) {
+    const prev = previousById.get(backendJob.id);
+    if (prev) {
+      syncJobObject(prev, backendJob);
+      nextJobs.push(prev);
+      continue;
+    }
+    nextJobs.push(backendJob);
+  }
+
+  deps.jobs.value = nextJobs;
 }
 
 /**

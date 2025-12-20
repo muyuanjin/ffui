@@ -17,7 +17,6 @@ import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 import { useLocalePersistence } from "@/composables/main-app/useLocalePersistence";
-
 const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
 // 仅解构模板中直接使用到的绑定，其余字段通过 defineExpose 暴露给测试。
 const {
@@ -72,7 +71,6 @@ const {
   toggleJobSelected,
   toggleBatchExpanded,
   openBatchDetail,
-  // 队列批量操作
   bulkCancel,
   bulkWait,
   bulkResume,
@@ -80,7 +78,6 @@ const {
   bulkMoveToTop,
   bulkMoveToBottom,
   bulkDelete,
-  // 媒体检查
   isInspectingMedia,
   mediaInspectError,
   inspectedMediaPath,
@@ -98,7 +95,6 @@ const {
   settingsSaveError,
   handleUpdateAppSettings,
   settings,
-
   // 应用更新
   updaterConfigured,
   updateAvailable,
@@ -113,8 +109,6 @@ const {
   autoCheckDefault,
   checkForAppUpdate,
   downloadAndInstallUpdate,
-
-  // 拖拽与等待任务右键菜单
   isDragging,
   handleDragOver,
   handleDragLeave,
@@ -122,8 +116,6 @@ const {
   waitingJobContextMenuVisible,
   handleWaitingJobContextMoveToTop,
   closeWaitingJobContextMenu,
-
-  // 队列上下文菜单
   queueContextMenuVisible,
   queueContextMenuX,
   queueContextMenuY,
@@ -148,12 +140,18 @@ const {
   handleQueueContextOpenOutputFolder,
   handleQueueContextCopyInputPath,
   handleQueueContextCopyOutputPath,
-
   // 对话框栈 / 智能扫描 / 预览
   dialogManager,
   presetPendingDelete,
+  presetsPendingBatchDelete,
   openPresetEditor,
+  duplicatePreset,
+  importPresetsBundleFromFile,
+  exportSelectedPresetsBundleToFile,
+  exportSelectedPresetsBundleToClipboard,
+  exportPresetToFile,
   requestDeletePreset,
+  requestBatchDeletePresets,
   handleReorderPresets,
   reloadPresets,
   smartConfig,
@@ -174,7 +172,9 @@ const {
   runBatchCompress,
   closeBatchCompressWizard,
   confirmDeletePreset,
+  confirmBatchDeletePresets,
   cancelDeletePreset,
+  cancelBatchDeletePresets,
   handleJobDetailExpandPreview,
   copyToClipboard,
   handleExpandedPreviewError,
@@ -182,24 +182,15 @@ const {
   closeExpandedPreview,
   openPreviewInSystemPlayer,
   openJobPreviewFromQueue,
-
-  // 标题栏进度
   headerProgressPercent,
   headerProgressVisible,
   headerProgressFading,
-
-  // 预设排序模式和视图模式
   presetSortMode,
   presetViewMode,
-
-  // 选择操作栏固定状态
   selectionBarPinned,
   setSelectionBarPinned,
-
-  // 队列输出策略（手动入队）
   queueOutputPolicy,
   setQueueOutputPolicy,
-
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp as any;
@@ -208,10 +199,8 @@ const { handleLocaleChange } = useLocalePersistence({
   appSettings,
   handleUpdateAppSettings,
 });
-
 const addManualJobsFromFiles = async () => addManualJob("files");
 const addManualJobsFromFolder = async () => addManualJob("folder");
-
 const manualJobPresetId = computed<string | null>({
   get() {
     return manualJobPresetIdRef.value;
@@ -220,7 +209,6 @@ const manualJobPresetId = computed<string | null>({
     manualJobPresetIdRef.value = value;
   },
 });
-
 defineExpose({
   ...mainApp,
   get manualJobPresetId() {
@@ -231,7 +219,6 @@ defineExpose({
   },
 });
 </script>
-
 <template>
   <div
     class="h-full w-full flex flex-col overflow-hidden bg-background text-foreground m-0 p-0"
@@ -335,10 +322,9 @@ defineExpose({
           @clearSettingsSaveError="settingsSaveError = null"
         />
 
-        <ScrollArea class="flex-1 min-h-0">
+        <div v-if="activeTab === 'queue'" class="flex-1 min-h-0 overflow-y-auto">
           <div class="p-4 min-h-full flex flex-col">
             <QueuePanel
-              v-if="activeTab === 'queue'"
               v-bind="queuePanelProps"
               @update:queue-view-mode="setQueueViewMode"
               @update:queue-mode="setQueueMode"
@@ -358,16 +344,25 @@ defineExpose({
               @open-job-context-menu="openQueueContextMenuForJob"
               @open-bulk-context-menu="openQueueContextMenuForBulk"
             />
-
+          </div>
+        </div>
+        <ScrollArea v-else class="flex-1 min-h-0">
+          <div class="p-4 min-h-full flex flex-col">
             <PresetPanel
-              v-else-if="activeTab === 'presets'"
+              v-if="activeTab === 'presets'"
               :presets="presets"
               :sort-mode="presetSortMode"
               :view-mode="presetViewMode"
               @edit="openPresetEditor"
+              @duplicate="duplicatePreset"
               @delete="requestDeletePreset"
+              @batchDelete="requestBatchDeletePresets"
+              @exportSelectedToFile="exportSelectedPresetsBundleToFile"
+              @exportSelectedToClipboard="exportSelectedPresetsBundleToClipboard"
+              @exportPresetToFile="exportPresetToFile"
               @reorder="handleReorderPresets"
               @importSmartPack="dialogManager.openSmartPresetImport()"
+              @importBundle="importPresetsBundleFromFile"
               @update:sortMode="(v) => (presetSortMode = v)"
               @update:viewMode="(v) => (presetViewMode = v)"
             />
@@ -457,6 +452,7 @@ defineExpose({
       :dialog-manager="dialogManager"
       :presets="presets"
       :preset-pending-delete="presetPendingDelete"
+      :presets-pending-batch-delete="presetsPendingBatchDelete"
       :smart-config="smartConfig"
       :default-video-preset-id="manualJobPresetId"
       :queue-progress-style="queueProgressStyle"
@@ -478,6 +474,8 @@ defineExpose({
       @closeBatchCompressWizard="closeBatchCompressWizard"
       @confirmDeletePreset="confirmDeletePreset"
       @cancelDeletePreset="cancelDeletePreset"
+      @confirmDeletePresets="confirmBatchDeletePresets"
+      @cancelDeletePresets="cancelBatchDeletePresets"
       @closeJobDetail="dialogManager.closeJobDetail()"
       @handleJobDetailExpandPreview="handleJobDetailExpandPreview"
       @copyToClipboard="copyToClipboard($event)"

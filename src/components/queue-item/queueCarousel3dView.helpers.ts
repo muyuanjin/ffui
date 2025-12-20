@@ -162,7 +162,9 @@ export const computeCarouselCardStyle = (params: {
     `,
     opacity,
     zIndex,
-    transition: params.isDragging ? "none" : "all 0.4s cubic-bezier(0.23, 1, 0.32, 1)",
+    transition: params.isDragging
+      ? "none"
+      : "transform 0.4s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s cubic-bezier(0.23, 1, 0.32, 1)",
   };
 };
 

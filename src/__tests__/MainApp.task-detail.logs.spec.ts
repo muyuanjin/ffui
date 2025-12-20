@@ -210,7 +210,7 @@ describe("MainApp task detail surface - logs", () => {
     wrapper.unmount();
   });
 
-  it("loads full logs from backend in tauri mode and keeps copy/display consistent", async () => {
+  it("loads full logs from backend in tauri mode even if selected job has non-authoritative logs", async () => {
     vi.mocked(hasTauri).mockReturnValue(true);
 
     const liteJob: TranscodeJob = {
@@ -225,7 +225,10 @@ describe("MainApp task detail surface - logs", () => {
       progress: 100,
       startTime: Date.now() - 5000,
       endTime: Date.now(),
-      logs: [],
+      // Simulate a non-authoritative UI-only message accidentally attached to the
+      // selected job object. The task detail view must ignore this and hydrate
+      // full backend logs.
+      logs: ["Wait requested from UI; job will pause when ffmpeg reaches a safe point"],
       logTail: "tail-only",
     } as any;
 
@@ -251,18 +254,13 @@ describe("MainApp task detail surface - logs", () => {
       await Promise.all(pendingDetails);
     }
     expect(loadJobDetail).toHaveBeenCalledWith("job-9");
-    // Simulate hydration result being applied to the selected job to mirror the
-    // async updateJobDetail flow.
-    vm.dialogManager.selectedJob.value = {
-      ...liteJob,
-      logs: ["full-start", "full-mid", "full-end"],
-      logTail: "tail-only",
-    };
     await nextTick();
 
     const text = document.body.textContent || "";
     expect(text).toContain("full-start");
     expect(text).toContain("full-end");
+    // Non-authoritative UI-only logs should never appear in the detail log view.
+    expect(text).not.toContain("Wait requested from UI");
     // The truncated tail should not appear once the full logs are hydrated.
     expect(text).not.toContain("tail-only");
 

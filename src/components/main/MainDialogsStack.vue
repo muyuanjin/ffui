@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { toRefs } from "vue";
 import DeletePresetDialog from "@/components/dialogs/DeletePresetDialog.vue";
+import DeletePresetsDialog from "@/components/dialogs/DeletePresetsDialog.vue";
 import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vue";
@@ -12,15 +14,44 @@ import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
 import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
 
+const props = withDefaults(
+  defineProps<{
+    dialogManager: UseDialogManagerReturn;
+    presets: FFmpegPreset[];
+    presetPendingDelete: FFmpegPreset | null;
+    presetsPendingBatchDelete?: FFmpegPreset[];
+    smartConfig: any;
+    defaultVideoPresetId: string | null;
+    queueProgressStyle: QueueProgressStyle;
+    progressUpdateIntervalMs: number;
+    selectedJobPreset: FFmpegPreset | null;
+    jobDetailLogText: string;
+    highlightedLogHtml: string;
+    previewUrl: string | null;
+    previewPath: string | null;
+    previewSourceMode: PreviewSourceMode;
+    previewIsImage: boolean;
+    previewError: string | null;
+    ffmpegResolvedPath: string | null;
+    /** 排序比较函数，用于对批次子任务进行排序 */
+    sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
+  }>(),
+  {
+    presetsPendingBatchDelete: () => [],
+  },
+);
+
 const {
   dialogManager,
   presets,
   presetPendingDelete,
+  presetsPendingBatchDelete,
   smartConfig,
   defaultVideoPresetId,
   queueProgressStyle,
   progressUpdateIntervalMs,
   selectedJobPreset,
+  jobDetailLogText,
   highlightedLogHtml,
   previewUrl,
   previewPath,
@@ -29,26 +60,7 @@ const {
   previewError,
   ffmpegResolvedPath,
   sortCompareFn,
-} = defineProps<{
-  dialogManager: UseDialogManagerReturn;
-  presets: FFmpegPreset[];
-  presetPendingDelete: FFmpegPreset | null;
-  smartConfig: any;
-  defaultVideoPresetId: string | null;
-  queueProgressStyle: QueueProgressStyle;
-  progressUpdateIntervalMs: number;
-  selectedJobPreset: FFmpegPreset | null;
-  jobDetailLogText: string;
-  highlightedLogHtml: string;
-  previewUrl: string | null;
-  previewPath: string | null;
-  previewSourceMode: PreviewSourceMode;
-  previewIsImage: boolean;
-  previewError: string | null;
-  ffmpegResolvedPath: string | null;
-  /** 排序比较函数，用于对批次子任务进行排序 */
-  sortCompareFn?: (a: TranscodeJob, b: TranscodeJob) => number;
-}>();
+} = toRefs(props);
 
 const emit = defineEmits<{
   (e: "savePreset", preset: FFmpegPreset): void;
@@ -58,6 +70,8 @@ const emit = defineEmits<{
   (e: "closeBatchCompressWizard"): void;
   (e: "confirmDeletePreset"): void;
   (e: "cancelDeletePreset"): void;
+  (e: "confirmDeletePresets"): void;
+  (e: "cancelDeletePresets"): void;
   (e: "closeJobDetail"): void;
   (e: "handleJobDetailExpandPreview"): void;
   (e: "copyToClipboard", value: string): void;
@@ -77,9 +91,9 @@ const emit = defineEmits<{
 }>();
 
 const openCompareFromJobDetail = () => {
-  const job = dialogManager.selectedJob.value;
+  const job = dialogManager.value.selectedJob.value;
   if (!job) return;
-  dialogManager.openJobCompare(job);
+  dialogManager.value.openJobCompare(job);
 };
 </script>
 
@@ -115,6 +129,14 @@ const openCompareFromJobDetail = () => {
     @update:open="($event) => ($event ? undefined : emit('cancelDeletePreset'))"
     @confirm="emit('confirmDeletePreset')"
     @cancel="emit('cancelDeletePreset')"
+  />
+
+  <DeletePresetsDialog
+    :open="presetsPendingBatchDelete.length > 0"
+    :presets="presetsPendingBatchDelete"
+    @update:open="($event) => ($event ? undefined : emit('cancelDeletePresets'))"
+    @confirm="emit('confirmDeletePresets')"
+    @cancel="emit('cancelDeletePresets')"
   />
 
   <JobDetailDialog

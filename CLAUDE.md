@@ -48,7 +48,7 @@ cd src-tauri && cargo clippy # Rust lint
 
 # 格式化
 npm run format             # Prettier 格式化前端代码
-npm run format:rust        # rustfmt 格式化 Rust 代码
+cd src-tauri && cargo fmt  # rustfmt 格式化 Rust 代码
 ```
 
 ## 项目结构

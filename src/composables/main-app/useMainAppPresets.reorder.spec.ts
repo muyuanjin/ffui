@@ -41,9 +41,11 @@ describe("useMainAppPresets handleReorderPresets", () => {
     const presets = ref<FFmpegPreset[]>([makePreset("p1", "One"), makePreset("p2", "Two"), makePreset("p3", "Three")]);
     const presetsLoadedFromBackend = ref(false);
     const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
 
     const { composable, wrapper } = mountComposable({
       t: (key: string) => key,
+      locale,
       presets,
       presetsLoadedFromBackend,
       manualJobPresetId,

@@ -4,8 +4,10 @@ import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri, revealPathInFolder } from "@/lib/backend";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { createWheelSoftSnapController } from "@/lib/wheelSoftSnap";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { parseSkippedJobReason } from "./skippedItemsStack.helpers";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +37,14 @@ const dragStartX = ref(0);
 const dragOffset = ref(0);
 // 组件容器引用
 const containerRef = ref<HTMLElement | null>(null);
+
+const wheelSnap = createWheelSoftSnapController({
+  getThresholdPx: () => 60,
+  getPageSizePx: () => containerRef.value?.clientHeight ?? 240,
+  minIntervalMs: 45,
+  gestureResetMs: 150,
+  maxAccumulatedPx: 600,
+});
 
 // 预览图缓存（按 job id 存储生成的预览路径）
 const previewCache = reactive<Record<string, string | null>>({});
@@ -92,56 +102,12 @@ const displayedJobs = computed(() => {
   return props.skippedJobs.slice(0, Math.min(props.skippedJobs.length, 20));
 });
 
-/**
- * 解析后端返回的跳过原因并国际化
- */
 const parseSkipReason = (reason: string | undefined, jobType: string): string => {
-  if (!reason) return "";
-
-  // Size < XXX MB (视频)
-  const sizeVideoMatch = reason.match(/^Size < (\d+)MB$/i);
-  if (sizeVideoMatch) {
-    return t("queue.skipReasons.sizeVideoTooSmall", { size: sizeVideoMatch[1] });
-  }
-
-  // Size < XXX KB (图片/音频)
-  const sizeKbMatch = reason.match(/^Size < (\d+)KB$/i);
-  if (sizeKbMatch) {
-    if (jobType === "image") {
-      return t("queue.skipReasons.sizeImageTooSmall", { size: sizeKbMatch[1] });
-    }
-    return t("queue.skipReasons.sizeAudioTooSmall", { size: sizeKbMatch[1] });
-  }
-
-  // Codec is already XXX
-  const codecMatch = reason.match(/^Codec is already (.+)$/i);
-  if (codecMatch) {
-    return t("queue.skipReasons.codecAlready", { codec: codecMatch[1].toUpperCase() });
-  }
-
-  // Already AVIF
-  if (reason.toLowerCase() === "already avif") {
-    return t("queue.skipReasons.alreadyAvif");
-  }
-
-  // Existing .avif sibling
-  if (reason.toLowerCase() === "existing .avif sibling") {
-    return t("queue.skipReasons.existingAvifSibling");
-  }
-
-  // Low savings (XX.X%)
-  const savingsMatch = reason.match(/^Low savings \((.+)\)$/i);
-  if (savingsMatch) {
-    return t("queue.skipReasons.lowSavings", { ratio: savingsMatch[1] });
-  }
-
-  // No matching preset
-  if (reason.toLowerCase().includes("no matching preset")) {
-    return t("queue.skipReasons.noMatchingPreset");
-  }
-
-  // 无法识别的原因，返回原文
-  return reason;
+  return parseSkippedJobReason({
+    reason,
+    jobType,
+    t: (key, values) => (values ? (t(key, values) as string) : (t(key) as string)),
+  });
 };
 
 /**
@@ -266,7 +232,9 @@ const getCardStyle = (index: number) => {
     `,
     opacity,
     zIndex,
-    transition: isDragging.value ? "none" : "all 0.35s cubic-bezier(0.23, 1, 0.32, 1)",
+    transition: isDragging.value
+      ? "none"
+      : "transform 0.35s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.35s cubic-bezier(0.23, 1, 0.32, 1)",
   };
 };
 
@@ -308,16 +276,25 @@ const handlePointerUp = (e: PointerEvent) => {
 
 // 鼠标滚轮事件处理
 const handleWheel = (e: WheelEvent) => {
-  e.preventDefault();
-  if (e.deltaX > 15 || e.deltaY > 15) {
-    if (activeIndex.value < displayedJobs.value.length - 1) {
-      activeIndex.value++;
-    }
-  } else if (e.deltaX < -15 || e.deltaY < -15) {
-    if (activeIndex.value > 0) {
+  const len = displayedJobs.value.length;
+  if (len === 0) return;
+
+  wheelSnap.onWheel(e, {
+    shouldConsume: (direction) => {
+      if (direction > 0) return activeIndex.value < len - 1;
+      return activeIndex.value > 0;
+    },
+    onStep: (direction) => {
+      if (direction > 0) {
+        if (activeIndex.value >= len - 1) return false;
+        activeIndex.value++;
+        return true;
+      }
+      if (activeIndex.value <= 0) return false;
       activeIndex.value--;
-    }
-  }
+      return true;
+    },
+  });
 };
 
 // 点击卡片跳转
@@ -341,6 +318,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener("wheel", handleWheel);
+  wheelSnap.reset();
 });
 </script>
 
@@ -364,7 +342,9 @@ onUnmounted(() => {
           {{ skippedJobs.length }}
         </Badge>
       </div>
-      <span class="text-[9px] text-muted-foreground/70"> {{ activeIndex + 1 }} / {{ displayedJobs.length }} </span>
+      <span data-testid="ffui-skipped-stack-position" class="text-[9px] text-muted-foreground/70">
+        {{ activeIndex + 1 }} / {{ displayedJobs.length }}
+      </span>
     </div>
 
     <!-- 卡片堆叠区域 -->

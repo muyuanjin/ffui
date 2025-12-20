@@ -21,9 +21,9 @@ const i18n = createI18n({
 
 const makeBasePreset = (partial: Partial<FFmpegPreset>): FFmpegPreset => {
   return {
-    id: "preset-1",
-    name: "Test Preset",
-    description: "Test description",
+    id: partial.id ?? "preset-1",
+    name: partial.name ?? "Test Preset",
+    description: partial.description ?? "Test description",
     video: {
       encoder: "libx264",
       rateControl: "crf",
@@ -86,6 +86,8 @@ describe("PresetPanel scenario and risk labels", () => {
 
     // 场景应显示为“Visually (near) lossless”
     expect(text).toContain("Visually (near) lossless");
+    // 智能导入/内置预设标签应可见（English）
+    expect(text).toContain("Built-in");
     // 同时应显示“May increase size”的体积风险提示
     expect(text).toContain("May increase size");
 

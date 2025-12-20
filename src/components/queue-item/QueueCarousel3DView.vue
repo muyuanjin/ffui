@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
 import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
+import { createWheelSoftSnapController } from "@/lib/wheelSoftSnap";
 import QueueCarousel3DHeader from "@/components/queue-item/QueueCarousel3DHeader.vue";
 import QueueCarousel3DFooter from "@/components/queue-item/QueueCarousel3DFooter.vue";
 import QueueCarousel3DCardContent from "@/components/queue-item/QueueCarousel3DCardContent.vue";
@@ -54,6 +55,17 @@ const stageLayout = ref(
     stageHeight: 0,
   }),
 );
+
+const wheelSnap = createWheelSoftSnapController({
+  getThresholdPx: () => {
+    const base = stageLayout.value.dragPixelsPerStep || 200;
+    return Math.min(110, Math.max(36, base * 0.28));
+  },
+  getPageSizePx: () => containerRef.value?.clientHeight || stageLayout.value.stageHeight || 800,
+  minIntervalMs: 35,
+  gestureResetMs: 150,
+  maxAccumulatedPx: 900,
+});
 
 const refreshStageLayout = () => {
   const el = stageRef.value;
@@ -184,16 +196,23 @@ const handlePointerUp = (e: PointerEvent) => {
 };
 
 const handleWheel = (e: WheelEvent) => {
-  e.preventDefault();
   const len = displayedItems.value.length;
   if (len === 0) return;
-  if (e.deltaX > 20 || e.deltaY > 20) {
-    // 向下/向右滚动，下一个（无限循环）
-    activeIndex.value = (activeIndex.value + 1) % len;
-  } else if (e.deltaX < -20 || e.deltaY < -20) {
-    // 向上/向左滚动，前一个（无限循环）
-    activeIndex.value = (activeIndex.value - 1 + len) % len;
-  }
+
+  wheelSnap.onWheel(e, {
+    shouldConsume: () => true,
+    onStep: (direction) => {
+      if (len === 0) return false;
+      if (direction > 0) {
+        // 向下/向右滚动，下一个（无限循环）
+        activeIndex.value = (activeIndex.value + 1) % len;
+        return true;
+      }
+      // 向上/向左滚动，前一个（无限循环）
+      activeIndex.value = (activeIndex.value - 1 + len) % len;
+      return true;
+    },
+  });
 };
 
 const handleCardClick = (index: number, item: QueueListItem) => {
@@ -303,6 +322,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   containerRef.value?.removeEventListener("wheel", handleWheel);
+  wheelSnap.reset();
   if (stageResizeObserver) {
     stageResizeObserver.disconnect();
     stageResizeObserver = null;
