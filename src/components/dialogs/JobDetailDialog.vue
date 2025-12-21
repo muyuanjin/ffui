@@ -2,6 +2,7 @@
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import { isJobCompareEligible } from "@/lib/jobCompare";
 import { useJobDetailDialogState, type JobDetailDialogProps } from "./useJobDetailDialogState";
@@ -235,16 +236,25 @@ const {
                   <h3 class="text-xs font-semibold">
                     {{ t("taskDetail.commandTitle") }}
                   </h3>
-                  <select
-                    v-if="effectiveRuns.length > 1"
-                    v-model="selectedCommandRun"
-                    class="h-6 rounded-md border border-border bg-muted/40 px-2 text-[10px] text-foreground"
-                    data-testid="task-detail-command-run-select"
-                  >
-                    <option v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
-                      {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
-                    </option>
-                  </select>
+                  <Select v-if="effectiveRuns.length > 1" v-model="selectedCommandRun">
+                    <SelectTrigger
+                      class="h-6 w-[104px] px-2 py-0 text-[10px] bg-muted/40"
+                      data-testid="task-detail-command-run-select"
+                    >
+                      <SelectValue>
+                        {{
+                          t("taskDetail.runLabel", {
+                            n: Number.parseInt(selectedCommandRun, 10) + 1,
+                          })
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
+                        {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     v-if="jobDetailHasDistinctTemplate"
                     type="button"
@@ -263,7 +273,7 @@ const {
                     size="xs"
                     class="h-6 px-2 text-[10px] bg-secondary/70 text-foreground hover:bg-secondary"
                     data-testid="task-detail-copy-command"
-                    @click="copyToClipboard(jobDetailRawCommand)"
+                    @click="copyToClipboard(jobDetailEffectiveCommand)"
                   >
                     {{ t("taskDetail.copyCommand") }}
                   </Button>
@@ -304,17 +314,26 @@ const {
                   <h3 class="text-xs font-semibold">
                     {{ t("taskDetail.logsTitle") }}
                   </h3>
-                  <select
-                    v-if="effectiveRuns.length > 1"
-                    v-model="selectedLogRun"
-                    class="h-6 rounded-md border border-border bg-muted/40 px-2 text-[10px] text-foreground"
-                    data-testid="task-detail-log-run-select"
-                  >
-                    <option value="all">{{ t("taskDetail.allRuns") }}</option>
-                    <option v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
-                      {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
-                    </option>
-                  </select>
+                  <Select v-if="effectiveRuns.length > 1" v-model="selectedLogRun">
+                    <SelectTrigger
+                      class="h-6 w-[104px] px-2 py-0 text-[10px] bg-muted/40"
+                      data-testid="task-detail-log-run-select"
+                    >
+                      <SelectValue>
+                        {{
+                          selectedLogRun === "all"
+                            ? t("taskDetail.allRuns")
+                            : t("taskDetail.runLabel", { n: Number.parseInt(selectedLogRun, 10) + 1 })
+                        }}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">{{ t("taskDetail.allRuns") }}</SelectItem>
+                      <SelectItem v-for="(_, idx) in effectiveRuns" :key="idx" :value="String(idx)">
+                        {{ t("taskDetail.runLabel", { n: idx + 1 }) }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
                   variant="outline"

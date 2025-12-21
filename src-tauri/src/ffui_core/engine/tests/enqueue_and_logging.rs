@@ -239,7 +239,15 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
             .unwrap_or_default()
     };
 
-    // Simulate a paused/resumable job so the next ffmpeg spawn represents a new run.
+    // Log an initial ffmpeg launch so the job has Run 1.
+    let initial_args = vec![
+        "-i".to_string(),
+        "C:/Videos/input.mp4".to_string(),
+        "C:/Videos/output.tmp.mp4".to_string(),
+    ];
+    log_external_command(&engine.inner, &job.id, "ffmpeg", &initial_args);
+
+    // Simulate a paused/resumable job so the next ffmpeg spawn represents Run 2.
     {
         let mut state_lock = engine.inner.state.lock().expect("engine state poisoned");
         let stored = state_lock.jobs.get_mut(&job.id).expect("job present");
@@ -280,6 +288,11 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
     assert!(
         stored.runs.len() >= 2,
         "resume logging should create a new run entry"
+    );
+    let first_run = stored.runs.first().expect("first run exists");
+    assert!(
+        !first_run.command.contains("-ss"),
+        "initial run command should not include resume flags"
     );
     let last_run = stored.runs.last().expect("last run exists");
     assert!(

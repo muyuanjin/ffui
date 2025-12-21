@@ -12,7 +12,6 @@ use super::state::{
 use crate::ffui_core::domain::{
     AutoCompressProgress,
     FFmpegPreset,
-    JobRun,
     JobStatus,
     TranscodeJob,
 };
@@ -27,19 +26,6 @@ fn is_critical_log_line(line: &str) -> bool {
         || lower.contains("exited with")
         || lower.contains("invalid")
         || lower.trim_start().starts_with("command:")
-}
-
-fn ensure_job_run_for_logs(job: &mut TranscodeJob, started_at_ms: u64) {
-    if !job.runs.is_empty() {
-        return;
-    }
-
-    let command = job.ffmpeg_command.clone().unwrap_or_default();
-    job.runs.push(JobRun {
-        command,
-        logs: Vec::new(),
-        started_at_ms: Some(started_at_ms),
-    });
 }
 
 fn sync_job_logs_with_runs_if_needed(job: &mut TranscodeJob) {
@@ -90,15 +76,17 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
         return;
     }
 
-    if job.runs.is_empty() && !job.logs.is_empty() {
-        // Legacy/migrated job: attach existing flat logs to a single run so
-        // future appends stay consistent.
-        let command = job.ffmpeg_command.clone().unwrap_or_default();
-        job.runs.push(JobRun {
-            command,
-            logs: job.logs.clone(),
-            started_at_ms: job.start_time,
-        });
+    if job.runs.is_empty() {
+        while job.logs.len() > MAX_LOG_LINES {
+            if let Some(idx) = job.logs.iter().position(|line| !is_critical_log_line(line)) {
+                job.logs.remove(idx);
+            } else if !job.logs.is_empty() {
+                job.logs.remove(0);
+            } else {
+                break;
+            }
+        }
+        return;
     }
 
     // If the run logs drifted from the flat logs (should not happen after
@@ -149,9 +137,6 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
 }
 
 pub(super) fn append_job_log_line(job: &mut TranscodeJob, line: impl Into<String>) {
-    let now_ms = current_time_millis();
-    ensure_job_run_for_logs(job, now_ms);
-
     let line = line.into();
     job.logs.push(line.clone());
     if let Some(run) = job.runs.last_mut() {

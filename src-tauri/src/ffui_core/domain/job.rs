@@ -207,6 +207,13 @@ impl TranscodeJob {
             return;
         }
 
+        // Jobs that have not started yet should not synthesize a placeholder
+        // run entry from the planned command. Runs represent actual external
+        // invocations.
+        if matches!(self.status, JobStatus::Waiting | JobStatus::Queued) {
+            return;
+        }
+
         if self.ffmpeg_command.is_none() && self.logs.is_empty() {
             return;
         }

@@ -121,13 +121,12 @@ pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, a
         }
 
         // Each ffmpeg launch (initial run, resume, retry) becomes a distinct run.
-        // If enqueue created a placeholder Run 1 (started_at_ms == None), we
+        // If an older enqueue path created a placeholder Run 1 (started_at_ms == None),
         // attach this first launch to that run instead of creating Run 2.
         if job.runs.is_empty() {
-            let initial = job.ffmpeg_command.clone().unwrap_or_else(|| cmd.clone());
             job.runs.push(crate::ffui_core::domain::JobRun {
-                command: initial,
-                logs: Vec::new(),
+                command: cmd.clone(),
+                logs: job.logs.clone(),
                 started_at_ms: Some(now_ms),
             });
         } else if let Some(last) = job.runs.last_mut()
@@ -136,9 +135,10 @@ pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, a
             && job.wait_metadata.is_none()
         {
             last.started_at_ms = Some(now_ms);
-            if last.command.is_empty() {
-                last.command = job.ffmpeg_command.clone().unwrap_or_else(|| cmd.clone());
+            if last.logs.is_empty() && !job.logs.is_empty() {
+                last.logs = job.logs.clone();
             }
+            last.command = cmd.clone();
         } else {
             job.runs.push(crate::ffui_core::domain::JobRun {
                 command: cmd.clone(),

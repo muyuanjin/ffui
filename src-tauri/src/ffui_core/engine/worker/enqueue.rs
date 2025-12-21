@@ -17,7 +17,6 @@ use super::super::worker_utils::{
     estimate_job_seconds_for_preset,
 };
 use crate::ffui_core::domain::{
-    JobRun,
     JobSource,
     JobStatus,
     JobType,
@@ -115,16 +114,6 @@ fn enqueue_transcode_job_no_notify(
             logs.push(format!("warning: {}", w.message));
         }
 
-        let runs = if planned_command.is_some() || !logs.is_empty() {
-            vec![JobRun {
-                command: planned_command.clone().unwrap_or_default(),
-                logs: logs.clone(),
-                started_at_ms: None,
-            }]
-        } else {
-            Vec::new()
-        };
-
         let job = TranscodeJob {
             id: id.clone(),
             filename: normalized_filename,
@@ -148,7 +137,7 @@ fn enqueue_transcode_job_no_notify(
             output_path,
             output_policy: Some(queue_output_policy.clone()),
             ffmpeg_command: planned_command,
-            runs,
+            runs: Vec::new(),
             media_info: Some(MediaInfo {
                 duration_seconds: None,
                 width: None,

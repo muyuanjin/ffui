@@ -262,8 +262,8 @@ mod domain_contract_tests {
             "source": "manual",
             "originalSizeMB": 50.0,
             "presetId": "preset-1",
-            "status": "waiting",
-            "progress": 0.0,
+            "status": "completed",
+            "progress": 100.0,
             "ffmpegCommand": "ffmpeg -i in out",
             "logs": ["a", "b"],
         });

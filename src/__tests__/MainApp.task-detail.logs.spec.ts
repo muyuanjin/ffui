@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
-import { nextTick } from "vue";
+import { nextTick, defineComponent, inject, provide, ref, h } from "vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
@@ -58,6 +58,105 @@ const i18n = createI18n({
   },
 });
 
+const SelectStubKey = Symbol("SelectStubKey");
+type SelectStubContext = {
+  open: { value: boolean };
+  setOpen: (open: boolean) => void;
+  setValue: (value: unknown) => void;
+};
+
+const selectStubs = {
+  Select: defineComponent({
+    name: "Select",
+    props: { modelValue: { type: null, default: null } },
+    emits: ["update:modelValue"],
+    setup(_props, { emit, slots }) {
+      const open = ref(false);
+      const setOpen = (value: boolean) => {
+        open.value = value;
+      };
+      const setValue = (value: unknown) => {
+        emit("update:modelValue", value);
+      };
+      provide<SelectStubContext>(SelectStubKey, { open, setOpen, setValue });
+      return () => h("div", { "data-select-root": "" }, slots.default?.());
+    },
+  }),
+  SelectTrigger: defineComponent({
+    name: "SelectTrigger",
+    inheritAttrs: false,
+    setup(_props, { attrs, slots }) {
+      const ctx = inject<SelectStubContext>(SelectStubKey);
+      return () =>
+        h(
+          "button",
+          {
+            ...attrs,
+            type: "button",
+            onClick: () => {
+              if (!ctx) return;
+              ctx.setOpen(!ctx.open.value);
+            },
+          },
+          slots.default?.(),
+        );
+    },
+  }),
+  SelectContent: defineComponent({
+    name: "SelectContent",
+    setup(_props, { slots }) {
+      const ctx = inject<SelectStubContext>(SelectStubKey);
+      return () => (ctx?.open.value ? h("div", { "data-select-content": "" }, slots.default?.()) : null);
+    },
+  }),
+  SelectItem: defineComponent({
+    name: "SelectItem",
+    props: { value: { type: null, required: true } },
+    setup(props, { slots }) {
+      const ctx = inject<SelectStubContext>(SelectStubKey);
+      return () =>
+        h(
+          "button",
+          {
+            type: "button",
+            onClick: () => {
+              if (!ctx) return;
+              ctx.setValue(props.value);
+              ctx.setOpen(false);
+            },
+          },
+          slots.default?.(),
+        );
+    },
+  }),
+  SelectValue: defineComponent({
+    name: "SelectValue",
+    setup(_props, { slots }) {
+      return () => h("span", {}, slots.default?.());
+    },
+  }),
+  SelectGroup: defineComponent({
+    name: "SelectGroup",
+    setup(_p, { slots }) {
+      return () => h("div", {}, slots.default?.());
+    },
+  }),
+  SelectLabel: defineComponent({
+    name: "SelectLabel",
+    setup(_p, { slots }) {
+      return () => h("div", {}, slots.default?.());
+    },
+  }),
+  SelectSeparator: defineComponent({
+    name: "SelectSeparator",
+    setup() {
+      return () => h("hr");
+    },
+  }),
+};
+
+const mountMainApp = () => mount(MainApp, { global: { plugins: [i18n], stubs: selectStubs } });
+
 const setJobsOnVm = (vm: any, jobs: TranscodeJob[]) => {
   if (Array.isArray(vm.jobs)) {
     vm.jobs = jobs;
@@ -94,7 +193,7 @@ describe("MainApp task detail surface - logs", () => {
       ffmpegCommand: rawCommand,
     } as any;
 
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const wrapper = mountMainApp();
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
@@ -164,7 +263,7 @@ describe("MainApp task detail surface - logs", () => {
       logTail: [],
     } as any;
 
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const wrapper = mountMainApp();
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
@@ -195,7 +294,7 @@ describe("MainApp task detail surface - logs", () => {
       logTail: ["tail-only"],
     } as any;
 
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const wrapper = mountMainApp();
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
@@ -238,7 +337,7 @@ describe("MainApp task detail surface - logs", () => {
       logTail: "tail-only",
     } as TranscodeJob);
 
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const wrapper = mountMainApp();
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [liteJob]);
     vm.selectedJobForDetail = liteJob;
@@ -293,7 +392,7 @@ describe("MainApp task detail surface - logs", () => {
       ],
     } as any;
 
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const wrapper = mountMainApp();
     const vm: any = wrapper.vm;
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
@@ -312,14 +411,18 @@ describe("MainApp task detail surface - logs", () => {
     await copyCommandButton?.click();
     expect(clipboard.writeText).toHaveBeenLastCalledWith("ffmpeg -i in.mp4 out.mp4");
 
-    const commandRunSelect = document.querySelector(
+    const commandRunTrigger = document.querySelector(
       "[data-testid='task-detail-command-run-select']",
-    ) as HTMLSelectElement | null;
-    expect(commandRunSelect).toBeTruthy();
-    if (commandRunSelect) {
-      commandRunSelect.value = "1";
-      commandRunSelect.dispatchEvent(new Event("change"));
-    }
+    ) as HTMLButtonElement | null;
+    expect(commandRunTrigger).toBeTruthy();
+    commandRunTrigger?.click();
+    await nextTick();
+    const commandRunRoot = commandRunTrigger?.closest("[data-select-root]") as HTMLElement | null;
+    const run2Option = Array.from(commandRunRoot?.querySelectorAll("[data-select-content] button") ?? []).find((el) =>
+      (el.textContent || "").includes("Run 2"),
+    ) as HTMLElement | undefined;
+    expect(run2Option).toBeTruthy();
+    run2Option?.click();
     await nextTick();
 
     const commandText2 = document.querySelector("[data-testid='task-detail-command']")?.textContent || "";
@@ -333,14 +436,18 @@ describe("MainApp task detail surface - logs", () => {
     await copyLogsButton?.click();
     expect(clipboard.writeText).toHaveBeenLastCalledWith("r1-a\nr1-b\nr2-a");
 
-    const logRunSelect = document.querySelector(
+    const logRunTrigger = document.querySelector(
       "[data-testid='task-detail-log-run-select']",
-    ) as HTMLSelectElement | null;
-    expect(logRunSelect).toBeTruthy();
-    if (logRunSelect) {
-      logRunSelect.value = "1";
-      logRunSelect.dispatchEvent(new Event("change"));
-    }
+    ) as HTMLButtonElement | null;
+    expect(logRunTrigger).toBeTruthy();
+    logRunTrigger?.click();
+    await nextTick();
+    const logRunRoot = logRunTrigger?.closest("[data-select-root]") as HTMLElement | null;
+    const logRun2Option = Array.from(logRunRoot?.querySelectorAll("[data-select-content] button") ?? []).find((el) =>
+      (el.textContent || "").includes("Run 2"),
+    ) as HTMLElement | undefined;
+    expect(logRun2Option).toBeTruthy();
+    logRun2Option?.click();
     await nextTick();
 
     const logText = document.querySelector("[data-testid='task-detail-log']")?.textContent || "";
