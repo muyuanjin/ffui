@@ -188,6 +188,67 @@ describe("useMainAppPresets library actions", () => {
     wrapper.unmount();
   });
 
+  it("importPresetsBundleFromClipboard parses JSON, normalizes, and persists", async () => {
+    const existing = makePreset({ id: "p1", name: "Preset A" });
+    const presets = ref<FFmpegPreset[]>([existing]);
+    const presetsLoadedFromBackend = ref(true);
+    const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
+
+    const bundle = {
+      schemaVersion: 1,
+      appVersion: "0.2.1",
+      exportedAtMs: 1,
+      presets: [makePreset({ id: "import-1", name: "Preset A" }), makePreset({ id: "import-2", name: "Preset B" })],
+    };
+
+    const w = globalThis as any;
+    w.navigator = w.navigator ?? {};
+    const originalClipboard = w.navigator.clipboard;
+    const readText = vi.fn().mockResolvedValue(JSON.stringify(bundle));
+    w.navigator.clipboard = { readText };
+
+    let backendState = [...presets.value];
+    savePresetOnBackend.mockImplementation(async (preset: FFmpegPreset) => {
+      backendState = [...backendState, preset];
+      return backendState;
+    });
+
+    const { composable, wrapper } = mountComposable({
+      t: (key: string) => key,
+      locale,
+      presets,
+      presetsLoadedFromBackend,
+      manualJobPresetId,
+      dialogManager: {
+        openParameterPanel: () => {},
+        closeParameterPanel: () => {},
+        closeWizard: () => {},
+      } as any,
+      shell: undefined,
+    });
+
+    try {
+      await composable.importPresetsBundleFromClipboard();
+    } finally {
+      w.navigator.clipboard = originalClipboard;
+    }
+
+    expect(readText).toHaveBeenCalledTimes(1);
+    expect(savePresetOnBackend).toHaveBeenCalledTimes(2);
+    const imported1 = savePresetOnBackend.mock.calls[0][0] as FFmpegPreset;
+    const imported2 = savePresetOnBackend.mock.calls[1][0] as FFmpegPreset;
+    expect(imported1.id).not.toBe("import-1");
+    expect(imported2.id).not.toBe("import-2");
+    expect(imported1.id).not.toBe(imported2.id);
+    expect(imported1.name).toBe("Preset A (Copy)");
+    expect(imported2.name).toBe("Preset B");
+    expect(imported1.stats.usageCount).toBe(0);
+    expect(imported2.stats.usageCount).toBe(0);
+
+    wrapper.unmount();
+  });
+
   it("exportSelectedPresetsBundleToFile uses a save dialog and calls exportPresetsBundle", async () => {
     const presets = ref<FFmpegPreset[]>([makePreset({ id: "p1" })]);
     const presetsLoadedFromBackend = ref(true);

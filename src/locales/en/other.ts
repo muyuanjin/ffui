@@ -315,6 +315,7 @@ const other = {
     useCasePreferenceArchive: "Archival",
     importSmartPack: "Import from built-in preset pack",
     import: "Import",
+    importFromClipboard: "Import from clipboard",
     export: "Export",
     toggleSelect: "Select / deselect",
     duplicatePreset: "Duplicate preset",

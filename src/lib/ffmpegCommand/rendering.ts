@@ -144,6 +144,26 @@ const applyProgramOverride = (
   return wrapWithSameQuotes(rawText, withQuotes);
 };
 
+export const applyProgramOverridesToCommand = (
+  command: string | undefined | null,
+  overrides?: HighlightProgramOverrides,
+): string => {
+  const raw = command ?? "";
+  if (!raw) return "";
+
+  // Reuse the same token classification used by highlighting so the produced
+  // command string matches what the UI renders.
+  const tokens = tokenizeFfmpegCommand(raw);
+  if (!tokens.length) return raw;
+
+  return tokens
+    .map((token) => {
+      const replacement = applyProgramOverride(token.kind, token.text, overrides);
+      return replacement ?? token.text;
+    })
+    .join("");
+};
+
 /**
  * Highlight FFmpeg command with HTML syntax highlighting
  */

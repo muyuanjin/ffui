@@ -305,6 +305,7 @@ const other = {
     useCasePreferenceArchive: "长期归档",
     importSmartPack: "从内置预设包导入",
     import: "导入",
+    importFromClipboard: "从剪贴板导入",
     export: "导出",
     toggleSelect: "选择 / 取消选择",
     duplicatePreset: "复制预设",

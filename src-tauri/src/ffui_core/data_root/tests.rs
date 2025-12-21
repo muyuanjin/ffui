@@ -88,3 +88,26 @@ fn resolve_data_root_falls_back_when_portable_not_writable() {
     assert!(state.fallback_active);
     assert!(state.fallback_notice_pending);
 }
+
+#[test]
+fn ui_fonts_dir_follows_data_root() {
+    let data_dir = tempdir().expect("temp data dir");
+    let _guard = override_data_root_dir_for_tests(data_dir.path().to_path_buf());
+
+    let fonts_dir = ui_fonts_dir().expect("resolve ui fonts dir for test");
+    assert_eq!(fonts_dir, data_dir.path().join(UI_FONTS_DIRNAME));
+    assert!(fonts_dir.is_dir());
+}
+
+#[test]
+fn clear_app_data_root_removes_ui_fonts_dir() {
+    let data_dir = tempdir().expect("temp data dir");
+    let _guard = override_data_root_dir_for_tests(data_dir.path().to_path_buf());
+
+    let fonts_dir = data_dir.path().join(UI_FONTS_DIRNAME);
+    fs::create_dir_all(&fonts_dir).expect("create ui-fonts dir");
+    fs::write(fonts_dir.join("inter.ttf"), b"ffui").expect("write dummy font");
+
+    clear_app_data_root().expect("clear app data root");
+    assert!(!fonts_dir.exists());
+}

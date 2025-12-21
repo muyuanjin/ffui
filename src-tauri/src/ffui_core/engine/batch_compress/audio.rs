@@ -27,6 +27,7 @@ use crate::ffui_core::domain::{
     AudioCodecType,
     BatchCompressConfig,
     FFmpegPreset,
+    JobRun,
     JobSource,
     JobStatus,
     JobType,
@@ -157,16 +158,6 @@ pub(crate) fn handle_audio_file_with_id(
 
     let (ffmpeg_path, _source, did_download) =
         ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
-
-    if did_download {
-        append_job_log_line(
-            &mut job,
-            format!(
-                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
-            ),
-        );
-        record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
-    }
 
     // 构建 ffmpeg 参数：音频-only，禁用视频流，使用 Batch Compress 默认或预设音频配置。
     let mut args: Vec<String> = Vec::new();
@@ -372,17 +363,26 @@ pub(crate) fn handle_audio_file_with_id(
 
     args.push(tmp_output.to_string_lossy().into_owned());
 
-    let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &args);
-    job.ffmpeg_command = Some(ffmpeg_cmd.clone());
-    if let Some(run) = job.runs.first_mut()
-        && run.command.is_empty()
-    {
-        run.command = ffmpeg_cmd.clone();
-    }
-    append_job_log_line(&mut job, format!("command: {ffmpeg_cmd}"));
-
     let start_ms = current_time_millis();
     job.start_time = Some(start_ms);
+
+    let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &args);
+    job.ffmpeg_command = Some(ffmpeg_cmd.clone());
+    job.runs.push(JobRun {
+        command: ffmpeg_cmd.clone(),
+        logs: Vec::new(),
+        started_at_ms: Some(start_ms),
+    });
+    if did_download {
+        append_job_log_line(
+            &mut job,
+            format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ),
+        );
+        record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
+    }
+    append_job_log_line(&mut job, format!("command: {ffmpeg_cmd}"));
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);

@@ -77,8 +77,13 @@ impl TranscodingEngine {
             PathBuf,
         };
 
-        let previews_root = crate::ffui_core::previews_dir()
-            .unwrap_or_else(|_| PathBuf::from(".").join("previews"));
+        let previews_root = match crate::ffui_core::previews_dir() {
+            Ok(dir) => dir,
+            Err(err) => {
+                eprintln!("preview refresh skipped: failed to resolve previews dir: {err:#}");
+                return;
+            }
+        };
 
         let jobs_snapshot: Vec<(String, String, Option<f64>)> = {
             let state = self.inner.state.lock().expect("engine state poisoned");

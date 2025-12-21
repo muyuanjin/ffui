@@ -122,4 +122,22 @@ describe("PresetPanel library actions", () => {
 
     wrapper.unmount();
   });
+
+  it("emits importBundleFromClipboard from split-button dropdown", async () => {
+    const presets = [makePreset("p1", "One")];
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    await wrapper.get('[data-testid="preset-import-menu"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="preset-import-clipboard"]').trigger("click");
+    expect(wrapper.emitted("importBundleFromClipboard")).toBeTruthy();
+
+    wrapper.unmount();
+  });
 });

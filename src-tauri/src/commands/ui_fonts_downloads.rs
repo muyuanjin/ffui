@@ -14,10 +14,7 @@ use std::time::{
     Instant,
 };
 
-use tauri::{
-    Emitter,
-    Manager,
-};
+use tauri::Emitter;
 
 use super::ui_fonts_catalog::open_source_fonts_catalog;
 use super::ui_fonts_types::{
@@ -137,11 +134,8 @@ pub fn start_open_source_font_download(
 
     let (id, _name, family_name, format, url) = entry;
 
-    let base_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("failed to resolve app_data_dir: {e}"))?;
-    let fonts_dir: PathBuf = base_dir.join("ui-fonts");
+    let fonts_dir: PathBuf = crate::ffui_core::ui_fonts_dir()
+        .map_err(|e| format!("failed to resolve ui fonts directory: {e}"))?;
     let filename = format!("{id}.{format}");
     let dest = fonts_dir.join(filename);
 
@@ -310,7 +304,7 @@ pub fn start_open_source_font_download(
 }
 
 pub fn ensure_open_source_font_downloaded(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     font_id: &str,
 ) -> Result<DownloadedFontInfo, String> {
     use std::fs;
@@ -327,11 +321,8 @@ pub fn ensure_open_source_font_downloaded(
         .ok_or_else(|| format!("unknown font id: {id}"))?;
     let (id, _name, family_name, format, url) = entry;
 
-    let base_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("failed to resolve app_data_dir: {e}"))?;
-    let fonts_dir: PathBuf = base_dir.join("ui-fonts");
+    let fonts_dir: PathBuf = crate::ffui_core::ui_fonts_dir()
+        .map_err(|e| format!("failed to resolve ui fonts directory: {e}"))?;
     fs::create_dir_all(&fonts_dir).map_err(|e| format!("failed to create ui-fonts dir: {e}"))?;
 
     let filename = format!("{id}.{format}");

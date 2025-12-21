@@ -36,6 +36,7 @@ pub const META_FILENAME: &str = "meta.json";
 pub const QUEUE_LOGS_DIRNAME: &str = "queue-logs";
 pub const PREVIEWS_DIRNAME: &str = "previews";
 pub const TOOLS_DIRNAME: &str = "tools";
+pub const UI_FONTS_DIRNAME: &str = "ui-fonts";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -157,6 +158,13 @@ pub fn tools_dir() -> Result<PathBuf> {
     Ok(dir)
 }
 
+pub fn ui_fonts_dir() -> Result<PathBuf> {
+    let dir = data_root_dir()?.join(UI_FONTS_DIRNAME);
+    fs::create_dir_all(&dir)
+        .with_context(|| format!("failed to create ui fonts directory {}", dir.display()))?;
+    Ok(dir)
+}
+
 fn ensure_safe_data_root(root: &Path) -> Result<()> {
     let normalized = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     if normalized.parent().is_none() {
@@ -182,7 +190,12 @@ pub fn clear_app_data_root() -> Result<()> {
         }
     }
 
-    let dirs = [QUEUE_LOGS_DIRNAME, PREVIEWS_DIRNAME, TOOLS_DIRNAME];
+    let dirs = [
+        QUEUE_LOGS_DIRNAME,
+        PREVIEWS_DIRNAME,
+        TOOLS_DIRNAME,
+        UI_FONTS_DIRNAME,
+    ];
     for name in dirs {
         let path = root.join(name);
         if path.is_dir() {

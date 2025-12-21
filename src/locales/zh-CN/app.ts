@@ -214,7 +214,7 @@ const app = {
     dataRootFallbackTitle: "便携模式回退",
     dataRootFallbackNotice: "便携目录不可写，已切到系统数据目录",
     dataRootFallbackDismiss: "知道了",
-    dataRootModeLabel: "数据根目录模式",
+    dataRootModeLabel: "数据存储模式",
     dataRootModeHint: "系统模式使用系统应用数据目录；便携模式写入应用所在目录。",
     dataRootModes: {
       system: "系统模式（推荐）",

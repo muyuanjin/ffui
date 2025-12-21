@@ -147,6 +147,7 @@ const {
   openPresetEditor,
   duplicatePreset,
   importPresetsBundleFromFile,
+  importPresetsBundleFromClipboard,
   exportSelectedPresetsBundleToFile,
   exportSelectedPresetsBundleToClipboard,
   exportPresetToFile,
@@ -364,10 +365,10 @@ defineExpose({
               @reorder="handleReorderPresets"
               @importSmartPack="dialogManager.openSmartPresetImport()"
               @importBundle="importPresetsBundleFromFile"
+              @importBundleFromClipboard="importPresetsBundleFromClipboard"
               @update:sortMode="(v) => (presetSortMode = v)"
               @update:viewMode="(v) => (presetViewMode = v)"
             />
-
             <MediaPanel
               v-else-if="activeTab === 'media'"
               :inspecting="isInspectingMedia"
@@ -380,9 +381,7 @@ defineExpose({
               @inspect-requested="openMediaFileDialog"
               @clear="clearInspectedMedia"
             />
-
             <MonitorPanelPro v-else-if="activeTab === 'monitor'" />
-
             <SettingsPanel
               v-else-if="activeTab === 'settings'"
               :app-settings="appSettings"

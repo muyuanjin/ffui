@@ -38,6 +38,7 @@ pub(crate) use data_root::{
     queue_state_path,
     set_desired_mode as set_data_root_mode,
     tools_dir,
+    ui_fonts_dir,
 };
 #[cfg(test)]
 pub(crate) use data_root::{

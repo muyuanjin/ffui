@@ -183,16 +183,30 @@ pub(super) fn concat_video_segments(
     Ok(())
 }
 
+#[cfg(test)]
 fn preview_root_dir() -> PathBuf {
     crate::ffui_core::previews_dir().unwrap_or_else(|_| PathBuf::from(".").join("previews"))
 }
 
-pub(super) fn build_preview_output_path(input: &Path, capture_percent: u8) -> PathBuf {
+fn preview_root_dir_for_writes() -> Option<PathBuf> {
+    crate::ffui_core::previews_dir().ok()
+}
+
+fn build_preview_output_path_in_root(
+    preview_root: &Path,
+    input: &Path,
+    capture_percent: u8,
+) -> PathBuf {
     let mut hasher = DefaultHasher::new();
     input.to_string_lossy().hash(&mut hasher);
     capture_percent.hash(&mut hasher);
     let hash = hasher.finish();
-    preview_root_dir().join(format!("{hash:016x}.jpg"))
+    preview_root.join(format!("{hash:016x}.jpg"))
+}
+
+#[cfg(test)]
+pub(super) fn build_preview_output_path(input: &Path, capture_percent: u8) -> PathBuf {
+    build_preview_output_path_in_root(&preview_root_dir(), input, capture_percent)
 }
 
 pub(super) fn compute_preview_seek_seconds(
@@ -228,7 +242,8 @@ pub(super) fn generate_preview_for_video(
     total_duration: Option<f64>,
     capture_percent: u8,
 ) -> Option<PathBuf> {
-    let preview_path = build_preview_output_path(input, capture_percent);
+    let preview_root = preview_root_dir_for_writes()?;
+    let preview_path = build_preview_output_path_in_root(&preview_root, input, capture_percent);
 
     if preview_path.exists() {
         return Some(preview_path);

@@ -69,6 +69,7 @@ mod image_and_preview;
 mod job_progress_and_processing;
 mod job_progress_wall_clock;
 mod job_runner_prepare_resume_paths;
+mod job_runner_processed_seconds_choice;
 mod job_wait_wall_clock;
 mod listeners_and_queue_state;
 mod network_proxy_startup;

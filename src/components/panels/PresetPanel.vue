@@ -43,6 +43,7 @@ const emit = defineEmits<{
   reorder: [orderedIds: string[]];
   importSmartPack: [];
   importBundle: [];
+  importBundleFromClipboard: [];
   "update:sortMode": [mode: PresetSortMode];
   "update:viewMode": [mode: ViewMode];
 }>();
@@ -260,15 +261,43 @@ useSortable(containerRef, localPresets, {
         >
           {{ t("presets.importSmartPack") }}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-7 px-2 text-[11px] whitespace-nowrap"
-          data-testid="preset-import-bundle"
-          @click="emit('importBundle')"
-        >
-          {{ t("presets.import") }}
-        </Button>
+        <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            class="h-7 px-2 text-[11px] whitespace-nowrap rounded-none"
+            data-testid="preset-import-bundle"
+            @click="emit('importBundle')"
+          >
+            {{ t("presets.import") }}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 w-7 p-0 rounded-none border-l border-border/60"
+                data-testid="preset-import-menu"
+              >
+                <ChevronDown class="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
+              :side-offset="4"
+              :portal-disabled="true"
+            >
+              <DropdownMenuItem
+                class="px-3 py-1.5 text-xs gap-2"
+                data-testid="preset-import-clipboard"
+                @select="emit('importBundleFromClipboard')"
+              >
+                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                {{ t("presets.importFromClipboard") }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
           <Button

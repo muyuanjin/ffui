@@ -22,6 +22,7 @@ pub(super) use detect::{
     detect_duration_seconds,
     detect_video_codec,
     detect_video_dimensions_and_frame_rate,
+    detect_video_stream_duration_seconds,
 };
 pub use job_object::{
     assign_child_to_job,

@@ -1,6 +1,6 @@
 import { computed, ref, watch, type ComputedRef } from "vue";
 import type { TranscodeJob } from "@/types";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import { applyProgramOverridesToCommand, highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 
 type CommandViewDefaultMode = "status" | "template" | "full";
 
@@ -34,10 +34,18 @@ export const useFfmpegCommandView = (options: {
     return normalizeFfmpegTemplate(raw).template;
   });
 
+  const fullCommand = computed(() => {
+    const raw = options.rawCommand.value;
+    if (!raw) return "";
+    const ffmpegOverride = options.ffmpegResolvedPath.value ?? null;
+    if (!ffmpegOverride) return raw;
+    return applyProgramOverridesToCommand(raw, { ffmpeg: ffmpegOverride });
+  });
+
   const effectiveCommand = computed(() => {
     const raw = options.rawCommand.value;
     const templ = templateCommand.value;
-    return showTemplateCommand.value ? templ || raw : raw;
+    return showTemplateCommand.value ? templ || raw : fullCommand.value || raw;
   });
 
   const hasDistinctTemplate = computed(() => {
@@ -73,13 +81,7 @@ export const useFfmpegCommandView = (options: {
       : options.t("taskDetail.commandToggle.showTemplate");
   });
 
-  const highlightedHtml = computed(() =>
-    highlightFfmpegCommand(effectiveCommand.value, {
-      programOverrides: {
-        ffmpeg: showTemplateCommand.value ? null : (options.ffmpegResolvedPath.value ?? null),
-      },
-    }),
-  );
+  const highlightedHtml = computed(() => highlightFfmpegCommand(effectiveCommand.value));
 
   return {
     effectiveCommand,

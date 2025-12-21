@@ -22,6 +22,7 @@ use super::helpers::{
 };
 use crate::ffui_core::domain::{
     BatchCompressConfig,
+    JobRun,
     JobStatus,
     PreserveFileTimesPolicy,
     TranscodeJob,
@@ -65,18 +66,6 @@ pub(super) fn encode_image_to_avif(
     ) {
         Ok((avifenc_path, _source, did_download)) => {
             let avifenc_path: String = avifenc_path;
-            if did_download {
-                append_job_log_line(
-                    job,
-                    format!(
-                        "auto-download: avifenc was downloaded automatically according to current settings (path: {avifenc_path})"
-                    ),
-                );
-                record_tool_download(inner, ExternalToolKind::Avifenc, &avifenc_path);
-            }
-
-            let start_ms = current_time_millis();
-            job.start_time = Some(start_ms);
 
             let avif_args: Vec<String> = vec![
                 "--lossless".to_string(),
@@ -96,10 +85,23 @@ pub(super) fn encode_image_to_avif(
 
             let avif_cmd = format_command_for_log(&avifenc_path, &avif_args);
             job.ffmpeg_command = Some(avif_cmd.clone());
-            if let Some(run) = job.runs.first_mut()
-                && run.command.is_empty()
-            {
-                run.command = avif_cmd.clone();
+            let start_ms = current_time_millis();
+            if job.start_time.is_none() {
+                job.start_time = Some(start_ms);
+            }
+            job.runs.push(JobRun {
+                command: avif_cmd.clone(),
+                logs: Vec::new(),
+                started_at_ms: Some(start_ms),
+            });
+            if did_download {
+                append_job_log_line(
+                    job,
+                    format!(
+                        "auto-download: avifenc was downloaded automatically according to current settings (path: {avifenc_path})"
+                    ),
+                );
+                record_tool_download(inner, ExternalToolKind::Avifenc, &avifenc_path);
             }
             append_job_log_line(job, format!("command: {avif_cmd}"));
 
@@ -264,11 +266,12 @@ pub(super) fn encode_image_to_avif(
 
     let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &ffmpeg_args);
     job.ffmpeg_command = Some(ffmpeg_cmd.clone());
-    if let Some(run) = job.runs.first_mut()
-        && run.command.is_empty()
-    {
-        run.command = ffmpeg_cmd.clone();
-    }
+    let start_ms = current_time_millis();
+    job.runs.push(JobRun {
+        command: ffmpeg_cmd.clone(),
+        logs: Vec::new(),
+        started_at_ms: Some(start_ms),
+    });
     append_job_log_line(job, format!("command: {ffmpeg_cmd}"));
 
     let mut cmd = Command::new(&ffmpeg_path);

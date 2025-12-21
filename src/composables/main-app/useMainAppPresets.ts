@@ -53,6 +53,7 @@ export interface UseMainAppPresetsReturn {
   cancelBatchDeletePresets: () => void;
   duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
   importPresetsBundleFromFile: () => Promise<void>;
+  importPresetsBundleFromClipboard: () => Promise<void>;
   exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
   exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
   exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
@@ -472,6 +473,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     cancelBatchDeletePresets: libraryActions.cancelBatchDeletePresets,
     duplicatePreset: libraryActions.duplicatePreset,
     importPresetsBundleFromFile: libraryActions.importPresetsBundleFromFile,
+    importPresetsBundleFromClipboard: libraryActions.importPresetsBundleFromClipboard,
     exportSelectedPresetsBundleToFile: libraryActions.exportSelectedPresetsBundleToFile,
     exportSelectedPresetsBundleToClipboard: libraryActions.exportSelectedPresetsBundleToClipboard,
     exportPresetToFile: libraryActions.exportPresetToFile,

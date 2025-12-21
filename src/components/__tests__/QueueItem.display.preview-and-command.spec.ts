@@ -382,4 +382,39 @@ describe("QueueItem display preview & command view", () => {
     await copyButton.trigger("click");
     expect(copyToClipboard).toHaveBeenCalledWith(rawCommand);
   });
+
+  it("copies the resolved ffmpeg path when full command view is active", async () => {
+    const rawCommand = 'ffmpeg -i "INPUT" -c:v libx264 -crf 23 "OUTPUT"';
+    const resolvedPath = "C:/Program Files/FFmpeg/bin/ffmpeg.exe";
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand: rawCommand,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+        ffmpegResolvedPath: resolvedPath,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const copyButton = wrapper.get("[data-testid='queue-item-copy-command']");
+
+    // Default is template view.
+    await copyButton.trigger("click");
+    expect(copyToClipboard).toHaveBeenCalledWith(`TEMPLATE:${rawCommand}`);
+
+    const toggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("Show full command"));
+    expect(toggleButton).toBeTruthy();
+    await toggleButton!.trigger("click");
+    await nextTick();
+
+    await copyButton.trigger("click");
+    expect(copyToClipboard).toHaveBeenLastCalledWith(`"${resolvedPath}" -i "INPUT" -c:v libx264 -crf 23 "OUTPUT"`);
+  });
 });

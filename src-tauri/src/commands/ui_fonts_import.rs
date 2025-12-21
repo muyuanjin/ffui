@@ -3,8 +3,6 @@ use std::path::{
     PathBuf,
 };
 
-use tauri::Manager;
-
 use super::ui_fonts_types::DownloadedFontInfo;
 
 const IMPORTED_FONT_ID: &str = "imported";
@@ -19,7 +17,7 @@ fn normalize_font_extension(path: &Path) -> Option<String> {
 }
 
 pub fn import_ui_font_file(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
     source_path: &str,
 ) -> Result<DownloadedFontInfo, String> {
     let raw = source_path.trim();
@@ -37,11 +35,9 @@ pub fn import_ui_font_file(
         return Err("selected font path is not a file".to_string());
     }
 
-    let base_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("failed to resolve app_data_dir: {e}"))?;
-    let dest_dir = base_dir.join("ui-fonts").join("imported");
+    let base_dir = crate::ffui_core::ui_fonts_dir()
+        .map_err(|e| format!("failed to resolve ui fonts directory: {e}"))?;
+    let dest_dir = base_dir.join("imported");
     std::fs::create_dir_all(&dest_dir)
         .map_err(|e| format!("failed to create imported font dir: {e}"))?;
 

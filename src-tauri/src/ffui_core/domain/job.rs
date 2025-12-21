@@ -232,11 +232,8 @@ pub struct QueueState {
     pub jobs: Vec<TranscodeJob>,
 }
 
-/// Lightweight view of a transcode job used for high-frequency queue
-/// snapshots and startup payloads. This intentionally omits heavy log
-/// history fields such as the full `logs` vector while keeping all fields
-/// needed for list rendering, sorting, bulk operations, and displaying /
-/// copying the effective ffmpeg command line in the UI.
+/// Lightweight view of a transcode job used for high-frequency queue snapshots.
+/// Omits heavyweight fields like full logs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLite {
@@ -275,10 +272,12 @@ pub struct TranscodeJobLite {
     pub output_path: Option<String>,
     /// Output policy snapshot captured at enqueue time.
     pub output_policy: Option<OutputPolicy>,
-    /// Human-readable ffmpeg command line used for this job. Unlike the full
-    /// `logs` vector this is required for the UI to render task cards and
-    /// details correctly, so it is preserved in the lite snapshot.
+    /// Planned/template ffmpeg command for this job.
     pub ffmpeg_command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_run_command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub first_run_started_at_ms: Option<u64>,
     /// Short human-readable reason for why a job was skipped. This is used by
     /// the queue list to surface skip context even when the full logs are
     /// omitted from the lite snapshot.
@@ -330,6 +329,11 @@ impl From<&TranscodeJob> for TranscodeJobLite {
         } else {
             Some(job.logs.iter().take(LOG_HEAD_LINES).cloned().collect())
         };
+        let (first_run_command, first_run_started_at_ms) = job
+            .runs
+            .first()
+            .map(|r| (Some(r.command.clone()), r.started_at_ms))
+            .unwrap_or((None, None));
 
         Self {
             id: job.id.clone(),
@@ -351,6 +355,8 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             output_path: job.output_path.clone(),
             output_policy: job.output_policy.clone(),
             ffmpeg_command: job.ffmpeg_command.clone(),
+            first_run_command,
+            first_run_started_at_ms,
             skip_reason: job.skip_reason.clone(),
             media_info: job.media_info.clone(),
             estimated_seconds: job.estimated_seconds,
@@ -380,13 +386,13 @@ impl From<TranscodeJobLite> for TranscodeJob {
         // while full logs may be restored via per-job files in CrashRecoveryFull.
 
         let runs = job
-            .ffmpeg_command
+            .first_run_command
             .as_deref()
             .map(|cmd| {
                 vec![JobRun {
                     command: cmd.to_string(),
                     logs: Vec::new(),
-                    started_at_ms: None,
+                    started_at_ms: job.first_run_started_at_ms.or(job.start_time),
                 }]
             })
             .unwrap_or_default();
@@ -462,6 +468,8 @@ mod tests {
                 output_path: None,
                 output_policy: None,
                 ffmpeg_command: None,
+                first_run_command: None,
+                first_run_started_at_ms: None,
                 skip_reason: None,
                 media_info: None,
                 estimated_seconds: None,

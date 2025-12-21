@@ -71,6 +71,7 @@ mod tools_tests_async_refresh {
             .as_object()
             .expect("payload elements must be objects");
 
+        assert!(obj.contains_key("resolvedPath"));
         assert!(obj.contains_key("remoteVersion"));
         assert!(obj.contains_key("downloadInProgress"));
         assert!(obj.contains_key("downloadProgress"));

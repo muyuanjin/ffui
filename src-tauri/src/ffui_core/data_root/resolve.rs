@@ -24,6 +24,7 @@ use super::{
     QUEUE_LOGS_DIRNAME,
     QUEUE_STATE_FILENAME,
     SETTINGS_FILENAME,
+    UI_FONTS_DIRNAME,
     now_ms,
 };
 
@@ -46,7 +47,7 @@ fn portable_root_has_marker(portable_root: &Path) -> bool {
         return true;
     }
     let logs = portable_root.join(QUEUE_LOGS_DIRNAME);
-    logs.exists()
+    logs.exists() || portable_root.join(UI_FONTS_DIRNAME).exists()
 }
 
 fn exe_name_is_portable(exe_name: &str) -> bool {

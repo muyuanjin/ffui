@@ -46,6 +46,49 @@ fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
     }
 }
 
+#[test]
+fn queue_state_lite_persists_first_real_command_for_restart() {
+    let _guard = PERSIST_TEST_MUTEX
+        .lock()
+        .expect("PERSIST_TEST_MUTEX poisoned");
+    reset_queue_persist_state_for_tests();
+
+    let tmp = std::env::temp_dir().join(format!(
+        "ffui-test-queue-state-first-run-command-{}.json",
+        std::process::id()
+    ));
+    let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
+
+    let mut job = make_job("job-1", JobStatus::Paused);
+    job.ffmpeg_command = Some("ffmpeg -i INPUT OUTPUT".to_string());
+    job.runs.push(crate::ffui_core::domain::JobRun {
+        command: "C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv".to_string(),
+        logs: vec!["command: C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv".to_string()],
+        started_at_ms: Some(123),
+    });
+
+    let lite = make_state_lite(vec![job]);
+    persist_queue_state_lite(&lite);
+
+    let restored = load_persisted_queue_state().expect("load persisted queue state");
+    let restored_job = restored
+        .jobs
+        .into_iter()
+        .find(|j| j.id == "job-1")
+        .expect("job restored");
+
+    assert!(
+        restored_job.runs.first().is_some(),
+        "expected restored job to keep Run 1 command even in lite mode"
+    );
+    assert_eq!(
+        restored_job.runs[0].command,
+        "C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv"
+    );
+
+    let _ = fs::remove_file(tmp);
+}
+
 fn make_state_lite(jobs: Vec<TranscodeJob>) -> QueueStateLite {
     QueueStateLite {
         jobs: jobs

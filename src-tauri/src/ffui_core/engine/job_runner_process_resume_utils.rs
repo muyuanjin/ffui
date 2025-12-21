@@ -1,5 +1,6 @@
 pub(super) fn probe_segment_duration_seconds(path: &Path, settings: &AppSettings) -> Option<f64> {
-    detect_duration_seconds(path, settings)
+    detect_video_stream_duration_seconds(path, settings)
+        .or_else(|_| detect_duration_seconds(path, settings))
         .ok()
         .filter(|d| d.is_finite() && *d > 0.0)
 }
@@ -83,7 +84,18 @@ pub(super) fn choose_processed_seconds_after_wait(
         });
 
     match (probed, progress) {
-        (Some(a), Some(b)) => Some(a.max(b)),
+        (Some(probed_end), Some(progress_end)) => {
+            // If ffmpeg's out_time is materially ahead of the probed video end,
+            // it likely reflects a non-video stream tail (e.g. copied audio).
+            // Using that larger timestamp as the resume seek point would skip
+            // video frames after repeated pause/resume cycles.
+            let suspect_non_video_tail = progress_end > probed_end + 0.2;
+            if suspect_non_video_tail {
+                Some(probed_end)
+            } else {
+                Some(probed_end.max(progress_end))
+            }
+        }
         (Some(a), None) => Some(a),
         (None, Some(b)) => Some(b),
         _ => None,

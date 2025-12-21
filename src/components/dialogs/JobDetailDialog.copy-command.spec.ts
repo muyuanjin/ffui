@@ -85,4 +85,44 @@ describe("JobDetailDialog copy command", () => {
 
     expect(writeText).toHaveBeenCalledWith(`TEMPLATE(${job.ffmpegCommand})`);
   });
+
+  it("copies the resolved ffmpeg path when full command view is active", async () => {
+    const resolvedPath = "C:/Program Files/FFmpeg/bin/ffmpeg.exe";
+    const job = makeJob({
+      status: "completed",
+      ffmpegCommand: "ffmpeg -i input.mp4 output.mp4",
+    });
+
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    const wrapper = mount(JobDetailDialog, {
+      props: {
+        open: true,
+        job,
+        preset: null,
+        jobDetailLogText: "",
+        highlightedLogHtml: "",
+        ffmpegResolvedPath: resolvedPath,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogScrollContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    await wrapper.get('[data-testid="task-detail-copy-command"]').trigger("click");
+    await flushPromises();
+
+    expect(writeText).toHaveBeenCalledWith(`"${resolvedPath}" -i input.mp4 output.mp4`);
+  });
 });

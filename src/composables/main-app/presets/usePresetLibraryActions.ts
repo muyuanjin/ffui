@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { readFromClipboard } from "@/lib/readFromClipboard";
 import {
   deletePresetOnBackend,
   exportPresetsBundle,
@@ -25,6 +26,7 @@ export interface PresetLibraryActionsReturn {
   cancelBatchDeletePresets: () => void;
   duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
   importPresetsBundleFromFile: () => Promise<void>;
+  importPresetsBundleFromClipboard: () => Promise<void>;
   exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
   exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
   exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
@@ -181,6 +183,54 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     }
   };
 
+  const importPresetsBundleCore = async (incomingPresets: unknown) => {
+    const incoming = Array.isArray(incomingPresets) ? incomingPresets : [];
+    if (incoming.length === 0) return;
+
+    const existingIds = new Set(presets.value.map((p) => p.id));
+    const existingNames = new Set(presets.value.map((p) => p.name));
+    const normalizedPresets: FFmpegPreset[] = [];
+
+    for (const preset of incoming as any[]) {
+      if (!preset || typeof preset !== "object") continue;
+      const newId = generateUniquePresetId(existingIds);
+      existingIds.add(newId);
+      const newName = dedupeImportedName((preset as any).name, existingNames, locale.value);
+      existingNames.add(newName);
+      normalizedPresets.push({
+        ...(preset as any),
+        id: newId,
+        name: newName,
+        stats: makeZeroStats(),
+        isSmartPreset: false,
+      });
+    }
+
+    if (normalizedPresets.length === 0) return;
+
+    let latest: FFmpegPreset[] | null = null;
+    for (const preset of normalizedPresets) {
+      try {
+        const updated = await savePresetOnBackend(preset);
+        if (Array.isArray(updated)) {
+          latest = updated;
+        }
+      } catch (e) {
+        console.error("Failed to import preset to backend:", e);
+      }
+    }
+
+    if (Array.isArray(latest)) {
+      presets.value = latest;
+    } else {
+      presets.value = [...presets.value, ...normalizedPresets];
+    }
+    ensureManualPresetId();
+    if (shell) {
+      shell.activeTab.value = "presets";
+    }
+  };
+
   const importPresetsBundleFromFile = async () => {
     if (!hasTauri()) return;
     try {
@@ -193,50 +243,21 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       if (!path) return;
 
       const bundle = await readPresetsBundle(path);
-      const incoming = Array.isArray(bundle?.presets) ? bundle.presets : [];
-      if (incoming.length === 0) return;
-
-      const existingIds = new Set(presets.value.map((p) => p.id));
-      const existingNames = new Set(presets.value.map((p) => p.name));
-      const normalizedPresets: FFmpegPreset[] = [];
-
-      for (const preset of incoming) {
-        const newId = generateUniquePresetId(existingIds);
-        existingIds.add(newId);
-        const newName = dedupeImportedName(preset.name, existingNames, locale.value);
-        existingNames.add(newName);
-        normalizedPresets.push({
-          ...preset,
-          id: newId,
-          name: newName,
-          stats: makeZeroStats(),
-          isSmartPreset: false,
-        });
-      }
-
-      let latest: FFmpegPreset[] | null = null;
-      for (const preset of normalizedPresets) {
-        try {
-          const updated = await savePresetOnBackend(preset);
-          if (Array.isArray(updated)) {
-            latest = updated;
-          }
-        } catch (e) {
-          console.error("Failed to import preset to backend:", e);
-        }
-      }
-
-      if (Array.isArray(latest)) {
-        presets.value = latest;
-      } else {
-        presets.value = [...presets.value, ...normalizedPresets];
-      }
-      ensureManualPresetId();
-      if (shell) {
-        shell.activeTab.value = "presets";
-      }
+      await importPresetsBundleCore(bundle?.presets);
     } catch (e) {
       console.error("Failed to import presets bundle:", e);
+    }
+  };
+
+  const importPresetsBundleFromClipboard = async () => {
+    if (!hasTauri()) return;
+    try {
+      const text = await readFromClipboard();
+      if (!text || text.trim().length === 0) return;
+      const parsed = JSON.parse(text);
+      await importPresetsBundleCore((parsed as any)?.presets);
+    } catch (e) {
+      console.error("Failed to import presets bundle from clipboard:", e);
     }
   };
 
@@ -312,6 +333,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     cancelBatchDeletePresets,
     duplicatePreset,
     importPresetsBundleFromFile,
+    importPresetsBundleFromClipboard,
     exportSelectedPresetsBundleToFile,
     exportSelectedPresetsBundleToClipboard,
     exportPresetToFile,

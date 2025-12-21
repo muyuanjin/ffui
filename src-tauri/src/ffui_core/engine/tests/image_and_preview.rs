@@ -1,3 +1,5 @@
+use tempfile::tempdir;
+
 use super::*;
 #[test]
 fn build_preview_output_path_is_stable_for_same_input() {
@@ -141,6 +143,11 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
         return;
     }
 
+    let data_root = tempdir().expect("create temp data root for preview integration test");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
+
     let dir = env::temp_dir();
     let input = dir.join("ffui_it_preview_regen_in.mp4");
 
@@ -249,6 +256,11 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
         eprintln!("skipping preview refresh integration test because ffmpeg is not available");
         return;
     }
+
+    let data_root = tempdir().expect("create temp data root for preview refresh integration test");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
 
     let dir = env::temp_dir();
     let input = dir.join("ffui_it_preview_refresh_in.mp4");
