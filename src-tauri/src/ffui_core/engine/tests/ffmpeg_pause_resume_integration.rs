@@ -52,7 +52,10 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
             "-preset",
             "ultrafast",
             "-crf",
-            "18",
+            // Use lossless input so we can do exact per-frame comparisons
+            // between input and output (a dropped + duplicated frame would
+            // keep counts equal but break the frame hash sequence).
+            "0",
             "-c:a",
             "aac",
             "-b:a",
@@ -77,6 +80,8 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         movflags: None,
     });
     preset.video.preset = "veryslow".to_string();
+    preset.video.quality_value = 0;
+    preset.video.pix_fmt = Some("yuv420p".to_string());
 
     let mut settings = AppSettings::default();
     settings.tools.auto_download = false;
@@ -251,6 +256,41 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         s.trim().parse::<u64>().ok()
     }
 
+    fn probe_framemd5(path: &std::path::Path) -> Option<Vec<String>> {
+        let output = Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-i",
+                path.to_string_lossy().as_ref(),
+                "-map",
+                "0:v:0",
+                "-f",
+                "framemd5",
+                "-",
+            ])
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+
+        let s = String::from_utf8_lossy(&output.stdout);
+        let mut hashes = Vec::new();
+        for line in s.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            // format: stream_index, dts, pts, duration, size, md5
+            let parts: Vec<&str> = line.split(',').map(|p| p.trim()).collect();
+            if let Some(md5) = parts.get(5) {
+                hashes.push((*md5).to_string());
+            }
+        }
+        Some(hashes)
+    }
+
     let input_dur = probe_video_duration(&input).expect("input video duration should be probeable");
     let out_dur = probe_video_duration(&output).expect("output video duration should be probeable");
     let input_frames = probe_frame_count(&input).expect("input frame count should be probeable");
@@ -263,6 +303,30 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         (out_dur - input_dur).abs() <= 0.05,
         "output video duration should match input video duration closely; input={input_dur:.3}s output={out_dur:.3}s"
     );
+
+    let input_hashes =
+        probe_framemd5(&input).expect("input framemd5 should be probeable via ffmpeg");
+    let output_hashes =
+        probe_framemd5(&output).expect("output framemd5 should be probeable via ffmpeg");
+    assert_eq!(
+        input_hashes.len() as u64,
+        input_frames,
+        "framemd5 hash count must match probed input frame count"
+    );
+    assert_eq!(
+        output_hashes.len() as u64,
+        out_frames,
+        "framemd5 hash count must match probed output frame count"
+    );
+    if input_hashes != output_hashes {
+        let mismatch_idx = input_hashes
+            .iter()
+            .zip(output_hashes.iter())
+            .position(|(a, b)| a != b);
+        panic!(
+            "pause/resume should preserve per-frame content (same timepoint -> same picture); first_mismatch_index={mismatch_idx:?}"
+        );
+    }
 
     let _ = fs::remove_file(&input);
     let _ = fs::remove_file(&output);
