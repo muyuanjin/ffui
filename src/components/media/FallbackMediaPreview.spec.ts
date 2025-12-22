@@ -148,4 +148,41 @@ describe("FallbackMediaPreview", () => {
     wrapper.unmount();
     vi.useRealTimers();
   });
+
+  it("clamps scrub percent to [0, 100] before requesting frames", async () => {
+    vi.useFakeTimers();
+
+    extractFallbackPreviewFrameMock.mockResolvedValue("/tmp/frame.jpg");
+
+    const wrapper = mount(FallbackMediaPreview, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        nativeUrl: "file:///C:/videos/sample.mp4",
+        sourcePath: "C:/videos/sample.mp4",
+        durationSeconds: 10,
+      },
+    });
+
+    await wrapper.get("video").trigger("error");
+    await nextTick();
+    extractFallbackPreviewFrameMock.mockClear();
+
+    const slider = wrapper.getComponent(Slider);
+    slider.vm.$emit("update:modelValue", [101]);
+
+    vi.advanceTimersByTime(121);
+    await nextTick();
+
+    expect(extractFallbackPreviewFrameMock).toHaveBeenCalledWith({
+      sourcePath: "C:/videos/sample.mp4",
+      positionPercent: 100,
+      durationSeconds: 10,
+      quality: "low",
+    });
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
 });

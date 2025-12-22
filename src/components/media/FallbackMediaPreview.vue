@@ -81,9 +81,11 @@ const requestFrame = async (quality: FallbackFrameQuality, token: number) => {
   frameError.value = null;
 
   try {
+    const raw = scrubPercent.value[0] ?? 50;
+    const percent = Number.isFinite(raw) ? Math.min(Math.max(raw, 0), 100) : 50;
     const path = await extractFallbackPreviewFrame({
       sourcePath: props.sourcePath,
-      positionPercent: scrubPercent.value[0] ?? 50,
+      positionPercent: percent,
       durationSeconds: props.durationSeconds ?? null,
       quality,
     });
