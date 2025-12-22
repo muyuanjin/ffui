@@ -342,13 +342,17 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
 
     let (effective_preset, finalize_preset, finalize_with_source_audio) =
         build_effective_preset_for_resume(
-            inner,
-            job_id,
+            ResumePresetBuildContext {
+                inner,
+                job_id,
+                input_path: &input_path,
+                settings_snapshot: &settings_snapshot,
+                output_path: &output_path,
+                resume_target_seconds: &mut resume_target_seconds,
+                resume_plan: &mut resume_plan,
+                existing_segments: &mut existing_segments,
+            },
             &preset,
-            &output_path,
-            &mut resume_target_seconds,
-            &mut resume_plan,
-            &mut existing_segments,
         );
     if existing_segments.len() != existing_segment_end_targets.len() {
         existing_segment_end_targets.truncate(existing_segments.len());

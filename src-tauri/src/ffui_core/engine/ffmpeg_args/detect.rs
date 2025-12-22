@@ -283,3 +283,61 @@ pub(crate) fn detect_video_dimensions_and_frame_rate(
 
     Ok((width, height, frame_rate))
 }
+
+pub(crate) fn detect_best_effort_video_start_time_seconds(
+    path: &Path,
+    settings: &AppSettings,
+) -> Option<f64> {
+    #[cfg(test)]
+    if let Ok(raw) = std::env::var("FFUI_TEST_FFPROBE_STREAM_START_TIME_SECONDS") {
+        if let Ok(v) = raw.trim().parse::<f64>()
+            && v.is_finite()
+            && v > 0.0
+        {
+            return Some(v.max(0.0));
+        }
+    }
+
+    let (ffprobe_path, _, _) =
+        ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools).ok()?;
+
+    let stream_start = {
+        let mut cmd = Command::new(&ffprobe_path);
+        configure_background_command(&mut cmd);
+        cmd.arg("-v")
+            .arg("error")
+            .arg("-select_streams")
+            .arg("v:0")
+            .arg("-show_entries")
+            .arg("stream=start_time")
+            .arg("-of")
+            .arg("default=nw=1:nk=1")
+            .arg(path.as_os_str())
+            .output()
+            .ok()
+            .and_then(|out| out.status.success().then_some(out.stdout))
+            .as_deref()
+            .and_then(parse_first_non_empty_line_as_f64)
+    };
+    if let Some(v) = stream_start {
+        return Some(v.max(0.0));
+    }
+
+    let format_start = {
+        let mut cmd = Command::new(&ffprobe_path);
+        configure_background_command(&mut cmd);
+        cmd.arg("-v")
+            .arg("error")
+            .arg("-show_entries")
+            .arg("format=start_time")
+            .arg("-of")
+            .arg("default=nw=1:nk=1")
+            .arg(path.as_os_str())
+            .output()
+            .ok()
+            .and_then(|out| out.status.success().then_some(out.stdout))
+            .as_deref()
+            .and_then(parse_first_non_empty_line_as_f64)
+    };
+    format_start.map(|v| v.max(0.0))
+}

@@ -1,12 +1,28 @@
-fn build_effective_preset_for_resume(
-    inner: &Inner,
-    job_id: &str,
+pub(super) struct ResumePresetBuildContext<'a> {
+    pub(super) inner: &'a Inner,
+    pub(super) job_id: &'a str,
+    pub(super) input_path: &'a Path,
+    pub(super) settings_snapshot: &'a AppSettings,
+    pub(super) output_path: &'a Path,
+    pub(super) resume_target_seconds: &'a mut Option<f64>,
+    pub(super) resume_plan: &'a mut Option<ResumePlan>,
+    pub(super) existing_segments: &'a mut Vec<PathBuf>,
+}
+
+pub(super) fn build_effective_preset_for_resume(
+    ctx: ResumePresetBuildContext<'_>,
     preset: &FFmpegPreset,
-    output_path: &Path,
-    resume_target_seconds: &mut Option<f64>,
-    resume_plan: &mut Option<ResumePlan>,
-    existing_segments: &mut Vec<PathBuf>,
 ) -> (FFmpegPreset, FFmpegPreset, bool) {
+    let ResumePresetBuildContext {
+        inner,
+        job_id,
+        input_path,
+        settings_snapshot,
+        output_path,
+        resume_target_seconds,
+        resume_plan,
+        existing_segments,
+    } = ctx;
     let finalize_preset = preset.clone();
     let mut effective_preset = preset.clone();
     let mut finalize_with_source_audio = resume_plan.is_some();
@@ -120,13 +136,29 @@ fn build_effective_preset_for_resume(
         && matches!(plan.strategy, ResumeStrategy::OverlapTrim)
         && plan.trim_at_seconds > 0.0
     {
-        let injected = format!(
-            // Use absolute timestamps from the source timeline and cut exactly
-            // at the recorded join target; rely on overlap decode to ensure
-            // frames exist before the cut point.
-            "trim=start={:.6},setpts=PTS-STARTPTS",
-            plan.trim_at_seconds
-        );
+        let start_time_seconds =
+            detect_best_effort_video_start_time_seconds(input_path, settings_snapshot)
+                .filter(|v| v.is_finite() && *v > 0.0)
+                .unwrap_or(0.0);
+        let adjusted_trim_start = (plan.trim_at_seconds + start_time_seconds).max(0.0);
+        if start_time_seconds > 0.0 {
+            let target_seconds = plan.trim_at_seconds;
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                super::worker_utils::append_job_log_line(
+                    job,
+                    format!(
+                        "resume: overlap+trim input start_time={start_time_seconds:.6}s; trimStartAbs={adjusted_trim_start:.6}s (target={target_seconds:.6}s)"
+                    ),
+                );
+            }
+        }
+
+        // Use absolute timestamps from the source timeline and cut exactly at
+        // the recorded join target. When `-copyts` is enabled and the input
+        // starts at a non-zero timestamp, shift by start_time so
+        // `trim=start=...` operates in the same timestamp domain.
+        let injected = format!("trim=start={adjusted_trim_start:.6},setpts=PTS-STARTPTS");
         let existing = effective_preset
             .filters
             .vf_chain

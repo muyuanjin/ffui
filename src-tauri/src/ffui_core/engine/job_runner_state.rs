@@ -186,11 +186,47 @@ pub(super) fn mark_job_waiting(
 }
 
 pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
+    fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
+        use std::collections::HashSet;
+
+        let mut raw_paths: Vec<&str> = Vec::new();
+        if let Some(segs) = meta.segments.as_ref()
+            && !segs.is_empty()
+        {
+            raw_paths.extend(segs.iter().map(|s| s.as_str()));
+        } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
+            raw_paths.push(tmp.as_str());
+        }
+
+        let mut out: Vec<PathBuf> = Vec::new();
+        let mut seen: HashSet<PathBuf> = HashSet::new();
+        for raw in raw_paths {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let path = PathBuf::from(trimmed);
+            if seen.insert(path.clone()) {
+                out.push(path.clone());
+            }
+            let marker = noaudio_marker_path_for_segment(path.as_path());
+            if seen.insert(marker.clone()) {
+                out.push(marker);
+            }
+        }
+        out
+    }
+
+    let mut cleanup_paths: Vec<PathBuf> = Vec::new();
+
     {
         let mut state = inner.state.lock().expect("engine state poisoned");
         let restart_after_cancel = state.restart_requests.remove(job_id);
 
         if let Some(job) = state.jobs.get_mut(job_id) {
+            if let Some(meta) = job.wait_metadata.as_ref() {
+                cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+            }
             if restart_after_cancel {
                 // Reset the job back to Waiting with 0% progress and enqueue
                 // it for a fresh run from the beginning.
@@ -213,10 +249,15 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
                 job.progress = 0.0;
                 job.end_time = Some(current_time_millis());
                 super::worker_utils::append_job_log_line(job, "Cancelled by user".to_string());
+                job.wait_metadata = None;
             }
         }
 
         state.cancelled_jobs.remove(job_id);
+    }
+
+    for path in cleanup_paths {
+        let _ = fs::remove_file(path);
     }
 
     // Notify listeners that the job has transitioned to Cancelled or has been

@@ -19,6 +19,7 @@ pub(super) use container::{
 #[cfg(test)]
 pub(super) use detect::parse_ffprobe_frame_rate;
 pub(super) use detect::{
+    detect_best_effort_video_start_time_seconds,
     detect_duration_seconds,
     detect_video_codec,
     detect_video_dimensions_and_frame_rate,

@@ -213,6 +213,11 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
         return Ok(());
     }
 
+    let marker = noaudio_marker_path_for_segment(segment);
+    if marker.exists() {
+        return Ok(());
+    }
+
     let ext = segment
         .extension()
         .and_then(|e| e.to_str())
@@ -255,7 +260,12 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
         )
     })?;
 
+    let _ = fs::write(&marker, b"");
     Ok(())
+}
+
+pub(super) fn noaudio_marker_path_for_segment(segment: &Path) -> PathBuf {
+    segment.with_extension("noaudio.done")
 }
 
 #[cfg(test)]

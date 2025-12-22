@@ -8,7 +8,41 @@ use super::super::worker_utils::{
     append_job_log_line,
     current_time_millis,
 };
-use crate::ffui_core::domain::JobStatus;
+use crate::ffui_core::domain::{
+    JobStatus,
+    WaitMetadata,
+};
+
+fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<std::path::PathBuf> {
+    use std::collections::HashSet;
+
+    let mut raw_paths: Vec<&str> = Vec::new();
+    if let Some(segs) = meta.segments.as_ref()
+        && !segs.is_empty()
+    {
+        raw_paths.extend(segs.iter().map(|s| s.as_str()));
+    } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
+        raw_paths.push(tmp.as_str());
+    }
+
+    let mut out: Vec<std::path::PathBuf> = Vec::new();
+    let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
+    for raw in raw_paths {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = std::path::PathBuf::from(trimmed);
+        if seen.insert(path.clone()) {
+            out.push(path.clone());
+        }
+        let marker = super::super::job_runner::noaudio_marker_path_for_segment(path.as_path());
+        if seen.insert(marker.clone()) {
+            out.push(marker);
+        }
+    }
+    out
+}
 
 /// Cancel a job by ID.
 ///
@@ -32,11 +66,15 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                 // Remove from queue and mark as cancelled without ever starting ffmpeg.
                 state.queue.retain(|id| id != job_id);
                 if let Some(job) = state.jobs.get_mut(job_id) {
+                    if let Some(meta) = job.wait_metadata.as_ref() {
+                        cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+                    }
                     job.status = JobStatus::Cancelled;
                     job.progress = 0.0;
                     job.end_time = Some(current_time_millis());
                     append_job_log_line(job, "Cancelled before start".to_string());
                     job.log_head = None;
+                    job.wait_metadata = None;
                 }
                 // Any stale flags become irrelevant.
                 state.cancelled_jobs.remove(job_id);
@@ -48,21 +86,8 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
             JobStatus::Paused => {
                 state.queue.retain(|id| id != job_id);
                 if let Some(job) = state.jobs.get_mut(job_id) {
-                    // Best-effort cleanup: when cancelling a paused job, remove any
-                    // partial output segments that were produced by previous runs.
                     if let Some(meta) = job.wait_metadata.as_ref() {
-                        if let Some(ref segs) = meta.segments {
-                            for s in segs {
-                                if !s.trim().is_empty() {
-                                    cleanup_paths.push(std::path::PathBuf::from(s));
-                                }
-                            }
-                        }
-                        if let Some(tmp) = meta.tmp_output_path.as_ref()
-                            && !tmp.trim().is_empty()
-                        {
-                            cleanup_paths.push(std::path::PathBuf::from(tmp));
-                        }
+                        cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
                     }
 
                     job.status = JobStatus::Cancelled;
@@ -82,6 +107,13 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                 // Mark for cooperative cancellation; the worker thread will
                 // observe this and terminate the underlying ffmpeg process.
                 // If a wait request is pending, cancel takes precedence.
+                if let Some(meta) = state
+                    .jobs
+                    .get(job_id)
+                    .and_then(|job| job.wait_metadata.as_ref())
+                {
+                    cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+                }
                 state.wait_requests.remove(job_id);
                 state.cancelled_jobs.insert(job_id.to_string());
                 should_notify = true;
@@ -196,6 +228,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
 /// immediately and the job is reinserted into the waiting queue.
 pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     let mut should_notify = false;
+    let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
     let result = {
         let mut state = inner.state.lock().expect("engine state poisoned");
@@ -214,6 +247,9 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
             }
             _ => {
                 // Reset immediately for non-processing jobs.
+                if let Some(meta) = job.wait_metadata.as_ref() {
+                    cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+                }
                 job.status = JobStatus::Waiting;
                 job.progress = 0.0;
                 job.end_time = None;
@@ -242,6 +278,10 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
     if should_notify {
         inner.cv.notify_one();
         notify_queue_listeners(inner);
+    }
+
+    for path in cleanup_paths {
+        let _ = std::fs::remove_file(path);
     }
 
     result
