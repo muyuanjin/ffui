@@ -23,6 +23,24 @@ export type QueueSortField =
 
 export type QueueSortDirection = "asc" | "desc";
 
+export const ALL_QUEUE_SORT_FIELDS: readonly QueueSortField[] = [
+  "filename",
+  "status",
+  "addedTime",
+  "finishedTime",
+  "duration",
+  "elapsed",
+  "progress",
+  "type",
+  "path",
+  "inputSize",
+  "outputSize",
+  "createdTime",
+  "modifiedTime",
+];
+
+export const ALL_QUEUE_SORT_DIRECTIONS: readonly QueueSortDirection[] = ["asc", "desc"];
+
 export type QueueListItem = { kind: "batch"; batch: CompositeBatchCompressTask } | { kind: "job"; job: TranscodeJob };
 
 // ----- Composable options & return shape -----

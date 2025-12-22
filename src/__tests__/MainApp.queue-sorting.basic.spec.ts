@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
@@ -23,6 +23,19 @@ const queueItemStub = {
   template: `<div data-testid="queue-item-stub" :data-job-id="job.id">{{ job.filename }}</div>`,
 };
 
+const SORT_STORAGE_KEYS = [
+  "ffui.queueSortPrimary",
+  "ffui.queueSortPrimaryDirection",
+  "ffui.queueSortSecondary",
+  "ffui.queueSortSecondaryDirection",
+];
+
+const clearSortStorage = () => {
+  for (const key of SORT_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+};
+
 function setJobs(vm: any, jobs: TranscodeJob[]) {
   if (Array.isArray(vm.jobs)) {
     vm.jobs = jobs;
@@ -39,6 +52,9 @@ function getFilteredJobs(vm: any): TranscodeJob[] {
 }
 
 describe("MainApp queue sorting basics", () => {
+  beforeEach(() => clearSortStorage());
+  afterEach(() => clearSortStorage());
+
   it("sorts display mode jobs by configured primary field and direction", async () => {
     const wrapper = mount(MainApp, {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
@@ -227,5 +243,46 @@ describe("MainApp queue sorting basics", () => {
 
     const ordered = wrapper.findAll("[data-testid='queue-item-stub']").map((el) => el.attributes("data-job-id"));
     expect(ordered).toEqual(["job-2", "job-3", "job-1"]);
+  });
+
+  it("persists sort configuration in localStorage across remounts", async () => {
+    const wrapper = mount(MainApp, {
+      global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
+    });
+
+    const vm: any = wrapper.vm;
+    vm.activeTab = "queue";
+    if ("queueModeModel" in vm) vm.queueModeModel = "display";
+
+    if ("sortPrimary" in vm) vm.sortPrimary = "filename";
+    if ("sortPrimaryDirection" in vm) vm.sortPrimaryDirection = "desc";
+    if ("sortSecondary" in vm) vm.sortSecondary = "status";
+    if ("sortSecondaryDirection" in vm) vm.sortSecondaryDirection = "desc";
+
+    await nextTick();
+
+    expect(window.localStorage.getItem("ffui.queueSortPrimary")).toBe("filename");
+    expect(window.localStorage.getItem("ffui.queueSortPrimaryDirection")).toBe("desc");
+    expect(window.localStorage.getItem("ffui.queueSortSecondary")).toBe("status");
+    expect(window.localStorage.getItem("ffui.queueSortSecondaryDirection")).toBe("desc");
+
+    wrapper.unmount();
+
+    const wrapper2 = mount(MainApp, {
+      global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
+    });
+
+    const vm2: any = wrapper2.vm;
+    vm2.activeTab = "queue";
+    if ("queueModeModel" in vm2) vm2.queueModeModel = "display";
+
+    await nextTick();
+
+    expect(vm2.sortPrimary).toBe("filename");
+    expect(vm2.sortPrimaryDirection).toBe("desc");
+    expect(vm2.sortSecondary).toBe("status");
+    expect(vm2.sortSecondaryDirection).toBe("desc");
+
+    wrapper2.unmount();
   });
 });

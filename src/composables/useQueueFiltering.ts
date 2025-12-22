@@ -2,13 +2,15 @@ import { computed, ref, watch } from "vue";
 import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
-import type {
-  QueueFilterKind,
-  QueueFilterStatus,
-  QueueSortDirection,
-  QueueSortField,
-  UseQueueFilteringOptions,
-  UseQueueFilteringReturn,
+import {
+  ALL_QUEUE_SORT_DIRECTIONS,
+  ALL_QUEUE_SORT_FIELDS,
+  type QueueFilterKind,
+  type QueueFilterStatus,
+  type QueueSortDirection,
+  type QueueSortField,
+  type UseQueueFilteringOptions,
+  type UseQueueFilteringReturn,
 } from "./queue/useQueueFiltering.types";
 import { createQueueSortingState, type QueueSortingState } from "./queue/queueSorting";
 
@@ -17,6 +19,49 @@ import { createQueueSortingState, type QueueSortingState } from "./queue/queueSo
  */
 export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFilteringReturn {
   const { jobs, t } = options;
+
+  const QUEUE_SORT_PRIMARY_STORAGE_KEY = "ffui.queueSortPrimary";
+  const QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY = "ffui.queueSortPrimaryDirection";
+  const QUEUE_SORT_SECONDARY_STORAGE_KEY = "ffui.queueSortSecondary";
+  const QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY = "ffui.queueSortSecondaryDirection";
+
+  const canUseStorage = () => {
+    if (typeof window === "undefined") return false;
+    try {
+      const anyWindow = window as any;
+      return typeof anyWindow.localStorage !== "undefined";
+    } catch {
+      return false;
+    }
+  };
+
+  const readFromStorage = (key: string): string | null => {
+    if (!canUseStorage()) return null;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeToStorage = (key: string, value: string) => {
+    if (!canUseStorage()) return;
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Swallow storage errors; preferences are a UX enhancement, not critical.
+    }
+  };
+
+  const isQueueSortField = (value: unknown): value is QueueSortField => {
+    return typeof value === "string" && (ALL_QUEUE_SORT_FIELDS as readonly string[]).includes(value);
+  };
+
+  const isQueueSortDirection = (value: unknown): value is QueueSortDirection => {
+    return typeof value === "string" && (ALL_QUEUE_SORT_DIRECTIONS as readonly string[]).includes(value);
+  };
 
   // ----- State -----
   const selectedJobIds = ref<Set<string>>(new Set());
@@ -32,6 +77,58 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
   const sortPrimaryDirection = ref<QueueSortDirection>("asc");
   const sortSecondary = ref<QueueSortField>("filename");
   const sortSecondaryDirection = ref<QueueSortDirection>("asc");
+
+  const storedSortPrimary = readFromStorage(QUEUE_SORT_PRIMARY_STORAGE_KEY);
+  if (isQueueSortField(storedSortPrimary)) {
+    sortPrimary.value = storedSortPrimary;
+  }
+
+  const storedSortPrimaryDirection = readFromStorage(QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY);
+  if (isQueueSortDirection(storedSortPrimaryDirection)) {
+    sortPrimaryDirection.value = storedSortPrimaryDirection;
+  }
+
+  const storedSortSecondary = readFromStorage(QUEUE_SORT_SECONDARY_STORAGE_KEY);
+  if (isQueueSortField(storedSortSecondary)) {
+    sortSecondary.value = storedSortSecondary;
+  }
+
+  const storedSortSecondaryDirection = readFromStorage(QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY);
+  if (isQueueSortDirection(storedSortSecondaryDirection)) {
+    sortSecondaryDirection.value = storedSortSecondaryDirection;
+  }
+
+  watch(
+    sortPrimary,
+    (value) => {
+      writeToStorage(QUEUE_SORT_PRIMARY_STORAGE_KEY, value);
+    },
+    { flush: "sync" },
+  );
+
+  watch(
+    sortPrimaryDirection,
+    (value) => {
+      writeToStorage(QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY, value);
+    },
+    { flush: "sync" },
+  );
+
+  watch(
+    sortSecondary,
+    (value) => {
+      writeToStorage(QUEUE_SORT_SECONDARY_STORAGE_KEY, value);
+    },
+    { flush: "sync" },
+  );
+
+  watch(
+    sortSecondaryDirection,
+    (value) => {
+      writeToStorage(QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY, value);
+    },
+    { flush: "sync" },
+  );
 
   // ----- Regex Validation Watch -----
   // Supports two modes:
