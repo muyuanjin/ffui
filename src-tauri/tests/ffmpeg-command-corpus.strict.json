@@ -1,0 +1,223 @@
+{
+  "version": 1,
+  "inputPath": "C:/FFUI Inputs/Input File.mp4",
+  "outputPath": "C:/FFUI Outputs/Out File.mp4",
+  "cases": [
+    {
+      "id": "docs/ffmpeg_commands.txt:7:e483d032e4b8",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 7
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"scale=640:360\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "scale=640:360",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:20:9280ca5d0014",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 20
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"movie=watermark.png [wm]; [in][wm] overlay=10:10 [out]\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "movie=watermark.png [wm]; [in][wm] overlay=10:10 [out]",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:22:5eae7017374a",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 22
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"transpose=1\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "transpose=1",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:23:93401caee27f",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 23
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"crop=640:360:0:0\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "crop=640:360:0:0",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:27:f2e99a84227e",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 27
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"subtitles=input.srt\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "subtitles=input.srt",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:30:87962d28aa28",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 30
+      },
+      "argsOnlyTemplate": "-i \"INPUT\" -c copy OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-c",
+        "copy",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:37:0f204f609763",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 37
+      },
+      "argsOnlyTemplate": "-i INPUT -filter:a \"volume=0.5\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-filter:a",
+        "volume=0.5",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:38:64b490dff2f5",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 38
+      },
+      "argsOnlyTemplate": "-i INPUT -filter:a \"volume=2.0\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-filter:a",
+        "volume=2.0",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:39:1ab19c6e7b88",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 39
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"yadif\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "yadif",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:40:ca2c92285cda",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 40
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"noise=alls=20\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "noise=alls=20",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:41:bb96375e57dc",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 41
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"curves=vintage\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "curves=vintage",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    },
+    {
+      "id": "docs/ffmpeg_commands.txt:49:44dc1a5bf3bc",
+      "source": {
+        "path": "docs/ffmpeg_commands.txt",
+        "lineStart": 49
+      },
+      "argsOnlyTemplate": "-i INPUT -vf \"hflip\" OUTPUT",
+      "expectedArgv": [
+        "-progress",
+        "pipe:2",
+        "-i",
+        "C:/FFUI Inputs/Input File.mp4",
+        "-vf",
+        "hflip",
+        "C:/FFUI Outputs/Out File.mp4",
+        "-nostdin"
+      ]
+    }
+  ]
+}

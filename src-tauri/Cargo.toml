@@ -80,3 +80,8 @@ incremental = false
 inherits = "dev"
 debug = 0
 incremental = false
+
+[[test]]
+name = "ffui_mock_ffmpeg"
+path = "tests/ffui_mock_ffmpeg.rs"
+harness = false
