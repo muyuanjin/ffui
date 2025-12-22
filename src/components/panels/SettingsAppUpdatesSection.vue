@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useI18n } from "vue-i18n";
 import { hasTauri } from "@/lib/backend";
+import { extractReleaseHighlights } from "@/lib/releaseNotes";
+import type { AppLocale } from "@/i18n";
+import { DEFAULT_LOCALE, isAppLocale } from "@/i18n";
 import type { AppSettings } from "@/types";
 
 export interface AppUpdateUiState {
@@ -14,6 +17,7 @@ export interface AppUpdateUiState {
   checking: boolean;
   installing: boolean;
   availableVersion: string | null;
+  availableBody: string | null;
   currentVersion: string | null;
   lastCheckedAtMs: number | null;
   downloadedBytes: number;
@@ -35,7 +39,7 @@ const emit = defineEmits<{
   "update:appSettings": [settings: AppSettings];
 }>();
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const autoCheckModel = computed<boolean>({
   get() {
@@ -81,6 +85,25 @@ const statusLabel = computed(() => {
   }
   return t("app.settings.appUpToDateHint");
 });
+
+const normalizedLocale = computed<AppLocale>(() => {
+  return isAppLocale(locale.value) ? (locale.value as AppLocale) : DEFAULT_LOCALE;
+});
+
+const currentVersionLabel = computed(() => {
+  const raw = props.appUpdate.currentVersion;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase().startsWith("v") ? trimmed : `v${trimmed}`;
+});
+
+const availableHighlights = computed(() => {
+  if (!props.appUpdate.available) return [];
+  const body = props.appUpdate.availableBody;
+  if (typeof body !== "string" || body.trim().length === 0) return [];
+  return extractReleaseHighlights(body, normalizedLocale.value).slice(0, 5);
+});
 </script>
 
 <template>
@@ -106,6 +129,15 @@ const statusLabel = computed(() => {
           >
             {{ t("app.settings.checkForUpdatesButton") }}
           </Button>
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[9px] text-muted-foreground" data-testid="settings-current-version">
+            {{ t("app.settings.currentVersionLabel") }}
+            <span class="font-mono text-foreground/80">
+              {{ currentVersionLabel ?? t("app.settings.unknownValue") }}
+            </span>
+          </span>
         </div>
 
         <div class="flex items-center justify-between gap-2">
@@ -136,6 +168,19 @@ const statusLabel = computed(() => {
             {{ statusLabel }}
             <span v-if="progressLabel" class="block text-[9px] text-muted-foreground mt-0.5">
               {{ t("app.settings.downloadProgressLabel") }} {{ progressLabel }}
+            </span>
+            <span v-if="appUpdate.available && availableHighlights.length > 0" class="block mt-1 text-muted-foreground">
+              <span class="text-[9px] font-semibold tracking-wide uppercase text-muted-foreground/90">
+                {{ t("app.settings.updateHighlightsTitle") }}
+              </span>
+              <span
+                v-for="(item, idx) in availableHighlights"
+                :key="idx"
+                class="block text-[9px] text-foreground/80"
+                data-testid="settings-update-highlight-item"
+              >
+                • {{ item }}
+              </span>
             </span>
           </p>
           <Button

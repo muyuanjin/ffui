@@ -77,6 +77,7 @@ describe("useMainAppUpdater", () => {
     checkMock.mockResolvedValueOnce({
       version: "0.2.0",
       currentVersion: "0.1.1",
+      body: "# FFUI v0.2.0\n\n## English\n\n### Highlights\n\n- Something new\n",
       downloadAndInstall,
       close,
     });
@@ -101,6 +102,7 @@ describe("useMainAppUpdater", () => {
 
     expect((wrapper.vm as any).updateAvailable).toBe(true);
     expect((wrapper.vm as any).availableVersion).toBe("0.2.0");
+    expect((wrapper.vm as any).availableBody).toContain("### Highlights");
     expect((wrapper.vm as any).currentVersion).toBe("0.1.1");
     expect(scheduleSaveSettings).toHaveBeenCalled();
 
@@ -117,6 +119,7 @@ describe("useMainAppUpdater", () => {
     checkMock.mockResolvedValueOnce({
       version: "0.2.0",
       currentVersion: "0.1.1",
+      body: "## English\n\n### Highlights\n\n- Item\n",
       downloadAndInstall,
       close,
     });
@@ -147,6 +150,7 @@ describe("useMainAppUpdater", () => {
     expect(saveAppSettingsMock).toHaveBeenCalledTimes(1);
     expect((wrapper.vm as any).updateAvailable).toBe(false);
     expect((wrapper.vm as any).availableVersion).toBeNull();
+    expect((wrapper.vm as any).availableBody).toBeNull();
     expect(relaunchMock).toHaveBeenCalledTimes(1);
 
     const settings = (wrapper.vm as any).appSettings as AppSettings;
@@ -162,6 +166,7 @@ describe("useMainAppUpdater", () => {
     checkMock.mockResolvedValueOnce({
       version: "0.2.0",
       currentVersion: "0.1.1",
+      body: "## 中文\n\n### 重点更新\n\n- 新功能\n",
       downloadAndInstall,
       close,
     });

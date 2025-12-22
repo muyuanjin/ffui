@@ -24,6 +24,7 @@ type AppUpdateUiState = {
   checking: boolean;
   installing: boolean;
   availableVersion: string | null;
+  availableBody: string | null;
   currentVersion: string | null;
   lastCheckedAtMs: number | null;
   downloadedBytes: number;
@@ -62,6 +63,7 @@ const props = withDefaults(
       checking: false,
       installing: false,
       availableVersion: null,
+      availableBody: null,
       currentVersion: null,
       lastCheckedAtMs: null,
       downloadedBytes: 0,

@@ -92,6 +92,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   const updaterConfigured = ref<boolean | null>(null);
   const updateAvailable = ref(false);
   const availableVersion = ref<string | null>(null);
+  const availableBody = ref<string | null>(null);
   const currentVersion = ref<string | null>(null);
   const lastCheckedAtMs = ref<number | null>(null);
 
@@ -182,6 +183,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
 
     updateHandle = null;
     availableVersion.value = null;
+    availableBody.value = null;
     updateAvailable.value = false;
 
     const persistedAvailable = (appSettings.value as any)?.updater?.availableVersion;
@@ -230,6 +232,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       if (update) {
         updateHandle = update;
         availableVersion.value = update.version ?? null;
+        availableBody.value = typeof update.body === "string" && update.body.trim().length > 0 ? update.body : null;
         if (currentVersion.value == null) {
           currentVersion.value = update.currentVersion ?? null;
         }
@@ -242,6 +245,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       } else {
         updateAvailable.value = false;
         availableVersion.value = null;
+        availableBody.value = null;
         await ensureCurrentVersionLoaded();
         persistUpdaterPatch({
           lastCheckedAtMs: now,
@@ -301,6 +305,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       updateHandle = null;
       updateAvailable.value = false;
       availableVersion.value = null;
+      availableBody.value = null;
       currentVersion.value = null;
       lastCheckedAtMs.value = now;
       downloadedBytes.value = 0;
@@ -420,6 +425,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     updaterConfigured,
     updateAvailable,
     availableVersion,
+    availableBody,
     currentVersion,
     lastCheckedAtMs,
     downloadedBytes,
