@@ -85,8 +85,12 @@ pub fn init_child_process_job() -> bool {
             return false;
         }
 
-        // 保存 Job Object 句柄（存储原始指针值）
+        // 保存 Job Object 句柄（存储原始指针值）；如已存在旧句柄，先关闭避免泄漏。
         let mut guard = CHILD_PROCESS_JOB.lock().expect("job object mutex poisoned");
+        if let Some(prev) = guard.take() {
+            let prev_handle = windows::Win32::Foundation::HANDLE(prev.0 as *mut std::ffi::c_void);
+            let _ = CloseHandle(prev_handle);
+        }
         *guard = Some(JobHandle(job_handle.0 as isize));
 
         true

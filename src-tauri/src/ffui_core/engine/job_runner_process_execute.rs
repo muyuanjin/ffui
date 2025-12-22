@@ -88,65 +88,58 @@ fn execute_transcode_job(
 
     let start_time = SystemTime::now();
 
-    // 保留对子进程 stdin 的可选句柄，用于在“暂停”时写入 `q\n` 请求 ffmpeg
-    // 优雅退出当前分段。这样生成的临时输出文件结构完整，便于后续多段 concat。
+    // 保留对子进程 stdin 的可选句柄，用于在“暂停”时写入 `q\n` 请求 ffmpeg 优雅退出。
     let mut child_stdin = child.stdin.take();
     let mut wait_requested = false;
     let mut last_effective_elapsed_seconds: Option<f64> = None;
+    let mut pause_debug = PauseLatencyDebug::default();
+    let mut stderr_pump = FfmpegStderrPump::spawn(&mut child);
+    let poll = Duration::from_millis(50);
 
-    if let Some(stderr) = child.stderr.take() {
-        let reader = BufReader::new(stderr);
-        for line in reader.lines() {
-            let line = match line {
-                Ok(l) => l,
-                Err(_) => break,
-            };
-
-            // Cooperative wait/cancel handling: if the frontend has requested
-            // a wait or cancel for this job, terminate the ffmpeg child
-            // process and transition the job into the appropriate state.
-            if is_job_cancelled(inner, job_id) {
-                let _ = child.kill();
-                let _ = child.wait();
-                mark_job_cancelled(inner, job_id)?;
-                let _ = fs::remove_file(&tmp_output);
-                return Ok(());
-            }
-
-            if !wait_requested && is_job_wait_requested(inner, job_id) {
-                // 暂停请求：通过 stdin 写入 `q\n`，请求 ffmpeg 优雅退出当前分段。
-                // 关键点：不要立刻 mark_job_waiting 并 return。必须继续 drain
-                // stderr，直到 ffmpeg 退出并输出最后一批 `-progress pipe:2`
-                // 行（尤其是 out_time_ms / progress=end），否则 processed_seconds
-                // 可能滞后，导致下一次 resume 的 -ss 偏小并产生段落重叠。
-                if let Some(mut stdin) = child_stdin.take() {
-                    use std::io::Write as IoWrite;
-                    let _ = stdin.write_all(b"q\n");
-                    let _ = stdin.flush();
+    let mut handle_ffmpeg_line = |line: &str, wait_requested: bool| {
+        // When ffprobe is unavailable or fails, infer total duration from
+        // ffmpeg's own metadata header line ("Duration: HH:MM:SS.xx,...").
+        if total_duration.is_none()
+            && let Some(d) = parse_ffmpeg_duration_from_metadata_line(line)
+            && d > 0.0
+        {
+            total_duration = Some(d);
+            let mut state = inner.state.lock().expect("engine state poisoned");
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                if let Some(info) = job.media_info.as_mut() {
+                    info.duration_seconds = Some(d);
+                } else {
+                    job.media_info = Some(MediaInfo {
+                        duration_seconds: Some(d),
+                        width: None,
+                        height: None,
+                        frame_rate: None,
+                        video_codec: None,
+                        audio_codec: None,
+                        size_mb: None,
+                    });
                 }
-                wait_requested = true;
+                let key = job.filename.clone();
+                if let Some(info) = job.media_info.clone() {
+                    state.media_info_cache.insert(key, info);
+                }
             }
+        }
 
-            // When ffprobe is unavailable or fails, infer total duration from
-            // ffmpeg's own metadata header line ("Duration: HH:MM:SS.xx,...")
-            // so that the UI progress bar still advances instead of staying
-            // stuck at 0% until completion.
-            if total_duration.is_none()
-                && let Some(d) = parse_ffmpeg_duration_from_metadata_line(&line)
-                && d > 0.0
+        if let Some((elapsed, speed)) = parse_ffmpeg_progress_line(line) {
+            if let Some(total) = total_duration
+                && elapsed.is_finite()
+                && total.is_finite()
+                && elapsed > total * 1.01
             {
-                total_duration = Some(d);
-
-                // Also update the job's cached media info so future queue_state
-                // snapshots and the inspection UI can see an accurate duration
-                // value.
+                total_duration = Some(elapsed);
                 let mut state = inner.state.lock().expect("engine state poisoned");
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     if let Some(info) = job.media_info.as_mut() {
-                        info.duration_seconds = Some(d);
+                        info.duration_seconds = Some(elapsed);
                     } else {
                         job.media_info = Some(MediaInfo {
-                            duration_seconds: Some(d),
+                            duration_seconds: Some(elapsed),
                             width: None,
                             height: None,
                             frame_rate: None,
@@ -160,94 +153,59 @@ fn execute_transcode_job(
                         state.media_info_cache.insert(key, info);
                     }
                 }
-                drop(state);
             }
 
-            if let Some((elapsed, speed)) = parse_ffmpeg_progress_line(&line) {
-                // If ffmpeg reports an elapsed time that is slightly longer than
-                // our current duration estimate, treat this as the new effective
-                // duration. This keeps the progress bar moving smoothly instead
-                // of stalling near the end when ffprobe underestimates length.
-                if let Some(total) = total_duration
-                    && elapsed.is_finite()
-                    && total.is_finite()
-                    && elapsed > total * 1.01
-                {
-                    total_duration = Some(elapsed);
+            let effective_elapsed = resume_target_seconds.map_or(elapsed, |base| base + elapsed);
+            if effective_elapsed.is_finite() && effective_elapsed > 0.0 {
+                last_effective_elapsed_seconds = Some(effective_elapsed);
+            }
 
-                    // Also update the job's cached media info so future
-                    // queue_state snapshots and the inspection UI can see
-                    // the refined duration value.
-                    let mut state = inner.state.lock().expect("engine state poisoned");
-                    if let Some(job) = state.jobs.get_mut(job_id) {
-                        if let Some(info) = job.media_info.as_mut() {
-                            info.duration_seconds = Some(elapsed);
-                        } else {
-                            job.media_info = Some(MediaInfo {
-                                duration_seconds: Some(elapsed),
-                                width: None,
-                                height: None,
-                                frame_rate: None,
-                                video_codec: None,
-                                audio_codec: None,
-                                size_mb: None,
-                            });
-                        }
-                        let key = job.filename.clone();
-                        if let Some(info) = job.media_info.clone() {
-                            state.media_info_cache.insert(key, info);
-                        }
-                    }
-                    drop(state);
-                }
-
-                let effective_elapsed = if let Some(base) = resume_target_seconds {
-                    base + elapsed
-                } else {
-                    elapsed
-                };
-                if effective_elapsed.is_finite() && effective_elapsed > 0.0 {
-                    last_effective_elapsed_seconds = Some(effective_elapsed);
-                }
-
-                if wait_requested {
-                    // Once a cooperative wait has been requested, freeze the
-                    // user-visible progress at its current value. We still
-                    // drain stderr so we can capture the final out_time sample
-                    // for accurate resume seeking, but we must not advance the
-                    // progress bar (especially to 100%) or resume would appear
-                    // stuck due to monotonic progress semantics.
-                    update_job_progress(inner, job_id, None, Some(&line), speed);
-                } else {
-                    let mut percent = compute_progress_percent(total_duration, effective_elapsed);
-                    if percent >= 100.0 {
-                        // Keep a tiny numerical headroom so that the last step to
-                        // an exact 100% always comes from the terminal state
-                        // transition (Completed / Failed / Skipped) or an explicit
-                        // progress=end marker from ffmpeg, never from an in-flight
-                        // stderr sample.
-                        percent = 99.9;
-                    }
-
-                    update_job_progress(inner, job_id, Some(percent), Some(&line), speed);
-                }
+            if wait_requested {
+                update_job_progress(inner, job_id, None, Some(line), speed);
             } else {
-                // Non-progress lines are still useful as logs for debugging.
-                update_job_progress(inner, job_id, None, Some(&line), None);
+                let mut percent = compute_progress_percent(total_duration, effective_elapsed);
+                if percent >= 100.0 {
+                    percent = 99.9;
+                }
+                update_job_progress(inner, job_id, Some(percent), Some(line), speed);
             }
-
-            // When `-progress pipe:2` is enabled, ffmpeg emits structured
-            // key=value pairs including a `progress=...` marker. Surfacing a
-            // final 100% update as soon as we see `progress=end` makes the UI
-            // feel truly real-time, while still keeping "100%" reserved for
-            // the moment ffmpeg itself declares that all work is done.
-            if !wait_requested && is_ffmpeg_progress_end(&line) {
-                update_job_progress(inner, job_id, Some(100.0), Some(&line), None);
-            }
+        } else {
+            update_job_progress(inner, job_id, None, Some(line), None);
         }
-    }
 
-    let status = child.wait()?;
+        if !wait_requested && is_ffmpeg_progress_end(line) {
+            update_job_progress(inner, job_id, Some(100.0), Some(line), None);
+        }
+    };
+
+    let status = loop {
+        if is_job_cancelled(inner, job_id) {
+            let _ = child.kill();
+            let _ = child.wait();
+            stderr_pump.join();
+            mark_job_cancelled(inner, job_id)?;
+            let _ = fs::remove_file(&tmp_output);
+            return Ok(());
+        }
+
+        if !wait_requested && is_job_wait_requested(inner, job_id) {
+            pause_debug.mark_wait_seen(current_time_millis());
+            send_ffmpeg_quit(&mut child_stdin);
+            pause_debug.mark_q_sent(current_time_millis());
+            wait_requested = true;
+        }
+
+        if let Some(line) = stderr_pump.recv_timeout(poll) {
+            handle_ffmpeg_line(&line, wait_requested);
+        }
+
+        if let Some(status) = child.try_wait()? {
+            pause_debug.mark_child_exit(current_time_millis());
+            stderr_pump.drain_available(|line| handle_ffmpeg_line(&line, wait_requested));
+            stderr_pump.join();
+            break status;
+        }
+    };
 
     if is_job_cancelled(inner, job_id) {
         mark_job_cancelled(inner, job_id)?;
@@ -256,28 +214,19 @@ fn execute_transcode_job(
     }
 
     if wait_requested {
-        // 暂停：将当前 tmp_output 视为已完成分段，并用 ffprobe 探测分段真实 duration（端点）
-        // 校准 processedSeconds（ffmpeg `-progress out_time*` 在 B 帧场景会落后，易导致续转重叠）。
-        let base_by_probe =
-            existing_segments
-                .iter()
-                .map(|p| probe_segment_duration_seconds(p.as_path(), &settings_snapshot))
-                .collect::<Option<Vec<f64>>>()
-                .map(|durations| durations.into_iter().sum::<f64>());
-        // Prefer the recorded join target for base; probe prior segments only when the offset is unknown (probing can be unreliable).
-        let base = resume_target_seconds
-            .or(base_by_probe)
-            .unwrap_or(0.0)
-            .max(0.0);
-
-        let segment_duration = probe_segment_duration_seconds(tmp_output.as_path(), &settings_snapshot);
-        let probed_end = segment_duration.map(|d| base + d);
-
+        // 暂停：尽快把状态切到 Paused，因此这里不再做任何 ffprobe 探测（它在 Windows
+        // 上通常要几百毫秒到 1s）。续转边界使用 ffmpeg `-progress out_time*` 的最后值：
+        // - 若该值在某些编码器/B 帧情况下略偏小，只会造成更大的 overlap（安全）；
+        // - 若存在 overshoot 风险，会在“继续/完成”路径进行一次保守校准。
         let processed_seconds_override =
-            choose_processed_seconds_after_wait(total_duration, last_effective_elapsed_seconds, probed_end);
+            choose_processed_seconds_after_wait(total_duration, last_effective_elapsed_seconds, None);
 
-        remux_wait_segment_or_log(inner, job_id, &ffmpeg_path, tmp_output.as_path());
+        // Pause should complete quickly: defer segment remuxing to resume/finalize.
+        if resume_plan.is_some() && finalize_with_source_audio {
+            let _ = mark_segment_noaudio_done(tmp_output.as_path());
+        }
 
+        pause_debug.mark_mark_waiting_start(current_time_millis());
         mark_job_waiting(
             inner,
             job_id,
@@ -286,6 +235,8 @@ fn execute_transcode_job(
             total_duration,
             processed_seconds_override,
         )?;
+        pause_debug.mark_mark_waiting_end(current_time_millis());
+        pause_debug.emit_pause_summary(inner, job_id);
         return Ok(());
     }
 
@@ -318,6 +269,12 @@ fn execute_transcode_job(
     let final_output_size_bytes: u64;
 
     if !existing_segments.is_empty() {
+        // When resuming with audio mux-from-source, the current tmp output is
+        // expected to be video-only (we inject `-map -0:a`). Mark it so the
+        // finalize step can skip a redundant remux pass.
+        if resume_plan.is_some() && finalize_with_source_audio {
+            let _ = mark_segment_noaudio_done(tmp_output.as_path());
+        }
         let mut all_segments = existing_segments.clone();
         all_segments.push(tmp_output.clone());
 
@@ -373,118 +330,18 @@ fn execute_transcode_job(
         final_output_size_bytes = new_size_bytes;
     }
 
-    // 后续逻辑中，final_output_path 代表对用户可见的“最终输出路径”。
-    // 对于非 Batch Compress 场景，它与 output_path 相同；对于启用了
-    // “替换原文件”的 Batch Compress 任务，可能会在下方被更新为去掉
-    // `.compressed` 后的路径（同时原文件被移入回收站）。
-    let mut final_output_path = output_path.clone();
-
-    {
-        let mut state = inner.state.lock().expect("engine state poisoned");
-
-        // 先基于不可变快照计算是否需要替换原文件以及相关路径，避免在同一作用域内
-        // 同时对 state 进行可变和不可变借用。
-        let replace_plan: Option<(std::path::PathBuf, std::path::PathBuf)> = {
-            let job_snapshot = state.jobs.get(job_id).cloned();
-            if let Some(job_snapshot) = job_snapshot
-                && matches!(
-                    job_snapshot.source,
-                    crate::ffui_core::domain::JobSource::BatchCompress
-                )
-                && matches!(
-                    job_snapshot.job_type,
-                    crate::ffui_core::domain::JobType::Video
-                )
-            {
-                if let Some(batch_id) = job_snapshot.batch_id.clone()
-                    && let Some(batch) = state.batch_compress_batches.get(&batch_id)
-                    && batch.replace_original
-                    && let (Some(ref input_str), Some(ref output_str)) =
-                        (job_snapshot.input_path.as_ref(), job_snapshot.output_path.as_ref())
-                {
-                    Some((
-                        std::path::PathBuf::from(input_str),
-                        std::path::PathBuf::from(output_str),
-                    ))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        };
-
-        if let Some(job) = state.jobs.get_mut(job_id) {
-            job.status = JobStatus::Completed;
-            job.progress = 100.0;
-            let now_ms = current_time_millis();
-            job.end_time = Some(now_ms);
-            // 最终累计耗时：优先保留 update_job_progress 已维护的 elapsed_ms（基于墙钟时间），
-            // 仅在缺失时回退到 processing_started_ms/start_time 差值，避免重复累加当前段。
-            if job.elapsed_ms.is_none()
-                && let Some(start) = job.processing_started_ms.or(job.start_time)
-                && now_ms > start
-            {
-                job.elapsed_ms = Some(now_ms.saturating_sub(start));
-            }
-            if original_size_bytes > 0 && final_output_size_bytes > 0 {
-                job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
-            }
-            job.wait_metadata = None;
-
-            if let Some((input_path_buf, output_path_buf)) = replace_plan {
-                apply_replace_original_video_output(
-                    job,
-                    &input_path_buf,
-                    &output_path_buf,
-                    &mut final_output_path,
-                );
-            }
-
-            super::worker_utils::append_job_log_line(
-                job,
-                format!(
-                    "Completed in {:.1}s, output size {:.2} MB",
-                    elapsed,
-                    job.output_size_mb.unwrap_or(0.0)
-                ),
-            );
-        }
-        // Update preset statistics for completed jobs.
-        if original_size_bytes > 0 && final_output_size_bytes > 0 && elapsed > 0.0 {
-            let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
-            let output_mb = final_output_size_bytes as f64 / (1024.0 * 1024.0);
-            let presets = std::sync::Arc::make_mut(&mut state.presets);
-            if let Some(preset) = presets.iter_mut().find(|p| p.id == preset_id) {
-                preset.stats.usage_count += 1;
-                preset.stats.total_input_size_mb += input_mb;
-                preset.stats.total_output_size_mb += output_mb;
-                preset.stats.total_time_seconds += elapsed;
-            }
-            // Persist updated presets.
-            let _ = crate::ffui_core::settings::save_presets(presets);
-        }
-    }
-    if preserve_times_policy.any()
-        && let Some(times) = input_times.as_ref()
-        && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
-    {
-        let mut state = inner.state.lock().expect("engine state poisoned");
-        if let Some(job) = state.jobs.get_mut(job_id) {
-            super::worker_utils::append_job_log_line(
-                job,
-                format!(
-                    "preserve file times: failed to apply timestamps to {}: {err}",
-                    final_output_path.display()
-                ),
-            );
-        }
-    }
-
-    // 记录所有成功生成的最终输出路径,供 Batch Compress 在后续批次中进行去重与跳过。
-    register_known_batch_compress_output_with_inner(inner, &final_output_path);
-
-    mark_batch_compress_child_processed(inner, job_id);
-
-    Ok(())
+    finalize_successful_transcode_job(
+        inner,
+        FinalizeSuccessfulTranscodeJobArgs {
+            job_id,
+            preset_id: &preset_id,
+            output_path: &output_path,
+            original_size_bytes,
+            final_output_size_bytes,
+            elapsed,
+            input_times,
+        },
+    )
 }
+
+include!("job_runner_process_execute_success_finalize.rs");

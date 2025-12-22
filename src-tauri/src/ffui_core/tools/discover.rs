@@ -135,6 +135,7 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
         HKEY_LOCAL_MACHINE,
         KEY_READ,
         REG_VALUE_TYPE,
+        RegCloseKey,
         RegOpenKeyExW,
         RegQueryValueExW,
     };
@@ -199,11 +200,15 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
         // Minimal implementation: try common value names under root itself.
         // For brevity and to keep lines low, we don't enumerate subkeys here; this
         // is sufficient for well-behaved installers that set InstallLocation directly.
-        if let Some(hk) = open_subkey(root, SUBKEYS[0])
-            && let Some(location) = read_string_value(hk, "InstallLocation")
-        {
-            let candidate = PathBuf::from(location).join(program);
-            out.push(candidate);
+        if let Some(hk) = open_subkey(root, SUBKEYS[0]) {
+            let location = read_string_value(hk, "InstallLocation");
+            unsafe {
+                let _ = RegCloseKey(hk);
+            }
+            if let Some(location) = location {
+                let candidate = PathBuf::from(location).join(program);
+                out.push(candidate);
+            }
         }
     }
 

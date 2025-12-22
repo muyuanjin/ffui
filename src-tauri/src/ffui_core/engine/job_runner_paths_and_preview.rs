@@ -264,6 +264,22 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
     Ok(())
 }
 
+/// Mark a segment as "audio already removed" without doing any remux work.
+///
+/// This is used as a cheap optimization when the current ffmpeg run is known
+/// to have produced a video-only segment (e.g. resume flow with `-map -0:a`).
+pub(super) fn mark_segment_noaudio_done(segment: &Path) -> Result<()> {
+    if !segment.exists() {
+        return Ok(());
+    }
+    let marker = noaudio_marker_path_for_segment(segment);
+    if marker.exists() {
+        return Ok(());
+    }
+    let _ = fs::write(&marker, b"");
+    Ok(())
+}
+
 pub(super) fn noaudio_marker_path_for_segment(segment: &Path) -> PathBuf {
     segment.with_extension("noaudio.done")
 }

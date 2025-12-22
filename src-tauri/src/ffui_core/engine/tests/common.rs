@@ -70,6 +70,13 @@ pub(super) fn make_engine_with_preset() -> TranscodingEngine {
     TranscodingEngine { inner }
 }
 
+pub(super) fn lock_mock_ffmpeg_env() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    LOCK.get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .expect("mock ffmpeg env mutex poisoned")
+}
+
 /// Best-effort check whether `ffmpeg` is available on PATH.
 pub(super) fn ffmpeg_available() -> bool {
     // 为了避免在测试环境中误触发系统弹窗，这里的 ffmpeg 集成测试默认是

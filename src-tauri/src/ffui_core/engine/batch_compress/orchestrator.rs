@@ -5,6 +5,10 @@ use std::hash::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{
+    Duration,
+    Instant,
+};
 use std::{
     fs,
     thread,
@@ -13,6 +17,7 @@ use std::{
 use anyhow::Result;
 
 use super::super::state::{
+    BATCH_COMPRESS_PROGRESS_EVERY,
     BatchCompressBatch,
     BatchCompressBatchStatus,
     Inner,
@@ -159,6 +164,9 @@ fn run_auto_compress_background(
 
     // 第一次遍历：只收集文件列表并更新扫描进度，不做任何重处理。
     let mut all_files: Vec<PathBuf> = Vec::new();
+    let mut pending_scanned: u64 = 0;
+    let mut scanned_total: u64 = 0;
+    let mut last_force_flush = Instant::now();
     let mut stack = vec![root.clone()];
     while let Some(dir) = stack.pop() {
         let entries = match fs::read_dir(&dir) {
@@ -176,12 +184,47 @@ fn run_auto_compress_background(
                 continue;
             }
 
-            update_batch_compress_batch_with_inner(&inner, &batch_id, false, |batch| {
-                batch.total_files_scanned = batch.total_files_scanned.saturating_add(1);
-            });
+            scanned_total = scanned_total.saturating_add(1);
+
+            // For small directory trees, keep the UI responsive by emitting per-file
+            // progress updates up to the first BATCH_COMPRESS_PROGRESS_EVERY items.
+            // This caps the lock contention at a small constant while improving
+            // perceived responsiveness for typical "few dozen files" use cases.
+            if scanned_total < BATCH_COMPRESS_PROGRESS_EVERY {
+                update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                    batch.total_files_scanned = batch.total_files_scanned.saturating_add(1);
+                });
+            } else {
+                pending_scanned = pending_scanned.saturating_add(1);
+                if pending_scanned >= BATCH_COMPRESS_PROGRESS_EVERY {
+                    let flush = pending_scanned - (pending_scanned % BATCH_COMPRESS_PROGRESS_EVERY);
+                    update_batch_compress_batch_with_inner(&inner, &batch_id, false, |batch| {
+                        batch.total_files_scanned = batch.total_files_scanned.saturating_add(flush);
+                    });
+                    pending_scanned -= flush;
+                }
+
+                // Slow/remote filesystems can make directory walks take long enough
+                // that only emitting at multiples of 32 feels "stuck". Ensure we
+                // flush partial progress at a coarse time interval.
+                if pending_scanned > 0 && last_force_flush.elapsed() >= Duration::from_millis(200) {
+                    let flush = pending_scanned;
+                    update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                        batch.total_files_scanned = batch.total_files_scanned.saturating_add(flush);
+                    });
+                    pending_scanned = 0;
+                    last_force_flush = Instant::now();
+                }
+            }
 
             all_files.push(path);
         }
+    }
+
+    if pending_scanned > 0 {
+        update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+            batch.total_files_scanned = batch.total_files_scanned.saturating_add(pending_scanned);
+        });
     }
 
     #[derive(Clone, Copy)]

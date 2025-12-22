@@ -47,7 +47,6 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         input_path,
         preset,
         settings_snapshot,
-        original_size_bytes,
         job_type,
         preset_id,
         cached_media_info,
@@ -65,14 +64,12 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             .iter()
             .find(|p| p.id == job.preset_id)
             .cloned();
-        let original_size_bytes = fs::metadata(&job.filename).map(|m| m.len()).unwrap_or(0);
         let cached_media_info = state.media_info_cache.get(&job.filename).cloned();
 
         (
             PathBuf::from(&job.filename),
             preset,
             state.settings.clone(),
-            original_size_bytes,
             job.job_type.clone(),
             job.preset_id.clone(),
             cached_media_info,
@@ -80,6 +77,8 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             job.wait_metadata.clone(),
         )
     };
+
+    let original_size_bytes = fs::metadata(&job_filename).map(|m| m.len()).unwrap_or(0);
 
     if job_type != JobType::Video {
         // For now, only video jobs are processed by the background worker.

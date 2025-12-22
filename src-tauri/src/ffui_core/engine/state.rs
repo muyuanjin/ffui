@@ -42,7 +42,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     restore::restore_jobs_from_snapshot(inner, snapshot);
 }
 
-const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
+pub(super) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
 
 pub(super) type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
 pub(super) type QueueLiteListener = Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;

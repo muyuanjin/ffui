@@ -122,6 +122,45 @@ describe("MainApp Batch Compress integration", () => {
     wrapper.unmount();
   });
 
+  it("accepts sparse Batch Compress scan progress updates (e.g. 32 -> 33)", async () => {
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_app_settings: () => defaultAppSettings(),
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+
+    await nextTick();
+
+    const batchId = "auto-compress-sparse-scan";
+    emitBatchCompressProgress({
+      rootPath: "C:/videos/batch",
+      totalFilesScanned: 32,
+      totalCandidates: 0,
+      totalProcessed: 0,
+      batchId,
+    });
+    await nextTick();
+
+    expect(vm.batchCompressBatchMeta[batchId]?.totalFilesScanned).toBe(32);
+
+    emitBatchCompressProgress({
+      rootPath: "C:/videos/batch",
+      totalFilesScanned: 33,
+      totalCandidates: 0,
+      totalProcessed: 0,
+      batchId,
+      completedAtMs: 123,
+    });
+    await nextTick();
+
+    expect(vm.batchCompressBatchMeta[batchId]?.totalFilesScanned).toBe(33);
+    expect(vm.batchCompressBatchMeta[batchId]?.completedAtMs).toBe(123);
+
+    wrapper.unmount();
+  });
+
   it("creates Batch Compress batch cards from Tauri batch metadata and queue events", async () => {
     const batchId = "auto-compress-test-batch";
     const rootPath = "C:/videos/batch";

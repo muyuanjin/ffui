@@ -4,10 +4,6 @@ use std::hash::{
     Hash,
     Hasher,
 };
-use std::io::{
-    BufRead,
-    BufReader,
-};
 use std::path::{
     Path,
     PathBuf,

@@ -29,6 +29,7 @@ pub(super) fn recompute_processed_seconds_from_segments(
         && !end_targets.is_empty()
     {
         let mut valid_segments: Vec<String> = Vec::new();
+        let mut valid_end_targets: Vec<f64> = Vec::new();
         let mut last_target: Option<f64> = None;
 
         for (idx, raw) in ordered_wait_metadata_segments(meta).into_iter().enumerate() {
@@ -41,16 +42,48 @@ pub(super) fn recompute_processed_seconds_from_segments(
                 continue;
             }
             valid_segments.push(trimmed.to_string());
-            if let Some(t) = end_targets
+            let Some(t) = end_targets
                 .get(idx)
                 .copied()
                 .filter(|v| v.is_finite() && *v > 0.0)
-            {
-                last_target = Some(t);
-            }
+            else {
+                // Without a matching end target we cannot reliably align the
+                // timeline; fall back to duration probing below.
+                valid_segments.clear();
+                valid_end_targets.clear();
+                last_target = None;
+                break;
+            };
+            valid_end_targets.push(t);
+            last_target = Some(t);
         }
 
-        if let Some(target) = last_target {
+        if let Some(mut target) = last_target {
+            // Move the expensive ffprobe "pause calibration" into the resume
+            // preparation phase: probe only the last segment and use it to
+            // conservatively cap the final join target if needed (avoid skip).
+            if let Some(last_seg) = valid_segments.last() {
+                let base = valid_end_targets
+                    .get(valid_end_targets.len().saturating_sub(2))
+                    .copied()
+                    .unwrap_or(0.0);
+                let last_path = PathBuf::from(last_seg);
+                if let Some(dur) = probe_segment_duration_seconds(&last_path, settings)
+                    && dur.is_finite()
+                    && dur > 0.0
+                    && base.is_finite()
+                    && base >= 0.0
+                {
+                    let probed_end = base + dur;
+                    if probed_end.is_finite() && probed_end > 0.0 {
+                        target = target.min(probed_end);
+                        if let Some(last) = valid_end_targets.last_mut() {
+                            *last = (*last).min(probed_end);
+                        }
+                    }
+                }
+            }
+
             let clamped = match media_duration.filter(|d| d.is_finite() && *d > 0.0) {
                 Some(limit) => target.min(limit),
                 None => target,
@@ -60,6 +93,8 @@ pub(super) fn recompute_processed_seconds_from_segments(
             meta.target_seconds = Some(clamped);
             meta.segments = Some(valid_segments.clone());
             meta.tmp_output_path = valid_segments.last().cloned().or(meta.tmp_output_path.clone());
+            meta.segment_end_targets =
+                (!valid_end_targets.is_empty()).then_some(valid_end_targets);
             return (clamped - prior).abs() > 0.000_5;
         }
     }
