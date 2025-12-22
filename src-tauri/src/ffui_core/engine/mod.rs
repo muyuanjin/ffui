@@ -12,6 +12,7 @@ mod preview_refresh;
 mod settings_save;
 mod state;
 mod state_persist;
+mod template_args;
 mod tools_refresh;
 mod transcode_activity;
 mod worker;

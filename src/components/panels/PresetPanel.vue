@@ -39,11 +39,13 @@ const emit = defineEmits<{
   batchDelete: [presetIds: string[]];
   exportSelectedToFile: [presetIds: string[]];
   exportSelectedToClipboard: [presetIds: string[]];
+  exportSelectedCommandsToClipboard: [presetIdsInDisplayOrder: string[]];
   exportPresetToFile: [preset: FFmpegPreset];
   reorder: [orderedIds: string[]];
   importSmartPack: [];
   importBundle: [];
   importBundleFromClipboard: [];
+  importCommands: [];
   "update:sortMode": [mode: PresetSortMode];
   "update:viewMode": [mode: ViewMode];
 }>();
@@ -135,6 +137,10 @@ watch(
 
 const isSelected = (id: string) => selectedIds.value.has(id);
 
+const selectedIdsInDisplayOrder = computed(() =>
+  sortedPresets.value.filter((preset) => selectedIds.value.has(preset.id)).map((preset) => preset.id),
+);
+
 const toggleSelected = (id: string) => {
   const next = new Set(selectedIds.value);
   if (next.has(id)) {
@@ -151,17 +157,22 @@ const clearSelection = () => {
 
 const emitBatchDelete = () => {
   if (selectedIds.value.size === 0) return;
-  emit("batchDelete", Array.from(selectedIds.value));
+  emit("batchDelete", selectedIdsInDisplayOrder.value);
 };
 
 const emitExportSelectedToFile = () => {
   if (selectedIds.value.size === 0) return;
-  emit("exportSelectedToFile", Array.from(selectedIds.value));
+  emit("exportSelectedToFile", selectedIdsInDisplayOrder.value);
 };
 
 const emitExportSelectedToClipboard = () => {
   if (selectedIds.value.size === 0) return;
-  emit("exportSelectedToClipboard", Array.from(selectedIds.value));
+  emit("exportSelectedToClipboard", selectedIdsInDisplayOrder.value);
+};
+
+const emitExportSelectedCommandsToClipboard = () => {
+  if (selectedIds.value.size === 0) return;
+  emit("exportSelectedCommandsToClipboard", selectedIdsInDisplayOrder.value);
 };
 
 // Setup sortable - 始终启用拖拽
@@ -295,6 +306,14 @@ useSortable(containerRef, localPresets, {
                 <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
                 {{ t("presets.importFromClipboard") }}
               </DropdownMenuItem>
+              <DropdownMenuItem
+                class="px-3 py-1.5 text-xs gap-2"
+                data-testid="preset-import-commands"
+                @select="emit('importCommands')"
+              >
+                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                {{ t("presets.importCommands") }}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -335,6 +354,14 @@ useSortable(containerRef, localPresets, {
               >
                 <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
                 {{ t("presets.exportToClipboard") }}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                class="px-3 py-1.5 text-xs gap-2"
+                data-testid="preset-export-commands"
+                @select="emitExportSelectedCommandsToClipboard"
+              >
+                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                {{ t("presets.copyTemplateCommands") }}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

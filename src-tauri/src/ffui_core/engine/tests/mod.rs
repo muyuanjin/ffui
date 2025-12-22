@@ -62,6 +62,7 @@ mod crash_recovery_merge_tests;
 mod enqueue_and_logging;
 mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_filters_tests;
+mod ffmpeg_args_template_tokenizer_tests;
 mod ffmpeg_args_tests;
 mod ffmpeg_integration;
 mod ffmpeg_pause_resume_integration;

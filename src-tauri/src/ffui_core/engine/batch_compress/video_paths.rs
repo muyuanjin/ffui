@@ -87,12 +87,13 @@ pub(super) fn build_ffmpeg_args(preset: &FFmpegPreset, input: &Path, output: &Pa
             .unwrap_or(false)
         && let Some(template) = &preset.ffmpeg_template
     {
-        let with_input = template.replace("INPUT", input.to_string_lossy().as_ref());
-        let with_output = with_input.replace("OUTPUT", output.to_string_lossy().as_ref());
-        let mut args: Vec<String> = with_output
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect();
+        let mut args = crate::ffui_core::engine::template_args::split_template_args(template);
+        for arg in &mut args {
+            *arg = arg
+                .replace("INPUT", input.to_string_lossy().as_ref())
+                .replace("OUTPUT", output.to_string_lossy().as_ref());
+        }
+        crate::ffui_core::engine::template_args::strip_leading_ffmpeg_program(&mut args);
         ensure_progress_args(&mut args);
         if !args.iter().any(|a| a == "-nostdin") {
             args.push("-nostdin".to_string());

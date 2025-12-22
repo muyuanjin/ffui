@@ -25,6 +25,7 @@ export function useDialogManager() {
   const jobCompareOpen = ref(false);
   const deletePresetDialogOpen = ref(false);
   const smartPresetImportOpen = ref(false);
+  const importCommandsOpen = ref(false);
 
   // 当前选中的项目(用于详情对话框)
   const selectedJob = ref<TranscodeJob | null>(null);
@@ -87,6 +88,10 @@ export function useDialogManager() {
     smartPresetImportOpen.value = true;
   };
 
+  const openImportCommands = () => {
+    importCommandsOpen.value = true;
+  };
+
   // 关闭方法
   const closeWizard = () => {
     wizardOpen.value = false;
@@ -141,6 +146,10 @@ export function useDialogManager() {
     smartPresetImportOpen.value = false;
   };
 
+  const closeImportCommands = () => {
+    importCommandsOpen.value = false;
+  };
+
   // 关闭所有对话框
   const closeAllDialogs = () => {
     wizardOpen.value = false;
@@ -152,6 +161,7 @@ export function useDialogManager() {
     jobCompareOpen.value = false;
     deletePresetDialogOpen.value = false;
     smartPresetImportOpen.value = false;
+    importCommandsOpen.value = false;
     selectedJob.value = null;
     selectedBatch.value = null;
     editingPreset.value = null;
@@ -168,6 +178,7 @@ export function useDialogManager() {
     jobCompareOpen,
     deletePresetDialogOpen,
     smartPresetImportOpen,
+    importCommandsOpen,
     selectedJob,
     selectedBatch,
     editingPreset,
@@ -183,6 +194,7 @@ export function useDialogManager() {
     openJobCompare,
     openDeletePresetDialog,
     openSmartPresetImport,
+    openImportCommands,
     // 关闭方法
     closeWizard,
     closeParameterPanel,
@@ -193,6 +205,7 @@ export function useDialogManager() {
     closeJobCompare,
     closeDeletePresetDialog,
     closeSmartPresetImport,
+    closeImportCommands,
     closeAllDialogs,
   };
 }

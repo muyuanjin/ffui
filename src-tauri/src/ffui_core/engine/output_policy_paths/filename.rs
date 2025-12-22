@@ -135,14 +135,15 @@ fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
     if template.is_empty() {
         return None;
     }
-    let tokens: Vec<&str> = template.split_whitespace().collect();
+    let mut tokens = crate::ffui_core::engine::template_args::split_template_args(template);
+    crate::ffui_core::engine::template_args::strip_leading_ffmpeg_program(&mut tokens);
     let mut codec: Option<String> = None;
     let mut quality: Option<String> = None;
     let mut i = 0usize;
     while i + 1 < tokens.len() {
-        match tokens[i] {
+        match tokens[i].as_str() {
             "-c:v" => {
-                codec = Some(tokens[i + 1].to_string());
+                codec = Some(tokens[i + 1].clone());
                 i += 2;
             }
             "-crf" => {

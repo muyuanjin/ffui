@@ -10,6 +10,7 @@ import ParameterWizard from "@/components/ParameterWizard.vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
 import SmartPresetOnboardingWizard from "@/components/dialogs/SmartPresetOnboardingWizard.vue";
+import ImportCommandsDialog from "@/components/dialogs/ImportCommandsDialog.vue";
 import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
 import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
@@ -90,6 +91,7 @@ const emit = defineEmits<{
   (e: "setPreviewSourceMode", mode: PreviewSourceMode): void;
   (e: "openPreviewInSystemPlayer"): void;
   (e: "importSmartPackConfirmed", presets: FFmpegPreset[]): void;
+  (e: "importCommandsPresets", presets: FFmpegPreset[]): void;
   (e: "openToolsSettings"): void;
 }>();
 
@@ -225,5 +227,15 @@ const openCompareFromJobDetail = () => {
     "
     @confirmed="(presets) => emit('importSmartPackConfirmed', presets)"
     @openToolsSettings="emit('openToolsSettings')"
+  />
+
+  <ImportCommandsDialog
+    :open="dialogManager.importCommandsOpen.value"
+    @update:open="
+      (open) => {
+        if (!open) dialogManager.closeImportCommands();
+      }
+    "
+    @importPresets="(presets) => emit('importCommandsPresets', presets)"
   />
 </template>

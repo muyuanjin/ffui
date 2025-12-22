@@ -269,9 +269,9 @@ fn execute_transcode_job(
                 .map(|p| probe_segment_duration_seconds(p.as_path(), &settings_snapshot))
                 .collect::<Option<Vec<f64>>>()
                 .map(|durations| durations.into_iter().sum::<f64>());
-
-        let base = base_by_probe
-            .or(resume_from_seconds)
+        // Prefer resume_from_seconds for base; probe prior segments only when the offset is unknown (probing can be unreliable).
+        let base = resume_from_seconds
+            .or(base_by_probe)
             .unwrap_or(0.0)
             .max(0.0);
 

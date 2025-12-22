@@ -9,6 +9,7 @@ import {
   readPresetsBundle,
   savePresetOnBackend,
 } from "@/lib/backend";
+import { getPresetCommandPreview, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import type { FFmpegPreset } from "@/types";
 import type { UseMainAppShellReturn } from "../useMainAppShell";
 
@@ -27,8 +28,10 @@ export interface PresetLibraryActionsReturn {
   duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
   importPresetsBundleFromFile: () => Promise<void>;
   importPresetsBundleFromClipboard: () => Promise<void>;
+  importPresetsCandidates: (presetsToImport: FFmpegPreset[]) => Promise<void>;
   exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
   exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
+  exportSelectedPresetsTemplateCommandsToClipboard: (presetIdsInDisplayOrder: string[]) => Promise<void>;
   exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
 }
 
@@ -183,7 +186,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     }
   };
 
-  const importPresetsBundleCore = async (incomingPresets: unknown) => {
+  const importPresetsCore = async (incomingPresets: unknown) => {
     const incoming = Array.isArray(incomingPresets) ? incomingPresets : [];
     if (incoming.length === 0) return;
 
@@ -209,14 +212,16 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     if (normalizedPresets.length === 0) return;
 
     let latest: FFmpegPreset[] | null = null;
-    for (const preset of normalizedPresets) {
-      try {
-        const updated = await savePresetOnBackend(preset);
-        if (Array.isArray(updated)) {
-          latest = updated;
+    if (hasTauri()) {
+      for (const preset of normalizedPresets) {
+        try {
+          const updated = await savePresetOnBackend(preset);
+          if (Array.isArray(updated)) {
+            latest = updated;
+          }
+        } catch (e) {
+          console.error("Failed to import preset to backend:", e);
         }
-      } catch (e) {
-        console.error("Failed to import preset to backend:", e);
       }
     }
 
@@ -243,7 +248,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       if (!path) return;
 
       const bundle = await readPresetsBundle(path);
-      await importPresetsBundleCore(bundle?.presets);
+      await importPresetsCore(bundle?.presets);
     } catch (e) {
       console.error("Failed to import presets bundle:", e);
     }
@@ -255,10 +260,14 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       const text = await readFromClipboard();
       if (!text || text.trim().length === 0) return;
       const parsed = JSON.parse(text);
-      await importPresetsBundleCore((parsed as any)?.presets);
+      await importPresetsCore((parsed as any)?.presets);
     } catch (e) {
       console.error("Failed to import presets bundle from clipboard:", e);
     }
+  };
+
+  const importPresetsCandidates = async (presetsToImport: FFmpegPreset[]) => {
+    await importPresetsCore(presetsToImport);
   };
 
   const exportSelectedPresetsBundleToFile = async (presetIds: string[]) => {
@@ -309,6 +318,35 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     }
   };
 
+  const exportSelectedPresetsTemplateCommandsToClipboard = async (presetIdsInDisplayOrder: string[]) => {
+    const normalizedIds = (presetIdsInDisplayOrder ?? []).filter(
+      (id): id is string => typeof id === "string" && id.trim().length > 0,
+    );
+    if (normalizedIds.length === 0) return;
+
+    const byId = new Map(presets.value.map((preset) => [preset.id, preset] as const));
+    const selectedPresets: FFmpegPreset[] = normalizedIds.map((id) => byId.get(id)).filter(Boolean) as FFmpegPreset[];
+    if (selectedPresets.length === 0) return;
+
+    const lines = selectedPresets.map((preset) => {
+      // Structured presets: reuse the deterministic preview shown in the UI.
+      if (!preset.advancedEnabled || !preset.ffmpegTemplate?.trim()) {
+        return getPresetCommandPreview(preset);
+      }
+
+      // Advanced/template presets: normalize program token, ensure placeholders,
+      // and always export with a leading `ffmpeg` program token.
+      const template = preset.ffmpegTemplate.trim();
+      const normalized = normalizeFfmpegTemplate(template).template.trim();
+      if (normalized.toLowerCase().startsWith("ffmpeg ")) {
+        return normalized;
+      }
+      return `ffmpeg ${normalized}`;
+    });
+
+    await copyToClipboard(lines.join("\n"));
+  };
+
   const exportPresetToFile = async (preset: FFmpegPreset) => {
     if (!hasTauri()) return;
     if (!preset?.id) return;
@@ -334,8 +372,10 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     duplicatePreset,
     importPresetsBundleFromFile,
     importPresetsBundleFromClipboard,
+    importPresetsCandidates,
     exportSelectedPresetsBundleToFile,
     exportSelectedPresetsBundleToClipboard,
+    exportSelectedPresetsTemplateCommandsToClipboard,
     exportPresetToFile,
   };
 }

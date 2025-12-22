@@ -148,8 +148,10 @@ const {
   duplicatePreset,
   importPresetsBundleFromFile,
   importPresetsBundleFromClipboard,
+  importPresetsCandidates,
   exportSelectedPresetsBundleToFile,
   exportSelectedPresetsBundleToClipboard,
+  exportSelectedPresetsTemplateCommandsToClipboard,
   exportPresetToFile,
   requestDeletePreset,
   requestBatchDeletePresets,
@@ -196,7 +198,6 @@ const {
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp as any;
-
 const { handleLocaleChange } = useLocalePersistence({
   appSettings,
   handleUpdateAppSettings,
@@ -229,7 +230,6 @@ defineExpose({
     @drop="handleDrop"
   >
     <MainDragOverlay :active-tab="activeTab" :is-dragging="isDragging" />
-
     <TitleBar
       :current-title="currentTitle"
       :progress-percent="headerProgressPercent"
@@ -240,7 +240,6 @@ defineExpose({
       @close="closeWindow"
       @locale-change="handleLocaleChange"
     />
-
     <div class="flex flex-1 min-h-0 flex-row overflow-hidden">
       <Sidebar
         :active-tab="activeTab"
@@ -251,7 +250,6 @@ defineExpose({
         @add-job-folder="addManualJobsFromFolder"
         @batch-compress="startBatchCompress"
       />
-
       <!-- 主内容区作为 flex 子项必须设置 min-w-0，避免内部长内容把整体布局撑宽，导致侧边栏被挤压 -->
       <main class="flex-1 flex min-h-0 min-w-0 flex-col bg-background">
         <MainContentHeader
@@ -272,7 +270,6 @@ defineExpose({
           @update:carouselAutoRotationSpeed="(v) => setCarouselAutoRotationSpeed(v)"
           @openPresetWizard="dialogManager.openWizard()"
         />
-
         <QueueFiltersBar
           v-if="activeTab === 'queue'"
           :active-status-filters="activeStatusFilters"
@@ -361,11 +358,13 @@ defineExpose({
               @batchDelete="requestBatchDeletePresets"
               @exportSelectedToFile="exportSelectedPresetsBundleToFile"
               @exportSelectedToClipboard="exportSelectedPresetsBundleToClipboard"
+              @exportSelectedCommandsToClipboard="exportSelectedPresetsTemplateCommandsToClipboard"
               @exportPresetToFile="exportPresetToFile"
               @reorder="handleReorderPresets"
               @importSmartPack="dialogManager.openSmartPresetImport()"
               @importBundle="importPresetsBundleFromFile"
               @importBundleFromClipboard="importPresetsBundleFromClipboard"
+              @importCommands="dialogManager.openImportCommands()"
               @update:sortMode="(v) => (presetSortMode = v)"
               @update:viewMode="(v) => (presetViewMode = v)"
             />
@@ -414,13 +413,11 @@ defineExpose({
         </ScrollArea>
       </main>
     </div>
-
     <WaitingJobContextMenu
       :visible="waitingJobContextMenuVisible"
       @move-to-top="handleWaitingJobContextMoveToTop"
       @close="closeWaitingJobContextMenu"
     />
-
     <QueueContextMenu
       :visible="queueContextMenuVisible"
       :x="queueContextMenuX"
@@ -447,7 +444,6 @@ defineExpose({
       @copy-output-path="handleQueueContextCopyOutputPath"
       @close="closeQueueContextMenu"
     />
-
     <MainDialogsStack
       :dialog-manager="dialogManager"
       :presets="presets"
@@ -492,6 +488,7 @@ defineExpose({
       @setPreviewSourceMode="setPreviewSourceMode"
       @openPreviewInSystemPlayer="openPreviewInSystemPlayer"
       @importSmartPackConfirmed="handleImportSmartPackConfirmed"
+      @importCommandsPresets="importPresetsCandidates"
       @openToolsSettings="activeTab = 'settings'"
     />
   </div>

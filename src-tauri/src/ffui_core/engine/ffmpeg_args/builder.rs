@@ -23,6 +23,10 @@ use crate::ffui_core::domain::{
     RateControlMode,
     SeekMode,
 };
+use crate::ffui_core::engine::template_args::{
+    split_template_args,
+    strip_leading_ffmpeg_program,
+};
 
 /// 构建 ffmpeg 参数列表。
 ///
@@ -53,12 +57,13 @@ pub(crate) fn build_ffmpeg_args(
             .unwrap_or(false)
         && let Some(template) = &preset.ffmpeg_template
     {
-        let with_input = template.replace("INPUT", input.to_string_lossy().as_ref());
-        let with_output = with_input.replace("OUTPUT", output.to_string_lossy().as_ref());
-        let mut args: Vec<String> = with_output
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect();
+        let mut args = split_template_args(template);
+        for arg in &mut args {
+            *arg = arg
+                .replace("INPUT", input.to_string_lossy().as_ref())
+                .replace("OUTPUT", output.to_string_lossy().as_ref());
+        }
+        strip_leading_ffmpeg_program(&mut args);
         ensure_progress_args(&mut args);
         if non_interactive && !args.iter().any(|a| a == "-nostdin") {
             args.push("-nostdin".to_string());

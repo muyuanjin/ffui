@@ -320,4 +320,67 @@ describe("useMainAppPresets library actions", () => {
     vi.useRealTimers();
     wrapper.unmount();
   });
+
+  it("exportSelectedPresetsTemplateCommandsToClipboard copies one ffmpeg template command per preset in provided order", async () => {
+    const presets = ref<FFmpegPreset[]>([
+      {
+        id: "p1",
+        name: "Structured",
+        description: "desc",
+        video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+        audio: { codec: "copy" },
+        filters: {},
+        stats: {
+          usageCount: 0,
+          totalInputSizeMB: 0,
+          totalOutputSizeMB: 0,
+          totalTimeSeconds: 0,
+        },
+      },
+      {
+        id: "p2",
+        name: "Advanced",
+        description: "desc",
+        video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+        audio: { codec: "copy" },
+        filters: {},
+        stats: {
+          usageCount: 0,
+          totalInputSizeMB: 0,
+          totalOutputSizeMB: 0,
+          totalTimeSeconds: 0,
+        },
+        advancedEnabled: true,
+        ffmpegTemplate: "-i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
+      },
+    ]);
+    const presetsLoadedFromBackend = ref(true);
+    const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
+
+    const { composable, wrapper } = mountComposable({
+      t: (key: string) => key,
+      locale,
+      presets,
+      presetsLoadedFromBackend,
+      manualJobPresetId,
+      dialogManager: {
+        openParameterPanel: () => {},
+        closeParameterPanel: () => {},
+        closeWizard: () => {},
+      } as any,
+      shell: undefined,
+    });
+
+    await composable.exportSelectedPresetsTemplateCommandsToClipboard(["p2", "p1"]);
+
+    expect(copyToClipboard).toHaveBeenCalledTimes(1);
+    const copied = copyToClipboard.mock.calls[0][0] as string;
+    const lines = copied.split("\n");
+    expect(lines).toHaveLength(2);
+    expect(lines[0].startsWith("ffmpeg -i INPUT")).toBe(true);
+    expect(lines[1].startsWith("ffmpeg -progress pipe:2")).toBe(true);
+
+    wrapper.unmount();
+  });
 });

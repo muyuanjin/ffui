@@ -88,6 +88,26 @@ describe("PresetPanel library actions", () => {
     wrapper.unmount();
   });
 
+  it("emits exportSelectedCommandsToClipboard from split-button dropdown", async () => {
+    const presets = [makePreset("p1", "One")];
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    await wrapper.get('[data-testid="preset-select-toggle"]').trigger("click");
+    await wrapper.get('[data-testid="preset-export-menu"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="preset-export-commands"]').trigger("click");
+    const emitted = wrapper.emitted("exportSelectedCommandsToClipboard") as unknown[][] | undefined;
+    expect(emitted?.[0]?.[0]).toEqual(["p1"]);
+
+    wrapper.unmount();
+  });
+
   it("emits duplicate and per-card export events", async () => {
     const presets = [makePreset("p1", "One")];
     const wrapper = mount(PresetPanel, {
@@ -137,6 +157,24 @@ describe("PresetPanel library actions", () => {
 
     await wrapper.get('[data-testid="preset-import-clipboard"]').trigger("click");
     expect(wrapper.emitted("importBundleFromClipboard")).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
+  it("emits importCommands from split-button dropdown", async () => {
+    const presets = [makePreset("p1", "One")];
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    await wrapper.get('[data-testid="preset-import-menu"]').trigger("click");
+    await wrapper.vm.$nextTick();
+
+    await wrapper.get('[data-testid="preset-import-commands"]').trigger("click");
+    expect(wrapper.emitted("importCommands")).toBeTruthy();
 
     wrapper.unmount();
   });

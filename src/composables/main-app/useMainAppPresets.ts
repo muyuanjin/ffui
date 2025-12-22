@@ -54,8 +54,10 @@ export interface UseMainAppPresetsReturn {
   duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
   importPresetsBundleFromFile: () => Promise<void>;
   importPresetsBundleFromClipboard: () => Promise<void>;
+  importPresetsCandidates: (presetsToImport: FFmpegPreset[]) => Promise<void>;
   exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
   exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
+  exportSelectedPresetsTemplateCommandsToClipboard: (presetIdsInDisplayOrder: string[]) => Promise<void>;
   exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
@@ -474,8 +476,10 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     duplicatePreset: libraryActions.duplicatePreset,
     importPresetsBundleFromFile: libraryActions.importPresetsBundleFromFile,
     importPresetsBundleFromClipboard: libraryActions.importPresetsBundleFromClipboard,
+    importPresetsCandidates: libraryActions.importPresetsCandidates,
     exportSelectedPresetsBundleToFile: libraryActions.exportSelectedPresetsBundleToFile,
     exportSelectedPresetsBundleToClipboard: libraryActions.exportSelectedPresetsBundleToClipboard,
+    exportSelectedPresetsTemplateCommandsToClipboard: libraryActions.exportSelectedPresetsTemplateCommandsToClipboard,
     exportPresetToFile: libraryActions.exportPresetToFile,
     handleSavePreset,
     handleReorderPresets,

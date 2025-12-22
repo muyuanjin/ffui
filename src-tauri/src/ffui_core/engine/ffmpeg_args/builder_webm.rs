@@ -50,15 +50,16 @@ pub(super) fn should_fallback_webm_forced_container(preset: &FFmpegPreset, input
 }
 
 fn infer_template_output_codecs(template: &str) -> (Option<String>, Option<String>) {
-    let tokens: Vec<&str> = template.split_whitespace().collect();
-    let Some(output_index) = tokens.iter().position(|t| *t == "OUTPUT") else {
+    let mut tokens = crate::ffui_core::engine::template_args::split_template_args(template);
+    crate::ffui_core::engine::template_args::strip_leading_ffmpeg_program(&mut tokens);
+    let Some(output_index) = tokens.iter().position(|t| t.as_str() == "OUTPUT") else {
         return (None, None);
     };
 
     let mut i = 0usize;
     let mut last_input_index: Option<usize> = None;
     while i + 1 < output_index {
-        if tokens[i] == "-i" {
+        if tokens[i].as_str() == "-i" {
             last_input_index = Some(i + 1);
             i += 2;
             continue;
@@ -71,13 +72,13 @@ fn infer_template_output_codecs(template: &str) -> (Option<String>, Option<Strin
     let mut a: Option<String> = None;
     let mut j = start;
     while j + 1 < output_index {
-        match tokens[j] {
+        match tokens[j].as_str() {
             "-c:v" => {
-                v = Some(tokens[j + 1].to_string());
+                v = Some(tokens[j + 1].clone());
                 j += 2;
             }
             "-c:a" => {
-                a = Some(tokens[j + 1].to_string());
+                a = Some(tokens[j + 1].clone());
                 j += 2;
             }
             _ => j += 1,
