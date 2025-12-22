@@ -34,7 +34,7 @@ const TestHarness = defineComponent({
 });
 
 describe("useMainAppPreview fallback path selection", () => {
-  it("handleExpandedPreviewError keeps the selected path and enables frame fallback", async () => {
+  it("handleExpandedPreviewError retries input playback when output fails in auto mode", async () => {
     const wrapper = mount(TestHarness);
     const vm: any = wrapper.vm;
 
@@ -60,12 +60,12 @@ describe("useMainAppPreview fallback path selection", () => {
     expect(vm.previewUrl).toBe(job.outputPath);
     expect(vm.previewError).toBeNull();
 
-    // 模拟 <video> 播放失败：保持当前路径，并进入帧预览兜底。
-    vm.handleExpandedPreviewError();
+    // 模拟 <video> 播放失败：自动切换到输入重试原生播放。
+    await vm.handleExpandedPreviewError();
     await nextTick();
 
-    expect(vm.previewUrl).toBe(job.outputPath);
-    expect(vm.previewError).toBeTruthy();
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewError).toBeNull();
 
     wrapper.unmount();
   });
@@ -102,6 +102,48 @@ describe("useMainAppPreview fallback path selection", () => {
 
     expect(vm.previewSourceMode).toBe("input");
     expect(vm.previewUrl).toBe(job.inputPath);
+
+    wrapper.unmount();
+  });
+
+  it("falls back to output frames when both output and input fail natively in auto mode", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-fallback-both-1",
+      filename: "C:/videos/both.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/videos/both.mp4",
+      outputPath: "C:/videos/both.compressed.mp4",
+    } as any;
+
+    await vm.openJobPreviewFromQueue(job);
+    await nextTick();
+
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewSourceMode).toBe("output");
+
+    // First failure: try input
+    await vm.handleExpandedPreviewError();
+    await nextTick();
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewSourceMode).toBe("input");
+    expect(vm.previewError).toBeNull();
+
+    // Second failure: fall back to output frames
+    await vm.handleExpandedPreviewError();
+    await nextTick();
+    expect(vm.previewUrl).toBe(job.outputPath);
+    expect(vm.previewSourceMode).toBe("output");
+    expect(vm.previewError).toBeTruthy();
 
     wrapper.unmount();
   });

@@ -3,6 +3,8 @@ use serde::{
     Serialize,
 };
 
+mod types_helpers;
+
 pub use super::monitor_updater_types::{
     AppUpdaterSettings,
     MonitorSettings,
@@ -115,6 +117,9 @@ pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
 /// metrics interval is not explicitly configured via AppSettings.
 pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
 
+/// Default timeout (in seconds) for the "pause jobs on exit" graceful shutdown flow.
+pub const DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS: f64 = 5.0;
+
 /// Default max number of concurrent transcoding jobs when using unified scheduling.
 pub const DEFAULT_MAX_PARALLEL_JOBS: u8 = 2;
 /// Default max number of concurrent CPU/software-encoded jobs when using split scheduling.
@@ -127,24 +132,8 @@ pub const MAX_PARALLEL_JOBS_LIMIT: u8 = 32;
 /// Default UI scale in percent (e.g. 100 = normal).
 pub const DEFAULT_UI_SCALE_PERCENT: u16 = 100;
 
-fn default_ui_scale_percent() -> u16 {
-    DEFAULT_UI_SCALE_PERCENT
-}
-
-fn is_default_ui_scale_percent(value: &u16) -> bool {
-    *value == DEFAULT_UI_SCALE_PERCENT
-}
-
 /// Default UI font size in percent (e.g. 100 = normal).
 pub const DEFAULT_UI_FONT_SIZE_PERCENT: u16 = 100;
-
-fn default_ui_font_size_percent() -> u16 {
-    DEFAULT_UI_FONT_SIZE_PERCENT
-}
-
-fn is_default_ui_font_size_percent(value: &u16) -> bool {
-    *value == DEFAULT_UI_FONT_SIZE_PERCENT
-}
 
 /// Aggregation modes for computing a single queue-level progress value that
 /// is surfaced to the Windows taskbar. This is configured via AppSettings and
@@ -185,14 +174,6 @@ pub enum UiFontFamily {
     Sans,
     /// Prefer monospace stack (useful for logs/commands).
     Mono,
-}
-
-fn is_ui_font_family_system(value: &UiFontFamily) -> bool {
-    *value == UiFontFamily::System
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
 }
 
 /// Queue persistence mode for crash-recovery. This controls whether the
@@ -263,18 +244,21 @@ pub struct AppSettings {
     pub locale: Option<String>,
     /// Global UI scale in percent (e.g. 100 = default).
     #[serde(
-        default = "default_ui_scale_percent",
-        skip_serializing_if = "is_default_ui_scale_percent"
+        default = "types_helpers::default_ui_scale_percent",
+        skip_serializing_if = "types_helpers::is_default_ui_scale_percent"
     )]
     pub ui_scale_percent: u16,
     /// Global base UI font size in percent (e.g. 100 = default).
     #[serde(
-        default = "default_ui_font_size_percent",
-        skip_serializing_if = "is_default_ui_font_size_percent"
+        default = "types_helpers::default_ui_font_size_percent",
+        skip_serializing_if = "types_helpers::is_default_ui_font_size_percent"
     )]
     pub ui_font_size_percent: u16,
     /// Global UI font family preference.
-    #[serde(default, skip_serializing_if = "is_ui_font_family_system")]
+    #[serde(
+        default,
+        skip_serializing_if = "types_helpers::is_ui_font_family_system"
+    )]
     pub ui_font_family: UiFontFamily,
     /// Optional specific UI font family name (e.g. "Consolas", "Microsoft YaHei").
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -293,7 +277,7 @@ pub struct AppSettings {
     /// When true, enable developer-focused features such as opening the
     /// webview devtools from the UI. This flag is persisted so power users
     /// don't need to re-enable it on every launch.
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "types_helpers::is_false")]
     pub developer_mode_enabled: bool,
     /// Optional default preset id for manual queue jobs. When None or empty,
     /// the first available preset will be used.
@@ -322,6 +306,21 @@ pub struct AppSettings {
     pub progress_update_interval_ms: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume_backtrack_seconds: Option<f64>,
+    /// When true (default), closing/exiting the app while jobs are running will
+    /// prompt the user and can attempt a best-effort "pause on exit" flow so
+    /// multi-segment recovery remains usable after restart.
+    #[serde(
+        default = "types_helpers::default_exit_auto_wait_enabled",
+        skip_serializing_if = "types_helpers::is_true"
+    )]
+    pub exit_auto_wait_enabled: bool,
+    /// Timeout (seconds) for the "pause on exit" flow before giving up and
+    /// allowing the app to close.
+    #[serde(
+        default = "types_helpers::default_exit_auto_wait_timeout_seconds",
+        skip_serializing_if = "types_helpers::is_default_exit_auto_wait_timeout_seconds"
+    )]
+    pub exit_auto_wait_timeout_seconds: f64,
     /// Optional interval in milliseconds between system metrics samples (falls back to DEFAULT_METRICS_INTERVAL_MS).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_interval_ms: Option<u16>,
@@ -340,27 +339,34 @@ pub struct AppSettings {
     pub crash_recovery_log_retention: Option<CrashRecoveryLogRetention>,
     /// One-time onboarding completion marker. When true, the smart preset /
     /// tools onboarding flow will not auto-run again on startup.
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "types_helpers::is_false")]
     pub onboarding_completed: bool,
     /// Whether the queue selection toolbar should remain visible even when no
     /// jobs are selected. This powers the "Pin toolbar" UI toggle.
-    #[serde(default, skip_serializing_if = "is_false")]
+    #[serde(default, skip_serializing_if = "types_helpers::is_false")]
     pub selection_bar_pinned: bool,
     /// Output policy for manual queue enqueues (container/dir/name/timestamps).
-    #[serde(default, skip_serializing_if = "is_default_output_policy")]
+    #[serde(
+        default,
+        skip_serializing_if = "types_helpers::is_default_output_policy"
+    )]
     pub queue_output_policy: OutputPolicy,
-}
-
-fn is_default_output_policy(policy: &OutputPolicy) -> bool {
-    *policy == OutputPolicy::default()
 }
 
 impl AppSettings {
     pub fn normalize(&mut self) {
-        self.max_parallel_jobs = normalize_parallel_limit(self.max_parallel_jobs);
-        self.max_parallel_cpu_jobs = normalize_parallel_limit(self.max_parallel_cpu_jobs);
-        self.max_parallel_hw_jobs = normalize_parallel_limit(self.max_parallel_hw_jobs);
-        normalize_string_option(&mut self.locale);
+        self.max_parallel_jobs = types_helpers::normalize_parallel_limit(self.max_parallel_jobs);
+        self.max_parallel_cpu_jobs =
+            types_helpers::normalize_parallel_limit(self.max_parallel_cpu_jobs);
+        self.max_parallel_hw_jobs =
+            types_helpers::normalize_parallel_limit(self.max_parallel_hw_jobs);
+        types_helpers::normalize_string_option(&mut self.locale);
+
+        // Preserve user-configured values (including <= 0 for "infinite wait") while
+        // still recovering from invalid numeric inputs.
+        if !self.exit_auto_wait_timeout_seconds.is_finite() {
+            self.exit_auto_wait_timeout_seconds = DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS;
+        }
     }
 
     pub fn parallelism_mode(&self) -> TranscodeParallelismMode {
@@ -368,30 +374,21 @@ impl AppSettings {
     }
 
     pub fn effective_max_parallel_jobs(&self) -> u8 {
-        effective_parallel_limit(self.max_parallel_jobs, DEFAULT_MAX_PARALLEL_JOBS)
+        types_helpers::effective_parallel_limit(self.max_parallel_jobs, DEFAULT_MAX_PARALLEL_JOBS)
     }
 
     pub fn effective_max_parallel_cpu_jobs(&self) -> u8 {
-        effective_parallel_limit(self.max_parallel_cpu_jobs, DEFAULT_MAX_PARALLEL_CPU_JOBS)
+        types_helpers::effective_parallel_limit(
+            self.max_parallel_cpu_jobs,
+            DEFAULT_MAX_PARALLEL_CPU_JOBS,
+        )
     }
 
     pub fn effective_max_parallel_hw_jobs(&self) -> u8 {
-        effective_parallel_limit(self.max_parallel_hw_jobs, DEFAULT_MAX_PARALLEL_HW_JOBS)
-    }
-}
-
-fn normalize_parallel_limit(value: Option<u8>) -> Option<u8> {
-    match value {
-        Some(0) => None,
-        Some(v) => Some(v.clamp(1, MAX_PARALLEL_JOBS_LIMIT)),
-        None => None,
-    }
-}
-
-fn effective_parallel_limit(value: Option<u8>, default_value: u8) -> u8 {
-    match value {
-        Some(v) if v >= 1 => v.clamp(1, MAX_PARALLEL_JOBS_LIMIT),
-        _ => default_value,
+        types_helpers::effective_parallel_limit(
+            self.max_parallel_hw_jobs,
+            DEFAULT_MAX_PARALLEL_HW_JOBS,
+        )
     }
 }
 
@@ -457,8 +454,8 @@ impl Default for AppSettings {
             updater: None,
             network_proxy: None,
             locale: None,
-            ui_scale_percent: default_ui_scale_percent(),
-            ui_font_size_percent: default_ui_font_size_percent(),
+            ui_scale_percent: types_helpers::default_ui_scale_percent(),
+            ui_font_size_percent: types_helpers::default_ui_font_size_percent(),
             ui_font_family: UiFontFamily::default(),
             ui_font_name: None,
             ui_font_download_id: None,
@@ -473,6 +470,8 @@ impl Default for AppSettings {
             max_parallel_hw_jobs: None,
             progress_update_interval_ms: None,
             resume_backtrack_seconds: None,
+            exit_auto_wait_enabled: types_helpers::default_exit_auto_wait_enabled(),
+            exit_auto_wait_timeout_seconds: types_helpers::default_exit_auto_wait_timeout_seconds(),
             metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),
             taskbar_progress_scope: TaskbarProgressScope::default(),
@@ -482,19 +481,5 @@ impl Default for AppSettings {
             selection_bar_pinned: false,
             queue_output_policy: OutputPolicy::default(),
         }
-    }
-}
-
-fn normalize_string_option(value: &mut Option<String>) {
-    let Some(current) = value.as_ref() else {
-        return;
-    };
-    let trimmed = current.trim();
-    if trimmed.is_empty() {
-        *value = None;
-        return;
-    }
-    if trimmed.len() != current.len() {
-        *value = Some(trimmed.to_string());
     }
 }

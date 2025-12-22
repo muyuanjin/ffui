@@ -99,6 +99,9 @@ export type {
   NetworkProxySettings,
 } from "./settings";
 
+// App exit + graceful shutdown types
+export type { ExitAutoWaitOutcome, ExitRequestPayload } from "./app-exit";
+
 // Data root + config bundle types
 export type { DataRootMode, DataRootInfo, ConfigBundleExportResult, ConfigBundleImportResult } from "./data-root";
 

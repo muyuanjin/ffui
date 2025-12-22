@@ -132,6 +132,12 @@ const app = {
       "全量日志仅在任务结束时写入，并会生成每个任务一份 .log 文件。建议设置保留上限，避免磁盘占用增长。",
     crashRecoveryMaxLogFilesLabel: "最多保留日志文件",
     crashRecoveryMaxLogTotalMbLabel: "日志总大小上限（MB）",
+    exitAutoWaitTitle: "退出时安全暂停",
+    exitAutoWaitDescription:
+      "退出/关机时，如果仍有转码任务在跑，会弹窗询问并可在退出前尽力暂停任务，便于重启后继续（精准拼接）。",
+    exitAutoWaitTimeoutLabel: "等待超时（秒）",
+    exitAutoWaitTimeoutHelp: "≤ 0 表示无限等待。",
+    exitAutoWaitRequiresCrashRecoveryHint: "提示：要在重启后继续任务，需要把“任务队列持久化”设为“恢复队列”。",
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",
@@ -289,6 +295,15 @@ const app = {
   openDevtools: "打开开发者工具",
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",
   openRepo: "打开项目仓库（GitHub）",
+  exitConfirm: {
+    title: "退出 FFUI？",
+    description: "检测到 {count} 个任务仍在转码。你希望如何退出？",
+    pauseAndExit: "暂停任务并退出",
+    exitNow: "直接退出",
+    pausing: "正在安全暂停任务…",
+    pauseTimeoutHint: "最多等待 {seconds}s；超时后仍会退出。",
+    pauseTimeoutInfiniteHint: "将无限等待，直到任务暂停完成。",
+  },
   actions: {
     addJob: "添加转码任务",
     addJobFiles: "添加文件",

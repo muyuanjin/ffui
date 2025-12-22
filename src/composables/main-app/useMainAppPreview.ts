@@ -26,7 +26,7 @@ export interface UseMainAppPreviewReturn {
   openJobPreviewFromQueue: (job: TranscodeJob) => Promise<void>;
   setPreviewSourceMode: (mode: PreviewSourceMode) => Promise<void>;
   closeExpandedPreview: () => void;
-  handleExpandedPreviewError: () => void;
+  handleExpandedPreviewError: () => Promise<void>;
   handleExpandedImagePreviewError: () => void;
   openPreviewInSystemPlayer: () => Promise<void>;
   openBatchDetail: (batch: CompositeBatchCompressTask) => void;
@@ -44,6 +44,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const previewIsImage = ref(false);
   const previewError = ref<string | null>(null);
   const previewSourceMode = ref<PreviewSourceMode>("output");
+  const previewSourceSelection = ref<"auto" | "manual">("auto");
+  const nativeErrorFailedPaths = ref<string[]>([]);
   // Keep an ordered list of candidate paths for the current preview so we can
   // fall back when one of them fails to load or becomes unavailable.
   const previewCandidatePaths = ref<string[]>([]);
@@ -124,6 +126,12 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   }
 
   const guessInitialPreviewSourceMode = (job: TranscodeJob): PreviewSourceMode => {
+    // For in-flight jobs, default to input so users always see a stable and
+    // complete source (tmp outputs may be incomplete or not playable yet).
+    if (job.status !== "completed" && job.status !== "failed") {
+      return "input";
+    }
+
     const tmpOutput = (job.waitMetadata?.tmpOutputPath ?? "").trim();
     if (tmpOutput) return "output";
 
@@ -136,6 +144,14 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const resolveInitialPreviewSelection = async (
     job: TranscodeJob,
   ): Promise<{ mode: PreviewSourceMode; selectedPath: string | null }> => {
+    // In-flight jobs should always start from input (even when tmp output exists).
+    // Users can still switch to output mode manually if they want to inspect tmp output.
+    if (job.status !== "completed" && job.status !== "failed") {
+      const mode: PreviewSourceMode = "input";
+      const candidates = buildPreviewCandidates(job, mode);
+      return { mode, selectedPath: candidates[0] ?? null };
+    }
+
     if (!hasTauri()) {
       const mode = guessInitialPreviewSourceMode(job);
       const candidates = buildPreviewCandidates(job, mode);
@@ -229,6 +245,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   };
 
   const openJobPreviewFromQueue = async (job: TranscodeJob) => {
+    previewSourceSelection.value = "auto";
+    nativeErrorFailedPaths.value = [];
     const { mode, selectedPath } = await resolveInitialPreviewSelection(job);
     previewSourceMode.value = mode;
     dialogManager.openPreview(job);
@@ -237,6 +255,7 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
 
   const setPreviewSourceMode = async (mode: PreviewSourceMode) => {
     if (previewSourceMode.value === mode) return;
+    previewSourceSelection.value = "manual";
     previewSourceMode.value = mode;
     const job = dialogManager.selectedJob.value;
     if (!job) return;
@@ -251,11 +270,60 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     previewCandidateIndex.value = -1;
     currentPreviewPath.value = null;
     previewSourceMode.value = "output";
+    previewSourceSelection.value = "auto";
+    nativeErrorFailedPaths.value = [];
   };
 
-  const handleExpandedPreviewError = () => {
-    // Do NOT silently switch between input/output sources when native playback fails.
-    // Users expect the source toggle to match the content being previewed.
+  const handleExpandedPreviewError = async () => {
+    const job = dialogManager.selectedJob.value;
+    if (!job) return;
+
+    const currentPath = (currentPreviewPath.value ?? "").trim();
+    if (currentPath) {
+      const next = new Set(nativeErrorFailedPaths.value);
+      next.add(currentPath);
+      nativeErrorFailedPaths.value = Array.from(next);
+    }
+
+    const isInFlight = job.status !== "completed" && job.status !== "failed";
+    if (isInFlight) {
+      const key = "jobDetail.previewVideoError";
+      previewError.value = (t?.(key) as string) ?? key;
+      return;
+    }
+
+    // If the user manually picked a source, keep the selection stable and fall back to frames.
+    if (previewSourceSelection.value === "manual") {
+      const key = "jobDetail.previewVideoError";
+      previewError.value = (t?.(key) as string) ?? key;
+      return;
+    }
+
+    const failed = new Set(nativeErrorFailedPaths.value);
+    const inputCandidates = buildPreviewCandidates(job, "input");
+    const outputCandidates = buildPreviewCandidates(job, "output");
+    const inputPreferred = (inputCandidates[0] ?? "").trim() || null;
+    const outputPreferred = (outputCandidates[0] ?? "").trim() || null;
+
+    // Completed/failed jobs default to output. If output fails natively, try input playback.
+    if (
+      previewSourceMode.value === "output" &&
+      inputPreferred &&
+      inputPreferred !== currentPath &&
+      !failed.has(inputPreferred)
+    ) {
+      previewError.value = null;
+      previewSourceMode.value = "input";
+      await applyPreviewSelection(job, "input");
+      return;
+    }
+
+    // If native playback still fails, prefer output for frame fallback (when available).
+    if (outputPreferred) {
+      previewSourceMode.value = "output";
+      await applyPreviewSelection(job, "output");
+    }
+
     const key = "jobDetail.previewVideoError";
     previewError.value = (t?.(key) as string) ?? key;
   };

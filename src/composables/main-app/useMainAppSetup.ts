@@ -14,6 +14,7 @@ import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu"
 import { useMainAppUpdater } from "@/composables/main-app/useMainAppUpdater";
 import { useQueueOutputPolicy } from "@/composables/main-app/useQueueOutputPolicy";
 import { useJobLog } from "@/composables";
+import { useMainAppExitConfirm } from "@/composables/main-app/useMainAppExitConfirm";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { hasTauri, saveAppSettings } from "@/lib/backend";
@@ -60,6 +61,7 @@ export function useMainAppSetup() {
 
   const shell = useMainAppShell();
   const dialogs = useMainAppDialogs();
+  useMainAppExitConfirm(dialogs.dialogManager);
 
   const batchCompress = useMainAppBatchCompress({
     t,
@@ -376,6 +378,8 @@ export function useMainAppSetup() {
 
   const { jobDetailLogText, jobDetailJob, highlightedLogHtml } = useJobLog({
     selectedJob: dialogManager.selectedJob,
+    detailOpen: dialogManager.jobDetailOpen,
+    pollIntervalMs: settings.progressUpdateIntervalMs,
   });
 
   const handleUpdateAppSettings = (next: AppSettings) => {

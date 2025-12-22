@@ -40,7 +40,7 @@ export {
 } from "./backend.data-root";
 export { fetchAppUpdaterCapabilities, prepareAppUpdaterProxy } from "./backend.updater";
 export { exportPresetsBundle, readPresetsBundle } from "./backend.presets-bundle";
-
+export { exitAppNow, exitAppWithAutoWait, resetExitPrompt } from "./backend.app-exit";
 export const loadAppSettings = async (): Promise<AppSettings> => {
   return invoke<AppSettings>("get_app_settings");
 };

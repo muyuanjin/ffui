@@ -20,8 +20,9 @@ mod worker_utils;
 
 #[cfg(test)]
 mod tests;
-
 pub(crate) use batch_compress::is_video_file;
+#[cfg(test)]
+pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
 
 // 测试环境下为 TranscodingEngine::new
 // 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
@@ -179,6 +180,29 @@ impl TranscodingEngine {
     /// frequency updates and startup payloads.
     pub fn queue_state_lite(&self) -> QueueStateLite {
         snapshot_queue_state_lite(&self.inner)
+    }
+
+    /// Force an immediate crash-recovery snapshot write (bypassing debounce).
+    ///
+    /// This is used by graceful shutdown paths that need wait metadata (segments,
+    /// join targets, etc.) to be durable before the process exits.
+    pub fn force_persist_queue_state_lite_now(&self) -> bool {
+        let mode = {
+            let state = self.inner.state.lock().expect("engine state poisoned");
+            state.settings.queue_persistence_mode
+        };
+
+        if !matches!(
+            mode,
+            crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
+                | crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryFull
+        ) {
+            return false;
+        }
+
+        let snapshot = self.queue_state_lite();
+        state_persist::persist_queue_state_lite_immediate(&snapshot);
+        true
     }
 
     /// Fetch full details for a single job from the in-memory engine state.

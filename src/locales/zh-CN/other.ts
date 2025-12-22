@@ -220,6 +220,8 @@ const other = {
     loadingFrame: "正在加载预览帧…",
     timeline: "时间轴",
     maxLabelHint: "已转码上限 / 总时长（处理中/暂停任务）。",
+    partialWarning: "任务未完成：仅可对比已转码部分（{max} / {total}），未转码区域已禁用。",
+    outOfRangeHint: "未转码区域暂不可对比。",
     blinkHint: "点击画面切换输入/输出。",
     sides: {
       input: "输入",

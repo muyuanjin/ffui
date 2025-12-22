@@ -23,6 +23,7 @@ export function useDialogManager() {
   const batchDetailOpen = ref(false);
   const previewOpen = ref(false);
   const jobCompareOpen = ref(false);
+  const exitConfirmOpen = ref(false);
   const deletePresetDialogOpen = ref(false);
   const smartPresetImportOpen = ref(false);
   const importCommandsOpen = ref(false);
@@ -31,6 +32,9 @@ export function useDialogManager() {
   const selectedJob = ref<TranscodeJob | null>(null);
   const selectedBatch = ref<CompositeBatchCompressTask | null>(null);
   const editingPreset = ref<FFmpegPreset | null>(null);
+
+  const exitConfirmProcessingJobCount = ref(0);
+  const exitConfirmTimeoutSeconds = ref(5);
 
   // 打开方法
   const openWizard = (preset?: FFmpegPreset) => {
@@ -77,6 +81,12 @@ export function useDialogManager() {
   const openJobCompare = (job: TranscodeJob) => {
     selectedJob.value = job;
     jobCompareOpen.value = true;
+  };
+
+  const openExitConfirm = (payload: { processingJobCount: number; timeoutSeconds: number }) => {
+    exitConfirmProcessingJobCount.value = payload.processingJobCount;
+    exitConfirmTimeoutSeconds.value = payload.timeoutSeconds;
+    exitConfirmOpen.value = true;
   };
 
   const openDeletePresetDialog = (preset: FFmpegPreset) => {
@@ -137,6 +147,10 @@ export function useDialogManager() {
     }
   };
 
+  const closeExitConfirm = () => {
+    exitConfirmOpen.value = false;
+  };
+
   const closeDeletePresetDialog = () => {
     deletePresetDialogOpen.value = false;
     editingPreset.value = null;
@@ -159,6 +173,7 @@ export function useDialogManager() {
     batchDetailOpen.value = false;
     previewOpen.value = false;
     jobCompareOpen.value = false;
+    exitConfirmOpen.value = false;
     deletePresetDialogOpen.value = false;
     smartPresetImportOpen.value = false;
     importCommandsOpen.value = false;
@@ -176,12 +191,15 @@ export function useDialogManager() {
     batchDetailOpen,
     previewOpen,
     jobCompareOpen,
+    exitConfirmOpen,
     deletePresetDialogOpen,
     smartPresetImportOpen,
     importCommandsOpen,
     selectedJob,
     selectedBatch,
     editingPreset,
+    exitConfirmProcessingJobCount,
+    exitConfirmTimeoutSeconds,
     // 打开方法
     openWizard,
     openParameterPanel,
@@ -192,6 +210,7 @@ export function useDialogManager() {
     openBatchDetail,
     openPreview,
     openJobCompare,
+    openExitConfirm,
     openDeletePresetDialog,
     openSmartPresetImport,
     openImportCommands,
@@ -203,6 +222,7 @@ export function useDialogManager() {
     closeBatchDetail,
     closePreview,
     closeJobCompare,
+    closeExitConfirm,
     closeDeletePresetDialog,
     closeSmartPresetImport,
     closeImportCommands,

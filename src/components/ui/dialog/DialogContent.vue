@@ -3,7 +3,14 @@ import type { DialogContentEmits, DialogContentProps } from "reka-ui";
 import type { HTMLAttributes } from "vue";
 import { reactiveOmit } from "@vueuse/core";
 import { X } from "lucide-vue-next";
-import { DialogClose, DialogContent, DialogOverlay, DialogPortal, useForwardPropsEmits } from "reka-ui";
+import {
+  DialogClose,
+  DialogContent,
+  DialogOverlay,
+  DialogPortal,
+  injectDialogRootContext,
+  useForwardPropsEmits,
+} from "reka-ui";
 import { cn } from "@/lib/utils";
 
 defineOptions({ inheritAttrs: false });
@@ -11,32 +18,54 @@ defineOptions({ inheritAttrs: false });
 type Props = DialogContentProps & {
   class?: HTMLAttributes["class"];
   overlayClass?: HTMLAttributes["class"];
+  overlayClosable?: boolean;
   hideClose?: boolean;
   portalDisabled?: boolean;
   portalForceMount?: boolean;
 };
 
 const props = withDefaults(defineProps<Props>(), {
+  overlayClosable: true,
   hideClose: false,
   portalDisabled: false,
   portalForceMount: false,
 });
 const emits = defineEmits<DialogContentEmits>();
 
-const delegatedProps = reactiveOmit(props, "class", "overlayClass", "hideClose", "portalDisabled", "portalForceMount");
+const delegatedProps = reactiveOmit(
+  props,
+  "class",
+  "overlayClass",
+  "overlayClosable",
+  "hideClose",
+  "portalDisabled",
+  "portalForceMount",
+);
 
 const forwarded = useForwardPropsEmits(delegatedProps, emits);
+
+const rootContext = injectDialogRootContext();
+
+const handleOverlayPointerDown = (event: PointerEvent) => {
+  if (!props.overlayClosable) return;
+  const ctrlLeftClick = event.button === 0 && event.ctrlKey === true;
+  const isRightClick = event.button === 2 || ctrlLeftClick;
+  if (isRightClick) return;
+  rootContext.onOpenChange(false);
+};
 </script>
 
 <template>
   <DialogPortal :disabled="props.portalDisabled" :force-mount="props.portalForceMount">
     <DialogOverlay
+      data-testid="dialog-overlay"
       :class="
         cn(
           'fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           props.overlayClass,
         )
       "
+      @pointerdown="handleOverlayPointerDown"
     />
     <DialogContent
       v-bind="{ ...$attrs, ...forwarded }"

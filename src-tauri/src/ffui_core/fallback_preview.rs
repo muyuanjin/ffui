@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fs;
 use std::path::{
     Path,
@@ -217,6 +218,57 @@ fn acquire_inflight_lock(key: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
+fn build_fallback_ffmpeg_args(
+    source: &Path,
+    fast_ss_arg: &str,
+    accurate_ss_arg: &str,
+    quality: FallbackFrameQuality,
+    tmp_path: &Path,
+) -> Vec<OsString> {
+    let mut out: Vec<OsString> = vec![
+        "-y".into(),
+        "-hide_banner".into(),
+        "-v".into(),
+        "error".into(),
+        "-ss".into(),
+        fast_ss_arg.into(),
+        "-i".into(),
+        source.as_os_str().to_os_string(),
+        "-ss".into(),
+        accurate_ss_arg.into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-an".into(),
+    ];
+
+    match quality {
+        FallbackFrameQuality::Low => {
+            out.push("-vf".into());
+            out.push(LOW_QUALITY_FRAME_VF.into());
+            out.push("-q:v".into());
+            out.push("10".into());
+        }
+        FallbackFrameQuality::High => {
+            out.push("-vf".into());
+            out.push("scale=trunc(iw/2)*2:trunc(ih/2)*2".into());
+            out.push("-q:v".into());
+            out.push("2".into());
+        }
+    }
+
+    out.push("-f".into());
+    out.push("image2".into());
+    out.push("-c:v".into());
+    out.push("mjpeg".into());
+    out.push("-pix_fmt".into());
+    out.push("yuvj420p".into());
+    out.push("-strict".into());
+    out.push("-1".into());
+    out.push(tmp_path.as_os_str().to_os_string());
+
+    out
+}
+
 pub fn extract_fallback_frame(
     source_path: &str,
     tools: &ExternalToolSettings,
@@ -321,44 +373,20 @@ pub fn extract_fallback_frame(
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
-    cmd.arg("-y")
-        .arg("-hide_banner")
-        .arg("-v")
-        .arg("error")
-        .arg("-ss")
-        .arg(&fast_ss_arg)
-        .arg("-i")
-        .arg(source.as_os_str())
-        .arg("-ss")
-        .arg(&accurate_ss_arg)
-        .arg("-frames:v")
-        .arg("1")
-        .arg("-an");
+    cmd.args(build_fallback_ffmpeg_args(
+        source,
+        &fast_ss_arg,
+        &accurate_ss_arg,
+        quality,
+        &tmp_path,
+    ));
 
-    match quality {
-        FallbackFrameQuality::Low => {
-            // Keep this filter graph compatible with older FFmpeg builds.
-            cmd.arg("-vf").arg(LOW_QUALITY_FRAME_VF);
-            cmd.arg("-q:v").arg("10");
-        }
-        FallbackFrameQuality::High => {
-            cmd.arg("-q:v").arg("2");
-        }
-    }
-
-    let output = cmd
-        .arg("-f")
-        .arg("image2")
-        .arg("-c:v")
-        .arg("mjpeg")
-        .arg(tmp_path.as_os_str())
-        .output()
-        .with_context(|| {
-            format!(
-                "failed to run ffmpeg to extract a frame for {}",
-                source.display()
-            )
-        })?;
+    let output = cmd.output().with_context(|| {
+        format!(
+            "failed to run ffmpeg to extract a frame for {}",
+            source.display()
+        )
+    })?;
 
     if !output.status.success() {
         let _ = fs::remove_file(&tmp_path);

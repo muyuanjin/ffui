@@ -72,7 +72,7 @@ describe("JobCompareDialog", () => {
     (extractJobCompareConcatFrame as any).mockClear?.();
   });
 
-  it("clamps timeline to maxCompareSeconds for partial jobs", async () => {
+  it("uses full duration timeline but blocks dragging into the unencoded region", async () => {
     const sources: JobCompareSources = {
       jobId: "job-1",
       inputPath: "C:/videos/input.mp4",
@@ -90,10 +90,16 @@ describe("JobCompareDialog", () => {
     await wrapper.vm.$nextTick();
 
     const slider = wrapper.get('[data-testid="job-compare-timeline"]');
-    await slider.setValue("99");
+    expect(slider.attributes("max")).toBe("120");
 
-    const label = wrapper.get('[data-testid="job-compare-current-time"]').text();
-    expect(label).toContain("00:12.5");
+    await slider.setValue("10");
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:10");
+
+    await slider.setValue("99");
+    expect(wrapper.get('[data-testid="job-compare-current-time"]').text()).toContain("00:10");
+
+    expect(wrapper.get('[data-testid="job-compare-partial-warning"]').text()).toContain("not complete");
+    expect(wrapper.get('[data-testid="job-compare-out-of-range-hint"]').text()).toContain("not comparable");
   });
 
   it("preserves zoom state across scrubbing and mode switches", async () => {

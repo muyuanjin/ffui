@@ -82,6 +82,13 @@ export interface AppSettings {
   maxParallelHwJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
   progressUpdateIntervalMs?: number;
+  /**
+   * When true (default), exiting the app while jobs are running will prompt the user and can attempt
+   * a best-effort "pause on exit" flow so precise resume remains usable after restart.
+   */
+  exitAutoWaitEnabled?: boolean;
+  /** Timeout (seconds) for the "pause on exit" flow before giving up and allowing the app to close. */
+  exitAutoWaitTimeoutSeconds?: number;
   /** Optional interval in milliseconds between system metrics samples for the performance monitor. */
   metricsIntervalMs?: number;
   /** Aggregation mode for computing Windows taskbar progress from the queue. */

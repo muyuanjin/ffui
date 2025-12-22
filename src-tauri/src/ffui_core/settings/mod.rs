@@ -7,6 +7,7 @@ pub mod proxy;
 mod tool_probe_cache;
 pub mod types;
 pub use types::{
+    DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS,
     DEFAULT_METRICS_INTERVAL_MS,
     DEFAULT_PROGRESS_UPDATE_INTERVAL_MS,
 };
@@ -43,6 +44,7 @@ pub use types::{
     DownloadedToolInfo,
     DownloadedToolState,
     ExternalToolSettings,
+    QueuePersistenceMode,
     TaskbarProgressMode,
     TaskbarProgressScope,
     TranscodeParallelismMode,

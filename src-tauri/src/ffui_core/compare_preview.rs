@@ -190,6 +190,8 @@ fn build_concat_ffmpeg_args(
             out.push("10".into());
         }
         FallbackFrameQuality::High => {
+            out.push("-vf".into());
+            out.push("scale=trunc(iw/2)*2:trunc(ih/2)*2".into());
             out.push("-q:v".into());
             out.push("3".into());
         }
@@ -199,6 +201,10 @@ fn build_concat_ffmpeg_args(
     out.push("image2".into());
     out.push("-c:v".into());
     out.push("mjpeg".into());
+    out.push("-pix_fmt".into());
+    out.push("yuvj420p".into());
+    out.push("-strict".into());
+    out.push("-1".into());
     out.push(tmp_path.as_os_str().to_os_string());
 
     out
@@ -432,6 +438,14 @@ mod tests {
             args_low.windows(2).any(|w| w == ["-q:v", "10"]),
             "low-quality concat previews should use a high q:v value: {args_low:?}"
         );
+        assert!(
+            args_low.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
+            "concat previews should force a full-range MJPEG pixel format: {args_low:?}"
+        );
+        assert!(
+            args_low.windows(2).any(|w| w == ["-strict", "-1"]),
+            "concat previews should relax strictness for MJPEG compatibility: {args_low:?}"
+        );
 
         let args_high =
             build_concat_ffmpeg_args(&list_path, 1.0, FallbackFrameQuality::High, &tmp_path);
@@ -448,8 +462,22 @@ mod tests {
             "accurate offset should match requested seconds near the start: {args_high:?}"
         );
         assert!(
+            args_high
+                .windows(2)
+                .any(|w| w == ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"]),
+            "high-quality concat previews should round dimensions to even values: {args_high:?}"
+        );
+        assert!(
             args_high.windows(2).any(|w| w == ["-q:v", "3"]),
             "high-quality concat previews should use q:v=3: {args_high:?}"
+        );
+        assert!(
+            args_high.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
+            "concat previews should force a full-range MJPEG pixel format: {args_high:?}"
+        );
+        assert!(
+            args_high.windows(2).any(|w| w == ["-strict", "-1"]),
+            "concat previews should relax strictness for MJPEG compatibility: {args_high:?}"
         );
     }
 }

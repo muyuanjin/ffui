@@ -2,6 +2,7 @@
 import { useI18n } from "vue-i18n";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SettingsQueuePersistenceSection from "@/components/panels/SettingsQueuePersistenceSection.vue";
+import SettingsExitAutoWaitSection from "@/components/panels/SettingsExitAutoWaitSection.vue";
 import type { AppSettings } from "@/types";
 
 defineProps<{
@@ -29,6 +30,10 @@ const { t } = useI18n();
       <SettingsQueuePersistenceSection
         :app-settings="appSettings"
         :hide-title="true"
+        @update:app-settings="(settings) => emit('update:appSettings', settings)"
+      />
+      <SettingsExitAutoWaitSection
+        :app-settings="appSettings"
         @update:app-settings="(settings) => emit('update:appSettings', settings)"
       />
     </CardContent>

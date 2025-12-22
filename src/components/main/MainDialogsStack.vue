@@ -6,6 +6,7 @@ import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vue";
 import JobCompareDialog from "@/components/dialogs/JobCompareDialog.vue";
+import AppExitConfirmDialog from "@/components/dialogs/AppExitConfirmDialog.vue";
 import ParameterWizard from "@/components/ParameterWizard.vue";
 import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
@@ -213,6 +214,17 @@ const openCompareFromJobDetail = () => {
     @update:open="
       (open) => {
         if (!open) dialogManager.closeJobCompare();
+      }
+    "
+  />
+
+  <AppExitConfirmDialog
+    :open="dialogManager.exitConfirmOpen.value"
+    :processing-job-count="dialogManager.exitConfirmProcessingJobCount.value"
+    :timeout-seconds="dialogManager.exitConfirmTimeoutSeconds.value"
+    @update:open="
+      (open) => {
+        if (!open) dialogManager.closeExitConfirm();
       }
     "
   />

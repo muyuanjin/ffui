@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use filetime::{
@@ -80,6 +81,47 @@ fn cleanup_enforces_ttl_and_size() {
 fn ffmpeg_filtergraphs_are_legacy_compatible() {
     assert_eq!(LOW_QUALITY_FRAME_VF, "scale=-2:360");
     assert!(!LOW_QUALITY_FRAME_VF.contains("force_original_aspect_ratio"));
+}
+
+#[test]
+fn ffmpeg_frame_extraction_args_force_full_range_mjpeg_and_even_dimensions() {
+    let source = PathBuf::from("C:/videos/source.mp4");
+    let tmp = PathBuf::from("C:/tmp/frame.part");
+
+    let low =
+        build_fallback_ffmpeg_args(&source, "1.000", "0.500", FallbackFrameQuality::Low, &tmp);
+    let low: Vec<String> = low
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        low.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
+        "fallback frames should force a full-range MJPEG pixel format: {low:?}"
+    );
+    assert!(
+        low.windows(2).any(|w| w == ["-strict", "-1"]),
+        "fallback frames should relax strictness for MJPEG compatibility: {low:?}"
+    );
+
+    let high =
+        build_fallback_ffmpeg_args(&source, "1.000", "0.500", FallbackFrameQuality::High, &tmp);
+    let high: Vec<String> = high
+        .iter()
+        .map(|s| s.to_string_lossy().into_owned())
+        .collect();
+    assert!(
+        high.windows(2)
+            .any(|w| w == ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"]),
+        "high-quality fallback frames should round dimensions to even values: {high:?}"
+    );
+    assert!(
+        high.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
+        "fallback frames should force a full-range MJPEG pixel format: {high:?}"
+    );
+    assert!(
+        high.windows(2).any(|w| w == ["-strict", "-1"]),
+        "fallback frames should relax strictness for MJPEG compatibility: {high:?}"
+    );
 }
 
 #[test]

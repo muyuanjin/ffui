@@ -293,6 +293,18 @@ export const parseAndHighlightLog = (raw: string | undefined | null): string => 
 export interface UseJobLogOptions {
   /** The currently selected job for detail view. */
   selectedJob: Ref<TranscodeJob | null>;
+  /**
+   * Whether the job detail dialog is currently open.
+   *
+   * When open (Tauri mode) we periodically refresh the backend job detail so
+   * multi-run logs (pause/resume cycles) keep updating in the UI.
+   */
+  detailOpen?: Ref<boolean>;
+  /**
+   * Poll interval for backend job detail refresh (milliseconds).
+   * Defaults to 1000ms, clamped to [500ms, 5000ms] for stability.
+   */
+  pollIntervalMs?: number | Ref<number>;
 }
 
 export interface UseJobLogReturn {
@@ -311,6 +323,15 @@ export interface UseJobLogReturn {
 export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   const { selectedJob } = options;
 
+  const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled", "skipped"]);
+  const getPollIntervalMs = (): number => {
+    const raw = options.pollIntervalMs;
+    const resolved = typeof raw === "number" ? raw : raw?.value;
+    const parsed = typeof resolved === "number" ? resolved : Number(resolved);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 1000;
+    return Math.min(5000, Math.max(500, Math.round(parsed)));
+  };
+
   // Full job detail (including complete logs) is intentionally fetched on-demand
   // for the task detail dialog. Queue snapshots (QueueStateLite) omit `logs` to
   // keep high-frequency updates cheap, so UI must not treat `selectedJob.logs`
@@ -318,14 +339,13 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
   const hydratedDetailById = ref<Record<string, TranscodeJob | undefined>>({});
   const hydrationInFlightById = new Map<string, Promise<void>>();
 
-  const maybeHydrateFromBackend = async (job: TranscodeJob | null) => {
+  const maybeHydrateFromBackend = async (job: TranscodeJob | null, options?: { force?: boolean }) => {
     if (!job) return;
     if (!hasTauri()) return;
     if (!job.id) return;
-    if (hydratedDetailById.value[job.id]) return;
+    if (!options?.force && hydratedDetailById.value[job.id]) return;
     const existingInFlight = hydrationInFlightById.get(job.id);
     if (existingInFlight) {
-      await existingInFlight;
       return;
     }
 
@@ -348,6 +368,33 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
     selectedJob,
     (job) => {
       void maybeHydrateFromBackend(job);
+    },
+    { immediate: true },
+  );
+
+  watch(
+    () => ({
+      open: options.detailOpen?.value ?? false,
+      jobId: selectedJob.value?.id ?? null,
+      jobStatus: selectedJob.value?.status ?? null,
+      intervalMs: getPollIntervalMs(),
+    }),
+    ({ open, jobId, jobStatus, intervalMs }, _prev, onCleanup) => {
+      if (!hasTauri()) return;
+      if (!open) return;
+      if (!jobId) return;
+      if (!jobStatus || TERMINAL_STATUSES.has(jobStatus)) return;
+
+      void maybeHydrateFromBackend(selectedJob.value, { force: true });
+
+      const timer = setInterval(() => {
+        const current = selectedJob.value;
+        if (!current?.id) return;
+        if (!current.status || TERMINAL_STATUSES.has(current.status)) return;
+        void maybeHydrateFromBackend(current, { force: true });
+      }, intervalMs);
+
+      onCleanup(() => clearInterval(timer));
     },
     { immediate: true },
   );

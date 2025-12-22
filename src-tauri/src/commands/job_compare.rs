@@ -89,6 +89,14 @@ fn job_active_segment_path(job: &TranscodeJob) -> Option<String> {
 }
 
 fn compute_max_compare_seconds(job: &TranscodeJob) -> Option<f64> {
+    // Guard against "seek-to-live-edge" issues where the UI tries to seek to the exact end
+    // of an in-flight segment and the webview/media pipeline responds with 416 (Range Not Satisfiable).
+    const PAUSED_LIVE_EDGE_GUARD_SECONDS: f64 = 0.25;
+    // While the job is actively processing, the temp output segment may be missing indices
+    // (e.g. MP4 moov atom not finalized). A larger guard keeps compare scrubbing away from the
+    // live edge so frame extraction remains reliable.
+    const PROCESSING_LIVE_EDGE_GUARD_SECONDS: f64 = 1.25;
+
     let duration = job
         .media_info
         .as_ref()
@@ -101,9 +109,40 @@ fn compute_max_compare_seconds(job: &TranscodeJob) -> Option<f64> {
         .and_then(|m| m.processed_seconds)
         .filter(|s| s.is_finite() && *s > 0.0);
 
+    let guard_live_edge =
+        |seconds: f64, duration: Option<f64>, guard_seconds: f64| -> Option<f64> {
+            if !seconds.is_finite() || seconds <= 0.0 {
+                return None;
+            }
+
+            let mut out = seconds;
+            if let Some(d) = duration {
+                out = out.min(d);
+            }
+
+            // Keep at least a tiny positive range when possible, but avoid negative.
+            if guard_seconds.is_finite() && guard_seconds > 0.0 && out > guard_seconds {
+                out = (out - guard_seconds).max(0.0);
+            }
+
+            if out.is_finite() && out > 0.0 {
+                Some(out)
+            } else {
+                None
+            }
+        };
+
     match job.status {
-        JobStatus::Paused => from_wait.map(|s| duration.map(|d| s.min(d)).unwrap_or(s)),
+        JobStatus::Paused => {
+            from_wait.and_then(|s| guard_live_edge(s, duration, PAUSED_LIVE_EDGE_GUARD_SECONDS))
+        }
         JobStatus::Processing => {
+            // Prefer the backend-reported processed seconds when available. Progress percent may
+            // advance ahead of what is actually writable/seekable in the current output segment.
+            if let Some(w) = from_wait {
+                return guard_live_edge(w, duration, PROCESSING_LIVE_EDGE_GUARD_SECONDS);
+            }
+
             let from_progress = duration.and_then(|d| {
                 if job.progress.is_finite() && job.progress > 0.0 {
                     Some(((job.progress / 100.0) * d).clamp(0.0, d))
@@ -111,12 +150,8 @@ fn compute_max_compare_seconds(job: &TranscodeJob) -> Option<f64> {
                     None
                 }
             });
-            match (from_progress, from_wait, duration) {
-                (Some(p), _, _) => Some(p),
-                (None, Some(w), Some(d)) => Some(w.min(d)),
-                (None, Some(w), None) => Some(w),
-                _ => None,
-            }
+            from_progress
+                .and_then(|p| guard_live_edge(p, duration, PROCESSING_LIVE_EDGE_GUARD_SECONDS))
         }
         _ => None,
     }
@@ -332,155 +367,5 @@ pub fn extract_job_compare_concat_frame(
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use super::*;
-    use crate::ffui_core::{
-        MediaInfo,
-        WaitMetadata,
-    };
-
-    fn sample_video_job(status: JobStatus) -> TranscodeJob {
-        TranscodeJob {
-            id: "job-1".to_string(),
-            filename: "C:/videos/input.mp4".to_string(),
-            job_type: JobType::Video,
-            source: crate::ffui_core::JobSource::Manual,
-            queue_order: None,
-            original_size_mb: 0.0,
-            original_codec: None,
-            preset_id: "preset-1".to_string(),
-            status,
-            progress: 10.0,
-            start_time: None,
-            end_time: None,
-            processing_started_ms: None,
-            elapsed_ms: None,
-            output_size_mb: None,
-            logs: Vec::new(),
-            log_head: None,
-            skip_reason: None,
-            input_path: Some("C:/videos/input.mp4".to_string()),
-            output_path: Some("C:/videos/output.mp4".to_string()),
-            output_policy: None,
-            ffmpeg_command: None,
-            runs: Vec::new(),
-            media_info: Some(MediaInfo {
-                duration_seconds: Some(120.0),
-                width: None,
-                height: None,
-                frame_rate: None,
-                video_codec: None,
-                audio_codec: None,
-                size_mb: None,
-            }),
-            estimated_seconds: None,
-            preview_path: None,
-            preview_revision: 0,
-            log_tail: None,
-            failure_reason: None,
-            warnings: Vec::new(),
-            batch_id: None,
-            wait_metadata: Some(WaitMetadata {
-                last_progress_percent: Some(10.0),
-                processed_wall_millis: None,
-                processed_seconds: Some(12.5),
-                target_seconds: Some(12.5),
-                tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
-                segments: Some(vec![
-                    "C:/app-data/tmp/seg0.mp4".to_string(),
-                    "C:/app-data/tmp/seg1.mp4".to_string(),
-                ]),
-                segment_end_targets: None,
-            }),
-        }
-    }
-
-    #[test]
-    fn allowlisted_paths_reject_arbitrary_sources() {
-        let job = sample_video_job(JobStatus::Paused);
-        let allowlisted = allowlisted_compare_paths(&job);
-        assert!(
-            allowlisted.iter().any(|p| p == "C:/videos/input.mp4"),
-            "input path should be allowlisted"
-        );
-        assert!(
-            allowlisted.iter().any(|p| p == "C:/app-data/tmp/seg1.mp4"),
-            "tmp output should be allowlisted"
-        );
-        assert!(
-            !allowlisted
-                .iter()
-                .any(|p| p == "C:/windows/system32/notepad.exe"),
-            "arbitrary paths must not be allowlisted"
-        );
-    }
-
-    #[test]
-    fn concat_segment_order_is_stable_and_escaped() {
-        let segs = vec![
-            PathBuf::from("C:/tmp/seg0.mp4"),
-            PathBuf::from("C:/tmp/seg'1.mp4"),
-        ];
-        let contents = crate::ffui_core::build_concat_list_contents_for_tests(&segs);
-        assert!(
-            contents.lines().next().unwrap_or("").contains("seg0.mp4"),
-            "first entry should be seg0"
-        );
-        assert!(
-            contents
-                .lines()
-                .nth(1)
-                .unwrap_or("")
-                .contains("seg'\\''1.mp4"),
-            "single quotes must be escaped"
-        );
-    }
-
-    #[test]
-    fn concat_cache_path_stays_under_previews() {
-        let dir = crate::ffui_core::compare_frames_dir_for_tests();
-        let s = dir.to_string_lossy().replace('\\', "/");
-        assert!(
-            s.contains("/previews/compare-cache/frames")
-                || s.ends_with("previews/compare-cache/frames"),
-            "compare frames dir must live under previews: {s}"
-        );
-    }
-
-    #[test]
-    fn concat_command_requires_exact_segment_list_match() {
-        let job = sample_video_job(JobStatus::Paused);
-        let expected = ordered_job_segments(&job);
-        assert_eq!(expected.len(), 2);
-
-        let mut reversed = expected.clone();
-        reversed.reverse();
-        assert_ne!(reversed, expected, "sanity: reversed differs");
-
-        let requested: Vec<String> = reversed;
-        assert_ne!(
-            requested, expected,
-            "requested segment order mismatch should be detectable"
-        );
-    }
-
-    #[test]
-    fn max_compare_seconds_paused_clamps_processed_seconds_to_duration() {
-        let mut job = sample_video_job(JobStatus::Paused);
-        if let Some(info) = job.media_info.as_mut() {
-            info.duration_seconds = Some(10.0);
-        }
-        // wait_metadata.processed_seconds is 12.5 in sample_video_job; clamp to duration.
-        assert_eq!(compute_max_compare_seconds(&job), Some(10.0));
-    }
-
-    #[test]
-    fn max_compare_seconds_processing_prefers_progress_when_available() {
-        let mut job = sample_video_job(JobStatus::Processing);
-        job.progress = 50.0;
-        // duration 120.0 => 60.0 seconds
-        assert_eq!(compute_max_compare_seconds(&job), Some(60.0));
-    }
-}
+#[path = "job_compare/tests.rs"]
+mod tests;

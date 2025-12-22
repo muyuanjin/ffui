@@ -140,6 +140,13 @@ const app = {
       "Full logs are written only when jobs finish and stored as one .log file per job. Set retention limits to prevent unbounded disk usage.",
     crashRecoveryMaxLogFilesLabel: "Max log files",
     crashRecoveryMaxLogTotalMbLabel: "Max total log size (MB)",
+    exitAutoWaitTitle: "Pause jobs on exit",
+    exitAutoWaitDescription:
+      "When you exit/shut down while jobs are running, FFUI will prompt and can try to pause jobs before closing so precise resume remains usable after restart.",
+    exitAutoWaitTimeoutLabel: "Timeout (seconds)",
+    exitAutoWaitTimeoutHelp: "≤ 0 means wait indefinitely.",
+    exitAutoWaitRequiresCrashRecoveryHint:
+      "Tip: to resume after restart, set “Queue crash-recovery persistence” to a restore mode.",
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",
@@ -302,6 +309,15 @@ const app = {
   openDevtools: "Open Devtools",
   openDevtoolsUnavailable: "Running in pure web mode; use your browser's devtools instead.",
   openRepo: "Open GitHub repo",
+  exitConfirm: {
+    title: "Exit FFUI?",
+    description: "{count} job(s) are still running. How do you want to exit?",
+    pauseAndExit: "Pause jobs and exit",
+    exitNow: "Exit now",
+    pausing: "Pausing jobs…",
+    pauseTimeoutHint: "Wait up to {seconds}s, then exit anyway.",
+    pauseTimeoutInfiniteHint: "Wait indefinitely until jobs are paused.",
+  },
   actions: {
     addJob: "Add transcode job",
     addJobFiles: "Add files",

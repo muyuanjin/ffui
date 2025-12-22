@@ -9,6 +9,8 @@ import { buildPlayableMediaUrl, getJobCompareSources, hasTauri } from "@/lib/bac
 import CompareViewport, { type CompareMode } from "./job-compare/CompareViewport.vue";
 import { useJobCompareFrames } from "./job-compare/useJobCompareFrames";
 import { useJobComparePlaybackSync } from "./job-compare/useJobComparePlaybackSync";
+import { useJobCompareOutOfRangeHint } from "./job-compare/useJobCompareOutOfRangeHint";
+import { useJobCompareRememberedTimeline } from "./job-compare/useJobCompareRememberedTimeline";
 const props = defineProps<{
   open: boolean;
   job: TranscodeJob | null;
@@ -25,23 +27,59 @@ const timeline = ref<number[]>([0]);
 const forceFrameCompare = ref(false);
 const isPlaying = ref(false);
 const viewportRef = ref<InstanceType<typeof CompareViewport> | null>(null);
+const timelineWrapEl = ref<HTMLElement | null>(null);
 const jobRef = toRef(props, "job");
 const openRef = toRef(props, "open");
 const totalDurationSeconds = computed(() => {
   const d = props.job?.mediaInfo?.durationSeconds;
   return typeof d === "number" && Number.isFinite(d) && d > 0 ? d : null;
 });
+const timelineMaxSeconds = computed(() => {
+  const total = totalDurationSeconds.value;
+  if (total != null && total > 0) return total;
+  const fallback = sources.value?.maxCompareSeconds;
+  return typeof fallback === "number" && Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+});
 const maxCompareSeconds = computed(() => {
   const reported = sources.value?.maxCompareSeconds;
-  const maxFromSources = typeof reported === "number" && Number.isFinite(reported) && reported > 0 ? reported : null;
+  const status = props.job?.status;
+  const acceptZero = status === "processing" || status === "paused";
+  const maxFromSources =
+    typeof reported === "number" && Number.isFinite(reported) && (acceptZero ? reported >= 0 : reported > 0)
+      ? reported
+      : null;
   const total = totalDurationSeconds.value;
   if (maxFromSources != null && total != null) return Math.min(maxFromSources, total);
   if (maxFromSources != null) return maxFromSources;
   return total ?? 0;
 });
+const compareIncomplete = computed(() => {
+  const total = timelineMaxSeconds.value;
+  const max = maxCompareSeconds.value;
+  if (!Number.isFinite(total) || total <= 0) return false;
+  if (!Number.isFinite(max) || max < 0) return false;
+  return max < total - 0.001;
+});
+const compareLimitPercent = computed(() => {
+  if (!compareIncomplete.value) return 100;
+  const total = timelineMaxSeconds.value;
+  const max = maxCompareSeconds.value;
+  if (!Number.isFinite(total) || total <= 0) return 100;
+  if (!Number.isFinite(max) || max <= 0) return 0;
+  return Math.min(100, Math.max(0, (max / total) * 100));
+});
+
+// Seeking to the exact end can trigger 416 / decoder edge cases in some webviews.
+// Keep a tiny buffer so all seeks stay strictly within the playable range.
+const maxSeekSeconds = computed(() => {
+  const max = maxCompareSeconds.value;
+  if (!Number.isFinite(max) || max <= 0) return max;
+  const epsilon = 0.001;
+  return max > epsilon ? max - epsilon : 0;
+});
 const clampedTimelineSeconds = computed(() => {
   const raw = timeline.value[0] ?? 0;
-  const max = maxCompareSeconds.value;
+  const max = maxSeekSeconds.value;
   if (!Number.isFinite(raw) || raw < 0) return 0;
   if (!Number.isFinite(max) || max <= 0) return raw;
   return Math.min(raw, max);
@@ -50,15 +88,16 @@ watch(
   () => maxCompareSeconds.value,
   (max) => {
     if (!Number.isFinite(max) || max <= 0) return;
-    if ((timeline.value[0] ?? 0) > max) {
-      timeline.value = [max];
+    const seekMax = maxSeekSeconds.value;
+    if ((timeline.value[0] ?? 0) > seekMax) {
+      timeline.value = [seekMax];
     }
   },
 );
 const compareLabel = computed(() => {
   const max = maxCompareSeconds.value;
   const total = totalDurationSeconds.value;
-  if (!Number.isFinite(max) || max <= 0) return null;
+  if (!Number.isFinite(max) || max < 0) return null;
   if (total != null && Number.isFinite(total) && total > 0 && max < total) {
     return `${formatTime(max)} / ${formatTime(total)}`;
   }
@@ -125,7 +164,7 @@ const getSideVideos = (side: "input" | "output") => {
 const getMasterVideo = () => getSideVideos("input")[0] ?? null;
 const playback = useJobComparePlaybackSync({
   isPlaying,
-  maxCompareSeconds,
+  maxCompareSeconds: maxSeekSeconds,
   timeline,
   getSideVideos,
   getMasterVideo,
@@ -140,56 +179,36 @@ const handleResetZoom = () => {
   viewportRef.value?.resetZoom?.();
 };
 
+const { outOfRangeHintVisible, allowTimelineSecondsOrHint, handleTimelinePointerDownCapture } =
+  useJobCompareOutOfRangeHint({
+    compareIncomplete,
+    timelineWrapEl,
+    timelineMaxSeconds,
+    maxCompareSeconds,
+  });
+
 const setTimeline = (value: number[] | undefined) => {
-  timeline.value = value?.length ? value : [0];
+  const raw = value?.length ? value[0] : 0;
+  const safe = Number.isFinite(raw) && raw >= 0 ? raw : 0;
+  if (!allowTimelineSecondsOrHint(safe)) return;
+  timeline.value = [safe];
   if (usingFrameCompare.value) return;
   if (!isPlaying.value) return;
 
-  const raw = timeline.value[0] ?? 0;
-  const max = maxCompareSeconds.value;
-  const clamped = !Number.isFinite(raw) || raw < 0 ? 0 : Number.isFinite(max) && max > 0 ? Math.min(raw, max) : raw;
+  const current = timeline.value[0] ?? 0;
+  const max = maxSeekSeconds.value;
+  const clamped =
+    !Number.isFinite(current) || current < 0 ? 0 : Number.isFinite(max) && max > 0 ? Math.min(current, max) : current;
   clearPendingSeek();
   seekVideos(clamped);
 };
 
-const normalizeInputKey = (raw: string | null | undefined): string | null => {
-  const trimmed = String(raw ?? "").trim();
-  return trimmed ? trimmed : null;
-};
-
-// Remember last compare position per input path so users can run multiple output
-// experiments against the same input without re-scrubbing every time.
-const lastTimelineByInput = new Map<string, number>();
-const lastKnownInputKey = ref<string | null>(null);
-
-const getActiveInputKey = (): string | null => {
-  return (
-    normalizeInputKey(inputPath.value) ??
-    normalizeInputKey(props.job?.inputPath) ??
-    normalizeInputKey(props.job?.filename)
-  );
-};
-
-const rememberTimelineForActiveInput = () => {
-  const key = getActiveInputKey();
-  if (!key) return;
-  const seconds = clampedTimelineSeconds.value;
-  if (!Number.isFinite(seconds) || seconds < 0) return;
-  lastTimelineByInput.set(key, seconds);
-  lastKnownInputKey.value = key;
-};
-
-const restoreTimelineForActiveInput = () => {
-  const key = getActiveInputKey();
-  if (!key) {
-    timeline.value = [0];
-    lastKnownInputKey.value = null;
-    return;
-  }
-  lastKnownInputKey.value = key;
-  const remembered = lastTimelineByInput.get(key);
-  timeline.value = [typeof remembered === "number" && Number.isFinite(remembered) && remembered >= 0 ? remembered : 0];
-};
+const { rememberTimelineForActiveInput, restoreTimelineForActiveInput } = useJobCompareRememberedTimeline({
+  inputPath,
+  job: jobRef,
+  timeline,
+  clampedTimelineSeconds,
+});
 
 const fetchSources = async () => {
   const job = props.job;
@@ -214,7 +233,6 @@ const fetchSources = async () => {
     if (!result) {
       sourcesError.value = t("jobCompare.unavailable") as string;
       timeline.value = [0];
-      lastKnownInputKey.value = null;
       return;
     }
 
@@ -360,15 +378,6 @@ function formatTime(seconds: number) {
         </div>
 
         <div class="flex items-center gap-2">
-          <span
-            v-if="compareLabel"
-            class="text-[11px] text-muted-foreground"
-            data-testid="job-compare-max-label"
-            :title="String(t('jobCompare.maxLabelHint'))"
-          >
-            {{ compareLabel }}
-          </span>
-
           <Button
             v-if="playbackEligible && !usingFrameCompare"
             size="xs"
@@ -410,25 +419,70 @@ function formatTime(seconds: number) {
       </div>
 
       <div class="mt-3">
-        <div class="flex items-center justify-between text-[11px] text-muted-foreground">
+        <div class="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span data-testid="job-compare-current-time">
             {{ formatTime(clampedTimelineSeconds) }}
           </span>
-          <span>
+          <span class="truncate">
             {{ t("jobCompare.timeline") }}
+          </span>
+          <span
+            v-if="compareLabel"
+            class="shrink-0"
+            data-testid="job-compare-max-label"
+            :title="String(t('jobCompare.maxLabelHint'))"
+          >
+            {{ compareLabel }}
           </span>
         </div>
 
-        <Slider
-          class="mt-2"
-          :min="0"
-          :max="maxCompareSeconds"
-          :step="0.1"
-          :model-value="[clampedTimelineSeconds]"
-          data-testid="job-compare-timeline"
-          @update:model-value="setTimeline"
-          @valueCommit="() => requestHighFramesNow()"
-        />
+        <div
+          ref="timelineWrapEl"
+          class="relative mt-2"
+          data-testid="job-compare-timeline-wrap"
+          @pointerdown.capture="handleTimelinePointerDownCapture"
+        >
+          <Slider
+            :min="0"
+            :max="timelineMaxSeconds"
+            :step="0.1"
+            :model-value="[clampedTimelineSeconds]"
+            data-testid="job-compare-timeline"
+            @update:model-value="setTimeline"
+            @valueCommit="() => requestHighFramesNow()"
+          />
+          <div
+            v-if="compareIncomplete"
+            class="pointer-events-none absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2"
+            aria-hidden="true"
+          >
+            <div
+              class="absolute inset-y-0 bg-muted/60 rounded-r-full border-l border-white/10"
+              :style="{ left: `${compareLimitPercent}%`, right: '0' }"
+            />
+          </div>
+        </div>
+
+        <div
+          v-if="compareIncomplete"
+          class="mt-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-[11px] text-yellow-500"
+          data-testid="job-compare-partial-warning"
+        >
+          {{
+            t("jobCompare.partialWarning", {
+              max: formatTime(maxCompareSeconds),
+              total: formatTime(timelineMaxSeconds),
+            })
+          }}
+        </div>
+
+        <div
+          v-if="outOfRangeHintVisible"
+          class="mt-1 text-[11px] text-yellow-500"
+          data-testid="job-compare-out-of-range-hint"
+        >
+          {{ t("jobCompare.outOfRangeHint") }}
+        </div>
       </div>
     </DialogContent>
   </Dialog>

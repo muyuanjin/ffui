@@ -229,6 +229,9 @@ const other = {
     loadingFrame: "Loading preview frame…",
     timeline: "Timeline",
     maxLabelHint: "Encoded limit / total duration (partial jobs).",
+    partialWarning:
+      "This job is not complete yet. You can compare up to {max} (of {total}); the remaining region is disabled.",
+    outOfRangeHint: "The unencoded region is not comparable yet.",
     blinkHint: "Click the viewport to toggle input/output.",
     sides: {
       input: "Input",

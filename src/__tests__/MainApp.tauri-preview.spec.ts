@@ -265,7 +265,7 @@ describe("MainApp Tauri preview fallback", () => {
     wrapper.unmount();
   });
 
-  it("prefers a temporary output path for processing jobs when available", async () => {
+  it("prefers the input path for processing jobs even when a temporary output exists", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -311,7 +311,7 @@ describe("MainApp Tauri preview fallback", () => {
     await nextTick();
 
     expect(vm.dialogManager.previewOpen.value).toBe(true);
-    expect(vm.previewUrl).toBe(job.waitMetadata.tmpOutputPath);
+    expect(vm.previewUrl).toBe(job.inputPath);
     expect(vm.previewIsImage).toBe(false);
 
     wrapper.unmount();
@@ -377,7 +377,7 @@ describe("MainApp Tauri preview fallback", () => {
     wrapper.unmount();
   });
 
-  it("falls back to input path for failed jobs so preview remains playable", async () => {
+  it("tries input playback when output fails natively for failed jobs", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -424,12 +424,12 @@ describe("MainApp Tauri preview fallback", () => {
     expect(vm.previewUrl).toBe(job.outputPath);
     expect(vm.previewIsImage).toBe(false);
 
-    // Simulate native playback failure: stay on the selected source and switch to frame fallback.
-    vm.handleExpandedPreviewError();
+    // Simulate native playback failure: auto mode should try input before forcing frame fallback.
+    await vm.handleExpandedPreviewError();
     await nextTick();
 
-    expect(vm.previewUrl).toBe(job.outputPath);
-    expect(vm.previewError).toBeTruthy();
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewError).toBeNull();
 
     wrapper.unmount();
   });

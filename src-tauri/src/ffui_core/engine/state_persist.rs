@@ -119,7 +119,11 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
 /// Actual on-disk writer for queue state snapshots. This performs a single
 /// compact JSON write without any debouncing semantics; callers should go
 /// through `persist_queue_state_lite` instead.
-fn persist_queue_state_inner(snapshot: &QueueStateLite) {
+fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
+    if should_abort_queue_persist_write_for_tests(epoch) {
+        return;
+    }
+
     let path = match queue_state_sidecar_path() {
         Some(p) => p,
         None => return,
@@ -183,6 +187,39 @@ static QUEUE_PERSIST_WRITE_COUNT: AtomicU64 = AtomicU64::new(0);
 static PERSIST_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 
+#[cfg(test)]
+pub(crate) fn lock_persist_test_mutex_for_tests() -> std::sync::MutexGuard<'static, ()> {
+    PERSIST_TEST_MUTEX
+        .lock()
+        .expect("PERSIST_TEST_MUTEX poisoned")
+}
+
+#[cfg(test)]
+static QUEUE_PERSIST_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+fn current_queue_persist_epoch() -> u64 {
+    #[cfg(test)]
+    {
+        QUEUE_PERSIST_EPOCH.load(Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        0
+    }
+}
+
+fn should_abort_queue_persist_write_for_tests(epoch: u64) -> bool {
+    #[cfg(test)]
+    {
+        epoch != QUEUE_PERSIST_EPOCH.load(Ordering::SeqCst)
+    }
+    #[cfg(not(test))]
+    {
+        let _ = epoch;
+        false
+    }
+}
+
 /// In-memory state used to coalesce queue persistence writes across rapid
 /// snapshots.
 struct QueuePersistState {
@@ -220,6 +257,7 @@ static QUEUE_PERSIST: once_cell::sync::Lazy<QueuePersistCoordinator> =
 
 #[cfg(test)]
 pub(super) fn reset_queue_persist_state_for_tests() {
+    QUEUE_PERSIST_EPOCH.fetch_add(1, Ordering::SeqCst);
     let mut state = QUEUE_PERSIST
         .state
         .lock()
@@ -322,19 +360,42 @@ fn ensure_worker_thread_started() {
                         None
                     } else {
                         let snapshot = state.last_snapshot.clone();
+                        let epoch = current_queue_persist_epoch();
                         state.last_write_at = Some(Instant::now());
                         state.dirty_since_write = false;
                         state.next_flush_at = None;
-                        snapshot
+                        snapshot.map(|snapshot| (epoch, snapshot))
                     }
                 };
 
-                if let Some(snapshot) = maybe_snapshot {
-                    persist_queue_state_inner(&snapshot);
+                if let Some((epoch, snapshot)) = maybe_snapshot {
+                    persist_queue_state_inner(&snapshot, epoch);
                 }
             }
         })
         .expect("failed to spawn queue persistence thread");
+}
+
+/// Persist the given snapshot immediately, bypassing the debounce window.
+///
+/// This is used by graceful shutdown paths that need to ensure crash-recovery
+/// metadata (such as wait segments) is durable before the process exits.
+pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
+    ensure_worker_thread_started();
+
+    let mut state = QUEUE_PERSIST
+        .state
+        .lock()
+        .expect("queue persist lock poisoned");
+    let epoch = current_queue_persist_epoch();
+    state.last_snapshot = Some(snapshot.clone());
+    state.last_write_at = Some(Instant::now());
+    state.dirty_since_write = false;
+    state.next_flush_at = None;
+    drop(state);
+
+    persist_queue_state_inner(snapshot, epoch);
+    QUEUE_PERSIST.cv.notify_all();
 }
 
 /// Persist the given snapshot to disk using a debounced writer. The first
@@ -349,6 +410,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
         .lock()
         .expect("queue persist lock poisoned");
     let now = Instant::now();
+    let epoch = current_queue_persist_epoch();
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);
     state.last_snapshot = Some(snapshot.clone());
     state.dirty_since_write = true;
@@ -366,7 +428,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                 .cloned()
                 .unwrap_or_else(|| snapshot.clone());
             drop(state);
-            persist_queue_state_inner(&to_write);
+            persist_queue_state_inner(&to_write, epoch);
         }
         Some(last) => {
             let debounce = Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS);
@@ -380,7 +442,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                     .cloned()
                     .unwrap_or_else(|| snapshot.clone());
                 drop(state);
-                persist_queue_state_inner(&to_write);
+                persist_queue_state_inner(&to_write, epoch);
                 QUEUE_PERSIST.cv.notify_all();
                 return;
             }
