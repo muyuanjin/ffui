@@ -59,6 +59,40 @@ fn read_json_fixture<T: serde::de::DeserializeOwned>(path: &std::path::Path) -> 
 }
 
 fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
+    fn is_mock_ffmpeg_exe(path: &std::path::Path) -> bool {
+        if !path.is_file() {
+            return false;
+        }
+        if cfg!(windows) {
+            return path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("exe"))
+                .unwrap_or(false);
+        }
+        // On Unix, cargo emits the binary without an extension, while sidecar artifacts
+        // (e.g. dep-info `.d`) share the same prefix.
+        path.extension().is_none()
+    }
+
+    fn find_in_dir(dir: &std::path::Path) -> Option<std::path::PathBuf> {
+        let prefixes = ["ffui-mock-ffmpeg", "ffui_mock_ffmpeg"];
+        let mut matches: Vec<std::path::PathBuf> = std::fs::read_dir(dir)
+            .ok()?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
+                    .unwrap_or(false)
+            })
+            .filter(|p| is_mock_ffmpeg_exe(p))
+            .collect();
+        matches.sort();
+        matches.into_iter().next()
+    }
+
     for key in [
         "CARGO_BIN_EXE_ffui-mock-ffmpeg",
         "CARGO_BIN_EXE_ffui_mock_ffmpeg",
@@ -73,42 +107,40 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
         }
     }
 
+    // Prefer locating the mock binary next to the current test executable so we
+    // work correctly with custom `--target-dir` and non-default profiles.
+    if let Ok(current) = std::env::current_exe()
+        && let Some(dir) = current.parent()
+        && let Some(found) = find_in_dir(dir)
+    {
+        return found;
+    }
+
     let crate_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let target_debug = crate_root.join("target").join("debug");
+    let target_root = crate_root.join("target");
     let direct_candidates = if cfg!(windows) {
         ["ffui-mock-ffmpeg.exe", "ffui_mock_ffmpeg.exe"]
     } else {
         ["ffui-mock-ffmpeg", "ffui_mock_ffmpeg"]
     };
-    for exe_name in direct_candidates {
-        let direct = target_debug.join(exe_name);
-        if direct.exists() {
-            return direct;
+
+    for profile in ["check-all", "debug", "release"] {
+        for exe_name in direct_candidates {
+            let direct = target_root.join(profile).join(exe_name);
+            if direct.exists() {
+                return direct;
+            }
+        }
+
+        let deps_dir = target_root.join(profile).join("deps");
+        if deps_dir.exists()
+            && let Some(found) = find_in_dir(&deps_dir)
+        {
+            return found;
         }
     }
 
-    let deps_dir = target_debug.join("deps");
-    if deps_dir.exists() {
-        let prefixes = ["ffui-mock-ffmpeg", "ffui_mock_ffmpeg"];
-        let mut matches: Vec<std::path::PathBuf> = std::fs::read_dir(&deps_dir)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
-                    .unwrap_or(false)
-            })
-            .collect();
-        matches.sort();
-        if let Some(p) = matches.into_iter().find(|p| p.is_file()) {
-            return p;
-        }
-    }
-
-    panic!("unable to locate mock ffmpeg executable in target/debug");
+    panic!("unable to locate mock ffmpeg executable in target/(check-all|debug|release)");
 }
 
 fn first_template_arg(args: &[String]) -> Option<&str> {
