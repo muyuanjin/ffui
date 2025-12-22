@@ -10,6 +10,8 @@ import { Minus, Square, X } from "lucide-vue-next";
 const props = defineProps<{
   /** Current page title (translated). */
   currentTitle: string | unknown;
+  /** Current app version (e.g. "0.2.1"). */
+  currentVersion?: string | null;
   /** Progress percent for header bar (0-100) */
   progressPercent: number;
   /** Whether progress is visible */
@@ -35,6 +37,12 @@ const titleText = computed(() => {
         ? ""
         : String(props.currentTitle).trim();
   return t("app.titlebar", { section: section || t("app.tabs.queue") });
+});
+
+const versionLabel = computed(() => {
+  const raw = typeof props.currentVersion === "string" ? props.currentVersion.trim() : "";
+  if (!raw) return null;
+  return raw.toLowerCase().startsWith("v") ? raw : `v${raw}`;
 });
 
 const currentLocale = computed<AppLocale>({
@@ -65,6 +73,9 @@ const currentLocale = computed<AppLocale>({
         <span class="truncate" :title="titleText">
           {{ titleText }}
         </span>
+        <span v-if="versionLabel" class="text-[10px] font-mono text-muted-foreground/90">
+          {{ versionLabel }}
+        </span>
       </div>
       <div class="flex items-center gap-3" data-tauri-drag-region="false">
         <div class="flex items-center gap-2 text-xs text-muted-foreground">
@@ -73,7 +84,9 @@ const currentLocale = computed<AppLocale>({
               data-testid="ffui-locale-trigger"
               class="h-7 px-3 py-0 text-xs rounded-full bg-card/80 border border-border/60 text-foreground"
             >
-              <SelectValue />
+              <SelectValue>
+                {{ currentLocale === "zh-CN" ? t("app.lang.zh") : t("app.lang.en") }}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="zh-CN" data-testid="ffui-locale-zh-CN">

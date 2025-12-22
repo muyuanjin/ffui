@@ -233,6 +233,7 @@ defineExpose({
     <MainDragOverlay :active-tab="activeTab" :is-dragging="isDragging" />
     <TitleBar
       :current-title="currentTitle"
+      :current-version="currentVersion"
       :progress-percent="headerProgressPercent"
       :progress-visible="headerProgressVisible"
       :progress-fading="headerProgressFading"
