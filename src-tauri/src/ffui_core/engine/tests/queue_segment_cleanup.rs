@@ -252,6 +252,54 @@ fn remux_drop_audio_is_idempotent_when_marker_exists() {
 }
 
 #[test]
+fn finalize_resume_cleanup_removes_noaudio_marker_files() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let seg0 = dir.path().join("seg0.tmp.mkv");
+    std::fs::write(&seg0, b"seg0").expect("write seg0");
+    let marker0 = noaudio_marker_path_for_segment(&seg0);
+    std::fs::write(&marker0, b"").expect("write marker0");
+
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/finalize-cleanup.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    // Use a 1-segment list so `concat_video_segments()` falls back to a simple
+    // filesystem copy (no ffmpeg invocation needed) while still exercising the
+    // same finalize cleanup path.
+    let preset = make_test_preset();
+    let input_path = std::path::PathBuf::from("C:/videos/input.mp4");
+    let output_path = dir.path().join("out.mkv");
+    let segments = vec![seg0.clone()];
+
+    finalize_resumed_job_output_for_tests(
+        &engine.inner,
+        &job.id,
+        "ffmpeg-does-not-exist",
+        &input_path,
+        &output_path,
+        &preset,
+        &segments,
+        None,
+        &seg0,
+        false,
+    )
+    .expect("finalize_resumed_job_output_for_tests should succeed");
+
+    assert!(output_path.exists(), "final output should exist");
+    assert!(!seg0.exists(), "segment should be deleted after finalize");
+    assert!(
+        !marker0.exists(),
+        "noaudio marker should be deleted after finalize"
+    );
+}
+
+#[test]
 fn overlap_trim_uses_stream_start_time_offset_when_copyts_enabled() {
     static ENV_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
         once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));

@@ -96,9 +96,37 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
     let _ = fs::remove_file(&joined_video_tmp);
     for seg in all_segments {
         let _ = fs::remove_file(seg);
+        let _ = fs::remove_file(noaudio_marker_path_for_segment(seg.as_path()));
     }
 
     Ok(fs::metadata(output_path).map(|m| m.len()).unwrap_or(0))
+}
+
+#[cfg(test)]
+pub(super) fn finalize_resumed_job_output_for_tests(
+    inner: &Inner,
+    job_id: &str,
+    ffmpeg_path: &str,
+    input_path: &Path,
+    output_path: &Path,
+    finalize_preset: &FFmpegPreset,
+    all_segments: &[PathBuf],
+    segment_durations: Option<&[f64]>,
+    tmp_output: &Path,
+    finalize_with_source_audio: bool,
+) -> Result<u64> {
+    finalize_resumed_job_output(FinalizeResumedJobOutputArgs {
+        inner,
+        job_id,
+        ffmpeg_path,
+        input_path,
+        output_path,
+        finalize_preset,
+        all_segments,
+        segment_durations,
+        tmp_output,
+        finalize_with_source_audio,
+    })
 }
 
 pub(super) fn build_mux_args_for_resumed_output(
