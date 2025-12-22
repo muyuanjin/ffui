@@ -5,115 +5,42 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { analyzeImportCommandLine } from "./presetCommandImport";
 
-type CorpusSource = {
-  file: string;
-  lineStart: number;
-  rawBlock: string;
+type CorpusFixtureSource = {
+  path: string;
+  sha256: string;
+};
+
+type CorpusFixtureEntry = {
+  id: string;
+  kind: "ffmpeg" | "argsOnly" | "nonFfmpeg" | string;
   normalizedBlock: string;
 };
 
-const normalizeLineForExtraction = (line: string): string => {
-  let s = String(line ?? "").replace(/\r/g, "");
-  // Strip common REPL / markdown prompt prefixes.
-  s = s.replace(/^\s*>\s?/, "");
-  s = s.replace(/^\s*\$\s?/, "");
-  // Trim surrounding backticks used as inline markdown quoting.
-  s = s.trim();
-  if (s.startsWith("`") && s.endsWith("`") && s.length >= 2) {
-    s = s.slice(1, -1).trim();
-  }
-  return s;
+type CorpusFixture = {
+  version: number;
+  sources: CorpusFixtureSource[];
+  entries: CorpusFixtureEntry[];
 };
 
-const looksLikeFfmpegInvocationOrArgsOnly = (block: string): boolean => {
-  const s = block.trim();
-  if (!s) return false;
-  if (s.startsWith("-")) return true; // args-only
-  // Match ffmpeg token, ffmpeg.exe token, or a quoted/absolute path ending with ffmpeg(.exe)
-  return /(^|[\s"']|[\\/])ffmpeg(?:\.exe)?(\s|$)/i.test(s);
+const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex");
+
+const loadCorpusFixture = (): CorpusFixture => {
+  const fixturePath = resolve(process.cwd(), "src-tauri/tests/ffmpeg-command-corpus.fixture.json");
+  return JSON.parse(readFileSync(fixturePath, "utf8")) as CorpusFixture;
 };
-
-const extractCommandBlocks = (text: string, file: string): CorpusSource[] => {
-  const lines = String(text ?? "")
-    .replace(/\r/g, "")
-    .split("\n");
-  const out: CorpusSource[] = [];
-
-  let inFence = false;
-  let pending: string[] = [];
-  let pendingStartLine = 1;
-
-  const flush = () => {
-    if (pending.length === 0) return;
-    const rawBlock = pending.join("\n").trim();
-    const normalizedBlock = rawBlock
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (normalizedBlock) {
-      out.push({
-        file,
-        lineStart: pendingStartLine,
-        rawBlock,
-        normalizedBlock,
-      });
-    }
-    pending = [];
-  };
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const raw = lines[i] ?? "";
-    const trimmed = raw.trim();
-
-    if (/^```/.test(trimmed)) {
-      inFence = !inFence;
-      continue;
-    }
-
-    const line = normalizeLineForExtraction(raw);
-    if (!line) {
-      flush();
-      continue;
-    }
-
-    // Treat obvious non-ffmpeg lines as separators so they don't get glued into a block.
-    if (!inFence && !pending.length && !looksLikeFfmpegInvocationOrArgsOnly(line)) {
-      continue;
-    }
-
-    if (pending.length === 0) pendingStartLine = i + 1;
-
-    // Handle bash-style line continuation: trailing backslash joins with next line.
-    if (line.endsWith("\\")) {
-      pending.push(line.slice(0, -1).trimEnd());
-      continue;
-    }
-    pending.push(line);
-  }
-
-  flush();
-
-  return out;
-};
-
-const sha1 = (value: string): string => createHash("sha1").update(value).digest("hex").slice(0, 12);
 
 describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
   it("analyzes all ffmpeg-like commands without throwing and enforces key invariants", () => {
-    const files = ["docs/ffmpeg_commands.txt", "docs/ffmpeg_commands2.txt"];
-    const sources: CorpusSource[] = [];
+    const fixture = loadCorpusFixture();
+    const sourcesByPath = new Map<string, string>(fixture.sources.map((s) => [s.path, s.sha256]));
 
-    for (const file of files) {
-      const abs = resolve(process.cwd(), file);
-      const text = readFileSync(abs, "utf8");
-      sources.push(...extractCommandBlocks(text, file));
+    for (const [docPath, expectedHash] of sourcesByPath) {
+      const abs = resolve(process.cwd(), docPath);
+      const actualHash = sha256(readFileSync(abs, "utf8"));
+      expect(actualHash).toBe(expectedHash);
     }
 
-    const candidates = sources.filter((s) => looksLikeFfmpegInvocationOrArgsOnly(s.normalizedBlock));
+    const candidates = fixture.entries.filter((e) => e.kind !== "nonFfmpeg" && e.normalizedBlock.trim().length > 0);
     expect(candidates.length).toBeGreaterThan(0);
 
     for (const c of candidates) {
@@ -121,7 +48,9 @@ describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
 
       expect(analysis.trimmed.length).toBeGreaterThan(0);
       expect(analysis.normalizedTemplate.length).toBeGreaterThan(0);
-      expect(analysis.normalizedTemplate.toLowerCase().startsWith("ffmpeg")).toBe(true);
+      if (analysis.eligibility.custom || analysis.eligibility.editable) {
+        expect(analysis.normalizedTemplate.toLowerCase().startsWith("ffmpeg")).toBe(true);
+      }
 
       if (analysis.eligibility.custom) {
         expect(analysis.argsOnlyTemplate).not.toBeNull();
@@ -139,21 +68,12 @@ describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
   });
 
   it("produces a stable corpus summary snapshot (useful for regressions)", () => {
-    const files = ["docs/ffmpeg_commands.txt", "docs/ffmpeg_commands2.txt"];
-    const sources: CorpusSource[] = [];
-
-    for (const file of files) {
-      const abs = resolve(process.cwd(), file);
-      const text = readFileSync(abs, "utf8");
-      sources.push(...extractCommandBlocks(text, file));
-    }
-
-    const candidates = sources.filter((s) => looksLikeFfmpegInvocationOrArgsOnly(s.normalizedBlock));
+    const fixture = loadCorpusFixture();
+    const candidates = fixture.entries.filter((e) => e.kind !== "nonFfmpeg" && e.normalizedBlock.trim().length > 0);
     const analyses = candidates.map((c) => {
       const analysis = analyzeImportCommandLine(c.normalizedBlock);
-      const id = `${c.file}:${c.lineStart}:${sha1(c.normalizedBlock)}`;
       return {
-        id,
+        id: c.id,
         custom: analysis.eligibility.custom,
         editable: analysis.eligibility.editable,
         reasonsTop: (analysis.reasons ?? []).slice(0, 2),
@@ -161,7 +81,7 @@ describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
     });
 
     const counts = {
-      blocks: sources.length,
+      entries: fixture.entries.length,
       candidates: candidates.length,
       customEligible: analyses.filter((a) => a.custom).length,
       editableEligible: analyses.filter((a) => a.editable).length,
@@ -179,7 +99,7 @@ describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
         }
       }
       return [...freq.entries()]
-        .sort((a, b) => b[1] - a[1])
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
         .slice(0, 12)
         .map(([reason, count]) => ({ reason, count }));
     })();

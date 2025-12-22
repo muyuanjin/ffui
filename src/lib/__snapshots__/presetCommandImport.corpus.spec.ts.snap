@@ -3,24 +3,32 @@
 exports[`presetCommandImport corpus (docs/ffmpeg_commands*.txt) > produces a stable corpus summary snapshot (useful for regressions) 1`] = `
 {
   "counts": {
-    "blocked": 2,
-    "blocks": 2,
-    "candidates": 2,
-    "customEligible": 0,
+    "blocked": 104,
+    "candidates": 659,
+    "customEligible": 555,
     "editableEligible": 0,
+    "entries": 669,
   },
   "topBlockedReasons": [
     {
-      "count": 1,
-      "reason": "OUTPUT 必须是命令的最后一个输出参数（当前仅支持单输出）",
+      "count": 93,
+      "reason": "无法形成 INPUT 占位符",
     },
     {
-      "count": 1,
+      "count": 82,
       "reason": "包含多个 -i 输入（当前仅支持单输入）",
     },
     {
-      "count": 1,
-      "reason": "检测到多个 INPUT 占位符（当前仅支持单输入）",
+      "count": 11,
+      "reason": "OUTPUT 必须是命令的最后一个输出参数（当前仅支持单输出）",
+    },
+    {
+      "count": 9,
+      "reason": "缺少 -i <输入> 参数",
+    },
+    {
+      "count": 2,
+      "reason": "无法识别 -i 后的输入参数",
     },
   ],
 }

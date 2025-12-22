@@ -9,4 +9,46 @@ export const wrapWithSameQuotes = (original: string, replacement: string): strin
   return replacement;
 };
 
-export const splitCommandLine = (line: string): string[] => line.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+export const splitCommandLine = (line: string): string[] => {
+  const tokens: string[] = [];
+  let current = "";
+  let inSingle = false;
+  let inDouble = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i] ?? "";
+
+    if (ch === "'" && !inDouble) {
+      inSingle = !inSingle;
+      current += ch;
+      continue;
+    }
+
+    if (ch === '"' && !inSingle) {
+      inDouble = !inDouble;
+      current += ch;
+      continue;
+    }
+
+    if (ch === "\\" && inDouble) {
+      const next = line[i + 1];
+      if (next != null) {
+        current += ch;
+        current += next;
+        i += 1;
+        continue;
+      }
+    }
+
+    if (/\s/.test(ch) && !inSingle && !inDouble) {
+      if (current) tokens.push(current);
+      current = "";
+      continue;
+    }
+
+    current += ch;
+  }
+
+  if (current) tokens.push(current);
+  return tokens;
+};
