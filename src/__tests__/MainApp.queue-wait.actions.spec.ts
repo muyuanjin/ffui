@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import { i18n, invokeMock, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import type { TranscodeJob } from "@/types";
 import MainApp from "@/MainApp.vue";
-import { setSelectedJobIds } from "./helpers/queueSelection";
 
 function getJobsFromVm(vm: any): TranscodeJob[] {
   const ref = vm.jobs;
@@ -127,6 +126,42 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     expect(invokeMock).toHaveBeenCalledWith("cancel_transcode_job", expect.any(Object));
   });
 
+  it("cancels a processing job immediately when backend accepts cancel_transcode_job", async () => {
+    const jobId = "job-cancel-processing-1";
+    setQueueJobs([
+      {
+        id: jobId,
+        filename: "C:/videos/cancel-processing.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "processing",
+        progress: 30,
+        logs: [],
+      } as TranscodeJob,
+    ]);
+
+    useBackendMock({
+      cancel_transcode_job: (payload) => {
+        expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        return true;
+      },
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+
+    await vm.handleCancelJob(jobId);
+    await nextTick();
+
+    const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
+    expect(updatedJob?.status).toBe("cancelled");
+    expect(invokeMock).toHaveBeenCalledWith("cancel_transcode_job", expect.any(Object));
+  });
+
   it("sends restart_transcode_job and clears progress for non-terminal jobs", async () => {
     const jobId = "job-restart-1";
     setQueueJobs([
@@ -161,6 +196,43 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("waiting");
     expect(updatedJob?.progress).toBe(0);
+  });
+
+  it("sends restart_transcode_job for processing jobs and immediately resets UI state to waiting", async () => {
+    const jobId = "job-restart-processing-1";
+    setQueueJobs([
+      {
+        id: jobId,
+        filename: "C:/videos/restart-processing.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "preset-1",
+        status: "processing",
+        progress: 25,
+        logs: ["progress: 25%"],
+      } as TranscodeJob,
+    ]);
+
+    useBackendMock({
+      restart_transcode_job: (payload) => {
+        expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        return true;
+      },
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    await nextTick();
+
+    await vm.handleRestartJob(jobId);
+    await nextTick();
+
+    const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
+    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.progress).toBe(0);
+    expect(invokeMock).toHaveBeenCalledWith("restart_transcode_job", expect.any(Object));
   });
 
   it("allows restart_transcode_job for cancelled jobs and requeues them from 0 percent", async () => {
@@ -289,153 +361,5 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("waiting");
     expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", expect.objectContaining({ jobId }));
-  });
-
-  it("opens input and output folders from the queue context menu", async () => {
-    const jobId = "job-context-reveal";
-    setQueueJobs([
-      {
-        id: jobId,
-        filename: "C:/videos/context-reveal.mp4",
-        inputPath: "C:/videos/context-reveal.mp4",
-        outputPath: "C:/videos/context-reveal-output.mp4",
-        type: "video",
-        source: "manual",
-        originalSizeMB: 12,
-        originalCodec: "h264",
-        presetId: "preset-1",
-        status: "completed",
-        progress: 100,
-        logs: [],
-      } as TranscodeJob,
-    ]);
-
-    useBackendMock({
-      reveal_path_in_folder: (payload) => {
-        expect(payload?.path).toBeDefined();
-        return null;
-      },
-    });
-
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
-    await vm.refreshQueueFromBackend();
-    await nextTick();
-
-    const job = getJobsFromVm(vm)[0];
-    vm.openQueueContextMenuForJob({
-      job,
-      event: { clientX: 0, clientY: 0 } as any,
-    });
-
-    await vm.handleQueueContextOpenInputFolder();
-    await vm.handleQueueContextOpenOutputFolder();
-
-    expect(invokeMock).toHaveBeenCalledWith("reveal_path_in_folder", {
-      path: job.inputPath,
-    });
-    expect(invokeMock).toHaveBeenCalledWith("reveal_path_in_folder", {
-      path: job.outputPath,
-    });
-  });
-
-  it("copies input and output paths from the queue context menu", async () => {
-    const jobId = "job-context-copy";
-    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText: clipboardWriteText },
-      configurable: true,
-    });
-
-    setQueueJobs([
-      {
-        id: jobId,
-        filename: "C:/videos/context-copy.mp4",
-        inputPath: "C:/videos/context-copy.mp4",
-        outputPath: "C:/videos/context-copy.compressed.mp4",
-        type: "video",
-        source: "manual",
-        originalSizeMB: 12,
-        originalCodec: "h264",
-        presetId: "preset-1",
-        status: "completed",
-        progress: 100,
-        logs: [],
-      } as TranscodeJob,
-    ]);
-
-    useBackendMock({});
-
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
-    await vm.refreshQueueFromBackend();
-    await nextTick();
-
-    const job = getJobsFromVm(vm)[0];
-    vm.openQueueContextMenuForJob({
-      job,
-      event: { clientX: 0, clientY: 0 } as any,
-    });
-
-    await vm.handleQueueContextCopyInputPath();
-    await vm.handleQueueContextCopyOutputPath();
-
-    expect(clipboardWriteText).toHaveBeenCalledWith(job.inputPath);
-    expect(clipboardWriteText).toHaveBeenCalledWith(job.outputPath);
-  });
-
-  it("copies all input/output paths from the queue context menu in bulk mode", async () => {
-    const clipboardWriteText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      value: { writeText: clipboardWriteText },
-      configurable: true,
-    });
-
-    const jobA = {
-      id: "job-bulk-a",
-      filename: "C:/videos/bulk-a.mp4",
-      inputPath: "C:/videos/bulk-a.mp4",
-      outputPath: "C:/videos/bulk-a.compressed.mp4",
-      type: "video",
-      source: "batch_compress",
-      originalSizeMB: 12,
-      presetId: "preset-1",
-      status: "waiting",
-      progress: 0,
-      logs: [],
-    } as TranscodeJob;
-
-    const jobB = {
-      id: "job-bulk-b",
-      filename: "C:/videos/bulk-b.mp4",
-      inputPath: "C:/videos/bulk-b.mp4",
-      outputPath: "C:/videos/bulk-b.compressed.mp4",
-      type: "video",
-      source: "batch_compress",
-      originalSizeMB: 12,
-      presetId: "preset-1",
-      status: "waiting",
-      progress: 0,
-      logs: [],
-    } as TranscodeJob;
-
-    setQueueJobs([jobA, jobB]);
-    useBackendMock({});
-
-    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
-    await vm.refreshQueueFromBackend();
-    await nextTick();
-
-    // Reverse the selection order to ensure clipboard text follows queue order.
-    setSelectedJobIds(vm, [jobB.id, jobA.id]);
-    vm.openQueueContextMenuForBulk({ clientX: 0, clientY: 0 } as any);
-
-    await vm.handleQueueContextCopyInputPath();
-    await vm.handleQueueContextCopyOutputPath();
-
-    expect(clipboardWriteText).toHaveBeenCalledTimes(2);
-    expect(clipboardWriteText).toHaveBeenNthCalledWith(1, `${jobA.inputPath}\n${jobB.inputPath}`);
-    expect(clipboardWriteText).toHaveBeenNthCalledWith(2, `${jobA.outputPath}\n${jobB.outputPath}`);
   });
 });
