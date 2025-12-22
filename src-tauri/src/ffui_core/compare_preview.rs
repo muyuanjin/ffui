@@ -61,6 +61,10 @@ fn is_regular_file(path: &Path) -> bool {
     fs::metadata(path).map(|m| m.is_file()).unwrap_or(false)
 }
 
+fn is_non_empty_regular_file(path: &Path) -> bool {
+    is_regular_file(path) && fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false)
+}
+
 fn file_fingerprint(path: &Path) -> (u64, Option<u128>) {
     let meta = match fs::metadata(path) {
         Ok(m) => m,
@@ -210,6 +214,53 @@ fn build_concat_ffmpeg_args(
     out
 }
 
+fn move_tmp_to_final(tmp_path: &Path, final_path: &Path) -> Result<()> {
+    fs::rename(tmp_path, final_path).or_else(|_| {
+        fs::copy(tmp_path, final_path)
+            .map(|_| ())
+            .and_then(|_| fs::remove_file(tmp_path))
+    })?;
+    Ok(())
+}
+
+fn extract_frame_with_seek_backoffs<F>(
+    base_seek_seconds: f64,
+    seek_backoffs_seconds: &[f64],
+    tmp_path: &Path,
+    final_path: &Path,
+    mut run_ffmpeg: F,
+) -> Result<f64>
+where
+    F: FnMut(f64, &Path) -> Result<()>, {
+    let mut last_error: Option<anyhow::Error> = None;
+    for offset in seek_backoffs_seconds {
+        let attempt_seconds = (base_seek_seconds - offset).max(0.0);
+        let _ = fs::remove_file(tmp_path);
+
+        match run_ffmpeg(attempt_seconds, tmp_path) {
+            Ok(()) => {}
+            Err(err) => {
+                last_error = Some(err);
+                continue;
+            }
+        }
+
+        if !is_non_empty_regular_file(tmp_path) {
+            last_error = Some(anyhow::anyhow!(
+                "ffmpeg reported success but wrote no frame output (seekSeconds={attempt_seconds:.3})"
+            ));
+            continue;
+        }
+
+        move_tmp_to_final(tmp_path, final_path)?;
+        return Ok(attempt_seconds);
+    }
+
+    let _ = fs::remove_file(tmp_path);
+    Err(last_error
+        .unwrap_or_else(|| anyhow::anyhow!("ffmpeg did not produce a concat preview frame output")))
+}
+
 pub(crate) fn extract_concat_preview_frame(
     segment_paths: &[String],
     tools: &ExternalToolSettings,
@@ -267,11 +318,7 @@ pub(crate) fn extract_concat_preview_frame(
     ensure_dir_exists(&frames_dir)?;
 
     let final_path = frames_dir.join(format!("{hash:016x}.jpg"));
-    if is_regular_file(&final_path)
-        && fs::metadata(&final_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
+    if is_non_empty_regular_file(&final_path) {
         maybe_cleanup_cache_now(&cache_root);
         return Ok(final_path);
     }
@@ -279,11 +326,7 @@ pub(crate) fn extract_concat_preview_frame(
     let inflight = acquire_inflight_lock(&key);
     let _guard = inflight.lock().expect("inflight key lock poisoned");
 
-    if is_regular_file(&final_path)
-        && fs::metadata(&final_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
+    if is_non_empty_regular_file(&final_path) {
         maybe_cleanup_cache_now(&cache_root);
         return Ok(final_path);
     }
@@ -295,34 +338,40 @@ pub(crate) fn extract_concat_preview_frame(
         .with_context(|| format!("failed to write concat list {}", list_path.display()))?;
 
     let (ffmpeg_path, _, _) = ensure_tool_available(ExternalToolKind::Ffmpeg, tools)?;
-    let mut cmd = Command::new(&ffmpeg_path);
-    configure_background_command(&mut cmd);
+    let seek_backoffs_seconds: [f64; 5] = [0.0, 0.25, 0.5, 1.0, 2.0];
 
-    let args = build_concat_ffmpeg_args(&list_path, position_seconds, quality, &tmp_path);
-    cmd.args(args);
+    let result = extract_frame_with_seek_backoffs(
+        position_seconds.max(0.0),
+        &seek_backoffs_seconds,
+        &tmp_path,
+        &final_path,
+        |attempt_seconds, tmp_path| {
+            let mut cmd = Command::new(&ffmpeg_path);
+            configure_background_command(&mut cmd);
 
-    let output = cmd
-        .output()
-        .with_context(|| "failed to run ffmpeg concat frame extraction")?;
+            let args = build_concat_ffmpeg_args(&list_path, attempt_seconds, quality, tmp_path);
+            cmd.args(args);
 
-    if !output.status.success() {
-        let _ = fs::remove_file(&tmp_path);
-        let _ = fs::remove_file(&list_path);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!(
-            "ffmpeg concat frame extraction failed with status {}: {}",
-            output.status,
-            stderr.trim()
-        ));
-    }
+            let output = cmd
+                .output()
+                .with_context(|| "failed to run ffmpeg concat frame extraction")?;
+
+            if !output.status.success() {
+                let _ = fs::remove_file(tmp_path);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(anyhow::anyhow!(
+                    "ffmpeg concat frame extraction failed with status {}: {}",
+                    output.status,
+                    stderr.trim()
+                ));
+            }
+
+            Ok(())
+        },
+    );
 
     let _ = fs::remove_file(&list_path);
-
-    fs::rename(&tmp_path, &final_path).or_else(|_| {
-        fs::copy(&tmp_path, &final_path)
-            .map(|_| ())
-            .and_then(|_| fs::remove_file(&tmp_path))
-    })?;
+    result?;
 
     maybe_cleanup_cache_now(&cache_root);
     Ok(final_path)
@@ -339,145 +388,4 @@ pub(crate) fn build_concat_list_contents_for_tests(segment_paths: &[PathBuf]) ->
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-
-    use super::*;
-
-    #[test]
-    fn concat_preview_reports_missing_segments_with_os_error() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let missing = dir.path().join("missing-seg0.mp4");
-        let present = dir.path().join("seg1.mp4");
-        fs::write(&present, b"x").expect("write present segment");
-
-        let segs = vec![
-            missing.to_string_lossy().into_owned(),
-            present.to_string_lossy().into_owned(),
-        ];
-
-        let err = extract_concat_preview_frame(
-            &segs,
-            &ExternalToolSettings::default(),
-            0.0,
-            FallbackFrameQuality::Low,
-        )
-        .expect_err("should fail for missing segments");
-
-        let msg = err.to_string();
-        assert!(
-            msg.contains("segmentPaths contains a non-readable file:"),
-            "should include a stable error prefix: {msg}"
-        );
-        assert!(
-            msg.contains("missing-seg0.mp4"),
-            "should include the path: {msg}"
-        );
-        assert!(
-            msg.contains("os error"),
-            "should include OS error details: {msg}"
-        );
-    }
-
-    #[test]
-    fn concat_preview_ffmpeg_args_use_two_stage_seek_and_disable_audio() {
-        let list_path = PathBuf::from("concat.list");
-        let tmp_path = PathBuf::from("frame.part");
-
-        let args_low =
-            build_concat_ffmpeg_args(&list_path, 12.345, FallbackFrameQuality::Low, &tmp_path);
-        let args_low: Vec<String> = args_low
-            .iter()
-            .map(|s| s.to_string_lossy().into_owned())
-            .collect();
-
-        let ss_indices: Vec<usize> = args_low
-            .iter()
-            .enumerate()
-            .filter_map(|(i, v)| (v == "-ss").then_some(i))
-            .collect();
-        assert_eq!(ss_indices.len(), 2, "expected two -ss occurrences");
-
-        let i_index = args_low
-            .iter()
-            .position(|v| v == "-i")
-            .expect("expected -i arg");
-
-        assert!(
-            ss_indices[0] < i_index,
-            "first -ss must be an input option before -i: {args_low:?}"
-        );
-        assert!(
-            ss_indices[1] > i_index,
-            "second -ss must be an output option after -i: {args_low:?}"
-        );
-
-        assert_eq!(
-            args_low.get(ss_indices[0] + 1).map(String::as_str),
-            Some("9.345")
-        );
-        assert_eq!(
-            args_low.get(ss_indices[1] + 1).map(String::as_str),
-            Some("3.000")
-        );
-
-        assert_eq!(
-            args_low.get(i_index + 1).map(String::as_str),
-            Some("concat.list"),
-            "list path should follow -i"
-        );
-        assert!(
-            args_low.iter().any(|v| v == "-an"),
-            "concat previews should disable audio decoding: {args_low:?}"
-        );
-        assert!(
-            args_low.iter().any(|v| v == "-vf"),
-            "low-quality concat previews should apply a scale filter: {args_low:?}"
-        );
-        assert!(
-            args_low.windows(2).any(|w| w == ["-q:v", "10"]),
-            "low-quality concat previews should use a high q:v value: {args_low:?}"
-        );
-        assert!(
-            args_low.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
-            "concat previews should force a full-range MJPEG pixel format: {args_low:?}"
-        );
-        assert!(
-            args_low.windows(2).any(|w| w == ["-strict", "-1"]),
-            "concat previews should relax strictness for MJPEG compatibility: {args_low:?}"
-        );
-
-        let args_high =
-            build_concat_ffmpeg_args(&list_path, 1.0, FallbackFrameQuality::High, &tmp_path);
-        let args_high: Vec<String> = args_high
-            .iter()
-            .map(|s| s.to_string_lossy().into_owned())
-            .collect();
-        assert!(
-            args_high.windows(2).any(|w| w == ["-ss", "0.000"]),
-            "fast seek should clamp to zero near the start: {args_high:?}"
-        );
-        assert!(
-            args_high.windows(2).any(|w| w == ["-ss", "1.000"]),
-            "accurate offset should match requested seconds near the start: {args_high:?}"
-        );
-        assert!(
-            args_high
-                .windows(2)
-                .any(|w| w == ["-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"]),
-            "high-quality concat previews should round dimensions to even values: {args_high:?}"
-        );
-        assert!(
-            args_high.windows(2).any(|w| w == ["-q:v", "3"]),
-            "high-quality concat previews should use q:v=3: {args_high:?}"
-        );
-        assert!(
-            args_high.windows(2).any(|w| w == ["-pix_fmt", "yuvj420p"]),
-            "concat previews should force a full-range MJPEG pixel format: {args_high:?}"
-        );
-        assert!(
-            args_high.windows(2).any(|w| w == ["-strict", "-1"]),
-            "concat previews should relax strictness for MJPEG compatibility: {args_high:?}"
-        );
-    }
-}
+mod tests;

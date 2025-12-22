@@ -81,6 +81,10 @@ pub(super) fn is_regular_file(path: &Path) -> bool {
     fs::metadata(path).map(|m| m.is_file()).unwrap_or(false)
 }
 
+fn is_non_empty_regular_file(path: &Path) -> bool {
+    is_regular_file(path) && fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false)
+}
+
 pub(crate) fn clear_fallback_frame_cache() -> Result<usize> {
     let dir = fallback_frames_dir()?;
     if !dir.exists() {
@@ -151,6 +155,20 @@ fn clamp_seek_seconds(total_duration: Option<f64>, requested_seconds: f64) -> f6
 
     let max = (duration - 0.001).max(0.0);
     requested.min(max)
+}
+
+fn two_stage_seek_args(seek_seconds: f64) -> (String, String) {
+    if !seek_seconds.is_finite() {
+        return ("0.000".to_string(), "0.000".to_string());
+    }
+
+    let seek_seconds = seek_seconds.max(0.0);
+    let fast_seek_seconds = (seek_seconds - 3.0).max(0.0);
+    let accurate_offset_seconds = (seek_seconds - fast_seek_seconds).max(0.0);
+    (
+        format!("{fast_seek_seconds:.3}"),
+        format!("{accurate_offset_seconds:.3}"),
+    )
 }
 
 fn bucket_position(position: FallbackFramePosition, quality: FallbackFrameQuality) -> String {
@@ -269,6 +287,53 @@ fn build_fallback_ffmpeg_args(
     out
 }
 
+fn move_tmp_to_final(tmp_path: &Path, final_path: &Path) -> Result<()> {
+    fs::rename(tmp_path, final_path).or_else(|_| {
+        fs::copy(tmp_path, final_path)
+            .map(|_| ())
+            .and_then(|_| fs::remove_file(tmp_path))
+    })?;
+    Ok(())
+}
+
+fn extract_frame_with_seek_backoffs<F>(
+    base_seek_seconds: f64,
+    seek_backoffs_seconds: &[f64],
+    tmp_path: &Path,
+    final_path: &Path,
+    mut run_ffmpeg: F,
+) -> Result<f64>
+where
+    F: FnMut(f64, &Path) -> Result<()>, {
+    let mut last_error: Option<anyhow::Error> = None;
+    for offset in seek_backoffs_seconds {
+        let attempt_seek_seconds = (base_seek_seconds - offset).max(0.0);
+        let _ = fs::remove_file(tmp_path);
+
+        match run_ffmpeg(attempt_seek_seconds, tmp_path) {
+            Ok(()) => {}
+            Err(err) => {
+                last_error = Some(err);
+                continue;
+            }
+        }
+
+        if !is_non_empty_regular_file(tmp_path) {
+            last_error = Some(anyhow::anyhow!(
+                "ffmpeg reported success but wrote no frame output (seekSeconds={attempt_seek_seconds:.3})"
+            ));
+            continue;
+        }
+
+        move_tmp_to_final(tmp_path, final_path)?;
+        return Ok(attempt_seek_seconds);
+    }
+
+    let _ = fs::remove_file(tmp_path);
+    Err(last_error
+        .unwrap_or_else(|| anyhow::anyhow!("ffmpeg did not produce a preview frame output")))
+}
+
 pub fn extract_fallback_frame(
     source_path: &str,
     tools: &ExternalToolSettings,
@@ -315,11 +380,7 @@ pub fn extract_fallback_frame(
     ensure_dir_exists(&frames_dir)?;
 
     let final_path = frames_dir.join(format!("{hash:016x}.jpg"));
-    if is_regular_file(&final_path)
-        && fs::metadata(&final_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
+    if is_non_empty_regular_file(&final_path) {
         maybe_cleanup_cache_now(&cache_root);
         return Ok(final_path);
     }
@@ -327,11 +388,7 @@ pub fn extract_fallback_frame(
     let inflight = acquire_inflight_lock(&key);
     let _guard = inflight.lock().expect("inflight key lock poisoned");
 
-    if is_regular_file(&final_path)
-        && fs::metadata(&final_path)
-            .map(|m| m.len() > 0)
-            .unwrap_or(false)
-    {
+    if is_non_empty_regular_file(&final_path) {
         maybe_cleanup_cache_now(&cache_root);
         return Ok(final_path);
     }
@@ -355,54 +412,52 @@ pub fn extract_fallback_frame(
         FallbackFramePosition::Seconds(s) => s,
     };
 
-    let seek_seconds = clamp_seek_seconds(total_duration, requested_seconds);
-    // Two-stage seek for frame accuracy:
-    // - First `-ss` (input option) does a fast seek to the nearest keyframe.
-    // - Second `-ss` (output option) decodes forward to the exact requested frame.
-    // This avoids returning a keyframe-only result for long GOP media.
-    let fast_seek_seconds = (seek_seconds - 3.0).max(0.0);
-    let accurate_offset_seconds = (seek_seconds - fast_seek_seconds).max(0.0);
-    let fast_ss_arg = format!("{fast_seek_seconds:.3}");
-    let accurate_ss_arg = format!("{accurate_offset_seconds:.3}");
-
     let (ffmpeg_path, _, _) = ensure_tool_available(ExternalToolKind::Ffmpeg, tools)?;
     let tmp_path = frames_dir.join(frame_tmp_filename(hash));
 
-    let _ = fs::remove_file(&tmp_path);
     let _ = fs::remove_file(&final_path);
 
-    let mut cmd = Command::new(&ffmpeg_path);
-    configure_background_command(&mut cmd);
-    cmd.args(build_fallback_ffmpeg_args(
-        source,
-        &fast_ss_arg,
-        &accurate_ss_arg,
-        quality,
+    let seek_seconds = clamp_seek_seconds(total_duration, requested_seconds);
+    let seek_backoffs_seconds: [f64; 5] = [0.0, 0.25, 0.5, 1.0, 2.0];
+
+    let _seek_used = extract_frame_with_seek_backoffs(
+        seek_seconds,
+        &seek_backoffs_seconds,
         &tmp_path,
-    ));
+        &final_path,
+        |attempt_seek_seconds, tmp_path| {
+            let (fast_ss_arg, accurate_ss_arg) = two_stage_seek_args(attempt_seek_seconds);
 
-    let output = cmd.output().with_context(|| {
-        format!(
-            "failed to run ffmpeg to extract a frame for {}",
-            source.display()
-        )
-    })?;
+            let mut cmd = Command::new(&ffmpeg_path);
+            configure_background_command(&mut cmd);
+            cmd.args(build_fallback_ffmpeg_args(
+                source,
+                &fast_ss_arg,
+                &accurate_ss_arg,
+                quality,
+                tmp_path,
+            ));
 
-    if !output.status.success() {
-        let _ = fs::remove_file(&tmp_path);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow::anyhow!(
-            "ffmpeg exited with status {}: {}",
-            output.status,
-            stderr.trim()
-        ));
-    }
+            let output = cmd.output().with_context(|| {
+                format!(
+                    "failed to run ffmpeg to extract a frame for {}",
+                    source.display()
+                )
+            })?;
 
-    fs::rename(&tmp_path, &final_path).or_else(|_| {
-        fs::copy(&tmp_path, &final_path)
-            .map(|_| ())
-            .and_then(|_| fs::remove_file(&tmp_path))
-    })?;
+            if !output.status.success() {
+                let _ = fs::remove_file(tmp_path);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(anyhow::anyhow!(
+                    "ffmpeg exited with status {}: {}",
+                    output.status,
+                    stderr.trim()
+                ));
+            }
+
+            Ok(())
+        },
+    )?;
 
     maybe_cleanup_cache_now(&cache_root);
     Ok(final_path)

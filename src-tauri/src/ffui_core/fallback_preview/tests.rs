@@ -168,3 +168,63 @@ fn extract_fallback_frame_reports_source_path_and_os_error() {
         "should include OS error details: {msg}"
     );
 }
+
+#[test]
+fn extract_frame_with_seek_backoffs_retries_when_tmp_output_is_missing() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let tmp_path = dir.path().join("frame.part");
+    let final_path = dir.path().join("frame.jpg");
+
+    let mut calls = 0usize;
+    let seek_used = extract_frame_with_seek_backoffs(
+        10.0,
+        &[0.0, 0.5],
+        &tmp_path,
+        &final_path,
+        |seek_seconds, out_path| {
+            calls += 1;
+            if calls == 2 {
+                fs::write(out_path, b"jpeg").expect("write mock frame");
+            }
+            // Simulate a "success" exit status even when no output was written.
+            let _ = seek_seconds;
+            Ok(())
+        },
+    )
+    .expect("expected fallback to succeed after retry");
+
+    assert!(
+        (seek_used - 9.5).abs() < 1e-9,
+        "expected second attempt seek"
+    );
+    assert!(
+        fs::metadata(&final_path)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false),
+        "final output should exist and be non-empty"
+    );
+    assert!(!tmp_path.exists(), "tmp output should be moved away");
+}
+
+#[test]
+fn extract_frame_with_seek_backoffs_errors_when_no_attempt_writes_output() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let tmp_path = dir.path().join("frame.part");
+    let final_path = dir.path().join("frame.jpg");
+
+    let err = extract_frame_with_seek_backoffs(
+        1.0,
+        &[0.0, 0.5],
+        &tmp_path,
+        &final_path,
+        |_seek_seconds, _out_path| Ok(()),
+    )
+    .expect_err("should fail when no tmp output is produced");
+
+    let msg = err.to_string();
+    assert!(
+        msg.contains("wrote no frame output") || msg.contains("did not produce"),
+        "should surface a stable error message: {msg}"
+    );
+    assert!(!final_path.exists(), "final output should not be created");
+}
