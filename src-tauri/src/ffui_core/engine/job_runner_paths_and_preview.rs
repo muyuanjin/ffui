@@ -183,6 +183,56 @@ pub(super) fn concat_video_segments(
     Ok(())
 }
 
+pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Result<()> {
+    if !segment.exists() {
+        return Ok(());
+    }
+
+    let ext = segment
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("mp4");
+    let tmp = segment.with_extension(format!("noaudio.tmp.{ext}"));
+
+    let mut cmd = Command::new(ffmpeg_path);
+    configure_background_command(&mut cmd);
+    let status = cmd
+        .arg("-y")
+        .arg("-hide_banner")
+        .arg("-loglevel")
+        .arg("error")
+        .arg("-i")
+        .arg(segment.as_os_str())
+        .arg("-map")
+        .arg("0:v:0")
+        .arg("-map")
+        .arg("0:s?")
+        .arg("-c")
+        .arg("copy")
+        .arg(tmp.as_os_str())
+        .status()
+        .with_context(|| format!("failed to run ffmpeg remux to drop audio for {}", segment.display()))?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "ffmpeg remux (drop audio) failed with status {status} for {}",
+            segment.display()
+        ));
+    }
+
+    // Best-effort replace on Windows: rename does not overwrite.
+    let _ = fs::remove_file(segment);
+    fs::rename(&tmp, segment).with_context(|| {
+        format!(
+            "failed to replace remuxed segment {} -> {}",
+            tmp.display(),
+            segment.display()
+        )
+    })?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 fn preview_root_dir() -> PathBuf {
     crate::ffui_core::previews_dir().unwrap_or_else(|_| PathBuf::from(".").join("previews"))

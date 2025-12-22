@@ -60,6 +60,7 @@ pub(super) fn recompute_processed_seconds_from_segments(
     let chosen = choose_processed_seconds_after_wait(media_duration, Some(prior), Some(clamped_total))
         .unwrap_or(clamped_total);
     meta.processed_seconds = Some(chosen);
+    meta.target_seconds = Some(chosen);
     meta.segments = Some(valid_segments.clone());
     meta.tmp_output_path = valid_segments.last().cloned().or(meta.tmp_output_path.clone());
 

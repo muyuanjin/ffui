@@ -76,6 +76,10 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
             "wait_metadata.processed_seconds should be derived from progress and duration"
         );
         assert_eq!(
+            meta.target_seconds, meta.processed_seconds,
+            "wait_metadata.target_seconds should track the join target"
+        );
+        assert_eq!(
             meta.tmp_output_path.as_deref(),
             Some(tmp.to_string_lossy().as_ref()),
             "wait_metadata.tmp_output_path should point to the temp output path"

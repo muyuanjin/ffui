@@ -25,6 +25,7 @@ pub struct WaitMetadata {
     /// Approximate number of seconds already processed when the job was
     /// paused. When media duration is unknown this may be None.
     pub processed_seconds: Option<f64>,
+    pub target_seconds: Option<f64>,
     /// Path to a partial output segment or temporary output file, when
     /// available. This is intended for future crash-recovery and resume
     /// strategies; callers must tolerate it being absent.

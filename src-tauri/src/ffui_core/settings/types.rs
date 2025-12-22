@@ -320,8 +320,9 @@ pub struct AppSettings {
     /// keep their previous behaviour.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_update_interval_ms: Option<u16>,
-    /// Optional interval in milliseconds between system metrics samples.
-    /// When unset, the backend falls back to DEFAULT_METRICS_INTERVAL_MS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume_backtrack_seconds: Option<f64>,
+    /// Optional interval in milliseconds between system metrics samples (falls back to DEFAULT_METRICS_INTERVAL_MS).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_interval_ms: Option<u16>,
     /// Aggregation mode for computing taskbar progress from the queue. When
@@ -334,8 +335,7 @@ pub struct AppSettings {
     /// files this defaults to `None` so older installs keep the previous
     /// behaviour of not restoring queue state unless explicitly enabled.
     pub queue_persistence_mode: QueuePersistenceMode,
-    /// Optional retention limits for per-job terminal log files when crash
-    /// recovery is enabled in full-log mode.
+    /// Optional retention limits for per-job terminal log files when crash recovery is enabled in full-log mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub crash_recovery_log_retention: Option<CrashRecoveryLogRetention>,
     /// One-time onboarding completion marker. When true, the smart preset /
@@ -472,6 +472,7 @@ impl Default for AppSettings {
             max_parallel_cpu_jobs: None,
             max_parallel_hw_jobs: None,
             progress_update_interval_ms: None,
+            resume_backtrack_seconds: None,
             metrics_interval_ms: None,
             taskbar_progress_mode: TaskbarProgressMode::default(),
             taskbar_progress_scope: TaskbarProgressScope::default(),

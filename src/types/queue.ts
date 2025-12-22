@@ -56,6 +56,8 @@ export interface WaitMetadata {
   processedWallMillis?: number;
   /** Approximate number of seconds already processed when the job was paused. */
   processedSeconds?: number;
+  /** Intended join target time in seconds for restart-based resume. */
+  targetSeconds?: number;
   /** Path to a partial or temporary output file captured during processing. */
   tmpOutputPath?: string;
   /**

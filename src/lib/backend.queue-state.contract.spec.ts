@@ -32,6 +32,7 @@ describe("backend queue state contract", () => {
           waitMetadata: {
             processedWallMillis: 1234,
             processedSeconds: 36.223129,
+            targetSeconds: 36.223129,
             tmpOutputPath: "C:/tmp/seg0.mkv",
             segments: ["C:/tmp/seg0.mkv"],
           },
@@ -45,7 +46,39 @@ describe("backend queue state contract", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
     expect(result.jobs[0]?.waitMetadata?.processedWallMillis).toBe(1234);
     expect(result.jobs[0]?.waitMetadata?.processedSeconds).toBeCloseTo(36.223129, 6);
+    expect(result.jobs[0]?.waitMetadata?.targetSeconds).toBeCloseTo(36.223129, 6);
     expect(result.jobs[0]?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg0.mkv");
     expect(result.jobs[0]?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv"]);
+  });
+
+  it("loadQueueStateLite preserves waitMetadata.segments order for multi-segment resumes", async () => {
+    const fake = {
+      jobs: [
+        {
+          id: "job-2",
+          filename: "C:/videos/in.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 10,
+          presetId: "preset-1",
+          status: "paused",
+          progress: 40,
+          logs: [],
+          waitMetadata: {
+            processedWallMillis: 2468,
+            processedSeconds: 73.873,
+            targetSeconds: 73.873,
+            tmpOutputPath: "C:/tmp/seg1.mkv",
+            segments: ["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"],
+          },
+        },
+      ],
+    };
+    invokeMock.mockResolvedValueOnce(fake);
+
+    const result = await loadQueueStateLite();
+
+    expect(result.jobs[0]?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg1.mkv");
+    expect(result.jobs[0]?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"]);
   });
 });

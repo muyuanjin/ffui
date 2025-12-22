@@ -5,7 +5,8 @@ pub(super) fn plan_resume_paths(
     media_duration: Option<f64>,
     wait_meta: Option<&WaitMetadata>,
     container_format: Option<&str>,
-) -> (Option<f64>, Vec<PathBuf>, PathBuf) {
+    backtrack_seconds: f64,
+) -> (Option<f64>, Vec<PathBuf>, PathBuf, Option<ResumePlan>) {
     // Use a per-job, per-segment temp output path so multiple pauses/resumes (or
     // duplicate enqueues for the same input) never collide on disk.
     let build_tmp = |idx: u64| {
@@ -19,15 +20,15 @@ pub(super) fn plan_resume_paths(
     };
 
     // 根据 WaitMetadata 计算“已处理秒数”和历史分段列表，以支撑多次暂停/继续。
-    let mut resume_from_seconds: Option<f64> = None;
+    let mut resume_target_seconds: Option<f64> = None;
     let mut existing_segments: Vec<PathBuf> = Vec::new();
     let mut recorded_segment_count: u64 = 0;
 
     if let Some(meta) = wait_meta {
-        // 1) 计算当前已经处理到的时间位置，用于构建下一轮的 -ss。
-        if let Some(processed) = meta.processed_seconds {
-            if processed.is_finite() && processed > 0.0 {
-                resume_from_seconds = Some(processed);
+        // 1) 计算 join target（边界点），用于规划恢复（可能 overlap+trim）。
+        if let Some(target) = meta.target_seconds.or(meta.processed_seconds) {
+            if target.is_finite() && target > 0.0 {
+                resume_target_seconds = Some(target);
             }
         } else if let (Some(pct), Some(total)) = (meta.last_progress_percent, media_duration)
             && pct.is_finite()
@@ -37,7 +38,7 @@ pub(super) fn plan_resume_paths(
         {
             let processed = (pct / 100.0) * total;
             if processed > 0.0 {
-                resume_from_seconds = Some(processed);
+                resume_target_seconds = Some(processed);
             }
         }
 
@@ -64,18 +65,39 @@ pub(super) fn plan_resume_paths(
     }
 
     // 无有效历史分段或缺乏位置信息时，回退为从 0% 开始的新一次转码。
-    if existing_segments.is_empty() || resume_from_seconds.is_none() {
+    if existing_segments.is_empty() || resume_target_seconds.is_none() {
         // Even for a fresh run, ensure we pick a non-existent segment path in
         // case this job id previously crashed and left stale tmp files behind.
         let mut idx: u64 = recorded_segment_count;
         loop {
             let candidate = build_tmp(idx);
             if !candidate.exists() {
-                return (None, Vec::new(), candidate);
+                return (None, Vec::new(), candidate, None);
             }
             idx = idx.saturating_add(1);
         }
     }
+
+    let target_seconds = resume_target_seconds.unwrap_or(0.0).max(0.0);
+    let backtrack_seconds = if backtrack_seconds.is_nan() {
+        0.0
+    } else {
+        backtrack_seconds.clamp(0.0, 10.0)
+    };
+    let seek_seconds = (target_seconds - backtrack_seconds).max(0.0);
+    let trim_start_seconds = (target_seconds - seek_seconds).max(0.0);
+
+    let resume_plan = ResumePlan {
+        target_seconds,
+        seek_seconds,
+        trim_start_seconds,
+        backtrack_seconds,
+        strategy: if backtrack_seconds > 0.0 && trim_start_seconds > 0.0 {
+            ResumeStrategy::OverlapTrim
+        } else {
+            ResumeStrategy::LegacySeek
+        },
+    };
 
     // Resumed run: pick the next available segment index (starting at the
     // recorded count) and skip any stale files that may exist from crashes.
@@ -83,7 +105,7 @@ pub(super) fn plan_resume_paths(
     loop {
         let candidate = build_tmp(idx);
         if !candidate.exists() {
-            return (resume_from_seconds, existing_segments, candidate);
+            return (resume_target_seconds, existing_segments, candidate, Some(resume_plan));
         }
         idx = idx.saturating_add(1);
     }
@@ -309,18 +331,21 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     if let Some(meta) = job_wait_metadata.as_mut() {
         let corrected =
             recompute_processed_seconds_from_segments(meta, &settings_snapshot, media_info.duration_seconds);
-        if corrected {
-            let processed = meta.processed_seconds.unwrap_or(0.0);
-            let mut state = inner.state.lock().expect("engine state poisoned");
-            if let Some(job) = state.jobs.get_mut(job_id)
-                && let Some(job_meta) = job.wait_metadata.as_mut()
-            {
-	                job_meta.processed_seconds = Some(processed);
-	                job_meta.segments = meta.segments.clone();
-	                job_meta.tmp_output_path = meta.tmp_output_path.clone();
-	                super::worker_utils::append_job_log_line(
-	                    job,
-	                    format!(
+	        if corrected {
+	            let processed = meta.processed_seconds.unwrap_or(0.0);
+	            let mut state = inner.state.lock().expect("engine state poisoned");
+	            if let Some(job) = state.jobs.get_mut(job_id)
+	                && let Some(job_meta) = job.wait_metadata.as_mut()
+	            {
+		                job_meta.processed_seconds = Some(processed);
+                    // Align join target with the corrected processed seconds so
+                    // crash recovery and future resume planning stay consistent.
+                    job_meta.target_seconds = Some(processed);
+		                job_meta.segments = meta.segments.clone();
+		                job_meta.tmp_output_path = meta.tmp_output_path.clone();
+		                super::worker_utils::append_job_log_line(
+		                    job,
+		                    format!(
 	                        "resume: recomputed processedSeconds from segment durations: {processed:.6}s"
 	                    ),
 	                );
@@ -328,7 +353,9 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
 	        }
 	    }
 
-    let (mut resume_from_seconds, mut existing_segments, tmp_output) = plan_resume_paths(
+    let backtrack_seconds = settings_snapshot.effective_resume_backtrack_seconds();
+    let (mut resume_target_seconds, mut existing_segments, tmp_output, mut resume_plan) =
+        plan_resume_paths(
         job_id,
         &input_path,
         &output_path,
@@ -338,6 +365,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             .container
             .as_ref()
             .and_then(|c| c.format.as_deref()),
+        backtrack_seconds,
     );
     // Prefer duration from ffprobe when available, but allow the ffmpeg
     // stderr metadata lines (e.g. "Duration: 00:01:29.95, ...") to fill this
@@ -378,6 +406,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             last_progress_percent: None,
                             processed_wall_millis: None,
                             processed_seconds: None,
+                            target_seconds: None,
                             tmp_output_path: Some(tmp_str.clone()),
                             segments: Some(vec![tmp_str.clone()]),
                         });
@@ -392,62 +421,28 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     // Broadcast an updated queue snapshot with media metadata and preview path before starting the heavy ffmpeg transcode.
     notify_queue_listeners(inner);
 
-    // For resumed jobs, derive an effective preset that seeks into the input
-    // at the last known processed position using an input-side `-ss` so the
-    // new segment continues where the previous temp output stopped. When the
-    // preset already defines a custom output-side seek we fall back to a
-    // fresh run to avoid surprising overrides.
-    let mut effective_preset = preset.clone();
-    if let Some(offset) = resume_from_seconds {
-        let mut clone = preset.clone();
-        match clone.input {
-            Some(ref mut timeline) => {
-                use crate::ffui_core::domain::SeekMode;
-                match timeline.seek_mode {
-                    None | Some(SeekMode::Input) => {
-                        timeline.seek_mode = Some(SeekMode::Input);
-                        timeline.seek_position = Some(format!("{offset:.6}"));
-                        if timeline.accurate_seek.is_none() {
-                            timeline.accurate_seek = Some(true);
-                        }
-                        effective_preset = clone;
-                    }
-                    Some(SeekMode::Output) => {
-                        // Preserve caller-provided output-side seeking; disable
-                        // automatic resume for such advanced timelines.
-                        resume_from_seconds = None;
-                        existing_segments.clear();
-                        effective_preset = preset.clone();
-                    }
-                }
-            }
-            None => {
-                use crate::ffui_core::domain::{InputTimelineConfig, SeekMode};
-                let timeline = InputTimelineConfig {
-                    seek_mode: Some(SeekMode::Input),
-                    seek_position: Some(format!("{offset:.6}")),
-                    duration_mode: None,
-                    duration: None,
-                    accurate_seek: Some(true),
-                };
-                clone.input = Some(timeline);
-                effective_preset = clone;
-            }
-        }
-    }
-
-    // 为 mp4/mov 输出启用 fragmented MP4 片段写入，提高“暂停/崩溃后继续”场景下
-    // 临时分段文件的稳健性。最终完整输出的 concat 会基于这些分段进行无损拼接。
-    ensure_fragmented_movflags_for_mp4_like_output(&mut effective_preset, &output_path);
+    let (effective_preset, finalize_preset, finalize_with_source_audio) =
+        build_effective_preset_for_resume(
+            inner,
+            job_id,
+            &preset,
+            &output_path,
+            &mut resume_target_seconds,
+            &mut resume_plan,
+            &mut existing_segments,
+        );
 
     Ok(Some(PreparedTranscodeJob {
         input_path,
         settings_snapshot,
         preset: effective_preset,
+        finalize_preset,
         original_size_bytes,
         preset_id,
         output_path,
-        resume_from_seconds,
+        resume_target_seconds,
+        resume_plan,
+        finalize_with_source_audio,
         existing_segments,
         tmp_output,
         total_duration,

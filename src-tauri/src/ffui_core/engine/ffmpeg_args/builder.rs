@@ -68,6 +68,34 @@ pub(crate) fn build_ffmpeg_args(
         if non_interactive && !args.iter().any(|a| a == "-nostdin") {
             args.push("-nostdin".to_string());
         }
+        // Best-effort support for structured input timeline seeking even when
+        // using advanced templates. This allows restart-based resume to inject
+        // an input-side `-ss` without requiring explicit placeholders.
+        if let Some(timeline) = &preset.input
+            && let Some(SeekMode::Input) = timeline.seek_mode
+            && let Some(pos) = &timeline.seek_position
+            && !pos.trim().is_empty()
+            && !args.iter().any(|a| a == "-ss")
+        {
+            let input_positions: Vec<usize> = args
+                .iter()
+                .enumerate()
+                .filter_map(|(idx, arg)| (arg == "-i").then_some(idx))
+                .collect();
+            // Avoid guessing in multi-input templates; resume seeking is only
+            // safe when there is exactly one input.
+            if input_positions.len() == 1 {
+                let insert_at = input_positions[0];
+                args.insert(insert_at, pos.trim().to_string());
+                args.insert(insert_at, "-ss".to_string());
+                if timeline.accurate_seek.unwrap_or(false)
+                    && !args.iter().any(|a| a == "-accurate_seek")
+                {
+                    let insert_at = input_positions[0];
+                    args.insert(insert_at, "-accurate_seek".to_string());
+                }
+            }
+        }
         if let Some(fmt) = forced_muxer.as_deref() {
             enforce_output_muxer_for_template(&mut args, output, fmt);
         }

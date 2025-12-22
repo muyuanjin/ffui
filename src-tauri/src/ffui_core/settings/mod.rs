@@ -18,6 +18,7 @@ mod smart_presets_cpu;
 
 // Application settings management
 pub mod app_settings;
+mod app_settings_resume;
 
 // Tests
 #[cfg(test)]

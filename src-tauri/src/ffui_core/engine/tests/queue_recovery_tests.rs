@@ -62,3 +62,58 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
         "persisted waiting jobs should be restored ahead of newly enqueued jobs"
     );
 }
+
+#[test]
+fn crash_recovery_preserves_wait_target_seconds() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/recover-target.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let stored = state.jobs.get_mut(&job.id).expect("job exists");
+        stored.status = JobStatus::Paused;
+        stored.progress = 40.0;
+        stored.media_info = Some(MediaInfo {
+            duration_seconds: Some(100.0),
+            width: None,
+            height: None,
+            frame_rate: None,
+            video_codec: None,
+            audio_codec: None,
+            size_mb: None,
+        });
+        stored.wait_metadata = Some(WaitMetadata {
+            last_progress_percent: Some(40.0),
+            processed_wall_millis: Some(1234),
+            processed_seconds: Some(40.0),
+            target_seconds: Some(40.0),
+            tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
+            segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
+        });
+    }
+
+    let snapshot = engine.queue_state();
+
+    let restored = make_engine_with_preset();
+    restore_jobs_from_snapshot(&restored.inner, snapshot);
+
+    let state = restored.inner.state.lock().expect("engine state poisoned");
+    let restored_job = state.jobs.get(&job.id).expect("restored job exists");
+    let meta = restored_job
+        .wait_metadata
+        .as_ref()
+        .expect("restored wait_metadata exists");
+    assert_eq!(
+        meta.target_seconds,
+        Some(40.0),
+        "crash recovery should preserve the join target semantics"
+    );
+}

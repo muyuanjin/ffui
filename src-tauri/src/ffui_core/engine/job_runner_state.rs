@@ -111,6 +111,7 @@ pub(super) fn mark_job_waiting(
                 last_progress_percent: percent,
                 processed_wall_millis: Some(elapsed_wall_ms),
                 processed_seconds,
+                target_seconds: processed_seconds,
                 tmp_output_path: Some(tmp_str.clone()),
                 segments: Some(segments),
             });

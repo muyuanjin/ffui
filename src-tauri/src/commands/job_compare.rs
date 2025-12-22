@@ -386,6 +386,7 @@ mod tests {
                 last_progress_percent: Some(10.0),
                 processed_wall_millis: None,
                 processed_seconds: Some(12.5),
+                target_seconds: Some(12.5),
                 tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
                 segments: Some(vec![
                     "C:/app-data/tmp/seg0.mp4".to_string(),

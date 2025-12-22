@@ -257,6 +257,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
             last_progress_percent: Some(42.0),
             processed_wall_millis: Some(1234),
             processed_seconds: Some(1.0),
+            target_seconds: Some(1.0),
             tmp_output_path: None,
             segments: None,
         });

@@ -7,10 +7,13 @@ fn execute_transcode_job(
         input_path,
         settings_snapshot,
         preset,
+        finalize_preset,
         original_size_bytes,
         preset_id,
         output_path,
-        resume_from_seconds,
+        resume_target_seconds,
+        resume_plan,
+        finalize_with_source_audio,
         existing_segments,
         tmp_output,
         mut total_duration,
@@ -47,6 +50,14 @@ fn execute_transcode_job(
     } else {
         None
     };
+    log_resume_plan_and_normalize_segments(
+        inner,
+        job_id,
+        &ffmpeg_path,
+        resume_plan.as_ref(),
+        finalize_with_source_audio,
+        &existing_segments,
+    );
     let mut args = build_ffmpeg_args(
         &preset,
         &input_path,
@@ -54,7 +65,6 @@ fn execute_transcode_job(
         false,
         job_output_policy.as_ref(),
     );
-
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
     // Increase structured progress update frequency for the bundled ffmpeg
@@ -74,7 +84,6 @@ fn execute_transcode_job(
         args.insert(0, stats_arg);
         args.insert(0, "-stats_period".to_string());
     }
-
     // Record the exact ffmpeg command we are about to run so that users can
     // see and reproduce it from the queue UI if anything goes wrong.
     let ffmpeg_program_for_log = ffmpeg_path.clone();
@@ -206,7 +215,7 @@ fn execute_transcode_job(
                     drop(state);
                 }
 
-                let effective_elapsed = if let Some(base) = resume_from_seconds {
+                let effective_elapsed = if let Some(base) = resume_target_seconds {
                     base + elapsed
                 } else {
                     elapsed
@@ -269,8 +278,8 @@ fn execute_transcode_job(
                 .map(|p| probe_segment_duration_seconds(p.as_path(), &settings_snapshot))
                 .collect::<Option<Vec<f64>>>()
                 .map(|durations| durations.into_iter().sum::<f64>());
-        // Prefer resume_from_seconds for base; probe prior segments only when the offset is unknown (probing can be unreliable).
-        let base = resume_from_seconds
+        // Prefer the recorded join target for base; probe prior segments only when the offset is unknown (probing can be unreliable).
+        let base = resume_target_seconds
             .or(base_by_probe)
             .unwrap_or(0.0)
             .max(0.0);
@@ -280,6 +289,8 @@ fn execute_transcode_job(
 
         let processed_seconds_override =
             choose_processed_seconds_after_wait(total_duration, last_effective_elapsed_seconds, probed_end);
+
+        remux_wait_segment_or_log(inner, job_id, &ffmpeg_path, tmp_output.as_path());
 
         mark_job_waiting(
             inner,
@@ -321,53 +332,43 @@ fn execute_transcode_job(
     let final_output_size_bytes: u64;
 
     if !existing_segments.is_empty() {
-        // Resumed job: concat all previous partial segments with the new
-        // segment produced in this run into a temporary target, then atomically
-        // move it into place. This avoids corrupting any existing partial when
-        // concat fails。
-        let ext = output_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("mp4");
-        let concat_tmp = output_path.with_extension(format!("concat.tmp.{ext}"));
-
         let mut all_segments = existing_segments.clone();
         all_segments.push(tmp_output.clone());
 
-        if let Err(err) = concat_video_segments(&ffmpeg_path, &all_segments, &concat_tmp) {
-            {
-                let mut state = inner.state.lock().expect("engine state poisoned");
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    job.status = JobStatus::Failed;
-                    job.progress = 100.0;
-                    job.end_time = Some(current_time_millis());
-	                    let reason =
-	                        format!("ffmpeg concat failed when resuming from partial output: {err:#}");
-	                    job.failure_reason = Some(reason.clone());
-	                    super::worker_utils::append_job_log_line(job, reason);
-	                }
-	            }
-	            let _ = fs::remove_file(&tmp_output);
-            mark_batch_compress_child_processed(inner, job_id);
-            return Ok(());
+        let result = finalize_resumed_job_output(FinalizeResumedJobOutputArgs {
+            inner,
+            job_id,
+            ffmpeg_path: &ffmpeg_path,
+            input_path: &input_path,
+            output_path: &output_path,
+            finalize_preset: &finalize_preset,
+            all_segments: &all_segments,
+            tmp_output: tmp_output.as_path(),
+            finalize_with_source_audio,
+        });
+        match result {
+            Ok(size) => {
+                final_output_size_bytes = size;
+            }
+            Err(err) => {
+                {
+                    let mut state = inner.state.lock().expect("engine state poisoned");
+                    if let Some(job) = state.jobs.get_mut(job_id) {
+                        job.status = JobStatus::Failed;
+                        job.progress = 100.0;
+                        job.end_time = Some(current_time_millis());
+                        let reason = format!(
+                            "finalize failed when resuming from partial output: {err:#}"
+                        );
+                        job.failure_reason = Some(reason.clone());
+                        super::worker_utils::append_job_log_line(job, reason);
+                    }
+                }
+                let _ = fs::remove_file(&tmp_output);
+                mark_batch_compress_child_processed(inner, job_id);
+                return Ok(());
+            }
         }
-
-        if let Err(err) = fs::rename(&concat_tmp, &output_path) {
-            let _ = fs::remove_file(&concat_tmp);
-            return Err(err).with_context(|| {
-                format!(
-                    "failed to finalize resumed output {} -> {}",
-                    concat_tmp.display(),
-                    output_path.display()
-                )
-            });
-        }
-
-        for seg in all_segments {
-            let _ = fs::remove_file(&seg);
-        }
-
-        final_output_size_bytes = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
     } else {
         let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
 

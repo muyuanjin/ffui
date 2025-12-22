@@ -251,6 +251,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                         last_progress_percent: Some(progress),
                         processed_wall_millis: elapsed_ms,
                         processed_seconds: None,
+                        target_seconds: None,
                         tmp_output_path: Some(tmp_str.clone()),
                         segments: Some(vec![tmp_str]),
                     });
