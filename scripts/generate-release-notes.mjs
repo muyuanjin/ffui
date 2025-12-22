@@ -5,6 +5,16 @@ function runGit(args) {
   return execFileSync("git", args, { encoding: "utf8" }).trimEnd();
 }
 
+function gitRefExists(ref) {
+  if (!ref) return false;
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function usageAndExit() {
   // Keep output concise; this tool is primarily used in CI.
   // eslint-disable-next-line no-console
@@ -160,7 +170,8 @@ const format = parseFormat(argv);
 let previousTag = normalizeTag(positional[1] || "");
 if (!previousTag) previousTag = pickPreviousTag(currentTag);
 
-const range = previousTag ? `${previousTag}..${currentTag}` : currentTag;
+const currentRef = gitRefExists(currentTag) ? currentTag : "HEAD";
+const range = previousTag ? `${previousTag}..${currentRef}` : currentRef;
 
 // Use only the subject lines; this keeps release notes readable and consistent.
 const subjects = runGit(["log", "--pretty=%s", range])
