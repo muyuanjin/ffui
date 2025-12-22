@@ -72,6 +72,54 @@ describe("JobCompareDialog", () => {
     (extractJobCompareConcatFrame as any).mockClear?.();
   });
 
+  it("clamps frame compare seeks to stay strictly within max duration", async () => {
+    vi.useFakeTimers();
+
+    const sources: JobCompareSources = {
+      jobId: "job-1",
+      inputPath: "C:/videos/input.mp4",
+      output: { kind: "partial", segmentPaths: ["C:/tmp/seg0.mp4", "C:/tmp/seg1.mp4"] },
+      maxCompareSeconds: 120,
+    };
+    (getJobCompareSources as any).mockResolvedValueOnce(sources);
+
+    const wrapper = mount(JobCompareDialog, {
+      props: { open: true, job: makeJob({ status: "paused", mediaInfo: { durationSeconds: 120 } }) },
+      global: { plugins: [i18n], stubs },
+    });
+
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    // Flush any initial scheduled frame requests at t=0.
+    vi.runAllTimers();
+    await wrapper.vm.$nextTick();
+    (extractJobCompareFrame as any).mockClear?.();
+    (extractJobCompareConcatFrame as any).mockClear?.();
+
+    const slider = wrapper.get('[data-testid="job-compare-timeline"]');
+    await slider.setValue("120");
+
+    vi.advanceTimersByTime(121);
+    await wrapper.vm.$nextTick();
+
+    const inputCalls: any[] = (extractJobCompareFrame as any).mock.calls ?? [];
+    const outputCalls: any[] = (extractJobCompareConcatFrame as any).mock.calls ?? [];
+    expect(inputCalls.length + outputCalls.length).toBeGreaterThan(0);
+
+    for (const call of inputCalls) {
+      const args = call[0] as any;
+      expect(args.positionSeconds).toBeLessThan(120);
+    }
+    for (const call of outputCalls) {
+      const args = call[0] as any;
+      expect(args.positionSeconds).toBeLessThan(120);
+    }
+
+    wrapper.unmount();
+    vi.useRealTimers();
+  });
+
   it("uses full duration timeline but blocks dragging into the unencoded region", async () => {
     const sources: JobCompareSources = {
       jobId: "job-1",
