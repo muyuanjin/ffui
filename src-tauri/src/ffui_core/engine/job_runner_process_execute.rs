@@ -15,6 +15,7 @@ fn execute_transcode_job(
         resume_plan,
         finalize_with_source_audio,
         existing_segments,
+        segment_end_targets,
         tmp_output,
         mut total_duration,
         ffmpeg_path,
@@ -65,25 +66,10 @@ fn execute_transcode_job(
         false,
         job_output_policy.as_ref(),
     );
+    maybe_insert_copyts_for_overlap_trim(&mut args, resume_plan);
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
-    // Increase structured progress update frequency for the bundled ffmpeg
-    // binary so `job.progress` has a higher reporting rate without inventing
-    // synthetic percentages. Old custom ffmpeg builds may not support this
-    // flag, so we only apply it for the known static download source.
-    if ffmpeg_source == "download" {
-        let interval_ms = settings_snapshot
-            .progress_update_interval_ms
-            .unwrap_or(DEFAULT_PROGRESS_UPDATE_INTERVAL_MS);
-        // Clamp into a sensible range [50ms, 2000ms] to avoid extreme values.
-        let clamped_ms = interval_ms.clamp(50, 2000) as f64;
-        let stats_period_secs = clamped_ms / 1000.0;
-        let stats_arg = format!("{stats_period_secs:.3}");
-        cmd.arg("-stats_period").arg(&stats_arg);
-        // 确保日志中记录的命令与实际执行的命令完全一致：包括 -stats_period 参数。
-        args.insert(0, stats_arg);
-        args.insert(0, "-stats_period".to_string());
-    }
+    maybe_inject_stats_period_for_download(&mut cmd, &mut args, &settings_snapshot, &ffmpeg_source);
     // Record the exact ffmpeg command we are about to run so that users can
     // see and reproduce it from the queue UI if anything goes wrong.
     let ffmpeg_program_for_log = ffmpeg_path.clone();
@@ -335,6 +321,9 @@ fn execute_transcode_job(
         let mut all_segments = existing_segments.clone();
         all_segments.push(tmp_output.clone());
 
+        let segment_durations =
+            derive_resume_concat_segment_durations(&segment_end_targets, all_segments.len());
+
         let result = finalize_resumed_job_output(FinalizeResumedJobOutputArgs {
             inner,
             job_id,
@@ -343,6 +332,7 @@ fn execute_transcode_job(
             output_path: &output_path,
             finalize_preset: &finalize_preset,
             all_segments: &all_segments,
+            segment_durations: segment_durations.as_deref(),
             tmp_output: tmp_output.as_path(),
             finalize_with_source_audio,
         });

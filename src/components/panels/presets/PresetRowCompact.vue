@@ -12,6 +12,7 @@ import {
   getPresetRiskBadge,
   getPresetScenarioLabel,
   getRatioColorClass,
+  isCustomCommandPreset,
   isSmartPreset,
 } from "../presetHelpers";
 
@@ -79,8 +80,18 @@ const handleRowClick = (event: MouseEvent) => {
           >
             {{ t("presets.recommendedSmart") }}
           </span>
+          <span
+            v-if="isCustomCommandPreset(preset)"
+            class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-500 px-1.5 py-0.5 text-[8px] font-medium border border-amber-500/40 flex-shrink-0"
+            :title="t('presets.inferredNonAuthoritative')"
+          >
+            {{ t("presets.customCommandBadge") }}
+          </span>
         </div>
         <p class="text-[10px] text-muted-foreground truncate">{{ getPresetDescription(preset, locale) }}</p>
+        <p v-if="isCustomCommandPreset(preset)" class="text-[9px] text-amber-400 truncate">
+          {{ t("presets.inferredNonAuthoritative") }}
+        </p>
         <div class="mt-0.5 flex items-center flex-wrap gap-1">
           <span class="text-[9px] text-muted-foreground">
             {{ t("presetEditor.panel.scenarioLabel") }}：

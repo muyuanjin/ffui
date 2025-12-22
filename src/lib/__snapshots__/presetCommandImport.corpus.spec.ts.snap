@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`presetCommandImport corpus (docs/ffmpeg_commands*.txt) > produces a stable corpus summary snapshot (useful for regressions) 1`] = `
+{
+  "counts": {
+    "blocked": 2,
+    "blocks": 2,
+    "candidates": 2,
+    "customEligible": 0,
+    "editableEligible": 0,
+  },
+  "topBlockedReasons": [
+    {
+      "count": 1,
+      "reason": "OUTPUT 必须是命令的最后一个输出参数（当前仅支持单输出）",
+    },
+    {
+      "count": 1,
+      "reason": "包含多个 -i 输入（当前仅支持单输入）",
+    },
+    {
+      "count": 1,
+      "reason": "检测到多个 INPUT 占位符（当前仅支持单输入）",
+    },
+  ],
+}
+`;

@@ -17,6 +17,14 @@ const presetEditor = {
     av1VisuallyLossless: "AV1 视觉无损归档 (NVENC)",
     streamCopy: "仅封装 / 直拷贝",
   },
+  kind: {
+    title: "预设类型",
+    description: "选择该预设的定义方式，以及转码时真正生效的“权威来源”。",
+    structuredTitle: "普通预设（可编辑参数）",
+    structuredDescription: "通过向导/面板编辑参数，FFUI 会从字段确定性生成 ffmpeg 命令。",
+    customTitle: "自定义命令（模板）",
+    customDescription: "编写/粘贴 ffmpeg 模板（使用 INPUT/OUTPUT 占位符）。模板为准。",
+  },
   video: {
     encoder: "视频编码器",
     encoderPlaceholder: "选择编码器",
@@ -137,6 +145,7 @@ const presetEditor = {
     title: "高级（原始 ffmpeg 命令）",
     description: "可以直接写完整的 ffmpeg 命令模版，使用 INPUT / OUTPUT 作为占位符。",
     enabledLabel: "使用自定义命令，忽略上面的参数选项",
+    customPresetHint: "这是“自定义命令预设”。以模板为准；结构化参数仅用于展示推断信息（非权威）。",
     templateLabel: "ffmpeg 命令模版",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "命令预览",

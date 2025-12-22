@@ -35,6 +35,7 @@ describe("backend queue state contract", () => {
             targetSeconds: 36.223129,
             tmpOutputPath: "C:/tmp/seg0.mkv",
             segments: ["C:/tmp/seg0.mkv"],
+            segmentEndTargets: [36.223129],
           },
         },
       ],
@@ -49,6 +50,7 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.waitMetadata?.targetSeconds).toBeCloseTo(36.223129, 6);
     expect(result.jobs[0]?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg0.mkv");
     expect(result.jobs[0]?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv"]);
+    expect(result.jobs[0]?.waitMetadata?.segmentEndTargets).toEqual([36.223129]);
   });
 
   it("loadQueueStateLite preserves waitMetadata.segments order for multi-segment resumes", async () => {
@@ -70,6 +72,7 @@ describe("backend queue state contract", () => {
             targetSeconds: 73.873,
             tmpOutputPath: "C:/tmp/seg1.mkv",
             segments: ["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"],
+            segmentEndTargets: [36.223129, 73.873],
           },
         },
       ],
@@ -80,5 +83,6 @@ describe("backend queue state contract", () => {
 
     expect(result.jobs[0]?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg1.mkv");
     expect(result.jobs[0]?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"]);
+    expect(result.jobs[0]?.waitMetadata?.segmentEndTargets).toEqual([36.223129, 73.873]);
   });
 });

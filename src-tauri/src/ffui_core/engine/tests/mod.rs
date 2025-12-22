@@ -70,6 +70,7 @@ mod ffmpeg_pause_resume_integration;
 mod image_and_preview;
 mod job_progress_and_processing;
 mod job_progress_wall_clock;
+mod job_runner_concat_list;
 mod job_runner_finalize_mux_args_contract_tests;
 mod job_runner_prepare_resume_paths;
 mod job_runner_processed_seconds_choice;

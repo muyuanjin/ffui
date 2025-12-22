@@ -37,6 +37,7 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
             target_seconds: Some(12.3),
             tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
             segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+            segment_end_targets: None,
         });
     }
 

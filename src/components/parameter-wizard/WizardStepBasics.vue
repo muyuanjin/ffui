@@ -8,6 +8,7 @@ import type { AudioConfig, VideoConfig } from "@/types";
 const props = defineProps<{
   name: string;
   description: string;
+  showRecipes?: boolean;
   t: (key: string, params?: any) => string | unknown;
 }>();
 
@@ -42,7 +43,7 @@ const applyRecipe = (payload: {
     description: payload.description,
     video: payload.video,
     audio: payload.audio,
-    nextStep: payload.nextStep ?? 2,
+    nextStep: payload.nextStep ?? 3,
     advancedEnabled: payload.advancedEnabled,
     ffmpegTemplate: payload.ffmpegTemplate,
   });
@@ -74,7 +75,7 @@ const applyRecipe = (payload: {
         @update:model-value="(value) => emit('update:description', value as string)"
       />
     </div>
-    <div class="bg-primary/10 border border-primary/40 p-4 rounded-md">
+    <div v-if="props.showRecipes !== false" class="bg-primary/10 border border-primary/40 p-4 rounded-md">
       <h4 class="text-primary font-semibold flex items-center gap-2 mb-2">
         <span class="text-sm">ℹ</span>
         {{ t("presetEditor.recipes.title") }}
@@ -133,7 +134,7 @@ const applyRecipe = (payload: {
               advancedEnabled: true,
               ffmpegTemplate:
                 '-hide_banner -i INPUT -map 0 -c:v hevc_nvenc -preset:v p7 -profile:v main10 -rc:v constqp -rc-lookahead 1 -spatial-aq 0 -temporal-aq 1 -weighted_pred 0 -init_qpI 20 -init_qpP 20 -init_qpB 24 -qp_cb_offset 10 -qp_cr_offset 11 -b_ref_mode 1 -dpb_size 4 -multipass 1 -g 60 -bf 3 -pix_fmt yuv420p10le -color_range tv -color_primaries bt709 -color_trc bt709 -colorspace bt709 -c:a copy -movflags +faststart OUTPUT',
-              nextStep: 5,
+              nextStep: 6,
             })
           "
         >
@@ -173,7 +174,7 @@ const applyRecipe = (payload: {
               advancedEnabled: true,
               ffmpegTemplate:
                 '-i INPUT -map 0 -c:v av1_nvenc -preset p7 -tune hq -rc constqp -qp 18 -pix_fmt p010le -b_ref_mode each -bf 3 -rc-lookahead 32 -spatial-aq 1 -temporal-aq 1 -c:a copy OUTPUT',
-              nextStep: 5,
+              nextStep: 6,
             })
           "
         >

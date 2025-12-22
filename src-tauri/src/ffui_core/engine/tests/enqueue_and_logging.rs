@@ -260,6 +260,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
             target_seconds: Some(1.0),
             tmp_output_path: None,
             segments: None,
+            segment_end_targets: None,
         });
         if let Some(run) = stored.runs.first_mut() {
             run.started_at_ms = Some(1);

@@ -39,6 +39,12 @@ describe("ParameterWizard", () => {
       },
     });
 
+    // Step 1: preset kind selection (default: structured). Move into the basics step.
+    const nextLabel = t("common.next");
+    const nextFromKind = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+    expect(nextFromKind).toBeTruthy();
+    await nextFromKind!.trigger("click");
+
     // Step 1: choose the fast NVENC recipe to switch encoder to hevc_nvenc.
     const fastNvencLabel = t("presetEditor.recipes.fastTranscode");
     const recipeButtons = wrapper.findAll("button");
@@ -46,8 +52,7 @@ describe("ParameterWizard", () => {
     expect(fastNvencButton).toBeTruthy();
     await fastNvencButton!.trigger("click");
 
-    const nextLabel = t("common.next");
-    // Recipe 会把 step 设置为 2，这里依次点击 Next 直到最后一步再保存。
+    // Recipe 会把 step 设置为 3（视频步骤），这里依次点击 Next 直到最后一步再保存。
     for (let i = 0; i < 3; i += 1) {
       const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
       expect(nextButton).toBeTruthy();
@@ -82,8 +87,8 @@ describe("ParameterWizard", () => {
     });
 
     const nextLabel = t("common.next");
-    // 从基础信息依次点击 Next 进入到音频步骤（第 4 步）。
-    for (let i = 0; i < 3; i += 1) {
+    // 依次点击 Next 进入到音频步骤（第 5 步：Kind → Basics → Video → Filters → Audio）。
+    for (let i = 0; i < 4; i += 1) {
       const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
       expect(nextButton).toBeTruthy();
       await nextButton!.trigger("click");
@@ -134,5 +139,44 @@ describe("ParameterWizard", () => {
     // 新建预设时也应该生成一个有效的 id 与名称占位。
     expect(preset.id).toBeTypeOf("string");
     expect(preset.name.length).toBeGreaterThan(0);
+  });
+
+  it("creates a custom command preset when selected on the first step", async () => {
+    const emitted: FFmpegPreset[] = [];
+
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: null,
+        onSave: (preset: FFmpegPreset) => emitted.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const customButton = wrapper.find("[data-testid='preset-kind-custom']");
+    expect(customButton.exists()).toBe(true);
+    await customButton.trigger("click");
+
+    const nextLabel = t("common.next");
+    const nextFromKind = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+    expect(nextFromKind).toBeTruthy();
+    await nextFromKind!.trigger("click");
+
+    // Jump to the advanced command step.
+    const nextFromBasics = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+    expect(nextFromBasics).toBeTruthy();
+    await nextFromBasics!.trigger("click");
+
+    const saveLabel = t("presetEditor.actions.save");
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(saveLabel));
+    expect(saveButton).toBeTruthy();
+    await saveButton!.trigger("click");
+
+    expect(emitted.length).toBe(1);
+    const preset = emitted[0];
+    expect(preset.advancedEnabled).toBe(true);
+    expect(preset.ffmpegTemplate?.includes("INPUT")).toBe(true);
+    expect(preset.ffmpegTemplate?.includes("OUTPUT")).toBe(true);
   });
 });

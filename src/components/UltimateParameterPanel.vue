@@ -239,6 +239,12 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
             <p :class="[parseHintClass, 'flex-shrink-0']">
               {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
             </p>
+            <p
+              v-if="advancedEnabled && ffmpegTemplate.trim().length > 0"
+              class="text-[11px] text-amber-400 flex-shrink-0"
+            >
+              {{ t("presetEditor.advanced.customPresetHint") }}
+            </p>
             <div class="space-y-1 mt-2 flex-shrink-0">
               <Label class="text-[11px]">
                 {{ t("presetEditor.advanced.templateLabel") }}

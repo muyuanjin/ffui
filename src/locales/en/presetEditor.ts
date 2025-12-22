@@ -17,6 +17,16 @@ const presetEditor = {
     av1VisuallyLossless: "AV1 Visually Lossless (NVENC)",
     streamCopy: "Stream Copy / Remux",
   },
+  kind: {
+    title: "Preset type",
+    description: "Choose how this preset is defined and what becomes the source of truth at runtime.",
+    structuredTitle: "Editable preset (UI parameters)",
+    structuredDescription:
+      "Edit via the wizard/panel. FFUI generates the ffmpeg command deterministically from fields.",
+    customTitle: "Custom command (template)",
+    customDescription:
+      "Paste or write your own ffmpeg template using INPUT/OUTPUT placeholders. The template is authoritative.",
+  },
   video: {
     encoder: "Video Encoder",
     encoderPlaceholder: "Choose encoder",
@@ -142,6 +152,8 @@ const presetEditor = {
     title: "Advanced (Raw ffmpeg command)",
     description: "Optionally define a full ffmpeg command template. Use INPUT and OUTPUT as placeholders.",
     enabledLabel: "Use custom command instead of generated options",
+    customPresetHint:
+      "This is a custom command preset. The template is authoritative; the structured fields are only inferred for display.",
     templateLabel: "ffmpeg command template",
     templatePlaceholder: "ffmpeg -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT",
     previewTitle: "Command preview",

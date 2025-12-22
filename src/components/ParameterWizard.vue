@@ -10,6 +10,7 @@ import WizardStepVideo from "@/components/parameter-wizard/WizardStepVideo.vue";
 import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.vue";
 import WizardStepAudio from "@/components/parameter-wizard/WizardStepAudio.vue";
 import WizardStepAdvanced from "@/components/parameter-wizard/WizardStepAdvanced.vue";
+import WizardStepPresetKind, { type PresetKind } from "@/components/parameter-wizard/WizardStepPresetKind.vue";
 
 const props = defineProps<{
   initialPreset?: FFmpegPreset | null;
@@ -25,7 +26,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const step = ref(1);
+const isEditing = computed(() => !!props.initialPreset);
+const step = ref(isEditing.value ? 2 : 1);
+const presetKind = ref<PresetKind>("structured");
+
+const DEFAULT_CUSTOM_TEMPLATE = "-hide_banner -i INPUT -c:v libx264 -crf 23 -preset medium -c:a copy OUTPUT";
+
 const name = ref(props.initialPreset?.name ?? "");
 const description = ref(props.initialPreset?.description ?? "");
 
@@ -54,6 +60,52 @@ const advancedEnabled = ref<boolean>(props.initialPreset?.advancedEnabled ?? fal
 const ffmpegTemplate = ref<string>(props.initialPreset?.ffmpegTemplate ?? "");
 const parseHint = ref<string | null>(null);
 const parseHintVariant = ref<"neutral" | "ok" | "warning">("neutral");
+
+const isCustomCommandPreset = computed<boolean>(() => advancedEnabled.value && ffmpegTemplate.value.trim().length > 0);
+
+if (props.initialPreset) {
+  presetKind.value = isCustomCommandPreset.value ? "custom" : "structured";
+}
+
+const isCustomFlow = computed(() => !isEditing.value && presetKind.value === "custom");
+
+const displayTotalSteps = computed<number>(() => {
+  if (isEditing.value) return 5;
+  if (isCustomFlow.value) return 3;
+  return 6;
+});
+
+const displayStepIndex = computed<number>(() => {
+  if (isEditing.value) return Math.max(1, step.value - 1);
+  if (!isCustomFlow.value) return step.value;
+  if (step.value === 1) return 1;
+  if (step.value === 2) return 2;
+  return 3;
+});
+
+const canGoBack = computed<boolean>(() => {
+  if (isEditing.value) return step.value > 2;
+  if (isCustomFlow.value) return step.value !== 1;
+  return step.value > 1;
+});
+
+const canGoNext = computed<boolean>(() => {
+  if (isCustomFlow.value) return step.value === 1 || step.value === 2;
+  return step.value < 6;
+});
+
+const isCustomTemplateValid = computed<boolean>(() => {
+  if (!isCustomFlow.value && !isCustomCommandPreset.value) return true;
+  const template = ffmpegTemplate.value.trim();
+  if (!template) return false;
+  return template.includes("INPUT") && template.includes("OUTPUT");
+});
+
+const canSave = computed<boolean>(() => {
+  if (isEditing.value) return true;
+  if (presetKind.value !== "custom") return true;
+  return isCustomTemplateValid.value;
+});
 
 const handleEncoderChange = (newEncoder: EncoderType) => {
   let defaults: Partial<VideoConfig> = {};
@@ -143,11 +195,54 @@ const buildPresetFromState = (): FFmpegPreset => {
 };
 
 const handleSave = () => {
+  if (!canSave.value) return;
   emit("save", buildPresetFromState());
 };
 
 const handleSwitchToPanel = () => {
   emit("switchToPanel", buildPresetFromState());
+};
+
+const handleKindChange = (kind: PresetKind) => {
+  presetKind.value = kind;
+  if (kind === "custom") {
+    advancedEnabled.value = true;
+    if (!ffmpegTemplate.value.trim()) {
+      ffmpegTemplate.value = DEFAULT_CUSTOM_TEMPLATE;
+    }
+  }
+};
+
+const goNext = () => {
+  if (isCustomFlow.value) {
+    if (step.value === 1) {
+      step.value = 2;
+      return;
+    }
+    if (step.value === 2) {
+      step.value = 6;
+      return;
+    }
+  }
+  if (step.value < 6) step.value += 1;
+};
+
+const goBack = () => {
+  if (isCustomFlow.value) {
+    if (step.value === 6) {
+      step.value = 2;
+      return;
+    }
+    if (step.value === 2) {
+      step.value = 1;
+      return;
+    }
+  }
+  if (isEditing.value) {
+    if (step.value > 2) step.value -= 1;
+    return;
+  }
+  if (step.value > 1) step.value -= 1;
 };
 
 const handleRecipeSelect = ({
@@ -268,7 +363,7 @@ const handleParseTemplateFromCommand = () => {
             {{ initialPreset ? t("presetEditor.titleEdit") : t("presetEditor.titleNew") }}
           </h2>
           <p class="text-muted-foreground text-sm">
-            {{ t("common.stepOf", { step, total: 5 }) }}
+            {{ t("common.stepOf", { step: displayStepIndex, total: displayTotalSteps }) }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -293,16 +388,24 @@ const handleParseTemplateFromCommand = () => {
       </div>
 
       <div class="p-6 overflow-y-auto flex-1 space-y-6">
+        <WizardStepPresetKind
+          v-if="!initialPreset && step === 1"
+          v-model:kind="presetKind"
+          :t="t"
+          @update:kind="handleKindChange"
+        />
+
         <WizardStepBasics
-          v-if="step === 1"
+          v-else-if="step === 2"
           v-model:name="name"
           v-model:description="description"
+          :show-recipes="presetKind !== 'custom'"
           :t="t"
           @select-recipe="handleRecipeSelect"
         />
 
         <WizardStepVideo
-          v-else-if="step === 2"
+          v-else-if="step === 3"
           :video="video"
           :encoder-options="ENCODER_OPTIONS"
           :preset-options="PRESET_OPTIONS"
@@ -314,7 +417,7 @@ const handleParseTemplateFromCommand = () => {
         />
 
         <WizardStepFilters
-          v-else-if="step === 3"
+          v-else-if="step === 4"
           :filters="filters"
           :is-copy-encoder="isCopyEncoder"
           :t="t"
@@ -322,7 +425,7 @@ const handleParseTemplateFromCommand = () => {
         />
 
         <WizardStepAudio
-          v-else-if="step === 4"
+          v-else-if="step === 5"
           :audio="audio"
           :is-copy-encoder="isCopyEncoder"
           :t="t"
@@ -349,23 +452,28 @@ const handleParseTemplateFromCommand = () => {
 
       <div class="p-6 border-t border-border bg-muted/60 flex justify-between rounded-b-xl">
         <Button
-          v-if="step > 1"
+          v-if="canGoBack"
           variant="ghost"
           class="px-4 py-2 text-muted-foreground hover:text-foreground font-medium"
-          @click="step -= 1"
+          @click="goBack"
         >
           {{ t("common.back") }}
         </Button>
         <div v-else />
 
         <Button
-          v-if="step < 5"
+          v-if="canGoNext"
           class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
-          @click="step += 1"
+          @click="goNext"
         >
           {{ t("common.next") }} →
         </Button>
-        <Button v-else class="px-6 py-2 font-medium flex items-center gap-2 transition-colors" @click="handleSave">
+        <Button
+          v-else
+          class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
+          :disabled="!canSave"
+          @click="handleSave"
+        >
           {{ initialPreset ? t("presetEditor.actions.update") : t("presetEditor.actions.save") }}
         </Button>
       </div>

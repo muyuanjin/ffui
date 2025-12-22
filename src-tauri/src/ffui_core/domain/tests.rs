@@ -68,6 +68,7 @@ mod domain_contract_tests {
                 target_seconds: Some(12.5),
                 tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
                 segments: Some(vec!["C:/app-data/tmp/seg1.mp4".to_string()]),
+                segment_end_targets: None,
             }),
         };
 

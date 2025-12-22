@@ -16,6 +16,7 @@ pub(super) struct ResumePlan {
     pub(super) target_seconds: f64,
     pub(super) seek_seconds: f64,
     pub(super) trim_start_seconds: f64,
+    pub(super) trim_at_seconds: f64,
     pub(super) backtrack_seconds: f64,
     pub(super) strategy: ResumeStrategy,
 }
@@ -39,6 +40,10 @@ struct PreparedTranscodeJob {
     // vector is non-empty,本次运行会在成功完成后将这些分段与当前 tmp_output
     // 生成的最新分段一起 concat 为最终输出。
     existing_segments: Vec<PathBuf>,
+    // Join target end times (seconds) for each completed segment in
+    // `existing_segments`. Length SHOULD equal `existing_segments.len()` when
+    // available; used to build concat lists with explicit durations.
+    segment_end_targets: Vec<f64>,
     tmp_output: PathBuf,
     total_duration: Option<f64>,
     ffmpeg_path: String,

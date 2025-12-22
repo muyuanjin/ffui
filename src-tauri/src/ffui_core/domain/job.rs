@@ -4,11 +4,9 @@ use serde::{
 };
 
 use super::output_policy::OutputPolicy;
-
 fn is_zero(v: &u64) -> bool {
     *v == 0
 }
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadata {
@@ -35,6 +33,8 @@ pub struct WaitMetadata {
     /// 顺序追加到该列表，用于最终 concat 多段输出。对于仅包含单段的旧快照，
     /// 此字段可能为 None，此时仍需回退到 `tmp_output_path` 以保持兼容。
     pub segments: Option<Vec<String>>,
+    /// Ordered list of join target times (seconds) after each completed output segment.
+    pub segment_end_targets: Option<Vec<f64>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

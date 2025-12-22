@@ -65,6 +65,12 @@ export interface WaitMetadata {
    * 对于仅有一次暂停的旧任务，该字段可能缺失，此时仍需回退到 tmpOutputPath。
    */
   segments?: string[];
+  /**
+   * Ordered list of join target times (seconds) after each completed output
+   * segment. Used to build concat lists with explicit durations so timestamps
+   * remain stable across pauses/resumes.
+   */
+  segmentEndTargets?: number[];
 }
 
 export type JobCompareOutput =

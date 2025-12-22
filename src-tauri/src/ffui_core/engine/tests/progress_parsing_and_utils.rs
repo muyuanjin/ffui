@@ -174,11 +174,12 @@ fn compute_progress_percent_for_unknown_duration_returns_zero() {
 fn choose_processed_seconds_after_wait_prefers_segment_end_over_progress_out_time() {
     // When B-frames are enabled, ffmpeg's -progress out_time* can lag behind
     // the final muxed frames due to encoder delay. For resume correctness we
-    // must prefer the probed segment duration/end to avoid overlap glitches.
+    // record the earlier timestamp and rely on overlap re-encode + concat
+    // clipping to avoid skipping or duplicating frames.
     let chosen = choose_processed_seconds_after_wait(Some(100.0), Some(0.933_333), Some(1.0))
         .expect("choice should exist");
     assert!(
-        (chosen - 1.0).abs() < 0.000_001,
-        "expected probed segment end (1.0) to win over out_time (0.933333), got {chosen}"
+        (chosen - 0.933_333).abs() < 0.000_001,
+        "expected the earlier timestamp (0.933333) to be chosen, got {chosen}"
     );
 }

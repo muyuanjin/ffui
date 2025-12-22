@@ -11,6 +11,10 @@ export const isSmartPreset = (preset: FFmpegPreset): boolean => {
   return typeof preset.id === "string" && preset.id.startsWith("smart-");
 };
 
+export const isCustomCommandPreset = (preset: FFmpegPreset): boolean => {
+  return Boolean(preset.advancedEnabled && preset.ffmpegTemplate && preset.ffmpegTemplate.trim().length > 0);
+};
+
 export const getPresetDescription = (preset: FFmpegPreset, locale: string): string =>
   resolvePresetDescription(preset, locale);
 

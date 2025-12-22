@@ -93,4 +93,32 @@ describe("PresetPanel scenario and risk labels", () => {
 
     wrapper.unmount();
   });
+
+  it("shows a custom command badge and an inferred hint for template presets", () => {
+    const presets: FFmpegPreset[] = [
+      makeBasePreset({
+        id: "preset-custom-1",
+        name: "My Custom Command",
+        advancedEnabled: true,
+        ffmpegTemplate: "-i INPUT -map 0 -c:v libx264 -crf 23 -c:a copy OUTPUT",
+      }),
+    ];
+
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+        sortMode: "manual",
+        viewMode: "grid",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("Custom command");
+    expect(text).toContain("Inferred");
+
+    wrapper.unmount();
+  });
 });

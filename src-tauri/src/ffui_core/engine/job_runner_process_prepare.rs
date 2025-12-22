@@ -1,115 +1,4 @@
-pub(super) fn plan_resume_paths(
-    job_id: &str,
-    input_path: &Path,
-    output_path: &Path,
-    media_duration: Option<f64>,
-    wait_meta: Option<&WaitMetadata>,
-    container_format: Option<&str>,
-    backtrack_seconds: f64,
-) -> (Option<f64>, Vec<PathBuf>, PathBuf, Option<ResumePlan>) {
-    // Use a per-job, per-segment temp output path so multiple pauses/resumes (or
-    // duplicate enqueues for the same input) never collide on disk.
-    let build_tmp = |idx: u64| {
-        // Prefer locating temp segments next to the final output so renames stay atomic
-        // even when outputs are routed to a different directory than the input.
-        if output_path.exists() || output_path.parent() != input_path.parent() {
-            build_video_job_segment_tmp_output_path_for_output(output_path, job_id, idx)
-        } else {
-            build_video_job_segment_tmp_output_path(input_path, container_format, job_id, idx)
-        }
-    };
-
-    // 根据 WaitMetadata 计算“已处理秒数”和历史分段列表，以支撑多次暂停/继续。
-    let mut resume_target_seconds: Option<f64> = None;
-    let mut existing_segments: Vec<PathBuf> = Vec::new();
-    let mut recorded_segment_count: u64 = 0;
-
-    if let Some(meta) = wait_meta {
-        // 1) 计算 join target（边界点），用于规划恢复（可能 overlap+trim）。
-        if let Some(target) = meta.target_seconds.or(meta.processed_seconds) {
-            if target.is_finite() && target > 0.0 {
-                resume_target_seconds = Some(target);
-            }
-        } else if let (Some(pct), Some(total)) = (meta.last_progress_percent, media_duration)
-            && pct.is_finite()
-            && pct > 0.0
-            && total.is_finite()
-            && total > 0.0
-        {
-            let processed = (pct / 100.0) * total;
-            if processed > 0.0 {
-                resume_target_seconds = Some(processed);
-            }
-        }
-
-        // 2) 构建历史分段列表：优先使用 segments，回退到单一 tmp_output_path。
-        if let Some(ref segs) = meta.segments {
-            recorded_segment_count = segs.len() as u64;
-            for s in segs {
-                let path = PathBuf::from(s);
-                if path.exists() {
-                    existing_segments.push(path);
-                }
-            }
-        }
-
-        if existing_segments.is_empty()
-            && let Some(tmp) = meta.tmp_output_path.as_ref()
-        {
-            recorded_segment_count = recorded_segment_count.max(1);
-            let path = PathBuf::from(tmp);
-            if path.exists() {
-                existing_segments.push(path);
-            }
-        }
-    }
-
-    // 无有效历史分段或缺乏位置信息时，回退为从 0% 开始的新一次转码。
-    if existing_segments.is_empty() || resume_target_seconds.is_none() {
-        // Even for a fresh run, ensure we pick a non-existent segment path in
-        // case this job id previously crashed and left stale tmp files behind.
-        let mut idx: u64 = recorded_segment_count;
-        loop {
-            let candidate = build_tmp(idx);
-            if !candidate.exists() {
-                return (None, Vec::new(), candidate, None);
-            }
-            idx = idx.saturating_add(1);
-        }
-    }
-
-    let target_seconds = resume_target_seconds.unwrap_or(0.0).max(0.0);
-    let backtrack_seconds = if backtrack_seconds.is_nan() {
-        0.0
-    } else {
-        backtrack_seconds.clamp(0.0, 10.0)
-    };
-    let seek_seconds = (target_seconds - backtrack_seconds).max(0.0);
-    let trim_start_seconds = (target_seconds - seek_seconds).max(0.0);
-
-    let resume_plan = ResumePlan {
-        target_seconds,
-        seek_seconds,
-        trim_start_seconds,
-        backtrack_seconds,
-        strategy: if backtrack_seconds > 0.0 && trim_start_seconds > 0.0 {
-            ResumeStrategy::OverlapTrim
-        } else {
-            ResumeStrategy::LegacySeek
-        },
-    };
-
-    // Resumed run: pick the next available segment index (starting at the
-    // recorded count) and skip any stale files that may exist from crashes.
-    let mut idx: u64 = recorded_segment_count.max(existing_segments.len() as u64);
-    loop {
-        let candidate = build_tmp(idx);
-        if !candidate.exists() {
-            return (resume_target_seconds, existing_segments, candidate, Some(resume_plan));
-        }
-        idx = idx.saturating_add(1);
-    }
-}
+include!("job_runner_process_prepare_plan_resume_paths.rs");
 
 /// 为 mp4/mov 输出启用 fragmented MP4 相关 movflags，提升在崩溃或异常中断时
 /// 临时分段文件的可读性与可 concat 性。
@@ -325,36 +214,65 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     };
 
     // If the job has existing partial segments (paused/crash recovery), recompute
-    // processed_seconds based on the actual segment durations. This avoids the
-    // resume seek point drifting backwards when ffmpeg's -progress out_time
-    // lags behind the final muxed frames (common with B-frames).
+    // processed_seconds based on recorded join targets (preferred) or segment
+    // durations as a fallback. This keeps the restart-based resume boundary
+    // stable across pauses/resumes.
     if let Some(meta) = job_wait_metadata.as_mut() {
         let corrected =
             recompute_processed_seconds_from_segments(meta, &settings_snapshot, media_info.duration_seconds);
 	        if corrected {
 	            let processed = meta.processed_seconds.unwrap_or(0.0);
 	            let mut state = inner.state.lock().expect("engine state poisoned");
-	            if let Some(job) = state.jobs.get_mut(job_id)
-	                && let Some(job_meta) = job.wait_metadata.as_mut()
-	            {
-		                job_meta.processed_seconds = Some(processed);
+		                if let Some(job) = state.jobs.get_mut(job_id)
+		                    && let Some(job_meta) = job.wait_metadata.as_mut()
+		                {
+			                job_meta.processed_seconds = Some(processed);
                     // Align join target with the corrected processed seconds so
                     // crash recovery and future resume planning stay consistent.
                     job_meta.target_seconds = Some(processed);
-		                job_meta.segments = meta.segments.clone();
-		                job_meta.tmp_output_path = meta.tmp_output_path.clone();
-		                super::worker_utils::append_job_log_line(
-		                    job,
-		                    format!(
-	                        "resume: recomputed processedSeconds from segment durations: {processed:.6}s"
-	                    ),
-	                );
+			                job_meta.segments = meta.segments.clone();
+			                job_meta.tmp_output_path = meta.tmp_output_path.clone();
+                            job_meta.segment_end_targets = meta.segment_end_targets.clone();
+			                super::worker_utils::append_job_log_line(
+			                    job,
+			                    format!(
+		                        "resume: recomputed processedSeconds from partial segments: {processed:.6}s"
+		                    ),
+		                );
 	            }
 	        }
 	    }
 
-    let backtrack_seconds = settings_snapshot.effective_resume_backtrack_seconds();
-    let (mut resume_target_seconds, mut existing_segments, tmp_output, mut resume_plan) =
+    let backtrack_seconds = {
+        let mut backtrack = settings_snapshot.effective_resume_backtrack_seconds();
+        if job_wait_metadata.is_some()
+            && let Some(gop) = preset.video.gop_size
+            && gop > 0
+            && let Some(fps) = media_info.frame_rate.filter(|v| v.is_finite() && *v > 0.0)
+        {
+            let gop_seconds = (gop as f64) / fps;
+            if gop_seconds.is_finite() && gop_seconds > backtrack {
+                backtrack = gop_seconds;
+                let mut state = inner.state.lock().expect("engine state poisoned");
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        format!(
+                            "resume: increased backtrack to {backtrack:.3}s to match GOP duration (gop={gop}, fps={fps:.3})"
+                        ),
+                    );
+                }
+            }
+        }
+        backtrack
+    };
+    let (
+        mut resume_target_seconds,
+        mut existing_segments,
+        mut existing_segment_end_targets,
+        tmp_output,
+        mut resume_plan,
+    ) =
         plan_resume_paths(
         job_id,
         &input_path,
@@ -409,6 +327,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             target_seconds: None,
                             tmp_output_path: Some(tmp_str.clone()),
                             segments: Some(vec![tmp_str.clone()]),
+                            segment_end_targets: None,
                         });
                     }
                 }
@@ -431,6 +350,9 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             &mut resume_plan,
             &mut existing_segments,
         );
+    if existing_segments.len() != existing_segment_end_targets.len() {
+        existing_segment_end_targets.truncate(existing_segments.len());
+    }
 
     Ok(Some(PreparedTranscodeJob {
         input_path,
@@ -444,6 +366,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         resume_plan,
         finalize_with_source_audio,
         existing_segments,
+        segment_end_targets: existing_segment_end_targets,
         tmp_output,
         total_duration,
         ffmpeg_path: ffmpeg_path.clone(),

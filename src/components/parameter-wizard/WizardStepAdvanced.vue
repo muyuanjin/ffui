@@ -70,6 +70,9 @@ const emit = defineEmits<{
           <p class="text-xs text-muted-foreground mt-1">
             {{ t("presetEditor.advanced.description") }}
           </p>
+          <p v-if="advancedEnabled && ffmpegTemplate.trim().length > 0" class="text-xs text-amber-400 mt-1">
+            {{ t("presetEditor.advanced.customPresetHint") }}
+          </p>
         </div>
         <Label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
           <Checkbox

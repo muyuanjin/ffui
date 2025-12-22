@@ -118,11 +118,14 @@ fn build_effective_preset_for_resume(
 
     if let Some(plan) = resume_plan.as_ref()
         && matches!(plan.strategy, ResumeStrategy::OverlapTrim)
-        && plan.trim_start_seconds > 0.0
+        && plan.trim_at_seconds > 0.0
     {
         let injected = format!(
+            // Use absolute timestamps from the source timeline and cut exactly
+            // at the recorded join target; rely on overlap decode to ensure
+            // frames exist before the cut point.
             "trim=start={:.6},setpts=PTS-STARTPTS",
-            plan.trim_start_seconds
+            plan.trim_at_seconds
         );
         let existing = effective_preset
             .filters

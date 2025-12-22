@@ -285,6 +285,8 @@ const other = {
     dragToReorder: "拖拽排序",
     presetCount: "{count} 个预设",
     recommendedSmart: "内置",
+    customCommandBadge: "自定义命令",
+    inferredNonAuthoritative: "推断（以模板为准）",
     // 视图模式
     viewGrid: "卡片视图",
     viewCompact: "紧凑视图",

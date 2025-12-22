@@ -97,6 +97,7 @@ fn crash_recovery_preserves_wait_target_seconds() {
             target_seconds: Some(40.0),
             tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
             segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
+            segment_end_targets: None,
         });
     }
 

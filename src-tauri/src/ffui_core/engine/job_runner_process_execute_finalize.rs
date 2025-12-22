@@ -6,6 +6,7 @@ struct FinalizeResumedJobOutputArgs<'a> {
     output_path: &'a Path,
     finalize_preset: &'a FFmpegPreset,
     all_segments: &'a [PathBuf],
+    segment_durations: Option<&'a [f64]>,
     tmp_output: &'a Path,
     finalize_with_source_audio: bool,
 }
@@ -19,6 +20,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         output_path,
         finalize_preset,
         all_segments,
+        segment_durations,
         tmp_output,
         finalize_with_source_audio,
     } = args;
@@ -44,7 +46,17 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         }
     }
 
-    concat_video_segments(ffmpeg_path, all_segments, &joined_video_tmp)
+    if segment_durations.is_some() {
+        let mut state = inner.state.lock().expect("engine state poisoned");
+        if let Some(job) = state.jobs.get_mut(job_id) {
+            super::worker_utils::append_job_log_line(
+                job,
+                "resume: concat list uses explicit per-segment durations (segmentEndTargets)".to_string(),
+            );
+        }
+    }
+
+    concat_video_segments(ffmpeg_path, all_segments, segment_durations, &joined_video_tmp)
         .with_context(|| "ffmpeg concat failed when resuming from partial output")?;
 
     if finalize_with_source_audio {

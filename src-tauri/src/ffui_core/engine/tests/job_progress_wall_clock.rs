@@ -60,6 +60,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                     target_seconds: Some(60.0),
                     tmp_output_path: None,
                     segments: None,
+                    segment_end_targets: None,
                 }),
             },
         );

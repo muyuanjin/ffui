@@ -12,7 +12,7 @@ import {
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
-import { GripVertical, Trash2, Copy, Download, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
+import { GripVertical, Trash2, Copy, Download, Upload, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "@/components/ui/select";
 import PresetRowCompact from "./presets/PresetRowCompact.vue";
 import PresetCardGrid from "./presets/PresetCardGrid.vue";
@@ -280,6 +280,7 @@ useSortable(containerRef, localPresets, {
             data-testid="preset-import-bundle"
             @click="emit('importBundle')"
           >
+            <Upload class="h-3 w-3 mr-1" />
             {{ t("presets.import") }}
           </Button>
           <DropdownMenu>

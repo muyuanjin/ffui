@@ -107,6 +107,55 @@ pub(super) fn mark_job_waiting(
                 segments.push(tmp_str.clone());
             }
 
+            // Track per-segment join targets (end times) so we can generate a
+            // concat list with explicit durations. This avoids relying on
+            // container-derived per-file durations which can drift by 1–2 frames
+            // for VFR/B-frame sources.
+            let previous_segments_len = job
+                .wait_metadata
+                .as_ref()
+                .and_then(|m| m.segments.as_ref().map(|v| v.len()))
+                .or_else(|| {
+                    job.wait_metadata
+                        .as_ref()
+                        .and_then(|m| m.tmp_output_path.as_ref())
+                        .map(|_| 1)
+                })
+                .unwrap_or(0);
+
+            let mut segment_end_targets: Vec<f64> = job
+                .wait_metadata
+                .as_ref()
+                .and_then(|m| m.segment_end_targets.clone())
+                .unwrap_or_default();
+
+            let targets_reliable = !segment_end_targets.is_empty()
+                && (segment_end_targets.len() == previous_segments_len
+                    || segment_end_targets.len() + 1 == previous_segments_len);
+            if !targets_reliable {
+                segment_end_targets.clear();
+                // Best-effort backfill for single-segment legacy snapshots.
+                if previous_segments_len <= 1
+                    && let Some(prev) = job
+                        .wait_metadata
+                        .as_ref()
+                        .and_then(|m| m.target_seconds)
+                        .filter(|v| v.is_finite() && *v > 0.0)
+                {
+                    segment_end_targets.push(prev);
+                }
+            }
+
+            if let Some(end) = processed_seconds.filter(|v| v.is_finite() && *v > 0.0)
+                && segment_end_targets.len() + 1 == segments.len()
+                && segment_end_targets
+                    .last()
+                    .map(|v| (*v - end).abs() > 1e-9)
+                    .unwrap_or(true)
+            {
+                segment_end_targets.push(end);
+            }
+
             job.wait_metadata = Some(WaitMetadata {
                 last_progress_percent: percent,
                 processed_wall_millis: Some(elapsed_wall_ms),
@@ -114,6 +163,7 @@ pub(super) fn mark_job_waiting(
                 target_seconds: processed_seconds,
                 tmp_output_path: Some(tmp_str.clone()),
                 segments: Some(segments),
+                segment_end_targets: (!segment_end_targets.is_empty()).then_some(segment_end_targets),
             });
 
             if job.output_path.is_none() {

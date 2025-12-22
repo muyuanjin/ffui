@@ -93,9 +93,35 @@ pub(super) fn build_video_job_segment_tmp_output_path_for_output(
     parent.join(format!("{stem}.{job_id}.seg{segment_index}.tmp.{ext}"))
 }
 
+pub(super) fn build_concat_demuxer_list_contents(
+    segments: &[PathBuf],
+    segment_durations: Option<&[f64]>,
+) -> Result<String> {
+    if segments.is_empty() {
+        return Err(anyhow::anyhow!(
+            "build_concat_demuxer_list_contents requires at least one segment path"
+        ));
+    }
+
+    let durations = segment_durations.unwrap_or(&[]);
+    let mut out = String::new();
+    for (idx, seg) in segments.iter().enumerate() {
+        let s = seg.to_string_lossy();
+        // concat demuxer 使用单引号包裹路径，这里仅对单引号做转义。
+        let escaped = s.replace('\'', "'\\''");
+        out.push_str(&format!("file '{escaped}'\n"));
+        if let Some(d) = durations.get(idx).copied().filter(|v| v.is_finite() && *v > 0.0) {
+            out.push_str(&format!("duration {d:.6}\n"));
+            out.push_str(&format!("outpoint {d:.6}\n"));
+        }
+    }
+    Ok(out)
+}
+
 pub(super) fn concat_video_segments(
     ffmpeg_path: &str,
     segments: &[PathBuf],
+    segment_durations: Option<&[f64]>,
     target: &Path,
 ) -> Result<()> {
     if segments.is_empty() {
@@ -118,6 +144,10 @@ pub(super) fn concat_video_segments(
 
     // 使用 concat demuxer 进行无损拼接，避免 filter_complex 与 -c copy 组合
     // 带来的“不允许过滤+流复制”的问题，同时对多段输入更友好。
+    //
+    // 对于暂停/继续场景，如果我们知道每个分段的“期望时长”（由 join target 推导），
+    // 则通过 list 中的 `duration ...` 指令强制 concat 的时间轴偏移，避免依赖容器
+    // duration 推导而出现 1–2 帧级抖动。
     let list_path = target.with_extension("concat.list");
     {
         use std::io::Write as IoWrite;
@@ -134,14 +164,9 @@ pub(super) fn concat_video_segments(
             )
         })?;
 
-        for seg in segments {
-            let s = seg.to_string_lossy();
-            // concat demuxer 使用单引号包裹路径，这里仅对单引号做转义。
-            let escaped = s.replace('\'', "'\\''");
-            writeln!(file, "file '{escaped}'").with_context(|| {
-                format!("failed to write concat list entry for {}", seg.display())
-            })?;
-        }
+        let content = build_concat_demuxer_list_contents(segments, segment_durations)?;
+        file.write_all(content.as_bytes())
+            .with_context(|| format!("failed to write concat list file {}", list_path.display()))?;
     }
 
     let mut cmd = Command::new(ffmpeg_path);

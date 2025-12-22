@@ -42,4 +42,14 @@ describe("presetCommandImport", () => {
     expect(preset?.ffmpegTemplate?.trim().startsWith("ffmpeg ")).toBe(false);
     expect(preset?.ffmpegTemplate?.trim().startsWith("-i ")).toBe(true);
   });
+
+  it("accepts ffmpeg.exe program tokens and still stores args-only templates", () => {
+    const cmd = `"C:/Program Files/FFmpeg/bin/ffmpeg.exe" -hide_banner -i INPUT -map 0 -c:v libx264 -crf 23 OUTPUT`;
+    const analysis = analyzeImportCommandLine(cmd);
+    expect(analysis.eligibility.custom).toBe(true);
+    const preset = createCustomTemplatePresetFromAnalysis(analysis);
+    expect(preset).toBeTruthy();
+    expect(preset?.ffmpegTemplate?.trim().startsWith("ffmpeg ")).toBe(false);
+    expect(preset?.ffmpegTemplate?.trim().startsWith("-hide_banner ")).toBe(true);
+  });
 });

@@ -17,6 +17,7 @@ import {
   getRatioColorClass,
   getSubtitleSummary,
   getVideoRateControlSummary,
+  isCustomCommandPreset,
   isSmartPreset,
 } from "../presetHelpers";
 
@@ -102,6 +103,13 @@ const handleCardClick = (event: MouseEvent) => {
           >
             {{ t("presets.recommendedSmart") }}
           </span>
+          <span
+            v-if="isCustomCommandPreset(preset)"
+            class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-500 px-2 py-0.5 text-[9px] font-medium border border-amber-500/40"
+            :title="t('presets.inferredNonAuthoritative')"
+          >
+            {{ t("presets.customCommandBadge") }}
+          </span>
           <div class="grid grid-cols-2 gap-1">
             <Button
               variant="ghost"
@@ -147,6 +155,9 @@ const handleCardClick = (event: MouseEvent) => {
     </CardHeader>
 
     <CardContent class="px-4 pb-3 pt-0 flex-1 flex flex-col space-y-2.5">
+      <div v-if="isCustomCommandPreset(preset)" class="text-[10px] text-amber-400">
+        {{ t("presets.inferredNonAuthoritative") }}
+      </div>
       <div class="flex-1 flex flex-col space-y-2.5">
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">

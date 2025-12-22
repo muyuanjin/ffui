@@ -392,6 +392,7 @@ mod tests {
                     "C:/app-data/tmp/seg0.mp4".to_string(),
                     "C:/app-data/tmp/seg1.mp4".to_string(),
                 ]),
+                segment_end_targets: None,
             }),
         }
     }

@@ -1,0 +1,356 @@
+ffmpeg -i input.avi output.mp4
+ffmpeg -i input.mp4 output.avi
+ffmpeg -i input.mkv -c copy output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -c:a aac output.mp4
+ffmpeg -i input.mp4 -vf scale=1280:720 output.mp4
+ffmpeg -i input.mp4 -vf scale=640:480 output.mp4
+ffmpeg -i input.mp4 -vf "scale=640:360" output.mp4
+ffmpeg -i input.mp4 -vf scale=-1:720 output.mp4
+ffmpeg -i input.mp4 -ss 00:00:30 -t 00:00:30 output.mp4
+ffmpeg -i input.mp4 -ss 00:01:54 -to 00:06:53 -c copy output.mp4
+ffmpeg -i input.mp4 -ss 00:00:50.0 -codec copy -t 20 output.mp4
+ffmpeg -i input.mp4 -vn -ar 44100 -ac 2 -ab 320 -f mp3 output.mp3
+ffmpeg -i input.mp4 -vn -ar 44100 -ac 2 -ab 192k -f mp3 output.mp3
+ffmpeg -i input.wav -vn -ar 44100 -ac 2 -b:a 192k output.mp3
+ffmpeg -i input.mp4 -filter:v fps=1 output%d.png
+ffmpeg -i input.mp4 -r 1 -f image2 image-%3d.png
+ffmpeg -i input.mp4 -vf fps=1 out%d.png
+ffmpeg -i input.mp4 -i watermark.png -filter_complex "overlay=10:10" output.mp4
+ffmpeg -i input.mp4 -i overlay.png -filter_complex "[0:v][1:v] overlay=0:0" output.mp4
+ffmpeg -i input.mp4 -vf "movie=watermark.png [wm]; [in][wm] overlay=10:10 [out]" output.mp4
+ffmpeg -i input.mp4 -vf transpose=1 rotated.mp4
+ffmpeg -i input.mp4 -vf "transpose=1" rotated-video.mp4
+ffmpeg -i input.mp4 -vf "crop=640:360:0:0" output.mp4
+ffmpeg -i input.mp4 -i subtitles.srt -c copy -c:s mov_text output.mp4
+ffmpeg -i input.mp4 -i subtitles.srt -map 0 -map 1 -c copy -c:s mov_text output.mp4
+ffmpeg -i input.mp4 -vf subtitles=subtitles.srt output.mp4
+ffmpeg -i input.mp4 -vf "subtitles=input.srt" output.mp4
+ffmpeg -i input1.mp4 -i input2.mp4 -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[outv][outa]" -map "[outv]" -map "[outa]" output.mp4
+ffmpeg -f concat -safe 0 -i mylist.txt -c copy output.mp4
+ffmpeg -i "concat:input1.ts|input2.ts" -c copy output.ts
+ffmpeg -i input.mp4 -c:v libx264 -preset slow -crf 22 output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -crf 24 output.mp4
+ffmpeg -i input.mp4 -c:v vp9 -b:v 1M output.mkv
+ffmpeg -i input.webm -c:v copy -c:a flac output.mkv
+ffmpeg -i input.mp4 -an output.mp4
+ffmpeg -i input.mp4 -vn output.mp3
+ffmpeg -i input.mp4 -filter:a "volume=0.5" output.mp4
+ffmpeg -i input.mp4 -filter:a "volume=2.0" louder.mp4
+ffmpeg -i input.mp4 -vf "yadif" deinterlaced.mp4
+ffmpeg -i input.mp4 -vf "noise=alls=20" noisy.mp4
+ffmpeg -i input.mp4 -vf "curves=vintage" vintage.mp4
+ffmpeg -i input.mp4 -r 30 output.mp4
+ffmpeg -i input.mp4 -b:v 1M output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -profile:v high -level 4.0 output.mp4
+ffmpeg -i input.mkv -c:v copy -c:a copy -c:s srt output.mp4
+ffmpeg -i input.mkv -map 0 -c copy output.mp4
+ffmpeg -i input.avi -i input.mkv -filter_complex "overlay" output.mp4
+ffmpeg -i input.mp4 -vf scale=iw/2:ih/2 halfsize.mp4
+ffmpeg -i input.mp4 -vf "hflip" flipped.mp4
+ffmpeg -i input.mp4 -vf "vflip" flipped.mp4
+ffmpeg -i input.mp4 -af "highpass=f=300" output.mp4
+ffmpeg -i input.mp4 -af "lowpass=f=3000" output.mp4
+ffmpeg -i input.mp4 -vf "drawtext=text='Hello':fontcolor=white:fontsize=24:x=100:y=100" output.mp4
+ffmpeg -i input.mp4 -vf fps=15 output.mp4
+ffmpeg -i input.mp4 -c:v libx265 -crf 28 output.mkv
+ffmpeg -i input.mp4 -c:v libvpx-vp9 -b:v 2M output.webm
+ffmpeg -i input.mp4 -ss 00:00:00 -to 00:01:00 -c copy clip.mp4
+ffmpeg -i input.mp4 -t 10 -c copy first10sec.mp4
+ffmpeg -i input.mp4 -i audio.mp3 -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 output.mp4
+ffmpeg -i input.mp4 -filter_complex "amix=inputs=2" output.mp4
+ffmpeg -i input.mp4 -vf "setpts=PTS/2" faster.mp4
+ffmpeg -i input.mp4 -vf "setpts=PTS*2" slower.mp4
+ffmpeg -i input.mp4 -filter:a "atempo=2.0" faster_audio.mp4
+ffmpeg -i input.mp4 -filter:a "atempo=0.5" slower_audio.mp4
+ffmpeg -i input.mp4 -vf "fade=in:0:30" faded.mp4
+ffmpeg -i input.mp4 -vf "fade=out:st=30:d=5" fadeout.mp4
+ffmpeg -i input.mp4 -vf "eq=contrast=1.5:brightness=0.1" adjusted.mp4
+ffmpeg -i input.mp4 -vf "hue=s=0" grayscale.mp4
+ffmpeg -i input.mp4 -vf "boxblur=5" blurred.mp4
+ffmpeg -i input.mp4 -vf "unsharp=5:5:1.0" sharpened.mp4
+ffmpeg -i input.mp4 -c:a libopus -b:a 128k output.webm
+ffmpeg -i input.mp4 -c:a libvorbis -b:a 192k output.ogg
+ffmpeg -i input.mp4 -vn output.aac
+ffmpeg -i input.mp4 -ac 1 mono.mp4
+ffmpeg -i input.mp4 -ac 6 surround.mp4
+ffmpeg -i input.mp4 -ar 48000 output.mp4
+ffmpeg -i input.mp4 -ab 320k output.mp4
+ffmpeg -i input.mp4 -map 0:v -map 0:a:1 output.mp4
+ffmpeg -i input.mkv -map 0 -c:v copy -c:a copy -c:s mov_text output.mp4
+ffmpeg -i input.mp4 -filter_complex "split [main][audio]; [audio] aecho=0.8:0.88:60:0.4" output.mp4
+ffmpeg -i input.mp4 -vf "format=yuv420p" compatible.mp4
+ffmpeg -i input.mp4 -movflags +faststart output.mp4
+ffmpeg -i input.mp4 -preset veryslow -crf 18 highquality.mp4
+ffmpeg -i input.mp4 -preset ultrafast fast.mp4
+ffmpeg -i input.mp4 -g 30 -keyint_min 30 output.mp4
+ffmpeg -i input.mp4 -tune film output.mp4
+ffmpeg -i input.mp4 -tune animation output.mp4
+ffmpeg -i input.mp4 -pix_fmt yuv420p output.mp4
+ffmpeg -i input.mp4 -f null -
+ffmpeg -i input.mp4 -loop 1 -t 10 -pix_fmt yuv420p gif.gif
+ffmpeg -i input.mp4 -vf "fps=10,scale=320:-1:flags=lanczos" -loop 0 gif.gif
+ffmpeg -i input.mp4 -ss 00:00:00 -vframes 1 thumbnail.jpg
+ffmpeg -i input.mp4 -vf "select=eq(n\,0)" -vframes 1 firstframe.jpg
+ffmpeg -i input.mp4 -i logo.png -filter_complex "overlay=W-w-10:H-h-10" output.mp4
+ffmpeg -i input.mp4 -i audio.wav -c:v copy -c:a aac -shortest output.mp4
+ffmpeg -i input.mp4 -filter_complex "nullsrc=size=640x480 [base]; [0:v] scale=640:480 [vid]; [base][vid] overlay" padded.mp4
+ffmpeg -i input.mp4 -vf "pad=iw+20:ih+20:10:10:black" bordered.mp4
+ffmpeg -i input.mp4 -vf "lenscorrection=0.5" corrected.mp4
+ffmpeg -i input.mp4 -vf "vignette" vignetted.mp4
+ffmpeg -i input.mp4 -af "loudnorm" normalized.mp4
+ffmpeg -i input.mp4 -af "silenceremove=1:0:-50dB" nosilence.mp4
+ffmpeg -i input.mp4 -filter_complex "[0:v]reverse[r]; [0:v][r]concat" reversed.mp4
+ffmpeg -i input.mp4 -i input2.mp4 -filter_complex "hstack" sidebyside.mp4
+ffmpeg -i input.mp4 -i input2.mp4 -filter_complex "vstack" topbottom.mp4
+ffmpeg -i input.mp4 -vf "shuffleframes=2 1 0" shuffled.mp4
+ffmpeg -i input.mp4 -c:v mpeg4 -b:v 2000k oldformat.mp4
+ffmpeg -i input.mp4 -c:v h263 oldmobile.mp4
+ffmpeg -i input.mp4 -f mpegts output.ts
+ffmpeg -i input.mp4 -f flv output.flv
+ffmpeg -i input.mp4 -f webm output.webm
+ffmpeg -i input.mp4 -f mp3 output.mp3
+ffmpeg -i input.mp4 -f wav output.wav
+ffmpeg -i input.mp4 -f image2 frame%04d.png
+ffmpeg -i input.mp4 -bsf:v h264_mp4toannexb -f mpegts intermediate.ts
+ffmpeg -i intermediate.ts -c copy -bsf:a aac_adtstoasc output.mp4
+ffmpeg -i input.mp4 -vf "fps=30" 30fps.mp4
+ffmpeg -i input.mp4 -r 24 24fps.mp4
+ffmpeg -i input.mp4 -q:v 1 highjpg.jpg
+ffmpeg -i input.mp4 -compression_level 10 output.mkv
+ffmpeg -i input.mp4 output.avi
+ffmpeg -i input.m4a -c:a libmp3lame -q:a 2 output.mp3
+ffmpeg -i video.mp4 -vn -ar 44100 -ac 2 -b:a 192k audio.mp3
+ffmpeg -i input.mp4 -vf "scale=1280:720" output.mp4
+ffmpeg -i input.mp4 -vf "transpose=1" output.mp4
+ffmpeg -i input.mp4 -ss 00:00:10 -t 00:00:20 -c copy output.mp4
+ffmpeg -f gdigrab -framerate 30 -i desktop output.mkv
+ffmpeg -i input.mp4 -i subtitle.srt -c copy -c:s mov_text output.mp4
+ffmpeg -i "input file with spaces.mp4" -vcodec libx264 -crf 23 -preset medium out.mp4
+ffmpeg -i input.mp4 -filter_complex "[0:v]fps=15,scale=320:-1:flags=lanczos[x];[x]split[y][z];[y]palettegen[p];[z][p]paletteuse" output.gif
+ffmpeg -i input.mov -c:v libx265 -tag:v hvc1 -c:a eac3 output.mp4
+ffmpeg -re -i input.mp4 -c copy -f flv rtmp://localhost/live/stream
+ffmpeg -i input.mp4 -vf "drawtext=text='Timestamp\: %{pts\:hms}':x=(w-tw)/2:y=h-th-10:fontfile=font.ttf:fontsize=24:fontcolor=white" output.mp4
+ffmpeg -loop 1 -i image.jpg -i audio.mp3 -c:v libx264 -tune stillimage -c:a aac -b:a 192k -pix_fmt yuv420p -shortest output.mp4
+ffmpeg -i input.mp4 -map 0:v:0 -map 1:a:0 -c copy output.mkv
+ffmpeg -f concat -safe 0 -i filelist.txt -c copy output.mp4
+ffmpeg -i input.mp4 -vf "crop=in_w:in_h/2:0:0" output.mp4
+ffmpeg -i input.mp4 -vf "rotate=90*PI/180" output.mp4
+ffmpeg -i input.mp4 -af "volume=1.5" output.mp4
+ffmpeg -i input.mp4 -b:v 1M -maxrate 1M -bufsize 2M output.mp4
+ffmpeg -i vid.mp4 -vf "select=eq(pict_type\,I)" -vsync vfr frame_%04d.jpg
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i input.mp4 -c:v h264_nvenc -preset fast output.mp4
+ffmpeg -i in.mp4 -metadata title="My Title" -metadata author="Me" out.mp4
+ffmpeg -i input.mkv -map 0 -c copy -disposition:s:0 default output.mkv
+ffmpeg -i input.mp4 -vf "boxblur=10:1" output.mp4
+ffmpeg -i left.mp4 -i right.mp4 -filter_complex hstack output.mp4
+ffmpeg -i top.mp4 -i bottom.mp4 -filter_complex vstack output.mp4
+ffmpeg -i input.mp4 -r 1 -f image2 image-%3d.jpeg
+ffmpeg -i input.mp4 -c:a copy -an output.mp4
+ffmpeg -i input.mp4 -c:v copy -vn output.mp4
+ffmpeg -f lavfi -i testsrc=duration=10:size=1280x720:rate=30 output.mp4
+ffmpeg -f lavfi -i sine=frequency=1000:duration=5 output.wav
+ffmpeg -i input.mp4 -vf "unsharp=5:5:1.0:5:5:0.0" output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -x264-params "nal-hrd=cbr:force-cfr=1" -b:v 2M -minrate 2M -maxrate 2M -bufsize 4M output.ts
+ffmpeg -i input.mp4 -vf "fade=t=in:st=0:d=5" output.mp4
+ffmpeg -i input.mp4 -vf "zoompan=z='if(lte(mod(on,600),300),zoom+0.001,zoom-0.001)':x=iw/2-(iw/zoom/2):y=ih/2-(ih/zoom/2):d=600" output.mp4
+ffmpeg -i input.mp4 -c:v libvpx-vp9 -b:v 2M output.webm
+ffmpeg -i input.mp4 -aspect 16:9 output.mp4
+ffmpeg -i input.mp4 -filter:v "setpts=0.5*PTS" output.mp4
+ffmpeg -i input.mp4 -filter:a "atempo=2.0" output.mp4
+ffmpeg -i input.mp4 -vf "delogo=x=10:y=10:w=100:h=77:band=1" output.mp4
+ffmpeg -i input.mp4 -f segment -segment_time 60 -g 60 -sc_threshold 0 -force_key_frames "expr:gte(t,n_forced*60)" out%03d.mp4
+ffmpeg -i input.mp4 -i logo.png -filter_complex "overlay=main_w-overlay_w-10:main_h-overlay_h-10" output.mp4
+ffmpeg -i input.mp4 -vcodec copy -acodec copy -ss 00:01:00 -to 00:02:00 output.mp4
+ffmpeg -f avfoundation -list_devices true -i ""
+ffmpeg -f dshow -i video="Integrated Camera" output.mp4
+ffmpeg -i input.mp4 -vf "hflip" output.mp4
+ffmpeg -i input.mp4 -vf "vflip" output.mp4
+ffmpeg -i input.mp4 -pix_fmt yuv420p output.mp4
+ffmpeg -i input.mp4 -f null -
+ffmpeg -i input.mp4 -c:v libx264 -crf 18 -c:a aac -b:a 192k output.mkv
+ffmpeg -i input.mp4 -filter_complex "[0:v]fps=1[v]" -map "[v]" output_%03d.jpg
+ffmpeg -i "concat:input1.ts|input2.ts|input3.ts" -c copy output.ts
+ffmpeg -i input.mp4 -vf "minterpolate=fps=60:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" output.mp4
+ffmpeg -i input.mp4 -c:a pcm_s16le -ar 44100 output.wav
+ffmpeg -i input.mp4 -map 0:0 -map 0:1 -map 0:1 -c:a:0 ac3 -c:a:1 aac output.mp4
+ffmpeg -i input.mp4 -vf "eq=brightness=0.05:contrast=1.1:saturation=1.2" output.mp4
+ffmpeg -i input.mp4 -vf "negate" output.mp4
+ffmpeg -i input.mp4 -vf "colorbalance=rs=.3" output.mp4
+ffmpeg -i input.mp4 -vf "hue=h=90:s=1" output.mp4
+ffmpeg -i input.mp4 -vf "curves=preset=lighter" output.mp4
+ffmpeg -i input.mp4 -vf "blackdetect=d=2:pix_th=0.1" -f null -
+ffmpeg -i input.mp4 -vf "silencedetect=n=-50dB:d=5" -f null -
+ffmpeg -i input.mkv -map_metadata -1 -c:v copy -c:a copy output.mkv
+ffmpeg -i input.mp4 -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.1 output.mp4
+ffmpeg -ss 10 -i input.mp4 -frames:v 1 output.jpg
+ffmpeg -i input.mp4 -c:v libx264 -pass 1 -f mp4 /dev/null && ffmpeg -i input.mp4 -c:v libx264 -pass 2 output.mp4
+ffmpeg -i input.mp4 -vf "format=gray" output.mp4
+ffmpeg -i input.mp4 -vf "noise=alls=20:allf=t+u" output.mp4
+ffmpeg -i input.mp4 -filter_complex "[0:v]scale=1280:-1[bg];[bg][0:v]overlay=shortest=1" output.mp4
+ffmpeg -i video.mp4 -i audio.wav -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -g 30 -bf 2 output.mp4
+ffmpeg -i input.mp4 -c:v libx264 -x264opts keyint=123:min-keyint=20 -f mp4 output.mp4
+ffmpeg -i input.mp4 -vf "drawbox=x=100:y=100:w=200:h=200:color=red@0.5:t=fill" output.mp4
+ffmpeg -i input.mp4 -vf "vignette='PI/4'" output.mp4
+ffmpeg -i input.mp4 -vf "split [main][tmp]; [tmp] crop=iw:ih/2:0:0, vflip [flip]; [main][flip] overlay=0:H/2" output.mp4
+ffmpeg -i input.mp4 -vcodec copy -ss 00:00:10 -t 00:00:05 output.mp4
+ffmpeg -i input.mp4 -vf "scale=iw/2:-1" output.mp4
+ffmpeg -i input.mp4 -vtag xvid output.avi
+ffmpeg -i input.mp4 -qscale:v 3 output.jpg
+ffmpeg -i input.mp4 -f image2pipe -vcodec ppm - | some_process
+ffmpeg -rtsp_transport tcp -i rtsp://user:pass@192.168.1.100:554/live -c copy output.mp4
+ffmpeg -i input.mp4 -vf "pad=width=640:height=480:x=0:y=0:color=black" output.mp4
+ffmpeg -i input.mp4 -vf "setsar=1:1,setdar=16:9" output.mp4
+ffmpeg -i input.mp4 -af "highpass=f=200, lowpass=f=3000" output.wav
+ffmpeg -i input.mp4 -af "aecho=0.8:0.88:6:0.4" output.wav
+ffmpeg -i input.mp4 -af "pan=stereo|c0=c0|c1=c1" output.wav
+ffmpeg -i input.mp4 -c:v libx264 -crf 20 -maxrate 400k -bufsize 1835k output.mp4
+ffmpeg -i input.mp4 -vf "fieldorder=tff" output.mp4
+ffmpeg -i input.mp4 -vf "yadif=0:-1:0" output.mp4
+ffmpeg -i input.mp4 -c:v copy -bsf:v h264_mp4toannexb -f mpegts output.ts
+ffmpeg -i input.mp4 -filter_complex "amix=inputs=2:duration=first:dropout_transition=2" output.mp4
+ffmpeg -i input.mp4 -vf "chromakey=0x00FF00:0.1:0.2" output.mp4
+ffmpeg -i input.mp4 -vf "fillborders=left=10:right=10:top=10:bottom=10:mode=fixed:color=red" output.mp4
+ffmpeg -i input.mp4 -vf "tile=3x2" output.mp4
+ffmpeg -i input.mp4 -vf "remap=map_x.pgm:map_y.pgm" output.mp4
+ffmpeg -i input.mp4 -vcodec libx264 -threads 4 output.mp4
+ffmpeg -i input.mp4 -t 10 -c copy -f segment -segment_list out.m3u8 out%03d.ts
+ffmpeg -i input.mp4 -vf "stereo3d=al:ar" output.mp4
+ffmpeg -i input.mp4 -vf "colorlevels=rimax=0.9:gimax=0.9:bimax=0.9" output.mp4
+ffmpeg -dump_attachment:t "" -i input.mkv
+ffmpeg -i input.mp4 -map 0:v -map 0:a -map 0:a -c:v copy -c:a:0 libmp3lame -c:a:1 libvorbis output.mkv
+ffmpeg -i input.mp4 -vf "showwavespic=s=640x120" -frames:v 1 output.png
+ffmpeg -i input.mp4 -af "dynaudnorm" output.mp4
+ffmpeg -i input.mp4 -vf "ass=subtitle.ass" output.mp4
+ffmpeg -i input.mp4 output.avi
+ffmpeg -i input.mp4 -vf scale=640:480 output.mp4
+ffmpeg -i input.mp4 -ss 00:00:30 -t 00:00:10 output.mp4
+ffmpeg -i input.mp4 -vn -acodec copy output.mp3
+ffmpeg -i input.mp4 -an output.mp4
+ffmpeg -i input.mp4 -b:v 1000k -b:a 128k output.mp4
+ffmpeg -i input.mp4 -r 24 output.mp4
+ffmpeg -i input.mp4 -vf "transpose=1" output.mp4
+ffmpeg -i input.mp4 -vf "hue=s=0" output.mp4
+ffmpeg -i input.mp4 -vf "crop=640:360:0:0" output.mp4
+ffmpeg -i input.mp4 -vf "drawtext=text='Sample Text':x=10:y=10:fontsize=24:fontcolor=white" output.mp4
+ffmpeg -i input.mp4 -vf "fps=30" output.mp4
+ffmpeg -i input.mp4 -vf "scale=1280:-1" output.mp4
+ffmpeg -i input.mp4 -vf "setpts=2.0*PTS" output.mp4
+ffmpeg -i input.mp4 -vf "setpts=0.5*PTS" output.mp4
+ffmpeg -i input.mp4 -af "atempo=2.0" output.mp4
+ffmpeg -i input.mp4 -af "atempo=0.5" output.mp4
+ffmpeg -i input.mp4 -vf "hflip" output.mp4
+ffmpeg -i input.mp4 -vf "vflip" output.mp4
+ffmpeg -i input.mp4 -vf "eq=brightness=0.06:saturation=1.5" output.mp4
+ffmpeg -i input.mp4 -vf "curves=r='0/0 0.5/0.5 1/1'" output.mp4
+ffmpeg -i input.mp4 -vf "deshake" output.mp4
+ffmpeg -i input.mp4 -vf "fade=in:0:30" output.mp4
+ffmpeg -i input.mp4 -vf "fade=out:300:30" output.mp4
+ffmpeg -i input.mp4 -vn -ar 44100 -ac 2 -b:a 192k output.mp3
+ffmpeg -i input.mp3 -acodec libvorbis output.ogg
+ffmpeg -i input.wav -acodec flac output.flac
+ffmpeg -i input.mp4 -vf "scale=iw/2:ih/2" output.mp4
+ffmpeg -i input.mp4 -vf "scale=iw*2:ih*2" output.mp4
+ffmpeg -i input.mp4 -vf "drawbox=x=50:y=50:w=120:h=120:color=red@0.5" output.mp4
+ffmpeg -i input.mp4 -vf "drawgrid=width=100:height=100:color=white@0.5" output.mp4
+ffmpeg -i input.mp4 -vf "eq=gamma=1.5" output.mp4
+ffmpeg -i input.mp4 -vf "setpts=N/FRAME_RATE/TB" output.mp4
+ffmpeg -i input.mp4 -vf "geq='lum(X,Y)':'cb(X,Y)':128" output.mp4
+ffmpeg -i input.mp4 -vf "scale=1280:720,setsar=1:1" output.mp4
+ffmpeg -i input.mp4 -c:v libx265 -crf 28 output.mp4
+ffmpeg -i input.mp4 -vf "thumbnail" -frames:v 1 thumb.png
+ffmpeg -i input.mp4 -vf "scale=1280:-1" -c:v mjpeg -q:v 3 frame.jpg
+ffmpeg -i input.mp4 -ss 00:00:50.0 -codec copy -t 20 output.mp4
+ffmpeg -i video.mp4 -t 00:00:50 -c copy small-1.mp4 -ss 00:00:50 -codec copy small-2.mp4
+ffmpeg -i youtube.flv -c:v libx264 filename.mp4
+ffmpeg -i video.wmv -c:v libx264 -preset ultrafast video.mp4
+ffmpeg -f concat -i file-list.txt -c copy output.mp4
+ffmpeg -i video.mp4 -an mute-video.mp4
+ffmpeg -i video.mp4 -vn -ab 256 audio.mp3
+ffmpeg -i video.mp4 -vf scale=500:-1 -t 10 -r 10 image.gif
+ffmpeg -ss 00:00:15 -i video.mp4 -vf scale=800:-1 -vframes 1 image.jpg
+ffmpeg -i movie.mp4 -r 0.25 frames_%04d.png
+ffmpeg -i video.mp4 -i audio.mp3 -c:v copy -c:a aac -strict experimental output.mp4
+ffmpeg -i video.mp4 -i audio.mp3 -c:v copy -c:a aac -strict experimental -shortest output.mp4
+ffmpeg -i input.mp4 -s 480x320 -c:a copy output.mp4
+ffmpeg -r 1/5 -i img%03d.png -c:v libx264 -r 30 -pix_fmt yuv420p slideshow.mp4
+ffmpeg -loop 1 -i image.jpg -i audio.mp3 -c:v libx264 -c:a aac -strict experimental -b:a 192k -shortest output.mp4
+ffmpeg -loop 1 -i image.png -c:v libx264 -t 30 -pix_fmt yuv420p video.mp4
+ffmpeg -i movie.mp4 -i subtitles.srt -map 0 -map 1 -c copy -c:v libx264 -crf 23 -preset veryfast output.mkv
+ffmpeg -ss 00:01:30 -t 30 -acodec copy -i inputfile.mp3 outputfile.mp3
+ffmpeg -i input.wav -af 'volume=0.5' output.wav
+ffmpeg -i input.mp4 -filter:v 'transpose=1' rotated-video.mp4
+ffmpeg -i input.mp4 -filter:v 'transpose=2,transpose=2' rotated-video.mp4
+ffmpeg -i input.mp4 -filter:v "setpts=0.125*PTS" output.mp4
+ffmpeg -i input.mkv -filter:a "atempo=2.0" -vn output.mkv
+ffmpeg -i input.mp4 -vn output.mp3
+ffmpeg -i input.mp4 -vf scale=1280:720 output.mp4
+ffmpeg -i input.mp4 -vf "subtitles=subtitles.srt" output.mp4
+ffmpeg -framerate 1 -i img%03d.jpg output.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -c copy big_buck_bunny_720p_16sec.mkv
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -c copy big_buck_bunny_720p_16sec.mov
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 big_buck_bunny_720p_16sec.avi
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -vf "scale=w=1080:h=1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1" output_resized_pad.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -i https://storage.rendi.dev/sample/rendi_banner_white.png -filter_complex "[0:v]split=2[s0][s1];[s0]scale=w=1920:h=1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1[out1];[s1]scale=w=720:h=1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1[s2];[s2]<!--citation:1-->overlay=(main_w-overlay_w)/2:(main_w-overlay_w)/5[out2]" -map [out1] -map 0:a output_youtube.mp4 -map [out2] -map 0:a output_shorts.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -ss 00:00:10 -to 00:00:25 output_trimmed.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/Neon_Lights_5sec.mp3 -map 0:v -map 1:a -shortest -c:v copy -c:a aac output_replace_audio.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 big_buck_bunny_720p_16sec.mp3
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -ar 16000 -ab 48k -codec:a libmp3lame -ac 1 output_extracted_audio.mp3 -map 0:v -c:v copy -an out_video_only.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -map 0:a:0 -acodec copy output.aac
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/Neon_Lights_5sec.mp3 -filter_complex "[1:a]volume=0.2[a1];[0:a][a1]amix=inputs=2:duration=shortest" -shortest -map 0:v -c:v copy -c:a aac output_mix_audio.mp4
+ffmpeg -i https://storage.rendi.dev/sample/Neon_Lights_5sec.mp3 -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -filter_complex "[0:a]afade=t=out:st=2:d=3[a0];[1:a]afade=t=in:st=0:d=3[a1];[a0][a1]concat=n=2:v=0:a=1" -c:a libmp3lame -q:a 2 output_gapless_fade.mp3
+ffmpeg -i https://storage.rendi.dev/sample/Neon_Lights_5sec.mp3 -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -filter_complex "[0:0][1:0]acrossfade=d=3:c1=exp:c2=qsin" -c:a libmp3lame -q:a 2 output.mp3
+ffmpeg -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -acodec pcm_s32le -ac 1 -ar 48000 output.wav
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/popeye_talking.mp4 -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest,pan=mono|c0=.5*c0+.5*c1,dynaudnorm" -ar 16000 -c:a libmp3lame -b:a 64k merged_audio.mp3
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -filter_complex "[0:v]setpts=PTS/1.5[v];[0:a]atempo=1.5[a]" -map "[v]" -map "[a]" output_sped_up.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -filter:v fps=60 popeye_fps.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -vf "select='between(t,0.0,5.7)+between(t,11.0,18.0)+between(t,19.0,20.0)',setpts=N/FRAME_RATE/TB" -af "aselect='between(t,0.0,5.7)+between(t,11.0,18.0)+between(t,19.0,20.0)',asetpts=N/SR/TB" popeye_jumpcuts.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "split=3<!--citation:1--><!--citation:2--><!--citation:3-->;<!--citation:1-->trim=0.0:4.5,setpts=PTS-STARTPTS,crop=min(in_w-300\,480):min(in_h-0\,720):300:0,scale=720:1080,setsar=1:1<!--citation:1-->;<!--citation:2-->trim=4.5:8.5,setpts=PTS-STARTPTS,crop=min(in_w-500\,480):min(in_h-0\,720):500:0,scale=720:1080,setsar=1:1<!--citation:2-->;<!--citation:3-->trim=8.5,setpts=PTS-STARTPTS,crop=min(in_w-400\,480):min(in_h-0\,720):400:0,scale=720:1080,setsar=1:1<!--citation:3-->;<!--citation:1--><!--citation:2--><!--citation:3-->concat=n=3:v=1" -c:v libx264 -c:a copy output_cropped.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "drawtext=text='Get ready':x=50:y=100:fontsize=80:fontcolor=black:alpha='if(gte(t,1)*lte(t,3),(t-1)/2,1)':box=1:boxcolor=#[email protected]:boxborderw=7:enable='gte(t,1)', drawtext=text='Set':x=50:y=200:fontsize=80:fontcolor=black:alpha='if(gte(t,6)*lte(t,10),(t-6)/4,1)':box=1:boxcolor=#[email protected]:boxborderw=7:enable='gte(t,6)', drawtext=text='BOOM!':x=50:y=300:fontsize=80:fontcolor=black:alpha='if(gte(t,10)*lte(t,15),(t-10)/5,1)':box=1:boxcolor=#[email protected]:boxborderw=7:enable='gte(t,10)'" -c:v libx264 output_text_overlay.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "drawtext=textfile=sample_text.txt:fontfile=Poppins-Regular.ttf:x=50:y=100:fontsize=40:fontcolor=black:alpha='if(gte(t,1)*lte(t,5),t-1,1)':box=1:boxcolor=#[email protected]:boxborderw=7:enable='gte(t,1)'" -c:v libx264 output_text_font_file.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p.mp4 -ss 00:00 -to 00:40 -vf "subtitles=sample_subtitles.srt:fontsdir=.:force_style='FontName=Poppins,FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H4066B66B,Outline=1,BorderStyle=3'" -c:v libx264 -c:a copy output_subtitles.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i sample_subtitles.srt -c copy -c:s srt -disposition:s:0 default big_buck_bunny_720p_16sec.mkv
+ffmpeg -i big_buck_bunny_720p_16sec.mkv -map 0:s:0 subs.srt
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/rendi_banner_white_transparent.png -filter_complex "overlay=x=(main_w-overlay_w)/8:y=(main_h-overlay_h)/8:enable='gte(t,1)*lte(t,7)'" -c:v libx264 -c:a output_logo.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/rendi_banner_white.png -filter_complex "[1:v]format=argb,geq='p(X,Y)':a='0.5*alpha(X,Y)'[v1];[0:v][v1]overlay=x=(main_w-overlay_w)/8:y=(main_h-overlay_h)/8:enable='gte(t,1)*lte(t,7)'" -c:v libx264 -c:a copy output_faded_logo.mp4
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -i https://storage.rendi.dev/sample/evil-frank.png -filter_complex "[1:v][0:v]overlay=(W-w)/2:(H-h)/2" -c:v libx264 -c:a copy output_bg.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_5sec_intro.mp4 -i https://storage.rendi.dev/sample/popeye_talking.mp4 -i https://storage.rendi.dev/sample/big_buck_bunny_720p_5sec_outro.mp4 -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -filter_complex "[0:v]fps=30,format=yuv420p,setsar=1[intro_v];[1:v]scale=-2:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2:black,fps=30,format=yuv420p,setsar=1[main_v];[2:v]fps=30,format=yuv420p,setsar=1[outro_v];[0:a]aformat=sample_fmts=fltp:channel_layouts=stereo[intro_a];[1:a]aformat=sample_fmts=fltp:channel_layouts=stereo[main_a];[2:a]aformat=sample_fmts=fltp:channel_layouts=stereo[outro_a];[intro_v][intro_a][main_v][main_a][outro_v][outro_a]concat=n=3:v=1:a=1[combined_video][combined_audio];[3:a]volume=0.1,aformat=sample_fmts=fltp,afade=t=in:ss=0:d=1.5,afade=t=out:st=20:d=2[bgm_faded];[combined_audio][bgm_faded]amix=inputs=2:duration=first:dropout_transition=2[final_audio]" -map "[combined_video]" -map "[final_audio]" -c:v libx264 -c:a aac -shortest intro_main_outro.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -i https://storage.rendi.dev/sample/popeye_talking.mp4 -filter_complex "[0:v]scale=720:-2:force_original_aspect_ratio=decrease,pad=720:640:(ow-iw)/2:(oh-ih)/2:black[top];[1:v]scale=720:-2:force_original_aspect_ratio=decrease,pad=720:640:(ow-iw)/2:(oh-ih)/2:black[bottom];[top][bottom]vstack=inputs=2:shortest=1[v]" -map "[v]" -map 1:a -c:v libx264 -c:a aac -shortest output_stacked.mp4
+ffmpeg -loop 1 -t 10 -i https://storage.rendi.dev/sample/bbb-splash.png -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -vf "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:-1:-1:color=black,setsar=1,fade=t=in:st=0:d=1,format=yuv420p" -c:v libx264 -c:a aac -shortest output_loop.mp4
+ffmpeg -loop 1 -t 5 -i https://storage.rendi.dev/sample/rodents.png -loop 1 -t 5 -i https://storage.rendi.dev/sample/evil-frank.png -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -filter_complex "[0:v]format=yuv420p,fade=t=in:st=0:d=0.5,setpts=PTS-STARTPTS[v0];[1:v]format=yuv420p,fade=t=out:st=4.5:d=0.5,setpts=PTS-STARTPTS[v1];[v0][v1]xfade=transition=fade:duration=0.5:offset=4.5,format=yuv420p[v]" -map "[v]" -map 2:a -c:v libx264 -c:a aac -shortest slideshow_with_fade.mp4
+ffmpeg -loop 1 -i https://storage.rendi.dev/sample/rodents.png -loop 1 -i https://storage.rendi.dev/sample/evil-frank.png -i https://storage.rendi.dev/sample/Neon%20Lights.mp3 -filter_complex "[0:v]scale=8000:-1,zoompan=z='zoom+0.005':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=100:s=1920x1080:fps=25,trim=duration=4,format=yuv420p,setpts=PTS-STARTPTS[v0];[1:v]scale=8000:-1,zoompan=z='if(lte(zoom,1.0),1.5,max(zoom-0.005,1.005))':x=0:y='ih/2-(ih/zoom/2)':d=100:s=1920x1080:fps=25,trim=duration=4,format=yuv420p,setpts=PTS-STARTPTS[v1];[v0][v1]xfade=transition=fade:duration=1:offset=3,format=yuv420p[v]" -map "[v]" -map 2:a -c:v libx264 -c:a aac -shortest output_kenburns.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "select='gt(trunc(t/2),trunc(prev_t/2))',setpts='PTS*0.1',scale=trunc(oh*a/2)*2:320:force_original_aspect_ratio=decrease,pad=trunc(oh*a/2)*2:320:-1:-1" -loop 0 -an output.gif
+ffmpeg -i https://storage.rendi.dev/sample/BigBuckBunny_320x180.mp4 -filter_complex "[0:v]trim=start=11:end=15,setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.5,fade=t=out:st=3.5:d=0.5[v1];[0:a]atrim=start=11:end=15,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st=3.5:d=0.5[a1];[0:v]trim=start=21:end=25,setpts=PTS-STARTPTS,fade=t=in:st=0:d=0.5,fade=t=out:st=3.5:d=0.5[v2];[0:a]atrim=start=21:end=25,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.5,afade=t=out:st=3.5:d=0.5[a2];[v1][a1][v2][a2]concat=n=2:v=1:a=1[outv][outa]" -map "[outv]" -map "[outa]" -c:v libx264 -c:a aac output_fade_in_out.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -ss 00:00:07 -frames:v 1 output_thumbnail.png
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -ss 00:00:07 -frames:v 1 -q:v 2 output_thumbnail.jpg
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -filter_complex "[0:v]split=2[first][second];[first]select='gte(t,5)'[thumb1];[second]select='gte(t,15)'[thumb2]" -map [thumb1] -frames:v 1 output_thumbnail_1.png -map [thumb2] -frames:v 1 output_thumbnail_2.png
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "select='gt(scene,0.4)'" -frames:v 1 -q:v 2 thumbnail_scene.jpg
+ffmpeg -i https://storage.rendi.dev/sample/bbb-splash.png -i https://storage.rendi.dev/sample/rodents.png -i https://storage.rendi.dev/sample/evil-frank.png -filter_complex "<!--citation:1-->scale=640:360,pad=648:368:4:4:black[overlay1];<!--citation:2-->scale=640:360,pad=648:368:4:4:black[overlay2];[overlay1]overlay=0:main_h-overlay_h[tmp1];[tmp1][overlay2]overlay=main_w-overlay_w:main_h-overlay_h" -frames:v 1 thumbnail_overlayed.png
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "select='gt(scene,0.4)',scale=640:480,tile=2X2" -frames:v 1 scene_storyboard.jpg
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "select='gt(scene,0.4)'" -vsync 0 scene_storyboard_%03d.jpg
+ffmpeg -skip_frame nokey -i https://storage.rendi.dev/sample/big_buck_bunny_720p.mp4 -vf 'scale=640:480,tile=4x4' -an -vsync 0 keyframes%03d.png
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -vf "select=not(mod(n\,10)),scale=640:480,tile=4x2" -vsync 0 tile_4_2_frames_10_%03d.png
+ffmpeg -i https://storage.rendi.dev/sample/popeye_talking.mp4 -vf "scale=w=1080:h=1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1:1" -crf 18 -preset veryslow -threads 0 -tune fastdecode -movflags +faststart output_scaled_optimized.mp4
+ffmpeg -i https://storage.rendi.dev/sample/big_buck_bunny_720p_16sec.mp4 -c:v libx265 -vtag hvc1 -c:a copy output_265.mp4
+ffmpeg -ss 30 -t 3 -i input.mp4 -vf "fps=10,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -loop 0 output.gif
+ffmpeg -i A.avi -i B.mp4 -i C.mkv -filter_complex "[1:v]hue=s=0[outv];overlay;aresample" -map '[outv]' -an out1.mp4 out2.mkv -map '[outv]' -map 1:a:0 out3.mkv
+ffmpeg -i A.avi -i B.mp4 -i C.mkv -filter_complex "[1:v]hue=s=0[outv];overlay;aresample" -an out1.mp4 out2.mkv -map 1:a:0 out3.mkv
+ffmpeg -i INPUT -map 0:v:0 -c:v libx264 -crf 45 -f null - -threads 3 -dec 0:0 -filter_complex '[0:v][dec:0]hstack[stack]' -map '[stack]' -c:v ffv1 OUTPUT
+ffmpeg -i input.mp4 thumb%04d.jpg -hide_banner
+ffmpeg -i input.mp4 -vf fps=1 thumb%04d.jpg -hide_banner
+ffmpeg -i input.mp4 -ss 00:00:10.000 -vframes 1 thumb.jpg
+ffmpeg -i scott-ko.mp4 -vf "fps=10,scale=320:-1:flags=lanczos,palettegen" -y palette.png
+ffmpeg -i scott-ko.mp4 -i palette.png -filter_complex "fps=10,scale=320:-1:flags=lanczos[x];[x][1:v]paletteuse" -y animation.gif
+ffmpeg -i input.mp4 -b 800k output.mp4
+ffmpeg -f dshow -i video="Integrated Camera" out.mp4
+ffmpeg -f dshow -framerate 30 -i video="XX" -r 10 output.mp4
+ffmpeg -i input.avi -vf scale="iw/1:ih/2" output.avi
+ffmpeg -re -i sunflowers.mp4 -f mpegts -codec:v mpeg1video -s 1280x720 -b:v 2500k -bf 0 pipe:1
+ffmpeg -i broken_file.avi -f mpegts -bf 0 video_fixed.mp4
+ffmpeg -y -s 896x504 -f rawvideo -pix_fmt nv12 -i streamfile-video.mp4 streamfile.mp4
+ffmpeg -i input.mp4 -vf "scale=iw/2:ih/2" output.mp4
+ffmpeg -r 24 -f image2 -s 1280x720 -i image%04d.png -c:v libx264 -crf 25 -pix_fmt yuv420p -i audio.wav -c:a aac output.mp4
+ffmpeg -ss 00:02:52 -i input.mp4 -preset fast -fs 2M f.mp4
+ffmpeg -ss 00:02:52 -i input.mp4 -preset veryfast -fs 2M vf.mp4
+ffmpeg -ss 00:02:52 -i input.mp4 -preset superfast -fs 2M sf.mp4
+ffmpeg -ss 00:02:52 -i input.mp4 -preset ultrafast -fs 2M uf.mp4

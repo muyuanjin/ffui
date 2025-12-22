@@ -295,6 +295,8 @@ const other = {
     dragToReorder: "Drag to reorder",
     presetCount: "{count} presets",
     recommendedSmart: "Built-in",
+    customCommandBadge: "Custom command",
+    inferredNonAuthoritative: "Inferred (template is authoritative)",
     // View modes
     viewGrid: "Grid view",
     viewCompact: "Compact view",

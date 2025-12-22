@@ -1,12 +1,10 @@
 import { splitCommandLine, stripQuotes, wrapWithSameQuotes } from "./utils";
 
-const normalizeProgramToken = (token: string): string => {
+const isFfmpegProgramToken = (token: string): boolean => {
   const unquoted = stripQuotes(token);
   const lower = unquoted.toLowerCase();
-  if (/(?:^|[\\/])ffmpeg(?:\\.exe)?$/.test(lower)) {
-    return "ffmpeg";
-  }
-  return token;
+  const base = lower.split(/[\\/]/).pop() ?? lower;
+  return base === "ffmpeg" || base === "ffmpeg.exe";
 };
 
 const looksArgsOnly = (tokens: string[]): boolean => {
@@ -20,16 +18,7 @@ const ensureProgramPrefixed = (tokens: string[]): { tokens: string[]; hadProgram
   if (looksArgsOnly(tokens)) {
     return { tokens: ["ffmpeg", ...tokens], hadProgram: false };
   }
-  const first = normalizeProgramToken(tokens[0]);
-  const isProgram = stripQuotes(first).toLowerCase() === "ffmpeg";
-  if (isProgram) {
-    const next = [...tokens];
-    next[0] = "ffmpeg";
-    return { tokens: next, hadProgram: true };
-  }
-  const normalizedFirst = normalizeProgramToken(tokens[0]);
-  const normalizedFirstUnquoted = stripQuotes(normalizedFirst).toLowerCase();
-  if (normalizedFirstUnquoted === "ffmpeg") {
+  if (isFfmpegProgramToken(tokens[0])) {
     const next = [...tokens];
     next[0] = "ffmpeg";
     return { tokens: next, hadProgram: true };

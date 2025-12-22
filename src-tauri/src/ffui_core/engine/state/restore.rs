@@ -254,6 +254,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                         target_seconds: None,
                         tmp_output_path: Some(tmp_str.clone()),
                         segments: Some(vec![tmp_str]),
+                        segment_end_targets: None,
                     });
                 }
             }

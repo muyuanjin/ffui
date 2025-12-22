@@ -32,9 +32,10 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
         target_seconds: Some(12.5),
         tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
         segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+        segment_end_targets: Some(vec![12.5]),
     };
 
-    let (resume_target, existing, tmp_output, resume_plan) =
+    let (resume_target, existing, existing_end_targets, tmp_output, resume_plan) =
         plan_resume_paths(job_id, &input, &output, Some(100.0), Some(&meta), None, 2.0);
 
     assert!(
@@ -55,6 +56,10 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
         "plan.trim_start_seconds should trim to join target"
     );
     assert!(
+        (plan.trim_at_seconds - 12.5).abs() < f64::EPSILON,
+        "plan.trim_at_seconds should match join target"
+    );
+    assert!(
         plan.seek_seconds <= plan.target_seconds,
         "resume plan must never seek forward past target"
     );
@@ -62,6 +67,11 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
         existing,
         vec![seg0.clone()],
         "existing_segments should contain seg0"
+    );
+    assert_eq!(
+        existing_end_targets,
+        vec![12.5],
+        "existing_end_targets should align with existing segments"
     );
     assert_eq!(
         tmp_output, seg1,
@@ -104,9 +114,10 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
             seg0.to_string_lossy().into_owned(),
             seg1.to_string_lossy().into_owned(),
         ]),
+        segment_end_targets: Some(vec![25.0, 50.0]),
     };
 
-    let (resume_target, existing, tmp_output, resume_plan) =
+    let (resume_target, existing, existing_end_targets, tmp_output, resume_plan) =
         plan_resume_paths(job_id, &input, &output, Some(100.0), Some(&meta), None, 2.0);
 
     assert!(
@@ -119,6 +130,10 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
         "plan.seek_seconds should backtrack by 2.0s"
     );
     assert!(
+        (plan.trim_at_seconds - 50.0).abs() < f64::EPSILON,
+        "plan.trim_at_seconds should match join target"
+    );
+    assert!(
         plan.seek_seconds <= plan.target_seconds,
         "resume plan must never seek forward past target"
     );
@@ -126,6 +141,11 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
         existing,
         vec![seg0.clone(), seg1.clone()],
         "existing_segments should include prior segments in order"
+    );
+    assert_eq!(
+        existing_end_targets,
+        vec![25.0, 50.0],
+        "existing_end_targets should preserve ordering for prior segments"
     );
     assert_eq!(tmp_output, seg2, "tmp_output should advance to seg2");
 
@@ -157,9 +177,10 @@ fn plan_resume_paths_clamps_seek_to_zero_when_target_is_smaller_than_backtrack()
         target_seconds: Some(1.0),
         tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
         segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+        segment_end_targets: Some(vec![1.0]),
     };
 
-    let (_resume_target, _existing, _tmp_output, resume_plan) =
+    let (_resume_target, _existing, _existing_end_targets, _tmp_output, resume_plan) =
         plan_resume_paths(job_id, &input, &output, Some(100.0), Some(&meta), None, 2.0);
 
     let plan = resume_plan.expect("resume_plan should exist");
@@ -171,12 +192,16 @@ fn plan_resume_paths_clamps_seek_to_zero_when_target_is_smaller_than_backtrack()
         (plan.trim_start_seconds - 1.0).abs() < f64::EPSILON,
         "trim_start_seconds should equal target when seek clamped to 0"
     );
+    assert!(
+        (plan.trim_at_seconds - 1.0).abs() < f64::EPSILON,
+        "plan.trim_at_seconds should match join target"
+    );
 
     let _ = fs::remove_file(&seg0);
 }
 
 #[test]
-fn plan_resume_paths_clamps_backtrack_seconds_to_ten_seconds() {
+fn plan_resume_paths_clamps_backtrack_seconds_to_max_seconds() {
     let dir = env::temp_dir();
     let input = dir.join("ffui_resume_plan_backtrack_clamp.mp4");
     let output = dir.join("ffui_resume_plan_backtrack_clamp.output.mp4");
@@ -199,31 +224,34 @@ fn plan_resume_paths_clamps_backtrack_seconds_to_ten_seconds() {
         target_seconds: Some(12.5),
         tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
         segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+        segment_end_targets: Some(vec![12.5]),
     };
 
-    let (_resume_target, _existing, tmp_output, resume_plan) = plan_resume_paths(
-        job_id,
-        &input,
-        &output,
-        Some(100.0),
-        Some(&meta),
-        None,
-        999.0,
-    );
+    let (_resume_target, _existing, existing_end_targets, tmp_output, resume_plan) =
+        plan_resume_paths(
+            job_id,
+            &input,
+            &output,
+            Some(100.0),
+            Some(&meta),
+            None,
+            999.0,
+        );
 
+    assert_eq!(existing_end_targets, vec![12.5]);
     assert_eq!(tmp_output, seg1, "tmp_output should advance to seg1");
     let plan = resume_plan.expect("resume_plan should exist");
     assert!(
-        (plan.backtrack_seconds - 10.0).abs() < f64::EPSILON,
-        "backtrack_seconds should clamp to 10.0"
+        (plan.backtrack_seconds - 30.0).abs() < f64::EPSILON,
+        "backtrack_seconds should clamp to MAX_BACKTRACK_SECONDS (30.0)"
     );
     assert!(
-        (plan.seek_seconds - 2.5).abs() < f64::EPSILON,
-        "seek_seconds should backtrack by 10.0s"
+        (plan.seek_seconds - 0.0).abs() < f64::EPSILON,
+        "seek_seconds should clamp to 0 when target < backtrack cap"
     );
     assert!(
-        (plan.trim_start_seconds - 10.0).abs() < f64::EPSILON,
-        "trim_start_seconds should trim to the join point"
+        (plan.trim_start_seconds - 12.5).abs() < f64::EPSILON,
+        "trim_start_seconds should trim up to the join target"
     );
     assert_eq!(
         plan.strategy,
@@ -259,18 +287,21 @@ fn plan_resume_paths_treats_nan_backtrack_as_zero() {
         target_seconds: Some(12.5),
         tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
         segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+        segment_end_targets: Some(vec![12.5]),
     };
 
-    let (_resume_target, _existing, tmp_output, resume_plan) = plan_resume_paths(
-        job_id,
-        &input,
-        &output,
-        Some(100.0),
-        Some(&meta),
-        None,
-        f64::NAN,
-    );
+    let (_resume_target, _existing, existing_end_targets, tmp_output, resume_plan) =
+        plan_resume_paths(
+            job_id,
+            &input,
+            &output,
+            Some(100.0),
+            Some(&meta),
+            None,
+            f64::NAN,
+        );
 
+    assert_eq!(existing_end_targets, vec![12.5]);
     assert_eq!(tmp_output, seg1, "tmp_output should advance to seg1");
     let plan = resume_plan.expect("resume_plan should exist");
     assert!(

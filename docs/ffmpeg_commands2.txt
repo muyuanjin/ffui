@@ -1,0 +1,357 @@
+ffmpeg -i input.mp4 output.avi
+ffmpeg -i input.mkv -c:v copy -c:a copy output.mp4
+ffmpeg -i source_video.avi -b 300 -s 320x240 -vcodec xvid -ab 32 -ar 24000 -acodec aac final_video.mp4
+ffmpeg -i input.mp4 -b 800k output.mp4
+ffmpeg -i file.mkv -acodec copy -vcodec copy file.mp4
+ffmpeg -i input.webm -c:a copy -c:v vp9 -b:v 1M output.mkv
+ffmpeg -i input.webm -c:a copy -c:v vp9 -r 30 output.mkv
+ffmpeg -i input.mkv -c:av copy -ss 00:01:00 -t 10 output.mkv
+ffmpeg -i input.webm -c:v copy -c:a flac output.mkv
+ffmpeg -i in.mp4 out.avi
+ffmpeg -i in.mkv -c:v copy -c:a copy out.mp4
+ffmpeg -i input.avi -vf scale="iw/1:ih/2" output.avi
+ffmpeg -i broken_file.avi -f mpegts -bf 0 video_fixed.mp4
+ffmpeg -i input.mp4 -preset slower -crf 18 out.mp4
+ffmpeg -ss [start] -i in.mp4 -t [duration] -c copy out.mp4
+ffmpeg -ss 00:01:23.000 -i in.mp4 -t 83 -c copy out.mp4
+ffmpeg -i input_sound.avi -vn -ar 44100 -ac 2 -ab 192k -f mp3 output_sound.mp3
+ffmpeg -i input.wav -vn -ar 44100 -ac 2 -b:a 192k output.mp3
+ffmpeg -i input.mp4 -filter:a "atempo=2.0" -vn output.mp4
+ffmpeg -i input.mp4 -i audio.mp3 -c:v copy -c:a copy -map 0:v:0 -map 1:a:0 output.mp4
+ffmpeg -stdin -f s16le -ar 48k -ac 2 -i pipe:0 -acodec pcm_u8 -ar 48000 -f aiff pipe:1
+ffmpeg -i input.mp4 -c:a libmp3lame -b:a 128k -ss 00:02:30 -to 00:03:30 -af 'afade=t=in:st=150:d=3,afade=t=out:st=207:d=3' OUTPUT.mp3
+ffmpeg -loop 1 -i image.jpg -i input.mp3 -c:v libx264 -c:a aac -strict experimental -b:a 192k -shortest output.mp4
+ffmpeg.exe -i D.mkv D.wav
+ffmpeg -i input.mp4 -filter_complex "[0:v]scale=640:480[v0];[v0][1:v]overlay=0:0" output.mkv
+ffmpeg -i input.mp4 -filter:v "crop=out_w:out_h:x:y" output.mp4
+ffmpeg -i input.mp4 -vf scale=640:480 output.mp4
+ffmpeg -i input.png -vf "scale=1920:1080" output.png
+ffmpeg -i input.mp4 -i image.png -filter_complex "[0:v][1:v] overlay=25:25:enable='between(t,0,20)'" -pix_fmt yuv420p -c:a copy output.mp4
+ffmpeg -i in.mp4 -fps=1 -vsync 0 out%d.png
+ffmpeg -i in.mp4 -vf fps=1 -vsync 0 out%d.png
+ffmpeg -r 25 -start_number 9999 -i %05d.jpg -c:v libx264 -vf fps=25 -pix_fmt yuv420p out2.mp4
+ffmpeg -i input.mp4 frame%d.jpg
+ffmpeg -i input.mp4 -q:v 1 -qmin 1 frame%d.jpg
+ffmpeg -ss 60 -i input.mp4 -q:v 1 -qmin 1 -frames:v 1 frame.jpg
+ffmpeg -r 1 -i image-%02d.png -vcodec libx264 -vf fps=25 -pix_fmt yuv420p output.mp4
+ffmpeg -f flv -listen 1 -i rtmp://localhost:8889/live/app -c copy -f flv -listen 1 rtmp://localhost:1935/live/app
+ffmpeg -pix_fmt nv12 -s 352x288 -i foreman_352x288.yuv -f mpegts -bf 0 video.mp4
+ffmpeg -re -i sunflowers.mp4 -f mpegts -codec:v mpeg1video -s 1280x720 -b:v 2500k -bf 0 pipe:1
+ffmpeg -f vfwcap -framerate 25 -video_size 640x480 -i 0 -vcodec mpeg4 -f mpegts udp://127.0.0.1:23000
+ffmpeg -f vfwcap -framerate 25 -video_size 640x480 -i 0 -f mpegts -codec:v mpeg1video -s 640x480 -b:v 1000k -bf 0 http://localhost:8081/stream
+ffmpeg -f vfwcap -framerate 25 -video_size 640x480 -i 0 -f alsa -ar 44100 -c 2 -i hw:0 -f mpegts -codec:v mpeg1video -s 640x480 -b:v 1000k -bf 0 -codec:a mp2 -b:a 128k -muxdelay 0.001 http://localhost:8081/stream
+ffmpeg -i original_video.avi -ab 56 -ar 44100 -b 200 -r 15 -s 320x240 -f flv final_video.flv
+ffmpeg -i source_video.avi input -acodec aac -ab 128kb -vcodec mpeg4 -b 1200kb -mbd 2 -flags +4mv+trell -aic 2 -cmp 2 -subcmp 2 -s 320x180 -title X final_video.mp4
+ffmpeg -i input.mov -codec:v libx264 -pix_fmt yuv420p -b:v 10000k -minrate 9000k -maxrate 32000k -bufsize 9000k -vf scale=1920:1080 -codec:a aac -b:a 320k output.mp4
+ffmpeg -i video.mp4 -vf scale=500:-1 -t 10 -r 10 image.gif
+ffmpeg -i input.mp4 -vcodec libx265 -crf 28 output.mp4
+ffmpeg -f concat -i file-list.txt -c copy output.mp4
+ffmpeg -i input1.mp4 -i input2.mp4 -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]" -map "[v]" -map "[a]" output.mp4
+ffmpeg -f dshow -i video="Integrated Camera" out.mp4
+ffmpeg -f dshow -framerate 30 -i video="XX" -r 10 output.mp4
+ffmpeg -list_devices true -f dshow -i dummy
+ffmpeg -f dshow -list_options true -i video="MiraBox Video Capture"
+ffmpeg -i INPUT.avi -vf subtitles=SUBTITLES.srt -qmin 1 -qmax 3 OUTPUT-WITH-SUBS.avi
+ffmpeg -i INPUT.avi -vf subtitles="f=SUBTITLES.srt:force_style='FontName=Arial,FontSize=16,OutlineColour=&H55000000,BorderStyle=3,Alignment=6'" ENCODED-WITH-SUBS.avi
+ffmpeg -threads 0 -i INPUT.avi -c:v libx264 -c:a aac -b:a 196k -vf "subtitles=SUBTITLES.srt:force_style='FontName=Arial,FontSize=22,OutlineColour=&H22000000,BorderStyle=3'" -f mp4 -preset slow -profile:v main output.mp4
+ffmpeg -i input.mp4 -i subtitles.srt -c copy -c:s mov_text output.mp4
+ffmpeg -analyzeduration 100M -probesize 100M -i output.vob -map 0:1 -map 0:2 -map 0:3 -map 0:4 -metadata:s:s:0 language=eng -metadata:s:s:0 title="English" -metadata:s:s:1 language=fre -metadata:s:s:1 title="French" -metadata:s:a:0 language=eng -metadata:s:a:0 title="English stereo" -codec:v libx264 -crf 21 -codec:a libmp3lame -qscale:a 2 -codec:s copy output.mkv
+ffmpeg -i input.mp4 -filter:v "setpts=0.5*PTS" output.mp4
+ffmpeg -i input.mp4 -filter:a "atempo=2.0" output.mp4
+ffmpeg -ss 00:00:30 -i orginalfile.mpg -t 00:00:05 -vcodec copy -acodec copy newfile.mpg
+ffmpeg -i input.mp4 -t 00:00:15 -c copy part1.mp4 -ss 00:00:15 -codec copy part2.mp4
+ffmpeg -ss 00:01:30 -i input.mp4 output.mp4
+ffmpeg -i in.mp4 -preset slower -crf 18 out.mp4
+ffmpeg -y -i bbb_sunflower_1080p_60fps_normal.mp4 -c:v libx265 -preset slow -crf 27 -profile:v main -g 250 -pix_fmt yuv420p -map 0:0 -map 0:1 -acodec aac -ar 44100 -b:a 320k bbb_transcoded_h265_HQ.mov
+ffmpeg -i input.mp4 -c:v libx264 -preset slow -crf 22 -c:a copy output.mp4
+ffmpeg -i input.mp4 -filter_complex "scale=640:480,rotate=45*PI/180" output.mp4
+ffmpeg -i main.mp4 -i overlay.png -filter_complex "[0:v][1:v]overlay=10:10" output.mp4
+ffmpeg -i input.mp4 -filter_complex "[0:v]split=2[v1][v2];[v1]scale=1280:720[v1out];[v2]scale=640:480[v2out]" -map "[v1out]" output1.mp4 -map "[v2out]" output2.mp4
+ffmpeg -i input.mp4 -s 1280x720 -acodec libmp3lame -vcodec libx264 output1.mp4 -s 640x480 -acodec libmp3lame -vcodec libx264 output2.mp4 -s 320x240 -acodec libmp3lame -vcodec libx264 output3.mp4
+ffmpeg -y -s 896x504 -f rawvideo -pix_fmt nv12 -i streamfile-video.mp4 streamfile.mp4
+mplayer -demuxer rawvideo -rawvideo w=352:h=288:format=nv12 file.yuv
+ffplay -s 352x288 -pix_fmt nv12 file.yuv
+ffmpeg -i input.mp4 -vn output.mp3
+ffmpeg -i video.mp4 -vn -ab 256k audio.mp3
+ffmpeg -i input.mkv -vn -acodec copy output.aac
+ffmpeg -i input.mp4 -an output.mp4
+ffmpeg -i input.mp4 -c:v copy -an output.mp4
+ffmpeg -ss 00:01:30 -i input.mp4 -vframes 1 -q:v 2 output.jpg
+ffmpeg -ss 00:00:15 -i input.mp4 -vf "scale=800:-1" -vframes 1 output.png
+ffmpeg -i input.mp4 -vf "fps=10,scale=320:-1:flags=lanczos" -c:v gif output.gif
+ffmpeg -i input.mp4 -vf "fps=15,scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" output.gif
+ffmpeg -i input.mp3 -af "volume=0.5" output.mp3
+ffmpeg -i input.mp4 -af "volume=2.0" -c:v copy output.mp4
+ffmpeg -i input.mp3 -id3v2_version 3 -metadata title="Title" -metadata artist="Artist" output.mp3
+ffmpeg -i input.mp4 -metadata title="My Title" -c copy output.mp4
+ffmpeg -i source_video.avi -b 300 -s 320x240 -vcodec xvid -ab 32 -ar 24000 -acodec aac final_video.mp4
+ffmpeg -i input.mp4 -vf "rotate=90*PI/180" output.mp4
+ffmpeg -i input.mp4 -vf "transpose=1" output.mp4
+ffmpeg -i input.mp4 -map 0:0 video_only.mp4
+ffmpeg -i input.mp4 -map 0:1 audio_only.aac
+ffmpeg -i bbb_sunflower_1080p_60fps_normal.mp4 -map 0:1 bbb_audio.wav
+ffmpeg -i input.mp4 -vcodec libx264 -crf 23 output.mp4
+ffmpeg -i input.mp4 -vcodec libx265 -crf 28 output.mp4
+ffmpeg -i input.mp4 -r 24 output.mp4
+ffmpeg -i input.mp4 -filter:v fps=fps=30 output.mp4
+ffmpeg -i input.mp3 -b:a 128k output.mp3
+ffmpeg -i input.mp3 -ab 192k output.mp3
+ffmpeg -i input.mp4 -vf yadif output.mp4
+ffmpeg -i input.mp4 -vf "yadif=0:0:0" output.mp4
+ffmpeg -i input.mp4 -vf "crop=640:480:0:0" output.mp4
+ffmpeg -i input.mp4 -filter:v "crop=in_w/2:in_h/2" output.mp4
+ffmpeg -i input.mp4 -i watermark.png -filter_complex "overlay=10:10" output.mp4
+ffmpeg -i input.mp4 -i logo.png -filter_complex "[1:v]scale=100:100[wm];[0:v][wm]overlay=W-w-10:10" output.mp4
+ffmpeg -i input.mp4 -aspect 16:9 output.mp4
+ffmpeg -i input.mp4 -vf scale=1920:1080,setsar=1:1 output.mp4
+ffmpeg -y -i input.mp4 -c:v libx264 -b:v 2M -pass 1 -an -f null /dev/null && ffmpeg -i input.mp4 -c:v libx264 -b:v 2M -pass 2 -c:a aac output.mp4
+ffmpeg -i input.mp4 -c copy -map 0 -segment_time 10 -f segment output%03d.mp4
+ffmpeg -i input.mp4 -c copy -f segment -segment_time 300 -reset_timestamps 1 output_%03d.mp4
+ffmpeg -i input.mp4 -ss 00:00:01.000 -vframes 1 thumb.jpg
+ffmpeg -i input.mp4 -vf "select=eq(pict_type\,I)" -vsync vfr thumb_%04d.png
+ffmpeg -i input.mp4 -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" output.mp4
+ffmpeg -i input.mp4 -vf hflip output.mp4
+ffmpeg -i input.mp4 -vf vflip output.mp4
+ffmpeg -i input.mp4 -vf "boxblur=5:1" output.mp4
+ffmpeg -i input.mp4 -vf "gblur=sigma=5" output.mp4
+ffmpeg -i input.mp4 -filter:v "setpts=0.5*PTS" faster.mp4
+ffmpeg -i input.mp4 -filter:v "setpts=2.0*PTS" slower.mp4
+ffmpeg -i input.mp4 -vf "fade=t=in:st=0:d=5,fade=t=out:st=25:d=5" output.mp4
+ffmpeg -i input.mp4 -vf "hue=s=0" grayscale.mp4
+ffmpeg -i input.mp4 -vf "colorchannelmixer=.3:.4:.3:0:.3:.4:.3:0:.3:.4:.3" grayscale2.mp4
+ffmpeg -i input.mp4 -vf vidstabdetect=shakiness=10:accuracy=15 -f null -
+ffmpeg -i input.mp4 -vf vidstabtransform=smoothing=30:zoom=5 stabilized.mp4
+ffmpeg -i main.mp4 -i pip.mp4 -filter_complex "[1:v]scale=320:240[pip];[0:v][pip]overlay=main_w-overlay_w-10:main_h-overlay_h-10" output.mp4
+ffmpeg -i input.mp4 -vf reverse reversed.mp4
+ffmpeg -i input.mp4 -af areverse -vf reverse reversed_complete.mp4
+ffmpeg -i input.mp4 frame_%04d.png
+ffmpeg -i input.mp4 -r 1 frame_%04d.jpg
+ffmpeg -framerate 24 -i img_%04d.png output.mp4
+ffmpeg -r 1/5 -i img%03d.png -c:v libx264 -vf fps=25 -pix_fmt yuv420p out.mp4
+ffmpeg -stream_loop 3 -i input.mp4 -c copy output.mp4
+ffmpeg -i input.avi -c:v copy -c:a copy output.mp4
+ffmpeg -i input.mp4 -codec copy output.mkv
+ffmpeg -i input.mkv -map 0:s:0 subs.srt
+ffmpeg -i input.mkv -c:s srt subtitle.srt
+ffmpeg -i input.mp4 -vf subtitles=subtitle.srt output.mp4
+ffmpeg -i input.mp3 -af loudnorm output.mp3
+ffmpeg -i input.mp4 -af "loudnorm=I=-16:TP=-1.5:LRA=11" -c:v copy output.mp4
+ffmpeg -i input.mp4 -vf "select='eq(pict_type,PICT_TYPE_I)'" -vsync vfr keyframes_%04d.png
+ffmpeg -f lavfi -i testsrc=duration=10:size=1920x1080:rate=30 test.mp4
+ffmpeg -f lavfi -i color=c=red:s=1920x1080:d=10 red.mp4
+ffmpeg -i input.mp4 -vf "drawtext=timecode='00\:00\:00\:00':r=30:x=(w-tw)/2:y=h-(2*lh):fontcolor=white:box=1:boxcolor=0x00000099" output.mp4
+ffmpeg -f x11grab -s 1920x1080 -i :0.0 screen.mp4
+ffmpeg -f gdigrab -i desktop output.mp4
+ffmpeg -f v4l2 -i /dev/video0 webcam.mp4
+ffmpeg -f dshow -i video="USB Camera" webcam.mp4
+ffmpeg -i input1.mp3 -i input2.mp3 -filter_complex amerge -ac 2 output.mp3
+ffmpeg -i input1.mp3 -i input2.mp3 -filter_complex "[0:a][1:a]amix=inputs=2:duration=longest" output.mp3
+ffmpeg -i input.mp3 -filter_complex "showspectrum=s=1280x720" -frames:v 1 spectrum.png
+ffmpeg -i audio.mp3 -filter_complex "[0:a]showwaves=s=1280x720:mode=line:rate=25[v]" -map "[v]" -map 0:a waveform.mp4
+ffmpeg -i input.mp3 -af "highpass=f=200,lowpass=f=3000" output.mp3
+ffmpeg -i input.mp4 -af "afftdn=nf=-25" -c:v copy output.mp4
+ffmpeg -i input.mp4 -pix_fmt yuv420p output.mp4
+ffmpeg -i input.mp4 -pix_fmt rgb24 output.mp4
+ffmpeg -hwaccel cuda -i input.mp4 -c:v h264_nvenc output.mp4
+ffmpeg -i input.mp4 -c:v h264_videotoolbox output.mp4
+ffmpeg -i input.mp4 -i audio_en.mp3 -i audio_fr.mp3 -map 0:v -map 1:a -map 2:a -c copy -metadata:s:a:0 language=eng -metadata:s:a:1 language=fre output.mp4
+ffmpeg -i input.mp4 -ss 00:00:30 -t 00:01:00 -c copy output.mp4
+ffmpeg -i input.mp4 -ss 00:00:30 -to 00:01:30 -c copy output.mp4
+ffmpeg -i left.mp4 -i right.mp4 -filter_complex hstack output.mp4
+ffmpeg -i top.mp4 -i bottom.mp4 -filter_complex vstack output.mp4
+ffmpeg -i video.mp4 -i music.mp3 -filter_complex "[1:a]volume=0.1[music];[0:a][music]amix=inputs=2:duration=first" -c:v copy output.mp4
+ffmpeg -framerate 1/5 -i img%03d.jpg -vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2" -c:v libx264 -pix_fmt yuv420p slideshow.mp4
+ffmpeg -i input.mp4 -i background.mp4 -filter_complex "[0:v]chromakey=0x00ff00:0.1:0.2[ckout];[1:v][ckout]overlay" output.mp4
+ffmpeg -i input.mp4 -itsoffset 1.0 -i input.mp4 -map 0:v -map 1:a -c copy output.mp4
+ffmpeg -i input.mp4 -af "adelay=1000|1000" output.mp4
+ffmpeg -f lavfi -i anullsrc=r=44100:cl=stereo -t 10 silence.mp3
+ffmpeg -i input.mp4 -vf "scale=iw/10:ih/10,scale=10*iw:10*ih:flags=neighbor" output.mp4
+ffmpeg -i input.mp4 -vf "delogo=x=100:y=100:w=200:h=50" output.mp4
+ffmpeg -i input1.mp4 -i input2.mp4 -i input3.mp4 -i input4.mp4 -filter_complex "[0:v][1:v]hstack[top];[2:v][3:v]hstack[bottom];[top][bottom]vstack" output.mp4
+ffmpeg -r 30 -i img_%04d.jpg -c:v libx264 -vf "setpts=0.25*PTS" timelapse.mp4
+ffmpeg -i input.mp4 -filter:v "setpts=0.05*PTS" -r 30 timelapse.mp4
+ffmpeg -video_size 1024x768 -framerate 25 -f x11grab -i :0.0+100,200 output.mp4
+ffmpeg -video_size 1024x768 -framerate 25 -f x11grab -i :0.0+100,200 -f alsa -ac 2 -i hw:0 output.mkv
+ffmpeg -f gdigrab -framerate 30 -i desktop -c:v h264_nvenc -qp 0 output.mkv
+ffmpeg -video_size 1920x1080 -framerate 30 -f x11grab -i :0.0 -c:v libx264rgb -crf 0 -preset ultrafast output.mkv
+ffmpeg -i output.mkv -c:v libx264rgb -crf 0 -preset veryslow output-smaller.mkv
+ffmpeg -i tears_of_steel_1080p.webm -c:v libvpx-vp9 -c:a libopus output.webm
+ffmpeg -i <source> -c:v libvpx-vp9 -pass 1 -b:v 1000K -threads 8 -speed 4 \
+ -tile-columns 6 -frame-parallel 1 \
+ -an -f webm /dev/null 
+ffmpeg -i <source> -c:v libvpx-vp9 -pass 2 -b:v 1000K -threads 8 -speed 1 \
+ -tile-columns 6 -frame-parallel 1 -auto-alt-ref 1 -lag-in-frames 25 \
+ -c:a libopus -b:a 64k -f webm out.webm
+ffmpeg -i input -vf "scale=-1:720,pad=1280:ih:(ow-iw)/2" output
+ffmpeg -i input -vf "scale=w=1280:h=720:force_original_aspect_ratio=1,pad=1280:720:(ow-iw)/2:(oh-ih)/2" output
+ffmpeg -i input -vf "scale=1280:-1,crop=iw:720" output
+ffmpeg -i input -vf "scale=w=1280:h=720:force_original_aspect_ratio=2,crop=1280:720" output
+ffplay -vf "scale=-1:720,pad=1280:ih:(ow-iw)/2" input
+ffmpeg -i input.mp4 -vf "drawtext=fontfile=/path/to/font.ttf:text='Stack Overflow':fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2" -codec:a copy output.mp4
+ffmpeg -i input.mp4 -vf "drawtext=fontfile=/path/to/font.ttf:text='Stack Overflow':fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2,drawtext=fontfile=/path/to/font.ttf:text='Bottom right text':fontcolor=black:fontsize=14:x=w-tw-10:y=h-th-10" -codec:a copy output.mp4
+ffmpeg -i input.mp4 -vf "drawtext=fontfile=/path/to/font.ttf:text='Stack Overflow':fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2:enable='between(t,5,10)'" -codec:a copy output.mp4
+ffmpeg -i input.mp4 -vf "drawtext=fontfile=/path/to/font.ttf:textfile=text.txt:reload=1:fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2" -codec:a copy output.mp4
+ffmpeg -i myvideo.mp4 -i image.png -filter_complex [0:v][1:v]overlay=5:5,drawtext=fontfile=:text=mytext:[email protected]:fontsize=30:x=30:y=200[v] -map [output] output.mp4
+ffmpeg \
+-i video1.mp4 -i video2.mp4
+-filter_complex "[0:v:0] [0:a:0] [0:v:1] [0:a:1] concat=n=2:v=1:a=1 [v] [a]" \
+-vf "drawtext=text='SOME TEXT':x=(w-text_w):y=(h-text_h):fontfile=OpenSans.ttf:fontsize=30:fontcolor=white" \
+-map "[v]" -map "[a]" -deinterlace \
+-vcodec libx264 -pix_fmt yuv420p -preset $QUAL -r $FPS -g $(($FPS * 2)) -b:v $VBR \
+ffmpeg -i "concat:input1.mpg|input2.mpg|input3.mpg" -c copy output.mpg
+ffmpeg -f concat -i <(for f in ~/Documents/ffmpegTests/src/*.mov; do echo "file '$f'"; done) -c copy output.mov
+ffmpeg -f concat -i mylist.txt -c copy output
+(for %i in (*) do @echo file '%i') > list.txt
+ffmpeg -f concat -i list.txt -c copy output.mp4
+ffmpeg -ss 00:01:00 -to 00:02:30 -i in.mp4 -c copy clip_fast.mp4
+ffmpeg -i in.mp4 -ss 00:01:00 -to 00:02:30 -c:v libx264 -crf 22 -c:a aac -b:a 128k clip_acc.mp4
+ffmpeg -f concat -safe 0 -i list.txt -c copy joined.mp4
+ffmpeg -i a.mp4 -i b.mp4 -filter_complex "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]" \
+  -map "[v]" -map "[a]" -c:v libx264 -crf 22 -c:a aac -b:a 128k joined_enc.mp4
+ffmpeg -ss 00:00:10 -i myclip.mp4 -c:v copy -c:a copy trimmed_start.mp4
+ffmpeg -ss 00:00:05 -i myclip.mp4 trimmed_output.mp4
+ffmpeg -ss 00:00:05 -t 00:00:10 -i myclip.mp4 -c:v copy -c:a copy trimmed_segment.mp4
+ffmpeg -i input.mp4 -ss 00:01:00 -to 00:02:30 -c:v copy -c:a copy trimmed_output.mp4
+ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -i video.mov -c:v copy -c:a aac -shortest output.mov
+ffmpeg -f lavfi -i anullsrc -i video.mov -c:v copy -c:a aac -map 0:a -map 1:v -shortest output.mp4
+ffmpeg -i input.mov -map 0:a -c copy output.mov
+ffmpeg -i input.mkv -map 0:a:3 -c copy output.m4a
+ffmpeg -i input.mp4 -vn -c:a copy output.aac
+ffmpeg -i input.mp4 -vn -c:a libmp3lame output.mp3
+ffmpeg -i video.mp4 -f mp3 -ab 192000 -vn music.mp3
+ffmpeg -i INPUT.mp4 -codec copy -an OUTPUT.mp4
+ffmpeg -i INPUT.mp4 -i AUDIO.wav -shortest -c:v copy -c:a aac -b:a 256k OUTPUT.mp4
+ffmpeg -i videofile.mp4 -vn -acodec libvorbis audiofile.ogg
+ffmpeg -formats
+ffmpeg -i input.wav -ac 1 -ab 64000 -ar 22050 output.mp3
+ffmpeg -i 111.mp3 -acodec pcm_s16le -ac 1 -ar 16000 out.wav
+ffmpeg -i input.mp3 -ss 60 -t 30 output.wav
+for i in *.mp3; do ffmpeg -i "$i" -acodec pcm_s16le -ac 1 -ar 22050 "${i%.mp3}-encoded.wav"; done
+ffmpeg -i input.aac -c:a libmp3lame -b:a 192k output.mp3
+ffmpeg -i input.mp4 -c:v libx264 -crf 22 -preset:v veryfast \
+-ac 2 -c:a libfdk_aac -vbr 3 output.mp4
+ffmpeg -i input.wav -c:a libfdk_aac -profile:a aac_he -b:a 64k output.m4a
+ffmpeg -i input.wav -c:a libfdk_aac -profile:a aac_he_v2 -b:a 32k output.m4a
+ffmpeg -i input.wav -c:a aac -b:a 160k output.m4a
+ffmpeg -i input.wav -c:a aac -q:a 2 output.m4a
+ffmpeg -i input.wav -c:a libfdk_aac -movflags +faststart output.m4a
+ffmpeg -i input.m4a -c:a copy -movflags +faststart output.m4a
+ffmpeg -i input.mp3 -strict experimental -c:a aac -b:a 128k output.aac
+ffmpeg -i input.m4a -c:a copy output.aac
+cat input.wav | ffmpeg -i pipe:0 -c:a aac -c:b 128k -f adts pipe:1 ­> output.aac
+ffmpeg -i video.mp4 -vf "subtitles=subs.srt" -c:v libx264 -crf 22 -c:a copy out_burn.mp4
+ffmpeg -i video.mp4 -i subs.srt -c copy -c:s mov_text out_soft.mp4
+ffmpeg -i subs.srt subs.vtt
+ffmpeg -i in.mkv -map 0:s:0 -c:s srt subs.srt
+ffmpeg -i input.mkv -an -vn -map 0:s:0 -c:s:0 srt subtitles.srt
+ffmpeg -i input.mkv -map 0:0 -map 0:1 -target pal-dvd -aspect 16:9 -q:v 1 \
+-c:a mp2 -ac 2 -b:a 128k -filter:v subtitles=subtitles.srt output.mpg
+ffmpeg -i input.mkv -filter_complex "[0:v][0:s]overlay[v]" -map [v] -map 0:a \
+-target pal-dvd -aspect 16:9 -q:v 1 -c:a mp2 -ac 2 -b:a 128k output.mpg
+ffmpeg -i INPUT -map 0 -map -0:a:1 OUTPUT
+ffmpeg -i INPUT -map 0:v -map 0:a? OUTPUT
+ffmpeg -i INPUT -map 0:m:language:eng OUTPUT
+ffmpeg -i filename.mov \
+  -codec: copy \
+  -hls_time 10 \
+  -hls_list_size 0 \
+  -f hls \
+  filename.m3u8
+ffmpeg -y \
+ -i input.mov \
+ -codec copy \
+ -bsf h264_mp4toannexb \
+ -map 0 \
+ -f segment \
+ -segment_time 10 \
+ -segment_format mpegts \
+ -segment_list "/Library/WebServer/Documents/vod/prog_index.m3u8" \
+ -segment_list_type m3u8 \
+ "/Library/WebServer/Documents/vod/fileSequence%d.ts"
+ffmpeg -i SampleVideo_1280x720_10mb.mp4 -c:v libx264 -c:a aac -strict -2 -start_number 1 -hls_list_size 0 out.m3u8
+ffmpeg -re -i in.ts -f hls -master_pl_name master.m3u8 \
+-hls_time 2 -master_pl_publish_rate 30 http://example.com/live/out.m3u8
+ffmpeg -pix_fmt uyvy422 -framerate 30 -f avfoundation -i "0:0" \
+> -pix_fmt yuv420p -c:v libx264 \
+> -c:a aac -b:a 128k -ar 44100 \
+> -tune zerolatency -profile:v high -s 1280x720 \
+> -preset ultrafast -bf 0 -refs 3 -g 30 -b:v 2M -bufsize 2M \
+> -movflags frag_keyframe+empty_moov+default_base_moof+faststart \
+> -vf "drawtext=fontfile='/../OpenSans-Bold.ttf':text='%{localtime}:box=1:fontcolor=black:boxcolor=white:fontsize=100':x=40:y=400'" \
+> -hls_segment_type fmp4 -hls_time 1 -hls_list_size 10 \
+> -hls_flags delete_segments+append_list+split_by_time \
+> -f hls master.m3u8
+$ ffmpeg -version
+$ ffmpeg -framerate 1 -i happy%d.jpg -c:v libx264 -r 30 output.mp4
+$ ffmpeg -f concat -i input.txt -c:v libx264 -r 30 -pix_fmt yuv420p output.mp4
+$ ffmpeg -framerate 1 -pattern_type glob -i '*.jpg' -i freeflow.mp3 \
+  -shortest -c:v libx264 -r 30 -pix_fmt yuv420p output6.mp4
+ffmpeg -i video.mp4 img%03d.png
+ffmpeg -f image2 -r 1/5 -i img%03d.png -vcodec libx264 out.mp4     # x264 video
+ffmpeg -f image2 -r 1/5 -i img%03d.png                 out.webm    # WebM video
+ffmpeg -f image2 -r 1/15 -i img%03d.png out.webm
+ffmpeg -loop 1 -f image2 -i img.png -t 30 out.webm
+cat *.jpg | ffmpeg -f image2pipe -r 1 -vcodec mjpeg -i - out.webm
+cat *.png | ffmpeg -f image2pipe -r 1 -vcodec png -i - out.webm
+ffmpeg -framerate 1/3 -pattern_type glob -i "*.jpg" -c:v libx264 -r 30 -pix_fmt yuv420p slideshow.mp4
+ffmpeg -framerate 1/5 -pattern_type glob -i "*.jpg" -filter_complex "zoompan=d=125:zoom='min(1.3,1+0.002*n)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)',fps=25,format=yuv420p" -c:v libx264 -preset medium -crf 23 ken_burns_slideshow.mp4
+ffmpeg -framerate 1/4 -pattern_type glob -i "*.jpg" -i music.mp3 -c:v libx264 -c:a aac -shortest -pix_fmt yuv420p -r 30 music_slideshow.mp4
+ffmpeg -framerate 1/3 -pattern_type glob -i "*.jpg" -filter_complex "drawtext=fontfile=/path/to/font.ttf:text='My Vacation Slideshow':fontcolor=white:fontsize=36:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-20" -c:v libx264 -r 30 -pix_fmt yuv420p captioned_slideshow.mp4
+ffmpeg -i input.mp4 -vf "transpose=1" output_rotated.mp4
+ffmpeg -i input.mp4 -vf "transpose=2" output_rotated_ccw.mp4
+ffmpeg -i input.mp4 -vf "transpose=1,transpose=1" output_rotated_180.mp4
+ffmpeg -i input -i logo -filter_complex 'overlay=10:main_h-overlay_h-10' output
+ffmpeg -i input -i logo1 -i logo2 -filter_complex 'overlay=x=10:y=H-h-10,overlay=x=W-w-10:y=H-h-10' output
+ffmpeg -i inputvideo.avi -i watermarklogo.png -filter_complex \
+"overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2" -codec:a copy output.flv
+ffmpeg -i in.mp4 -vf "scale=1280:-2:flags=lanczos" -c:v libx264 -crf 22 -c:a copy out.mp4
+ffmpeg -i in.mp4 -vf "crop=in_w-400:in_h-400" -c:v libx264 -crf 22 -c:a copy out_crop.mp4
+ffmpeg -i in.mp4 -vf "transpose=1" -c:v libx264 -crf 22 -c:a copy out_rot.mp4
+ffmpeg -i in.mp4 -vf "hqdn3d=1.5:1.5:6:6,unsharp=5:5:1.0" -c:v libx264 -crf 23 -c:a copy out_clean.mp4
+ffmpeg -i bg.mp4 -i pip.mp4 -filter_complex "[0:v]scale=1280:720[v0];[1:v]scale=320:180[v1];[v0][v1]overlay=main_w-340:20" -c:v libx264 -crf 22 -c:a aac -shortest out_pip.mp4
+ffmpeg -i input.mp4 -i logo.png -filter_complex “overlay=10:10:enable=’between(t,0,10)'” -c:a copy output.mp4
+ffmpeg -i input.mp4 -vf "select=between(mod(n\, 25)\, 0\, 0), setpts=N/24/TB" output-%04d.png
+ffmpeg -i vid.MP4 -filter:v "setpts=0.25*PTS" vid_fast.MP4
+ffmpeg -i vid.MP4 -filter:v "setpts=0.25*PTS" -r 30 -an vid_fast.MP4
+ffmpeg -i vid.MP4 -filter:v "setpts=PTS/4" -r 30 -an vid_fast.MP4
+ffmpeg -i vid_fast.MP4 -vcodec copy -t 60 out_fast.mp4
+ffmpeg -i input.mp4 -vf "setpts=0.5*PTS" -af "atempo=2.0" output.mp4
+ffmpeg -i input.mp4 -vf "setpts=2.0*PTS" -af "atempo=0.5" output.mp4
+ffmpeg -i input.mp4 -vf setpts=2*PTS -filter:a atempo=0.5 output.mp4
+ffmpeg -i input-video.mp4 -vf "setpts=0.68*PTS" -filter:a "atempo=1.467" output-video.mp4
+ffmpeg -filters > c:\yfilters.txt
+ffmpeg -i video_input -vf "setpts=factor*PTS" video_output
+ffmpeg -i input.mp4 -filter:v "setpts=0.5*PTS" speedup.mp4
+ffmpeg -i originalVideo.mp4 -vf reverse reversedVideo.mp4
+ffmpeg.exe -i originalVideo.mp4 -vf reverse -af areverse reversedVideo.mp4
+ffmpeg -i INPUT1 -i INPUT2 -i INPUT3 -filter_complex amix=inputs=3:duration=first:dropout_transition=3 OUTPUT
+ffmpeg -i VOCALS -i MUSIC -filter_complex amix=inputs=2:duration=longest:dropout_transition=0:weights="1 0.25":normalize=0 OUTPUT
+ffmpeg -i input.wav -filter:a "volume=0.2" output.wav
+ffmpeg -i ac.mp4 -af volume=7 -vcodec copy ac2.mp4
+ffmpeg -i input.mkv -vf palettegen palette.png
+ffmpeg -i input.mkv -i palette.png -lavfi paletteuse output.gif
+ffmpeg -i movie.mov -vf palettegen=max_colors=5 palette.gif
+ffmpeg -i movie.mov -vf palettegen=max_colors=5:reserve_transparent=1 palette.gif
+ffmpeg -v warning -i test.mp4 -i /tmp/palette.png -lavfi paletteuse -y test.gif
+$ ffmpeg -i input.mp4 -vf "palettegen" palette.png
+$ ffmpeg -i input2.mp4 -i palette.png -filter_complex "paletteuse" -c:v libx264 -pix_fmt yuv420p output.mp4
+ffmpeg -loglevel debug -vaapi_device /dev/dri/renderD128 -i 
+~/Pendulum-prog.mpg -vf 'format=nv12,hwupload' -c:v h264_vaapi out.mkv
+ffmpeg -y -vaapi_device /dev/dri/renderD128 -i file_in.avi -vf 'format=nv12,hwupload' -c:v h264_vaapi file_out.mp4
+ffmpeg -v verbose -vaapi_device /dev/dri/renderD128  -i in.mp4 -vf  'format=nv12,hwupload' -c:v hevc_vaapi -qp 22 -acodec copy out.mp4
+ffmpeg -v verbose -vaapi_device /dev/dri/renderD128  -i in.mp4 -vf  'hqdn3d,format=nv12,hwupload' -c:v hevc_vaapi -qp 22 -acodec copy out.mp4
+ffmpeg -hwaccel cuda -i source.mp4 -c:v h264_nvenc -cq 23 -r 30 encoded.mp4
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda -i ${i} \
+-c:v h264_nvenc -profile:v high -level 4.0 -preset p7 \
+-b:v 0 -cq 23 -c:a copy ${o}
+wget https://fate-suite.libav.org/h264-conformance/AUD_MW_E.264
+ffmpeg -hwaccel qsv -c:v h264_qsv -i AUD_MW_E.264  \
+       -vf hwdownload,format=nv12 -pix_fmt yuv420p \
+       AUD_MW.yuv
+ffmpeg -loglevel debug -init_hw_device qsv=hw     `
+       -filter_hw_device hw -f rawvideo -pix_fmt  `
+       yuv420p -s:v 176x144 -i AUD_MW.yuv -vf     `
+       hwupload=extra_hw_frames=64,format=qsv     `
+       -c:v h264_qsv -b:v 5M -frames:v 10         `
+       -y ./AUD_MW_E.h264
+ffmpeg -hide_banner -h encoder=vp9
