@@ -78,7 +78,7 @@ fn queue_state_lite_persists_first_real_command_for_restart() {
         .expect("job restored");
 
     assert!(
-        restored_job.runs.first().is_some(),
+        !restored_job.runs.is_empty(),
         "expected restored job to keep Run 1 command even in lite mode"
     );
     assert_eq!(

@@ -147,7 +147,7 @@ fn first_template_arg(args: &[String]) -> Option<&str> {
     if args.len() >= 2 && args[0] == "-progress" && args[1] == "pipe:2" {
         args.get(2).map(String::as_str)
     } else {
-        args.get(0).map(String::as_str)
+        args.first().map(String::as_str)
     }
 }
 

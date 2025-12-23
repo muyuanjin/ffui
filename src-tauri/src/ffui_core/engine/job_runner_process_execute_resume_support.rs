@@ -263,39 +263,14 @@ impl FfmpegStderrPump {
     }
 
     fn drain_exit_bound_lines(&mut self, mut on_line: impl FnMut(String)) {
-        self.drain_available(|line| on_line(line));
+        self.drain_available(&mut on_line);
         self.join();
-        self.drain_available(|line| on_line(line));
+        self.drain_available(&mut on_line);
     }
 
     fn join(&mut self) {
         if let Some(join) = self.join.take() {
             let _ = join.join();
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::FfmpegStderrPump;
-
-    #[test]
-    fn stderr_pump_does_not_drop_lines_emitted_during_join() {
-        let (tx, rx) = std::sync::mpsc::channel::<String>();
-        let join = std::thread::spawn(move || {
-            tx.send("first".to_string()).unwrap();
-            std::thread::sleep(std::time::Duration::from_millis(30));
-            tx.send("last".to_string()).unwrap();
-        });
-
-        let mut pump = FfmpegStderrPump {
-            rx: Some(rx),
-            join: Some(join),
-        };
-
-        let mut got = Vec::new();
-        pump.drain_exit_bound_lines(|line| got.push(line));
-
-        assert_eq!(got, vec!["first".to_string(), "last".to_string()]);
     }
 }

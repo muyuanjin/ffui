@@ -220,31 +220,6 @@ pub(crate) fn parse_ffprobe_frame_rate(token: &str) -> Option<f64> {
     trimmed.parse().ok()
 }
 
-#[cfg(test)]
-mod detect_tests {
-    use super::*;
-
-    #[test]
-    fn parse_first_non_empty_line_as_f64_ignores_empty_and_invalid_lines() {
-        let raw = b"\n \nN/A\n0\n12.345\n";
-        assert_eq!(parse_first_non_empty_line_as_f64(raw), Some(12.345));
-    }
-
-    #[test]
-    fn parse_time_base_and_duration_ts_computes_seconds() {
-        let raw = b"1/1000\n36223129\n";
-        let seconds = parse_time_base_and_duration_ts(raw).expect("parse duration");
-        assert!((seconds - 36223.129).abs() < 0.000_001);
-    }
-
-    #[test]
-    fn parse_time_base_and_duration_ts_accepts_swapped_line_order() {
-        let raw = b"36223129\n1/1000\n";
-        let seconds = parse_time_base_and_duration_ts(raw).expect("parse duration");
-        assert!((seconds - 36223.129).abs() < 0.000_001);
-    }
-}
-
 pub(crate) fn detect_video_dimensions_and_frame_rate(
     path: &Path,
     settings: &AppSettings,
@@ -289,13 +264,12 @@ pub(crate) fn detect_best_effort_video_start_time_seconds(
     settings: &AppSettings,
 ) -> Option<f64> {
     #[cfg(test)]
-    if let Ok(raw) = std::env::var("FFUI_TEST_FFPROBE_STREAM_START_TIME_SECONDS") {
-        if let Ok(v) = raw.trim().parse::<f64>()
-            && v.is_finite()
-            && v > 0.0
-        {
-            return Some(v.max(0.0));
-        }
+    if let Ok(raw) = std::env::var("FFUI_TEST_FFPROBE_STREAM_START_TIME_SECONDS")
+        && let Ok(v) = raw.trim().parse::<f64>()
+        && v.is_finite()
+        && v > 0.0
+    {
+        return Some(v.max(0.0));
     }
 
     let (ffprobe_path, _, _) =
@@ -340,4 +314,29 @@ pub(crate) fn detect_best_effort_video_start_time_seconds(
             .and_then(parse_first_non_empty_line_as_f64)
     };
     format_start.map(|v| v.max(0.0))
+}
+
+#[cfg(test)]
+mod detect_tests {
+    use super::*;
+
+    #[test]
+    fn parse_first_non_empty_line_as_f64_ignores_empty_and_invalid_lines() {
+        let raw = b"\n \nN/A\n0\n12.345\n";
+        assert_eq!(parse_first_non_empty_line_as_f64(raw), Some(12.345));
+    }
+
+    #[test]
+    fn parse_time_base_and_duration_ts_computes_seconds() {
+        let raw = b"1/1000\n36223129\n";
+        let seconds = parse_time_base_and_duration_ts(raw).expect("parse duration");
+        assert!((seconds - 36223.129).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn parse_time_base_and_duration_ts_accepts_swapped_line_order() {
+        let raw = b"36223129\n1/1000\n";
+        let seconds = parse_time_base_and_duration_ts(raw).expect("parse duration");
+        assert!((seconds - 36223.129).abs() < 0.000_001);
+    }
 }

@@ -71,3 +71,28 @@ include!("job_runner_process_execute_finalize.rs");
 include!("job_runner_process_execute_resume_support.rs");
 include!("job_runner_process_prepare.rs");
 include!("job_runner_process_prepare_resume.rs");
+
+#[cfg(test)]
+mod resume_support_tests {
+    use super::FfmpegStderrPump;
+
+    #[test]
+    fn stderr_pump_does_not_drop_lines_emitted_during_join() {
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        let join = std::thread::spawn(move || {
+            tx.send("first".to_string()).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            tx.send("last".to_string()).unwrap();
+        });
+
+        let mut pump = FfmpegStderrPump {
+            rx: Some(rx),
+            join: Some(join),
+        };
+
+        let mut got = Vec::new();
+        pump.drain_exit_bound_lines(|line| got.push(line));
+
+        assert_eq!(got, vec!["first".to_string(), "last".to_string()]);
+    }
+}

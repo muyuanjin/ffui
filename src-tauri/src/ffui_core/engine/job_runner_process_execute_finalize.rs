@@ -103,6 +103,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
 }
 
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 pub(super) fn finalize_resumed_job_output_for_tests(
     inner: &Inner,
     job_id: &str,
