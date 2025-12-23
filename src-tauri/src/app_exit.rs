@@ -85,22 +85,17 @@ pub fn pause_processing_jobs_for_exit(
     } else {
         None
     };
+    let mut state = engine.inner.state.lock().expect("engine state poisoned");
     loop {
-        let remaining: Vec<String> = {
-            let state = engine.inner.state.lock().expect("engine state poisoned");
-            job_ids
-                .iter()
-                .filter(|job_id| {
-                    state
-                        .jobs
-                        .get(*job_id)
-                        .is_some_and(|job| job.status == JobStatus::Processing)
-                })
-                .cloned()
-                .collect()
-        };
+        let remaining = job_ids.iter().filter(|job_id| {
+            state
+                .jobs
+                .get(*job_id)
+                .is_some_and(|job| job.status == JobStatus::Processing)
+        });
 
-        if remaining.is_empty() {
+        let remaining_count = remaining.count();
+        if remaining_count == 0 {
             break;
         }
 
@@ -108,21 +103,29 @@ pub fn pause_processing_jobs_for_exit(
             break;
         }
 
-        std::thread::sleep(Duration::from_millis(50));
+        let tick = Duration::from_millis(50);
+        let wait_for = match deadline {
+            Some(deadline) => tick.min(deadline.saturating_duration_since(Instant::now())),
+            None => tick,
+        };
+        let (guard, _) = engine
+            .inner
+            .cv
+            .wait_timeout(state, wait_for)
+            .expect("engine state poisoned");
+        state = guard;
     }
 
-    let still_processing = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
-        job_ids
-            .iter()
-            .filter(|job_id| {
-                state
-                    .jobs
-                    .get(*job_id)
-                    .is_some_and(|job| job.status == JobStatus::Processing)
-            })
-            .count()
-    };
+    let still_processing = job_ids
+        .iter()
+        .filter(|job_id| {
+            state
+                .jobs
+                .get(*job_id)
+                .is_some_and(|job| job.status == JobStatus::Processing)
+        })
+        .count();
+    drop(state);
 
     // Ensure any recent wait_metadata updates are durable before the process exits.
     let _ = engine.force_persist_queue_state_lite_now();

@@ -22,7 +22,10 @@ pub(crate) fn current_time_millis() -> u64 {
 }
 
 pub(crate) fn next_job_id(inner: &Inner) -> String {
-    inner.next_job_id.fetch_add(1, Ordering::SeqCst).to_string()
+    inner
+        .next_job_id
+        .fetch_add(1, Ordering::Relaxed)
+        .to_string()
 }
 
 pub(crate) fn record_tool_download(inner: &Inner, kind: ExternalToolKind, binary_path: &str) {

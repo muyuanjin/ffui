@@ -124,10 +124,10 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
     }
     if max_numeric_id > 0 {
-        let current = inner.next_job_id.load(std::sync::atomic::Ordering::SeqCst);
+        let current = inner.next_job_id.load(std::sync::atomic::Ordering::Relaxed);
         inner.next_job_id.store(
             current.max(max_numeric_id + 1),
-            std::sync::atomic::Ordering::SeqCst,
+            std::sync::atomic::Ordering::Relaxed,
         );
     }
 
@@ -207,14 +207,16 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         let recovered_set: HashSet<String> = recovered_ids.iter().cloned().collect();
         let existing_ids: Vec<String> = state.queue.iter().cloned().collect();
 
+        let mut seen: HashSet<String> =
+            HashSet::with_capacity(recovered_set.len().saturating_add(existing_ids.len()));
         let mut next_queue: VecDeque<String> = VecDeque::new();
         for id in recovered_ids {
-            if !next_queue.contains(&id) {
+            if seen.insert(id.clone()) {
                 next_queue.push_back(id);
             }
         }
         for id in existing_ids {
-            if !recovered_set.contains(&id) && !next_queue.contains(&id) {
+            if !recovered_set.contains(&id) && seen.insert(id.clone()) {
                 next_queue.push_back(id);
             }
         }

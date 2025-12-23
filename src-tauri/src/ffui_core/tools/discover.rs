@@ -94,8 +94,10 @@ pub fn discover_candidates(program: &str, kind: ExternalToolKind) -> Vec<Discove
 /// 如果不加过滤就去执行，会得到类似“%1 不是有效的 Win32 应用程序”的错误。
 #[cfg_attr(not(windows), allow(dead_code))]
 fn is_prefetch_path(p: &Path) -> bool {
-    let s = p.to_string_lossy().to_ascii_lowercase();
-    s.ends_with(".pf") || s.contains("\\prefetch\\")
+    let s = p.to_string_lossy();
+    p.extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pf"))
+        || s.to_ascii_lowercase().contains("\\prefetch\\")
 }
 
 fn dedup_paths(mut v: Vec<DiscoveredPath>) -> Vec<DiscoveredPath> {

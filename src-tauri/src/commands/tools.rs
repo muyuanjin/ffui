@@ -221,15 +221,12 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     let mime = match ext.as_deref() {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
-        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("jpg" | "jpeg") => "image/jpeg",
         _ => "image/jpeg",
     };
 
     // Only allow known preview image extensions.
-    if !matches!(
-        ext.as_deref(),
-        Some("jpg") | Some("jpeg") | Some("png") | Some("webp")
-    ) {
+    if !matches!(ext.as_deref(), Some("jpg" | "jpeg" | "png" | "webp")) {
         return Err("preview_path is not a supported preview image type".to_string());
     }
 

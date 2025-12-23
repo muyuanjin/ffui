@@ -12,7 +12,9 @@ use once_cell::sync::Lazy;
 static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 pub fn env_lock() -> MutexGuard<'static, ()> {
-    ENV_MUTEX.lock().unwrap_or_else(|err| err.into_inner())
+    ENV_MUTEX
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 pub fn set_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, value: V) {

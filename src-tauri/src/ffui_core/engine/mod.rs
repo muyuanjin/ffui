@@ -134,7 +134,7 @@ impl TranscodingEngine {
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as u64;
-                inner.next_job_id.store(baseline.max(1), Ordering::SeqCst);
+                inner.next_job_id.store(baseline.max(1), Ordering::Relaxed);
             }
         }
         {

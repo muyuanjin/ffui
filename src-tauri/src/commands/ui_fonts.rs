@@ -63,11 +63,11 @@ pub fn start_open_source_font_download(
 }
 
 #[tauri::command]
-pub fn ensure_open_source_font_downloaded(
+pub async fn ensure_open_source_font_downloaded(
     app: tauri::AppHandle,
     font_id: String,
 ) -> Result<DownloadedFontInfo, String> {
-    ui_fonts_downloads::ensure_open_source_font_downloaded(app, &font_id)
+    ui_fonts_downloads::ensure_open_source_font_downloaded(app, &font_id).await
 }
 
 #[tauri::command]

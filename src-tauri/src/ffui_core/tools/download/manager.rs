@@ -371,12 +371,11 @@ pub(crate) fn ensure_tool_available(
                     did_download = true;
                     if verify_tool_binary(&downloaded_path, kind, &downloaded_source) {
                         return Ok((downloaded_path, downloaded_source, did_download));
-                    } else {
-                        last_error = Some(format!(
-                            "{tool} auto-downloaded binary at '{downloaded_path}' could not be \
-executed. 请在\"软件设置 → 外部工具\"中手动指定一份可用的 {tool} 路径。",
-                        ));
                     }
+                    last_error = Some(format!(
+                        "{tool} auto-downloaded binary at '{downloaded_path}' could not be \
+executed. 请在\"软件设置 → 外部工具\"中手动指定一份可用的 {tool} 路径。",
+                    ));
                 }
                 Err(err) => {
                     last_error = Some(format!(
@@ -387,14 +386,14 @@ executed. 请在\"软件设置 → 外部工具\"中手动指定一份可用的 
             // After a PATH + auto-download attempt there are no higher
             // priority candidates left to try, so we can break early.
             break;
-        } else {
-            // For custom/download candidates (and PATH when auto-download is
-            // disabled), remember a generic "not available" error while still
-            // allowing lower-priority candidates to be tried.
-            last_error = Some(format!(
-                "{tool} does not appear to be available at '{path}'. Install it or configure a valid custom path.",
-            ));
         }
+
+        // For custom/download candidates (and PATH when auto-download is
+        // disabled), remember a generic "not available" error while still
+        // allowing lower-priority candidates to be tried.
+        last_error = Some(format!(
+            "{tool} does not appear to be available at '{path}'. Install it or configure a valid custom path.",
+        ));
     }
 
     Err(anyhow!(last_error.unwrap_or_else(|| {

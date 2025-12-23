@@ -118,3 +118,32 @@ fn crash_recovery_preserves_wait_target_seconds() {
         "crash recovery should preserve the join target semantics"
     );
 }
+
+#[test]
+fn crash_recovery_dedupes_existing_queue_entries() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/recover-dupe.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        state.queue.push_back(job.id.clone());
+    }
+
+    restore_jobs_from_snapshot(&engine.inner, QueueState { jobs: Vec::new() });
+
+    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let queue_vec: Vec<String> = state.queue.iter().cloned().collect();
+    assert_eq!(
+        queue_vec,
+        vec![job.id.clone()],
+        "crash recovery merge should keep queue free of duplicates"
+    );
+}

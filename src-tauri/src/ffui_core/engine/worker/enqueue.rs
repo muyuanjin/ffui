@@ -46,7 +46,7 @@ fn enqueue_transcode_job_no_notify(
     preset_id: String,
 ) -> TranscodeJob {
     let id = {
-        let next_id = inner.next_job_id.fetch_add(1, Ordering::SeqCst);
+        let next_id = inner.next_job_id.fetch_add(1, Ordering::Relaxed);
         format!("job-{next_id}")
     };
 

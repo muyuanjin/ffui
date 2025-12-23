@@ -53,7 +53,7 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
 
         match metadata {
             Ok(meta) if meta.is_file() => return Some(candidate),
-            Ok(_) => continue,
+            Ok(_) => {}
             Err(err) => {
                 eprintln!("select_playable_media_path: 跳过不可用路径 {candidate}: {err}");
             }

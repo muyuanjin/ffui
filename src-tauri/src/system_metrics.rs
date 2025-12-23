@@ -8,6 +8,7 @@ use std::sync::{
     Condvar,
     Mutex,
 };
+use std::thread;
 use std::time::{
     Duration,
     Instant,
@@ -187,10 +188,6 @@ impl MetricsState {
         }
     }
 
-    pub fn default() -> Self {
-        Self::new(MetricsConfig::default())
-    }
-
     pub fn config(&self) -> MetricsConfig {
         self.inner.config.clone()
     }
@@ -252,6 +249,12 @@ impl MetricsState {
     }
 }
 
+impl Default for MetricsState {
+    fn default() -> Self {
+        Self::new(MetricsConfig::default())
+    }
+}
+
 /// Apply user-configured overrides from AppSettings onto the metrics config.
 /// This is kept in a small helper to make the behaviour easy to test without
 /// needing a full Tauri AppHandle.
@@ -298,62 +301,66 @@ fn seed_sysinfo_if_needed(
     true
 }
 
-/// Spawn the background sampler task on Tauri's async runtime.
+/// Spawn the background sampler thread.
 pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState) {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut sys: Option<System> = None;
-        let mut networks: Option<Networks> = None;
-        let mut last_instant: Option<Instant> = None;
+    // This sampler is a long-lived loop; run it on a dedicated OS thread so it
+    // does not permanently occupy Tokio's blocking thread pool.
+    let _ = thread::Builder::new()
+        .name("ffui-metrics-sampler".to_string())
+        .spawn(move || {
+            let mut sys: Option<System> = None;
+            let mut networks: Option<Networks> = None;
+            let mut last_instant: Option<Instant> = None;
 
-        loop {
-            // Prefer user-configured interval from AppSettings when available.
-            let mut config = metrics_state.config();
-            if let Some(engine_state) = app_handle.try_state::<TranscodingEngine>() {
-                let settings_snapshot = engine_state.settings();
-                apply_settings_overrides(&mut config, &settings_snapshot);
-            }
-
-            let subscribers = metrics_state.subscriber_count();
-            match sampling_mode(subscribers, &config) {
-                SamplingMode::Idle(idle_interval) => {
-                    metrics_state.wait_for_wakeup_or_timeout(idle_interval);
-                    continue;
+            loop {
+                // Prefer user-configured interval from AppSettings when available.
+                let mut config = metrics_state.config();
+                if let Some(engine_state) = app_handle.try_state::<TranscodingEngine>() {
+                    let settings_snapshot = engine_state.settings();
+                    apply_settings_overrides(&mut config, &settings_snapshot);
                 }
-                SamplingMode::Active(sampling_interval) => {
-                    let _ = seed_sysinfo_if_needed(
-                        subscribers,
-                        &mut sys,
-                        &mut networks,
-                        &mut last_instant,
-                    );
 
-                    let sys = sys.as_mut().expect("sysinfo System missing");
-                    let networks = networks.as_mut().expect("sysinfo Networks missing");
-
-                    let now = Instant::now();
-                    let elapsed = last_instant
-                        .replace(now)
-                        .map(|prev| now.saturating_duration_since(prev))
-                        .unwrap_or(sampling_interval);
-
-                    let dt = if elapsed.is_zero() {
-                        sampling_interval
-                    } else {
-                        elapsed
-                    };
-
-                    let snapshot = sample_metrics(sys, networks, dt, &config);
-                    metrics_state.push_snapshot(snapshot.clone());
-
-                    if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
-                        eprintln!("failed to emit system metrics event: {err}");
+                let subscribers = metrics_state.subscriber_count();
+                match sampling_mode(subscribers, &config) {
+                    SamplingMode::Idle(idle_interval) => {
+                        metrics_state.wait_for_wakeup_or_timeout(idle_interval);
+                        continue;
                     }
+                    SamplingMode::Active(sampling_interval) => {
+                        let _ = seed_sysinfo_if_needed(
+                            subscribers,
+                            &mut sys,
+                            &mut networks,
+                            &mut last_instant,
+                        );
 
-                    std::thread::sleep(sampling_interval);
+                        let sys = sys.as_mut().expect("sysinfo System missing");
+                        let networks = networks.as_mut().expect("sysinfo Networks missing");
+
+                        let now = Instant::now();
+                        let elapsed = last_instant
+                            .replace(now)
+                            .map(|prev| now.saturating_duration_since(prev))
+                            .unwrap_or(sampling_interval);
+
+                        let dt = if elapsed.is_zero() {
+                            sampling_interval
+                        } else {
+                            elapsed
+                        };
+
+                        let snapshot = sample_metrics(sys, networks, dt, &config);
+                        metrics_state.push_snapshot(snapshot.clone());
+
+                        if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
+                            eprintln!("failed to emit system metrics event: {err}");
+                        }
+
+                        thread::sleep(sampling_interval);
+                    }
                 }
             }
-        }
-    });
+        });
 }
 
 fn sample_metrics(

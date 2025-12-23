@@ -122,7 +122,7 @@ fn select_playable_media_path_falls_back_to_first_non_empty_candidate() {
     let missing_str = missing.to_string_lossy().into_owned();
 
     let selected =
-        select_playable_media_path(vec![missing_str.clone(), "".to_string(), "  ".to_string()]);
+        select_playable_media_path(vec![missing_str.clone(), String::new(), "  ".to_string()]);
 
     assert_eq!(
         selected,
@@ -156,7 +156,7 @@ fn asset_protocol_scope_aligns_with_opener_allowlist_and_ui_fonts() {
 
     let scope_set: BTreeSet<String> = scope
         .iter()
-        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+        .filter_map(|v| v.as_str().map(str::to_string))
         .collect();
 
     assert!(
@@ -186,7 +186,7 @@ fn asset_protocol_scope_aligns_with_opener_allowlist_and_ui_fonts() {
             entry
                 .get("path")
                 .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
+                .map(str::to_string)
         })
         .collect();
 

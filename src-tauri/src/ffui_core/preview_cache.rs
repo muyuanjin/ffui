@@ -63,10 +63,7 @@ pub(crate) fn cleanup_unreferenced_previews(
             .extension()
             .and_then(|e| e.to_str())
             .map(|s| s.to_ascii_lowercase());
-        if !matches!(
-            ext.as_deref(),
-            Some("jpg") | Some("jpeg") | Some("png") | Some("webp")
-        ) {
+        if !matches!(ext.as_deref(), Some("jpg" | "jpeg" | "png" | "webp")) {
             continue;
         }
 
