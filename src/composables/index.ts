@@ -32,9 +32,6 @@ export type {
 export { usePresetManagement } from "./usePresetManagement";
 export type { UsePresetManagementOptions, UsePresetManagementReturn } from "./usePresetManagement";
 
-export { useFileInput } from "./useFileInput";
-export type { UseFileInputOptions, UseFileInputReturn } from "./useFileInput";
-
 export { useAppSettings } from "./useAppSettings";
 export type { UseAppSettingsOptions, UseAppSettingsReturn } from "./useAppSettings";
 
