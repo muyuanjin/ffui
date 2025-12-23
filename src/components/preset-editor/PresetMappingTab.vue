@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MappingConfig } from "@/types";
+import type { DeepWritable, MappingConfig } from "@/types";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "vue-i18n";
@@ -8,7 +8,7 @@ const props = defineProps<{
   mapping: MappingConfig;
 }>();
 
-const mapping = props.mapping as any;
+const mapping: DeepWritable<MappingConfig> = props.mapping;
 
 const { t } = useI18n();
 </script>

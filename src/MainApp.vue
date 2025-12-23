@@ -17,6 +17,7 @@ import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 import { useLocalePersistence } from "@/composables/main-app/useLocalePersistence";
+import type { QueueMode, QueueViewMode } from "@/types";
 const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
 // 仅解构模板中直接使用到的绑定，其余字段通过 defineExpose 暴露给测试。
 const {
@@ -198,7 +199,7 @@ const {
   setQueueOutputPolicy,
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
-} = mainApp as any;
+} = mainApp;
 const { handleLocaleChange } = useLocalePersistence({
   appSettings,
   handleUpdateAppSettings,
@@ -267,7 +268,7 @@ defineExpose({
           :queue-output-policy="queueOutputPolicy"
           :carousel-auto-rotation-speed="carouselAutoRotationSpeed"
           @update:manualJobPresetId="(v) => (manualJobPresetId = v)"
-          @update:queueViewModeModel="(v) => (queueViewModeModel = v as any)"
+          @update:queueViewModeModel="(v) => (queueViewModeModel = v as QueueViewMode)"
           @update:queueOutputPolicy="(v) => setQueueOutputPolicy(v)"
           @update:carouselAutoRotationSpeed="(v) => setCarouselAutoRotationSpeed(v)"
           @openPresetWizard="dialogManager.openWizard()"
@@ -291,7 +292,7 @@ defineExpose({
           :visible-count="queueJobsForDisplay.length"
           :total-count="jobs.length"
           :selection-bar-pinned="selectionBarPinned"
-          @update:queueMode="(v) => setQueueMode(v as any)"
+          @update:queueMode="(v) => setQueueMode(v as QueueMode)"
           @toggle-status-filter="toggleStatusFilter"
           @toggle-type-filter="toggleTypeFilter"
           @update:filterText="(v) => (filterText = v)"

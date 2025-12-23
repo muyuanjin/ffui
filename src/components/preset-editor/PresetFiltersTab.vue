@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FilterConfig } from "@/types";
+import type { DeepWritable, FilterConfig } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -9,7 +9,7 @@ const props = defineProps<{
   filters: FilterConfig;
 }>();
 
-const filters = props.filters as any;
+const filters: DeepWritable<FilterConfig> = props.filters;
 
 const { t } = useI18n();
 </script>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { VideoConfig } from "@/types";
+import type { DeepWritable, VideoConfig } from "@/types";
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "@/constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,7 @@ const props = defineProps<{
   rateControlLabel: string;
 }>();
 
-const video = props.video as any;
+const video: DeepWritable<VideoConfig> = props.video;
 
 const { t } = useI18n();
 

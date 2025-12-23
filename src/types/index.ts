@@ -107,3 +107,6 @@ export type { DataRootMode, DataRootInfo, ConfigBundleExportResult, ConfigBundle
 
 // Preset-only bundle types
 export type { PresetBundle, PresetBundleExportResult } from "./preset-bundle";
+
+// Shared type utilities (type-only).
+export type { DeepWritable } from "./typeUtils";

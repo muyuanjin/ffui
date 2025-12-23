@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ContainerConfig } from "@/types";
+import type { ContainerConfig, DeepWritable } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,7 +12,7 @@ const props = defineProps<{
   container: ContainerConfig;
 }>();
 
-const container = props.container as any;
+const container: DeepWritable<ContainerConfig> = props.container;
 
 const { t } = useI18n();
 

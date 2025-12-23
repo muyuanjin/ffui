@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { GlobalConfig, LogLevel } from "@/types";
+import type { DeepWritable, GlobalConfig, LogLevel, OverwriteBehavior } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,9 +12,27 @@ const props = defineProps<{
 
 // We intentionally treat the config object as mutable state, just like in the
 // original monolithic component, to avoid introducing extra glue logic.
-const globalConfig = props.globalConfig as any;
+const globalConfig: DeepWritable<GlobalConfig> = props.globalConfig;
 
 const { t } = useI18n();
+
+const hideBannerChecked = computed<boolean>({
+  get() {
+    return globalConfig.hideBanner ?? false;
+  },
+  set(value) {
+    globalConfig.hideBanner = value;
+  },
+});
+
+const enableReportChecked = computed<boolean>({
+  get() {
+    return globalConfig.enableReport ?? false;
+  },
+  set(value) {
+    globalConfig.enableReport = value;
+  },
+});
 
 // 计算当前覆盖策略的显示文字，用于 title 提示
 const overwriteBehaviorTitle = computed(() => {
@@ -43,7 +61,7 @@ const overwriteBehaviorTitle = computed(() => {
           :model-value="globalConfig.overwriteBehavior ?? 'ask'"
           @update:model-value="
             (value) => {
-              globalConfig.overwriteBehavior = value as any;
+              globalConfig.overwriteBehavior = value as OverwriteBehavior;
             }
           "
         >
@@ -101,13 +119,13 @@ const overwriteBehaviorTitle = computed(() => {
 
     <div class="flex gap-3">
       <label class="inline-flex items-center gap-2 text-[10px]">
-        <Checkbox v-model:checked="globalConfig.hideBanner" class="h-3 w-3 border-border bg-background" />
+        <Checkbox v-model:checked="hideBannerChecked" class="h-3 w-3 border-border bg-background" />
         <span>
           {{ t("presetEditor.panel.hideBannerLabel") }}
         </span>
       </label>
       <label class="inline-flex items-center gap-2 text-[10px]">
-        <Checkbox v-model:checked="globalConfig.enableReport" class="h-3 w-3 border-border bg-background" />
+        <Checkbox v-model:checked="enableReportChecked" class="h-3 w-3 border-border bg-background" />
         <span>
           {{ t("presetEditor.panel.enableReportLabel") }}
         </span>

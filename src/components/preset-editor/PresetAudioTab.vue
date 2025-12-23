@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AudioConfig, SubtitlesConfig } from "@/types";
+import type { AudioConfig, DeepWritable, SubtitleStrategy, SubtitlesConfig } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,8 +12,8 @@ const props = defineProps<{
   isCopyEncoder: boolean;
 }>();
 
-const audio = props.audio as any;
-const subtitles = props.subtitles as any;
+const audio: DeepWritable<AudioConfig> = props.audio;
+const subtitles: DeepWritable<SubtitlesConfig> = props.subtitles;
 
 const { t } = useI18n();
 </script>
@@ -273,7 +273,7 @@ const { t } = useI18n();
             :model-value="subtitles.strategy ?? 'keep'"
             @update:model-value="
               (value) => {
-                subtitles.strategy = value as any;
+                subtitles.strategy = value as SubtitleStrategy;
               }
             "
           >

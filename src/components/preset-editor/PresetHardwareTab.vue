@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { HardwareConfig } from "@/types";
+import type { DeepWritable, HardwareConfig } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ const props = defineProps<{
   hardware: HardwareConfig;
 }>();
 
-const hardware = props.hardware as any;
+const hardware: DeepWritable<HardwareConfig> = props.hardware;
 
 const { t } = useI18n();
 </script>

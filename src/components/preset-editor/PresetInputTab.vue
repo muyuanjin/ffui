@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { InputTimelineConfig } from "@/types";
+import { computed } from "vue";
+import type { DeepWritable, DurationMode, InputTimelineConfig, SeekMode } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +11,16 @@ const props = defineProps<{
   inputTimeline: InputTimelineConfig;
 }>();
 
-const inputTimeline = props.inputTimeline as any;
+const inputTimeline: DeepWritable<InputTimelineConfig> = props.inputTimeline;
+
+const accurateSeekChecked = computed<boolean>({
+  get() {
+    return inputTimeline.accurateSeek ?? false;
+  },
+  set(value) {
+    inputTimeline.accurateSeek = value;
+  },
+});
 
 const { t } = useI18n();
 </script>
@@ -30,7 +40,7 @@ const { t } = useI18n();
           :model-value="inputTimeline.seekMode ?? 'output'"
           @update:model-value="
             (value) => {
-              inputTimeline.seekMode = value as any;
+              inputTimeline.seekMode = value as SeekMode;
             }
           "
         >
@@ -78,7 +88,7 @@ const { t } = useI18n();
           @update:model-value="
             (value) => {
               const v = String(value ?? '');
-              inputTimeline.durationMode = (v || undefined) as any;
+              inputTimeline.durationMode = (v || undefined) as DurationMode | undefined;
             }
           "
         >
@@ -114,7 +124,7 @@ const { t } = useI18n();
     </div>
 
     <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-      <Checkbox v-model:checked="inputTimeline.accurateSeek" class="h-3 w-3 border-border bg-background" />
+      <Checkbox v-model:checked="accurateSeekChecked" class="h-3 w-3 border-border bg-background" />
       <span>
         {{ t("presetEditor.panel.accurateSeekLabel") }}
       </span>
