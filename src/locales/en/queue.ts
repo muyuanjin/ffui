@@ -81,6 +81,7 @@ const queue = {
     statusLabel: "Status",
     textLabel: "Conditions",
     textPlaceholder: "Filter by path, name, status, size or other fields (supports regex: and size>20mb)",
+    regexTooltip: "Use regular expression",
     reset: "Reset filters",
     summary: "Showing {visible} / {total} jobs",
     expand: "Show filters",

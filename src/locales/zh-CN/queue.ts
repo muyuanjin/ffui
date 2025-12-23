@@ -81,6 +81,7 @@ const queue = {
     statusLabel: "任务状态",
     textLabel: "条件",
     textPlaceholder: "按路径、名称、状态、体积等组合筛选（支持 regex: 和 size>20mb）",
+    regexTooltip: "使用正则表达式",
     reset: "重置筛选",
     summary: "显示 {visible} / {total} 个任务",
     expand: "展开筛选",

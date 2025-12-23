@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 // Simple TS-to-JS evaluator for our locale files.
 function evalTsModule(filePath) {
@@ -73,6 +74,27 @@ function collectKeys(obj, prefix = "", out = new Set()) {
   return out;
 }
 
+export function extractTKeysFromContent(content) {
+  const keys = new Set();
+
+  // Match:
+  //   t("...") / t('...') / t(`...`)
+  // Notes:
+  // - We intentionally ignore interpolated template literals like `foo.${bar}`
+  //   because they are not statically checkable as i18n keys.
+  const re = /\bt\(\s*(?:"((?:\\.|[^"\\])+)"|'((?:\\.|[^'\\])+)'|`((?:\\.|[^`\\])+)`)/g;
+
+  let match;
+  while ((match = re.exec(content)) !== null) {
+    const value = match[1] ?? match[2] ?? match[3];
+    const isTemplate = match[3] != null;
+    if (isTemplate && value.includes("${")) continue;
+    keys.add(value);
+  }
+
+  return keys;
+}
+
 function getUsedKeys() {
   const keys = new Set();
 
@@ -84,16 +106,16 @@ function getUsedKeys() {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
+        if (entry.name === "__tests__") continue;
         walk(full);
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name);
         if (!exts.has(ext)) continue;
+        if (/\.(spec|test)\.ts$/i.test(entry.name)) continue;
 
         const content = fs.readFileSync(full, "utf8");
-        const re = /\bt\("([^"]+)"/g;
-        let match;
-        while ((match = re.exec(content)) !== null) {
-          keys.add(match[1]);
+        for (const key of extractTKeysFromContent(content)) {
+          keys.add(key);
         }
       }
     }
@@ -150,4 +172,6 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}
