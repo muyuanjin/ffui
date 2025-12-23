@@ -201,8 +201,7 @@ fn execute_transcode_job(
 
         if let Some(status) = child.try_wait()? {
             pause_debug.mark_child_exit(current_time_millis());
-            stderr_pump.drain_available(|line| handle_ffmpeg_line(&line, wait_requested));
-            stderr_pump.join();
+            stderr_pump.drain_exit_bound_lines(|line| handle_ffmpeg_line(&line, wait_requested));
             break status;
         }
     };
