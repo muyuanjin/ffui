@@ -151,6 +151,7 @@ const handleVideoLoadedMetadata = (event: Event) => {
 
           <div v-else class="absolute inset-0" :style="transformStyle" data-testid="job-compare-transform-overlay">
             <video
+              v-show="blinkShowInput"
               :src="inputVideoUrl"
               data-compare-side="input"
               class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
@@ -158,11 +159,11 @@ const handleVideoLoadedMetadata = (event: Event) => {
               playsinline
               draggable="false"
               @dragstart.prevent
-              v-show="blinkShowInput"
               @loadedmetadata="handleVideoLoadedMetadata"
               @error="handleVideoError"
             />
             <video
+              v-show="!blinkShowInput"
               :src="outputVideoUrl"
               data-compare-side="output"
               class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
@@ -170,7 +171,6 @@ const handleVideoLoadedMetadata = (event: Event) => {
               playsinline
               draggable="false"
               @dragstart.prevent
-              v-show="!blinkShowInput"
               @loadedmetadata="handleVideoLoadedMetadata"
               @error="handleVideoError"
             />
@@ -191,8 +191,8 @@ const handleVideoLoadedMetadata = (event: Event) => {
               class="w-full h-full object-contain select-none pointer-events-none"
               :style="inputFrameStyle"
               draggable="false"
-              @dragstart.prevent
               alt=""
+              @dragstart.prevent
               @error="emit('frameImgError', 'input')"
             />
           </div>
@@ -220,8 +220,8 @@ const handleVideoLoadedMetadata = (event: Event) => {
               class="w-full h-full object-contain select-none pointer-events-none"
               :style="outputFrameStyle"
               draggable="false"
-              @dragstart.prevent
               alt=""
+              @dragstart.prevent
               @error="emit('frameImgError', 'output')"
             />
           </div>
@@ -257,8 +257,8 @@ const handleVideoLoadedMetadata = (event: Event) => {
                 class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
                 :style="inputFrameStyle"
                 draggable="false"
-                @dragstart.prevent
                 alt=""
+                @dragstart.prevent
                 @error="emit('frameImgError', 'input')"
               />
             </template>
@@ -269,8 +269,8 @@ const handleVideoLoadedMetadata = (event: Event) => {
                 class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
                 :style="outputFrameStyle"
                 draggable="false"
-                @dragstart.prevent
                 alt=""
+                @dragstart.prevent
                 @error="emit('frameImgError', 'output')"
               />
             </template>
@@ -279,24 +279,24 @@ const handleVideoLoadedMetadata = (event: Event) => {
           <div v-else class="absolute inset-0" :style="transformStyle" data-testid="job-compare-transform-overlay">
             <img
               v-if="inputFrameUrl"
+              v-show="blinkShowInput"
               :src="inputFrameUrl"
               class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
-              v-show="blinkShowInput"
               :style="inputFrameStyle"
               draggable="false"
-              @dragstart.prevent
               alt=""
+              @dragstart.prevent
               @error="emit('frameImgError', 'input')"
             />
             <img
               v-if="outputFrameUrl"
+              v-show="!blinkShowInput"
               :src="outputFrameUrl"
               class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none"
-              v-show="!blinkShowInput"
               :style="outputFrameStyle"
               draggable="false"
-              @dragstart.prevent
               alt=""
+              @dragstart.prevent
               @error="emit('frameImgError', 'output')"
             />
           </div>

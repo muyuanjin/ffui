@@ -5,6 +5,8 @@
  * 仅用于展示（复制仍使用原始字符串）。
  */
 
+import type { HighlightToken } from "@/lib/highlightTokens";
+
 const escapeHtml = (value: string): string =>
   value
     .replace(/&/g, "&amp;")
@@ -16,6 +18,76 @@ const escapeHtml = (value: string): string =>
 const indentUnit = "  ";
 
 const indent = (level: number): string => indentUnit.repeat(level);
+
+const pushToken = (out: HighlightToken[], text: string, className?: string) => {
+  if (!text) return;
+  out.push({ text, className });
+};
+
+const formatJsonValueTokens = (value: unknown, depth: number): HighlightToken[] => {
+  const currentIndent = indent(depth);
+  const nextIndent = indent(depth + 1);
+
+  const out: HighlightToken[] = [];
+
+  if (value === null) {
+    pushToken(out, "null", "text-purple-300");
+    return out;
+  }
+
+  if (typeof value === "number") {
+    pushToken(out, String(value), "text-amber-300");
+    return out;
+  }
+
+  if (typeof value === "boolean") {
+    pushToken(out, String(value), "text-emerald-300");
+    return out;
+  }
+
+  if (typeof value === "string") {
+    pushToken(out, `"${value}"`, "text-emerald-200");
+    return out;
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      pushToken(out, "[]");
+      return out;
+    }
+
+    pushToken(out, "[\n");
+    value.forEach((item, idx) => {
+      pushToken(out, nextIndent);
+      out.push(...formatJsonValueTokens(item, depth + 1));
+      pushToken(out, idx === value.length - 1 ? "\n" : ",\n");
+    });
+    pushToken(out, `${currentIndent}]`);
+    return out;
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) {
+      pushToken(out, "{}");
+      return out;
+    }
+
+    pushToken(out, "{\n");
+    entries.forEach(([key, v], idx) => {
+      pushToken(out, nextIndent);
+      pushToken(out, `"${key}"`, "text-sky-400");
+      pushToken(out, ": ");
+      out.push(...formatJsonValueTokens(v, depth + 1));
+      pushToken(out, idx === entries.length - 1 ? "\n" : ",\n");
+    });
+    pushToken(out, `${currentIndent}}`);
+    return out;
+  }
+
+  pushToken(out, String(value), "text-foreground");
+  return out;
+};
 
 const formatJsonValue = (value: unknown, depth: number): string => {
   const currentIndent = indent(depth);
@@ -82,5 +154,18 @@ export const highlightJson = (raw: string | null | undefined): string => {
     return formatJsonValue(parsed, 0);
   } catch {
     return escapeHtml(raw);
+  }
+};
+
+export const highlightJsonTokens = (raw: string | null | undefined): HighlightToken[] => {
+  if (!raw || !raw.trim()) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return formatJsonValueTokens(parsed, 0);
+  } catch {
+    return [{ text: raw }];
   }
 };

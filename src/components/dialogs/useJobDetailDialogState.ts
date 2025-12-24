@@ -10,7 +10,8 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import type { FFmpegPreset, JobRun, TranscodeJob } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
-import { parseAndHighlightLog } from "@/composables/useJobLog";
+import { parseAndHighlightLog, parseAndHighlightLogTokens } from "@/composables/useJobLog";
+import type { HighlightToken } from "@/lib/highlightTokens";
 
 export type JobDetailDialogProps = {
   open: boolean;
@@ -178,6 +179,7 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     effectiveCommand: jobDetailEffectiveCommand,
     hasDistinctTemplate: jobDetailHasDistinctTemplate,
     highlightedHtml: highlightedCommandHtml,
+    highlightedTokens: highlightedCommandTokens,
     templateCommand: jobDetailTemplateCommand,
     toggle: toggleCommandView,
     toggleLabel: commandViewToggleLabel,
@@ -210,6 +212,7 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
   });
 
   const highlightedLogHtml = computed(() => parseAndHighlightLog(displayedLogText.value));
+  const highlightedLogLines = computed(() => parseAndHighlightLogTokens(displayedLogText.value));
 
   // 任务耗时（秒）：优先使用后端累计的 elapsedMs（仅统计实际处理时间），
   // 若缺失则退回到 startTime/endTime 差值（近似总耗时），并在处理中时用当前时间估算。
@@ -253,11 +256,13 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     jobDetailEffectiveCommand,
     jobDetailHasDistinctTemplate,
     highlightedCommandHtml,
+    highlightedCommandTokens,
     jobDetailTemplateCommand,
     toggleCommandView,
     commandViewToggleLabel,
     displayedLogText,
     highlightedLogHtml,
+    highlightedLogLines,
     jobProcessingSeconds,
     unknownPresetLabel,
   };
@@ -277,11 +282,13 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     jobDetailEffectiveCommand: ComputedRef<string>;
     jobDetailHasDistinctTemplate: ComputedRef<boolean>;
     highlightedCommandHtml: ComputedRef<string>;
+    highlightedCommandTokens: ComputedRef<HighlightToken[]>;
     jobDetailTemplateCommand: ComputedRef<string | null>;
     toggleCommandView: () => void;
     commandViewToggleLabel: ComputedRef<string>;
     displayedLogText: ComputedRef<string>;
     highlightedLogHtml: ComputedRef<string>;
+    highlightedLogLines: ComputedRef<import("@/composables/useJobLog").HighlightedLogLine[]>;
     jobProcessingSeconds: ComputedRef<number | null>;
     unknownPresetLabel: ComputedRef<string>;
   };

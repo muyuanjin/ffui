@@ -242,7 +242,7 @@ const computeSizeSavingScore = (
     else if (q >= 30) score += 0.5;
   }
 
-  let mayIncrease = (rc === "constqp" && q <= 22) || (rc === "crf" && q <= 18) || (rc === "cq" && q <= 20);
+  const mayIncrease = (rc === "constqp" && q <= 22) || (rc === "crf" && q <= 18) || (rc === "cq" && q <= 20);
 
   // 对“极可能放大体积”的预设，体积压缩评分上限收紧到 2，避免给用户造成“很省空间”的错觉
   if (mayIncrease && score > 2) {

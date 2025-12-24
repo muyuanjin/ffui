@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 const props = withDefaults(defineProps<SeparatorProps & { class?: HTMLAttributes["class"] }>(), {
   orientation: "horizontal",
   decorative: true,
+  class: undefined,
 });
 
 const delegatedProps = reactiveOmit(props, "class");

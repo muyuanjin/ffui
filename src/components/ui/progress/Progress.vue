@@ -26,6 +26,7 @@ const props = withDefaults(
   {
     modelValue: 0,
     variant: "default",
+    class: undefined,
   },
 );
 

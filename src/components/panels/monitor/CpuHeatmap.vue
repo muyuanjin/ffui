@@ -16,7 +16,7 @@ const { t } = useI18n();
 </script>
 
 <template>
-  <div class="heatmap-section" v-if="chartOption">
+  <div v-if="chartOption" class="heatmap-section">
     <div class="section-header">
       <span class="section-title">{{ t("monitor.cpuHeatmap") }}</span>
       <span class="section-subtitle">{{ coreCount }} {{ t("monitor.cores") }}</span>

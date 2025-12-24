@@ -32,12 +32,13 @@ export function useMainAppShell(): UseMainAppShellReturn {
 
     try {
       appWindow.value = await getCurrentWindow();
+      const tauriWindow = appWindow.value;
+      if (!tauriWindow) return;
 
       try {
         // Best-effort: when the Tauri window regains focus, acknowledge any
         // completed taskbar progress so the OS indicator does not remain stuck.
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        const maybeUnlisten = await appWindow.value?.listen?.("tauri://focus", async () => {
+        const maybeUnlisten = await (tauriWindow as Partial<TauriWindow>).listen?.("tauri://focus", async () => {
           try {
             await acknowledgeTaskbarProgress();
           } catch (err) {

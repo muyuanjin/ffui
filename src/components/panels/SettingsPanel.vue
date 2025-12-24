@@ -58,6 +58,7 @@ const props = withDefaults(
   }>(),
   {
     toolStatusesFresh: true,
+    refreshToolStatuses: undefined,
     appUpdate: () => ({
       available: false,
       checking: false,
@@ -70,6 +71,9 @@ const props = withDefaults(
       totalBytes: null,
       error: null,
     }),
+    checkForAppUpdate: undefined,
+    installAppUpdate: undefined,
+    reloadPresets: undefined,
   },
 );
 

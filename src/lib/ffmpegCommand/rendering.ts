@@ -1,6 +1,7 @@
 import type { CommandTokenKind } from "./tokenizer";
 import { tokenizeFfmpegCommand } from "./tokenizer";
 import { assignCommandTokenGroups } from "./grouping";
+import type { HighlightToken } from "@/lib/highlightTokens";
 
 /**
  * Escape HTML special characters
@@ -190,4 +191,33 @@ export const highlightFfmpegCommand = (command: string | undefined | null, optio
       return `<span class="${cls}"${titleAttr}${groupAttr}${fieldAttr}>${escaped}</span>`;
     })
     .join("");
+};
+
+export const highlightFfmpegCommandTokens = (
+  command: string | undefined | null,
+  options?: HighlightOptions,
+): HighlightToken[] => {
+  const tokens = assignCommandTokenGroups(tokenizeFfmpegCommand(command));
+  if (!tokens.length) return [];
+
+  return tokens.map((token) => {
+    const cls = commandTokenClass(token.kind);
+    const programOverride =
+      options?.programOverrides && applyProgramOverride(token.kind, token.text, options.programOverrides);
+    const text = programOverride ?? token.text;
+
+    const unquoted = stripQuotes(text);
+    let title = commandTokenTitle(token.kind, text) ?? null;
+    if ((token.kind === "program" || token.kind === "path") && looksLikePath(unquoted)) {
+      title = title ? `${title}\n${unquoted}` : unquoted;
+    }
+
+    return {
+      text,
+      className: cls || undefined,
+      title: title || undefined,
+      group: token.group,
+      field: token.field,
+    };
+  });
 };

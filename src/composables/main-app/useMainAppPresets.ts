@@ -13,6 +13,7 @@ import {
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
 import { applyPresetStatsDelta, getPresetStatsDeltaFromJob } from "@/lib/presetStats";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
+import { perfLog } from "@/lib/perfLog";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { UseMainAppShellReturn } from "./useMainAppShell";
 import type { UseMainAppDialogsReturn } from "./useMainAppDialogs";
@@ -362,7 +363,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
         if (typeof performance !== "undefined" && "mark" in performance) {
           performance.mark("presets_loaded");
         }
-        console.log(`[perf] get_presets: ${elapsedMs.toFixed(1)}ms`);
+        perfLog(`[perf] get_presets: ${elapsedMs.toFixed(1)}ms`);
       }
       if (Array.isArray(loaded) && loaded.length > 0) {
         presets.value = loaded;

@@ -20,7 +20,7 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
   const aliasTauriWindow = resolveFromRepo("tools/docs-screenshots/mocks/tauri-window.ts");
   const aliasTauriOpener = resolveFromRepo("tools/docs-screenshots/mocks/tauri-opener.ts");
 
-  const srcMainAbs = resolveFromRepo("src/main.ts");
+  const _srcMainAbs = resolveFromRepo("src/main.ts");
   const srcDir = resolveFromRepo("src");
 
   return mergeConfig(base, {

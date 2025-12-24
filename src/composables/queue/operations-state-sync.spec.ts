@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ref, computed, type Ref } from "vue";
+import { ref, type Ref } from "vue";
 import type { TranscodeJob, QueueStateLite } from "@/types";
 
 const loadQueueStateMock = vi.fn<() => Promise<QueueStateLite>>();
@@ -15,13 +15,11 @@ import { applyQueueStateFromBackend, refreshQueueFromBackend, type StateSyncDeps
 
 function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { jobs: Ref<TranscodeJob[]> } {
   const jobs = overrides.jobs ?? ref<TranscodeJob[]>([]);
-  const batchCompressJobs = overrides.batchCompressJobs ?? ref<TranscodeJob[]>([]);
   const queueError = overrides.queueError ?? ref<string | null>(null);
   const lastQueueSnapshotAtMs = overrides.lastQueueSnapshotAtMs ?? ref<number | null>(null);
 
   return {
     jobs,
-    batchCompressJobs,
     queueError,
     lastQueueSnapshotAtMs,
     t: overrides.t,
@@ -63,7 +61,6 @@ describe("queue operations state sync", () => {
 
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([batchCompressJob]),
-      batchCompressJobs: ref<TranscodeJob[]>([batchCompressJob]),
     });
 
     const before = deps.lastQueueSnapshotAtMs.value;
@@ -91,7 +88,6 @@ describe("queue operations state sync", () => {
 
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([previousJob]),
-      batchCompressJobs: ref<TranscodeJob[]>([]),
     });
 
     const previousReactive = deps.jobs.value[0];
@@ -143,7 +139,6 @@ describe("queue operations state sync", () => {
 
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([jobA, jobB]),
-      batchCompressJobs: ref<TranscodeJob[]>([]),
     });
 
     const refA = deps.jobs.value[0];
@@ -172,20 +167,9 @@ describe("queue operations state sync", () => {
       logs: [],
     };
 
-    // 模拟 MainApp 中的实际接线：batchCompressJobs 由 jobs 计算而来。
-    const jobs = ref<TranscodeJob[]>([batchCompressJob]);
-    const batchCompressJobs = computed<TranscodeJob[]>(() =>
-      jobs.value.filter((job) => job.source === "batch_compress"),
-    );
-
-    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
-      jobs,
-      batchCompressJobs,
-      queueError: ref<string | null>(null),
-      lastQueueSnapshotAtMs: ref<number | null>(null),
-      t: undefined,
-      onJobCompleted: undefined,
-    };
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([batchCompressJob]),
+    });
 
     applyQueueStateFromBackend({ jobs: [batchCompressJob] }, deps);
 
@@ -216,7 +200,6 @@ describe("queue operations state sync", () => {
     const onJobCompleted = vi.fn();
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([previousJob]),
-      batchCompressJobs: ref<TranscodeJob[]>([]),
       onJobCompleted,
     });
 
@@ -251,7 +234,6 @@ describe("queue operations state sync", () => {
     const onJobCompleted = vi.fn();
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([previousJob]),
-      batchCompressJobs: ref<TranscodeJob[]>([]),
       onJobCompleted,
     });
 

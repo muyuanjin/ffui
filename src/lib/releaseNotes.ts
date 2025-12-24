@@ -86,8 +86,8 @@ export function extractReleaseHighlights(body: string, locale: AppLocale): strin
     if (scoped.length > 0) return scoped;
   }
 
-  const any = extractHighlightsFromRange(lines, 0, lines.length, highlightsHeader);
-  if (any.length > 0) return any;
+  const fallback = extractHighlightsFromRange(lines, 0, lines.length, highlightsHeader);
+  if (fallback.length > 0) return fallback;
 
   return extractFirstBullets(lines);
 }

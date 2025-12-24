@@ -179,8 +179,8 @@ const toggleSecondarySortDirection = () => {
               size="sm"
               class="h-6 px-2 gap-1 text-xs"
               data-testid="queue-sort-primary-direction-toggle"
-              @click="togglePrimarySortDirection"
               :title="props.sortPrimaryDirection === 'asc' ? t('queue.sort.asc') : t('queue.sort.desc')"
+              @click="togglePrimarySortDirection"
             >
               <ArrowUpDown v-if="props.sortPrimaryDirection === 'asc'" class="h-3 w-3" />
               <ArrowDownUp v-else class="h-3 w-3" />
@@ -233,8 +233,8 @@ const toggleSecondarySortDirection = () => {
                 size="sm"
                 class="h-6 px-2 gap-1 text-xs"
                 data-testid="queue-sort-secondary-direction-toggle"
-                @click="toggleSecondarySortDirection"
                 :title="props.sortSecondaryDirection === 'asc' ? t('queue.sort.asc') : t('queue.sort.desc')"
+                @click="toggleSecondarySortDirection"
               >
                 <ArrowUpDown v-if="props.sortSecondaryDirection === 'asc'" class="h-3 w-3" />
                 <ArrowDownUp v-else class="h-3 w-3" />
@@ -248,8 +248,8 @@ const toggleSecondarySortDirection = () => {
                 variant="ghost"
                 size="sm"
                 class="h-6 w-6 p-0"
-                @click="secondarySortExpanded = false"
                 :title="t('queue.sort.collapse')"
+                @click="secondarySortExpanded = false"
               >
                 <X class="h-3 w-3" />
               </Button>

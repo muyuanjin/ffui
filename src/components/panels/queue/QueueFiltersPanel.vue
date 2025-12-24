@@ -134,8 +134,8 @@ const statusOptions: QueueFilterStatus[] = [
           variant="ghost"
           size="sm"
           class="h-6 px-2 gap-1 text-xs text-muted-foreground hover:text-foreground"
-          @click="emit('reset-queue-filters')"
           :title="t('queue.filters.reset')"
+          @click="emit('reset-queue-filters')"
         >
           <RotateCcw class="h-3 w-3" />
           <span class="hidden sm:inline">{{ t("queue.filters.reset") }}</span>

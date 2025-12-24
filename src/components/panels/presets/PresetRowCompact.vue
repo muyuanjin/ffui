@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
-import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
+import { computed } from "vue";
+import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { getPresetAvgRatio } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
@@ -29,6 +30,9 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useI18n();
+
+const commandPreview = computed(() => getPresetCommandPreview(props.preset));
+const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
 
 const handleRowClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -109,10 +113,13 @@ const handleRowClick = (event: MouseEvent) => {
         <div
           class="w-full max-w-full rounded bg-background/80 border border-border/30 px-2 py-1 overflow-x-auto overflow-y-hidden scrollbar-thin"
         >
-          <pre
-            class="text-[9px] font-mono text-muted-foreground whitespace-nowrap select-text"
-            v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
-          />
+          <pre class="text-[9px] font-mono text-muted-foreground whitespace-nowrap select-text"><span
+            v-for="(token, idx) in commandTokens"
+            :key="idx"
+            :class="token.className"
+            :title="token.title"
+            v-text="token.text"
+          ></span></pre>
         </div>
       </div>
 
@@ -134,7 +141,7 @@ const handleRowClick = (event: MouseEvent) => {
         size="icon"
         class="h-6 w-6 hover:bg-primary/10 hover:text-primary"
         :title="t('presetEditor.advanced.copyButton')"
-        @click="copyToClipboard(getPresetCommandPreview(preset))"
+        @click="copyToClipboard(commandPreview)"
       >
         <Copy class="h-3 w-3" />
       </Button>

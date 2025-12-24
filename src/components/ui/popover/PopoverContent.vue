@@ -12,6 +12,7 @@ defineOptions({
 const props = withDefaults(defineProps<PopoverContentProps & { class?: HTMLAttributes["class"] }>(), {
   align: "center",
   sideOffset: 4,
+  class: undefined,
 });
 const emits = defineEmits<PopoverContentEmits>();
 

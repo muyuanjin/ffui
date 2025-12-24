@@ -32,12 +32,12 @@ const {
   jobDetailRawCommand,
   jobDetailEffectiveCommand,
   jobDetailHasDistinctTemplate,
-  highlightedCommandHtml,
+  highlightedCommandTokens,
   jobDetailTemplateCommand,
   toggleCommandView,
   commandViewToggleLabel,
   displayedLogText,
-  highlightedLogHtml,
+  highlightedLogLines,
   jobProcessingSeconds,
   unknownPresetLabel,
 } = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)));
@@ -295,8 +295,15 @@ const {
               <div v-if="jobDetailEffectiveCommand" data-testid="task-detail-command">
                 <pre
                   class="max-h-32 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
-                  v-html="highlightedCommandHtml"
-                />
+                ><span
+                  v-for="(token, idx) in highlightedCommandTokens"
+                  :key="idx"
+                  :class="token.className"
+                  :title="token.title"
+                  :data-group="token.group"
+                  :data-field="token.field"
+                  v-text="token.text"
+                ></span></pre>
               </div>
               <p v-else class="text-[11px] text-muted-foreground">
                 {{ t("taskDetail.commandFallback") }}
@@ -346,10 +353,26 @@ const {
                 </Button>
               </div>
               <div class="rounded-md bg-muted/40 border border-border/60" data-testid="task-detail-log">
-                <pre
+                <div
                   class="max-h-64 overflow-y-auto px-2 py-1 text-[11px] font-mono text-foreground whitespace-pre-wrap select-text"
-                  v-html="highlightedLogHtml"
-                />
+                >
+                  <div
+                    v-for="(line, lineIdx) in highlightedLogLines"
+                    :key="lineIdx"
+                    :class="line.className"
+                    :title="line.title"
+                  >
+                    <span
+                      v-for="(token, tokenIdx) in line.tokens"
+                      :key="tokenIdx"
+                      :class="token.className"
+                      :title="token.title"
+                      :data-group="token.group"
+                      :data-field="token.field"
+                      v-text="token.text"
+                    ></span>
+                  </div>
+                </div>
               </div>
               <p v-if="job.status === 'failed' && job.failureReason" class="text-[11px] text-destructive font-medium">
                 {{ t("taskDetail.failureReasonPrefix") }} {{ job.failureReason }}

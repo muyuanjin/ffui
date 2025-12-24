@@ -33,8 +33,6 @@ export interface UseQueueOperationsOptions {
   jobs: Ref<TranscodeJob[]>;
   /** Job ids that have a pending "wait" request but are still processing. */
   pausingJobIds: Ref<Set<string>>;
-  /** Batch Compress jobs to merge with backend jobs. */
-  batchCompressJobs: Ref<TranscodeJob[]>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   /** All available presets. */
@@ -88,7 +86,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const {
     jobs,
     pausingJobIds,
-    batchCompressJobs,
     manualJobPreset,
     presets,
     queueError,
@@ -103,7 +100,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
 
   const stateSyncDeps = {
     jobs,
-    batchCompressJobs,
     queueError,
     lastQueueSnapshotAtMs,
     t,

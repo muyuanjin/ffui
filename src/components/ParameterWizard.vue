@@ -4,7 +4,7 @@ import type { AudioConfig, EncoderType, FFmpegPreset, FilterConfig, VideoConfig 
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "../constants";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
+import { highlightFfmpegCommandTokens, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
 import WizardStepBasics from "@/components/parameter-wizard/WizardStepBasics.vue";
 import WizardStepVideo from "@/components/parameter-wizard/WizardStepVideo.vue";
 import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.vue";
@@ -297,7 +297,7 @@ const commandPreview = computed(() => {
   });
 });
 
-const highlightedCommandHtml = computed(() => highlightFfmpegCommand(commandPreview.value));
+const highlightedCommandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
 
 const parseHintClass = computed(() => {
   if (!parseHint.value) {
@@ -439,7 +439,7 @@ const handleParseTemplateFromCommand = () => {
           :filters="filters"
           :advanced-enabled="advancedEnabled"
           :ffmpeg-template="ffmpegTemplate"
-          :highlighted-command-html="highlightedCommandHtml"
+          :highlighted-command-tokens="highlightedCommandTokens"
           :parse-hint="parseHint"
           :parse-hint-class="parseHintClass"
           :t="t"

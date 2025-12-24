@@ -32,7 +32,10 @@ const props = withDefaults(
     checkForAppUpdate?: (options?: { force?: boolean }) => Promise<void>;
     installAppUpdate?: () => Promise<void>;
   }>(),
-  {},
+  {
+    checkForAppUpdate: undefined,
+    installAppUpdate: undefined,
+  },
 );
 
 const emit = defineEmits<{

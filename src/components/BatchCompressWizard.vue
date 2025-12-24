@@ -270,7 +270,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minVideoSize") }}</Label>
-                <Input type="number" v-model.number="config.minVideoSizeMB" class="h-7 text-xs" />
+                <Input v-model.number="config.minVideoSizeMB" type="number" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">
@@ -346,7 +346,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minImageSize") }}</Label>
-                <Input type="number" v-model.number="config.minImageSizeKB" class="h-7 text-xs" />
+                <Input v-model.number="config.minImageSizeKB" type="number" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">
@@ -417,7 +417,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minAudioSize") }}</Label>
-                <Input type="number" v-model.number="config.minAudioSizeKB" class="h-7 text-xs" />
+                <Input v-model.number="config.minAudioSizeKB" type="number" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">

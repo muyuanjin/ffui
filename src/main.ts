@@ -5,6 +5,7 @@ import { i18n, loadLocale } from "./i18n";
 import VueApexCharts from "vue3-apexcharts";
 import { hasTauri, loadAppSettings, saveAppSettings } from "@/lib/backend";
 import { bootstrapAppLocale } from "@/lib/bootstrapAppLocale";
+import { perfLog } from "@/lib/perfLog";
 
 // Force dark theme to match design
 document.documentElement.classList.add("dark");
@@ -87,12 +88,12 @@ const run = async () => {
         };
       }
 
-      if (typeof console !== "undefined" && typeof console.log === "function") {
-        const parts = [
-          `[perf] Vue app mount: ${last.duration.toFixed(1)}ms`,
-          navToMountMs != null ? `navigation→mount: ${navToMountMs.toFixed(1)}ms` : null,
-        ].filter(Boolean);
-        console.log(parts.join(" | "));
+      const parts = [
+        `[perf] Vue app mount: ${last.duration.toFixed(1)}ms`,
+        navToMountMs != null ? `navigation→mount: ${navToMountMs.toFixed(1)}ms` : null,
+      ].filter(Boolean);
+      if (parts.length > 0) {
+        perfLog(parts.join(" | "));
       }
 
       if (typeof window !== "undefined") {

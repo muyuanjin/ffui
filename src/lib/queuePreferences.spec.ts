@@ -12,7 +12,6 @@ const loadModule = async () => {
   // Reload the module so that internal singleton state (initialized flag)
   // is reset between tests.
   vi.resetModules();
-  // eslint-disable-next-line import/no-relative-packages
   return import("./queuePreferences");
 };
 

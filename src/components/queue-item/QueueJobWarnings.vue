@@ -10,8 +10,8 @@ const props = defineProps<{
   warnings?: JobWarning[];
 }>();
 
-const normalizedWarnings = computed(() => (props.warnings ?? []).filter(Boolean));
-const hasWarnings = computed(() => normalizedWarnings.value.length > 0);
+const warnings = computed(() => props.warnings ?? []);
+const hasWarnings = computed(() => warnings.value.length > 0);
 
 const { t } = useI18n();
 </script>
@@ -36,7 +36,7 @@ const { t } = useI18n();
         <div class="space-y-1">
           <p class="font-semibold text-amber-100">{{ t("queue.warnings.title") }}</p>
           <ul class="space-y-1">
-            <li v-for="w in normalizedWarnings" :key="w.code" class="text-[11px] leading-snug">
+            <li v-for="w in warnings" :key="w.code" class="text-[11px] leading-snug">
               {{ w.message }}
             </li>
           </ul>

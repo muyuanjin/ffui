@@ -142,9 +142,9 @@ watch(
               size="sm"
               class="queue-selection-bar__button"
               :class="buttonLayoutClass()"
-              @click="emit('select-all-visible-jobs')"
               :title="t('queue.selection.selectAll')"
               :aria-label="t('queue.selection.selectAll')"
+              @click="emit('select-all-visible-jobs')"
             >
               <CheckSquare class="h-3 w-3" />
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -161,9 +161,9 @@ watch(
               size="sm"
               class="queue-selection-bar__button"
               :class="buttonLayoutClass()"
-              @click="emit('invert-selection')"
               :title="t('queue.selection.invert')"
               :aria-label="t('queue.selection.invert')"
+              @click="emit('invert-selection')"
             >
               <Square class="h-3 w-3" />
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -180,9 +180,9 @@ watch(
               size="sm"
               class="queue-selection-bar__button text-muted-foreground"
               :class="buttonLayoutClass()"
-              @click="emit('clear-selection')"
               :title="t('queue.selection.clear')"
               :aria-label="t('queue.selection.clear')"
+              @click="emit('clear-selection')"
             >
               <X class="h-3 w-3" />
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -202,9 +202,9 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            @click="emit('bulk-wait')"
             :title="t('queue.actions.bulkWait')"
             :aria-label="t('queue.actions.bulkWait')"
+            @click="emit('bulk-wait')"
           >
             <Hourglass class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -221,9 +221,9 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            @click="emit('bulk-resume')"
             :title="t('queue.actions.bulkResume')"
             :aria-label="t('queue.actions.bulkResume')"
+            @click="emit('bulk-resume')"
           >
             <Play class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -240,9 +240,9 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            @click="emit('bulk-cancel')"
             :title="t('queue.actions.bulkCancel')"
             :aria-label="t('queue.actions.bulkCancel')"
+            @click="emit('bulk-cancel')"
           >
             <XCircle class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -260,9 +260,9 @@ watch(
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
             :disabled="props.queueMode !== 'queue'"
-            @click="emit('bulk-restart')"
             :title="t('queue.actions.bulkRestart')"
             :aria-label="t('queue.actions.bulkRestart')"
+            @click="emit('bulk-restart')"
           >
             <RefreshCw class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -279,9 +279,9 @@ watch(
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
             :disabled="props.queueMode !== 'queue'"
-            @click="emit('bulk-move-to-top')"
             :title="t('queue.actions.bulkMoveToTop')"
             :aria-label="t('queue.actions.bulkMoveToTop')"
+            @click="emit('bulk-move-to-top')"
           >
             <ArrowUp class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -296,9 +296,9 @@ watch(
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
             :disabled="props.queueMode !== 'queue'"
-            @click="emit('bulk-move-to-bottom')"
             :title="t('queue.actions.bulkMoveToBottom')"
             :aria-label="t('queue.actions.bulkMoveToBottom')"
+            @click="emit('bulk-move-to-bottom')"
           >
             <ArrowDown class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -315,9 +315,9 @@ watch(
             class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
             :class="iconOnlyButtonLayoutClass()"
             data-testid="queue-selection-bulk-delete"
-            @click="emit('bulk-delete')"
             :title="t('queue.actions.bulkDelete')"
             :aria-label="t('queue.actions.bulkDelete')"
+            @click="emit('bulk-delete')"
           >
             <Trash2 class="h-3 w-3" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
@@ -331,9 +331,9 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="[iconOnlyButtonLayoutClass(), { 'text-primary': props.selectionBarPinned }]"
-            @click="emitTogglePin"
             :title="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
             :aria-label="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
+            @click="emitTogglePin"
           >
             <PinOff v-if="props.selectionBarPinned" class="h-3 w-3" />
             <Pin v-else class="h-3 w-3" />

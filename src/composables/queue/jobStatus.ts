@@ -17,7 +17,7 @@ export function compareJobsInWaitingGroup(
   const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
   if (ao !== bo) return ao - bo;
 
-  let result = compareJobsByConfiguredFields(a, b);
+  const result = compareJobsByConfiguredFields(a, b);
   if (result !== 0) return result;
 
   const as = a.startTime ?? 0;

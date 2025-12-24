@@ -60,9 +60,10 @@ const generateUniquePresetId = (existingIds: Set<string>): string => {
     const candidate = tryRandom();
     if (!existingIds.has(candidate)) return candidate;
   }
+  const baseTime = Date.now();
   let counter = 1;
-  while (existingIds.has(`preset-${Date.now()}-${counter}`)) counter += 1;
-  return `preset-${Date.now()}-${counter}`;
+  while (existingIds.has(`preset-${baseTime}-${counter}`)) counter += 1;
+  return `preset-${baseTime}-${counter}`;
 };
 
 const generateCopyName = (baseName: string, existingNames: Set<string>, locale: string): string => {
@@ -209,7 +210,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
         locale.value,
       );
       existingNames.add(newName);
-      const basePreset = preset as unknown as FFmpegPreset;
+      const basePreset = preset as FFmpegPreset;
       normalizedPresets.push({
         ...basePreset,
         id: newId,

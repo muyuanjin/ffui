@@ -17,6 +17,7 @@ import {
   downloadExternalToolNow,
 } from "@/lib/backend";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
+import { perfLog } from "@/lib/perfLog";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
@@ -217,7 +218,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         if (typeof performance !== "undefined" && "mark" in performance) {
           performance.mark("app_settings_loaded");
         }
-        console.log(`[perf] loadAppSettings: ${elapsedMs.toFixed(1)}ms`);
+        perfLog(`[perf] loadAppSettings: ${elapsedMs.toFixed(1)}ms`);
       }
 
       // 若在等待后端返回期间，前端已经基于空设置写入了临时 appSettings
@@ -327,7 +328,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         if (typeof performance !== "undefined" && "mark" in performance) {
           performance.mark("tool_statuses_loaded");
         }
-        console.log(`[perf] get_external_tool_statuses_cached: ${elapsedMs.toFixed(1)}ms`);
+        perfLog(`[perf] get_external_tool_statuses_cached: ${elapsedMs.toFixed(1)}ms`);
       }
     } catch (error) {
       console.error("Failed to load initial external tool statuses", error);

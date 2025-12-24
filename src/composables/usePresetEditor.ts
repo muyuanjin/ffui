@@ -11,7 +11,13 @@ import type {
   ContainerConfig,
   HardwareConfig,
 } from "@/types";
-import { highlightFfmpegCommand, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
+import {
+  highlightFfmpegCommand,
+  highlightFfmpegCommandTokens,
+  normalizeFfmpegTemplate,
+  getFfmpegCommandPreview,
+} from "@/lib/ffmpegCommand";
+import type { HighlightToken } from "@/lib/highlightTokens";
 
 // ----- Types -----
 
@@ -70,6 +76,8 @@ export interface UsePresetEditorReturn {
   commandPreview: ComputedRef<string>;
   /** Highlighted command preview HTML. */
   highlightedCommandHtml: ComputedRef<string>;
+  /** Highlighted command preview tokens. */
+  highlightedCommandTokens: ComputedRef<HighlightToken[]>;
   /** CSS class for parse hint message. */
   parseHintClass: ComputedRef<string>;
 
@@ -134,6 +142,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
   });
 
   const highlightedCommandHtml = computed(() => highlightFfmpegCommand(commandPreview.value));
+  const highlightedCommandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
 
   const parseHintClass = computed(() => {
     if (!parseHint.value) {
@@ -274,6 +283,7 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     rateControlLabel,
     commandPreview,
     highlightedCommandHtml,
+    highlightedCommandTokens,
     parseHintClass,
 
     // Methods

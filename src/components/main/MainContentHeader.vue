@@ -10,6 +10,7 @@ import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
+import type { QueueViewMode } from "@/types";
 
 const props = defineProps<{
   activeTab: string;
@@ -19,7 +20,7 @@ const props = defineProps<{
   completedCount: number;
   manualJobPresetId: string | null;
   presets: FFmpegPreset[];
-  queueViewModeModel: string;
+  queueViewModeModel: QueueViewMode;
   presetSortMode?: PresetSortMode;
   queueOutputPolicy?: OutputPolicy;
   carouselAutoRotationSpeed?: number;
@@ -27,7 +28,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "update:manualJobPresetId", value: string | null): void;
-  (e: "update:queueViewModeModel", value: string): void;
+  (e: "update:queueViewModeModel", value: QueueViewMode): void;
   (e: "openPresetWizard"): void;
   (e: "update:queueOutputPolicy", value: OutputPolicy): void;
   (e: "update:carouselAutoRotationSpeed", value: number): void;
@@ -332,7 +333,7 @@ const hoverPreviewExample = computed(() => {
 
       <Select
         :model-value="queueViewModeModel"
-        @update:model-value="(v) => emit('update:queueViewModeModel', v as string)"
+        @update:model-value="(v) => emit('update:queueViewModeModel', v as QueueViewMode)"
       >
         <SelectTrigger
           data-testid="ffui-queue-view-mode-trigger"

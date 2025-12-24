@@ -56,7 +56,7 @@ const {
   parseHint,
   isCopyEncoder,
   rateControlLabel,
-  highlightedCommandHtml,
+  highlightedCommandTokens,
   parseHintClass,
   buildPresetFromState,
   handleParseTemplateFromCommand,
@@ -234,8 +234,15 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
             <pre
               class="flex-1 min-h-[80px] rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
               :data-active-group="activeTab"
-              v-html="highlightedCommandHtml"
-            />
+            ><span
+              v-for="(token, idx) in highlightedCommandTokens"
+              :key="idx"
+              :class="token.className"
+              :title="token.title"
+              :data-group="token.group"
+              :data-field="token.field"
+              v-text="token.text"
+            ></span></pre>
             <p :class="[parseHintClass, 'flex-shrink-0']">
               {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
             </p>

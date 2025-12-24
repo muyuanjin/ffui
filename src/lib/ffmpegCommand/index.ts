@@ -16,7 +16,7 @@ export { escapeHtml, tokenizeFfmpegCommand } from "./tokenizer";
 
 export { assignCommandTokenGroups } from "./grouping";
 
-export { highlightFfmpegCommand } from "./rendering";
+export { highlightFfmpegCommand, highlightFfmpegCommandTokens } from "./rendering";
 export { applyProgramOverridesToCommand } from "./rendering";
 
 export { normalizeFfmpegTemplate } from "./normalization";

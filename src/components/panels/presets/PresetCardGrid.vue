@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { toRefs } from "vue";
+import { computed, toRefs } from "vue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
+import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
@@ -37,6 +37,9 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useI18n();
+
+const commandPreview = computed(() => getPresetCommandPreview(preset.value));
+const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
 
 const handleCardClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -227,7 +230,7 @@ const handleCardClick = (event: MouseEvent) => {
               size="sm"
               class="h-5 px-1.5 text-[9px] hover:bg-muted"
               :title="t('presetEditor.advanced.copyButton')"
-              @click="copyToClipboard(getPresetCommandPreview(preset))"
+              @click="copyToClipboard(commandPreview)"
             >
               <Copy class="h-3 w-3 mr-1" />
               {{ t("presetEditor.advanced.copyButton") }}
@@ -238,8 +241,13 @@ const handleCardClick = (event: MouseEvent) => {
           </p>
           <pre
             class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
-            v-html="highlightFfmpegCommand(getPresetCommandPreview(preset))"
-          />
+          ><span
+            v-for="(token, idx) in commandTokens"
+            :key="idx"
+            :class="token.className"
+            :title="token.title"
+            v-text="token.text"
+          ></span></pre>
         </div>
       </div>
 

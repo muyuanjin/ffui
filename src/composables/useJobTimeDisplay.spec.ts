@@ -26,11 +26,11 @@ describe("useJobTimeDisplay", () => {
 
     const wrapper = mount(
       defineComponent({
-        template: "<div />",
         setup() {
           const time = useJobTimeDisplay(job);
           return { time };
         },
+        template: "<div />",
       }),
     );
 

@@ -2,6 +2,7 @@ import { type Ref } from "vue";
 import type { TranscodeJob, QueueState, QueueStateLite, Translate } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
+import { perfLog } from "@/lib/perfLog";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -16,9 +17,16 @@ const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
 };
 
+type MutableRecord = Record<string, unknown>;
+
+const asMutableRecord = (job: TranscodeJob): MutableRecord => {
+  // We intentionally patch job objects in place to preserve identity.
+  return job as unknown as MutableRecord;
+};
+
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
-  const prevAny = previous as unknown as Record<string, unknown>;
-  const nextAny = next as unknown as Record<string, unknown>;
+  const prevAny = asMutableRecord(previous);
+  const nextAny = asMutableRecord(next);
 
   // Remove properties that are missing from the backend snapshot (treat missing as undefined),
   // ensuring the in-memory job list stays aligned with the backend source of truth.
@@ -63,8 +71,6 @@ function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
 export interface StateSyncDeps {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
-  /** Batch Compress jobs to merge with backend jobs. */
-  batchCompressJobs: Ref<TranscodeJob[]>;
   /** Queue error message ref. */
   queueError: Ref<string | null>;
   /** Last queue snapshot timestamp. */
@@ -76,20 +82,15 @@ export interface StateSyncDeps {
 }
 
 /**
- * Recompute the jobs list from backend jobs, merging with batch compress jobs.
- * Backend jobs are appended after batch compress jobs to maintain scan batch grouping.
+ * Recompute the jobs list from backend jobs.
  */
-export function recomputeJobsFromBackend(
-  backendJobs: TranscodeJob[],
-  deps: Pick<StateSyncDeps, "jobs" | "batchCompressJobs">,
-) {
+export function recomputeJobsFromBackend(backendJobs: TranscodeJob[], deps: Pick<StateSyncDeps, "jobs">) {
   // Backend queue snapshots are the single source of truth:
   // - Do not merge any local "Batch Compress temp queue" entries.
   // - This prevents UI from keeping stale jobs that the backend already removed.
   //
   // For UI smoothness, preserve existing job object identities by id and patch
   // fields in place so unchanged rows don't re-render on every lite snapshot.
-  void deps.batchCompressJobs;
 
   const previousJobs = deps.jobs.value;
   const previousById = new Map(previousJobs.map((job) => [job.id, job]));
@@ -145,7 +146,7 @@ export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, d
     if (!isTestEnv && !loggedQueueStateLiteApplied) {
       loggedQueueStateLiteApplied = true;
       updateStartupMetrics({ firstQueueStateLiteJobs: backendJobs.length });
-      console.log(`[perf] first QueueStateLite applied: jobs=${backendJobs.length}`);
+      perfLog(`[perf] first QueueStateLite applied: jobs=${backendJobs.length}`);
     }
   }
 
@@ -173,7 +174,7 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
     if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {
       loggedQueueRefresh = true;
       updateStartupMetrics({ getQueueStateLiteMs: elapsedMs });
-      console.log(`[perf] get_queue_state_lite: ${elapsedMs.toFixed(1)}ms`);
+      perfLog(`[perf] get_queue_state_lite: ${elapsedMs.toFixed(1)}ms`);
     }
 
     detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);

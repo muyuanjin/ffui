@@ -17,6 +17,7 @@ const props = withDefaults(defineProps<Props>(), {
   sideOffset: 4,
   portalDisabled: false,
   portalForceMount: false,
+  class: undefined,
 });
 const emits = defineEmits<DropdownMenuContentEmits>();
 

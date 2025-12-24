@@ -180,7 +180,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   );
 
   ensureManualPresetId(presets.value, manualJobPresetId);
-  const batchCompressJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "batch_compress"));
 
   // UI-only: track jobs that have requested "wait/pause" but remain in
   // processing state until the backend reaches a safe point and marks them paused.
@@ -274,7 +273,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = useQueueOperations({
     jobs,
     pausingJobIds,
-    batchCompressJobs,
     manualJobPreset,
     presets,
     queueError,

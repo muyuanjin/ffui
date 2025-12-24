@@ -43,8 +43,8 @@
               variant="ghost"
               size="icon-xs"
               class="queue-header__icon-btn"
-              @click="toggleSortDirection"
               :title="sortDirection === 'asc' ? '升序' : '降序'"
+              @click="toggleSortDirection"
             >
               <ArrowUpDown v-if="sortDirection === 'asc'" class="w-3 h-3" />
               <ArrowDownUp v-else class="w-3 h-3" />
@@ -77,8 +77,8 @@
             variant="ghost"
             size="icon-xs"
             class="queue-header__icon-btn"
-            @click="showFilters = !showFilters"
             :data-active="showFilters"
+            @click="showFilters = !showFilters"
           >
             <Filter class="w-3 h-3" />
             <span class="queue-header__btn-text">筛选</span>

@@ -106,6 +106,7 @@ const sortedPresets = computed(() => sortPresets(localPresets.value, localSortMo
 // 当前排序方式的本地化文案（SelectValue 将使用自定义插槽展示，避免切换语言后仍显示旧文本）
 const currentSortLabel = computed(() => {
   // 读取 locale 以建立响应式依赖，切换语言后触发重算
+  // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   locale.value;
   const option = sortOptions.find((o) => o.value === localSortMode.value);
   return option ? t(option.labelKey) : "";

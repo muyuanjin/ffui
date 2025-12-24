@@ -3,20 +3,30 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { HighlightToken } from "@/lib/highlightTokens";
 import type { AudioConfig, FilterConfig, VideoConfig, Translate } from "@/types";
 
-const { video, audio, filters, advancedEnabled, ffmpegTemplate, highlightedCommandHtml, parseHint, parseHintClass, t } =
-  defineProps<{
-    video: VideoConfig;
-    audio: AudioConfig;
-    filters: FilterConfig;
-    advancedEnabled: boolean;
-    ffmpegTemplate: string;
-    highlightedCommandHtml: string;
-    parseHint: string | null;
-    parseHintClass: string;
-    t: Translate;
-  }>();
+const {
+  video,
+  audio,
+  filters,
+  advancedEnabled,
+  ffmpegTemplate,
+  highlightedCommandTokens,
+  parseHint,
+  parseHintClass,
+  t,
+} = defineProps<{
+  video: VideoConfig;
+  audio: AudioConfig;
+  filters: FilterConfig;
+  advancedEnabled: boolean;
+  ffmpegTemplate: string;
+  highlightedCommandTokens: HighlightToken[];
+  parseHint: string | null;
+  parseHintClass: string;
+  t: Translate;
+}>();
 
 const emit = defineEmits<{
   (e: "update-advanced-enabled", value: boolean): void;
@@ -121,8 +131,13 @@ const emit = defineEmits<{
         </div>
         <pre
           class="mt-1 rounded-md bg-background/80 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
-          v-html="highlightedCommandHtml"
-        />
+        ><span
+          v-for="(token, idx) in highlightedCommandTokens"
+          :key="idx"
+          :class="token.className"
+          :title="token.title"
+          v-text="token.text"
+        ></span></pre>
         <p :class="parseHintClass" class="mt-1">
           {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
         </p>

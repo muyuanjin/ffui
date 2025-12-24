@@ -29,6 +29,8 @@ const props = withDefaults(defineProps<Props>(), {
   hideClose: false,
   portalDisabled: false,
   portalForceMount: false,
+  class: undefined,
+  overlayClass: undefined,
 });
 const emits = defineEmits<DialogContentEmits>();
 

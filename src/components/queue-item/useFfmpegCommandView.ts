@@ -1,6 +1,11 @@
 import { computed, ref, watch, type ComputedRef } from "vue";
 import type { TranscodeJob } from "@/types";
-import { applyProgramOverridesToCommand, highlightFfmpegCommand, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
+import {
+  applyProgramOverridesToCommand,
+  highlightFfmpegCommand,
+  highlightFfmpegCommandTokens,
+  normalizeFfmpegTemplate,
+} from "@/lib/ffmpegCommand";
 
 type CommandViewDefaultMode = "status" | "template" | "full";
 
@@ -82,11 +87,13 @@ export const useFfmpegCommandView = (options: {
   });
 
   const highlightedHtml = computed(() => highlightFfmpegCommand(effectiveCommand.value));
+  const highlightedTokens = computed(() => highlightFfmpegCommandTokens(effectiveCommand.value));
 
   return {
     effectiveCommand,
     hasDistinctTemplate,
     highlightedHtml,
+    highlightedTokens,
     templateCommand,
     toggle,
     toggleLabel,

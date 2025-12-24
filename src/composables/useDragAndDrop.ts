@@ -72,7 +72,7 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
       const paths: string[] = [];
       for (const file of Array.from(files)) {
         // 在 Electron/Tauri 环境下 file.path 存在；在浏览器环境下退回 file.name。
-        const filePath = "path" in file ? (file as unknown as { path?: unknown }).path : undefined;
+        const filePath = "path" in file ? (file as { path?: unknown }).path : undefined;
         paths.push(typeof filePath === "string" && filePath.trim().length > 0 ? filePath : file.name);
       }
       if (paths.length > 0 && onFilesDropped) {

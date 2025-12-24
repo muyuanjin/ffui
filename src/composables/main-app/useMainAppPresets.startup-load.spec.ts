@@ -44,7 +44,6 @@ describe("useMainAppPresets startup load", () => {
 
     mount(
       defineComponent({
-        template: "<div></div>",
         setup() {
           useMainAppPresets({
             t: (key: string) => key,
@@ -61,6 +60,7 @@ describe("useMainAppPresets startup load", () => {
           });
           return {};
         },
+        template: "<div></div>",
       }),
     );
 

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
 import { Copy } from "lucide-vue-next";
+import type { HighlightToken } from "@/lib/highlightTokens";
 
 const props = defineProps<{
   rawCommand: string;
@@ -9,7 +10,7 @@ const props = defineProps<{
   commandTitle: string;
   copyTitle: string;
   toggleLabel: string;
-  highlightedHtml: string;
+  highlightedTokens: HighlightToken[];
 }>();
 
 const emit = defineEmits<{
@@ -55,7 +56,14 @@ const emit = defineEmits<{
     </div>
     <pre
       class="max-h-24 overflow-y-auto rounded-md bg-muted/40 border border-border/60 px-2 py-1 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap select-text"
-      v-html="props.highlightedHtml"
-    />
+    ><span
+      v-for="(token, idx) in props.highlightedTokens"
+      :key="idx"
+      :class="token.className"
+      :title="token.title"
+      :data-group="token.group"
+      :data-field="token.field"
+      v-text="token.text"
+    ></span></pre>
   </div>
 </template>

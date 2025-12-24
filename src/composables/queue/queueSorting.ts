@@ -71,7 +71,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
   };
 
   const compareJobsForDisplay = (a: TranscodeJob, b: TranscodeJob): number => {
-    let result = compareJobsByConfiguredFields(a, b);
+    const result = compareJobsByConfiguredFields(a, b);
     if (result !== 0) return result;
 
     const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;

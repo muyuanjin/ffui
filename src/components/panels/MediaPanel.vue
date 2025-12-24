@@ -13,7 +13,7 @@ import {
   formatFrameRate,
   mapStreamsForDisplay,
 } from "@/components/panels/media/mediaPanelUtils";
-import { highlightJson } from "@/lib/jsonHighlight";
+import { highlightJsonTokens } from "@/lib/jsonHighlight";
 
 const props = defineProps<{
   inspecting: boolean;
@@ -73,7 +73,7 @@ const streamsForDisplay = computed(() => {
 
 const hasRawJson = computed(() => typeof props.rawJson === "string" && props.rawJson.trim().length > 0);
 
-const highlightedRawJsonHtml = computed(() => highlightJson(props.rawJson));
+const highlightedRawJsonTokens = computed(() => highlightJsonTokens(props.rawJson));
 
 const copyRawJson = async () => {
   if (!hasRawJson.value || !props.rawJson) return;
@@ -156,10 +156,10 @@ const openInspectedInSystemPlayer = async () => {
             <template v-if="previewUrl">
               <img
                 v-if="isImage"
+                :key="previewUrl || inspectedPath || fileName"
                 :src="previewUrl"
                 :alt="fileName || 'preview'"
                 class="w-full h-full object-contain"
-                :key="previewUrl || inspectedPath || fileName"
               />
               <div v-else class="w-full h-full">
                 <FallbackMediaPreview
@@ -210,8 +210,8 @@ const openInspectedInSystemPlayer = async () => {
       variant="outline"
       type="button"
       class="w-full h-auto border-dashed border-border/60 rounded-lg py-10 flex flex-col items-center justify-center text-sm text-muted-foreground transition hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-      @click="emit('inspectRequested')"
       data-testid="media-empty-state"
+      @click="emit('inspectRequested')"
     >
       <p class="text-sm font-medium mb-1 text-foreground">
         {{ t("media.emptyTitle") }}
@@ -383,8 +383,12 @@ const openInspectedInSystemPlayer = async () => {
           >
             <pre
               class="p-3 font-mono whitespace-pre leading-relaxed min-w-full select-text text-[11px] md:text-[12px]"
-              v-html="highlightedRawJsonHtml"
-            />
+            ><span
+              v-for="(token, idx) in highlightedRawJsonTokens"
+              :key="idx"
+              :class="token.className"
+              v-text="token.text"
+            ></span></pre>
           </div>
         </CardContent>
       </Card>

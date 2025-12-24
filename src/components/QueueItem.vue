@@ -225,7 +225,7 @@ const rawCommand = computed(() => props.job.ffmpegCommand ?? "");
 const {
   effectiveCommand,
   hasDistinctTemplate,
-  highlightedHtml: highlightedCommand,
+  highlightedTokens: highlightedCommandTokens,
   toggle: toggleCommandView,
   toggleLabel: commandViewToggleLabel,
 } = useFfmpegCommandView({
@@ -437,7 +437,7 @@ const onCardContextMenu = (event: MouseEvent) => {
         :command-title="t('taskDetail.commandTitle') as string"
         :copy-title="t('taskDetail.copyCommand') as string"
         :toggle-label="commandViewToggleLabel"
-        :highlighted-html="highlightedCommand"
+        :highlighted-tokens="highlightedCommandTokens"
         @copy="handleCopyCommand"
         @toggle="toggleCommandView"
       />

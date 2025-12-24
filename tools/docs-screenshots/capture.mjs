@@ -15,7 +15,7 @@ const printHelp = () => {
     "FFUI docs screenshots",
     "",
     "Usage:",
-    "  npm run docs:screenshots -- --media-dir <DIR> [options]",
+    "  pnpm run docs:screenshots -- --media-dir <DIR> [options]",
     "  node tools/docs-screenshots/capture.mjs --media-dir <DIR> [options]",
     "",
     "Required:",
@@ -359,7 +359,7 @@ const ensureDir = async (dir) => {
   await mkdir(dir, { recursive: true });
 };
 
-const convertPngToWebp = async (pngPath, webpPath, targetSize) => {
+const _convertPngToWebp = async (pngPath, webpPath, targetSize) => {
   const targetWidth = Number(targetSize?.width ?? 0);
   const targetHeight = Number(targetSize?.height ?? 0);
   const hasTarget =
@@ -802,7 +802,7 @@ const waitForHttpOk = async (url, timeoutMs) => {
 const withDevServer = async (fn, options = {}) => {
   const viteBin = path.join(repoRoot, "node_modules", "vite", "bin", "vite.js");
   if (!(await fileExists(viteBin))) {
-    throw new Error("Missing Vite binary. Run `npm install` first.");
+    throw new Error("Missing Vite binary. Run `pnpm install` first.");
   }
 
   const port = await findOpenPort(Number(options.port ?? 5173));
@@ -1154,7 +1154,7 @@ const main = async () => {
   try {
     playwright = await import("playwright");
   } catch (error) {
-    throw new Error("Missing Playwright dependency. Run `npm install` first (it will install Playwright).", {
+    throw new Error("Missing Playwright dependency. Run `pnpm install` first (it will install Playwright).", {
       cause: error,
     });
   }
@@ -1169,10 +1169,10 @@ const main = async () => {
   let chromium;
   try {
     chromium = await playwright.chromium.launch({ headless: true });
-  } catch (error) {
+  } catch (_error) {
     console.warn("[docs:screenshots] Playwright browser missing; installing Chromium…");
     try {
-      await run("npx", ["playwright", "install", "chromium"], { cwd: repoRoot, stdio: "inherit" });
+      await run("pnpm", ["exec", "playwright", "install", "chromium"], { cwd: repoRoot, stdio: "inherit" });
     } catch {
       const cliPath = path.join(repoRoot, "node_modules", "playwright", "cli.js");
       await run(process.execPath, [cliPath, "install", "chromium"], { cwd: repoRoot, stdio: "inherit" });

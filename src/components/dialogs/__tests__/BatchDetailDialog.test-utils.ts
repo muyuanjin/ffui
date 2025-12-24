@@ -1,5 +1,5 @@
 import { createI18n } from "vue-i18n";
-import { defineComponent } from "vue";
+import { defineComponent, type PropType } from "vue";
 import en from "@/locales/en";
 import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob } from "@/types";
 
@@ -14,17 +14,17 @@ export const i18n = createI18n({
 // 模拟 QueueItem 组件，用于测试事件传递
 export const QueueItemStub = defineComponent({
   name: "QueueItem",
-  props: [
-    "job",
-    "preset",
-    "canCancel",
-    "canWait",
-    "canResume",
-    "canRestart",
-    "viewMode",
-    "progressStyle",
-    "progressUpdateIntervalMs",
-  ],
+  props: {
+    job: { type: Object as PropType<TranscodeJob>, required: true },
+    preset: { type: Object as PropType<FFmpegPreset>, required: false, default: null },
+    canCancel: { type: Boolean, required: false, default: false },
+    canWait: { type: Boolean, required: false, default: false },
+    canResume: { type: Boolean, required: false, default: false },
+    canRestart: { type: Boolean, required: false, default: false },
+    viewMode: { type: String, required: false, default: "" },
+    progressStyle: { type: String, required: false, default: "" },
+    progressUpdateIntervalMs: { type: Number, required: false, default: 0 },
+  },
   emits: ["cancel", "wait", "resume", "restart", "inspect", "preview", "contextmenu-job"],
   setup(props, { emit }) {
     const onContextMenu = (event: MouseEvent) => {
@@ -54,18 +54,18 @@ export const QueueItemStub = defineComponent({
 // 模拟 QueueContextMenu 组件
 export const QueueContextMenuStub = defineComponent({
   name: "QueueContextMenu",
-  props: [
-    "visible",
-    "x",
-    "y",
-    "mode",
-    "teleportToBody",
-    "jobStatus",
-    "queueMode",
-    "hasSelection",
-    "canRevealInputPath",
-    "canRevealOutputPath",
-  ],
+  props: {
+    visible: { type: Boolean, required: false, default: false },
+    x: { type: Number, required: false, default: 0 },
+    y: { type: Number, required: false, default: 0 },
+    mode: { type: String, required: false, default: "" },
+    teleportToBody: { type: Boolean, required: false, default: false },
+    jobStatus: { type: String, required: false, default: "" },
+    queueMode: { type: String, required: false, default: "" },
+    hasSelection: { type: Boolean, required: false, default: false },
+    canRevealInputPath: { type: Boolean, required: false, default: false },
+    canRevealOutputPath: { type: Boolean, required: false, default: false },
+  },
   emits: ["close", "inspect", "wait", "resume", "restart", "cancel"],
   template: `
     <div v-if="visible" data-testid="context-menu-stub" :data-job-status="jobStatus">

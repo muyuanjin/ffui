@@ -162,7 +162,7 @@ const main = async () => {
 
       await page.evaluate(() => {
         window.__FFUI_OPENED_URLS__ = [];
-        window.open = (url, target, features) => {
+        window.open = (url, _target, _features) => {
           try {
             window.__FFUI_OPENED_URLS__.push(String(url));
           } catch {

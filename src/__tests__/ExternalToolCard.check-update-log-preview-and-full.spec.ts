@@ -60,7 +60,7 @@ describe("ExternalToolCard check update log preview + full log hover", () => {
       },
     });
 
-    const hoverLog = wrapper.get('[data-testid=\"tool-check-update-hover-log-ffmpeg\"]');
+    const hoverLog = wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]');
     expect(hoverLog.text()).toContain("Line 1");
     expect(hoverLog.text()).toContain("Line 10");
   });

@@ -32,9 +32,11 @@ const props = withDefaults(
     lazyControls: false,
     autoFallbackOnNativeError: true,
     forceFallback: false,
+    durationSeconds: null,
     errorText: null,
     showHint: false,
     showCopyPathAction: false,
+    videoTestId: undefined,
   },
 );
 

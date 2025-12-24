@@ -42,6 +42,7 @@ const props = withDefaults(
   {
     jobDetailJob: null,
     presetsPendingBatchDelete: () => [],
+    sortCompareFn: undefined,
   },
 );
 

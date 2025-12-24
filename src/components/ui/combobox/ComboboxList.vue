@@ -12,6 +12,7 @@ const props = withDefaults(defineProps<ComboboxContentProps & { class?: HTMLAttr
   position: "popper",
   align: "center",
   sideOffset: 4,
+  class: undefined,
 });
 const emits = defineEmits<ComboboxContentEmits>();
 const attrs = useAttrs();
