@@ -4,7 +4,12 @@ import { mount, flushPromises } from "@vue/test-utils";
 import { nextTick } from "vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import type { TranscodeJob } from "@/types";
-import { createMockPreset, createMockJob, createMockBatch, createMountOptions } from "./BatchDetailDialog.test-utils";
+import {
+  createMockPreset,
+  createMockJob,
+  createMockBatch,
+  createMountOptions,
+} from "./__tests__/BatchDetailDialog.test-utils";
 
 describe("BatchDetailDialog", () => {
   const presets = [createMockPreset("p1")];

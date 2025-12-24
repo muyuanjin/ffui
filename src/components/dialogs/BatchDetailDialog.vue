@@ -138,8 +138,32 @@ const compressionRatio = computed(() => {
   return ((1 - totalOutputSize.value / totalInputSize.value) * 100).toFixed(1);
 });
 
+const batchCounts = computed(() => {
+  const jobs = props.batch?.jobs ?? [];
+  let processingCount = 0;
+  let waitingCount = 0;
+  let notSkippedCount = 0;
+  let videoCount = 0;
+  let imageCount = 0;
+  let audioCount = 0;
+
+  for (const job of jobs) {
+    if (job.status === "processing") processingCount += 1;
+    if (job.status === "waiting" || job.status === "queued") waitingCount += 1;
+    if (job.status !== "skipped") notSkippedCount += 1;
+
+    if (job.type === "video") videoCount += 1;
+    else if (job.type === "image") imageCount += 1;
+    else if (job.type === "audio") audioCount += 1;
+  }
+
+  return { processingCount, waitingCount, notSkippedCount, videoCount, imageCount, audioCount };
+});
+
+const presetById = computed(() => new Map(props.presets.map((p) => [p.id, p] as const)));
+
 const getPresetForJob = (job: TranscodeJob): FFmpegPreset => {
-  const preset = props.presets.find((p) => p.id === job.presetId);
+  const preset = presetById.value.get(job.presetId);
   if (preset) return preset;
   // Return first preset as fallback, or create a minimal default
   if (props.presets.length > 0) return props.presets[0];
@@ -309,15 +333,11 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.processing") }}</span>
-            <span class="text-lg font-semibold text-blue-400">{{
-              batch.jobs.filter((j) => j.status === "processing").length
-            }}</span>
+            <span class="text-lg font-semibold text-blue-400">{{ batchCounts.processingCount }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.waiting") }}</span>
-            <span class="text-lg font-semibold text-yellow-400">{{
-              batch.jobs.filter((j) => j.status === "waiting" || j.status === "queued").length
-            }}</span>
+            <span class="text-lg font-semibold text-yellow-400">{{ batchCounts.waitingCount }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
             <span class="block text-muted-foreground mb-1">{{ t("queue.status.failed") }}</span>
@@ -330,15 +350,15 @@ const onPreviewClick = (job: TranscodeJob | null) => {
           <span>{{ t("jobDetail.inputInfo") }}: {{ formatBytes(totalInputSize) }}</span>
           <span>{{ t("jobDetail.outputInfo") }}: {{ formatBytes(totalOutputSize) }}</span>
           <span v-if="compressionRatio">{{ t("jobDetail.ratio") }}: {{ compressionRatio }}%</span>
-          <span>{{ t("queue.typeVideo") }}: {{ batch.jobs.filter((j) => j.type === "video").length }}</span>
-          <span>{{ t("queue.typeImage") }}: {{ batch.jobs.filter((j) => j.type === "image").length }}</span>
-          <span>{{ t("queue.typeAudio") }}: {{ batch.jobs.filter((j) => j.type === "audio").length }}</span>
+          <span>{{ t("queue.typeVideo") }}: {{ batchCounts.videoCount }}</span>
+          <span>{{ t("queue.typeImage") }}: {{ batchCounts.imageCount }}</span>
+          <span>{{ t("queue.typeAudio") }}: {{ batchCounts.audioCount }}</span>
         </div>
 
         <!-- Job list header -->
         <div class="flex items-center justify-between text-xs text-muted-foreground flex-shrink-0">
           <span class="font-medium">{{ t("app.tabs.queue") }}</span>
-          <span>{{ batch.jobs.filter((j) => j.status !== "skipped").length }} {{ t("batchCompress.subtitle") }}</span>
+          <span>{{ batchCounts.notSkippedCount }} {{ t("batchCompress.subtitle") }}</span>
         </div>
 
         <!-- Job list - 依赖整个对话框的垂直滚动，不再单独嵌套一层 ScrollArea，避免只有内层列表可以滚动的体验问题。 -->
