@@ -5,7 +5,10 @@ use crate::ffui_core::domain::{
     FFmpegPreset,
 };
 
-pub(super) fn should_fallback_webm(preset: Option<&FFmpegPreset>, input_ext: Option<&str>) -> bool {
+pub(in crate::ffui_core::engine) fn should_fallback_webm(
+    preset: Option<&FFmpegPreset>,
+    input_ext: Option<&str>,
+) -> bool {
     let Some(preset) = preset else {
         return true;
     };

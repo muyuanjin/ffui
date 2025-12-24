@@ -1,11 +1,6 @@
 use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
 
 use anyhow::{
     Context,
@@ -14,16 +9,18 @@ use anyhow::{
 
 use super::super::ffmpeg_args::{
     build_ffmpeg_args as build_queue_ffmpeg_args,
-    configure_background_command,
     format_command_for_log,
 };
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
+    BatchCompressJobSpec,
     current_time_millis,
+    make_batch_compress_job,
     next_job_id,
     record_tool_download,
+    run_ffmpeg_and_finalize_tmp_output,
 };
 use super::video_helpers::{
     detect_video_codec,
@@ -38,10 +35,8 @@ use crate::ffui_core::domain::{
     BatchCompressConfig,
     FFmpegPreset,
     JobRun,
-    JobSource,
     JobStatus,
     JobType,
-    MediaInfo,
     OutputDirectoryPolicy,
     OutputFilenamePolicy,
     OutputPolicy,
@@ -95,48 +90,22 @@ pub(crate) fn handle_video_file(
         }]
     };
 
-    let mut job = TranscodeJob {
-        id: next_job_id(inner),
+    let mut job = make_batch_compress_job(BatchCompressJobSpec {
+        job_id: next_job_id(inner),
         filename,
         job_type: JobType::Video,
-        source: JobSource::BatchCompress,
-        queue_order: None,
+        preset_id: config.video_preset_id.clone(),
         original_size_mb,
         original_codec: None,
-        preset_id: config.video_preset_id.clone(),
-        status: JobStatus::Waiting,
-        progress: 0.0,
+        input_path: input_path.clone(),
+        output_policy: config.output_policy.clone(),
+        batch_id: batch_id.to_string(),
         start_time: None,
-        end_time: None,
-        processing_started_ms: None,
-        elapsed_ms: None,
-        output_size_mb: None,
-        logs,
-        log_head: None,
-        skip_reason: None,
-        input_path: Some(input_path.clone()),
-        output_path: Some(output_path),
-        output_policy: Some(config.output_policy.clone()),
-        ffmpeg_command: None,
-        runs,
-        media_info: Some(MediaInfo {
-            duration_seconds: None,
-            width: None,
-            height: None,
-            frame_rate: None,
-            video_codec: None,
-            audio_codec: None,
-            size_mb: Some(original_size_mb),
-        }),
-        estimated_seconds: None,
-        preview_path: None,
-        preview_revision: 0,
-        log_tail: None,
-        failure_reason: None,
-        warnings,
-        batch_id: Some(batch_id.to_string()),
-        wait_metadata: None,
-    };
+    });
+    job.output_path = Some(output_path);
+    job.logs = logs;
+    job.runs = runs;
+    job.warnings = warnings;
 
     if original_size_mb < config.min_video_size_mb as f64 {
         job.status = JobStatus::Skipped;
@@ -197,71 +166,28 @@ pub(crate) fn handle_video_file(
         record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
     }
 
-    let start_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    let start_ms = current_time_millis();
     job.start_time = Some(start_ms);
 
-    let mut cmd = Command::new(&ffmpeg_path);
-    configure_background_command(&mut cmd);
-    let output = cmd
-        .args(&args)
-        .output()
-        .with_context(|| format!("failed to run ffmpeg on {}", path.display()))?;
-
-    if !output.status.success() {
-        job.status = JobStatus::Failed;
-        job.progress = 100.0;
-        job.end_time = Some(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        );
-        append_job_log_line(
-            &mut job,
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        );
-        let _ = fs::remove_file(&tmp_output);
+    let run_context = format!("failed to run ffmpeg on {}", path.display());
+    let Some(new_size_bytes) =
+        run_ffmpeg_and_finalize_tmp_output(super::helpers::FinalizeTmpOutputSpec {
+            ffmpeg_path: &ffmpeg_path,
+            args: &args,
+            tmp_output: &tmp_output,
+            output_path: &output_path,
+            original_size_bytes,
+            config,
+            job: &mut job,
+            run_context,
+        })?
+    else {
         return Ok(job);
-    }
-
-    let tmp_meta = fs::metadata(&tmp_output)
-        .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
-    let new_size_bytes = tmp_meta.len();
-    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-    if ratio > config.min_saving_ratio {
-        let _ = fs::remove_file(&tmp_output);
-        job.status = JobStatus::Skipped;
-        job.progress = 100.0;
-        job.end_time = Some(
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        );
-        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
-        return Ok(job);
-    }
-
-    fs::rename(&tmp_output, &output_path).with_context(|| {
-        format!(
-            "failed to rename {} -> {}",
-            tmp_output.display(),
-            output_path.display()
-        )
-    })?;
+    };
 
     job.status = JobStatus::Completed;
     job.progress = 100.0;
-    job.end_time = Some(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64,
-    );
+    job.end_time = Some(current_time_millis());
     job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
 
     Ok(job)
@@ -299,48 +225,18 @@ pub(crate) fn enqueue_batch_compress_video_job(
         config.output_policy.clone()
     };
 
-    let mut job = TranscodeJob {
-        id: id.clone(),
+    let mut job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
+        job_id: id.clone(),
         filename,
         job_type: JobType::Video,
-        source: JobSource::BatchCompress,
-        queue_order: None,
+        preset_id: preset.id.clone(),
         original_size_mb,
         original_codec: None,
-        preset_id: preset.id.clone(),
-        status: JobStatus::Waiting,
-        progress: 0.0,
+        input_path: input_path.clone(),
+        output_policy: output_policy.clone(),
+        batch_id: batch_id.to_string(),
         start_time: Some(now_ms),
-        end_time: None,
-        processing_started_ms: None,
-        elapsed_ms: None,
-        output_size_mb: None,
-        logs: Vec::new(),
-        log_head: None,
-        skip_reason: None,
-        input_path: Some(input_path.clone()),
-        output_path: None,
-        output_policy: Some(output_policy.clone()),
-        ffmpeg_command: None,
-        runs: Vec::new(),
-        media_info: Some(MediaInfo {
-            duration_seconds: None,
-            width: None,
-            height: None,
-            frame_rate: None,
-            video_codec: None,
-            audio_codec: None,
-            size_mb: Some(original_size_mb),
-        }),
-        estimated_seconds: None,
-        preview_path: None,
-        preview_revision: 0,
-        log_tail: None,
-        failure_reason: None,
-        warnings: Vec::new(),
-        batch_id: Some(batch_id.to_string()),
-        wait_metadata: None,
-    };
+    });
 
     // 根据体积与编解码预先过滤掉明显不值得压缩的文件。
     if original_size_mb < config.min_video_size_mb as f64 {

@@ -61,13 +61,13 @@ pub fn init_child_process_job() -> bool {
         let job_handle = match CreateJobObjectW(None, None) {
             Ok(h) => h,
             Err(e) => {
-                eprintln!("创建 Job Object 失败: {e}");
+                crate::debug_eprintln!("创建 Job Object 失败: {e}");
                 return false;
             }
         };
 
         if job_handle.is_invalid() {
-            eprintln!("创建 Job Object 返回无效句柄");
+            crate::debug_eprintln!("创建 Job Object 返回无效句柄");
             return false;
         }
 
@@ -83,7 +83,7 @@ pub fn init_child_process_job() -> bool {
         );
 
         if let Err(e) = set_result {
-            eprintln!("设置 Job Object 信息失败: {e}");
+            crate::debug_eprintln!("设置 Job Object 信息失败: {e}");
             let _ = CloseHandle(job_handle);
             return false;
         }
@@ -123,13 +123,13 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
         let process_handle = match OpenProcess(PROCESS_ALL_ACCESS, false, child_pid) {
             Ok(h) => h,
             Err(e) => {
-                eprintln!("打开子进程 {child_pid} 失败: {e}");
+                crate::debug_eprintln!("打开子进程 {child_pid} 失败: {e}");
                 return false;
             }
         };
 
         if process_handle.is_invalid() {
-            eprintln!("打开子进程 {child_pid} 返回无效句柄");
+            crate::debug_eprintln!("打开子进程 {child_pid} 返回无效句柄");
             return false;
         }
 
@@ -142,7 +142,7 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
             // 这在某些情况下是正常的（例如从 IDE 启动时）
             let code = e.code().0 as u32;
             if code != 5 {
-                eprintln!("将子进程 {child_pid} 添加到 Job Object 失败: {e}");
+                crate::debug_eprintln!("将子进程 {child_pid} 添加到 Job Object 失败: {e}");
             }
             return false;
         }

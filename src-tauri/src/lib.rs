@@ -1,3 +1,13 @@
+#[macro_export]
+macro_rules! debug_eprintln {
+    ($($arg:tt)*) => {{
+        #[cfg(debug_assertions)]
+        {
+            eprintln!($($arg)*);
+        }
+    }};
+}
+
 mod app_exit;
 mod commands;
 mod ffui_core;
@@ -44,6 +54,20 @@ struct ExitRequestPayload {
     timeout_seconds: f64,
 }
 
+fn exit_auto_wait_snapshot(engine: &TranscodingEngine) -> (bool, f64, usize) {
+    let state = engine.inner.state.lock_unpoisoned();
+    let processing_job_count = state
+        .jobs
+        .values()
+        .filter(|job| job.status == JobStatus::Processing)
+        .count();
+    (
+        state.settings.exit_auto_wait_enabled,
+        state.settings.exit_auto_wait_timeout_seconds,
+        processing_job_count,
+    )
+}
+
 // Windows-only: detection +重启逻辑，用于把管理员进程“降权”为普通 UI 进程，
 // 这样最终显示出来的窗口始终是非管理员的，可以正常接收 Explorer 的拖拽。
 #[cfg(windows)]
@@ -72,7 +96,7 @@ pub fn run() {
             return;
         }
         Err(err) => {
-            eprintln!("single-instance guard failed: {err:#}");
+            crate::debug_eprintln!("single-instance guard failed: {err:#}");
             return;
         }
     };
@@ -80,7 +104,7 @@ pub fn run() {
     // 初始化 Job Object，确保子进程在父进程退出时被自动终止
     // 这对于 Windows 平台尤为重要，防止 ffmpeg 进程在 FFUI 被强制关闭后继续运行
     if !init_child_process_job() {
-        eprintln!(
+        crate::debug_eprintln!(
             "警告: 无法初始化子进程 Job Object，强制关闭程序时 ffmpeg 进程可能不会被自动终止"
         );
     }
@@ -186,19 +210,8 @@ pub fn run() {
             }
 
             let engine = window.app_handle().state::<TranscodingEngine>();
-            let (enabled, timeout_seconds, processing_job_count) = {
-                let state = engine.inner.state.lock_unpoisoned();
-                let count = state
-                    .jobs
-                    .values()
-                    .filter(|job| job.status == JobStatus::Processing)
-                    .count();
-                (
-                    state.settings.exit_auto_wait_enabled,
-                    state.settings.exit_auto_wait_timeout_seconds,
-                    count,
-                )
-            };
+            let (enabled, timeout_seconds, processing_job_count) =
+                exit_auto_wait_snapshot(&engine);
 
             if !enabled || processing_job_count == 0 {
                 return;
@@ -214,7 +227,7 @@ pub fn run() {
                 timeout_seconds,
             };
             if let Err(err) = window.emit("app://exit-requested", payload) {
-                eprintln!("failed to emit app://exit-requested event: {err}");
+                crate::debug_eprintln!("failed to emit app://exit-requested event: {err}");
             }
         })
         // Fallback: if the frontend never calls `window.show()` (e.g. crash during boot),
@@ -225,7 +238,9 @@ pub fn run() {
                 if commands::updater::updater_is_configured(app.config()) {
                     app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
                 } else {
-                    eprintln!("tauri-plugin-updater disabled: missing/placeholder updater pubkey or endpoints");
+                    crate::debug_eprintln!(
+                        "tauri-plugin-updater disabled: missing/placeholder updater pubkey or endpoints"
+                    );
                 }
             }
 
@@ -237,7 +252,7 @@ pub fn run() {
             let engine = match TranscodingEngine::new() {
                 Ok(engine) => engine,
                 Err(err) => {
-                    eprintln!("failed to initialize transcoding engine: {err:#}");
+                    crate::debug_eprintln!("failed to initialize transcoding engine: {err:#}");
                     return Ok(());
                 }
             };
@@ -317,7 +332,7 @@ pub fn run() {
                 let event_handle = handle.clone();
                 engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
                     if let Err(err) = event_handle.emit("auto-compress://progress", progress.clone()) {
-                        eprintln!("failed to emit auto-compress progress event: {err}");
+                        crate::debug_eprintln!("failed to emit auto-compress progress event: {err}");
                     }
                 });
             }
@@ -346,7 +361,7 @@ pub fn run() {
     let app = match app {
         Ok(app) => app,
         Err(err) => {
-            eprintln!("error while building tauri application: {err:#}");
+            crate::debug_eprintln!("error while building tauri application: {err:#}");
             return;
         }
     };
@@ -362,19 +377,7 @@ pub fn run() {
         }
 
         let engine = app.state::<TranscodingEngine>();
-        let (enabled, timeout_seconds, processing_job_count) = {
-            let state = engine.inner.state.lock_unpoisoned();
-            let count = state
-                .jobs
-                .values()
-                .filter(|job| job.status == JobStatus::Processing)
-                .count();
-            (
-                state.settings.exit_auto_wait_enabled,
-                state.settings.exit_auto_wait_timeout_seconds,
-                count,
-            )
-        };
+        let (enabled, timeout_seconds, processing_job_count) = exit_auto_wait_snapshot(&engine);
 
         if !enabled || processing_job_count == 0 {
             return;
@@ -394,15 +397,16 @@ pub fn run() {
                 let result =
                     crate::app_exit::pause_processing_jobs_for_exit(&engine, timeout_seconds);
                 if result.timed_out_job_count > 0 {
-                    eprintln!(
+                    crate::debug_eprintln!(
                         "shutdown: auto-wait timed out for {} job(s) after {}s",
-                        result.timed_out_job_count, result.timeout_seconds
+                        result.timed_out_job_count,
+                        result.timeout_seconds
                     );
                 }
             })
             .await;
             if let Err(err) = outcome {
-                eprintln!("shutdown: auto-wait join failed: {err}");
+                crate::debug_eprintln!("shutdown: auto-wait join failed: {err}");
             }
 
             let coordinator = handle.state::<app_exit::ExitCoordinator>();

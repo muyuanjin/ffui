@@ -108,7 +108,7 @@ impl TranscodingEngine {
         manual_remote_check: bool,
     ) -> bool {
         if !try_begin_tool_status_refresh() {
-            eprintln!("[tools_refresh] dedupe hit (already in progress)");
+            crate::debug_eprintln!("[tools_refresh] dedupe hit (already in progress)");
             return false;
         }
 
@@ -160,7 +160,7 @@ impl TranscodingEngine {
                     remote_check && (manual_remote_check || !remote_ttl_hit);
                 let should_check_libavif =
                     remote_check && (manual_remote_check || !libavif_ttl_hit);
-                eprintln!(
+                crate::debug_eprintln!(
                     "[tools_refresh] start remote_check={remote_check} manual={manual_remote_check} ttl_hit_ffmpeg={remote_ttl_hit} ttl_hit_libavif={libavif_ttl_hit}"
                 );
 
@@ -188,7 +188,7 @@ impl TranscodingEngine {
                             );
                         }
                         None => {
-                            eprintln!(
+                            crate::debug_eprintln!(
                                 "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
                         }
@@ -217,7 +217,7 @@ impl TranscodingEngine {
                             );
                         }
                         None => {
-                            eprintln!(
+                            crate::debug_eprintln!(
                                 "[tools_refresh] libavif remote version check failed (best-effort)"
                             );
                         }
@@ -227,7 +227,7 @@ impl TranscodingEngine {
                 if should_persist_settings {
                     let state = engine_clone.inner.state.lock_unpoisoned();
                     if let Err(err) = settings::save_settings(&state.settings) {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[tools_refresh] failed to persist remote TTL cache: {err:#}"
                         );
                     }
@@ -238,14 +238,14 @@ impl TranscodingEngine {
                 let _ = engine_clone.external_tool_statuses();
 
                 let elapsed_ms = started_at.elapsed().as_millis();
-                eprintln!(
+                crate::debug_eprintln!(
                     "[tools_refresh] done remote_updated={remote_updated} elapsed_ms={elapsed_ms}"
                 );
             });
 
         if let Err(err) = spawned {
             finish_tool_status_refresh();
-            eprintln!("[tools_refresh] failed to spawn refresh thread: {err}");
+            crate::debug_eprintln!("[tools_refresh] failed to spawn refresh thread: {err}");
             return false;
         }
 

@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::{
     Context,
@@ -8,7 +7,7 @@ use anyhow::{
 };
 
 use super::super::ffmpeg_args::{
-    configure_background_command,
+    apply_global_args,
     format_command_for_log,
 };
 use super::super::output_policy_paths::plan_output_path_with_extension;
@@ -18,20 +17,20 @@ use super::super::state::{
 };
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
+    capture_input_times_if_needed,
     current_time_millis,
+    make_batch_compress_job,
     next_job_id,
     record_tool_download,
+    run_ffmpeg_and_finalize_tmp_output,
 };
-use super::video_paths::ensure_progress_args;
 use crate::ffui_core::domain::{
     AudioCodecType,
     BatchCompressConfig,
     FFmpegPreset,
     JobRun,
-    JobSource,
     JobStatus,
     JobType,
-    MediaInfo,
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
@@ -88,66 +87,23 @@ pub(crate) fn handle_audio_file_with_id(
     let preset = presets.iter().find(|p| p.id == audio_preset_id).cloned();
 
     let preserve_times_policy = config.output_policy.preserve_file_times.clone();
-    let input_times = if preserve_times_policy.any() {
-        let mut times = super::super::file_times::read_file_times(path);
-        if !preserve_times_policy.created() {
-            times.created = None;
-        }
-        if !preserve_times_policy.modified() {
-            times.modified = None;
-        }
-        if !preserve_times_policy.accessed() {
-            times.accessed = None;
-        }
-        Some(times)
-    } else {
-        None
-    };
+    let input_times = capture_input_times_if_needed(path, &preserve_times_policy);
 
-    let mut job = TranscodeJob {
-        id: job_id.unwrap_or_else(|| next_job_id(inner)),
+    let resolved_job_id = job_id.unwrap_or_else(|| next_job_id(inner));
+    let mut job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
+        job_id: resolved_job_id,
         filename,
         job_type: JobType::Audio,
-        source: JobSource::BatchCompress,
-        queue_order: None,
-        original_size_mb,
-        original_codec: ext.clone(),
         // 对于找不到匹配预设的情况，仍然记录 audio_preset_id（可能为空字符串），
         // 以便前端在详情中展示“默认音频压缩”等信息。
         preset_id: audio_preset_id,
-        status: JobStatus::Waiting,
-        progress: 0.0,
+        original_size_mb,
+        original_codec: ext.clone(),
+        input_path: path.to_string_lossy().into_owned(),
+        output_policy: config.output_policy.clone(),
+        batch_id: batch_id.to_string(),
         start_time: None,
-        end_time: None,
-        processing_started_ms: None,
-        elapsed_ms: None,
-        output_size_mb: None,
-        logs: Vec::new(),
-        log_head: None,
-        skip_reason: None,
-        input_path: Some(path.to_string_lossy().into_owned()),
-        output_path: None,
-        output_policy: Some(config.output_policy.clone()),
-        ffmpeg_command: None,
-        runs: Vec::new(),
-        media_info: Some(MediaInfo {
-            duration_seconds: None,
-            width: None,
-            height: None,
-            frame_rate: None,
-            video_codec: None,
-            audio_codec: None,
-            size_mb: Some(original_size_mb),
-        }),
-        estimated_seconds: None,
-        preview_path: None,
-        preview_revision: 0,
-        log_tail: None,
-        failure_reason: None,
-        warnings: Vec::new(),
-        batch_id: Some(batch_id.to_string()),
-        wait_metadata: None,
-    };
+    });
 
     // 按最小体积阈值预过滤明显不值得压缩的文件。
     if original_size_bytes < config.min_audio_size_kb.saturating_mul(1024) {
@@ -162,39 +118,14 @@ pub(crate) fn handle_audio_file_with_id(
 
     // 构建 ffmpeg 参数：音频-only，禁用视频流，使用 Batch Compress 默认或预设音频配置。
     let mut args: Vec<String> = Vec::new();
-    ensure_progress_args(&mut args);
+    crate::ffui_core::engine::ffmpeg_args::ensure_progress_args(&mut args);
     if !args.iter().any(|a| a == "-nostdin") {
         args.push("-nostdin".to_string());
     }
 
     // 全局参数：尽量复用预设中的 overwrite/logLevel/hideBanner/report。
-    if let Some(global) = preset.as_ref().and_then(|p| p.global.as_ref()) {
-        use crate::ffui_core::domain::OverwriteBehavior;
-        if let Some(behavior) = &global.overwrite_behavior {
-            match behavior {
-                OverwriteBehavior::Overwrite => {
-                    args.push("-y".to_string());
-                }
-                OverwriteBehavior::NoOverwrite => {
-                    args.push("-n".to_string());
-                }
-                OverwriteBehavior::Ask => {
-                    // 使用 ffmpeg 默认行为，不追加标志。
-                }
-            }
-        }
-        if let Some(level) = &global.log_level
-            && !level.is_empty()
-        {
-            args.push("-loglevel".to_string());
-            args.push(level.clone());
-        }
-        if global.hide_banner.unwrap_or(false) {
-            args.push("-hide_banner".to_string());
-        }
-        if global.enable_report.unwrap_or(false) {
-            args.push("-report".to_string());
-        }
+    if let Some(preset) = &preset {
+        apply_global_args(&mut args, preset);
     }
 
     // 输入
@@ -385,46 +316,21 @@ pub(crate) fn handle_audio_file_with_id(
     }
     append_job_log_line(&mut job, format!("command: {ffmpeg_cmd}"));
 
-    let mut cmd = Command::new(&ffmpeg_path);
-    configure_background_command(&mut cmd);
-    let output = cmd
-        .args(&args)
-        .output()
-        .with_context(|| format!("failed to run ffmpeg on audio {}", path.display()))?;
-
-    if !output.status.success() {
-        job.status = JobStatus::Failed;
-        job.progress = 100.0;
-        job.end_time = Some(current_time_millis());
-        append_job_log_line(
-            &mut job,
-            String::from_utf8_lossy(&output.stderr).to_string(),
-        );
-        let _ = fs::remove_file(&tmp_output);
+    let run_context = format!("failed to run ffmpeg on audio {}", path.display());
+    let Some(new_size_bytes) =
+        run_ffmpeg_and_finalize_tmp_output(super::helpers::FinalizeTmpOutputSpec {
+            ffmpeg_path: &ffmpeg_path,
+            args: &args,
+            tmp_output: &tmp_output,
+            output_path: &output_path,
+            original_size_bytes,
+            config,
+            job: &mut job,
+            run_context,
+        })?
+    else {
         return Ok(job);
-    }
-
-    let tmp_meta = fs::metadata(&tmp_output)
-        .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
-    let new_size_bytes = tmp_meta.len();
-    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-    if ratio > config.min_saving_ratio {
-        let _ = fs::remove_file(&tmp_output);
-        job.status = JobStatus::Skipped;
-        job.progress = 100.0;
-        job.end_time = Some(current_time_millis());
-        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
-        return Ok(job);
-    }
-
-    fs::rename(&tmp_output, &output_path).with_context(|| {
-        format!(
-            "failed to rename {} -> {}",
-            tmp_output.display(),
-            output_path.display()
-        )
-    })?;
+    };
 
     if preserve_times_policy.any()
         && let Some(times) = input_times.as_ref()

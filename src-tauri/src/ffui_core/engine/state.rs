@@ -169,16 +169,55 @@ pub(super) fn snapshot_queue_state_calls() -> usize {
     SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.get())
 }
 
-fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
-    use std::collections::HashMap;
+trait QueueOrderSortable {
+    fn id_str(&self) -> &str;
+    fn queue_order(&self) -> Option<u64>;
+}
 
-    // Build a stable mapping from job id -> queue index so snapshots can
-    // surface a `queueOrder` field for waiting jobs without mutating the
-    // underlying engine state.
+impl QueueOrderSortable for TranscodeJob {
+    fn id_str(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn queue_order(&self) -> Option<u64> {
+        self.queue_order
+    }
+}
+
+impl QueueOrderSortable for TranscodeJobLite {
+    fn id_str(&self) -> &str {
+        self.id.as_str()
+    }
+
+    fn queue_order(&self) -> Option<u64> {
+        self.queue_order
+    }
+}
+
+fn build_queue_order_map(state: &EngineState) -> HashMap<&str, u64> {
     let mut order_by_id: HashMap<&str, u64> = HashMap::with_capacity(state.queue.len());
     for (index, id) in state.queue.iter().enumerate() {
         order_by_id.insert(id.as_str(), index as u64);
     }
+    order_by_id
+}
+
+fn sort_jobs_by_queue_order_and_id<J: QueueOrderSortable>(jobs: &mut [J]) {
+    use std::cmp::Ordering;
+
+    jobs.sort_by(|a, b| match (a.queue_order(), b.queue_order()) {
+        (Some(aq), Some(bq)) => aq.cmp(&bq).then_with(|| a.id_str().cmp(b.id_str())),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => a.id_str().cmp(b.id_str()),
+    });
+}
+
+fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
+    // Build a stable mapping from job id -> queue index so snapshots can
+    // surface a `queueOrder` field for waiting jobs without mutating the
+    // underlying engine state.
+    let order_by_id = build_queue_order_map(state);
 
     let mut jobs: Vec<TranscodeJob> = Vec::with_capacity(state.jobs.len());
     for (id, job) in state.jobs.iter() {
@@ -186,6 +225,8 @@ fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
         clone.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(clone);
     }
+
+    sort_jobs_by_queue_order_and_id(&mut jobs);
 
     QueueState { jobs }
 }
@@ -199,12 +240,7 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
 }
 
 fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStateLite {
-    use std::collections::HashMap;
-
-    let mut order_by_id: HashMap<&str, u64> = HashMap::with_capacity(state.queue.len());
-    for (index, id) in state.queue.iter().enumerate() {
-        order_by_id.insert(id.as_str(), index as u64);
-    }
+    let order_by_id = build_queue_order_map(state);
 
     let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
     for (id, job) in state.jobs.iter() {
@@ -212,6 +248,8 @@ fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStat
         lite.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(lite);
     }
+
+    sort_jobs_by_queue_order_and_id(&mut jobs);
 
     QueueStateLite { jobs }
 }
@@ -329,4 +367,62 @@ pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Pa
     let key = path.to_string_lossy().into_owned();
     let state = inner.state.lock_unpoisoned();
     state.known_batch_compress_outputs.contains(&key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffui_core::JobStatus;
+    use crate::test_support::make_transcode_job_for_tests;
+
+    fn make_queue_order_test_state() -> EngineState {
+        let mut state = EngineState::new(Vec::new(), AppSettings::default());
+        state.queue.push_back("b".to_string());
+        state.queue.push_back("a".to_string());
+
+        state.jobs.insert(
+            "c".to_string(),
+            make_transcode_job_for_tests("c", JobStatus::Waiting, 0.0, None),
+        );
+        state.jobs.insert(
+            "a".to_string(),
+            make_transcode_job_for_tests("a", JobStatus::Waiting, 0.0, None),
+        );
+        state.jobs.insert(
+            "b".to_string(),
+            make_transcode_job_for_tests("b", JobStatus::Waiting, 0.0, None),
+        );
+        state
+    }
+
+    fn assert_queue_order_snapshot<J: QueueOrderSortable>(jobs: &[J]) {
+        let ids: Vec<&str> = jobs.iter().map(|job| job.id_str()).collect();
+        assert_eq!(ids, vec!["b", "a", "c"]);
+
+        assert_eq!(jobs[0].queue_order(), Some(0));
+        assert_eq!(jobs[1].queue_order(), Some(1));
+        assert_eq!(jobs[2].queue_order(), None);
+    }
+
+    #[test]
+    fn snapshot_queue_state_sorts_jobs_by_queue_order_then_id() {
+        let state = make_queue_order_test_state();
+        let snapshot = snapshot_queue_state_from_locked_state(&state);
+        assert_queue_order_snapshot(&snapshot.jobs);
+
+        let json = serde_json::to_value(&snapshot).expect("QueueState serializes");
+        let jobs = json
+            .get("jobs")
+            .and_then(|v| v.as_array())
+            .expect("jobs array present");
+        assert_eq!(jobs[0].get("id").and_then(|v| v.as_str()), Some("b"));
+        assert_eq!(jobs[0].get("queueOrder").and_then(|v| v.as_u64()), Some(0));
+    }
+
+    #[test]
+    fn snapshot_queue_state_lite_sorts_jobs_by_queue_order_then_id() {
+        let state = make_queue_order_test_state();
+        let snapshot = snapshot_queue_state_lite_from_locked_state(&state);
+        assert_queue_order_snapshot(&snapshot.jobs);
+    }
 }

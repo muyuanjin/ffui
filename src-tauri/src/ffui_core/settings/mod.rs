@@ -13,6 +13,7 @@ pub use types::{
 };
 
 // FFmpeg preset management
+mod preset_templates;
 pub mod presets;
 pub mod smart_presets;
 mod smart_presets_cpu;

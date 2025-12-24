@@ -65,14 +65,34 @@ fn default_desired_mode(context: &DataRootContext) -> DataRootMode {
 }
 
 pub(super) fn is_dir_writable(path: &Path) -> bool {
+    use std::io::Write;
+
     if std::fs::create_dir_all(path).is_err() {
         return false;
     }
-    let probe_name = format!(".ffui-write-test-{}", std::process::id());
-    let probe = path.join(probe_name);
-    let result = std::fs::write(&probe, b"ffui").is_ok();
-    let _ = std::fs::remove_file(&probe);
-    result
+
+    let pid = std::process::id();
+    for attempt in 0..16u32 {
+        let probe_name = format!(".ffui-write-test-{pid}-{attempt}");
+        let probe = path.join(&probe_name);
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&probe);
+
+        match file {
+            Ok(mut file) => {
+                let result = file.write_all(b"ffui").is_ok() && file.flush().is_ok();
+                drop(file);
+                let _ = std::fs::remove_file(&probe);
+                return result;
+            }
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return false,
+        }
+    }
+
+    false
 }
 
 pub(super) fn resolve_data_root_with(
@@ -122,7 +142,7 @@ pub(super) fn resolve_data_root_with(
             fallback_notice_dismissed: Some(false),
         };
         if let Err(err) = write_meta(&context.system_root, &meta) {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to persist data root fallback meta {}: {err:#}",
                 meta_path(&context.system_root).display()
             );
@@ -181,4 +201,43 @@ pub(super) fn data_root_context_from_app(app: &tauri::AppHandle) -> Result<DataR
         exe_dir,
         exe_name,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_dir_writable_does_not_overwrite_existing_probe_file() {
+        let pid = std::process::id();
+        let root = std::env::temp_dir().join(format!(
+            "ffui-test-is-dir-writable-{pid}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).expect("create temp dir");
+
+        let existing_probe = root.join(format!(".ffui-write-test-{pid}-0"));
+        std::fs::write(&existing_probe, b"DO_NOT_OVERWRITE").expect("seed probe");
+
+        let result = is_dir_writable(&root);
+        assert!(result);
+
+        let content = std::fs::read(&existing_probe).expect("read seeded probe");
+        assert_eq!(content, b"DO_NOT_OVERWRITE");
+
+        let mut probe_files: Vec<String> = std::fs::read_dir(&root)
+            .expect("read_dir")
+            .filter_map(|entry| entry.ok())
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter(|name| name.starts_with(".ffui-write-test-"))
+            .collect();
+        probe_files.sort();
+        assert_eq!(probe_files, vec![format!(".ffui-write-test-{pid}-0")]);
+
+        let _ = std::fs::remove_file(&existing_probe);
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }

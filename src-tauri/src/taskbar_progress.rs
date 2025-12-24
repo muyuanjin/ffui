@@ -17,40 +17,73 @@ fn is_terminal(status: &JobStatus) -> bool {
     )
 }
 
-fn cohort_start_ms_for_active_scope(state: &QueueState) -> Option<u64> {
-    state
-        .jobs
-        .iter()
-        .filter(|job| !is_terminal(&job.status))
-        .filter_map(|job| job.start_time)
+pub(super) trait JobProgressModel {
+    fn status(&self) -> &JobStatus;
+    fn progress_percent(&self) -> f64;
+    fn start_time_ms(&self) -> Option<u64>;
+    fn size_mb(&self) -> f64;
+    fn duration_seconds(&self) -> f64;
+    fn estimated_seconds(&self) -> Option<f64>;
+}
+
+impl JobProgressModel for TranscodeJob {
+    fn status(&self) -> &JobStatus {
+        &self.status
+    }
+
+    fn progress_percent(&self) -> f64 {
+        self.progress
+    }
+
+    fn start_time_ms(&self) -> Option<u64> {
+        self.start_time
+    }
+
+    fn size_mb(&self) -> f64 {
+        self.media_info
+            .as_ref()
+            .and_then(|m| m.size_mb)
+            .unwrap_or(self.original_size_mb)
+    }
+
+    fn duration_seconds(&self) -> f64 {
+        self.media_info
+            .as_ref()
+            .and_then(|m| m.duration_seconds)
+            .unwrap_or(0.0)
+    }
+
+    fn estimated_seconds(&self) -> Option<f64> {
+        self.estimated_seconds
+    }
+}
+
+fn cohort_start_ms_for_active_scope_generic<J: JobProgressModel>(jobs: &[J]) -> Option<u64> {
+    jobs.iter()
+        .filter(|job| !is_terminal(job.status()))
+        .filter_map(|job| job.start_time_ms())
         .min()
 }
 
-fn eligible_jobs_for_scope<'a>(
-    state: &'a QueueState,
+fn eligible_jobs_for_scope_generic<'a, J: JobProgressModel>(
+    jobs: &'a [J],
     scope: TaskbarProgressScope,
-) -> Box<dyn Iterator<Item = &'a TranscodeJob> + 'a> {
+) -> Box<dyn Iterator<Item = &'a J> + 'a> {
     match scope {
-        TaskbarProgressScope::AllJobs => Box::new(state.jobs.iter()),
+        TaskbarProgressScope::AllJobs => Box::new(jobs.iter()),
         TaskbarProgressScope::ActiveAndQueued => {
-            let has_non_terminal = state.jobs.iter().any(|job| !is_terminal(&job.status));
+            let has_non_terminal = jobs.iter().any(|job| !is_terminal(job.status()));
             if !has_non_terminal {
-                // Fall back to AllJobs so a completed queue still reports 100%.
-                return Box::new(state.jobs.iter());
+                return Box::new(jobs.iter());
             }
 
-            let cohort_start_ms = cohort_start_ms_for_active_scope(state);
-            Box::new(state.jobs.iter().filter(move |job| {
-                if !is_terminal(&job.status) {
+            let cohort_start_ms = cohort_start_ms_for_active_scope_generic(jobs);
+            Box::new(jobs.iter().filter(move |job| {
+                if !is_terminal(job.status()) {
                     return true;
                 }
-                // Only count terminal jobs that belong to the same enqueue cohort
-                // as the currently active/waiting jobs. This prevents progress
-                // from resetting to 0% between serial tasks (including composite
-                // Batch Compress batches) while still ignoring older completed jobs
-                // when a new round of work starts.
                 match cohort_start_ms {
-                    Some(start_ms) => job.start_time.map(|t| t >= start_ms).unwrap_or(false),
+                    Some(start_ms) => job.start_time_ms().map(|t| t >= start_ms).unwrap_or(false),
                     None => false,
                 }
             }))
@@ -58,33 +91,24 @@ fn eligible_jobs_for_scope<'a>(
     }
 }
 
-fn normalized_job_progress(job: &TranscodeJob) -> f64 {
-    if is_terminal(&job.status) {
+fn normalized_job_progress_generic<J: JobProgressModel>(job: &J) -> f64 {
+    if is_terminal(job.status()) {
         1.0
     } else {
-        match job.status {
-            JobStatus::Processing | JobStatus::Paused => (job.progress.clamp(0.0, 100.0)) / 100.0,
+        match job.status() {
+            JobStatus::Processing | JobStatus::Paused => {
+                (job.progress_percent().clamp(0.0, 100.0)) / 100.0
+            }
             JobStatus::Waiting | JobStatus::Queued => 0.0,
             _ => 0.0,
         }
     }
 }
 
-fn job_weight(job: &TranscodeJob, mode: TaskbarProgressMode) -> f64 {
-    let size_mb = job
-        .media_info
-        .as_ref()
-        .and_then(|m| m.size_mb)
-        .unwrap_or(job.original_size_mb)
-        .max(0.0);
-
-    let duration_seconds = job
-        .media_info
-        .as_ref()
-        .and_then(|m| m.duration_seconds)
-        .unwrap_or(0.0);
-
-    let estimated_seconds = job.estimated_seconds.unwrap_or(0.0);
+fn job_weight_generic<J: JobProgressModel>(job: &J, mode: TaskbarProgressMode) -> f64 {
+    let size_mb = job.size_mb().max(0.0);
+    let duration_seconds = job.duration_seconds().max(0.0);
+    let estimated_seconds = job.estimated_seconds().unwrap_or(0.0);
 
     let weight = match mode {
         TaskbarProgressMode::BySize => {
@@ -98,8 +122,6 @@ fn job_weight(job: &TranscodeJob, mode: TaskbarProgressMode) -> f64 {
             if duration_seconds > 0.0 {
                 duration_seconds
             } else if size_mb > 0.0 {
-                // Roughly assume ~8 Mbps (≈1 MB/s) as a generic bitrate so
-                // larger files are treated as taking proportionally longer.
                 size_mb * 8.0
             } else {
                 1.0
@@ -118,9 +140,33 @@ fn job_weight(job: &TranscodeJob, mode: TaskbarProgressMode) -> f64 {
         }
     };
 
-    // Ensure every job contributes at least a tiny positive weight so we
-    // never divide by zero when jobs are present.
     weight.max(1.0e-3)
+}
+
+pub(super) fn compute_taskbar_progress_generic<J: JobProgressModel>(
+    jobs: &[J],
+    mode: TaskbarProgressMode,
+    scope: TaskbarProgressScope,
+) -> Option<f64> {
+    if jobs.is_empty() {
+        return None;
+    }
+
+    let mut weighted_total = 0.0f64;
+    let mut total_weight = 0.0f64;
+
+    for job in eligible_jobs_for_scope_generic(jobs, scope) {
+        let w = job_weight_generic(job, mode);
+        let p = normalized_job_progress_generic(job);
+        weighted_total += w * p;
+        total_weight += w;
+    }
+
+    if total_weight <= 0.0 {
+        return None;
+    }
+
+    Some((weighted_total / total_weight).clamp(0.0, 1.0))
 }
 
 /// Compute an application-level progress value for the Windows taskbar based on
@@ -132,25 +178,7 @@ pub fn compute_taskbar_progress(
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,
 ) -> Option<f64> {
-    if state.jobs.is_empty() {
-        return None;
-    }
-
-    let mut weighted_total = 0.0f64;
-    let mut total_weight = 0.0f64;
-
-    for job in eligible_jobs_for_scope(state, scope) {
-        let w = job_weight(job, mode);
-        let p = normalized_job_progress(job);
-        weighted_total += w * p;
-        total_weight += w;
-    }
-
-    if total_weight <= 0.0 {
-        return None;
-    }
-
-    Some((weighted_total / total_weight).clamp(0.0, 1.0))
+    compute_taskbar_progress_generic(&state.jobs, mode, scope)
 }
 
 /// Returns true when all jobs in the queue are in a terminal state
@@ -199,7 +227,9 @@ pub fn acknowledge_taskbar_completion(
             progress: None,
         };
         if let Err(err) = window.set_progress_bar(state) {
-            eprintln!("failed to clear Windows taskbar progress on acknowledge: {err}");
+            crate::debug_eprintln!(
+                "failed to clear Windows taskbar progress on acknowledge: {err}"
+            );
         }
     }
 }
@@ -207,11 +237,7 @@ pub fn acknowledge_taskbar_completion(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffui_core::{
-        JobSource,
-        JobType,
-        TranscodeJob,
-    };
+    use crate::ffui_core::TranscodeJob;
 
     fn make_job(id: &str, status: JobStatus, progress: f64) -> TranscodeJob {
         make_job_with_start(id, status, progress, Some(0))
@@ -223,40 +249,7 @@ mod tests {
         progress: f64,
         start_time: Option<u64>,
     ) -> TranscodeJob {
-        TranscodeJob {
-            id: id.to_string(),
-            filename: format!("{id}.mp4"),
-            job_type: JobType::Video,
-            source: JobSource::Manual,
-            queue_order: None,
-            original_size_mb: 100.0,
-            original_codec: Some("h264".to_string()),
-            preset_id: "preset-1".to_string(),
-            status,
-            progress,
-            start_time,
-            end_time: None,
-            processing_started_ms: None,
-            elapsed_ms: None,
-            output_size_mb: None,
-            logs: Vec::new(),
-            log_head: None,
-            skip_reason: None,
-            input_path: None,
-            output_path: None,
-            output_policy: None,
-            ffmpeg_command: None,
-            runs: Vec::new(),
-            media_info: None,
-            estimated_seconds: None,
-            preview_path: None,
-            preview_revision: 0,
-            log_tail: None,
-            failure_reason: None,
-            warnings: Vec::new(),
-            batch_id: None,
-            wait_metadata: None,
-        }
+        crate::test_support::make_transcode_job_for_tests(id, status, progress, start_time)
     }
 
     #[test]

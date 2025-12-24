@@ -191,17 +191,30 @@ mod tests {
         }
     }
 
+    fn insert_processing_job(engine: &TranscodingEngine, job_id: &str) -> String {
+        let job_id = job_id.to_string();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state
+            .jobs
+            .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
+        job_id
+    }
+
+    fn spawn_pause_job_after_delay(engine: TranscodingEngine, job_id: String, delay: Duration) {
+        std::thread::spawn(move || {
+            std::thread::sleep(delay);
+            let mut state = engine.inner.state.lock_unpoisoned();
+            if let Some(job) = state.jobs.get_mut(&job_id) {
+                job.status = JobStatus::Paused;
+            }
+        });
+    }
+
     #[test]
     fn pause_processing_jobs_for_exit_times_out_when_jobs_remain_processing() {
         let engine = TranscodingEngine::new_for_tests();
 
-        let job_id = "job-1".to_string();
-        {
-            let mut state = engine.inner.state.lock_unpoisoned();
-            state
-                .jobs
-                .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
-        }
+        let job_id = insert_processing_job(&engine, "job-1");
 
         let outcome = pause_processing_jobs_for_exit(&engine, 0.01);
 
@@ -220,23 +233,8 @@ mod tests {
     fn pause_processing_jobs_for_exit_reports_completion_when_job_leaves_processing() {
         let engine = TranscodingEngine::new_for_tests();
 
-        let job_id = "job-2".to_string();
-        {
-            let mut state = engine.inner.state.lock_unpoisoned();
-            state
-                .jobs
-                .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
-        }
-
-        let engine_clone = engine.clone();
-        let job_id_clone = job_id.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(80));
-            let mut state = engine_clone.inner.state.lock_unpoisoned();
-            if let Some(job) = state.jobs.get_mut(&job_id_clone) {
-                job.status = JobStatus::Paused;
-            }
-        });
+        let job_id = insert_processing_job(&engine, "job-2");
+        spawn_pause_job_after_delay(engine.clone(), job_id.clone(), Duration::from_millis(80));
 
         let outcome = pause_processing_jobs_for_exit(&engine, 1.0);
 
@@ -249,23 +247,8 @@ mod tests {
     fn pause_processing_jobs_for_exit_waits_indefinitely_when_timeout_is_non_positive() {
         let engine = TranscodingEngine::new_for_tests();
 
-        let job_id = "job-4".to_string();
-        {
-            let mut state = engine.inner.state.lock_unpoisoned();
-            state
-                .jobs
-                .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
-        }
-
-        let engine_clone = engine.clone();
-        let job_id_clone = job_id.clone();
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(80));
-            let mut state = engine_clone.inner.state.lock_unpoisoned();
-            if let Some(job) = state.jobs.get_mut(&job_id_clone) {
-                job.status = JobStatus::Paused;
-            }
-        });
+        let job_id = insert_processing_job(&engine, "job-4");
+        spawn_pause_job_after_delay(engine.clone(), job_id.clone(), Duration::from_millis(80));
 
         let outcome = pause_processing_jobs_for_exit(&engine, 0.0);
 

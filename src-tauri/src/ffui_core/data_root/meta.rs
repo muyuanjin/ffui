@@ -43,7 +43,7 @@ pub(super) fn read_meta(root: &Path) -> Option<DataRootMeta> {
     match read_json_file::<DataRootMeta>(&path) {
         Ok(meta) => Some(meta),
         Err(err) => {
-            eprintln!("failed to read data root meta {}: {err:#}", path.display());
+            crate::debug_eprintln!("failed to read data root meta {}: {err:#}", path.display());
             None
         }
     }

@@ -30,6 +30,6 @@ pub(crate) fn emit_transcode_activity_today_if_possible(payload: TranscodeActivi
         return;
     };
     if let Err(err) = handle.emit(TRANSCODE_ACTIVITY_TODAY_EVENT_NAME, payload) {
-        eprintln!("failed to emit transcode activity event: {err}");
+        crate::debug_eprintln!("failed to emit transcode activity event: {err}");
     }
 }

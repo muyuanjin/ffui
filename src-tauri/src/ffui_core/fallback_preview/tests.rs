@@ -1,5 +1,8 @@
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{
+    Duration,
+    SystemTime,
+};
 
 use filetime::{
     FileTime,
@@ -7,6 +10,11 @@ use filetime::{
 };
 
 use super::*;
+use crate::ffui_core::preview_common::{
+    ensure_dir_exists,
+    extract_frame_with_seek_backoffs,
+    frame_tmp_filename,
+};
 
 #[test]
 fn clamp_seek_seconds_never_exceeds_duration() {
@@ -181,6 +189,7 @@ fn extract_frame_with_seek_backoffs_retries_when_tmp_output_is_missing() {
         &[0.0, 0.5],
         &tmp_path,
         &final_path,
+        "ffmpeg did not produce a preview frame output",
         |seek_seconds, out_path| {
             calls += 1;
             if calls == 2 {
@@ -217,6 +226,7 @@ fn extract_frame_with_seek_backoffs_errors_when_no_attempt_writes_output() {
         &[0.0, 0.5],
         &tmp_path,
         &final_path,
+        "ffmpeg did not produce a preview frame output",
         |_seek_seconds, _out_path| Ok(()),
     )
     .expect_err("should fail when no tmp output is produced");

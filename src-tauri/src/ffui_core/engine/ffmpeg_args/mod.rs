@@ -12,6 +12,13 @@ mod utils;
 // Internal helpers that are safe and useful across engine sub-modules (enqueue,
 // Batch Compress queueing, etc).
 pub(crate) use builder::build_ffmpeg_args;
+pub(super) use builder_tail::{
+    apply_audio_args,
+    apply_audio_filter_args,
+    apply_container_args,
+    apply_global_args,
+    apply_mapping_disposition_and_metadata_args,
+};
 pub(super) use container::{
     infer_output_extension,
     normalize_container_format,
@@ -38,4 +45,5 @@ pub(super) use progress::{
     parse_ffmpeg_duration_from_metadata_line,
     parse_ffmpeg_progress_line,
 };
+pub(super) use utils::ensure_progress_args;
 pub(crate) use utils::format_command_for_log;

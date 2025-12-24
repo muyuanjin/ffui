@@ -259,7 +259,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
     {
         if path.to_ascii_lowercase().ends_with(".exe") && !looks_like_pe_executable(path) {
             if debug_log {
-                eprintln!(
+                crate::debug_eprintln!(
                     "[verify_tool_binary] skip invalid .exe (no MZ header): {path} ({source})"
                 );
             }
@@ -289,7 +289,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     }
                     cache_store_with_version(kind, path, true, None);
                     if debug_log {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
                         );
                     }
@@ -300,7 +300,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
             match cmd.output() {
                 Ok(out) => {
                     if debug_log {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[verify_tool_binary] kind=avifenc path={} source={} status={} stdout_len={} stderr_len={}",
                             path,
                             source,
@@ -315,7 +315,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                 }
                 Err(err) => {
                     if debug_log {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[verify_tool_binary] kind=avifenc path={} source={} error_kind={:?} os_error={:?}",
                             path,
                             source,
@@ -338,7 +338,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
             match cmd.output() {
                 Ok(out) => {
                     if debug_log {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[verify_tool_binary] path={} source={} status={} stdout_len={} stderr_len={}",
                             path,
                             source,
@@ -358,7 +358,7 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                 }
                 Err(err) => {
                     if debug_log {
-                        eprintln!(
+                        crate::debug_eprintln!(
                             "[verify_tool_binary] path={} source={} error_kind={:?} os_error={:?}",
                             path,
                             source,

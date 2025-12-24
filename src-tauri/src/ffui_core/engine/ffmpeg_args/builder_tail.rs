@@ -3,10 +3,49 @@ use crate::ffui_core::domain::{
     AudioCodecType,
     EncoderType,
     FFmpegPreset,
+    OverwriteBehavior,
     SubtitleStrategy,
 };
 
-pub(super) fn apply_audio_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
+pub(in crate::ffui_core::engine) fn apply_global_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    let Some(global) = preset.global.as_ref() else {
+        return;
+    };
+
+    if let Some(behavior) = &global.overwrite_behavior {
+        match behavior {
+            OverwriteBehavior::Overwrite => {
+                args.push("-y".to_string());
+            }
+            OverwriteBehavior::NoOverwrite => {
+                args.push("-n".to_string());
+            }
+            OverwriteBehavior::Ask => {
+                // Use ffmpeg default behaviour; emit no flag.
+            }
+        }
+    }
+    if let Some(level) = &global.log_level
+        && !level.is_empty()
+    {
+        args.push("-loglevel".to_string());
+        args.push(level.clone());
+    }
+    if global.hide_banner.unwrap_or(false) {
+        args.push("-hide_banner".to_string());
+    }
+    if global.enable_report.unwrap_or(false) {
+        args.push("-report".to_string());
+    }
+}
+
+pub(in crate::ffui_core::engine) fn apply_audio_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
     match preset.audio.codec {
         AudioCodecType::Copy => {
             args.push("-c:a".to_string());
@@ -88,45 +127,7 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
     }
 
     if can_apply_audio_filters {
-        let mut af_parts: Vec<String> = Vec::new();
-
-        if let Some(ref profile) = preset.audio.loudness_profile
-            && profile != "none"
-        {
-            let default_i = preset
-                .audio
-                .target_lufs
-                .unwrap_or(if profile == "cnBroadcast" {
-                    -24.0
-                } else {
-                    -23.0
-                });
-            let default_lra = preset.audio.loudness_range.unwrap_or(7.0);
-            let default_tp = preset
-                .audio
-                .true_peak_db
-                .unwrap_or(if profile == "cnBroadcast" { -2.0 } else { -1.0 });
-
-            let safe_i = default_i.clamp(-36.0, -10.0);
-            let safe_lra = default_lra.clamp(1.0, 20.0);
-            let safe_tp = default_tp.min(-0.1);
-
-            let loudnorm_expr =
-                format!("loudnorm=I={safe_i}:LRA={safe_lra}:TP={safe_tp}:print_format=summary");
-            af_parts.push(loudnorm_expr);
-        }
-
-        if let Some(af_chain) = &preset.filters.af_chain {
-            let trimmed = af_chain.trim();
-            if !trimmed.is_empty() {
-                af_parts.push(trimmed.to_string());
-            }
-        }
-
-        if !af_parts.is_empty() {
-            args.push("-af".to_string());
-            args.push(af_parts.join(","));
-        }
+        apply_audio_filter_args(args, preset);
     }
 
     if can_apply_video_filters && let Some(filter_complex) = &preset.filters.filter_complex {
@@ -134,6 +135,78 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
         if !trimmed.is_empty() {
             args.push("-filter_complex".to_string());
             args.push(trimmed.to_string());
+        }
+    }
+}
+
+pub(in crate::ffui_core::engine) fn apply_audio_filter_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    if matches!(preset.audio.codec, AudioCodecType::Copy) {
+        return;
+    }
+
+    let mut af_parts: Vec<String> = Vec::new();
+    if let Some(ref profile) = preset.audio.loudness_profile
+        && profile != "none"
+    {
+        let default_i = preset
+            .audio
+            .target_lufs
+            .unwrap_or(if profile == "cnBroadcast" {
+                -24.0
+            } else {
+                -23.0
+            });
+        let default_lra = preset.audio.loudness_range.unwrap_or(7.0);
+        let default_tp = preset
+            .audio
+            .true_peak_db
+            .unwrap_or(if profile == "cnBroadcast" { -2.0 } else { -1.0 });
+
+        let safe_i = default_i.clamp(-36.0, -10.0);
+        let safe_lra = default_lra.clamp(1.0, 20.0);
+        let safe_tp = default_tp.min(-0.1);
+
+        let loudnorm_expr =
+            format!("loudnorm=I={safe_i}:LRA={safe_lra}:TP={safe_tp}:print_format=summary");
+        af_parts.push(loudnorm_expr);
+    }
+
+    if let Some(af_chain) = &preset.filters.af_chain {
+        let trimmed = af_chain.trim();
+        if !trimmed.is_empty() {
+            af_parts.push(trimmed.to_string());
+        }
+    }
+
+    if !af_parts.is_empty() {
+        args.push("-af".to_string());
+        args.push(af_parts.join(","));
+    }
+}
+
+pub(in crate::ffui_core::engine) fn apply_mapping_disposition_and_metadata_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    if let Some(mapping) = preset.mapping.as_ref() {
+        if let Some(dispositions) = &mapping.dispositions {
+            for d in dispositions {
+                if !d.is_empty() {
+                    args.push("-disposition".to_string());
+                    args.push(d.clone());
+                }
+            }
+        }
+        if let Some(metadata) = &mapping.metadata {
+            for kv in metadata {
+                if !kv.is_empty() {
+                    args.push("-metadata".to_string());
+                    args.push(kv.clone());
+                }
+            }
         }
     }
 }
@@ -146,7 +219,7 @@ pub(super) fn apply_subtitle_args(args: &mut Vec<String>, preset: &FFmpegPreset)
     }
 }
 
-pub(super) fn apply_container_args(
+pub(in crate::ffui_core::engine) fn apply_container_args(
     args: &mut Vec<String>,
     preset: &FFmpegPreset,
     forced_muxer: Option<&str>,

@@ -53,7 +53,9 @@ fn cleanup_preview_caches_worker(
             let _ = cleanup_unreferenced_previews(&previews_root, &referenced);
         }
         Err(err) => {
-            eprintln!("preview cache cleanup skipped: failed to resolve previews root: {err:#}");
+            crate::debug_eprintln!(
+                "preview cache cleanup skipped: failed to resolve previews root: {err:#}"
+            );
         }
     }
 }

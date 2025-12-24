@@ -13,16 +13,14 @@ use super::super::worker_utils::{
 };
 use super::helpers::{
     current_time_millis,
+    make_batch_compress_job,
     notify_queue_listeners,
 };
 use crate::ffui_core::domain::{
     AutoCompressResult,
     BatchCompressConfig,
-    JobSource,
     JobStatus,
     JobType,
-    MediaInfo,
-    TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 
@@ -43,51 +41,23 @@ pub(super) fn insert_image_stub_job(
         .unwrap_or_default()
         .to_string();
 
-    let job = TranscodeJob {
-        id: job_id.to_string(),
+    let original_codec = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase());
+
+    let job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
+        job_id: job_id.to_string(),
         filename,
         job_type: JobType::Image,
-        source: JobSource::BatchCompress,
-        queue_order: None,
-        original_size_mb,
-        original_codec: path
-            .extension()
-            .and_then(|e| e.to_str())
-            .map(|s| s.to_ascii_lowercase()),
         preset_id: config.video_preset_id.clone(),
-        status: JobStatus::Waiting,
-        progress: 0.0,
+        original_size_mb,
+        original_codec,
+        input_path: path.to_string_lossy().into_owned(),
+        output_policy: config.output_policy.clone(),
+        batch_id: batch_id.to_string(),
         start_time: None,
-        end_time: None,
-        processing_started_ms: None,
-        elapsed_ms: None,
-        output_size_mb: None,
-        logs: Vec::new(),
-        log_head: None,
-        skip_reason: None,
-        input_path: Some(path.to_string_lossy().into_owned()),
-        output_path: None,
-        output_policy: Some(config.output_policy.clone()),
-        ffmpeg_command: None,
-        runs: Vec::new(),
-        media_info: Some(MediaInfo {
-            duration_seconds: None,
-            width: None,
-            height: None,
-            frame_rate: None,
-            video_codec: None,
-            audio_codec: None,
-            size_mb: Some(original_size_mb),
-        }),
-        estimated_seconds: None,
-        preview_path: None,
-        preview_revision: 0,
-        log_tail: None,
-        failure_reason: None,
-        warnings: Vec::new(),
-        batch_id: Some(batch_id.to_string()),
-        wait_metadata: None,
-    };
+    });
 
     let mut state = inner.state.lock_unpoisoned();
     state.jobs.insert(job_id.to_string(), job);
@@ -114,48 +84,18 @@ pub(super) fn insert_audio_stub_job(
         .and_then(|e| e.to_str())
         .map(|s| s.to_ascii_lowercase());
 
-    let job = TranscodeJob {
-        id: job_id.to_string(),
+    let job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
+        job_id: job_id.to_string(),
         filename,
         job_type: JobType::Audio,
-        source: JobSource::BatchCompress,
-        queue_order: None,
+        preset_id: config.audio_preset_id.clone().unwrap_or_default(),
         original_size_mb,
         original_codec: ext,
-        preset_id: config.audio_preset_id.clone().unwrap_or_default(),
-        status: JobStatus::Waiting,
-        progress: 0.0,
+        input_path: path.to_string_lossy().into_owned(),
+        output_policy: config.output_policy.clone(),
+        batch_id: batch_id.to_string(),
         start_time: None,
-        end_time: None,
-        processing_started_ms: None,
-        elapsed_ms: None,
-        output_size_mb: None,
-        logs: Vec::new(),
-        log_head: None,
-        skip_reason: None,
-        input_path: Some(path.to_string_lossy().into_owned()),
-        output_path: None,
-        output_policy: Some(config.output_policy.clone()),
-        ffmpeg_command: None,
-        runs: Vec::new(),
-        media_info: Some(MediaInfo {
-            duration_seconds: None,
-            width: None,
-            height: None,
-            frame_rate: None,
-            video_codec: None,
-            audio_codec: None,
-            size_mb: Some(original_size_mb),
-        }),
-        estimated_seconds: None,
-        preview_path: None,
-        preview_revision: 0,
-        log_tail: None,
-        failure_reason: None,
-        warnings: Vec::new(),
-        batch_id: Some(batch_id.to_string()),
-        wait_metadata: None,
-    };
+    });
 
     let mut state = inner.state.lock_unpoisoned();
     state.jobs.insert(job_id.to_string(), job);

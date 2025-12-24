@@ -108,7 +108,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
         None => return,
     };
     if let Err(err) = fs::create_dir_all(dir) {
-        eprintln!(
+        crate::debug_eprintln!(
             "failed to create queue logs directory {}: {err:#}",
             dir.display()
         );
@@ -123,7 +123,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
                 runs: runs.to_vec(),
             };
             if let Err(err) = serde_json::to_writer(&mut file, &payload) {
-                eprintln!(
+                crate::debug_eprintln!(
                     "failed to write terminal job run history {}: {err:#}",
                     tmp_path.display()
                 );
@@ -131,7 +131,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
                 return;
             }
             if let Err(err) = fs::rename(&tmp_path, &path) {
-                eprintln!(
+                crate::debug_eprintln!(
                     "failed to atomically rename {} -> {}: {err:#}",
                     tmp_path.display(),
                     path.display()
@@ -143,7 +143,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
             }
         }
         Err(err) => {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to create temp terminal job log file {}: {err:#}",
                 tmp_path.display()
             );
@@ -171,7 +171,7 @@ fn enforce_terminal_log_retention(retention: CrashRecoveryLogRetention) {
     let read_dir = match fs::read_dir(&dir) {
         Ok(rd) => rd,
         Err(err) => {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to read queue logs directory {}: {err:#}",
                 dir.display()
             );

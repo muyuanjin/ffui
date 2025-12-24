@@ -85,7 +85,7 @@ fn copy_dir_files_if_missing(source: &Path, dest: &Path) {
         return;
     }
     if let Err(err) = fs::create_dir_all(dest) {
-        eprintln!("failed to create data root dir {}: {err:#}", dest.display());
+        crate::debug_eprintln!("failed to create data root dir {}: {err:#}", dest.display());
         return;
     }
     let Ok(entries) = fs::read_dir(source) else {

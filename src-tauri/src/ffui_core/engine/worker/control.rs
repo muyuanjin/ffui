@@ -14,35 +14,33 @@ use crate::ffui_core::domain::{
 };
 use crate::sync_ext::MutexExt;
 
+fn cancel_waiting_like_job(
+    state: &mut super::super::state::EngineState,
+    job_id: &str,
+    cleanup_paths: &mut Vec<std::path::PathBuf>,
+    message: &'static str,
+) {
+    // Remove from queue and mark as cancelled without ever starting ffmpeg.
+    state.queue.retain(|id| id != job_id);
+    if let Some(job) = state.jobs.get_mut(job_id) {
+        if let Some(meta) = job.wait_metadata.as_ref() {
+            cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+        }
+        job.status = JobStatus::Cancelled;
+        job.progress = 0.0;
+        job.end_time = Some(current_time_millis());
+        append_job_log_line(job, message.to_string());
+        job.log_head = None;
+        job.wait_metadata = None;
+    }
+    // Any stale flags become irrelevant.
+    state.cancelled_jobs.remove(job_id);
+    state.wait_requests.remove(job_id);
+    state.restart_requests.remove(job_id);
+}
+
 fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<std::path::PathBuf> {
-    use std::collections::HashSet;
-
-    let mut raw_paths: Vec<&str> = Vec::new();
-    if let Some(segs) = meta.segments.as_ref()
-        && !segs.is_empty()
-    {
-        raw_paths.extend(segs.iter().map(|s| s.as_str()));
-    } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
-        raw_paths.push(tmp.as_str());
-    }
-
-    let mut out: Vec<std::path::PathBuf> = Vec::new();
-    let mut seen: HashSet<std::path::PathBuf> = HashSet::new();
-    for raw in raw_paths {
-        let trimmed = raw.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let path = std::path::PathBuf::from(trimmed);
-        if seen.insert(path.clone()) {
-            out.push(path.clone());
-        }
-        let marker = super::super::job_runner::noaudio_marker_path_for_segment(path.as_path());
-        if seen.insert(marker.clone()) {
-            out.push(marker);
-        }
-    }
-    out
+    super::super::job_runner::collect_wait_metadata_cleanup_paths(meta)
 }
 
 /// Cancel a job by ID.
@@ -64,43 +62,22 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 
         match status {
             JobStatus::Waiting | JobStatus::Queued => {
-                // Remove from queue and mark as cancelled without ever starting ffmpeg.
-                state.queue.retain(|id| id != job_id);
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    if let Some(meta) = job.wait_metadata.as_ref() {
-                        cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
-                    }
-                    job.status = JobStatus::Cancelled;
-                    job.progress = 0.0;
-                    job.end_time = Some(current_time_millis());
-                    append_job_log_line(job, "Cancelled before start".to_string());
-                    job.log_head = None;
-                    job.wait_metadata = None;
-                }
-                // Any stale flags become irrelevant.
-                state.cancelled_jobs.remove(job_id);
-                state.wait_requests.remove(job_id);
-                state.restart_requests.remove(job_id);
+                cancel_waiting_like_job(
+                    &mut state,
+                    job_id,
+                    &mut cleanup_paths,
+                    "Cancelled before start",
+                );
                 should_notify = true;
                 true
             }
             JobStatus::Paused => {
-                state.queue.retain(|id| id != job_id);
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    if let Some(meta) = job.wait_metadata.as_ref() {
-                        cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
-                    }
-
-                    job.status = JobStatus::Cancelled;
-                    job.progress = 0.0;
-                    job.end_time = Some(current_time_millis());
-                    append_job_log_line(job, "Cancelled while paused".to_string());
-                    job.log_head = None;
-                    job.wait_metadata = None;
-                }
-                state.cancelled_jobs.remove(job_id);
-                state.wait_requests.remove(job_id);
-                state.restart_requests.remove(job_id);
+                cancel_waiting_like_job(
+                    &mut state,
+                    job_id,
+                    &mut cleanup_paths,
+                    "Cancelled while paused",
+                );
                 should_notify = true;
                 true
             }

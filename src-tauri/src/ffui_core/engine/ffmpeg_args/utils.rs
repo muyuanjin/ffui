@@ -17,7 +17,7 @@ pub(crate) fn format_command_for_log(program: &str, args: &[String]) -> String {
     parts.join(" ")
 }
 
-pub(super) fn ensure_progress_args(args: &mut Vec<String>) {
+pub(in crate::ffui_core::engine) fn ensure_progress_args(args: &mut Vec<String>) {
     if args.iter().any(|arg| arg == "-progress") {
         return;
     }

@@ -106,9 +106,10 @@ fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {
             .map(|s| !s.trim().is_empty())
             .unwrap_or(false)
         && let Some(template) = preset.ffmpeg_template.as_deref()
-        && let Some(enc) = infer_template_video_encoder(template)
+        && let (Some(enc), _) =
+            crate::ffui_core::engine::output_policy_paths::infer_template_output_codecs(template)
     {
-        if is_hardware_encoder_name(enc) {
+        if is_hardware_encoder_name(enc.as_str()) {
             return ParallelismClass::Hardware;
         }
         return ParallelismClass::Cpu;
@@ -124,36 +125,6 @@ fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {
         | EncoderType::Av1Amf => ParallelismClass::Hardware,
         _ => ParallelismClass::Cpu,
     }
-}
-
-fn infer_template_video_encoder(template: &str) -> Option<&str> {
-    // Best-effort: scan output-scoped `-c:v <x>` before OUTPUT.
-    let tokens: Vec<&str> = template.split_whitespace().collect();
-    let output_index = tokens.iter().position(|t| *t == "OUTPUT")?;
-
-    let mut i = 0usize;
-    let mut last_input_index: Option<usize> = None;
-    while i + 1 < output_index {
-        if tokens[i] == "-i" {
-            last_input_index = Some(i + 1);
-            i += 2;
-            continue;
-        }
-        i += 1;
-    }
-    let start = last_input_index.map(|idx| idx + 1).unwrap_or(0);
-
-    let mut j = start;
-    let mut v: Option<&str> = None;
-    while j + 1 < output_index {
-        if tokens[j] == "-c:v" {
-            v = Some(tokens[j + 1]);
-            j += 2;
-            continue;
-        }
-        j += 1;
-    }
-    v
 }
 
 fn is_hardware_encoder_name(encoder: &str) -> bool {

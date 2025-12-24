@@ -11,6 +11,56 @@ use once_cell::sync::Lazy;
 
 static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
+pub fn make_transcode_job_for_tests(
+    id: &str,
+    status: crate::ffui_core::JobStatus,
+    progress: f64,
+    start_time: Option<u64>,
+) -> crate::ffui_core::TranscodeJob {
+    use crate::ffui_core::{
+        JobSource,
+        JobType,
+        TranscodeJob,
+    };
+
+    /* jscpd:ignore-start */
+    TranscodeJob {
+        id: id.to_string(),
+        filename: format!("{id}.mp4"),
+        job_type: JobType::Video,
+        source: JobSource::Manual,
+        queue_order: None,
+        original_size_mb: 10.0,
+        original_codec: None,
+        preset_id: "preset-1".to_string(),
+        status,
+        progress,
+        start_time,
+        end_time: None,
+        processing_started_ms: None,
+        elapsed_ms: None,
+        output_size_mb: None,
+        logs: Vec::new(),
+        log_head: None,
+        skip_reason: None,
+        input_path: None,
+        output_path: None,
+        output_policy: None,
+        ffmpeg_command: None,
+        runs: Vec::new(),
+        media_info: None,
+        estimated_seconds: None,
+        preview_path: None,
+        preview_revision: 0,
+        log_tail: None,
+        failure_reason: None,
+        warnings: Vec::new(),
+        batch_id: None,
+        wait_metadata: None,
+    }
+    /* jscpd:ignore-end */
+}
+
 pub fn env_lock() -> MutexGuard<'static, ()> {
     ENV_MUTEX
         .lock()

@@ -160,7 +160,7 @@ impl TranscodingEngine {
                     .queue_recovery_done
                     .store(true, std::sync::atomic::Ordering::Release);
                 inner.cv.notify_all();
-                eprintln!("failed to spawn queue recovery thread: {err}");
+                crate::debug_eprintln!("failed to spawn queue recovery thread: {err}");
             }
         }
         worker::spawn_worker(inner.clone());
@@ -445,7 +445,9 @@ impl TranscodingEngine {
             if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses)
                 && let Err(err) = settings::save_settings(&state.settings)
             {
-                eprintln!("[tools_probe_cache] failed to persist probe cache: {err:#}");
+                crate::debug_eprintln!(
+                    "[tools_probe_cache] failed to persist probe cache: {err:#}"
+                );
             }
         }
 

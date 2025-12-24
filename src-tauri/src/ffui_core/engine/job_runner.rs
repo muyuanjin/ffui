@@ -25,11 +25,9 @@ use anyhow::{
 
 use super::ffmpeg_args::*;
 use super::state::{
-    BatchCompressBatchStatus,
     Inner,
     notify_queue_listeners,
     register_known_batch_compress_output_with_inner,
-    update_batch_compress_batch_with_inner,
 };
 use crate::ffui_core::domain::{
     JobStatus,

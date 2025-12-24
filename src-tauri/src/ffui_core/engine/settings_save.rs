@@ -100,7 +100,7 @@ impl TranscodingEngine {
                     );
                 })
             {
-                eprintln!("failed to spawn preview refresh thread: {err}");
+                crate::debug_eprintln!("failed to spawn preview refresh thread: {err}");
             }
         }
 

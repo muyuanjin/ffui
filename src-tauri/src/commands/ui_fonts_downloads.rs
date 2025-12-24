@@ -26,6 +26,34 @@ use super::ui_fonts_types::{
 use crate::ffui_core::network_proxy;
 use crate::sync_ext::MutexExt;
 
+struct ResolvedOpenSourceFontEntry {
+    id: String,
+    family_name: String,
+    format: String,
+    url: String,
+}
+
+fn resolve_open_source_font_entry(font_id: &str) -> Result<ResolvedOpenSourceFontEntry, String> {
+    let id = font_id.trim();
+    if id.is_empty() {
+        return Err("font id is empty".to_string());
+    }
+
+    let entry = open_source_fonts_catalog()
+        .into_iter()
+        .find(|(entry_id, _, _, _, _)| entry_id == id)
+        .ok_or_else(|| format!("unknown font id: {id}"))?;
+
+    let (id, _name, family_name, format, url) = entry;
+
+    Ok(ResolvedOpenSourceFontEntry {
+        id,
+        family_name,
+        format,
+        url,
+    })
+}
+
 async fn download_font_to_path(
     url: &str,
     tmp_path: &std::path::Path,
@@ -184,17 +212,12 @@ pub fn start_open_source_font_download(
     manager: &UiFontDownloadManager,
     font_id: &str,
 ) -> Result<UiFontDownloadSnapshot, String> {
-    let id = font_id.trim();
-    if id.is_empty() {
-        return Err("font id is empty".to_string());
-    }
-
-    let entry = open_source_fonts_catalog()
-        .into_iter()
-        .find(|(entry_id, _, _, _, _)| entry_id == id)
-        .ok_or_else(|| format!("unknown font id: {id}"))?;
-
-    let (id, _name, family_name, format, url) = entry;
+    let ResolvedOpenSourceFontEntry {
+        id,
+        family_name,
+        format,
+        url,
+    } = resolve_open_source_font_entry(font_id)?;
 
     let fonts_dir: PathBuf = crate::ffui_core::ui_fonts_dir()
         .map_err(|e| format!("failed to resolve ui fonts directory: {e}"))?;
@@ -330,16 +353,12 @@ pub async fn ensure_open_source_font_downloaded(
     _app: tauri::AppHandle,
     font_id: &str,
 ) -> Result<DownloadedFontInfo, String> {
-    let id = font_id.trim();
-    if id.is_empty() {
-        return Err("font id is empty".to_string());
-    }
-
-    let entry = open_source_fonts_catalog()
-        .into_iter()
-        .find(|(entry_id, _, _, _, _)| entry_id == id)
-        .ok_or_else(|| format!("unknown font id: {id}"))?;
-    let (id, _name, family_name, format, url) = entry;
+    let ResolvedOpenSourceFontEntry {
+        id,
+        family_name,
+        format,
+        url,
+    } = resolve_open_source_font_entry(font_id)?;
 
     let fonts_dir: PathBuf = crate::ffui_core::ui_fonts_dir()
         .map_err(|e| format!("failed to resolve ui fonts directory: {e}"))?;

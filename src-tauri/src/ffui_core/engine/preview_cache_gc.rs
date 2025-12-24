@@ -45,6 +45,6 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
         .map(|_| ());
 
     if let Err(err) = result {
-        eprintln!("failed to spawn preview cache cleanup thread: {err}");
+        crate::debug_eprintln!("failed to spawn preview cache cleanup thread: {err}");
     }
 }

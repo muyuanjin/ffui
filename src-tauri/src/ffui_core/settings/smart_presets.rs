@@ -36,7 +36,7 @@ pub fn hardware_smart_default_presets(has_nvidia_gpu: bool) -> Vec<FFmpegPreset>
     };
 
     let records = load_smart_preset_records().unwrap_or_else(|err| {
-        eprintln!("failed to load smart presets json: {err:#}");
+        crate::debug_eprintln!("failed to load smart presets json: {err:#}");
         Vec::new()
     });
 

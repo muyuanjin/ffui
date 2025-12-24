@@ -182,112 +182,11 @@ pub(super) fn build_mux_args_for_resumed_output(
         args.push("copy".to_string());
     }
 
-    match preset.audio.codec {
-        crate::ffui_core::domain::AudioCodecType::Copy => {
-            args.push("-c:a".to_string());
-            args.push("copy".to_string());
-        }
-        crate::ffui_core::domain::AudioCodecType::Aac => {
-            args.push("-c:a".to_string());
-            args.push("aac".to_string());
-            if let Some(bitrate) = preset.audio.bitrate {
-                args.push("-b:a".to_string());
-                args.push(format!("{bitrate}k"));
-            }
-            if let Some(sample_rate) = preset.audio.sample_rate_hz {
-                args.push("-ar".to_string());
-                args.push(sample_rate.to_string());
-            }
-            if let Some(channels) = preset.audio.channels {
-                args.push("-ac".to_string());
-                args.push(channels.to_string());
-            }
-            if let Some(layout) = &preset.audio.channel_layout
-                && !layout.is_empty()
-            {
-                args.push("-channel_layout".to_string());
-                args.push(layout.clone());
-            }
+    apply_audio_args(&mut args, preset);
+    apply_audio_filter_args(&mut args, preset);
 
-            let mut af_parts: Vec<String> = Vec::new();
-            if let Some(ref profile) = preset.audio.loudness_profile
-                && profile != "none"
-            {
-                let default_i = preset.audio.target_lufs.unwrap_or(if profile == "cnBroadcast" {
-                    -24.0
-                } else {
-                    -23.0
-                });
-                let default_lra = preset.audio.loudness_range.unwrap_or(7.0);
-                let default_tp = preset.audio.true_peak_db.unwrap_or(if profile == "cnBroadcast" {
-                    -2.0
-                } else {
-                    -1.0
-                });
-
-                let safe_i = default_i.clamp(-36.0, -10.0);
-                let safe_lra = default_lra.clamp(1.0, 20.0);
-                let safe_tp = default_tp.min(-0.1);
-
-                af_parts.push(format!(
-                    "loudnorm=I={safe_i}:LRA={safe_lra}:TP={safe_tp}:print_format=summary"
-                ));
-            }
-            if let Some(af_chain) = &preset.filters.af_chain {
-                let trimmed = af_chain.trim();
-                if !trimmed.is_empty() {
-                    af_parts.push(trimmed.to_string());
-                }
-            }
-            if !af_parts.is_empty() {
-                args.push("-af".to_string());
-                args.push(af_parts.join(","));
-            }
-        }
-    }
-
-    if let Some(mapping) = preset.mapping.as_ref() {
-        if let Some(dispositions) = &mapping.dispositions {
-            for d in dispositions {
-                if !d.is_empty() {
-                    args.push("-disposition".to_string());
-                    args.push(d.clone());
-                }
-            }
-        }
-        if let Some(metadata) = &mapping.metadata {
-            for kv in metadata {
-                if !kv.is_empty() {
-                    args.push("-metadata".to_string());
-                    args.push(kv.clone());
-                }
-            }
-        }
-    }
-
-    if let Some(container) = preset.container.as_ref() {
-        if let Some(format) = container.format.as_ref()
-            && !format.trim().is_empty()
-        {
-            args.push("-f".to_string());
-            let normalized = normalize_container_format(format);
-            if !normalized.is_empty() {
-                args.push(normalized);
-            }
-        }
-        if let Some(flags) = &container.movflags {
-            let joined: String = flags
-                .iter()
-                .map(|f| f.trim())
-                .filter(|f| !f.is_empty())
-                .collect::<Vec<_>>()
-                .join("+");
-            if !joined.is_empty() {
-                args.push("-movflags".to_string());
-                args.push(joined);
-            }
-        }
-    }
+    apply_mapping_disposition_and_metadata_args(&mut args, preset);
+    apply_container_args(&mut args, preset, None);
 
     args.push("-shortest".to_string());
     args.push(mux_tmp.to_string_lossy().into_owned());

@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::*;
+use crate::ffui_core::preview_common::extract_frame_with_seek_backoffs;
 
 #[test]
 fn extract_frame_with_seek_backoffs_retries_when_tmp_output_is_missing() {
@@ -15,6 +16,7 @@ fn extract_frame_with_seek_backoffs_retries_when_tmp_output_is_missing() {
         &[0.0, 0.5],
         &tmp_path,
         &final_path,
+        "ffmpeg did not produce a preview frame output",
         |_seek_seconds, out_path| {
             calls += 1;
             if calls == 2 {

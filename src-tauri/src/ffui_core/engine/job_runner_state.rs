@@ -185,38 +185,38 @@ pub(super) fn mark_job_waiting(
     Ok(())
 }
 
-pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
-    fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
-        use std::collections::HashSet;
+pub(super) fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
+    use std::collections::HashSet;
 
-        let mut raw_paths: Vec<&str> = Vec::new();
-        if let Some(segs) = meta.segments.as_ref()
-            && !segs.is_empty()
-        {
-            raw_paths.extend(segs.iter().map(|s| s.as_str()));
-        } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
-            raw_paths.push(tmp.as_str());
-        }
-
-        let mut out: Vec<PathBuf> = Vec::new();
-        let mut seen: HashSet<PathBuf> = HashSet::new();
-        for raw in raw_paths {
-            let trimmed = raw.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            let path = PathBuf::from(trimmed);
-            if seen.insert(path.clone()) {
-                out.push(path.clone());
-            }
-            let marker = noaudio_marker_path_for_segment(path.as_path());
-            if seen.insert(marker.clone()) {
-                out.push(marker);
-            }
-        }
-        out
+    let mut raw_paths: Vec<&str> = Vec::new();
+    if let Some(segs) = meta.segments.as_ref()
+        && !segs.is_empty()
+    {
+        raw_paths.extend(segs.iter().map(|s| s.as_str()));
+    } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
+        raw_paths.push(tmp.as_str());
     }
 
+    let mut out: Vec<PathBuf> = Vec::new();
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    for raw in raw_paths {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        if seen.insert(path.clone()) {
+            out.push(path.clone());
+        }
+        let marker = noaudio_marker_path_for_segment(path.as_path());
+        if seen.insert(marker.clone()) {
+            out.push(marker);
+        }
+    }
+    out
+}
+
+pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
 
     {

@@ -34,6 +34,121 @@ use crate::ffui_core::tools::{
     ensure_tool_available,
 };
 
+struct FinalizeAvifEncodeSpec<'a> {
+    inner: &'a Inner,
+    path: &'a Path,
+    job: &'a mut TranscodeJob,
+    tmp_output: &'a Path,
+    avif_target: &'a Path,
+    original_size_bytes: u64,
+    config: &'a BatchCompressConfig,
+    preserve_times_policy: &'a PreserveFileTimesPolicy,
+    input_times: Option<&'a FileTimesSnapshot>,
+    tool_label: &'a str,
+    lossless: bool,
+    set_preview: bool,
+}
+
+fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
+    let FinalizeAvifEncodeSpec {
+        inner,
+        path,
+        job,
+        tmp_output,
+        avif_target,
+        original_size_bytes,
+        config,
+        preserve_times_policy,
+        input_times,
+        tool_label,
+        lossless,
+        set_preview,
+    } = spec;
+
+    let tmp_meta = fs::metadata(tmp_output)
+        .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
+    let new_size_bytes = tmp_meta.len();
+    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
+
+    if ratio > config.min_saving_ratio {
+        let _ = fs::remove_file(tmp_output);
+        job.status = JobStatus::Skipped;
+        job.progress = 100.0;
+        job.end_time = Some(current_time_millis());
+        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
+        return Ok(());
+    }
+
+    fs::rename(tmp_output, avif_target).with_context(|| {
+        format!(
+            "failed to rename {} -> {}",
+            tmp_output.display(),
+            avif_target.display()
+        )
+    })?;
+
+    if preserve_times_policy.any()
+        && let Some(times) = input_times
+        && let Err(err) = super::super::file_times::apply_file_times(avif_target, times)
+    {
+        append_job_log_line(
+            job,
+            format!(
+                "preserve file times: failed to apply timestamps to {}: {err}",
+                avif_target.display()
+            ),
+        );
+    }
+
+    register_known_batch_compress_output_with_inner(inner, avif_target);
+
+    job.status = JobStatus::Completed;
+    job.progress = 100.0;
+    job.end_time = Some(current_time_millis());
+    job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
+    job.output_path = Some(avif_target.to_string_lossy().into_owned());
+    if set_preview {
+        job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+        job.preview_revision = job.preview_revision.saturating_add(1);
+    }
+
+    let output_mb = job.output_size_mb.unwrap_or(0.0);
+    let encode_descriptor = if lossless {
+        "lossless AVIF encode completed"
+    } else {
+        "AVIF encode completed"
+    };
+    append_job_log_line(
+        job,
+        format!(
+            "{tool_label}: {encode_descriptor}; new size {:.2} MB ({:.1}% of original)",
+            output_mb,
+            ratio * 100.0,
+        ),
+    );
+
+    if config.replace_original {
+        match trash::delete(path) {
+            Ok(()) => append_job_log_line(
+                job,
+                format!(
+                    "replace original: moved source image {} to recycle bin",
+                    path.display()
+                ),
+            ),
+            Err(err) => append_job_log_line(
+                job,
+                format!(
+                    "replace original: failed to move source image {} to recycle bin: {err}",
+                    path.display()
+                ),
+            ),
+        }
+    }
+
+    Ok(())
+}
+
 pub(super) struct AvifEncodeContext<'a> {
     pub inner: &'a Inner,
     pub config: &'a BatchCompressConfig,
@@ -114,82 +229,20 @@ pub(super) fn encode_image_to_avif(
 
             let last_error = match output {
                 Ok(output) if output.status.success() => {
-                    let tmp_meta = fs::metadata(tmp_output).with_context(|| {
-                        format!("failed to stat temp output {}", tmp_output.display())
-                    })?;
-                    let new_size_bytes = tmp_meta.len();
-                    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-                    if ratio > config.min_saving_ratio {
-                        let _ = fs::remove_file(tmp_output);
-                        job.status = JobStatus::Skipped;
-                        job.progress = 100.0;
-                        job.end_time = Some(current_time_millis());
-                        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
-                        return Ok(());
-                    }
-
-                    fs::rename(tmp_output, avif_target).with_context(|| {
-                        format!(
-                            "failed to rename {} -> {}",
-                            tmp_output.display(),
-                            avif_target.display()
-                        )
-                    })?;
-
-                    if preserve_times_policy.any()
-                        && let Some(times) = input_times
-                        && let Err(err) =
-                            super::super::file_times::apply_file_times(avif_target, times)
-                    {
-                        append_job_log_line(
-                            job,
-                            format!(
-                                "preserve file times: failed to apply timestamps to {}: {err}",
-                                avif_target.display()
-                            ),
-                        );
-                    }
-
-                    register_known_batch_compress_output_with_inner(inner, avif_target);
-
-                    job.status = JobStatus::Completed;
-                    job.progress = 100.0;
-                    job.end_time = Some(current_time_millis());
-                    job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
-                    job.output_path = Some(avif_target.to_string_lossy().into_owned());
-                    job.preview_path = Some(avif_target.to_string_lossy().into_owned());
-                    job.preview_revision = job.preview_revision.saturating_add(1);
-
-                    let output_mb = job.output_size_mb.unwrap_or(0.0);
-                    append_job_log_line(
+                    finalize_avif_encode(FinalizeAvifEncodeSpec {
+                        inner,
+                        path,
                         job,
-                        format!(
-                            "avifenc: lossless AVIF encode completed; new size {:.2} MB ({:.1}% of original)",
-                            output_mb,
-                            ratio * 100.0,
-                        ),
-                    );
-
-                    if config.replace_original {
-                        match trash::delete(path) {
-                            Ok(()) => append_job_log_line(
-                                job,
-                                format!(
-                                    "replace original: moved source image {} to recycle bin",
-                                    path.display()
-                                ),
-                            ),
-                            Err(err) => append_job_log_line(
-                                job,
-                                format!(
-                                    "replace original: failed to move source image {} to recycle bin: {err}",
-                                    path.display()
-                                ),
-                            ),
-                        }
-                    }
-
+                        tmp_output,
+                        avif_target,
+                        original_size_bytes,
+                        config,
+                        preserve_times_policy,
+                        input_times,
+                        tool_label: "avifenc",
+                        lossless: true,
+                        set_preview: true,
+                    })?;
                     return Ok(());
                 }
                 Ok(output) => {
@@ -289,78 +342,18 @@ pub(super) fn encode_image_to_avif(
         let _ = fs::remove_file(tmp_output);
         return Ok(());
     }
-
-    let tmp_meta = fs::metadata(tmp_output)
-        .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
-    let new_size_bytes = tmp_meta.len();
-    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-    if ratio > config.min_saving_ratio {
-        let _ = fs::remove_file(tmp_output);
-        job.status = JobStatus::Skipped;
-        job.progress = 100.0;
-        job.end_time = Some(current_time_millis());
-        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
-        return Ok(());
-    }
-
-    fs::rename(tmp_output, avif_target).with_context(|| {
-        format!(
-            "failed to rename {} -> {}",
-            tmp_output.display(),
-            avif_target.display()
-        )
-    })?;
-
-    if preserve_times_policy.any()
-        && let Some(times) = input_times
-        && let Err(err) = super::super::file_times::apply_file_times(avif_target, times)
-    {
-        append_job_log_line(
-            job,
-            format!(
-                "preserve file times: failed to apply timestamps to {}: {err}",
-                avif_target.display()
-            ),
-        );
-    }
-
-    register_known_batch_compress_output_with_inner(inner, avif_target);
-
-    job.status = JobStatus::Completed;
-    job.progress = 100.0;
-    job.end_time = Some(current_time_millis());
-    job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
-    job.output_path = Some(avif_target.to_string_lossy().into_owned());
-
-    let output_mb = job.output_size_mb.unwrap_or(0.0);
-    append_job_log_line(
+    finalize_avif_encode(FinalizeAvifEncodeSpec {
+        inner,
+        path,
         job,
-        format!(
-            "ffmpeg: AVIF encode completed; new size {:.2} MB ({:.1}% of original)",
-            output_mb,
-            ratio * 100.0,
-        ),
-    );
-
-    if config.replace_original {
-        match trash::delete(path) {
-            Ok(()) => append_job_log_line(
-                job,
-                format!(
-                    "replace original: moved source image {} to recycle bin",
-                    path.display()
-                ),
-            ),
-            Err(err) => append_job_log_line(
-                job,
-                format!(
-                    "replace original: failed to move source image {} to recycle bin: {err}",
-                    path.display()
-                ),
-            ),
-        }
-    }
-
-    Ok(())
+        tmp_output,
+        avif_target,
+        original_size_bytes,
+        config,
+        preserve_times_policy,
+        input_times,
+        tool_label: "ffmpeg",
+        lossless: false,
+        set_preview: false,
+    })
 }

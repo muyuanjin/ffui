@@ -48,6 +48,22 @@ use crate::ffui_core::tools::runtime_state::{
 };
 use crate::ffui_core::tools::types::*;
 
+fn backup_existing_tool_binary(dest_path: &PathBuf) -> Option<PathBuf> {
+    if !dest_path.exists() {
+        return None;
+    }
+
+    let candidate = dest_path.with_extension("bak");
+    let _ = std::fs::remove_file(&candidate);
+    if std::fs::rename(dest_path, &candidate).is_ok() {
+        Some(candidate)
+    } else {
+        // Fallback: remove existing file so the new download can be placed.
+        let _ = std::fs::remove_file(dest_path);
+        None
+    }
+}
+
 /// For download flows that do not naturally surface per-chunk progress
 /// (notably aria2c), poll the temporary download file size and emit progress
 /// events so the frontend sees determinate progress instead of a long-lived
@@ -71,7 +87,7 @@ pub(crate) fn spawn_download_size_probe(
         })
         .ok();
     if handle.is_none() {
-        eprintln!("failed to spawn progress probe thread");
+        crate::debug_eprintln!("failed to spawn progress probe thread");
     }
     (stop, handle)
 }
@@ -110,7 +126,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                 // Download to a temporary file first to avoid surfacing a
                 // truncated/corrupted binary under the final name on crashes.
                 if let Err(err) = download_file_with_aria2c(&url, &tmp_path) {
-                    eprintln!(
+                    crate::debug_eprintln!(
                         "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
                     );
                     download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
@@ -133,17 +149,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             // (suffix .exe), so perform verification _after_ moving into
             // place. To avoid losing a good existing binary on failure, keep
             // a best-effort backup and restore it if verification fails.
-            let mut backup_path: Option<PathBuf> = None;
-            if dest_path.exists() {
-                let candidate = dest_path.with_extension("bak");
-                let _ = std::fs::remove_file(&candidate);
-                if std::fs::rename(&dest_path, &candidate).is_ok() {
-                    backup_path = Some(candidate);
-                } else {
-                    // Fallback: remove existing file so the new download can be placed.
-                    let _ = std::fs::remove_file(&dest_path);
-                }
-            }
+            let backup_path = backup_existing_tool_binary(&dest_path);
 
             std::fs::rename(&tmp_path, &dest_path).with_context(|| {
                 format!(
@@ -194,16 +200,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             // binary with the final name when extraction is interrupted.
             extract_avifenc_from_zip(&bytes, &tmp_path)?;
 
-            let mut backup_path: Option<PathBuf> = None;
-            if dest_path.exists() {
-                let candidate = dest_path.with_extension("bak");
-                let _ = std::fs::remove_file(&candidate);
-                if std::fs::rename(&dest_path, &candidate).is_ok() {
-                    backup_path = Some(candidate);
-                } else {
-                    let _ = std::fs::remove_file(&dest_path);
-                }
-            }
+            let backup_path = backup_existing_tool_binary(&dest_path);
 
             std::fs::rename(&tmp_path, &dest_path).with_context(|| {
                 format!(

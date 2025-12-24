@@ -89,7 +89,7 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
     let data = match fs::read(&path) {
         Ok(data) => data,
         Err(err) => {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to read persisted queue state {}: {err:#}",
                 path.display()
             );
@@ -107,7 +107,7 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
         return Some(QueueState::from(lite));
     }
 
-    eprintln!(
+    crate::debug_eprintln!(
         "failed to parse persisted queue state from {}: unable to decode as full or lite schema",
         path.display()
     );
@@ -130,7 +130,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
     if let Some(parent) = path.parent()
         && let Err(err) = fs::create_dir_all(parent)
     {
-        eprintln!(
+        crate::debug_eprintln!(
             "failed to create directory for queue state {}: {err:#}",
             parent.display()
         );
@@ -141,7 +141,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
     match fs::File::create(&tmp_path) {
         Ok(file) => {
             if let Err(err) = serde_json::to_writer(&file, snapshot) {
-                eprintln!(
+                crate::debug_eprintln!(
                     "failed to write queue state to {}: {err:#}",
                     tmp_path.display()
                 );
@@ -153,7 +153,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
             // the sidecar as missing).
             drop(file);
             if let Err(err) = fs::rename(&tmp_path, &path) {
-                eprintln!(
+                crate::debug_eprintln!(
                     "failed to atomically rename {} -> {}: {err:#}",
                     tmp_path.display(),
                     path.display()
@@ -162,7 +162,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
             }
         }
         Err(err) => {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to create temp queue state file {}: {err:#}",
                 tmp_path.display()
             );
@@ -360,7 +360,7 @@ fn ensure_worker_thread_started() {
         state.worker_started = false;
         drop(state);
         QUEUE_PERSIST.cv.notify_all();
-        eprintln!("failed to spawn queue persistence thread: {err}");
+        crate::debug_eprintln!("failed to spawn queue persistence thread: {err}");
     }
 }
 

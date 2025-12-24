@@ -11,8 +11,10 @@ use super::state::{
 };
 use crate::ffui_core::domain::{
     AutoCompressProgress,
+    EncoderType,
     FFmpegPreset,
     JobStatus,
+    PresetStats,
     TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
@@ -182,30 +184,10 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
         return None;
     }
 
-    let stats = &preset.stats;
-    if stats.total_input_size_mb <= 0.0 || stats.total_time_seconds <= 0.0 {
-        return None;
-    }
-
-    let mut seconds_per_mb = stats.total_time_seconds / stats.total_input_size_mb;
-    if !seconds_per_mb.is_finite() || seconds_per_mb <= 0.0 {
-        return None;
-    }
-
-    use crate::ffui_core::domain::EncoderType;
+    let mut seconds_per_mb = base_seconds_per_mb(&preset.stats)?;
+    seconds_per_mb *= encoder_factor_for_estimate(&preset.video.encoder);
 
     let mut factor = 1.0f64;
-
-    match preset.video.encoder {
-        EncoderType::LibSvtAv1 => {
-            factor *= 1.5;
-        }
-        EncoderType::HevcNvenc => {
-            factor *= 0.9;
-        }
-        _ => {}
-    }
-
     let name_lower = preset.name.to_lowercase();
     if name_lower.contains("veryslow") {
         factor *= 2.0;
@@ -224,6 +206,26 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
         Some(estimated)
     } else {
         None
+    }
+}
+
+pub(super) fn base_seconds_per_mb(stats: &PresetStats) -> Option<f64> {
+    if stats.total_input_size_mb <= 0.0 || stats.total_time_seconds <= 0.0 {
+        return None;
+    }
+    let seconds_per_mb = stats.total_time_seconds / stats.total_input_size_mb;
+    if seconds_per_mb.is_finite() && seconds_per_mb > 0.0 {
+        Some(seconds_per_mb)
+    } else {
+        None
+    }
+}
+
+pub(super) fn encoder_factor_for_estimate(encoder: &EncoderType) -> f64 {
+    match encoder {
+        EncoderType::LibSvtAv1 => 1.5,
+        EncoderType::HevcNvenc => 0.9,
+        _ => 1.0,
     }
 }
 
@@ -301,48 +303,10 @@ pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffui_core::domain::{
-        JobSource,
-        JobStatus,
-        JobType,
-        TranscodeJobLite,
-    };
+    use crate::ffui_core::domain::JobStatus;
 
     fn make_job() -> crate::ffui_core::domain::TranscodeJob {
-        crate::ffui_core::domain::TranscodeJob::from(TranscodeJobLite {
-            id: "job-1".to_string(),
-            filename: "C:/videos/sample.mp4".to_string(),
-            job_type: JobType::Video,
-            source: JobSource::Manual,
-            queue_order: None,
-            original_size_mb: 0.0,
-            original_codec: None,
-            preset_id: "preset-1".to_string(),
-            status: JobStatus::Waiting,
-            progress: 0.0,
-            start_time: None,
-            end_time: None,
-            processing_started_ms: None,
-            elapsed_ms: None,
-            output_size_mb: None,
-            input_path: None,
-            output_path: None,
-            output_policy: None,
-            ffmpeg_command: None,
-            first_run_command: None,
-            first_run_started_at_ms: None,
-            media_info: None,
-            estimated_seconds: None,
-            preview_path: None,
-            preview_revision: 0,
-            log_tail: None,
-            log_head: None,
-            failure_reason: None,
-            warnings: Vec::new(),
-            batch_id: None,
-            wait_metadata: None,
-            skip_reason: None,
-        })
+        crate::test_support::make_transcode_job_for_tests("job-1", JobStatus::Waiting, 0.0, None)
     }
 
     #[test]

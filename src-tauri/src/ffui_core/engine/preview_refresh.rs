@@ -81,7 +81,9 @@ impl TranscodingEngine {
         let previews_root = match crate::ffui_core::previews_dir() {
             Ok(dir) => dir,
             Err(err) => {
-                eprintln!("preview refresh skipped: failed to resolve previews dir: {err:#}");
+                crate::debug_eprintln!(
+                    "preview refresh skipped: failed to resolve previews dir: {err:#}"
+                );
                 return;
             }
         };
@@ -110,7 +112,9 @@ impl TranscodingEngine {
             match ensure_tool_available(ExternalToolKind::Ffmpeg, &tools) {
                 Ok(v) => v,
                 Err(err) => {
-                    eprintln!("preview refresh skipped: failed to resolve ffmpeg: {err:#}");
+                    crate::debug_eprintln!(
+                        "preview refresh skipped: failed to resolve ffmpeg: {err:#}"
+                    );
                     return;
                 }
             };

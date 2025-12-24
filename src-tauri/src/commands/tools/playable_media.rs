@@ -27,12 +27,11 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
             continue;
         }
 
-        let candidate = trimmed.to_string();
         if first_non_empty.is_none() {
-            first_non_empty = Some(candidate.clone());
+            first_non_empty = Some(trimmed.to_string());
         }
 
-        let path = Path::new(&candidate);
+        let path = Path::new(trimmed);
 
         // We only treat existing regular files as playable targets; this
         // avoids accidentally returning directories or other special nodes.
@@ -52,10 +51,12 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
         }
 
         match metadata {
-            Ok(meta) if meta.is_file() => return Some(candidate),
+            Ok(meta) if meta.is_file() => return Some(trimmed.to_string()),
             Ok(_) => {}
             Err(err) => {
-                eprintln!("select_playable_media_path: 跳过不可用路径 {candidate}: {err}");
+                crate::debug_eprintln!(
+                    "select_playable_media_path: 跳过不可用路径 {trimmed}: {err}"
+                );
             }
         }
     }

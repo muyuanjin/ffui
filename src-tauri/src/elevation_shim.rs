@@ -111,7 +111,7 @@ pub fn relaunch_unelevated_if_needed() -> bool {
         Err(ShimSpawnError::ElevationRequired) => {
             // 这里是 Windows 的硬约束：当前 exe 被标记为需要管理员权限，
             // 无法从普通 Explorer token 启动一个“降权”副本。
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to spawn unelevated UI process: \
 CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
 当前可执行文件被系统标记为需要管理员权限，无法自动拉起非管理员窗口。\
@@ -120,7 +120,7 @@ CreateProcessW failed with ERROR_ELEVATION_REQUIRED (0x800702E4); \
             false
         }
         Err(ShimSpawnError::Other(err)) => {
-            eprintln!("failed to spawn unelevated UI process: {err}");
+            crate::debug_eprintln!("failed to spawn unelevated UI process: {err}");
             false
         }
     }

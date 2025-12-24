@@ -7,6 +7,7 @@ use anyhow::{
 };
 
 use super::configure_background_command;
+use crate::ffui_core::ffprobe::ffprobe_format_duration_seconds;
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{
     ExternalToolKind,
@@ -61,33 +62,7 @@ fn parse_time_base_and_duration_ts(stdout: &[u8]) -> Option<f64> {
 
 pub(crate) fn detect_duration_seconds(path: &Path, settings: &AppSettings) -> Result<f64> {
     let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
-    let mut cmd = Command::new(&ffprobe_path);
-    configure_background_command(&mut cmd);
-    let output = cmd
-        .arg("-v")
-        .arg("error")
-        .arg("-select_streams")
-        .arg("v:0")
-        .arg("-show_entries")
-        .arg("format=duration")
-        .arg("-of")
-        .arg("default=nw=1:nk=1")
-        .arg(path.as_os_str())
-        .output()
-        .with_context(|| format!("failed to run ffprobe for duration on {}", path.display()))?;
-
-    if !output.status.success() {
-        return Err(anyhow::anyhow!(
-            "ffprobe failed for {}: {}",
-            path.display(),
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    let s = String::from_utf8_lossy(&output.stdout);
-    let first = s.lines().next().unwrap_or_default().trim();
-    let duration: f64 = first.parse().unwrap_or(0.0);
-    Ok(duration)
+    ffprobe_format_duration_seconds(Path::new(&ffprobe_path), path, configure_background_command)
 }
 
 pub(crate) fn detect_video_stream_duration_seconds(

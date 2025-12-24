@@ -123,12 +123,14 @@ pub fn download_external_tool_now(
                         if verify_tool_binary(path_str, kind, "download") {
                             engine_clone.record_manual_tool_download(kind, path_str);
                         } else {
-                            eprintln!("forced download for {kind:?} produced a binary that failed verification at {path_str}");
+                            crate::debug_eprintln!(
+                                "forced download for {kind:?} produced a binary that failed verification at {path_str}"
+                            );
                         }
                     }
                 }
                 Err(err) => {
-                    eprintln!("forced download for {kind:?} failed: {err:#}");
+                    crate::debug_eprintln!("forced download for {kind:?} failed: {err:#}");
                 }
             }
 

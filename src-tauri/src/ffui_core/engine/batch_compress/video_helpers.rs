@@ -1,49 +1,16 @@
 use std::path::Path;
-use std::process::Command;
 
-use anyhow::{
-    Context,
-    Result,
+use anyhow::Result;
+
+use super::super::worker_utils::{
+    base_seconds_per_mb,
+    encoder_factor_for_estimate,
 };
-
-use super::super::ffmpeg_args::configure_background_command;
 use crate::ffui_core::domain::FFmpegPreset;
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
 
 pub(super) fn detect_video_codec(path: &Path, settings: &AppSettings) -> Result<String> {
-    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
-    let mut cmd = Command::new(&ffprobe_path);
-    configure_background_command(&mut cmd);
-    let output = cmd
-        .arg("-v")
-        .arg("error")
-        .arg("-select_streams")
-        .arg("v:0")
-        .arg("-show_entries")
-        .arg("stream=codec_name")
-        .arg("-of")
-        .arg("default=nw=1:nk=1")
-        .arg(path.as_os_str())
-        .output()
-        .with_context(|| {
-            let display = path.display();
-            format!("failed to run ffprobe on {display}")
-        })?;
-
-    if !output.status.success() {
-        return Err(anyhow::anyhow!(
-            "ffprobe failed for {}: {}",
-            path.display(),
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    let s = String::from_utf8_lossy(&output.stdout);
-    Ok(s.lines().next().unwrap_or_default().trim().to_string())
+    super::super::ffmpeg_args::detect_video_codec(path, settings)
 }
 
 pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPreset) -> Option<f64> {
@@ -51,36 +18,12 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
         return None;
     }
 
-    let stats = &preset.stats;
-    if stats.total_input_size_mb <= 0.0 || stats.total_time_seconds <= 0.0 {
-        return None;
-    }
-
-    // Baseline: average seconds-per-megabyte observed for this preset.
-    let mut seconds_per_mb = stats.total_time_seconds / stats.total_input_size_mb;
-    if !seconds_per_mb.is_finite() || seconds_per_mb <= 0.0 {
-        return None;
-    }
+    let mut seconds_per_mb = base_seconds_per_mb(&preset.stats)?;
 
     // Adjust for encoder and preset "speed" where we have simple signals so
     // that obviously heavy configurations (e.g. libsvtav1, veryslow) are
     // weighted higher than fast ones.
-    use crate::ffui_core::domain::EncoderType;
-
-    let mut factor = 1.0f64;
-
-    match preset.video.encoder {
-        EncoderType::LibSvtAv1 => {
-            // Modern AV1 encoders tend to be considerably slower.
-            factor *= 1.5;
-        }
-        EncoderType::HevcNvenc => {
-            // Hardware HEVC is usually fast; keep this close to 1.0 so size
-            // remains the dominant factor.
-            factor *= 0.9;
-        }
-        _ => {}
-    }
+    let mut factor = encoder_factor_for_estimate(&preset.video.encoder);
 
     let preset_name = preset.video.preset.to_ascii_lowercase();
     if preset_name.contains("veryslow") {

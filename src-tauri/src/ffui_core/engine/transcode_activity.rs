@@ -123,7 +123,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
         upsert_activity_day(days, date_key.clone(), new_mask, now_ms);
 
         if let Err(err) = settings::save_settings(&state.settings) {
-            eprintln!("failed to persist transcode activity buckets: {err:#}");
+            crate::debug_eprintln!("failed to persist transcode activity buckets: {err:#}");
         }
 
         Some(TranscodeActivityToday {

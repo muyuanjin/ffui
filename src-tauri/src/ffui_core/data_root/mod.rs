@@ -225,7 +225,7 @@ pub fn acknowledge_fallback_notice() -> Result<()> {
             fallback_notice_dismissed: Some(true),
         };
         if let Err(err) = meta::write_meta(&guard.system_root, &meta) {
-            eprintln!(
+            crate::debug_eprintln!(
                 "failed to acknowledge data root fallback notice {}: {err:#}",
                 meta::meta_path(&guard.system_root).display()
             );
@@ -258,7 +258,7 @@ pub fn set_desired_mode(mode: DataRootMode) -> Result<DataRootInfo> {
         fallback_notice_dismissed: Some(false),
     };
     if let Err(err) = meta::write_meta(meta_root, &meta) {
-        eprintln!(
+        crate::debug_eprintln!(
             "failed to persist data root preference {}: {err:#}",
             meta::meta_path(meta_root).display()
         );

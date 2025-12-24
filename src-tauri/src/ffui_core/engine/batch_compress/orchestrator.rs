@@ -74,7 +74,9 @@ pub(crate) fn run_auto_compress(
         let mut state = inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults = config.clone();
         if let Err(err) = settings::save_settings(&state.settings) {
-            eprintln!("failed to persist Batch Compress defaults to settings.json: {err:#}");
+            crate::debug_eprintln!(
+                "failed to persist Batch Compress defaults to settings.json: {err:#}"
+            );
         }
         let settings_snapshot = state.settings.clone();
         let presets = state.presets.clone();
@@ -145,7 +147,7 @@ pub(crate) fn run_auto_compress(
             batch.status = BatchCompressBatchStatus::Failed;
             batch.completed_at_ms = Some(current_time_millis());
         });
-        eprintln!("failed to spawn Batch Compress background worker: {err}");
+        crate::debug_eprintln!("failed to spawn Batch Compress background worker: {err}");
         return Err(anyhow::anyhow!(
             "failed to start Batch Compress worker thread: {err}"
         ));
@@ -184,7 +186,10 @@ fn run_auto_compress_background(
         let entries = match fs::read_dir(&dir) {
             Ok(e) => e,
             Err(err) => {
-                eprintln!("auto-compress: failed to read dir {}: {err}", dir.display());
+                crate::debug_eprintln!(
+                    "auto-compress: failed to read dir {}: {err}",
+                    dir.display()
+                );
                 continue;
             }
         };
@@ -246,6 +251,17 @@ fn run_auto_compress_background(
     }
 
     let mut pending_media_tasks: Vec<(String, PathBuf, MediaTaskKind)> = Vec::new();
+    let mut register_stub_job = |job_id: String, path: PathBuf, kind: MediaTaskKind| {
+        update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+            batch.total_candidates = batch.total_candidates.saturating_add(1);
+            batch.child_job_ids.push(job_id.clone());
+            if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
+                batch.status = BatchCompressBatchStatus::Running;
+            }
+        });
+
+        pending_media_tasks.push((job_id, path, kind));
+    };
 
     // 第二次遍历：基于快照建任务，快速推给 UI；重处理放到异步线程。
     for path in all_files {
@@ -256,18 +272,8 @@ fn run_auto_compress_background(
         if is_image_file(&path) {
             let job_id = next_job_id(&inner);
             insert_image_stub_job(&inner, &job_id, &path, &config, &batch_id);
-
             queue_dirty = true;
-
-            update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
-                batch.total_candidates = batch.total_candidates.saturating_add(1);
-                batch.child_job_ids.push(job_id.clone());
-                if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
-                    batch.status = BatchCompressBatchStatus::Running;
-                }
-            });
-
-            pending_media_tasks.push((job_id, path, MediaTaskKind::Image));
+            register_stub_job(job_id, path, MediaTaskKind::Image);
         } else if is_audio_file(&path) {
             let ext = path
                 .extension()
@@ -293,18 +299,8 @@ fn run_auto_compress_background(
 
             let job_id = next_job_id(&inner);
             insert_audio_stub_job(&inner, &job_id, &path, &config, &batch_id);
-
             queue_dirty = true;
-
-            update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
-                batch.total_candidates = batch.total_candidates.saturating_add(1);
-                batch.child_job_ids.push(job_id.clone());
-                if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
-                    batch.status = BatchCompressBatchStatus::Running;
-                }
-            });
-
-            pending_media_tasks.push((job_id, path, MediaTaskKind::Audio));
+            register_stub_job(job_id, path, MediaTaskKind::Audio);
         } else if is_video_file(&path) {
             let preset = presets
                 .iter()
@@ -469,7 +465,7 @@ fn run_auto_compress_background(
             .map(|_| ());
 
         if let Err(err) = spawned {
-            eprintln!("failed to spawn batch compress media worker thread: {err}");
+            crate::debug_eprintln!("failed to spawn batch compress media worker thread: {err}");
             super::orchestrator_helpers::handle_media_worker_spawn_failure(
                 &inner,
                 &batch_id,

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{
@@ -6,19 +5,24 @@ use std::path::{
     PathBuf,
 };
 use std::process::Command;
-use std::sync::{
-    Arc,
-    Mutex,
-};
-use std::time::SystemTime;
 
 use anyhow::{
     Context,
     Result,
 };
-use once_cell::sync::Lazy;
 
 use super::preview_cache::previews_root_dir_best_effort;
+use super::preview_common::{
+    append_preview_frame_jpeg_args,
+    bucket_percent_position,
+    bucket_seconds_position,
+    configure_background_command,
+    extract_frame_with_seek_backoffs,
+    file_fingerprint,
+    hash_key,
+    two_stage_seek_args,
+    with_cached_preview_frame,
+};
 use super::{
     FallbackFramePosition,
     FallbackFrameQuality,
@@ -28,22 +32,9 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     ensure_tool_available,
 };
-use crate::sync_ext::MutexExt;
 
 mod cache;
 use cache::maybe_cleanup_cache_now;
-
-static INFLIGHT_LOCKS: Lazy<Mutex<HashMap<String, Arc<Mutex<()>>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
-
-#[cfg(windows)]
-fn configure_background_command(cmd: &mut Command) {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    cmd.creation_flags(CREATE_NO_WINDOW);
-}
-#[cfg(not(windows))]
-fn configure_background_command(_cmd: &mut Command) {}
 
 fn compare_cache_root_dir() -> Result<PathBuf> {
     Ok(previews_root_dir_best_effort()?.join("compare-cache"))
@@ -53,80 +44,17 @@ fn compare_frames_dir() -> Result<PathBuf> {
     Ok(compare_cache_root_dir()?.join("frames"))
 }
 
-fn ensure_dir_exists(path: &Path) -> Result<()> {
-    fs::create_dir_all(path)
-        .with_context(|| format!("create_dir_all failed for {}", path.display()))
-}
-
-fn is_regular_file(path: &Path) -> bool {
-    fs::metadata(path).map(|m| m.is_file()).unwrap_or(false)
-}
-
-fn is_non_empty_regular_file(path: &Path) -> bool {
-    is_regular_file(path) && fs::metadata(path).map(|m| m.len() > 0).unwrap_or(false)
-}
-
-fn file_fingerprint(path: &Path) -> (u64, Option<u128>) {
-    let meta = match fs::metadata(path) {
-        Ok(m) => m,
-        Err(_) => return (0, None),
-    };
-    let len = meta.len();
-    let modified_ms = meta.modified().ok().and_then(|t| {
-        t.duration_since(SystemTime::UNIX_EPOCH)
-            .ok()
-            .map(|d| d.as_millis())
-    });
-    (len, modified_ms)
-}
-
-fn hash_key(parts: &[&str]) -> u64 {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{
-        Hash,
-        Hasher,
-    };
-    let mut hasher = DefaultHasher::new();
-    for part in parts {
-        part.hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
-fn frame_tmp_filename(hash: u64) -> String {
-    format!("{hash:016x}.part")
-}
-
 fn bucket_position(position: FallbackFramePosition, quality: FallbackFrameQuality) -> String {
     match position {
-        FallbackFramePosition::Percent(raw) => {
-            let clamped = raw.clamp(0.0, 100.0);
-            let step = match quality {
-                FallbackFrameQuality::Low => 2.0,
-                FallbackFrameQuality::High => 1.0,
-            };
-            let snapped = (clamped / step).round() * step;
-            let as_int = snapped.round().clamp(0.0, 100.0) as i32;
-            format!("p{as_int:03}")
-        }
+        FallbackFramePosition::Percent(raw) => bucket_percent_position(raw, quality),
         FallbackFramePosition::Seconds(raw) => {
-            let clamped = raw.max(0.0);
             let step = match quality {
                 FallbackFrameQuality::Low => 1.0,
                 FallbackFrameQuality::High => 0.5,
             };
-            let snapped = (clamped / step).round() * step;
-            let as_ms = (snapped * 1000.0).round().max(0.0) as u64;
-            format!("s{as_ms}")
+            bucket_seconds_position(raw, step)
         }
     }
-}
-
-fn acquire_inflight_lock(key: &str) -> Arc<Mutex<()>> {
-    let mut map = INFLIGHT_LOCKS.lock_unpoisoned();
-    map.entry(key.to_string())
-        .or_insert_with(|| Arc::new(Mutex::new(())))
-        .clone()
 }
 
 fn build_concat_list_contents(segment_paths: &[PathBuf]) -> String {
@@ -139,20 +67,6 @@ fn build_concat_list_contents(segment_paths: &[PathBuf]) -> String {
         out.push_str("'\n");
     }
     out
-}
-
-fn two_stage_seek_args(position_seconds: f64) -> (String, String) {
-    if !position_seconds.is_finite() {
-        return ("0.000".to_string(), "0.000".to_string());
-    }
-
-    let seek_seconds = position_seconds.max(0.0);
-    let fast_seek_seconds = (seek_seconds - 3.0).max(0.0);
-    let accurate_offset_seconds = (seek_seconds - fast_seek_seconds).max(0.0);
-    (
-        format!("{fast_seek_seconds:.3}"),
-        format!("{accurate_offset_seconds:.3}"),
-    )
 }
 
 fn build_concat_ffmpeg_args(
@@ -187,79 +101,10 @@ fn build_concat_ffmpeg_args(
         "-an".into(),
     ];
 
-    match quality {
-        FallbackFrameQuality::Low => {
-            out.push("-vf".into());
-            out.push("scale=-2:360".into());
-            out.push("-q:v".into());
-            out.push("10".into());
-        }
-        FallbackFrameQuality::High => {
-            out.push("-vf".into());
-            out.push("scale=trunc(iw/2)*2:trunc(ih/2)*2".into());
-            out.push("-q:v".into());
-            out.push("3".into());
-        }
-    }
-
-    out.push("-f".into());
-    out.push("image2".into());
-    out.push("-c:v".into());
-    out.push("mjpeg".into());
-    out.push("-pix_fmt".into());
-    out.push("yuvj420p".into());
-    out.push("-strict".into());
-    out.push("-1".into());
+    append_preview_frame_jpeg_args(&mut out, quality, "3");
     out.push(tmp_path.as_os_str().to_os_string());
 
     out
-}
-
-fn move_tmp_to_final(tmp_path: &Path, final_path: &Path) -> Result<()> {
-    fs::rename(tmp_path, final_path).or_else(|_| {
-        fs::copy(tmp_path, final_path)
-            .map(|_| ())
-            .and_then(|_| fs::remove_file(tmp_path))
-    })?;
-    Ok(())
-}
-
-fn extract_frame_with_seek_backoffs<F>(
-    base_seek_seconds: f64,
-    seek_backoffs_seconds: &[f64],
-    tmp_path: &Path,
-    final_path: &Path,
-    mut run_ffmpeg: F,
-) -> Result<f64>
-where
-    F: FnMut(f64, &Path) -> Result<()>, {
-    let mut last_error: Option<anyhow::Error> = None;
-    for offset in seek_backoffs_seconds {
-        let attempt_seconds = (base_seek_seconds - offset).max(0.0);
-        let _ = fs::remove_file(tmp_path);
-
-        match run_ffmpeg(attempt_seconds, tmp_path) {
-            Ok(()) => {}
-            Err(err) => {
-                last_error = Some(err);
-                continue;
-            }
-        }
-
-        if !is_non_empty_regular_file(tmp_path) {
-            last_error = Some(anyhow::anyhow!(
-                "ffmpeg reported success but wrote no frame output (seekSeconds={attempt_seconds:.3})"
-            ));
-            continue;
-        }
-
-        move_tmp_to_final(tmp_path, final_path)?;
-        return Ok(attempt_seconds);
-    }
-
-    let _ = fs::remove_file(tmp_path);
-    Err(last_error
-        .unwrap_or_else(|| anyhow::anyhow!("ffmpeg did not produce a concat preview frame output")))
 }
 
 pub(crate) fn extract_concat_preview_frame(
@@ -316,66 +161,58 @@ pub(crate) fn extract_concat_preview_frame(
     let hash = hash_key(&[&key]);
     let frames_dir = compare_frames_dir()?;
     let cache_root = compare_cache_root_dir()?;
-    ensure_dir_exists(&frames_dir)?;
-
-    let final_path = frames_dir.join(format!("{hash:016x}.jpg"));
-    if is_non_empty_regular_file(&final_path) {
-        maybe_cleanup_cache_now(&cache_root);
-        return Ok(final_path);
-    }
-
-    let inflight = acquire_inflight_lock(&key);
-    let _guard = inflight.lock_unpoisoned();
-
-    if is_non_empty_regular_file(&final_path) {
-        maybe_cleanup_cache_now(&cache_root);
-        return Ok(final_path);
-    }
-
-    let tmp_path = frames_dir.join(frame_tmp_filename(hash));
     let list_path = frames_dir.join(format!("{hash:016x}.concat.list"));
     let list_contents = build_concat_list_contents(&segments);
-    fs::write(&list_path, list_contents.as_bytes())
-        .with_context(|| format!("failed to write concat list {}", list_path.display()))?;
 
     let (ffmpeg_path, _, _) = ensure_tool_available(ExternalToolKind::Ffmpeg, tools)?;
     let seek_backoffs_seconds: [f64; 5] = [0.0, 0.25, 0.5, 1.0, 2.0];
 
-    let result = extract_frame_with_seek_backoffs(
-        position_seconds.max(0.0),
-        &seek_backoffs_seconds,
-        &tmp_path,
-        &final_path,
-        |attempt_seconds, tmp_path| {
-            let mut cmd = Command::new(&ffmpeg_path);
-            configure_background_command(&mut cmd);
+    with_cached_preview_frame(
+        &key,
+        &frames_dir,
+        &cache_root,
+        hash,
+        maybe_cleanup_cache_now,
+        |tmp_path, final_path| {
+            fs::write(&list_path, list_contents.as_bytes())
+                .with_context(|| format!("failed to write concat list {}", list_path.display()))?;
 
-            let args = build_concat_ffmpeg_args(&list_path, attempt_seconds, quality, tmp_path);
-            cmd.args(args);
+            let result = extract_frame_with_seek_backoffs(
+                position_seconds.max(0.0),
+                &seek_backoffs_seconds,
+                tmp_path,
+                final_path,
+                "ffmpeg did not produce a concat preview frame output",
+                |attempt_seconds, tmp_path| {
+                    let mut cmd = Command::new(&ffmpeg_path);
+                    configure_background_command(&mut cmd);
 
-            let output = cmd
-                .output()
-                .with_context(|| "failed to run ffmpeg concat frame extraction")?;
+                    let args =
+                        build_concat_ffmpeg_args(&list_path, attempt_seconds, quality, tmp_path);
+                    cmd.args(args);
 
-            if !output.status.success() {
-                let _ = fs::remove_file(tmp_path);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(anyhow::anyhow!(
-                    "ffmpeg concat frame extraction failed with status {}: {}",
-                    output.status,
-                    stderr.trim()
-                ));
-            }
+                    let output = cmd
+                        .output()
+                        .with_context(|| "failed to run ffmpeg concat frame extraction")?;
 
-            Ok(())
+                    if !output.status.success() {
+                        let _ = fs::remove_file(tmp_path);
+                        let stderr = String::from_utf8_lossy(&output.stderr);
+                        return Err(anyhow::anyhow!(
+                            "ffmpeg concat frame extraction failed with status {}: {}",
+                            output.status,
+                            stderr.trim()
+                        ));
+                    }
+
+                    Ok(())
+                },
+            );
+
+            let _ = fs::remove_file(&list_path);
+            result.map(|_| ())
         },
-    );
-
-    let _ = fs::remove_file(&list_path);
-    result?;
-
-    maybe_cleanup_cache_now(&cache_root);
-    Ok(final_path)
+    )
 }
 
 #[cfg(test)]

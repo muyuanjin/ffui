@@ -151,26 +151,26 @@ pub fn prepare_updater_proxy_env() -> ResolvedNetworkProxy {
     let _guard = UPDATER_PROXY_ENV_MUTEX.lock_unpoisoned();
 
     let resolved = resolve_effective_proxy_once();
+    fn set_updater_proxy_env(url: Option<&str>) {
+        for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
+            // SAFETY: We intentionally mutate process-wide env vars so the
+            // updater plugin can pick up the desired proxy configuration.
+            unsafe {
+                if let Some(url) = url {
+                    std::env::set_var(key, url);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
     match resolved.mode {
         NetworkProxyMode::None => {
-            for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-                // SAFETY: We intentionally mutate process-wide env vars so the
-                // updater plugin can pick up the desired proxy configuration.
-                unsafe { std::env::remove_var(key) };
-            }
+            set_updater_proxy_env(None);
             PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
         }
         NetworkProxyMode::Custom => {
-            if let Some(url) = resolved.proxy_url.as_deref() {
-                for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-                    // SAFETY: see remove_var safety comment above.
-                    unsafe { std::env::set_var(key, url) };
-                }
-            } else {
-                for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-                    unsafe { std::env::remove_var(key) };
-                }
-            }
+            set_updater_proxy_env(resolved.proxy_url.as_deref());
             PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
         }
         NetworkProxyMode::System => {
@@ -180,16 +180,7 @@ pub fn prepare_updater_proxy_env() -> ResolvedNetworkProxy {
                 return resolved;
             }
 
-            if let Some(url) = resolved.proxy_url.as_deref() {
-                for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-                    // SAFETY: see remove_var safety comment above.
-                    unsafe { std::env::set_var(key, url) };
-                }
-            } else {
-                for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-                    unsafe { std::env::remove_var(key) };
-                }
-            }
+            set_updater_proxy_env(resolved.proxy_url.as_deref());
             PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
         }
     }
@@ -472,10 +463,7 @@ mod tests {
         let resolved = resolve_effective_proxy_once();
         let mut cmd = std::process::Command::new("aria2c");
         apply_aria2c_args(&mut cmd, &resolved);
-        let args = cmd
-            .get_args()
-            .map(|s| s.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
+        let args = cmd_args(&cmd);
         assert!(
             args.windows(2)
                 .any(|w| w[0] == "--all-proxy" && w[1] == "http://127.0.0.1:7890")
@@ -488,11 +476,14 @@ mod tests {
         let resolved = resolve_effective_proxy_once();
         let mut cmd = std::process::Command::new("aria2c");
         apply_aria2c_args(&mut cmd, &resolved);
-        let args = cmd
-            .get_args()
-            .map(|s| s.to_string_lossy().into_owned())
-            .collect::<Vec<_>>();
+        let args = cmd_args(&cmd);
         assert!(args.iter().any(|a| a == "--all-proxy="));
         assert!(args.iter().any(|a| a == "--no-proxy=*"));
+    }
+
+    fn cmd_args(cmd: &std::process::Command) -> Vec<String> {
+        cmd.get_args()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
     }
 }

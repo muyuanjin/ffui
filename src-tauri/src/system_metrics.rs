@@ -342,7 +342,7 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                         metrics_state.push_snapshot(snapshot.clone());
 
                         if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
-                            eprintln!("failed to emit system metrics event: {err}");
+                            crate::debug_eprintln!("failed to emit system metrics event: {err}");
                         }
 
                         metrics_state.wait_for_wakeup_or_timeout(sampling_interval);

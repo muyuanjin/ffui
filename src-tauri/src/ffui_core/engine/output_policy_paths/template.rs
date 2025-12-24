@@ -1,4 +1,6 @@
-pub(super) fn infer_template_output_codecs(template: &str) -> (Option<String>, Option<String>) {
+pub(in crate::ffui_core::engine) fn infer_template_output_codecs(
+    template: &str,
+) -> (Option<String>, Option<String>) {
     // Best-effort: scan output-scoped `-c:v <x>` and `-c:a <y>` before OUTPUT.
     // This mirrors `infer_template_output_muxer` and intentionally avoids full
     // shell parsing.

@@ -7,7 +7,11 @@
 /// 规则：
 /// - 当预设显式指定 `container.format` 时，扩展名遵循容器（如 mkv→`.mkv`）；
 /// - 否则退回到输入扩展名（如 `.mp4` → `.compressed.mp4`）。
-pub(super) fn build_video_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
+fn build_compressed_video_path(
+    input: &Path,
+    container_format: Option<&str>,
+    extra_suffix: &str,
+) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new("."));
     let stem = input
         .file_stem()
@@ -15,7 +19,11 @@ pub(super) fn build_video_output_path(input: &Path, container_format: Option<&st
         .unwrap_or("output");
     let input_ext = input.extension().and_then(|e| e.to_str());
     let ext = infer_output_extension(container_format, input_ext);
-    parent.join(format!("{stem}.compressed.{ext}"))
+    parent.join(format!("{stem}.compressed{extra_suffix}.{ext}"))
+}
+
+pub(super) fn build_video_output_path(input: &Path, container_format: Option<&str>) -> PathBuf {
+    build_compressed_video_path(input, container_format, "")
 }
 
 // Temporary output path for video transcodes. We keep an extension that matches
@@ -26,14 +34,7 @@ pub(super) fn build_video_tmp_output_path(
     input: &Path,
     container_format: Option<&str>,
 ) -> PathBuf {
-    let parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let input_ext = input.extension().and_then(|e| e.to_str());
-    let ext = infer_output_extension(container_format, input_ext);
-    parent.join(format!("{stem}.compressed.tmp.{ext}"))
+    build_compressed_video_path(input, container_format, ".tmp")
 }
 
 #[allow(dead_code)]
@@ -41,14 +42,7 @@ pub(super) fn build_video_resume_tmp_output_path(
     input: &Path,
     container_format: Option<&str>,
 ) -> PathBuf {
-    let parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let input_ext = input.extension().and_then(|e| e.to_str());
-    let ext = infer_output_extension(container_format, input_ext);
-    parent.join(format!("{stem}.compressed.resume.tmp.{ext}"))
+    build_compressed_video_path(input, container_format, ".resume.tmp")
 }
 
 /// Temporary output path for a specific job segment.
@@ -62,16 +56,11 @@ pub(super) fn build_video_job_segment_tmp_output_path(
     job_id: &str,
     segment_index: u64,
 ) -> PathBuf {
-    let parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let input_ext = input.extension().and_then(|e| e.to_str());
-    let ext = infer_output_extension(container_format, input_ext);
-    parent.join(format!(
-        "{stem}.compressed.{job_id}.seg{segment_index}.tmp.{ext}"
-    ))
+    build_compressed_video_path(
+        input,
+        container_format,
+        &format!(".{job_id}.seg{segment_index}.tmp"),
+    )
 }
 
 /// Temporary output segment path derived from a *final output path*.

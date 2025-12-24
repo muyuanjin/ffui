@@ -4,12 +4,14 @@ mod data_root;
 mod domain;
 mod engine;
 mod fallback_preview;
+mod ffprobe;
 pub(crate) mod input_expand;
 mod monitor;
 mod monitor_activity;
 pub(crate) mod network_proxy;
 mod preset_bundle;
 mod preview_cache;
+mod preview_common;
 mod settings;
 pub mod tools;
 

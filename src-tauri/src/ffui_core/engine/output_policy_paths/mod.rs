@@ -26,12 +26,13 @@ use filename::{
     apply_filename_policy,
     sanitize_windows_path_segment,
 };
+pub(super) use template::infer_template_output_codecs;
 use template::infer_template_output_muxer;
 use utils::{
     normalize_extension_no_dot,
     random_hex,
 };
-use webm::should_fallback_webm;
+pub(super) use webm::should_fallback_webm;
 
 static RANDOM_COUNTER: AtomicU64 = AtomicU64::new(1);
 
@@ -42,19 +43,51 @@ pub(crate) struct OutputPathPlan {
     pub(crate) warnings: Vec<JobWarning>,
 }
 
-pub(crate) fn plan_video_output_path(
+struct OutputPathParts {
+    target_dir: PathBuf,
+    stem: String,
+    ext: String,
+    forced_muxer: Option<String>,
+    warnings: Vec<JobWarning>,
+}
+
+fn compute_output_path_parts(
     input: &Path,
     preset: Option<&FFmpegPreset>,
     policy: &OutputPolicy,
-    mut is_reserved: impl FnMut(&Path) -> bool,
-) -> OutputPathPlan {
-    let input_parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let input_stem = input
+) -> OutputPathParts {
+    let input_parent = input_parent_or_dot(input);
+    let input_stem = input_stem_or_default(input);
+    let target_dir = compute_target_dir(input_parent, policy);
+
+    let input_ext = input.extension().and_then(|e| e.to_str());
+    let (ext, forced_muxer, warnings) =
+        infer_container_extension_and_muxer(input_ext, preset, policy);
+
+    let stem = compute_output_stem(input_stem, preset, policy);
+
+    OutputPathParts {
+        target_dir,
+        stem,
+        ext,
+        forced_muxer,
+        warnings,
+    }
+}
+
+fn input_parent_or_dot(input: &Path) -> &Path {
+    input.parent().unwrap_or_else(|| Path::new("."))
+}
+
+fn input_stem_or_default(input: &Path) -> &str {
+    input
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("output");
+        .unwrap_or("output")
+}
 
-    let target_dir = match &policy.directory {
+fn compute_target_dir(input_parent: &Path, policy: &OutputPolicy) -> PathBuf {
+    match &policy.directory {
         OutputDirectoryPolicy::SameAsInput => input_parent.to_path_buf(),
         OutputDirectoryPolicy::Fixed { directory } => {
             let trimmed = directory.trim();
@@ -64,127 +97,38 @@ pub(crate) fn plan_video_output_path(
                 PathBuf::from(trimmed)
             }
         }
-    };
+    }
+}
 
-    let input_ext = input.extension().and_then(|e| e.to_str());
-
-    let (ext, forced_muxer, warnings) =
-        infer_container_extension_and_muxer(input_ext, preset, policy);
-
+fn compute_output_stem(
+    input_stem: &str,
+    preset: Option<&FFmpegPreset>,
+    policy: &OutputPolicy,
+) -> String {
     let mut stem = apply_filename_policy(input_stem, preset, policy);
     stem = sanitize_windows_path_segment(&stem);
     if stem.is_empty() {
         stem = "output".to_string();
     }
-
-    let mut candidate = target_dir.join(format!("{stem}.{ext}"));
-
-    if candidate == input {
-        candidate = target_dir.join(format!("{stem} (1).{ext}"));
-    }
-
-    let mut counter: u32 = 0;
-    while candidate == input || candidate.exists() || is_reserved(&candidate) {
-        counter += 1;
-        candidate = target_dir.join(format!("{stem} ({counter}).{ext}"));
-        // Worst-case escape hatch: if the stem is pathological and collisions keep happening,
-        // inject a short random token to break ties deterministically.
-        if counter >= 1000 {
-            let token = random_hex(8);
-            candidate = target_dir.join(format!("{stem}-{token}.{ext}"));
-            break;
-        }
-    }
-
-    OutputPathPlan {
-        output_path: candidate,
-        forced_muxer,
-        warnings,
-    }
+    stem
 }
 
-pub(crate) fn preview_video_output_path(
-    input: &Path,
-    preset: Option<&FFmpegPreset>,
-    policy: &OutputPolicy,
-) -> OutputPathPlan {
-    let input_parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let input_stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-
-    let target_dir = match &policy.directory {
-        OutputDirectoryPolicy::SameAsInput => input_parent.to_path_buf(),
-        OutputDirectoryPolicy::Fixed { directory } => {
-            let trimmed = directory.trim();
-            if trimmed.is_empty() {
-                input_parent.to_path_buf()
-            } else {
-                PathBuf::from(trimmed)
-            }
-        }
-    };
-
-    let input_ext = input.extension().and_then(|e| e.to_str());
-    let (ext, forced_muxer, warnings) =
-        infer_container_extension_and_muxer(input_ext, preset, policy);
-
-    let mut stem = apply_filename_policy(input_stem, preset, policy);
-    stem = sanitize_windows_path_segment(&stem);
-    if stem.is_empty() {
-        stem = "output".to_string();
-    }
-
+fn initial_candidate_path(input: &Path, target_dir: &Path, stem: &str, ext: &str) -> PathBuf {
     let mut candidate = target_dir.join(format!("{stem}.{ext}"));
     if candidate == input {
         candidate = target_dir.join(format!("{stem} (1).{ext}"));
     }
-
-    OutputPathPlan {
-        output_path: candidate,
-        forced_muxer,
-        warnings,
-    }
+    candidate
 }
 
-pub(crate) fn plan_output_path_with_extension(
+fn ensure_available_candidate(
     input: &Path,
-    extension_no_dot: &str,
-    preset: Option<&FFmpegPreset>,
-    policy: &OutputPolicy,
+    target_dir: &Path,
+    stem: &str,
+    ext: &str,
     mut is_reserved: impl FnMut(&Path) -> bool,
 ) -> PathBuf {
-    let input_parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let input_stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-
-    let target_dir = match &policy.directory {
-        OutputDirectoryPolicy::SameAsInput => input_parent.to_path_buf(),
-        OutputDirectoryPolicy::Fixed { directory } => {
-            let trimmed = directory.trim();
-            if trimmed.is_empty() {
-                input_parent.to_path_buf()
-            } else {
-                PathBuf::from(trimmed)
-            }
-        }
-    };
-
-    let mut stem = apply_filename_policy(input_stem, preset, policy);
-    stem = sanitize_windows_path_segment(&stem);
-    if stem.is_empty() {
-        stem = "output".to_string();
-    }
-
-    let ext = normalize_extension_no_dot(extension_no_dot);
-    let mut candidate = target_dir.join(format!("{stem}.{ext}"));
-
-    if candidate == input {
-        candidate = target_dir.join(format!("{stem} (1).{ext}"));
-    }
+    let mut candidate = initial_candidate_path(input, target_dir, stem, ext);
 
     let mut counter: u32 = 0;
     while candidate == input || candidate.exists() || is_reserved(&candidate) {
@@ -198,6 +142,58 @@ pub(crate) fn plan_output_path_with_extension(
     }
 
     candidate
+}
+
+pub(crate) fn plan_video_output_path(
+    input: &Path,
+    preset: Option<&FFmpegPreset>,
+    policy: &OutputPolicy,
+    mut is_reserved: impl FnMut(&Path) -> bool,
+) -> OutputPathPlan {
+    let parts = compute_output_path_parts(input, preset, policy);
+    let candidate = ensure_available_candidate(
+        input,
+        &parts.target_dir,
+        &parts.stem,
+        &parts.ext,
+        &mut is_reserved,
+    );
+
+    OutputPathPlan {
+        output_path: candidate,
+        forced_muxer: parts.forced_muxer,
+        warnings: parts.warnings,
+    }
+}
+
+pub(crate) fn preview_video_output_path(
+    input: &Path,
+    preset: Option<&FFmpegPreset>,
+    policy: &OutputPolicy,
+) -> OutputPathPlan {
+    let parts = compute_output_path_parts(input, preset, policy);
+    let candidate = initial_candidate_path(input, &parts.target_dir, &parts.stem, &parts.ext);
+
+    OutputPathPlan {
+        output_path: candidate,
+        forced_muxer: parts.forced_muxer,
+        warnings: parts.warnings,
+    }
+}
+
+pub(crate) fn plan_output_path_with_extension(
+    input: &Path,
+    extension_no_dot: &str,
+    preset: Option<&FFmpegPreset>,
+    policy: &OutputPolicy,
+    mut is_reserved: impl FnMut(&Path) -> bool,
+) -> PathBuf {
+    let input_parent = input_parent_or_dot(input);
+    let input_stem = input_stem_or_default(input);
+    let target_dir = compute_target_dir(input_parent, policy);
+    let stem = compute_output_stem(input_stem, preset, policy);
+    let ext = normalize_extension_no_dot(extension_no_dot);
+    ensure_available_candidate(input, &target_dir, &stem, &ext, &mut is_reserved)
 }
 
 fn infer_container_extension_and_muxer(

@@ -4,7 +4,9 @@ use super::builder_tail::{
     apply_audio_args,
     apply_container_args,
     apply_filter_args,
+    apply_global_args,
     apply_hw_args,
+    apply_mapping_disposition_and_metadata_args,
     apply_subtitle_args,
 };
 use super::builder_webm::should_fallback_webm_forced_container;
@@ -19,7 +21,6 @@ use crate::ffui_core::domain::{
     FFmpegPreset,
     OutputContainerPolicy,
     OutputPolicy,
-    OverwriteBehavior,
     RateControlMode,
     SeekMode,
 };
@@ -108,33 +109,7 @@ pub(crate) fn build_ffmpeg_args(
         args.push("-nostdin".to_string());
     }
 
-    if let Some(global) = &preset.global {
-        if let Some(behavior) = &global.overwrite_behavior {
-            match behavior {
-                OverwriteBehavior::Overwrite => {
-                    args.push("-y".to_string());
-                }
-                OverwriteBehavior::NoOverwrite => {
-                    args.push("-n".to_string());
-                }
-                OverwriteBehavior::Ask => {
-                    // Use ffmpeg default behaviour; emit no flag.
-                }
-            }
-        }
-        if let Some(level) = &global.log_level
-            && !level.is_empty()
-        {
-            args.push("-loglevel".to_string());
-            args.push(level.clone());
-        }
-        if global.hide_banner.unwrap_or(false) {
-            args.push("-hide_banner".to_string());
-        }
-        if global.enable_report.unwrap_or(false) {
-            args.push("-report".to_string());
-        }
-    }
+    apply_global_args(&mut args, preset);
 
     if let Some(timeline) = &preset.input
         && let Some(SeekMode::Input) = timeline.seek_mode
@@ -183,32 +158,17 @@ pub(crate) fn build_ffmpeg_args(
         }
     }
 
-    if let Some(mapping) = &preset.mapping {
-        if let Some(maps) = &mapping.maps {
-            for m in maps {
-                if !m.is_empty() {
-                    args.push("-map".to_string());
-                    args.push(m.clone());
-                }
-            }
-        }
-        if let Some(dispositions) = &mapping.dispositions {
-            for d in dispositions {
-                if !d.is_empty() {
-                    args.push("-disposition".to_string());
-                    args.push(d.clone());
-                }
-            }
-        }
-        if let Some(metadata) = &mapping.metadata {
-            for kv in metadata {
-                if !kv.is_empty() {
-                    args.push("-metadata".to_string());
-                    args.push(kv.clone());
-                }
+    if let Some(mapping) = &preset.mapping
+        && let Some(maps) = &mapping.maps
+    {
+        for m in maps {
+            if !m.is_empty() {
+                args.push("-map".to_string());
+                args.push(m.clone());
             }
         }
     }
+    apply_mapping_disposition_and_metadata_args(&mut args, preset);
     if !args.iter().any(|a| a == "-map") {
         args.push("-map".to_string());
         args.push("0".to_string());

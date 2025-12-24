@@ -50,7 +50,7 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
             .spawn(move || worker_loop(inner_clone))
             .map(|_| ());
         if let Err(err) = result {
-            eprintln!("failed to spawn transcoding worker thread: {err}");
+            crate::debug_eprintln!("failed to spawn transcoding worker thread: {err}");
             break;
         }
         state.spawned_workers += 1;

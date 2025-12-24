@@ -47,14 +47,14 @@ pub fn register_queue_stream(handle: &AppHandle) {
             let engine = taskbar_handle.state::<TranscodingEngine>();
             let full = engine.queue_state();
             if let Err(err) = event_handle.emit("ffui://queue-state", full) {
-                eprintln!("failed to emit queue-state event: {err}");
+                crate::debug_eprintln!("failed to emit queue-state event: {err}");
             }
         }
 
         // Lightweight snapshot event used by the queue UI. This is the steady-state
         // path and MUST NOT require building a full QueueState clone of logs.
         if let Err(err) = event_handle.emit("ffui://queue-state-lite", state.clone()) {
-            eprintln!("failed to emit queue-state-lite event: {err}");
+            crate::debug_eprintln!("failed to emit queue-state-lite event: {err}");
         }
 
         // Update the Windows taskbar progress bar (no-op on non-Windows

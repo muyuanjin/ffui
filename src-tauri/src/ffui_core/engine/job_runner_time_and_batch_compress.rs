@@ -63,7 +63,9 @@ pub(super) fn record_tool_download_with_inner(
     }
 
     if let Err(err) = crate::ffui_core::settings::save_settings(settings_ref) {
-        eprintln!("failed to persist external tool download metadata to settings.json: {err:#}");
+        crate::debug_eprintln!(
+            "failed to persist external tool download metadata to settings.json: {err:#}"
+        );
     }
 }
 
@@ -72,49 +74,5 @@ pub(super) fn record_tool_download_with_inner(
 // ============================================================================
 
 pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
-    let batch_id_opt = {
-        let mut state = inner.state.lock_unpoisoned();
-        let job = match state.jobs.get(job_id) {
-            Some(job) => job.clone(),
-            None => return,
-        };
-
-        let batch_id = match job.batch_id.clone() {
-            Some(id) => id,
-            None => return,
-        };
-
-        let batch = match state.batch_compress_batches.get_mut(&batch_id) {
-            Some(b) => b,
-            None => return,
-        };
-
-        // 仅在作业进入终态时增加 processed 计数。
-        if !matches!(
-            job.status,
-            JobStatus::Completed | JobStatus::Skipped | JobStatus::Failed | JobStatus::Cancelled
-        ) {
-            return;
-        }
-
-        batch.total_processed = batch.total_processed.saturating_add(1);
-        if batch.total_processed >= batch.total_candidates
-            && !matches!(
-                batch.status,
-                BatchCompressBatchStatus::Completed | BatchCompressBatchStatus::Failed
-            )
-        {
-            batch.status = BatchCompressBatchStatus::Completed;
-            if batch.completed_at_ms.is_none() {
-                batch.completed_at_ms = Some(current_time_millis());
-            }
-        }
-
-        Some(batch_id)
-    };
-
-    if let Some(batch_id) = batch_id_opt {
-        // 进度与状态已在上方锁内更新,这里仅负责广播最新快照。
-        update_batch_compress_batch_with_inner(inner, &batch_id, true, |_batch| {});
-    }
+    super::worker_utils::mark_batch_compress_child_processed(inner, job_id);
 }
