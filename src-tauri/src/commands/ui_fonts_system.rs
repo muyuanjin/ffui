@@ -25,10 +25,11 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
             // LOCALE_NAME_MAX_LENGTH is 85 incl. null terminator.
             let mut buf = [0u16; 85];
             let len = unsafe { GetUserDefaultLocaleName(&mut buf) };
-            if len <= 1 {
+            let len = usize::try_from(len).ok()?;
+            if len <= 1 || len > buf.len() {
                 return None;
             }
-            Some(String::from_utf16_lossy(&buf[..(len as usize - 1)]))
+            Some(String::from_utf16_lossy(&buf[..(len - 1)]))
         }
 
         fn read_localized_strings(

@@ -314,7 +314,10 @@ mod tests {
             TaskbarProgressScope::AllJobs,
         )
         .expect("progress expected");
-        assert_eq!(progress, 0.0);
+        assert!(
+            progress.abs() < f64::EPSILON,
+            "pending jobs should report 0.0 progress (got {progress})"
+        );
     }
 
     #[test]
@@ -352,8 +355,8 @@ mod tests {
             TaskbarProgressScope::ActiveAndQueued,
         )
         .expect("progress expected");
-        assert_eq!(
-            progress, 0.0,
+        assert!(
+            progress.abs() < f64::EPSILON,
             "active scope should ignore terminal jobs from an earlier cohort when new work starts"
         );
     }

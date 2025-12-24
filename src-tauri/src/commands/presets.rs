@@ -1,6 +1,6 @@
-//! FFmpeg preset management commands.
+//! `FFmpeg` preset management commands.
 //!
-//! Provides commands for managing FFmpeg presets:
+//! Provides commands for managing `FFmpeg` presets:
 //! - Getting all available presets
 //! - Creating and saving new presets
 //! - Deleting existing presets
@@ -24,7 +24,7 @@ use crate::ffui_core::{
     read_presets_bundle as read_presets_bundle_impl,
 };
 
-/// Get all available FFmpeg presets.
+/// Get all available `FFmpeg` presets.
 #[tauri::command]
 pub fn get_presets(engine: State<'_, TranscodingEngine>) -> Arc<Vec<FFmpegPreset>> {
     engine.presets()
@@ -41,7 +41,7 @@ pub fn get_smart_default_presets(engine: State<'_, TranscodingEngine>) -> Vec<FF
     hardware_smart_default_presets(has_nvidia_gpu)
 }
 
-/// Save a new FFmpeg preset or update an existing one.
+/// Save a new `FFmpeg` preset or update an existing one.
 #[tauri::command]
 pub fn save_preset(
     engine: State<'_, TranscodingEngine>,
@@ -50,7 +50,7 @@ pub fn save_preset(
     engine.save_preset(preset).map_err(|e| e.to_string())
 }
 
-/// Delete an FFmpeg preset by ID.
+/// Delete an `FFmpeg` preset by ID.
 #[tauri::command]
 pub fn delete_preset(
     engine: State<'_, TranscodingEngine>,
@@ -89,7 +89,7 @@ pub fn export_presets_bundle(
     }
 
     let path = Path::new(trimmed);
-    let ids: HashSet<&str> = preset_ids.iter().map(|id| id.as_str()).collect();
+    let ids: HashSet<&str> = preset_ids.iter().map(String::as_str).collect();
     let selected = engine
         .presets()
         .iter()

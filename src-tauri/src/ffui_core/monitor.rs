@@ -92,7 +92,10 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
     let util = device.utilization_rates()?;
     let memory = device.memory_info()?;
     let memory_percent = if memory.total > 0 {
-        Some(((memory.used as f64 / memory.total as f64) * 100.0).round() as u32)
+        let used = u128::from(memory.used);
+        let total = u128::from(memory.total);
+        let percent = (used.saturating_mul(100).saturating_add(total / 2)) / total;
+        u32::try_from(percent).ok()
     } else {
         None
     };

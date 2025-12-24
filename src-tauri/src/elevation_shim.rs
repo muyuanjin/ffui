@@ -50,7 +50,7 @@ const SKIP_FLAG_ENV: &str = "FFUI_SKIP_ELEVATION_SHIM";
 enum ShimSpawnError {
     /// 目标可执行文件被系统标记为“需要管理员权限”，无法用普通 token 启动。
     ElevationRequired,
-    /// 其他任何错误，包装成 anyhow::Error 便于日志输出。
+    /// 其他任何错误，包装成 `anyhow::Error` 便于日志输出。
     Other(anyhow::Error),
 }
 
@@ -78,7 +78,8 @@ pub fn is_process_elevated() -> bool {
         }
 
         let mut elevation: TOKEN_ELEVATION = zeroed();
-        let mut size: u32 = size_of::<TOKEN_ELEVATION>() as u32;
+        let mut size: u32 =
+            u32::try_from(size_of::<TOKEN_ELEVATION>()).expect("TOKEN_ELEVATION size fits in u32");
         if GetTokenInformation(
             token,
             TokenElevation,
@@ -194,7 +195,8 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
         let exe_w: Vec<u16> = exe_str.encode_utf16().chain(std::iter::once(0)).collect();
 
         let mut si: STARTUPINFOEXW = zeroed();
-        si.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
+        si.StartupInfo.cb =
+            u32::try_from(size_of::<STARTUPINFOEXW>()).expect("STARTUPINFOEXW size fits in u32");
         si.lpAttributeList = attr_list;
 
         let mut pi: PROCESS_INFORMATION = zeroed();
@@ -217,7 +219,7 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
         );
 
         if let Err(e) = create_result {
-            let code = e.code().0 as u32;
+            let code = u32::from_ne_bytes(e.code().0.to_ne_bytes());
             // 0x800702E4 == HRESULT_FROM_WIN32(ERROR_ELEVATION_REQUIRED)
             if code == 0x8007_02E4 {
                 return Err(ShimSpawnError::ElevationRequired);

@@ -74,7 +74,7 @@ pub struct VideoConfig {
     pub bf: Option<u32>,
     /// Optional pixel format mapped to `-pix_fmt`.
     pub pix_fmt: Option<String>,
-    /// Optional NVENC b_ref_mode value.
+    /// Optional NVENC `b_ref_mode` value.
     pub b_ref_mode: Option<String>,
     /// Optional lookahead depth mapped to `-rc-lookahead`.
     pub rc_lookahead: Option<u32>,
@@ -99,7 +99,7 @@ pub struct AudioConfig {
     /// `loudnorm` expression. When None, profile defaults are used.
     pub target_lufs: Option<f64>,
     /// Optional target loudness range (LRA). When None, profile defaults
-    /// derived from the FFmpeg loudness guidance are used.
+    /// derived from the `FFmpeg` loudness guidance are used.
     pub loudness_range: Option<f64>,
     /// Optional true-peak ceiling in dBTP. Values very close to 0dBTP are
     /// considered unsafe and may be clamped at call sites.
@@ -133,7 +133,7 @@ pub struct GlobalConfig {
     pub overwrite_behavior: Option<OverwriteBehavior>,
     /// Optional ffmpeg -loglevel; when None we do not emit a flag.
     pub log_level: Option<String>,
-    /// When true, add -hide_banner.
+    /// When true, add `-hide_banner`.
     pub hide_banner: Option<bool>,
     /// When true, add -report so ffmpeg writes a diagnostic log file.
     pub enable_report: Option<bool>,

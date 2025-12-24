@@ -8,6 +8,7 @@ use tauri::{
 use crate::commands::tools::reveal_path_in_folder;
 use crate::ffui_core::{
     AppSettings,
+    ConfigBundle,
     ConfigBundleExportResult,
     ConfigBundleImportResult,
     DataRootInfo,
@@ -36,7 +37,7 @@ pub fn set_data_root_mode(mode: DataRootMode) -> Result<DataRootInfo, String> {
 #[tauri::command]
 pub fn acknowledge_data_root_fallback_notice() -> Result<bool, String> {
     acknowledge_fallback_notice()
-        .map(|_| true)
+        .map(|()| true)
         .map_err(|e| e.to_string())
 }
 
@@ -53,6 +54,7 @@ pub fn open_data_root_dir() -> Result<(), String> {
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn export_config_bundle(
     app: AppHandle,
     engine: State<'_, TranscodingEngine>,
@@ -70,6 +72,7 @@ pub fn export_config_bundle(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn import_config_bundle(
     engine: State<'_, TranscodingEngine>,
     source_path: String,
@@ -84,22 +87,30 @@ pub fn import_config_bundle(
     }
 
     let bundle = read_config_bundle(path).map_err(|e| e.to_string())?;
-    let mut normalized_settings = bundle.settings.clone();
+    let ConfigBundle {
+        schema_version,
+        app_version,
+        settings,
+        presets,
+        ..
+    } = bundle;
+    let mut normalized_settings = settings;
     normalized_settings.normalize();
 
     let previous_settings = engine.settings();
     let previous_presets = (*engine.presets()).clone();
 
-    if let Err(err) = engine.replace_presets(bundle.presets.clone()) {
+    let preset_count = presets.len();
+    if let Err(err) = engine.replace_presets(presets) {
         return Err(err.to_string());
     }
 
-    match engine.save_settings(normalized_settings.clone()) {
+    match engine.save_settings(normalized_settings) {
         Ok(saved_settings) => Ok(ConfigBundleImportResult {
             settings: saved_settings,
-            preset_count: bundle.presets.len(),
-            schema_version: bundle.schema_version,
-            app_version: bundle.app_version.clone(),
+            preset_count,
+            schema_version,
+            app_version,
         }),
         Err(err) => {
             let _ = engine.replace_presets(previous_presets);
@@ -110,6 +121,7 @@ pub fn import_config_bundle(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn clear_all_app_data(engine: State<'_, TranscodingEngine>) -> Result<AppSettings, String> {
     clear_app_data_root().map_err(|e| e.to_string())?;
     let default_settings = AppSettings::default();

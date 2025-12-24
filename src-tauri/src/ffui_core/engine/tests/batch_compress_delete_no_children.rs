@@ -1,8 +1,8 @@
 use super::*;
 
-/// 当 Batch Compress 配置中的 video_preset_id 在预设列表中不存在时，后台会将匹配到的
+/// 当 Batch Compress 配置中的 `video_preset_id` 在预设列表中不存在时，后台会将匹配到的
 /// 视频视为“已统计候选并立即处理完成”，但不会入队任何子任务。此时批次应当被视为
-/// 已完成，delete_batch_compress_batch 也必须返回 true 以便前端可以删除该复合任务。
+/// 已完成，`delete_batch_compress_batch` 也必须返回 true 以便前端可以删除该复合任务。
 #[test]
 fn delete_batch_compress_batch_succeeds_for_candidates_without_children() {
     let dir = env::temp_dir().join("ffui_batch_compress_no_preset_delete");

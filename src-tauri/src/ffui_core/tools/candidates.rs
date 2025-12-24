@@ -54,8 +54,8 @@ pub fn tool_candidates(
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or(bin.clone());
-    push_candidate(path_candidate.clone(), "path");
+        .unwrap_or_else(|| bin.clone());
+    push_candidate(path_candidate, "path");
 
     // Add additional discovered paths (env overrides, registry, indexers).
     // 这里通过 `seen` 集合与上面已经加入的 custom/download/path 做统一去重，

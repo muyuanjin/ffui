@@ -58,14 +58,17 @@ fn sync_job_logs_with_runs_if_needed(job: &mut TranscodeJob) {
 
 /// Returns the current time in milliseconds since UNIX epoch.
 pub(super) fn current_time_millis() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+    u64::try_from(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis(),
+    )
+    .unwrap_or(u64::MAX)
 }
 
 /// Recompute the `log_tail` field of a job by joining all logs and truncating
-/// to the last MAX_LOG_TAIL_BYTES bytes (without splitting UTF-8 codepoints).
+/// to the last `MAX_LOG_TAIL_BYTES` bytes (without splitting UTF-8 codepoints).
 pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
     if job.logs.is_empty() {
         job.log_tail = None;

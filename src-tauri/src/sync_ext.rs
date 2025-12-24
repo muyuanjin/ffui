@@ -2,7 +2,6 @@ use std::sync::{
     Condvar,
     Mutex,
     MutexGuard,
-    PoisonError,
     RwLock,
     RwLockReadGuard,
     RwLockWriteGuard,
@@ -11,39 +10,84 @@ use std::sync::{
 use std::time::Duration;
 
 pub(crate) trait MutexExt<T> {
+    #[track_caller]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
 }
 
 impl<T> MutexExt<T> for Mutex<T> {
+    #[track_caller]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
-        self.lock().unwrap_or_else(PoisonError::into_inner)
+        match self.lock() {
+            Ok(guard) => guard,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned mutex recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 }
 
 pub(crate) trait RwLockExt<T> {
+    #[track_caller]
     fn read_unpoisoned(&self) -> RwLockReadGuard<'_, T>;
+    #[track_caller]
     fn write_unpoisoned(&self) -> RwLockWriteGuard<'_, T>;
 }
 
 impl<T> RwLockExt<T> for RwLock<T> {
+    #[track_caller]
     fn read_unpoisoned(&self) -> RwLockReadGuard<'_, T> {
-        self.read().unwrap_or_else(PoisonError::into_inner)
+        match self.read() {
+            Ok(guard) => guard,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned rwlock(read) recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 
+    #[track_caller]
     fn write_unpoisoned(&self) -> RwLockWriteGuard<'_, T> {
-        self.write().unwrap_or_else(PoisonError::into_inner)
+        match self.write() {
+            Ok(guard) => guard,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned rwlock(write) recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 }
 
 pub(crate) trait CondvarExt {
+    #[track_caller]
     fn wait_unpoisoned<'a, T>(&self, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T>;
 
+    #[track_caller]
     fn wait_timeout_unpoisoned<'a, T>(
         &self,
         guard: MutexGuard<'a, T>,
         dur: Duration,
     ) -> (MutexGuard<'a, T>, WaitTimeoutResult);
 
+    #[track_caller]
     fn wait_while_unpoisoned<'a, T, F>(
         &self,
         guard: MutexGuard<'a, T>,
@@ -54,19 +98,45 @@ pub(crate) trait CondvarExt {
 }
 
 impl CondvarExt for Condvar {
+    #[track_caller]
     fn wait_unpoisoned<'a, T>(&self, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T> {
-        self.wait(guard).unwrap_or_else(PoisonError::into_inner)
+        match self.wait(guard) {
+            Ok(guard) => guard,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned condvar(wait) recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 
+    #[track_caller]
     fn wait_timeout_unpoisoned<'a, T>(
         &self,
         guard: MutexGuard<'a, T>,
         dur: Duration,
     ) -> (MutexGuard<'a, T>, WaitTimeoutResult) {
-        self.wait_timeout(guard, dur)
-            .unwrap_or_else(PoisonError::into_inner)
+        match self.wait_timeout(guard, dur) {
+            Ok(v) => v,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned condvar(wait_timeout) recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 
+    #[track_caller]
     fn wait_while_unpoisoned<'a, T, F>(
         &self,
         guard: MutexGuard<'a, T>,
@@ -74,8 +144,19 @@ impl CondvarExt for Condvar {
     ) -> MutexGuard<'a, T>
     where
         F: FnMut(&mut T) -> bool, {
-        self.wait_while(guard, condition)
-            .unwrap_or_else(PoisonError::into_inner)
+        match self.wait_while(guard, condition) {
+            Ok(guard) => guard,
+            Err(err) => {
+                let loc = std::panic::Location::caller();
+                eprintln!(
+                    "poisoned condvar(wait_while) recovered at {}:{}:{}",
+                    loc.file(),
+                    loc.line(),
+                    loc.column()
+                );
+                err.into_inner()
+            }
+        }
     }
 }
 
@@ -104,9 +185,11 @@ mod tests {
         let mut guard = lock.lock_unpoisoned();
         *guard += 1;
         assert_eq!(*guard, 2);
+        drop(guard);
     }
 
     #[test]
+    #[allow(clippy::significant_drop_tightening)]
     fn rwlock_ext_recovers_from_poison() {
         let lock = Arc::new(RwLock::new(1u32));
         let lock_clone = lock.clone();
@@ -119,6 +202,7 @@ mod tests {
 
         let guard = lock.read_unpoisoned();
         assert_eq!(*guard, 2);
+        drop(guard);
     }
 
     #[test]
@@ -132,8 +216,8 @@ mod tests {
         .join();
 
         let cv = Condvar::new();
-        let guard = lock.lock_unpoisoned();
-        let (guard, _timeout) = cv.wait_timeout_unpoisoned(guard, Duration::from_millis(0));
+        let (guard, _timeout) =
+            cv.wait_timeout_unpoisoned(lock.lock_unpoisoned(), Duration::from_millis(0));
         assert_eq!(*guard, 1);
     }
 }

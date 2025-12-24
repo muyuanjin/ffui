@@ -88,6 +88,48 @@ fn enqueue_transcode_job_plans_output_path_with_filename_immediately() {
 }
 
 #[test]
+fn enqueue_transcode_job_snapshots_queue_output_policy() {
+    use crate::ffui_core::domain::{
+        OutputContainerPolicy,
+        OutputPolicy,
+    };
+
+    let dir = env::temp_dir();
+    let path = dir.join("ffui_test_output_policy_snapshot.mp4");
+
+    {
+        let mut file = File::create(&path).expect("create temp video file for output policy test");
+        file.write_all(&[0u8; 1024])
+            .expect("write data to temp video file for output policy test");
+    }
+
+    let engine = make_engine_with_preset();
+
+    let mut policy = OutputPolicy::default();
+    policy.container = OutputContainerPolicy::Force {
+        format: "mkv".to_string(),
+    };
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings.queue_output_policy = policy.clone();
+    }
+
+    let job = engine.enqueue_transcode_job(
+        path.to_string_lossy().into_owned(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    assert_eq!(job.output_policy, Some(policy));
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
 fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
     let dir = env::temp_dir();
     let path = dir.join("ffui_test_cancel.mp4");

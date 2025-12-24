@@ -314,9 +314,9 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
 ///
 /// 语义约定：
 /// - 仅当该批次的所有子任务均已处于终态（Completed/Failed/Skipped/Cancelled）且 当前没有处于
-///   active_jobs 状态时才执行删除；否则直接返回 false，不做任何修改；
+///   `active_jobs` 状态时才执行删除；否则直接返回 false，不做任何修改；
 /// - 删除成功后会同时清理队列中的相关 bookkeeping（queue / cancelled / wait / restart）；
-/// - 当该批次所有子任务都被移除后，连同 batch_compress_batches 中的批次元数据一并移除，
+/// - 当该批次所有子任务都被移除后，连同 `batch_compress_batches` 中的批次元数据一并移除，
 ///   这样前端复合任务卡片也会从队列中消失。
 pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     inner: &Arc<Inner>,

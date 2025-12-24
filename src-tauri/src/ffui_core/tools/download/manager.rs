@@ -327,7 +327,7 @@ pub(crate) fn ensure_tool_available(
     let bin = tool_binary_name(kind).to_string();
     let path_candidate = resolve_in_path(&bin)
         .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or(bin.clone());
+        .unwrap_or_else(|| bin.clone());
     candidates.push((path_candidate.clone(), "path".to_string()));
 
     // Enrich with additional discovered locations (env/registry/indexers).

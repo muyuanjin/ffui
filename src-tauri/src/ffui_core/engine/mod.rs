@@ -1,5 +1,5 @@
-//! Transcoding engine split into modular components (state, ffmpeg_args, worker, job_runner,
-//! batch_compress).
+//! Transcoding engine split into modular components (`state`, `ffmpeg_args`, `worker`,
+//! `job_runner`, `batch_compress`).
 
 mod batch_compress;
 mod enqueue_bulk;
@@ -129,10 +129,13 @@ impl TranscodingEngine {
                 crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
                     | crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryFull
             ) {
-                let baseline = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
+                let baseline = u64::try_from(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis(),
+                )
+                .unwrap_or(u64::MAX);
                 inner.next_job_id.store(baseline.max(1), Ordering::Relaxed);
             }
         }
@@ -166,7 +169,6 @@ impl TranscodingEngine {
         worker::spawn_worker(inner.clone());
 
         let engine = Self { inner };
-
         preview_cache_gc::spawn_preview_cache_gc(engine.clone());
 
         Ok(engine)
@@ -390,7 +392,7 @@ impl TranscodingEngine {
     /// Permanently delete all Batch Compress child jobs that belong to the given batch.
     ///
     /// This is used by前端在“复合任务（Batch Compress 批次）→ 从列表删除”场景下，一次性
-    /// 清理该批次的所有终态子任务以及对应的批次元数据，避免逐个 delete_transcode_job
+    /// 清理该批次的所有终态子任务以及对应的批次元数据，避免逐个 `delete_transcode_job`
     /// 调用在某些边缘状态下失败导致复合任务残留。
     pub fn delete_batch_compress_batch(&self, batch_id: &str) -> bool {
         worker::delete_batch_compress_batch(&self.inner, batch_id)

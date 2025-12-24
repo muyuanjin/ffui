@@ -68,12 +68,14 @@ fn cleanup_enforces_ttl_and_size() {
     fs::write(&old, vec![0u8; 10]).unwrap();
     fs::write(&new, vec![0u8; 10]).unwrap();
 
-    let now = SystemTime::now()
+    let now_unix_seconds = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
-        .as_secs() as i64;
-    let old_time = FileTime::from_unix_time(now - 10_000, 0);
-    let new_time = FileTime::from_unix_time(now, 0);
+        .as_secs();
+    let now_unix_seconds =
+        i64::try_from(now_unix_seconds).expect("unix timestamp must fit within i64");
+    let old_time = FileTime::from_unix_time(now_unix_seconds - 10_000, 0);
+    let new_time = FileTime::from_unix_time(now_unix_seconds, 0);
     set_file_mtime(&old, old_time).unwrap();
     set_file_mtime(&new, new_time).unwrap();
 

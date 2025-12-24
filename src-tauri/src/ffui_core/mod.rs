@@ -22,6 +22,7 @@ pub(crate) use compare_preview::{
     compare_frames_dir_for_tests,
 };
 pub(crate) use config_bundle::{
+    ConfigBundle,
     ConfigBundleExportResult,
     ConfigBundleImportResult,
     export_config_bundle,

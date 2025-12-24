@@ -243,9 +243,9 @@ impl Default for MetricsState {
     }
 }
 
-/// Apply user-configured overrides from AppSettings onto the metrics config.
+/// Apply user-configured overrides from `AppSettings` onto the metrics config.
 /// This is kept in a small helper to make the behaviour easy to test without
-/// needing a full Tauri AppHandle.
+/// needing a full Tauri `AppHandle`.
 fn apply_settings_overrides(config: &mut MetricsConfig, settings: &AppSettings) {
     if let Some(ms) = settings.metrics_interval_ms {
         // Clamp to a sensible floor to avoid busy-looping the sampler thread.
@@ -312,7 +312,6 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                 match sampling_mode(subscribers, &config) {
                     SamplingMode::Idle(idle_interval) => {
                         metrics_state.wait_for_wakeup_or_timeout(idle_interval);
-                        continue;
                     }
                     SamplingMode::Active(sampling_interval) => {
                         let _ = seed_sysinfo_if_needed(
@@ -379,7 +378,7 @@ fn sample_metrics(
         total_bytes: total_memory,
     };
 
-    let dt_secs = dt.as_secs_f64().max(0.001);
+    let dt_nanos = dt.as_nanos().max(1_000_000u128);
 
     // Disks: approximate system-wide throughput by aggregating per-process disk usage.
     sys.refresh_processes();
@@ -393,8 +392,14 @@ fn sample_metrics(
 
     let mut disk_rows: Vec<DiskIoMetrics> = Vec::new();
     if total_read_bytes > 0 || total_written_bytes > 0 {
-        let read_bps = (total_read_bytes as f64 / dt_secs) as u64;
-        let write_bps = (total_written_bytes as f64 / dt_secs) as u64;
+        let read_bps = u64::try_from(
+            u128::from(total_read_bytes).saturating_mul(1_000_000_000u128) / dt_nanos,
+        )
+        .unwrap_or(u64::MAX);
+        let write_bps = u64::try_from(
+            u128::from(total_written_bytes).saturating_mul(1_000_000_000u128) / dt_nanos,
+        )
+        .unwrap_or(u64::MAX);
         disk_rows.push(DiskIoMetrics {
             device: "total".to_string(),
             read_bps,
@@ -411,8 +416,14 @@ fn sample_metrics(
     let mut iface_rows: Vec<NetworkInterfaceMetrics> = networks
         .iter()
         .map(|(name, data): (&String, &NetworkData)| {
-            let rx_bps = (data.received() as f64 / dt_secs) as u64;
-            let tx_bps = (data.transmitted() as f64 / dt_secs) as u64;
+            let rx_bps = u64::try_from(
+                u128::from(data.received()).saturating_mul(1_000_000_000u128) / dt_nanos,
+            )
+            .unwrap_or(u64::MAX);
+            let tx_bps = u64::try_from(
+                u128::from(data.transmitted()).saturating_mul(1_000_000_000u128) / dt_nanos,
+            )
+            .unwrap_or(u64::MAX);
             NetworkInterfaceMetrics {
                 name: name.clone(),
                 rx_bps,
@@ -440,8 +451,9 @@ fn sample_metrics(
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_millis(0))
-        .as_millis() as u64;
+        .ok()
+        .and_then(|d| u64::try_from(d.as_millis()).ok())
+        .unwrap_or(0);
 
     MetricsSnapshot {
         timestamp,

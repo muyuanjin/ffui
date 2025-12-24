@@ -53,7 +53,7 @@ fn main() {
         || env::var("FFUI_MOCK_FFMPEG_TOUCH_OUTPUT")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false)
-        || argv.last().map(|p| p.starts_with('/')).unwrap_or(false);
+        || argv.last().is_some_and(|p| p.starts_with('/'));
     if should_touch_output
         && argv.iter().any(|a| a == "-i")
         && let Some(last) = argv.last()
@@ -78,6 +78,11 @@ fn main() {
         .any(|w| w[0] == "-show_entries" && w[1].contains("format=start_time"))
     {
         stdout_payload = env::var("FFUI_MOCK_FFPROBE_FORMAT_START_TIME").ok();
+    } else if argv
+        .windows(2)
+        .any(|w| w[0] == "-show_entries" && w[1].contains("format=duration"))
+    {
+        stdout_payload = env::var("FFUI_MOCK_FFPROBE_FORMAT_DURATION").ok();
     }
     if let Some(payload) = stdout_payload {
         print!("{payload}");
@@ -117,14 +122,13 @@ fn main() {
             loop {
                 line.clear();
                 match reader.read_line(&mut line) {
-                    Ok(0) => break,
+                    Ok(0) | Err(_) => break,
                     Ok(_) => {
                         if line.trim().eq_ignore_ascii_case("q") {
                             quit_reader.store(true, Ordering::SeqCst);
                             break;
                         }
                     }
-                    Err(_) => break,
                 }
             }
         });
@@ -181,14 +185,13 @@ fn main() {
             loop {
                 line.clear();
                 match reader.read_line(&mut line) {
-                    Ok(0) => break,
+                    Ok(0) | Err(_) => break,
                     Ok(_) => {
                         if line.trim().eq_ignore_ascii_case("q") {
                             quit_reader.store(true, Ordering::SeqCst);
                             break;
                         }
                     }
-                    Err(_) => break,
                 }
             }
         });

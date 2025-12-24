@@ -110,11 +110,11 @@ pub fn default_preview_capture_percent() -> u8 {
 }
 
 /// Default interval (in milliseconds) between structured ffmpeg progress
-/// updates used when progressUpdateIntervalMs is not set in AppSettings.
+/// updates used when `progressUpdateIntervalMs` is not set in `AppSettings`.
 pub const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS: u16 = 250;
 
 /// Default interval (in milliseconds) between system metrics samples when the
-/// metrics interval is not explicitly configured via AppSettings.
+/// metrics interval is not explicitly configured via `AppSettings`.
 pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
 
 /// Default timeout (in seconds) for the "pause jobs on exit" graceful shutdown flow.
@@ -136,7 +136,7 @@ pub const DEFAULT_UI_SCALE_PERCENT: u16 = 100;
 pub const DEFAULT_UI_FONT_SIZE_PERCENT: u16 = 100;
 
 /// Aggregation modes for computing a single queue-level progress value that
-/// is surfaced to the Windows taskbar. This is configured via AppSettings and
+/// is surfaced to the Windows taskbar. This is configured via `AppSettings` and
 /// determines how individual jobs contribute to the overall progress bar.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
@@ -260,7 +260,7 @@ pub struct AppSettings {
         skip_serializing_if = "types_helpers::is_ui_font_family_system"
     )]
     pub ui_font_family: UiFontFamily,
-    /// Optional specific UI font family name (e.g. "Consolas", "Microsoft YaHei").
+    /// Optional specific UI font family name (e.g. `Consolas`, `Microsoft YaHei`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_font_name: Option<String>,
     /// Optional open-source font id to download/cache and use globally.
@@ -321,7 +321,7 @@ pub struct AppSettings {
         skip_serializing_if = "types_helpers::is_default_exit_auto_wait_timeout_seconds"
     )]
     pub exit_auto_wait_timeout_seconds: f64,
-    /// Optional interval in milliseconds between system metrics samples (falls back to DEFAULT_METRICS_INTERVAL_MS).
+    /// Optional interval in milliseconds between system metrics samples (falls back to `DEFAULT_METRICS_INTERVAL_MS`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metrics_interval_ms: Option<u16>,
     /// Aggregation mode for computing taskbar progress from the queue. When

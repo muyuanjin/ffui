@@ -9,8 +9,11 @@ use std::sync::{
 
 use once_cell::sync::Lazy;
 
+use crate::sync_ext::MutexExt;
+
 static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
+#[must_use]
 pub fn make_transcode_job_for_tests(
     id: &str,
     status: crate::ffui_core::JobStatus,
@@ -62,9 +65,7 @@ pub fn make_transcode_job_for_tests(
 }
 
 pub fn env_lock() -> MutexGuard<'static, ()> {
-    ENV_MUTEX
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    ENV_MUTEX.lock_unpoisoned()
 }
 
 pub fn set_env<K: AsRef<OsStr>, V: AsRef<OsStr>>(key: K, value: V) {

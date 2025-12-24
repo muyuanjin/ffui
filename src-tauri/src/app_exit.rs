@@ -108,10 +108,9 @@ pub fn pause_processing_jobs_for_exit(
         }
 
         let tick = Duration::from_millis(50);
-        let wait_for = match deadline {
-            Some(deadline) => tick.min(deadline.saturating_duration_since(Instant::now())),
-            None => tick,
-        };
+        let wait_for = deadline.map_or(tick, |deadline| {
+            tick.min(deadline.saturating_duration_since(Instant::now()))
+        });
         let (guard, _) = engine.inner.cv.wait_timeout_unpoisoned(state, wait_for);
         state = guard;
     }

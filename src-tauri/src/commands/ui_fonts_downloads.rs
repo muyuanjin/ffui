@@ -165,20 +165,7 @@ impl UiFontDownloadJob {
     }
 
     fn snapshot(&self) -> UiFontDownloadSnapshot {
-        self.snapshot
-            .lock()
-            .map(|s| s.clone())
-            .unwrap_or_else(|_| UiFontDownloadSnapshot {
-                session_id: 0,
-                font_id: "unknown".to_string(),
-                status: UiFontDownloadStatus::Error,
-                received_bytes: 0,
-                total_bytes: None,
-                family_name: "unknown".to_string(),
-                format: "ttf".to_string(),
-                path: None,
-                error: Some("failed to lock download snapshot".to_string()),
-            })
+        self.snapshot.lock_unpoisoned().clone()
     }
 
     fn update_snapshot<F>(&self, f: F) -> UiFontDownloadSnapshot
@@ -239,10 +226,7 @@ pub fn start_open_source_font_download(
         });
     }
 
-    let mut jobs = manager
-        .jobs
-        .lock()
-        .map_err(|_| "ui font download manager mutex poisoned".to_string())?;
+    let mut jobs = manager.jobs.lock_unpoisoned();
 
     if let Some(existing) = jobs.get(&id) {
         let snap = existing.snapshot();
@@ -386,4 +370,48 @@ pub async fn ensure_open_source_font_downloaded(
         path: dest.to_string_lossy().into_owned(),
         format,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_recovers_from_poison_and_preserves_data() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("inter.ttf");
+        let expected_path = path.to_string_lossy().into_owned();
+
+        let job = Arc::new(UiFontDownloadJob::new(
+            7,
+            "inter".to_string(),
+            "Inter".to_string(),
+            "ttf".to_string(),
+        ));
+        job.update_snapshot(|s| {
+            s.status = UiFontDownloadStatus::Downloading;
+            s.received_bytes = 42;
+            s.total_bytes = Some(100);
+            s.path = Some(expected_path.clone());
+            s.error = None;
+        });
+
+        let poison_job = job.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = poison_job.snapshot.lock().unwrap();
+            panic!("poison download snapshot mutex");
+        })
+        .join();
+
+        let snap = job.snapshot();
+        assert_eq!(snap.session_id, 7);
+        assert_eq!(snap.font_id, "inter");
+        assert_eq!(snap.status, UiFontDownloadStatus::Downloading);
+        assert_eq!(snap.received_bytes, 42);
+        assert_eq!(snap.total_bytes, Some(100));
+        assert_eq!(snap.family_name, "Inter");
+        assert_eq!(snap.format, "ttf");
+        assert_eq!(snap.path.as_deref(), Some(expected_path.as_str()));
+        assert_eq!(snap.error, None);
+    }
 }

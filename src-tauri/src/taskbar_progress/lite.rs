@@ -70,6 +70,7 @@ pub fn update_taskbar_progress_lite(
 
         match compute_taskbar_progress_lite(state, mode, scope) {
             Some(progress) => {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                 let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
 
                 let is_completed_bar = completed_queue && (progress - 1.0).abs() < f64::EPSILON;
@@ -197,6 +198,9 @@ mod tests {
         )
         .expect("progress expected");
 
-        assert_eq!(progress, 0.0);
+        assert!(
+            progress.abs() < f64::EPSILON,
+            "active scope should ignore terminal jobs from an earlier cohort (got {progress})"
+        );
     }
 }

@@ -187,6 +187,7 @@ pub(crate) fn bucket_percent_position(raw: f64, quality: FallbackFrameQuality) -
         FallbackFrameQuality::High => 1.0,
     };
     let snapped = (clamped / step).round() * step;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let as_int = snapped.round().clamp(0.0, 100.0) as i32;
     format!("p{as_int:03}")
 }
@@ -198,6 +199,7 @@ pub(crate) fn bucket_seconds_position(raw: f64, step: f64) -> String {
     } else {
         clamped
     };
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let as_ms = (snapped * 1000.0).round().max(0.0) as u64;
     format!("s{as_ms}")
 }

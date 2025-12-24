@@ -65,17 +65,17 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
                 .created()
                 .ok()
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as u64);
+                .and_then(|d| u64::try_from(d.as_millis()).ok());
             let modified = m
                 .modified()
                 .ok()
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as u64);
+                .and_then(|d| u64::try_from(d.as_millis()).ok());
             let accessed = m
                 .accessed()
                 .ok()
                 .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .map(|d| d.as_millis() as u64);
+                .and_then(|d| u64::try_from(d.as_millis()).ok());
 
             (size, created, modified, accessed)
         } else {

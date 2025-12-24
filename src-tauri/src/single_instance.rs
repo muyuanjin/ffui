@@ -443,8 +443,8 @@ pub fn derive_instance_key(path: &Path) -> String {
 }
 
 fn fnv1a_64(bytes: &[u8]) -> u64 {
-    const OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const PRIME: u64 = 0x100000001b3;
+    const OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0100_0000_01b3;
     let mut hash = OFFSET_BASIS;
     for byte in bytes {
         hash ^= u64::from(*byte);

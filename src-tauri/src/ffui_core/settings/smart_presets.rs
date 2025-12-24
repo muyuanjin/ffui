@@ -20,7 +20,7 @@ use crate::ffui_core::settings::smart_presets_cpu::smart_presets_for_cpu_only;
 
 const SMART_PRESETS_JSON: &str = include_str!("../../../assets/smart-presets.json");
 
-/// Build a small library of structured FFmpeg presets that act as the basis
+/// Build a small library of structured `FFmpeg` presets that act as the basis
 /// for hardware-aware smart defaults and the onboarding preset pack.
 ///
 /// This now loads from the data file `assets/smart-presets.json`, where each

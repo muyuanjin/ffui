@@ -29,9 +29,9 @@ fn choose_processed_seconds_prefers_probed_when_progress_lags() {
 
 #[test]
 fn choose_processed_seconds_prefers_progress_when_probe_is_far_ahead() {
-    let chosen = choose_processed_seconds_after_wait(Some(100.0), Some(16.834467), Some(17.098));
+    let chosen = choose_processed_seconds_after_wait(Some(100.0), Some(16.834_467), Some(17.098));
     assert!(
-        (chosen.unwrap_or(0.0) - 16.834467).abs() < 0.000_001,
+        (chosen.unwrap_or(0.0) - 16.834_467).abs() < 0.000_001,
         "should ignore a probed timestamp that is materially ahead to avoid skipping video frames"
     );
 }

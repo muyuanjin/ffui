@@ -16,7 +16,7 @@ pub struct WaitMetadata {
     pub last_progress_percent: Option<f64>,
     /// Accumulated wall-clock processing time in milliseconds across all
     /// completed segments before the current pause. This is used to ensure
-    /// elapsed_ms reflects real time spent transcoding, instead of media
+    /// `elapsed_ms` reflects real time spent transcoding, instead of media
     /// duration-derived estimates.
     #[serde(rename = "processedWallMillis", alias = "processedWallMs")]
     pub processed_wall_millis: Option<u64>,
@@ -131,7 +131,7 @@ pub struct TranscodeJob {
     #[serde(rename = "processingStartedMs")]
     pub processing_started_ms: Option<u64>,
     /// 累计已用转码时间（毫秒）。用于处理暂停/恢复场景，在暂停时保存当前累计时间，
-    /// 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - start_time) 计算。
+    /// 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - `start_time`) 计算。
     pub elapsed_ms: Option<u64>,
     // Align with TS field name `outputSizeMB` but accept legacy
     // `outputSizeMb` when deserializing.

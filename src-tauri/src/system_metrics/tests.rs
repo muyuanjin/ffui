@@ -26,7 +26,7 @@ fn ring_buffer_is_bounded() {
         history_capacity: 3,
         ..MetricsConfig::default()
     };
-    let state = MetricsState::new(config.clone());
+    let state = MetricsState::new(config);
 
     for i in 0..10 {
         state.push_snapshot(MetricsSnapshot {
@@ -129,7 +129,7 @@ fn sample_metrics_produces_sane_values() {
 #[test]
 fn metrics_snapshot_json_contract_matches_spec() {
     let snapshot = MetricsSnapshot {
-        timestamp: 1710000000000,
+        timestamp: 1_710_000_000_000,
         uptime_seconds: 1234,
         cpu: CpuMetrics {
             cores: vec![12.0, 34.0],

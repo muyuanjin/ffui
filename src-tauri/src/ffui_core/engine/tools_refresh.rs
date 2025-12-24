@@ -127,10 +127,13 @@ impl TranscodingEngine {
                 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
                 let started_at = Instant::now();
-                let now_ms = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64;
+                let now_ms = u64::try_from(
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis(),
+                )
+                .unwrap_or(u64::MAX);
 
                 let tools_settings = {
                     let state = engine_clone.inner.state.lock_unpoisoned();

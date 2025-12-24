@@ -13,7 +13,7 @@ struct CommandContractFixtures {
     cases: Vec<CommandContractCase>,
 }
 
-/// 确保后端 build_ffmpeg_args 与前端命令预览契约保持一致。
+/// 确保后端 `build_ffmpeg_args` 与前端命令预览契约保持一致。
 #[test]
 fn build_ffmpeg_args_matches_frontend_contract_fixtures() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");

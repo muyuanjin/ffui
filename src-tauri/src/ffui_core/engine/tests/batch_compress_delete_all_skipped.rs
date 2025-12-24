@@ -1,7 +1,7 @@
 use super::*;
 
 /// 回归测试：当 Batch Compress 批次里所有子任务都在入队时被直接判定为终态（Skipped）
-/// 时，批次也必须被标记为 Completed，并允许 delete_batch_compress_batch 成功删除。
+/// 时，批次也必须被标记为 Completed，并允许 `delete_batch_compress_batch` 成功删除。
 ///
 /// 这是为了修复“删除全部任务都跳过的压缩任务”时后端返回 false，导致前端无法删除复合任务的问题。
 #[test]

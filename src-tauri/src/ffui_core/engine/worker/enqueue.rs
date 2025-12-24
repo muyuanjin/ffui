@@ -136,7 +136,7 @@ fn enqueue_transcode_job_no_notify(
             skip_reason: None,
             input_path: Some(input_path),
             output_path,
-            output_policy: Some(queue_output_policy.clone()),
+            output_policy: Some(queue_output_policy),
             ffmpeg_command: planned_command,
             runs: Vec::new(),
             media_info: Some(MediaInfo {

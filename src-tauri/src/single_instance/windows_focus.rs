@@ -123,11 +123,15 @@ unsafe extern "system" fn enum_windows_find_by_exe_path(hwnd: HWND, lparam: LPAR
         }
 
         let title_len = GetWindowTextLengthW(hwnd);
-        if title_len > 0 {
-            let mut buffer = vec![0u16; title_len as usize + 1];
+        if let Ok(title_len) = usize::try_from(title_len)
+            && title_len > 0
+        {
+            let mut buffer = vec![0u16; title_len.saturating_add(1)];
             let copied = GetWindowTextW(hwnd, &mut buffer);
-            if copied > 0 {
-                let title = String::from_utf16_lossy(&buffer[..copied as usize]);
+            if let Ok(copied) = usize::try_from(copied)
+                && copied > 0
+            {
+                let title = String::from_utf16_lossy(&buffer[..copied]);
                 if title.to_ascii_lowercase().contains("ffui") {
                     state.hwnd_title_match = hwnd;
                     return BOOL(0);
@@ -163,7 +167,7 @@ fn query_process_image_path(pid: u32) -> Option<String> {
 
         let mut buffer: Vec<u16> = vec![0; 260];
         loop {
-            let mut size: u32 = buffer.len() as u32;
+            let mut size: u32 = u32::try_from(buffer.len()).unwrap_or(u32::MAX);
             let ok = QueryFullProcessImageNameW(
                 process,
                 PROCESS_NAME_FORMAT(0),

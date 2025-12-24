@@ -136,7 +136,7 @@ pub fn delete_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
 /// Permanently delete all Batch Compress child jobs that belong to a given batch.
 ///
 /// 前端在“复合任务（Batch Compress 批次）→ 从列表删除”时，会优先调用该命令以确保
-/// 整个批次一次性从队列中清理，而不是逐个 delete_transcode_job。
+/// 整个批次一次性从队列中清理，而不是逐个 `delete_transcode_job`。
 #[tauri::command]
 pub fn delete_batch_compress_batch(engine: State<'_, TranscodingEngine>, batch_id: String) -> bool {
     engine.delete_batch_compress_batch(&batch_id)

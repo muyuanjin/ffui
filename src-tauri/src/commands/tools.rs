@@ -49,7 +49,7 @@ pub fn get_gpu_usage(engine: State<'_, TranscodingEngine>) -> GpuUsageSnapshot {
     engine.gpu_usage()
 }
 
-/// Get the status of all external tools (FFmpeg, FFprobe, etc.).
+/// Get the status of all external tools (`FFmpeg`, `FFprobe`, etc.).
 #[tauri::command]
 pub fn get_external_tool_statuses(engine: State<'_, TranscodingEngine>) -> Vec<ExternalToolStatus> {
     engine.external_tool_statuses()
@@ -208,7 +208,10 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
         fs::canonicalize(path).map_err(|e| format!("preview_path is not a readable file: {e}"))?;
 
     let preview_root = preview_root_dir_for_security()?;
-    let preview_root_canon = fs::canonicalize(&preview_root).unwrap_or(preview_root.clone());
+    let preview_root_canon = match fs::canonicalize(&preview_root) {
+        Ok(path) => path,
+        Err(_) => preview_root,
+    };
 
     if !canonical.starts_with(&preview_root_canon) {
         return Err("preview_path is outside the previews directory".to_string());

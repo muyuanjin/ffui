@@ -28,7 +28,7 @@ impl From<FrameQualityParam> for FallbackFrameQuality {
 /// Extract a cached fallback preview frame (JPEG) at a requested position.
 ///
 /// This is used when the Webview cannot natively decode the video for `<video>`,
-/// so the UI can still provide a static scrub preview backed by FFmpeg.
+/// so the UI can still provide a static scrub preview backed by `FFmpeg`.
 #[tauri::command]
 pub fn extract_fallback_preview_frame(
     engine: State<'_, TranscodingEngine>,

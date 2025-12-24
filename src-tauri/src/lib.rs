@@ -283,13 +283,18 @@ pub fn run() {
                     //   WM_DROPFILES、WM_COPYDATA 和 0x0049（内部的 WM_COPYGLOBALDATA）。
                     unsafe {
                         let mut filter: CHANGEFILTERSTRUCT =
-                            CHANGEFILTERSTRUCT { cbSize: std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32, ExtStatus: Default::default() };
+                            CHANGEFILTERSTRUCT {
+                                cbSize: u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
+                                    .expect("CHANGEFILTERSTRUCT size fits in u32"),
+                                ExtStatus: Default::default(),
+                            };
 
                         let hwnd = HWND(hwnd.0);
                         let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
 
                         for msg in messages {
-                            filter.cbSize = std::mem::size_of::<CHANGEFILTERSTRUCT>() as u32;
+                            filter.cbSize = u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
+                                .expect("CHANGEFILTERSTRUCT size fits in u32");
                             filter.ExtStatus = Default::default();
                             let _ = ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&mut filter));
                         }

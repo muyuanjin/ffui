@@ -12,11 +12,13 @@ use crate::ffui_core::TranscodingEngine;
 use crate::sync_ext::MutexExt;
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub fn reset_exit_prompt(coordinator: State<'_, ExitCoordinator>) {
     coordinator.reset_prompt_emitted();
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub async fn exit_app_now(
     app: AppHandle,
     coordinator: State<'_, ExitCoordinator>,
@@ -27,6 +29,7 @@ pub async fn exit_app_now(
 }
 
 #[tauri::command]
+#[allow(clippy::needless_pass_by_value)]
 pub async fn exit_app_with_auto_wait(
     app: AppHandle,
     engine: State<'_, TranscodingEngine>,

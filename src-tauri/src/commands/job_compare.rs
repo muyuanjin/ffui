@@ -321,7 +321,7 @@ pub struct ExtractJobCompareConcatFrameArgs {
 /// Extract a cached compare frame from concatenated output segments (JPEG).
 ///
 /// This MUST NOT generate any proxy/concat video files; it only extracts a
-/// single frame via the FFmpeg concat demuxer.
+/// single frame via the `FFmpeg` concat demuxer.
 #[tauri::command]
 pub fn extract_job_compare_concat_frame(
     engine: State<'_, TranscodingEngine>,

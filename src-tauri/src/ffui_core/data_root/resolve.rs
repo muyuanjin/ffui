@@ -87,7 +87,7 @@ pub(super) fn is_dir_writable(path: &Path) -> bool {
                 let _ = std::fs::remove_file(&probe);
                 return result;
             }
-            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
             Err(_) => return false,
         }
     }

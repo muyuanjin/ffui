@@ -22,9 +22,10 @@ use crate::sync_ext::MutexExt;
 const RETAIN_DAYS: usize = 7;
 
 fn local_date_key_and_hour(now_ms: u64) -> Option<(String, u8)> {
-    let dt = Local.timestamp_millis_opt(now_ms as i64).single()?;
+    let now_ms = i64::try_from(now_ms).ok()?;
+    let dt = Local.timestamp_millis_opt(now_ms).single()?;
     let date = format!("{:04}-{:02}-{:02}", dt.year(), dt.month(), dt.day());
-    let hour = dt.hour() as u8;
+    let hour = u8::try_from(dt.hour()).ok()?;
     if hour >= 24 {
         return None;
     }

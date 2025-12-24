@@ -15,7 +15,7 @@ use crate::ffui_core::settings::ExternalToolSettings;
 use crate::sync_ext::MutexExt;
 
 /// Name of the Tauri event used to push external tool status snapshots to the
-/// frontend. The payload is a full Vec<ExternalToolStatus>.
+/// frontend. The payload is a full `Vec<ExternalToolStatus>`.
 pub const TOOL_STATUS_EVENT_NAME: &str = "ffui://external-tool-status";
 
 /// Global app handle used for emitting tool-status events. This is set once
@@ -26,7 +26,7 @@ static APP_HANDLE: once_cell::sync::OnceCell<Arc<tauri::AppHandle>> =
 /// Cached latest per-tool status snapshot used when emitting events. We keep
 /// this in a separate mutex so we don't need to re-probe the filesystem on
 /// every progress callback; instead callers provide the freshly computed
-/// ExternalToolStatus list.
+/// `ExternalToolStatus` list.
 pub(super) static LATEST_TOOL_STATUS: once_cell::sync::Lazy<
     Mutex<Vec<super::types::ExternalToolStatus>>,
 > = once_cell::sync::Lazy::new(|| Mutex::new(Vec::new()));
@@ -105,14 +105,14 @@ pub(crate) fn update_latest_status_snapshot(statuses: Vec<super::types::External
     }
 
     // After refreshing the cached snapshot (for example via
-    // TranscodingEngine::external_tool_statuses after a manual download),
+    // `TranscodingEngine::external_tool_statuses` after a manual download),
     // immediately emit an event so the frontend sees the latest resolved
     // path/version/update flags instead of a stale pre-download snapshot.
     emit_tool_status_event_if_possible();
 }
 
 /// Merge the latest in-memory download runtime state for a single tool into
-/// the cached ExternalToolStatus snapshot so that subsequent tool-status
+/// the cached `ExternalToolStatus` snapshot so that subsequent tool-status
 /// events can reflect byte counts, progress, speed, and messages without
 /// re-probing the filesystem for every tick.
 fn merge_download_state_into_latest_snapshot(kind: ExternalToolKind) {
@@ -338,7 +338,7 @@ pub(crate) fn clear_tool_runtime_error(kind: ExternalToolKind) {
 }
 
 /// Seed the in-memory last-download metadata from persisted settings so that
-/// remote_version/update_available flags remain accurate across restarts
+/// `remote_version` / `update_available` flags remain accurate across restarts
 /// without requiring a fresh network fetch.
 pub fn hydrate_last_tool_download_from_settings(settings: &ExternalToolSettings) {
     let Some(downloaded) = settings.downloaded.as_ref() else {

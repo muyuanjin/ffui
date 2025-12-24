@@ -299,10 +299,7 @@ mod tests {
                                         err.kind(),
                                         std::io::ErrorKind::WouldBlock
                                             | std::io::ErrorKind::TimedOut
-                                    ) =>
-                                {
-                                    continue;
-                                }
+                                    ) => {}
                                 Err(_) => break,
                             }
                         }
