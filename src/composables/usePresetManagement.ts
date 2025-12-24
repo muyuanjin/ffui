@@ -1,6 +1,6 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import type { FFmpegPreset, TranscodeJob, AppSettings } from "@/types";
-import { hasTauri, loadPresets, savePresetOnBackend, deletePresetOnBackend, saveAppSettings } from "@/lib/backend";
+import { hasTauri, loadPresets, savePresetOnBackend, deletePresetOnBackend } from "@/lib/backend";
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
 import { applyPresetStatsDelta, getPresetStatsDeltaFromJob } from "@/lib/presetStats";
 
@@ -112,21 +112,14 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
       if (!hasTauri()) return;
       if (!id) return;
 
-      void (async () => {
-        try {
-          if (!appSettings.value) return;
-          if (appSettings.value.defaultQueuePresetId === id) return;
-
-          await saveAppSettings({
-            ...appSettings.value,
-            defaultQueuePresetId: id,
-          });
-          // Note: We don't update appSettings here to avoid triggering other watchers.
-          // The parent component should handle this if needed.
-        } catch (error) {
-          console.error("Failed to persist default queue preset selection", error);
-        }
-      })();
+      const current = appSettings.value;
+      if (!current) return;
+      if (current.defaultQueuePresetId === id) return;
+      // Let useAppSettings handle persistence & saved snapshot tracking.
+      appSettings.value = {
+        ...current,
+        defaultQueuePresetId: id,
+      };
     },
     { flush: "post" },
   );

@@ -1,11 +1,4 @@
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-use std::sync::{
-    Mutex,
-    RwLock,
-};
+use std::sync::RwLock;
 
 use once_cell::sync::Lazy;
 
@@ -13,10 +6,7 @@ use crate::ffui_core::settings::{
     NetworkProxyMode,
     NetworkProxySettings,
 };
-use crate::sync_ext::{
-    MutexExt,
-    RwLockExt,
-};
+use crate::sync_ext::RwLockExt;
 
 #[derive(Debug, Clone)]
 struct NetworkProxyConfig {
@@ -30,9 +20,6 @@ static NETWORK_PROXY_CONFIG: Lazy<RwLock<NetworkProxyConfig>> = Lazy::new(|| {
         custom_proxy_url: None,
     })
 });
-
-static UPDATER_PROXY_ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-static PROXY_ENV_MANAGED_BY_FFUI: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone)]
 pub struct ResolvedNetworkProxy {
@@ -116,7 +103,7 @@ fn apply_reqwest_proxy_impl<T>(
         match resolved.mode {
             NetworkProxyMode::None => return no_proxy(builder),
             NetworkProxyMode::Custom | NetworkProxyMode::System => {
-                if let Some(url) = resolved.proxy_url.as_deref()
+                if let Some(url) = resolved.proxy_url()
                     && let Ok(proxy) = reqwest::Proxy::all(url)
                 {
                     builder = with_proxy(builder, proxy);
@@ -147,54 +134,37 @@ pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNet
     }
 }
 
-pub fn prepare_updater_proxy_env() -> ResolvedNetworkProxy {
-    let _guard = UPDATER_PROXY_ENV_MUTEX.lock_unpoisoned();
-
-    let resolved = resolve_effective_proxy_once();
-    fn set_updater_proxy_env(url: Option<&str>) {
-        for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-            // SAFETY: We intentionally mutate process-wide env vars so the
-            // updater plugin can pick up the desired proxy configuration.
-            unsafe {
-                if let Some(url) = url {
-                    std::env::set_var(key, url);
-                } else {
-                    std::env::remove_var(key);
-                }
-            }
-        }
-    }
-    match resolved.mode {
-        NetworkProxyMode::None => {
-            set_updater_proxy_env(None);
-            PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
-        }
-        NetworkProxyMode::Custom => {
-            set_updater_proxy_env(resolved.proxy_url.as_deref());
-            PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
-        }
+/// Resolve an explicit proxy override for the updater plugin.
+///
+/// `tauri-plugin-updater` already supports passing a `proxy` option when
+/// checking for updates, so we avoid mutating process-wide environment
+/// variables (which is inherently racy in multi-threaded programs).
+///
+/// Behavior:
+/// - `None` mode: return `None` (do not force any proxy).
+/// - `Custom` mode: return the configured proxy URL.
+/// - `System` mode:
+///   - if the user already supplies proxy env vars, return `None` so the updater
+///     can use the full env-based configuration (including per-scheme or
+///     `NO_PROXY`) without us collapsing it into a single proxy URL.
+///   - otherwise, return the platform/system proxy (best-effort) as an explicit
+///     override because `reqwest` defaults do not read platform proxy settings.
+pub fn resolve_updater_proxy_override_once() -> Option<String> {
+    let (mode, custom_proxy_url) = snapshot();
+    match mode {
+        NetworkProxyMode::None => None,
+        NetworkProxyMode::Custom => custom_proxy_url,
         NetworkProxyMode::System => {
-            // If env already configures a proxy and FFUI is not managing proxy
-            // env vars, keep it as-is (treat as user-supplied).
-            if proxy_from_env().is_some() && !PROXY_ENV_MANAGED_BY_FFUI.load(Ordering::Relaxed) {
-                return resolved;
+            if proxy_from_env().is_some() {
+                None
+            } else {
+                proxy_from_platform_system_proxy()
             }
-
-            set_updater_proxy_env(resolved.proxy_url.as_deref());
-            PROXY_ENV_MANAGED_BY_FFUI.store(true, Ordering::Relaxed);
         }
     }
-
-    resolved
 }
 
 fn proxy_from_env() -> Option<String> {
-    // Avoid feeding proxy env vars that FFUI set for the updater plugin back
-    // into our own System proxy resolution. Only treat env as an override when
-    // it is user-supplied.
-    if PROXY_ENV_MANAGED_BY_FFUI.load(Ordering::Relaxed) {
-        return None;
-    }
     for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
         if let Ok(v) = std::env::var(key) {
             let trimmed = v.trim();
@@ -239,7 +209,8 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
 
     fn read_reg_dword(subkey: &HSTRING, name: &HSTRING) -> Option<u32> {
         let mut value: u32 = 0;
-        let mut size: u32 = std::mem::size_of::<u32>() as u32;
+        let mut size: u32 =
+            u32::try_from(std::mem::size_of::<u32>()).expect("u32 size must fit in u32");
         // SAFETY: `value` is a valid buffer of `size` bytes.
         let status = unsafe {
             RegGetValueW(
@@ -385,105 +356,5 @@ pub(crate) fn install_test_platform_proxy_hook(
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Mutex;
-    use std::sync::atomic::{
-        AtomicUsize,
-        Ordering,
-    };
-
-    use super::*;
-
-    static ENV_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-    struct ProxyEnvGuard {
-        prev: Vec<(String, Option<String>)>,
-    }
-
-    impl ProxyEnvGuard {
-        fn capture() -> Self {
-            let keys = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"];
-            let prev = keys
-                .into_iter()
-                .map(|k| (k.to_string(), std::env::var(k).ok()))
-                .collect::<Vec<_>>();
-            Self { prev }
-        }
-    }
-
-    impl Drop for ProxyEnvGuard {
-        fn drop(&mut self) {
-            for (key, value) in self.prev.drain(..) {
-                match value {
-                    Some(v) => unsafe { std::env::set_var(key, v) },
-                    None => unsafe { std::env::remove_var(key) },
-                }
-            }
-        }
-    }
-
-    fn clear_proxy_env() {
-        for key in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"] {
-            unsafe { std::env::remove_var(key) };
-        }
-    }
-
-    #[test]
-    fn resolve_system_calls_platform_proxy_reader_when_env_missing() {
-        let _lock = ENV_MUTEX.lock_unpoisoned();
-        let _env_guard = ProxyEnvGuard::capture();
-        clear_proxy_env();
-        apply_settings(Some(&NetworkProxySettings {
-            mode: NetworkProxyMode::System,
-            proxy_url: None,
-        }));
-
-        let calls = std::sync::Arc::new(AtomicUsize::new(0));
-        let calls_clone = calls.clone();
-        let _hook_guard = install_test_platform_proxy_hook(std::sync::Arc::new(move || {
-            calls_clone.fetch_add(1, Ordering::SeqCst);
-            Some("http://127.0.0.1:7890".to_string())
-        }));
-
-        let resolved = resolve_effective_proxy_once();
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
-        assert_eq!(resolved.proxy_url(), Some("http://127.0.0.1:7890"));
-    }
-
-    #[test]
-    fn aria2c_args_use_resolved_proxy_snapshot() {
-        let _lock = ENV_MUTEX.lock_unpoisoned();
-        let _env_guard = ProxyEnvGuard::capture();
-        clear_proxy_env();
-
-        apply_settings(Some(&NetworkProxySettings {
-            mode: NetworkProxyMode::Custom,
-            proxy_url: Some("http://127.0.0.1:7890".to_string()),
-        }));
-        let resolved = resolve_effective_proxy_once();
-        let mut cmd = std::process::Command::new("aria2c");
-        apply_aria2c_args(&mut cmd, &resolved);
-        let args = cmd_args(&cmd);
-        assert!(
-            args.windows(2)
-                .any(|w| w[0] == "--all-proxy" && w[1] == "http://127.0.0.1:7890")
-        );
-
-        apply_settings(Some(&NetworkProxySettings {
-            mode: NetworkProxyMode::None,
-            proxy_url: None,
-        }));
-        let resolved = resolve_effective_proxy_once();
-        let mut cmd = std::process::Command::new("aria2c");
-        apply_aria2c_args(&mut cmd, &resolved);
-        let args = cmd_args(&cmd);
-        assert!(args.iter().any(|a| a == "--all-proxy="));
-        assert!(args.iter().any(|a| a == "--no-proxy=*"));
-    }
-
-    fn cmd_args(cmd: &std::process::Command) -> Vec<String> {
-        cmd.get_args()
-            .map(|s| s.to_string_lossy().into_owned())
-            .collect::<Vec<_>>()
-    }
-}
+#[path = "network_proxy_tests.rs"]
+mod tests;

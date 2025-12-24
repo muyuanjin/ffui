@@ -20,6 +20,12 @@ import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
+import {
+  externalToolCustomPath,
+  externalToolDisplayName,
+  installExternalToolAutoUpdateWatcher,
+  setExternalToolCustomPath,
+} from "./useAppSettingsExternalTools";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -97,6 +103,17 @@ export interface UseAppSettingsReturn {
   ensureAppSettingsLoaded: () => Promise<void>;
   /** Schedule settings save (with debouncing). */
   scheduleSaveSettings: () => void;
+  /**
+   * Persist a settings snapshot immediately (bypasses debounce) and updates the
+   * internal "last saved" snapshot so follow-up debounced saves don't double-write.
+   */
+  persistNow: (nextSettings?: AppSettings) => Promise<void>;
+  /**
+   * Mark a snapshot as saved without performing I/O. Use this when settings
+   * were persisted outside of useAppSettings and you need to keep the internal
+   * snapshot consistent.
+   */
+  markSaved: (serializedOrSettings: string | AppSettings) => void;
   /** Refresh external tool statuses. */
   refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
   /** Manually trigger download/update for a given tool kind. */
@@ -142,6 +159,18 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   );
 
   // ----- Methods -----
+  const cancelScheduledSave = () => {
+    if (settingsSaveTimer !== undefined) {
+      window.clearTimeout(settingsSaveTimer);
+      settingsSaveTimer = undefined;
+    }
+  };
+
+  const markSaved = (serializedOrSettings: string | AppSettings) => {
+    lastSavedSettingsSnapshot =
+      typeof serializedOrSettings === "string" ? serializedOrSettings : JSON.stringify(serializedOrSettings);
+  };
+
   const ensureAppSettingsLoaded = async () => {
     if (appSettings.value) return;
     if (!hasTauri()) {
@@ -203,12 +232,11 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const scheduleSaveSettings = () => {
     if (!hasTauri() || !appSettings.value) return;
     settingsSaveError.value = null;
-    if (settingsSaveTimer !== undefined) {
-      window.clearTimeout(settingsSaveTimer);
-    }
+    cancelScheduledSave();
     // Use a minimal async delay so tests can reliably observe saves without
     // needing to advance long timers, while still debouncing rapid changes.
     settingsSaveTimer = window.setTimeout(async () => {
+      settingsSaveTimer = undefined;
       if (!hasTauri() || !appSettings.value) return;
       const current = appSettings.value;
       const serialized = JSON.stringify(current);
@@ -229,6 +257,36 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
         isSavingSettings.value = false;
       }
     }, 0);
+  };
+
+  const persistNow = async (nextSettings?: AppSettings) => {
+    if (!hasTauri()) return;
+    if (nextSettings) {
+      appSettings.value = nextSettings;
+    }
+
+    const current = nextSettings ?? appSettings.value;
+    if (!current) return;
+
+    cancelScheduledSave();
+    settingsSaveError.value = null;
+
+    const serialized = JSON.stringify(current);
+    if (serialized === lastSavedSettingsSnapshot) {
+      return;
+    }
+
+    isSavingSettings.value = true;
+    try {
+      await saveAppSettings(current);
+      lastSavedSettingsSnapshot = serialized;
+    } catch (error) {
+      console.error("Failed to save settings", error);
+      settingsSaveError.value =
+        t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings. Please try again later.";
+    } finally {
+      isSavingSettings.value = false;
+    }
   };
 
   const refreshToolStatuses = async (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => {
@@ -294,47 +352,12 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
   });
 
-  const getToolDisplayName = (kind: ExternalToolKind): string => {
-    if (kind === "ffmpeg") return "FFmpeg";
-    if (kind === "ffprobe") return "ffprobe";
-    if (kind === "avifenc") return "avifenc";
-    return kind;
-  };
-
   const getToolCustomPath = (kind: ExternalToolKind): string => {
-    const settings = appSettings.value;
-    if (!settings) return "";
-    const tools = (settings as Partial<AppSettings>).tools;
-    if (!tools) return "";
-    if (kind === "ffmpeg") return tools.ffmpegPath ?? "";
-    if (kind === "ffprobe") return tools.ffprobePath ?? "";
-    if (kind === "avifenc") return tools.avifencPath ?? "";
-    return "";
+    return externalToolCustomPath(appSettings.value, kind);
   };
 
   const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
-    const settings = appSettings.value;
-    if (!settings) return;
-    const root = settings as AppSettings & { tools?: import("@/types").ExternalToolSettings };
-    if (!root.tools) {
-      root.tools = {
-        autoDownload: false,
-        autoUpdate: false,
-      } as import("@/types").ExternalToolSettings;
-    }
-    const tools = root.tools as import("@/types").ExternalToolSettings;
-    // Switching to a manually specified path should implicitly move the
-    // management mode to “手动管理”，以免后续自动下载/更新悄悄覆盖用户选择。
-    tools.autoDownload = false;
-    tools.autoUpdate = false;
-    const normalized = String(value ?? "").trim();
-    if (kind === "ffmpeg") {
-      tools.ffmpegPath = normalized || undefined;
-    } else if (kind === "ffprobe") {
-      tools.ffprobePath = normalized || undefined;
-    } else if (kind === "avifenc") {
-      tools.avifencPath = normalized || undefined;
-    }
+    setExternalToolCustomPath(appSettings.value, kind, value);
   };
 
   const downloadToolNow = async (kind: ExternalToolKind) => {
@@ -347,6 +370,17 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
   };
 
+  installExternalToolAutoUpdateWatcher({
+    appSettings,
+    toolStatuses,
+    downloadToolNow,
+    hasTauri,
+  });
+
+  const getToolDisplayName = (kind: ExternalToolKind): string => {
+    return externalToolDisplayName(kind);
+  };
+
   const fetchToolCandidates = async (kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => {
     if (!hasTauri()) return [];
     try {
@@ -357,70 +391,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
   };
 
-  // When automatic external tool updates are enabled, watch for tools that
-  // report `updateAvailable` and trigger a background download using the same
-  // Tauri command as the manual “下载/更新”按钮。This keeps queue tasks
-  // unblocked while still keeping binaries fresh.
-  const autoUpdateInFlight = new Set<ExternalToolKind>();
-  // Track the last remote version we have already attempted to auto‑update to
-  // for each tool kind within this session. This prevents accidental循环下载
-  // when `updateAvailable` 状态由于网络/缓存等原因长期保持为 true。
-  const autoUpdatedRemoteVersions = new Map<ExternalToolKind, string | null>();
-  watch(
-    () => ({
-      statuses: toolStatuses.value,
-      autoUpdateEnabled: appSettings.value?.tools?.autoUpdate ?? false,
-    }),
-    async ({ statuses, autoUpdateEnabled }) => {
-      if (!hasTauri() || !autoUpdateEnabled) return;
-      for (const tool of statuses) {
-        const remoteVersion = tool.remoteVersion ?? null;
-        const lastAttempted = autoUpdatedRemoteVersions.get(tool.kind) ?? null;
-
-        // If a download is already in progress for this tool, treat the
-        // corresponding remoteVersion as "attempted" so we do not schedule a
-        // second auto‑update in parallel. This covers cases where the user
-        // manually点击“下载/更新”或队列在后台触发了下载。
-        if (tool.downloadInProgress) {
-          if (remoteVersion && lastAttempted == null) {
-            autoUpdatedRemoteVersions.set(tool.kind, remoteVersion);
-          }
-          continue;
-        }
-
-        if (!tool.updateAvailable) continue;
-        // Skip when we have already attempted to auto‑update to the same
-        // remote version in this session. 即便后端因为网络/缓存原因持续标记
-        // updateAvailable=true，也只会尝试一次，避免“死循环”式重复下载。
-        if (remoteVersion && lastAttempted === remoteVersion) continue;
-        if (autoUpdateInFlight.has(tool.kind)) continue;
-        autoUpdateInFlight.add(tool.kind);
-        try {
-          await downloadToolNow(tool.kind);
-          // After the download request completes, refresh the last-attempted
-          // version from the latest status snapshot so that dynamic remote
-          // metadata（例如 GitHub Releases 最新 tag）不会因为 remoteVersion
-          // 变化而在同一版本上再次触发下载。
-          const latest = toolStatuses.value.find((t) => t.kind === tool.kind);
-          const latestRemoteVersion = latest?.remoteVersion ?? remoteVersion;
-          if (latestRemoteVersion) {
-            autoUpdatedRemoteVersions.set(tool.kind, latestRemoteVersion);
-          }
-        } catch (error) {
-          console.error("Failed to auto-update external tool", error);
-        } finally {
-          autoUpdateInFlight.delete(tool.kind);
-        }
-      }
-    },
-    { deep: false },
-  );
-
   const cleanup = () => {
-    if (settingsSaveTimer !== undefined) {
-      window.clearTimeout(settingsSaveTimer);
-      settingsSaveTimer = undefined;
-    }
+    cancelScheduledSave();
     if (toolStatusUnlisten) {
       toolStatusUnlisten();
       toolStatusUnlisten = undefined;
@@ -442,6 +414,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     // Methods
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
+    persistNow,
+    markSaved,
     refreshToolStatuses,
     downloadToolNow,
     fetchToolCandidates,

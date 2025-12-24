@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AppSettings, ExternalToolCandidate, ExternalToolKind, BatchCompressConfig, TranscodeJob } from "@/types";
-import { hasTauri, saveAppSettings } from "@/lib/backend";
+import { hasTauri } from "@/lib/backend";
 import { useAppSettings, useJobProgress } from "@/composables";
 
 export interface UseMainAppSettingsOptions {
@@ -20,6 +20,8 @@ export interface UseMainAppSettingsReturn {
   toolStatusesFresh: ReturnType<typeof useAppSettings>["toolStatusesFresh"];
   ensureAppSettingsLoaded: () => Promise<void>;
   scheduleSaveSettings: () => void;
+  persistNow: (nextSettings?: AppSettings) => Promise<void>;
+  markSaved: (serializedOrSettings: string | AppSettings) => void;
   refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
   downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
@@ -50,6 +52,8 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     toolStatusesFresh,
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
+    persistNow,
+    markSaved,
     refreshToolStatuses,
     downloadToolNow,
     fetchToolCandidates,
@@ -87,15 +91,7 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
       // Persist immediately so tests and real users both see the new default
       // without waiting for the debounced saver, while still keeping the shared
       // app settings composable as the single source of truth.
-      try {
-        await saveAppSettings(nextSettings);
-      } catch (error) {
-        console.error("Failed to save default queue preset to AppSettings", error);
-      }
-
-      // Let the shared app settings composable handle any follow-up status
-      // refresh; its internal debounce will see the snapshot as already saved.
-      scheduleSaveSettings();
+      await persistNow(nextSettings);
     },
     { flush: "post" },
   );
@@ -159,6 +155,8 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     toolStatusesFresh,
     ensureAppSettingsLoaded,
     scheduleSaveSettings,
+    persistNow,
+    markSaved,
     refreshToolStatuses,
     downloadToolNow,
     fetchToolCandidates,

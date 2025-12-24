@@ -17,7 +17,7 @@ import { useJobLog } from "@/composables";
 import { useMainAppExitConfirm } from "@/composables/main-app/useMainAppExitConfirm";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
 import { copyToClipboard } from "@/lib/copyToClipboard";
-import { hasTauri, saveAppSettings } from "@/lib/backend";
+import { hasTauri } from "@/lib/backend";
 import { scheduleStartupIdle } from "./startupIdle";
 import { useUiAppearanceSync } from "./useUiAppearanceSync";
 import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
@@ -127,6 +127,7 @@ export function useMainAppSetup() {
   const updater = useMainAppUpdater({
     appSettings: settings.appSettings,
     scheduleSaveSettings: settings.scheduleSaveSettings,
+    persistNow: settings.persistNow,
     startupIdleReady,
   });
 
@@ -178,14 +179,9 @@ export function useMainAppSetup() {
 
     const next: AppSettings = { ...current, onboardingCompleted: true };
     settings.appSettings.value = next;
-    try {
-      // 直接持久化当前快照，由 useAppSettings 的自动保存逻辑统一维护内存状态，
-      // 避免异步返回的旧快照覆盖后续用户修改（例如固定操作栏开关）。
-      await saveAppSettings(next);
-    } catch (error) {
-      console.error("Failed to mark onboardingCompleted in AppSettings", error);
-    }
-    settings.scheduleSaveSettings();
+    // Persist immediately and sync the internal saved snapshot to avoid
+    // duplicate debounced writes.
+    await settings.persistNow(next);
   };
 
   const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
@@ -232,15 +228,7 @@ export function useMainAppSetup() {
         presetSortMode: nextMode,
       };
       settings.appSettings.value = nextSettings;
-
-      try {
-        // 仅持久化，而不再用异步返回值回写 appSettings，
-        // 由共享的 useAppSettings 自动保存统一负责状态同步，避免状态竞争。
-        await saveAppSettings(nextSettings);
-      } catch (error) {
-        console.error("Failed to save presetSortMode to AppSettings", error);
-      }
-      settings.scheduleSaveSettings();
+      await settings.persistNow(nextSettings);
     },
     { flush: "post" },
   );
@@ -256,13 +244,7 @@ export function useMainAppSetup() {
         presetViewMode: nextMode,
       };
       settings.appSettings.value = nextSettings;
-
-      try {
-        await saveAppSettings(nextSettings);
-      } catch (error) {
-        console.error("Failed to save presetViewMode to AppSettings", error);
-      }
-      settings.scheduleSaveSettings();
+      await settings.persistNow(nextSettings);
     },
     { flush: "post" },
   );

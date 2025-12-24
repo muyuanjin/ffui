@@ -65,15 +65,14 @@ pub fn get_app_updater_capabilities(app: AppHandle) -> AppUpdaterCapabilities {
     }
 }
 
-/// Prepare process-wide proxy environment variables for the updater plugin.
+/// Resolve an explicit proxy override for `tauri-plugin-updater`.
 ///
-/// The updater plugin does not expose explicit per-request proxy configuration,
-/// so the backend must ensure env vars reflect the latest proxy settings right
-/// before update checks or installs.
+/// The updater plugin supports passing a `proxy` option when checking for
+/// updates, so we avoid mutating process-wide environment variables (which is
+/// inherently racy in multi-threaded programs).
 #[tauri::command]
 pub fn prepare_app_updater_proxy() -> Option<String> {
-    let resolved = crate::ffui_core::network_proxy::prepare_updater_proxy_env();
-    resolved.proxy_url().map(|s| s.to_string())
+    crate::ffui_core::network_proxy::resolve_updater_proxy_override_once()
 }
 
 #[cfg(test)]

@@ -6,6 +6,8 @@ import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 export interface UseMainAppUpdaterOptions {
   appSettings: Ref<AppSettings | null>;
   scheduleSaveSettings: () => void;
+  /** Optional immediate settings persistence hook (from useAppSettings). */
+  persistNow?: (nextSettings?: AppSettings) => Promise<void>;
   /** Optional startup idle gate so update checks can be deferred. */
   startupIdleReady?: Ref<boolean>;
 }
@@ -84,7 +86,7 @@ function coerceBoolean(value: unknown, fallback: boolean): boolean {
 }
 
 export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
-  const { appSettings, scheduleSaveSettings, startupIdleReady } = options;
+  const { appSettings, scheduleSaveSettings, startupIdleReady, persistNow } = options;
 
   const isCheckingForUpdate = ref(false);
   const isInstallingUpdate = ref(false);
@@ -224,9 +226,9 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     updateHandle = null;
 
     try {
-      await prepareAppUpdaterProxy();
+      const proxy = await prepareAppUpdaterProxy();
       const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check();
+      const update = await check(proxy ? { proxy } : undefined);
       const now = Date.now();
 
       lastCheckedAtMs.value = now;
@@ -282,7 +284,6 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     totalBytes.value = null;
 
     try {
-      await prepareAppUpdaterProxy();
       await updateHandle.downloadAndInstall((event: DownloadEvent) => {
         if (event.event === "Started") {
           const len = event.data.contentLength;
@@ -317,7 +318,11 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
       });
       if (appSettings.value) {
         try {
-          await saveAppSettings(appSettings.value);
+          if (persistNow) {
+            await persistNow(appSettings.value);
+          } else {
+            await saveAppSettings(appSettings.value);
+          }
         } catch (error) {
           console.error("Failed to persist updater state before relaunch", error);
         }

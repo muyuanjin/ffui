@@ -74,6 +74,7 @@ describe("useMainAppUpdater", () => {
   it("manual check populates update metadata and persists into app settings", async () => {
     const downloadAndInstall = vi.fn(async (_cb?: any) => {});
     const close = vi.fn(async () => {});
+    prepareAppUpdaterProxyMock.mockResolvedValueOnce("http://127.0.0.1:7890");
     checkMock.mockResolvedValueOnce({
       version: "0.2.0",
       currentVersion: "0.1.1",
@@ -98,6 +99,7 @@ describe("useMainAppUpdater", () => {
 
     expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(1);
     expect(checkMock).toHaveBeenCalledTimes(1);
+    expect(checkMock).toHaveBeenCalledWith({ proxy: "http://127.0.0.1:7890" });
     expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
 
     expect((wrapper.vm as any).updateAvailable).toBe(true);
@@ -140,11 +142,8 @@ describe("useMainAppUpdater", () => {
     await (wrapper.vm as any).checkForAppUpdate({ force: true });
     await (wrapper.vm as any).downloadAndInstallUpdate();
 
-    expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(2);
+    expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(1);
     expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
-    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[1]).toBeLessThan(
-      downloadAndInstall.mock.invocationCallOrder[0],
-    );
 
     expect(downloadAndInstall).toHaveBeenCalledTimes(1);
     expect(saveAppSettingsMock).toHaveBeenCalledTimes(1);
@@ -192,11 +191,8 @@ describe("useMainAppUpdater", () => {
     const wrapper = mount(Comp);
     await (wrapper.vm as any).downloadAndInstallUpdate();
 
-    expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(2);
+    expect(prepareAppUpdaterProxyMock).toHaveBeenCalledTimes(1);
     expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[0]).toBeLessThan(checkMock.mock.invocationCallOrder[0]);
-    expect(prepareAppUpdaterProxyMock.mock.invocationCallOrder[1]).toBeLessThan(
-      downloadAndInstall.mock.invocationCallOrder[0],
-    );
 
     expect(checkMock).toHaveBeenCalledTimes(1);
     expect(downloadAndInstall).toHaveBeenCalledTimes(1);
