@@ -1,5 +1,4 @@
 {
-  "path": ["src-tauri/src"],
   "pattern": "**/*.rs",
   "minLines": 8,
   "minTokens": 80,

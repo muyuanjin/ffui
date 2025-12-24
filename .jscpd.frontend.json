@@ -1,9 +1,14 @@
 {
-  "path": ["src"],
-  "pattern": "**/*.{ts,tsx,vue}",
+  "pattern": "**/*",
   "minLines": 8,
   "minTokens": 80,
   "threshold": 0,
+  "format": ["typescript", "tsx", "markup"],
+  "formatsExts": {
+    "typescript": ["ts"],
+    "tsx": ["tsx"],
+    "markup": ["vue"]
+  },
   "reporters": ["console", "html", "json"],
   "output": ".jscpd/frontend",
   "ignore": [
