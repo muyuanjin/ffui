@@ -8,6 +8,7 @@ fn app_settings_round_trips_network_proxy_settings() {
         network_proxy: Some(NetworkProxySettings {
             mode: NetworkProxyMode::Custom,
             proxy_url: Some("http://127.0.0.1:7890".to_string()),
+            fallback_to_direct_on_error: true,
         }),
         ..Default::default()
     };
@@ -38,5 +39,9 @@ fn app_settings_round_trips_network_proxy_settings() {
     assert_eq!(
         decoded_proxy.proxy_url.as_deref(),
         Some("http://127.0.0.1:7890")
+    );
+    assert!(
+        decoded_proxy.fallback_to_direct_on_error,
+        "fallback_to_direct_on_error defaults to true and must round-trip"
     );
 }

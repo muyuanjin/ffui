@@ -37,6 +37,8 @@ export interface NetworkProxySettings {
   mode: NetworkProxyMode;
   /** Required when mode is custom. */
   proxyUrl?: string;
+  /** When true (default), if proxy fails the app retries without proxy. */
+  fallbackToDirectOnError?: boolean;
 }
 
 export interface AppSettings {

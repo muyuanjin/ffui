@@ -262,6 +262,25 @@ pub(super) fn mark_download_error(kind: ExternalToolKind, message: String) {
     emit_tool_status_event_if_possible();
 }
 
+/// Store a non-fatal informational message for a tool (for example a proxy
+/// fallback notice during update checks). This does not change the download
+/// progress state.
+pub(crate) fn mark_tool_message(kind: ExternalToolKind, message: String) {
+    with_download_state(kind, |state| {
+        state.last_message = Some(message);
+    });
+    merge_download_state_into_latest_snapshot(kind);
+    emit_tool_status_event_if_possible();
+}
+
+pub(crate) fn mark_tool_error(kind: ExternalToolKind, message: String) {
+    with_download_state(kind, |state| {
+        state.last_error = Some(message);
+    });
+    merge_download_state_into_latest_snapshot(kind);
+    emit_tool_status_event_if_possible();
+}
+
 pub(super) fn mark_arch_incompatible_for_session(
     kind: ExternalToolKind,
     source: &str,

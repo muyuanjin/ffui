@@ -146,6 +146,12 @@ watch(
       } else {
         appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpToDate"));
       }
+
+      if (status.lastDownloadError) {
+        appendCheckUpdateLog(request.kind, status.lastDownloadError, "error");
+      } else if (status.lastDownloadMessage && status.lastDownloadMessage.startsWith("[proxy]")) {
+        appendCheckUpdateLog(request.kind, status.lastDownloadMessage, "warn");
+      }
     }
 
     const elapsedSeconds = ((Date.now() - request.startedAtMs) / 1000).toFixed(1);

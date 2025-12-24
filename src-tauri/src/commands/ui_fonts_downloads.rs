@@ -47,20 +47,79 @@ async fn download_font_to_path(
     mut on_progress: impl FnMut(u64, Option<u64>),
     cancel_requested: impl Fn() -> bool,
 ) -> Result<(String, u64, Option<u64>), String> {
-    let proxy = network_proxy::resolve_effective_proxy_once();
-    let builder = network_proxy::apply_reqwest_builder(
-        reqwest::Client::builder().timeout(Duration::from_secs(300)),
-        &proxy,
-    );
-    let client = builder
-        .build()
-        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let resolved = network_proxy::resolve_effective_proxy_once();
+    let force_no_proxy = resolved.is_no_proxy_mode();
 
-    let mut resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("download failed: {e}"))?;
+    let mut invalid_proxy_fallback = false;
+    let parsed = match network_proxy::parse_reqwest_proxy_for(&resolved) {
+        Ok(v) => v,
+        Err(err) => {
+            if resolved.fallback_to_direct_on_error() {
+                invalid_proxy_fallback = true;
+                None
+            } else {
+                return Err(format!("{err:#}"));
+            }
+        }
+    };
+
+    let build_client = |proxy: Option<reqwest::Proxy>, no_proxy: bool| {
+        let mut builder = reqwest::Client::builder().timeout(Duration::from_secs(300));
+        if no_proxy {
+            builder = builder.no_proxy();
+        }
+        if let Some(proxy) = proxy {
+            builder = builder.proxy(proxy);
+        }
+        builder.build()
+    };
+
+    let direct_client =
+        build_client(None, true).map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let system_client = build_client(None, force_no_proxy)
+        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let proxy_client = if force_no_proxy {
+        None
+    } else {
+        parsed
+            .map(|p| build_client(Some(p.proxy), false))
+            .transpose()
+            .map_err(|e| format!("failed to build HTTP client: {e}"))?
+    };
+
+    let mut resp = if force_no_proxy || invalid_proxy_fallback {
+        direct_client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("download failed: {e}"))?
+    } else if let Some(client) = proxy_client.as_ref() {
+        match client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("download failed: {e}"))
+        {
+            Ok(resp) => resp,
+            Err(err) => {
+                if resolved.fallback_to_direct_on_error() {
+                    direct_client
+                        .get(url)
+                        .send()
+                        .await
+                        .map_err(|e| format!("{err}; direct fallback: download failed: {e}"))?
+                } else {
+                    return Err(err);
+                }
+            }
+        }
+    } else {
+        system_client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("download failed: {e}"))?
+    };
     if !resp.status().is_success() {
         return Err(format!("download failed with status {}", resp.status()));
     }

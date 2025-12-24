@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { AppSettings, NetworkProxyMode, NetworkProxySettings } from "@/types";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 
 const props = defineProps<{
   appSettings: AppSettings;
@@ -15,6 +16,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const getCurrentNetworkProxy = (): NetworkProxySettings => {
+  return props.appSettings.networkProxy ?? { mode: "system", fallbackToDirectOnError: true };
+};
+
 const networkProxyMode = computed<NetworkProxyMode>({
   get() {
     const raw = props.appSettings.networkProxy?.mode;
@@ -22,14 +27,16 @@ const networkProxyMode = computed<NetworkProxyMode>({
     return "system";
   },
   set(mode) {
+    const current = getCurrentNetworkProxy();
     if (mode === "system") {
-      emit("update:appSettings", { ...props.appSettings, networkProxy: undefined });
+      const next: NetworkProxySettings = { ...current, mode: "system", proxyUrl: undefined };
+      emit("update:appSettings", { ...props.appSettings, networkProxy: next });
       return;
     }
-    const current: NetworkProxySettings = props.appSettings.networkProxy ?? { mode: "custom" };
+    const base: NetworkProxySettings = mode === "none" ? { mode: "none" } : { ...current };
     emit("update:appSettings", {
       ...props.appSettings,
-      networkProxy: { ...current, mode },
+      networkProxy: { ...base, mode },
     });
   },
 });
@@ -56,12 +63,41 @@ const commitNetworkProxyUrlDraft = () => {
   if (networkProxyMode.value !== "custom") return;
   const trimmed = draft.trim();
   const nextUrl = trimmed.length > 0 ? trimmed : undefined;
-  const current: NetworkProxySettings = props.appSettings.networkProxy ?? { mode: "custom" };
+  const current = getCurrentNetworkProxy();
   emit("update:appSettings", {
     ...props.appSettings,
     networkProxy: { ...current, mode: "custom", proxyUrl: nextUrl },
   });
 };
+
+const fallbackToDirectOnError = computed<boolean>({
+  get() {
+    return props.appSettings.networkProxy?.fallbackToDirectOnError ?? true;
+  },
+  set(value) {
+    if (networkProxyMode.value === "none") return;
+    const current = getCurrentNetworkProxy();
+    emit("update:appSettings", {
+      ...props.appSettings,
+      networkProxy: { ...current, fallbackToDirectOnError: !!value },
+    });
+  },
+});
+
+const proxyUrlError = computed<string | null>(() => {
+  if (networkProxyMode.value !== "custom") return null;
+  const text = (props.appSettings.networkProxy?.proxyUrl ?? "").trim();
+  if (!text) return null;
+  try {
+    const u = new URL(text);
+    if (u.protocol !== "http:" && u.protocol !== "https:") {
+      return t("app.settings.networkProxyUrlInvalid");
+    }
+    return null;
+  } catch {
+    return t("app.settings.networkProxyUrlInvalid");
+  }
+});
 </script>
 
 <template>
@@ -115,6 +151,20 @@ const commitNetworkProxyUrlDraft = () => {
       {{ t("app.settings.networkProxyDescription") }}
     </p>
 
+    <div v-if="networkProxyMode !== 'none'" class="mt-1 flex items-center justify-between gap-2">
+      <span class="text-[10px] text-muted-foreground">
+        {{ t("app.settings.networkProxyFallbackLabel") }}
+      </span>
+      <Switch
+        data-testid="settings-network-proxy-fallback-direct"
+        :model-value="fallbackToDirectOnError"
+        @update:model-value="(v) => (fallbackToDirectOnError = !!v)"
+      />
+    </div>
+    <p v-if="networkProxyMode !== 'none'" class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
+      {{ t("app.settings.networkProxyFallbackHint") }}
+    </p>
+
     <div v-if="networkProxyMode === 'custom'" class="mt-1 flex items-center gap-2">
       <span class="text-[9px] text-muted-foreground uppercase tracking-wider shrink-0">
         {{ t("app.settings.networkProxyUrlLabel") }}:
@@ -128,6 +178,10 @@ const commitNetworkProxyUrlDraft = () => {
         @keydown.enter.prevent="commitNetworkProxyUrlDraft"
       />
     </div>
+
+    <p v-if="proxyUrlError" class="mt-0.5 text-[9px] text-red-600 dark:text-red-400 leading-snug">
+      {{ proxyUrlError }}
+    </p>
 
     <p v-if="networkProxyMode === 'custom'" class="mt-0.5 text-[9px] text-muted-foreground leading-snug">
       {{ t("app.settings.networkProxyUrlHint") }}

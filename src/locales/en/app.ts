@@ -102,8 +102,12 @@ const app = {
     networkProxyModeNone: "No proxy",
     networkProxyModeSystem: "System proxy",
     networkProxyModeCustom: "Custom",
+    networkProxyFallbackLabel: "Fallback to direct on proxy failure",
+    networkProxyFallbackHint:
+      "When enabled, FFUI retries without proxy and shows a warning. When disabled, it fails fast (strict).",
     networkProxyUrlLabel: "Proxy URL",
     networkProxyUrlPlaceholder: "e.g. http://127.0.0.1:7890",
+    networkProxyUrlInvalid: "Invalid proxy URL (expected http://host:port or https://host:port).",
     networkProxyUrlHint:
       "Currently supports HTTP/HTTPS proxies (e.g. http://host:port). Changes take effect immediately.",
     performanceConcurrencyTitle: "Concurrency",

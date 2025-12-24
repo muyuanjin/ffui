@@ -25,6 +25,7 @@ const makeAppSettings = (): AppSettings => ({
   networkProxy: {
     mode: "custom",
     proxyUrl: "http://127.0.0.1:7890",
+    fallbackToDirectOnError: true,
   },
   uiScalePercent: 110,
   uiFontSizePercent: 120,
@@ -95,6 +96,7 @@ describe("backend settings contract", () => {
         networkProxy: {
           mode: "custom",
           proxyUrl: "http://127.0.0.1:7890",
+          fallbackToDirectOnError: true,
         },
         parallelismMode: "split",
         maxParallelJobs: 2,

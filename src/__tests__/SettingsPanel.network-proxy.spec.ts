@@ -108,6 +108,7 @@ describe("SettingsPanel network proxy settings", () => {
     expect(last.networkProxy).toEqual({
       mode: "custom",
       proxyUrl: "http://127.0.0.1:7890",
+      fallbackToDirectOnError: true,
     });
     await wrapper.setProps({ appSettings: last });
 
@@ -115,7 +116,10 @@ describe("SettingsPanel network proxy settings", () => {
     await nextTick();
     const emitted3 = wrapper.emitted("update:appSettings") ?? [];
     const last2 = emitted3[emitted3.length - 1]![0] as AppSettings;
-    expect(last2.networkProxy).toBeUndefined();
+    expect(last2.networkProxy).toMatchObject({
+      mode: "system",
+      fallbackToDirectOnError: true,
+    });
 
     wrapper.unmount();
   });

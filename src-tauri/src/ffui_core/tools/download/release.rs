@@ -1,6 +1,9 @@
 use anyhow::{Result, anyhow};
 
 #[cfg(not(test))]
+use anyhow::Context;
+
+#[cfg(not(test))]
 use crate::ffui_core::network_proxy;
 use crate::ffui_core::tools::types::*;
 use crate::sync_ext::MutexExt;
@@ -96,6 +99,41 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
     info
 }
 
+/// Remote check against GitHub Releases, with explicit proxy fallback behavior.
+///
+/// - When a custom/system proxy is configured, this first tries using the proxy.
+/// - When the request fails and fallback is enabled, it retries without proxy and
+///   returns a note that can be surfaced in the UI.
+#[cfg(not(test))]
+pub(crate) fn refresh_ffmpeg_release_from_github_checked()
+-> Result<(FfmpegStaticRelease, Option<String>)> {
+    let (tag, note) = fetch_ffmpeg_release_from_github_checked()?;
+    let version = semantic_version_from_tag(&tag);
+    let info = FfmpegStaticRelease {
+        version: version.clone(),
+        tag: tag.clone(),
+    };
+
+    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
+    *cache = Some(info.clone());
+    Ok((info, note))
+}
+
+#[cfg(not(test))]
+pub(crate) fn refresh_libavif_release_from_github_checked()
+-> Result<(LibavifRelease, Option<String>)> {
+    let (tag, note) = fetch_libavif_release_from_github_checked()?;
+    let version = semantic_version_from_tag(&tag);
+    let info = LibavifRelease {
+        version: version.clone(),
+        tag: tag.clone(),
+    };
+
+    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
+    *cache = Some(info.clone());
+    Ok((info, note))
+}
+
 #[cfg(not(test))]
 fn fetch_ffmpeg_release_from_github() -> Option<String> {
     use std::time::Duration;
@@ -158,6 +196,113 @@ fn fetch_libavif_release_from_github() -> Option<String> {
 
     let release: Release = resp.json().ok()?;
     Some(release.tag_name)
+}
+
+#[cfg(not(test))]
+fn build_client(
+    user_agent: &str,
+    timeout: std::time::Duration,
+    proxy: Option<reqwest::Proxy>,
+    force_no_proxy: bool,
+) -> Result<reqwest::blocking::Client> {
+    use reqwest::blocking::Client;
+
+    let mut builder = Client::builder().timeout(timeout).user_agent(user_agent);
+    if force_no_proxy {
+        builder = builder.no_proxy();
+    }
+    if let Some(proxy) = proxy {
+        builder = builder.proxy(proxy);
+    }
+    builder.build().context("failed to build HTTP client")
+}
+
+#[cfg(not(test))]
+fn fetch_github_latest_tag_checked(
+    url: &str,
+    user_agent: &str,
+) -> Result<(String, Option<String>)> {
+    use std::time::Duration;
+
+    let resolved = network_proxy::resolve_effective_proxy_once();
+    let force_no_proxy = resolved.is_no_proxy_mode();
+
+    let parsed = match network_proxy::parse_reqwest_proxy_for(&resolved) {
+        Ok(v) => v,
+        Err(err) => {
+            if resolved.fallback_to_direct_on_error() {
+                let client = build_client(user_agent, Duration::from_secs(5), None, true)?;
+                let tag = fetch_github_latest_tag(&client, url)?;
+                return Ok((
+                    tag,
+                    Some(format!(
+                        "[proxy] invalid proxy URL; falling back to direct: {err:#}"
+                    )),
+                ));
+            }
+            return Err(err);
+        }
+    };
+
+    if let Some(parsed) = parsed {
+        let proxy_client = build_client(
+            user_agent,
+            Duration::from_secs(5),
+            Some(parsed.proxy),
+            false,
+        )?;
+        match fetch_github_latest_tag(&proxy_client, url) {
+            Ok(tag) => return Ok((tag, None)),
+            Err(err) => {
+                if resolved.fallback_to_direct_on_error() {
+                    let direct = build_client(user_agent, Duration::from_secs(5), None, true)?;
+                    let tag = fetch_github_latest_tag(&direct, url)?;
+                    return Ok((
+                        tag,
+                        Some(format!(
+                            "[proxy] request failed; falling back to direct: {err:#}"
+                        )),
+                    ));
+                }
+                return Err(err);
+            }
+        }
+    }
+
+    let client = build_client(user_agent, Duration::from_secs(5), None, force_no_proxy)?;
+    let tag = fetch_github_latest_tag(&client, url)?;
+    Ok((tag, None))
+}
+
+#[cfg(not(test))]
+fn fetch_github_latest_tag(client: &reqwest::blocking::Client, url: &str) -> Result<String> {
+    let resp = client.get(url).send().context("request failed")?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("request failed with status {}", resp.status()));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Release {
+        tag_name: String,
+    }
+    let release: Release = resp.json().context("failed to parse JSON")?;
+    Ok(release.tag_name)
+}
+
+#[cfg(not(test))]
+fn fetch_ffmpeg_release_from_github_checked() -> Result<(String, Option<String>)> {
+    fetch_github_latest_tag_checked(
+        "https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest",
+        "ffui/ffmpeg-static-updater",
+    )
+}
+
+#[cfg(not(test))]
+fn fetch_libavif_release_from_github_checked() -> Result<(String, Option<String>)> {
+    fetch_github_latest_tag_checked(
+        "https://api.github.com/repos/AOMediaCodec/libavif/releases/latest",
+        "ffui/libavif-updater",
+    )
 }
 
 #[cfg(test)]

@@ -165,6 +165,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   });
 
   let updateHandle: Update | null = null;
+  let lastCheckProxy: string | null = null;
   let autoCheckTriggered = false;
 
   type UpdaterPatch = Partial<NonNullable<AppSettings["updater"]>>;
@@ -224,11 +225,24 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     downloadedBytes.value = 0;
     totalBytes.value = null;
     updateHandle = null;
+    lastCheckProxy = null;
 
     try {
       const proxy = await prepareAppUpdaterProxy();
+      const fallbackToDirectOnError = appSettings.value?.networkProxy?.fallbackToDirectOnError ?? true;
       const { check } = await import("@tauri-apps/plugin-updater");
-      const update = await check(proxy ? { proxy } : undefined);
+      let update: Update | null = null;
+      try {
+        update = await check(proxy ? { proxy } : undefined);
+        if (proxy) lastCheckProxy = proxy;
+      } catch (error) {
+        if (proxy && fallbackToDirectOnError) {
+          update = await check();
+          lastCheckProxy = null;
+        } else {
+          throw error;
+        }
+      }
       const now = Date.now();
 
       lastCheckedAtMs.value = now;
@@ -284,20 +298,41 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     totalBytes.value = null;
 
     try {
-      await updateHandle.downloadAndInstall((event: DownloadEvent) => {
-        if (event.event === "Started") {
-          const len = event.data.contentLength;
-          totalBytes.value = typeof len === "number" ? len : null;
-          downloadedBytes.value = 0;
-          return;
-        }
-        if (event.event === "Progress") {
-          const chunk = event.data.chunkLength;
-          if (typeof chunk === "number" && Number.isFinite(chunk)) {
-            downloadedBytes.value += chunk;
+      const runInstall = async (handle: Update) => {
+        await handle.downloadAndInstall((event: DownloadEvent) => {
+          if (event.event === "Started") {
+            const len = event.data.contentLength;
+            totalBytes.value = typeof len === "number" ? len : null;
+            downloadedBytes.value = 0;
+            return;
           }
+          if (event.event === "Progress") {
+            const chunk = event.data.chunkLength;
+            if (typeof chunk === "number" && Number.isFinite(chunk)) {
+              downloadedBytes.value += chunk;
+            }
+          }
+        });
+      };
+
+      try {
+        await runInstall(updateHandle);
+      } catch (error) {
+        const fallbackToDirectOnError = appSettings.value?.networkProxy?.fallbackToDirectOnError ?? true;
+        if (lastCheckProxy && fallbackToDirectOnError) {
+          const { check } = await import("@tauri-apps/plugin-updater");
+          const retry = await check();
+          if (retry?.available) {
+            updateHandle = retry;
+            lastCheckProxy = null;
+            await runInstall(retry);
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
         }
-      });
+      }
 
       if (typeof updateHandle?.close === "function") {
         await updateHandle.close();

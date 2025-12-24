@@ -77,8 +77,9 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
         format!("starting auto-download for {}", tool_binary_name(kind)),
     );
 
-    let result = match kind {
+    let result: Result<(PathBuf, Option<String>)> = match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
+            let proxy_note: Option<String>;
             let url = if matches!(kind, ExternalToolKind::Ffmpeg) {
                 default_ffmpeg_download_url()?
             } else {
@@ -104,18 +105,26 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                 ));
                 // Download to a temporary file first to avoid surfacing a
                 // truncated/corrupted binary under the final name on crashes.
-                if let Err(err) = download_file_with_aria2c(&url, &tmp_path) {
-                    crate::debug_eprintln!(
-                        "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
-                    );
-                    download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
-                        mark_download_progress(kind, downloaded, total);
-                    })?;
+                match download_file_with_aria2c(&url, &tmp_path) {
+                    Ok(info) => {
+                        proxy_note = info.message;
+                    }
+                    Err(err) => {
+                        crate::debug_eprintln!(
+                            "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
+                        );
+                        let info =
+                            download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
+                                mark_download_progress(kind, downloaded, total);
+                            })?;
+                        proxy_note = info.message;
+                    }
                 }
             } else {
-                download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
+                let info = download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
                     mark_download_progress(kind, downloaded, total);
                 })?;
+                proxy_note = info.message;
             }
             if let Some((stop, handle)) = probe {
                 stop.store(true, Ordering::Relaxed);
@@ -162,13 +171,14 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
                 mark_download_progress(kind, meta.len(), Some(meta.len()));
             }
 
-            Ok(dest_path)
+            Ok((dest_path, proxy_note))
         }
         ExternalToolKind::Avifenc => {
             let url = default_avifenc_zip_url()?;
-            let bytes = download_bytes_with_reqwest(&url, |downloaded, total| {
+            let (bytes, info) = download_bytes_with_reqwest(&url, |downloaded, total| {
                 mark_download_progress(kind, downloaded, total);
             })?;
+            let proxy_note = info.message;
 
             let dir = tools_dir()?;
             let filename = downloaded_tool_filename(tool_binary_name(kind));
@@ -213,20 +223,24 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             if let Ok(meta) = std::fs::metadata(&dest_path) {
                 mark_download_progress(kind, meta.len(), Some(meta.len()));
             }
-            Ok(dest_path)
+            Ok((dest_path, proxy_note))
         }
     };
 
     match result {
-        Ok(path) => {
-            mark_download_finished(
-                kind,
-                format!(
-                    "auto-download completed for {} (path: {})",
-                    tool_binary_name(kind),
-                    path.display()
-                ),
+        Ok((path, proxy_note)) => {
+            let mut message = format!(
+                "auto-download completed for {} (path: {})",
+                tool_binary_name(kind),
+                path.display()
             );
+            if let Some(note) = proxy_note.as_ref()
+                && !note.trim().is_empty()
+            {
+                message.push_str("; ");
+                message.push_str(note.trim());
+            }
+            mark_download_finished(kind, message);
             Ok(path)
         }
         Err(err) => {

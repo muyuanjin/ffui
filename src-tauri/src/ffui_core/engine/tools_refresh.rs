@@ -3,10 +3,12 @@ use crate::ffui_core::settings;
 use crate::ffui_core::tools::{
     ExternalToolKind, ExternalToolStatus, cached_ffmpeg_release_version,
     cached_tool_status_snapshot, finish_tool_status_refresh,
-    hydrate_remote_version_cache_from_settings, try_begin_tool_status_refresh,
+    hydrate_remote_version_cache_from_settings, refresh_ffmpeg_static_release_from_github_checked,
+    refresh_libavif_release_from_github_checked, try_begin_tool_status_refresh,
     try_refresh_ffmpeg_static_release_from_github, try_refresh_libavif_release_from_github,
     ttl_hit,
 };
+use crate::ffui_core::tools::{mark_tool_error, mark_tool_message};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
@@ -165,8 +167,19 @@ impl TranscodingEngine {
                 let mut remote_updated = false;
                 let mut should_persist_settings = false;
                 if should_check_ffmpeg {
-                    match try_refresh_ffmpeg_static_release_from_github() {
-                        Some((version, tag)) => {
+                    let refreshed = if manual_remote_check {
+                        refresh_ffmpeg_static_release_from_github_checked()
+                            .map(|(version, tag, note)| (Some(version), Some(tag), note))
+                    } else {
+                        Ok(
+                            try_refresh_ffmpeg_static_release_from_github()
+                                .map(|(version, tag)| (Some(version), Some(tag), None))
+                                .unwrap_or((None, None, None)),
+                        )
+                    };
+
+                    match refreshed {
+                        Ok((Some(version), Some(tag), note)) => {
                             remote_updated = true;
                             should_persist_settings = true;
                             let mut state = engine_clone
@@ -184,18 +197,41 @@ impl TranscodingEngine {
                                     tag: Some(tag),
                                 },
                             );
+
+                            if manual_remote_check {
+                                if let Some(note) = note {
+                                    mark_tool_message(ExternalToolKind::Ffmpeg, note.clone());
+                                    mark_tool_message(ExternalToolKind::Ffprobe, note);
+                                }
+                            }
                         }
-                        None => {
+                        Ok((_v, _t, _note)) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
+                        }
+                        Err(err) => {
+                            let msg = format!("[proxy] remote version check failed: {err:#}");
+                            mark_tool_error(ExternalToolKind::Ffmpeg, msg.clone());
+                            mark_tool_error(ExternalToolKind::Ffprobe, msg);
                         }
                     }
                 }
 
                 if should_check_libavif {
-                    match try_refresh_libavif_release_from_github() {
-                        Some((version, tag)) => {
+                    let refreshed = if manual_remote_check {
+                        refresh_libavif_release_from_github_checked()
+                            .map(|(version, tag, note)| (Some(version), Some(tag), note))
+                    } else {
+                        Ok(
+                            try_refresh_libavif_release_from_github()
+                                .map(|(version, tag)| (Some(version), Some(tag), None))
+                                .unwrap_or((None, None, None)),
+                        )
+                    };
+
+                    match refreshed {
+                        Ok((Some(version), Some(tag), note)) => {
                             remote_updated = true;
                             should_persist_settings = true;
                             let mut state = engine_clone
@@ -213,11 +249,21 @@ impl TranscodingEngine {
                                     tag: Some(tag),
                                 },
                             );
+
+                            if manual_remote_check {
+                                if let Some(note) = note {
+                                    mark_tool_message(ExternalToolKind::Avifenc, note);
+                                }
+                            }
                         }
-                        None => {
+                        Ok((_v, _t, _note)) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] libavif remote version check failed (best-effort)"
                             );
+                        }
+                        Err(err) => {
+                            let msg = format!("[proxy] remote version check failed: {err:#}");
+                            mark_tool_error(ExternalToolKind::Avifenc, msg);
                         }
                     }
                 }

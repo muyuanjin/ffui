@@ -26,9 +26,9 @@ pub(crate) use probe::verify_tool_binary;
 pub(crate) use runtime_state::{
     cached_ffmpeg_release_version, cached_libavif_release_version, cached_tool_status_snapshot,
     clear_tool_runtime_error, finish_tool_status_refresh, hydrate_last_tool_download_from_settings,
-    hydrate_remote_version_cache_from_settings, last_tool_download_metadata,
-    set_app_handle as set_tool_event_app_handle, try_begin_tool_status_refresh, ttl_hit,
-    update_latest_status_snapshot,
+    hydrate_remote_version_cache_from_settings, last_tool_download_metadata, mark_tool_error,
+    mark_tool_message, set_app_handle as set_tool_event_app_handle, try_begin_tool_status_refresh,
+    ttl_hit, update_latest_status_snapshot,
 };
 pub(crate) use status::tool_status;
 pub use types::{ExternalToolCandidate, ExternalToolKind, ExternalToolStatus};
@@ -157,6 +157,32 @@ pub(crate) fn try_refresh_ffmpeg_static_release_from_github() -> Option<(String,
 pub(crate) fn try_refresh_libavif_release_from_github() -> Option<(String, String)> {
     let info = download::try_refresh_libavif_release_from_github()?;
     Some((info.version, info.tag))
+}
+
+#[cfg(not(test))]
+pub(crate) fn refresh_ffmpeg_static_release_from_github_checked()
+-> anyhow::Result<(String, String, Option<String>)> {
+    let (info, note) = download::refresh_ffmpeg_release_from_github_checked()?;
+    Ok((info.version, info.tag, note))
+}
+
+#[cfg(not(test))]
+pub(crate) fn refresh_libavif_release_from_github_checked()
+-> anyhow::Result<(String, String, Option<String>)> {
+    let (info, note) = download::refresh_libavif_release_from_github_checked()?;
+    Ok((info.version, info.tag, note))
+}
+
+#[cfg(test)]
+pub(crate) fn refresh_ffmpeg_static_release_from_github_checked()
+-> anyhow::Result<(String, String, Option<String>)> {
+    Err(anyhow::anyhow!("network fetch is disabled in unit tests"))
+}
+
+#[cfg(test)]
+pub(crate) fn refresh_libavif_release_from_github_checked()
+-> anyhow::Result<(String, String, Option<String>)> {
+    Err(anyhow::anyhow!("network fetch is disabled in unit tests"))
 }
 
 #[cfg(all(test, not(windows)))]

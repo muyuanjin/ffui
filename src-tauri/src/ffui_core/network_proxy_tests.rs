@@ -44,6 +44,7 @@ fn apply_system_proxy_settings() {
     apply_settings(Some(&NetworkProxySettings {
         mode: NetworkProxyMode::System,
         proxy_url: None,
+        fallback_to_direct_on_error: true,
     }));
 }
 
@@ -82,6 +83,7 @@ fn aria2c_args_use_resolved_proxy_snapshot() {
     apply_settings(Some(&NetworkProxySettings {
         mode: NetworkProxyMode::Custom,
         proxy_url: Some("http://127.0.0.1:7890".to_string()),
+        fallback_to_direct_on_error: true,
     }));
     let resolved = resolve_effective_proxy_once();
     let mut cmd = std::process::Command::new("aria2c");
@@ -95,6 +97,7 @@ fn aria2c_args_use_resolved_proxy_snapshot() {
     apply_settings(Some(&NetworkProxySettings {
         mode: NetworkProxyMode::None,
         proxy_url: None,
+        fallback_to_direct_on_error: true,
     }));
     let resolved = resolve_effective_proxy_once();
     let mut cmd = std::process::Command::new("aria2c");

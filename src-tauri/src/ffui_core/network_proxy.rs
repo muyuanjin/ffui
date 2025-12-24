@@ -1,5 +1,6 @@
 use std::sync::RwLock;
 
+use anyhow::Context;
 use once_cell::sync::Lazy;
 
 use crate::ffui_core::settings::{NetworkProxyMode, NetworkProxySettings};
@@ -9,12 +10,14 @@ use crate::sync_ext::RwLockExt;
 struct NetworkProxyConfig {
     mode: NetworkProxyMode,
     custom_proxy_url: Option<String>,
+    fallback_to_direct_on_error: bool,
 }
 
 static NETWORK_PROXY_CONFIG: Lazy<RwLock<NetworkProxyConfig>> = Lazy::new(|| {
     RwLock::new(NetworkProxyConfig {
         mode: NetworkProxyMode::System,
         custom_proxy_url: None,
+        fallback_to_direct_on_error: true,
     })
 });
 
@@ -22,12 +25,37 @@ static NETWORK_PROXY_CONFIG: Lazy<RwLock<NetworkProxyConfig>> = Lazy::new(|| {
 pub struct ResolvedNetworkProxy {
     mode: NetworkProxyMode,
     proxy_url: Option<String>,
+    fallback_to_direct_on_error: bool,
 }
 
 impl ResolvedNetworkProxy {
     pub fn proxy_url(&self) -> Option<&str> {
         self.proxy_url.as_deref()
     }
+
+    pub fn fallback_to_direct_on_error(&self) -> bool {
+        self.fallback_to_direct_on_error
+    }
+
+    pub fn is_no_proxy_mode(&self) -> bool {
+        matches!(self.mode, NetworkProxyMode::None)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedReqwestProxy {
+    pub proxy: reqwest::Proxy,
+}
+
+pub fn parse_reqwest_proxy_for(
+    resolved: &ResolvedNetworkProxy,
+) -> anyhow::Result<Option<ParsedReqwestProxy>> {
+    let Some(url) = resolved.proxy_url() else {
+        return Ok(None);
+    };
+
+    let proxy = reqwest::Proxy::all(url).with_context(|| format!("invalid proxy URL: {}", url))?;
+    Ok(Some(ParsedReqwestProxy { proxy }))
 }
 
 pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
@@ -39,76 +67,51 @@ pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
         .filter(|s| !s.is_empty());
     state.mode = mode;
     state.custom_proxy_url = proxy_url;
+    state.fallback_to_direct_on_error = settings
+        .map(|s| s.fallback_to_direct_on_error)
+        .unwrap_or(true);
 }
 
-pub fn snapshot() -> (NetworkProxyMode, Option<String>) {
+pub fn snapshot() -> (NetworkProxyMode, Option<String>, bool) {
     let state = NETWORK_PROXY_CONFIG.read_unpoisoned();
-    (state.mode, state.custom_proxy_url.clone())
+    (
+        state.mode,
+        state.custom_proxy_url.clone(),
+        state.fallback_to_direct_on_error,
+    )
 }
 
 pub fn resolve_effective_proxy_once() -> ResolvedNetworkProxy {
-    let (mode, proxy_url) = snapshot();
+    let (mode, proxy_url, fallback_to_direct_on_error) = snapshot();
     let proxy_url = match mode {
         NetworkProxyMode::None => None,
         NetworkProxyMode::Custom => proxy_url,
         NetworkProxyMode::System => proxy_from_env().or_else(proxy_from_platform_system_proxy),
     };
-    ResolvedNetworkProxy { mode, proxy_url }
+    ResolvedNetworkProxy {
+        mode,
+        proxy_url,
+        fallback_to_direct_on_error,
+    }
 }
 
-pub fn apply_reqwest_builder(
-    builder: reqwest::ClientBuilder,
-    resolved: &ResolvedNetworkProxy,
-) -> reqwest::ClientBuilder {
-    apply_reqwest_proxy_impl(
-        builder,
-        resolved,
-        |builder| builder.no_proxy(),
-        |builder, proxy| builder.proxy(proxy),
-    )
-}
-
+#[cfg(not(test))]
 pub fn apply_reqwest_blocking_builder(
     builder: reqwest::blocking::ClientBuilder,
     resolved: &ResolvedNetworkProxy,
 ) -> reqwest::blocking::ClientBuilder {
-    apply_reqwest_proxy_impl(
-        builder,
-        resolved,
-        |builder| builder.no_proxy(),
-        |builder, proxy| builder.proxy(proxy),
-    )
-}
-
-fn apply_reqwest_proxy_impl<T>(
-    builder: T,
-    resolved: &ResolvedNetworkProxy,
-    no_proxy: impl Fn(T) -> T,
-    with_proxy: impl Fn(T, reqwest::Proxy) -> T,
-) -> T {
-    #[cfg(test)]
-    {
-        let _ = (resolved, &with_proxy);
-        // Unit tests should be deterministic and avoid inheriting platform/system
-        // proxy configuration (common on Windows via WinHTTP/WinINet).
-        no_proxy(builder)
-    }
-
-    #[cfg(not(test))]
-    {
-        let mut builder = builder;
-        match resolved.mode {
-            NetworkProxyMode::None => return no_proxy(builder),
-            NetworkProxyMode::Custom | NetworkProxyMode::System => {
-                if let Some(url) = resolved.proxy_url()
-                    && let Ok(proxy) = reqwest::Proxy::all(url)
-                {
-                    builder = with_proxy(builder, proxy);
-                }
+    let mut builder = builder;
+    match resolved.mode {
+        NetworkProxyMode::None => builder = builder.no_proxy(),
+        NetworkProxyMode::Custom | NetworkProxyMode::System => {
+            if let Some(url) = resolved.proxy_url()
+                && let Ok(proxy) = reqwest::Proxy::all(url)
+            {
+                builder = builder.proxy(proxy);
             }
         }
-        builder
     }
+    builder
 }
 
 pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNetworkProxy) {
@@ -147,7 +150,7 @@ pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNet
 ///   - otherwise, return the platform/system proxy (best-effort) as an explicit
 ///     override because `reqwest` defaults do not read platform proxy settings.
 pub fn resolve_updater_proxy_override_once() -> Option<String> {
-    let (mode, custom_proxy_url) = snapshot();
+    let (mode, custom_proxy_url, _fallback) = snapshot();
     match mode {
         NetworkProxyMode::None => None,
         NetworkProxyMode::Custom => custom_proxy_url,
