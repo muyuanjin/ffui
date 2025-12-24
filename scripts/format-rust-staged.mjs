@@ -12,17 +12,6 @@ function run(command, args, options = {}) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 
-function runCapture(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    ...options,
-    encoding: "utf8",
-  });
-
-  if (result.error) throw result.error;
-  if (result.status !== 0) return null;
-  return result.stdout ?? "";
-}
-
 function commandExists(command) {
   const isWindows = process.platform === "win32";
   const result = spawnSync(isWindows ? "where" : "which", [command], {

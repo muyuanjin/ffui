@@ -30,12 +30,12 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ## Build, Test, and Development Commands
 
-- `npm install` — install all JavaScript and Tauri CLI dependencies.
-- `npm run dev` — start the Vite dev server for the web frontend only.
-- `npm run tauri dev` — run the full Tauri desktop app in development mode.
-- `npm run build` — type-check with `vue-tsc` and build the production frontend bundle.
+- `corepack enable && pnpm install` — install all JavaScript and Tauri CLI dependencies.
+- `pnpm run dev` — start the Vite dev server for the web frontend only.
+- `pnpm run tauri dev` — run the full Tauri desktop app in development mode.
+- `pnpm run build` — type-check with `vue-tsc` and build the production frontend bundle.
 - From `src-tauri`, use `cargo check` and `cargo build` to validate and build the Rust backend.
-- Do NOT run `npm test` directly from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `npx vitest src/__tests__/MainApp.queue-sorting-and-filters.spec.ts` (or another focused `npx vitest` invocation) as the "equivalent frontend test command" required by this spec.
+- Do NOT run `pnpm run test:watch` from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `pnpm vitest run src/__tests__/MainApp.queue-sorting-and-filters.spec.ts` (or another focused `pnpm vitest run` invocation) as the "equivalent frontend test command" required by this spec.
 
 ## Release Guidelines
 
@@ -67,7 +67,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 - DATE: 2025-12-02
 - CONTEXT: 在 FFUI 项目中多次出现“添加任务/拖拽后崩溃”这类低级回归，修复时没有配套前端/后端/接口测试，导致相同类型问题反复出现，用户明确要求把测试纪律写入 AGENTS。
-- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `npm test`（或等价前端测试命令）和 `cargo test`，如果某一侧当前无法覆盖，需在答复中说明原因和人工验证步骤。
+- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 `cargo test`，如果某一侧当前无法覆盖，需在答复中说明原因和人工验证步骤。
 - ANTI-PATTERN: 不允许“只修代码不写测试”，也不允许在测试失败或尚未运行时就宣布本次问题已解决；更不允许把针对同一接口或字段的不一致问题留到以后再修。
 
 ## Commit & Pull Request Guidelines

@@ -52,21 +52,21 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 
 ![Preset setup wizard (first launch, English)](docs/images/onboarding-en.webp)
 
-To refresh the UI screenshots after UI changes, run `npm run docs:screenshots`.
-If Playwright browsers are not installed on this machine, run `npx playwright install`.
+To refresh the UI screenshots after UI changes, run `pnpm run docs:screenshots`.
+If Playwright browsers are not installed on this machine, run `pnpm exec playwright install`.
 
 The script can use your local media folder to populate real filenames and preview thumbnails:
 
 ```bash
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
 # Optional: override UI scale & text size for screenshots
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
 # Optional: choose the frame timestamp for thumbnails (default: 00:05:00)
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
 # Optional: choose the frame timestamp used for compare screenshots/GIF (default: --thumb-time)
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
 # Optional: force compare output format (default: gif)
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
 ```
 
 ## Technology stack
@@ -80,7 +80,7 @@ npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs 
 To build and run the desktop app you need:
 
 - A Rust toolchain (stable) with Cargo.
-- Node.js and npm.
+- Node.js (Corepack enabled) and pnpm.
 - The Tauri 2 CLI and its platform-specific prerequisites (see the Tauri documentation).
 
 ## Getting started
@@ -88,7 +88,8 @@ To build and run the desktop app you need:
 Clone this repository and install the JavaScript dependencies:
 
 ```bash
-npm install
+corepack enable
+pnpm install
 ```
 
 ### Frontend-only development
@@ -96,7 +97,7 @@ npm install
 Run the Vite dev server and open the web UI in a browser:
 
 ```bash
-npm run dev
+pnpm run dev
 # default: http://localhost:5188
 ```
 
@@ -105,11 +106,11 @@ npm run dev
 Build the frontend and start the Tauri dev window:
 
 ```bash
-npm run tauri:dev
+pnpm run tauri:dev
 # equivalent to: vite build && tauri dev
 ```
 
-Note: `tauri:dev` uses `vite build` for speed and does not run `vue-tsc`. Run `npm run build` for a strict type-checking build.
+Note: `tauri:dev` uses `vite build` for speed and does not run `vue-tsc`. Run `pnpm run build` for a strict type-checking build.
 
 Tauri attaches to the dev server at `http://localhost:5188` as configured in `tauri.conf.json` and `vite.config.ts`.
 
@@ -118,7 +119,7 @@ Tauri attaches to the dev server at `http://localhost:5188` as configured in `ta
 Build the production frontend bundle:
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 Build the Rust backend and desktop bundle:
@@ -132,7 +133,7 @@ cargo build --release
 On platforms where the Tauri CLI is available you can also build the desktop binary (no installer bundles) from the repo root:
 
 ```bash
-npm run build:exe
+pnpm run build:exe
 # runs: tauri build --no-bundle
 ```
 
@@ -146,7 +147,7 @@ FFUI can check for updates and install them in-app using Tauri's updater plugin.
 
 - The updater flow applies to standard Tauri bundles (MSI/NSIS/AppImage/dmg). The extra Windows portable single-file executable is not updated in-place.
 - Maintainers must configure signing keys:
-  - Generate keys: `npm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
+  - Generate keys: `pnpm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
   - Set `src-tauri/tauri.conf.json` `plugins.updater.pubkey` to the generated public key string
   - Set GitHub Actions secrets: `TAURI_SIGNING_PRIVATE_KEY` (and optional `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`)
 - Key storage & rotation:
@@ -161,9 +162,9 @@ The repository contains unit tests for both the frontend and the Rust backend.
 
 ```bash
 # non-interactive (recommended for CI):
-npm test
+pnpm test
 # interactive watch mode:
-npm run test:watch
+pnpm run test:watch
 ```
 
 - Backend tests (Rust):
@@ -179,13 +180,13 @@ The repository includes basic duplicate-code checks for both frontend and backen
 
 ```bash
 # Frontend (jscpd), reports in .jscpd/
-npm run dup:frontend
+pnpm run dup:frontend
 
 # Backend (Rust, jscpd), reports in .jscpd/
-npm run dup:rust
+pnpm run dup:rust
 
 # Run both
-npm run dup:all
+pnpm run dup:all
 ```
 
 ## Directory layout
@@ -306,17 +307,17 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 
 ![预设引导（首次启动，中文）](docs/images/onboarding-zh-CN.webp)
 
-修改 UI 后可用 `npm run docs:screenshots` 自动重新生成界面截图。
-首次在本机运行该脚本时，如未安装 Playwright 浏览器，请先执行 `npx playwright install`。
+修改 UI 后可用 `pnpm run docs:screenshots` 自动重新生成界面截图。
+首次在本机运行该脚本时，如未安装 Playwright 浏览器，请先执行 `pnpm exec playwright install`。
 
 脚本可以读取你的本地影视目录来填充真实文件名，并从视频中截帧生成预览图：
 
 ```bash
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
 # 可选：覆盖截图用的界面缩放与字号
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
 # 可选：指定截帧时间点（默认：00:05:00）
-npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
 ```
 
 ## 技术栈
@@ -330,7 +331,7 @@ npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs 
 构建并运行桌面应用需要：
 
 - 已安装的 Rust 工具链（稳定版）及 Cargo。
-- Node.js 与 npm。
+- Node.js（启用 Corepack）与 pnpm。
 - Tauri 2 CLI 以及平台相关依赖（可参考 Tauri 官方文档）。
 
 ## 快速开始
@@ -338,24 +339,25 @@ npm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs 
 在仓库根目录执行：
 
 ```bash
-npm install
+corepack enable
+pnpm install
 ```
 
 ### 仅运行前端（浏览器）
 
 ```bash
-npm run dev
+pnpm run dev
 # 默认开发地址： http://localhost:5188
 ```
 
 ### 运行桌面应用（Tauri）
 
 ```bash
-npm run tauri:dev
+pnpm run tauri:dev
 # 等价于：vite build && tauri dev
 ```
 
-注意：`tauri:dev` 为了速度使用 `vite build`，不会运行 `vue-tsc` 类型检查；如需严格构建请使用 `npm run build`。
+注意：`tauri:dev` 为了速度使用 `vite build`，不会运行 `vue-tsc` 类型检查；如需严格构建请使用 `pnpm run build`。
 
 Tauri 会连接到 `tauri.conf.json` 和 `vite.config.ts` 中配置的 `http://localhost:5188` 前端开发服务。
 
@@ -364,7 +366,7 @@ Tauri 会连接到 `tauri.conf.json` 和 `vite.config.ts` 中配置的 `http://l
 构建生产环境前端资源：
 
 ```bash
-npm run build
+pnpm run build
 ```
 
 单独构建 Rust 后端：
@@ -378,7 +380,7 @@ cargo build --release
 在支持 Tauri CLI 的平台上，也可以从仓库根目录构建桌面可执行文件（不打包安装器）：
 
 ```bash
-npm run build:exe
+pnpm run build:exe
 # 实际执行：tauri build --no-bundle
 ```
 
@@ -392,7 +394,7 @@ FFUI 支持使用 Tauri 官方 updater 插件在应用内检查更新并安装�
 
 - 仅适用于标准 Tauri 安装包/构建产物（MSI/NSIS/AppImage/dmg）；Windows 额外上传的绿色便携版单文件 exe 不支持原地自更新。
 - 维护者需要配置签名密钥：
-  - 生成密钥：`npm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
+  - 生成密钥：`pnpm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci`
   - 将生成的公钥内容填入 `src-tauri/tauri.conf.json` 的 `plugins.updater.pubkey`
   - 在 GitHub Actions 里配置 secrets：`TAURI_SIGNING_PRIVATE_KEY`（以及可选的 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`）
 - 密钥保管与轮换：
@@ -407,9 +409,9 @@ FFUI 支持使用 Tauri 官方 updater 插件在应用内检查更新并安装�
 
 ```bash
 # 非交互单次运行（推荐 CI）：
-npm test
+pnpm test
 # 交互 watch 模式：
-npm run test:watch
+pnpm run test:watch
 ```
 
 - 后端（Rust）：
@@ -425,13 +427,13 @@ cargo test
 
 ```bash
 # 前端（jscpd），报告输出在 .jscpd/
-npm run dup:frontend
+pnpm run dup:frontend
 
 # 后端（Rust，jscpd），报告输出在 .jscpd/
-npm run dup:rust
+pnpm run dup:rust
 
 # 一次跑完两侧
-npm run dup:all
+pnpm run dup:all
 ```
 
 ## 目录结构

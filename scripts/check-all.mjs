@@ -122,16 +122,15 @@ async function runStep(label, command, args, options = {}) {
   }
 }
 
-async function runNpmStep(label, npmArgs, options = {}) {
-  const npmExecPath = process.env.npm_execpath;
-
-  if (npmExecPath) {
-    await runStep(label, process.execPath, [npmExecPath, ...npmArgs], options);
+async function runPnpmStep(label, pnpmArgs, options = {}) {
+  if (process.platform === "win32") {
+    // `spawn("pnpm.cmd")` may fail with EINVAL in some Windows execution layers.
+    // Running via cmd.exe keeps this step robust while preserving output piping.
+    await runStep(label, "cmd.exe", ["/d", "/s", "/c", "pnpm", ...pnpmArgs], options);
     return;
   }
 
-  const fallbackNpm = process.platform === "win32" ? "npm.cmd" : "npm";
-  await runStep(label, fallbackNpm, npmArgs, options);
+  await runStep(label, "pnpm", pnpmArgs, options);
 }
 
 function resolveFrontendPlatform(opts) {
@@ -149,28 +148,27 @@ function resolveFrontendPlatform(opts) {
   return "linux";
 }
 
-async function runFrontendNpmStep(label, npmArgs, opts, options = {}) {
+async function runFrontendPnpmStep(label, pnpmArgs, opts, options = {}) {
   const frontendPlatform = resolveFrontendPlatform(opts);
   if (frontendPlatform !== "windows") {
-    await runNpmStep(label, npmArgs, options);
+    await runPnpmStep(label, pnpmArgs, options);
     return;
   }
 
   if (process.platform === "win32") {
-    await runNpmStep(label, npmArgs, options);
+    await runPnpmStep(label, pnpmArgs, options);
     return;
   }
 
   if (process.platform === "linux" && isWsl()) {
-    const windowsNodeExe = resolveWindowsNodeExeOnWslHost();
-    const windowsNpmCli = resolveWindowsNpmCliJsOnWslHost();
-    if (!windowsNodeExe || !windowsNpmCli) {
+    const windowsPnpmCmd = resolveWindowsPnpmCmdOnWslHost();
+    if (!windowsPnpmCmd) {
       throw new Error(
-        "frontend-platform=windows on WSL requires Windows Node.js (node.exe + npm-cli.js) via interop, or set frontend-platform=linux with Linux node_modules installed.",
+        "frontend-platform=windows on WSL requires a usable Windows pnpm (pnpm.cmd via Corepack), or set frontend-platform=linux with Linux node_modules installed.",
       );
     }
 
-    await runStep(label, windowsNodeExe, [windowsNpmCli, ...npmArgs], {
+    await runStep(label, windowsPnpmCmd, pnpmArgs, {
       ...options,
       cwd: path.resolve(options.cwd ?? process.cwd()),
     });
@@ -262,30 +260,15 @@ function resolveWindowsCargoExeOnWslHost() {
   return wslPath;
 }
 
-function resolveWindowsNodeExeOnWslHost() {
+function resolveWindowsPnpmCmdOnWslHost() {
   if (process.platform !== "linux" || !isWsl()) return null;
 
-  const direct = runCaptureFirstLine("which", ["node.exe"]);
-  if (direct) return direct;
-
-  const windowsPath = runCaptureFirstLine("where.exe", ["node.exe"]);
-  if (!windowsPath) return null;
-
-  const wslPath = runCaptureFirstLine("wslpath", ["-u", "-a", windowsPath]);
-  return wslPath;
-}
-
-function resolveWindowsNpmCliJsOnWslHost() {
-  if (process.platform !== "linux" || !isWsl()) return null;
-
-  const npmCmdWin = runCaptureFirstLine("where.exe", ["npm.cmd"]);
-  if (!npmCmdWin) return null;
-
-  const npmCliWin = path.win32.join(path.win32.dirname(npmCmdWin), "node_modules", "npm", "bin", "npm-cli.js");
-  const npmCliWsl = runCaptureFirstLine("wslpath", ["-u", "-a", npmCliWin]);
-  if (!npmCliWsl) return null;
-  if (!fs.existsSync(npmCliWsl)) return null;
-  return npmCliWin;
+  const pnpmCmdWin = runCaptureFirstLine("where.exe", ["pnpm.cmd"]);
+  if (!pnpmCmdWin) return null;
+  const pnpmCmdWsl = runCaptureFirstLine("wslpath", ["-u", "-a", pnpmCmdWin]);
+  if (!pnpmCmdWsl) return null;
+  if (!fs.existsSync(pnpmCmdWsl)) return null;
+  return pnpmCmdWsl;
 }
 
 function resolveWslCargoPathOnWindowsHost() {
@@ -665,12 +648,13 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
 
 const opts = parseArgs(process.argv.slice(2));
 
-await runFrontendNpmStep("Frontend formatting (prettier --check)", ["run", "format:check"], opts);
-await runFrontendNpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
-await runFrontendNpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
-await runFrontendNpmStep("i18n key check", ["run", "check:i18n"], opts);
-await runFrontendNpmStep("Duplicate check (frontend, jscpd)", ["run", "dup:frontend"], opts);
-await runFrontendNpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts);
+await runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "format:check"], opts);
+await runFrontendPnpmStep("Frontend lint (eslint)", ["run", "lint"], opts);
+await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
+await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
+await runFrontendPnpmStep("i18n key check", ["run", "check:i18n"], opts);
+await runFrontendPnpmStep("Duplicate check (frontend, jscpd)", ["run", "dup:frontend"], opts);
+await runFrontendPnpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts);
 
 const rustRootDir = "src-tauri";
 const available = {

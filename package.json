@@ -2,6 +2,7 @@
   "name": "ffui",
   "private": true,
   "version": "0.2.1",
+  "packageManager": "pnpm@10.26.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,15 +16,17 @@
     "test:unit": "vitest run",
     "dup:frontend": "jscpd -c .jscpd.frontend.json src",
     "dup:rust": "jscpd -c .jscpd.backend.json src-tauri/src",
-    "dup:all": "npm run dup:frontend && npm run dup:rust",
+    "dup:all": "node scripts/dup-all.mjs",
+    "lint": "eslint --max-warnings 0 .",
+    "lint:fix": "eslint --fix .",
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
-    "format:staged": "lint-staged",
+    "format:staged": "lint-staged --no-stash",
     "format:rust:staged": "node scripts/format-rust-staged.mjs",
     "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "tauri": "tauri",
     "tauri:dev": "vite build && tauri dev",
-    "build:exe": "npm run tauri -- build --no-bundle",
+    "build:exe": "tauri build --no-bundle",
     "prepare": "husky"
   },
   "dependencies": {
@@ -54,13 +57,20 @@
     "vue3-apexcharts": "^1.10.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.2",
     "@tailwindcss/postcss": "^4.1.17",
     "@tailwindcss/vite": "^4.1.17",
     "@tauri-apps/cli": "^2",
     "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.50.1",
+    "@typescript-eslint/parser": "^8.50.1",
     "@vitejs/plugin-vue": "^5.2.1",
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.22",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.6.2",
+    "globals": "^16.5.0",
     "happy-dom": "^20.0.11",
     "husky": "^9.1.7",
     "jscpd": "^4.0.5",
@@ -74,6 +84,7 @@
     "typescript": "~5.6.2",
     "vite": "^6.0.3",
     "vitest": "^4.0.15",
+    "vue-eslint-parser": "^10.2.0",
     "vue-tsc": "^2.1.10"
   },
   "overrides": {

@@ -118,7 +118,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: npm
+          cache: pnpm
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -141,8 +144,7 @@ jobs:
             tauri-tools-${{ runner.os }}-
 
       - name: Install frontend dependencies
-        # 项目使用 package-lock.json，因此优先使用 npm ci 以获得更稳定的依赖版本
-        run: npm ci
+        run: pnpm install --frozen-lockfile
 
       - name: Validate release version and tag
         shell: bash
@@ -182,7 +184,7 @@ jobs:
         run: |
           if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
             echo "Missing secret: TAURI_SIGNING_PRIVATE_KEY (required for updater signatures)." >&2
-            echo "Generate it with: npm run tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci" >&2
+            echo "Generate it with: pnpm tauri -- signer generate -w ~/.tauri/ffui-updater.key --ci" >&2
             echo "Then set the GitHub Actions secret to the private key content or path." >&2
             exit 1
           fi

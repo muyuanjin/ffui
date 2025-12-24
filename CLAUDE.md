@@ -32,22 +32,22 @@ FFUI 是一个基于 Tauri 2 的桌面转码应用，结合 Rust 后端和 Vue 3
 
 ```bash
 # 开发（推荐）
-npm run tauri:dev          # 启动 Tauri 开发模式（会先构建前端）
-npm run dev                # 仅启动前端开发服务器 (localhost:5188)
+pnpm run tauri:dev         # 启动 Tauri 开发模式（会先构建前端）
+pnpm run dev               # 仅启动前端开发服务器 (localhost:5188)
 
 # 构建
-npm run build              # 构建前端（含 vue-tsc 类型检查）
-npm run build:exe          # 构建可执行文件（不打包安装程序）
-npm run tauri build        # 完整构建（含安装包）
+pnpm run build             # 构建前端（含 vue-tsc 类型检查）
+pnpm run build:exe         # 构建可执行文件（不打包安装程序）
+pnpm run tauri build       # 完整构建（含安装包）
 
 # 测试与检查
-npm run test               # 运行前端测试 (Vitest)
-npm run check:all          # 运行所有检查（推荐提交前执行）
+pnpm run test              # 运行前端测试 (Vitest)
+pnpm run check:all         # 运行所有检查（推荐提交前执行）
 cd src-tauri && cargo test # Rust 测试
 cd src-tauri && cargo clippy # Rust lint
 
 # 格式化
-npm run format             # Prettier 格式化前端代码
+pnpm run format            # Prettier 格式化前端代码
 cd src-tauri && cargo fmt  # rustfmt 格式化 Rust 代码
 ```
 
@@ -116,8 +116,8 @@ src-tauri/src/             # Rust 后端
 ## 提交前检查
 
 ```bash
-npm run check:all  # 或分步执行：
-npm run build && npm run test
+pnpm run check:all  # 或分步执行：
+pnpm run build && pnpm run test
 cd src-tauri && cargo clippy && cargo test
 ```
 

@@ -3,5 +3,5 @@
 
 set -e
 
-npm run -s format:staged
-npm run -s format:rust:staged
+pnpm -s format:staged
+pnpm -s format:rust:staged
