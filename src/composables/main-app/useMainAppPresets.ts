@@ -1,5 +1,5 @@
 import { computed, onMounted, ref, type Ref, type ComputedRef } from "vue";
-import type { FFmpegPreset, TranscodeJob } from "@/types";
+import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import {
   hasTauri,
   loadPresets,
@@ -27,15 +27,14 @@ const startupNowMs = () => {
 
 const updateStartupMetrics = (patch: Record<string, unknown>) => {
   if (typeof window === "undefined") return;
-  const w = window as any;
-  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
-  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
+  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
 };
 
 let loggedPresetsLoad = false;
 
 export interface UseMainAppPresetsOptions {
-  t: (key: string) => string;
+  t: Translate;
   locale: Ref<string>;
   presets: Ref<FFmpegPreset[]>;
   presetsLoadedFromBackend: Ref<boolean>;

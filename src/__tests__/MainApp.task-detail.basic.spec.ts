@@ -68,7 +68,7 @@ const setJobsOnVm = (vm: any, jobs: TranscodeJob[]) => {
 describe("MainApp task detail surface - basics", () => {
   beforeEach(() => {
     (window as any).__TAURI_IPC__ = {};
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
   });
 
   it("shows the image Batch Compress output path when present", async () => {
@@ -395,7 +395,7 @@ describe("MainApp task detail surface - basics", () => {
     expect(enButtons.length).toBeGreaterThanOrEqual(baselineEnButtons + 1);
 
     // Switch locale to zh-CN and ensure label updates (no EN labels should remain).
-    (i18n.global.locale as any).value = "zh-CN";
+    i18n.global.locale.value = "zh-CN";
     await nextTick();
 
     const zhButtons = getButtonsWithText("显示模板视图");

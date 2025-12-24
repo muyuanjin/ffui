@@ -6,6 +6,7 @@ import MainDialogsStack from "./MainDialogsStack.vue";
 import { useDialogManager } from "@/composables/useDialogManager";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "@/types";
 import { i18n } from "@/__tests__/helpers/mainAppTauriDialog";
+import { DEFAULT_BATCH_COMPRESS_CONFIG } from "@/constants";
 
 describe("MainDialogsStack 批次详情与子任务交互", () => {
   /**
@@ -23,7 +24,7 @@ describe("MainDialogsStack 批次详情与子任务交互", () => {
         dialogManager,
         presets,
         presetPendingDelete: null,
-        smartConfig: {},
+        smartConfig: { ...DEFAULT_BATCH_COMPRESS_CONFIG },
         defaultVideoPresetId: null,
         queueProgressStyle,
         progressUpdateIntervalMs: 500,

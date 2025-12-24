@@ -6,6 +6,7 @@ import type {
   JobStatus,
   JobType,
   FFmpegPreset,
+  Translate,
 } from "@/types";
 import { DEFAULT_BATCH_COMPRESS_CONFIG, EXTENSIONS } from "@/constants";
 import { hasTauri, runAutoCompress } from "@/lib/backend";
@@ -47,7 +48,7 @@ export interface UseBatchCompressOptions {
   /** Active tab ref. */
   activeTab: Ref<string>;
   /** Optional i18n translation function. */
-  t?: (key: string) => string;
+  t?: Translate;
 }
 
 export interface UseBatchCompressReturn {
@@ -385,11 +386,11 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
         return;
       } catch (error) {
         console.error("auto-compress failed with root path", error);
-        queueError.value = (t?.("queue.error.autoCompressFailed") as string) ?? "";
+        queueError.value = t?.("queue.error.autoCompressFailed") ?? "";
       }
     } else {
       // 没有路径时显示错误
-      queueError.value = (t?.("batchCompress.noPathSelected") as string) ?? "Please select a folder to scan";
+      queueError.value = t?.("batchCompress.noPathSelected") ?? "Please select a folder to scan";
       return;
     }
 

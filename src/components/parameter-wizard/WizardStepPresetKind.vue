@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-vue-next";
+import type { Translate } from "@/types";
 
 export type PresetKind = "structured" | "custom";
 
 const props = defineProps<{
   kind: PresetKind;
-  t: (key: string, params?: any) => string | unknown;
+  t: Translate;
 }>();
 
 const emit = defineEmits<{

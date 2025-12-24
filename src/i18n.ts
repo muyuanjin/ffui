@@ -10,7 +10,7 @@ export const isAppLocale = (value: unknown): value is AppLocale => {
   return value === "en" || value === "zh-CN";
 };
 
-export const i18n = createI18n({
+export const i18n = createI18n<{}, AppLocale, false>({
   legacy: false,
   locale: DEFAULT_LOCALE,
   fallbackLocale: "en",
@@ -19,8 +19,8 @@ export const i18n = createI18n({
     en,
     "zh-CN": zhCN,
   },
-}) as any;
+});
 
 export function loadLocale(locale: AppLocale) {
-  i18n.global.locale.value = locale as any;
+  i18n.global.locale.value = locale;
 }

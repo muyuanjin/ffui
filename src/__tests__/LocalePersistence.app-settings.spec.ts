@@ -129,7 +129,7 @@ describe("Locale persistence via AppSettings", () => {
     await flushPromises();
     await nextTick();
 
-    expect((i18n.global.locale as any).value).toBe("zh-CN");
+    expect(i18n.global.locale.value).toBe("zh-CN");
   });
 
   it("persists locale changes into AppSettings saves", async () => {

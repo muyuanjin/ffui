@@ -95,7 +95,7 @@ describe("MainApp sidebar primary actions", () => {
     expect(addCompressionButton().text()).toContain("添加压缩任务");
 
     // Switch locale via the i18n instance used to mount the app.
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
 
     expect(addFilesButton().exists()).toBe(true);

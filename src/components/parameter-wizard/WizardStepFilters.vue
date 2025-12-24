@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { FilterConfig } from "@/types";
+import type { FilterConfig, Translate } from "@/types";
 
 const { filters, isCopyEncoder, t } = defineProps<{
   filters: FilterConfig;
   isCopyEncoder: boolean;
-  t: (key: string, params?: any) => string | unknown;
+  t: Translate;
 }>();
 
 const emit = defineEmits<{

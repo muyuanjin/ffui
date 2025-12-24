@@ -1,5 +1,5 @@
 import { type Ref, type ComputedRef } from "vue";
-import type { TranscodeJob, FFmpegPreset, QueueState } from "@/types";
+import type { TranscodeJob, FFmpegPreset, QueueState, Translate } from "@/types";
 import {
   refreshQueueFromBackend as refreshQueueFromBackendImpl,
   applyQueueStateFromBackend as applyQueueStateFromBackendImpl,
@@ -47,7 +47,7 @@ export interface UseQueueOperationsOptions {
   /** Last queue snapshot timestamp. */
   lastQueueSnapshotAtMs: Ref<number | null>;
   /** Optional i18n translation function. */
-  t?: (key: string) => string;
+  t?: Translate;
   /** Callback when a job completes (for preset stats update). */
   onJobCompleted?: (job: TranscodeJob) => void;
 }

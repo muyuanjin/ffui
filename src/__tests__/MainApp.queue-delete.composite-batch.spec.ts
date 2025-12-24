@@ -181,7 +181,7 @@ describe("MainApp 复合任务删除", () => {
 
     // 验证：应该显示删除失败错误
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const expectedError = (i18n as any).global.t("queue.error.deleteFailed") as string;
+    const expectedError = i18n.global.t("queue.error.deleteFailed");
     expect(error).toBe(expectedError);
 
     wrapper.unmount();

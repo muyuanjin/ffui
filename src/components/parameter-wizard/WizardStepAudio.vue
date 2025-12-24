@@ -2,12 +2,12 @@
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { AudioConfig } from "@/types";
+import type { AudioConfig, Translate } from "@/types";
 
 const { audio, isCopyEncoder, t } = defineProps<{
   audio: AudioConfig;
   isCopyEncoder: boolean;
-  t: (key: string, params?: any) => string | unknown;
+  t: Translate;
 }>();
 
 const emit = defineEmits<{

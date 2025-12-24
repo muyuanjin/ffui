@@ -151,7 +151,7 @@ describe("MainApp queue delete behaviour", () => {
     // When some selected jobs are still active,已经完成的任务会被删除，
     // 但应提示用户“正在运行或排队中的任务不能直接从列表删除”而不是“部分任务删除失败”。
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
     expect(error).toBe(expected);
 
     wrapper.unmount();
@@ -208,7 +208,7 @@ describe("MainApp queue delete behaviour", () => {
     await nextTick();
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const failedMessage = (i18n as any).global.t("queue.error.deleteFailed") as string;
+    const failedMessage = i18n.global.t("queue.error.deleteFailed");
 
     // 任务已经不在队列快照中时，不应该提示“部分任务删除失败”。
     expect(error).not.toBe(failedMessage);

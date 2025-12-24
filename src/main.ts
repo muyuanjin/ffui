@@ -27,7 +27,7 @@ const bootstrapLocale = async () => {
     loadLocale(result.locale);
 
     if (typeof window !== "undefined" && result.preloadedAppSettings) {
-      (window as any).__FFUI_PRELOADED_APP_SETTINGS__ = result.preloadedAppSettings;
+      window.__FFUI_PRELOADED_APP_SETTINGS__ = result.preloadedAppSettings;
     }
   } catch {
     // Best-effort only; fallback locale remains in effect.
@@ -81,7 +81,7 @@ const run = async () => {
       // Expose a small structured snapshot for ad‑hoc inspection in DevTools
       // without introducing any persistent storage or backend coupling.
       if (typeof window !== "undefined") {
-        (window as any).__FFUI_STARTUP_METRICS__ = {
+        window.__FFUI_STARTUP_METRICS__ = {
           appMountMs: last.duration,
           navToMountMs,
         };
@@ -98,8 +98,8 @@ const run = async () => {
       if (typeof window !== "undefined") {
         // Expose a helper to dump startup metrics and performance marks for
         // copy/paste diagnostics in release builds.
-        (window as any).__FFUI_DUMP_STARTUP_METRICS__ = () => {
-          const metrics = (window as any).__FFUI_STARTUP_METRICS__ ?? {};
+        window.__FFUI_DUMP_STARTUP_METRICS__ = () => {
+          const metrics = window.__FFUI_STARTUP_METRICS__ ?? {};
           const markNames = [
             "startup_idle_ready",
             "first_queue_state_lite_applied",
@@ -137,7 +137,7 @@ const run = async () => {
         if (shouldAutoDump) {
           window.setTimeout(() => {
             try {
-              (window as any).__FFUI_DUMP_STARTUP_METRICS__?.();
+              window.__FFUI_DUMP_STARTUP_METRICS__?.();
             } catch {
               // Best-effort only.
             }

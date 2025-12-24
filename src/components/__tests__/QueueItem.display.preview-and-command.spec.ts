@@ -98,7 +98,7 @@ describe("QueueItem display preview & command view", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
   });
 
   it("renders media summary when mediaInfo is present", () => {
@@ -290,7 +290,7 @@ describe("QueueItem display preview & command view", () => {
       ffmpegCommand: 'ffmpeg -i "INPUT" -c:v libx264 -crf 23 -preset medium -c:a copy "OUTPUT"',
     });
 
-    (i18n.global.locale as any).value = "zh-CN";
+    i18n.global.locale.value = "zh-CN";
 
     const wrapper = mount(QueueItem, {
       props: {
@@ -307,7 +307,7 @@ describe("QueueItem display preview & command view", () => {
 
     expect(toggleButton, "command view toggle button should exist").toBeTruthy();
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
 
     const enToggleButton = wrapper.findAll("button").find((btn) => btn.text().includes("Show full command"));

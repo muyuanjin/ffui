@@ -110,3 +110,6 @@ export type { PresetBundle, PresetBundleExportResult } from "./preset-bundle";
 
 // Shared type utilities (type-only).
 export type { DeepWritable } from "./typeUtils";
+
+// i18n type helpers (type-only).
+export type { Translate } from "./i18n";

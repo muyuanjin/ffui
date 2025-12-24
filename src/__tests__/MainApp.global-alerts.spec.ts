@@ -53,7 +53,7 @@ describe("MainApp global alerts", () => {
     }
     await nextTick();
 
-    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
     const queueError = (vm.queueError ?? vm.queueError?.value) as string | null;
     expect(queueError).toBe(expected);
 
@@ -61,7 +61,7 @@ describe("MainApp global alerts", () => {
     expect(globalAlerts.text()).toContain(expected);
     expect(globalAlerts.classes()).toContain("h-0");
 
-    const expectedTitle = (i18n as any).global.t("app.tabs.queue") as string;
+    const expectedTitle = i18n.global.t("app.tabs.queue");
     expect(globalAlerts.get("[data-testid='global-alert-title-queue']").text()).toBe(expectedTitle);
     expect(globalAlerts.get("[data-testid='global-alert-dismiss-queue']").attributes("data-alert-close")).toBeDefined();
 

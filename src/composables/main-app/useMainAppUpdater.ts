@@ -151,7 +151,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   };
 
   const autoCheckEnabled = computed<boolean>(() => {
-    const raw = (appSettings.value as any)?.updater?.autoCheck;
+    const raw: unknown = appSettings.value?.updater?.autoCheck;
     const configured = updaterConfigured.value === true;
     const defaultValue = !isDevEnv() && configured;
     return configured && coerceBoolean(raw, defaultValue);
@@ -164,12 +164,13 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   let updateHandle: any | null = null;
   let autoCheckTriggered = false;
 
-  const persistUpdaterPatch = (patch: Record<string, unknown>) => {
+  type UpdaterPatch = Partial<NonNullable<AppSettings["updater"]>>;
+
+  const persistUpdaterPatch = (patch: UpdaterPatch) => {
     const current = appSettings.value;
     if (!current) return;
-    const existing = (current as any).updater ?? {};
-    const nextUpdater = { ...existing, ...patch };
-    appSettings.value = { ...(current as any), updater: nextUpdater };
+    const nextUpdater = { ...(current.updater ?? {}), ...patch };
+    appSettings.value = { ...current, updater: nextUpdater };
     scheduleSaveSettings();
   };
 
@@ -186,7 +187,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     availableBody.value = null;
     updateAvailable.value = false;
 
-    const persistedAvailable = (appSettings.value as any)?.updater?.availableVersion;
+    const persistedAvailable = appSettings.value?.updater?.availableVersion;
     if (typeof persistedAvailable === "string" && persistedAvailable.trim().length > 0) {
       persistUpdaterPatch({ availableVersion: undefined });
     }
@@ -195,7 +196,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   const shouldCheckByTtl = () => {
     const settings = appSettings.value;
     if (!settings) return false;
-    const raw = (settings as any)?.updater?.lastCheckedAtMs;
+    const raw: unknown = settings.updater?.lastCheckedAtMs;
     const last = typeof raw === "number" && Number.isFinite(raw) ? raw : null;
     if (!last) return true;
     return Date.now() - last >= DEFAULT_UPDATE_CHECK_TTL_MS;
@@ -354,8 +355,8 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     appSettings,
     (next) => {
       if (!next) return;
-      const checkedAt = (next as any)?.updater?.lastCheckedAtMs;
-      const available = (next as any)?.updater?.availableVersion;
+      const checkedAt: unknown = next.updater?.lastCheckedAtMs;
+      const available: unknown = next.updater?.availableVersion;
       lastCheckedAtMs.value = typeof checkedAt === "number" ? checkedAt : null;
       availableVersion.value = typeof available === "string" ? available : null;
       void ensureCurrentVersionLoaded().finally(() => {

@@ -5,6 +5,7 @@ import type {
   ExternalToolKind,
   ExternalToolStatus,
   BatchCompressConfig,
+  Translate,
 } from "@/types";
 import {
   hasTauri,
@@ -31,9 +32,8 @@ const startupNowMs = () => {
 
 const updateStartupMetrics = (patch: Record<string, unknown>) => {
   if (typeof window === "undefined") return;
-  const w = window as any;
-  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
-  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
+  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
 };
 
 let loggedAppSettingsLoad = false;
@@ -88,7 +88,7 @@ export interface UseAppSettingsOptions {
   /** Manual job preset ID ref (to restore from settings). */
   manualJobPresetId?: Ref<string | null>;
   /** Optional i18n translation function for user-facing messages. */
-  t?: (key: string) => string;
+  t?: Translate;
 }
 
 export interface UseAppSettingsReturn {
@@ -182,10 +182,9 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     // If main.ts already preloaded app settings (e.g. for locale bootstrapping),
     // reuse that snapshot and avoid a duplicate backend round-trip.
     if (typeof window !== "undefined") {
-      const w = window as any;
-      const preloaded = w.__FFUI_PRELOADED_APP_SETTINGS__ as AppSettings | undefined;
+      const preloaded = window.__FFUI_PRELOADED_APP_SETTINGS__;
       if (preloaded) {
-        w.__FFUI_PRELOADED_APP_SETTINGS__ = undefined;
+        window.__FFUI_PRELOADED_APP_SETTINGS__ = undefined;
         applyLoadedSettings(preloaded);
         return;
       }
@@ -237,7 +236,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       } catch (error) {
         console.error("Failed to save settings", error);
         settingsSaveError.value =
-          (t?.("app.settings.saveErrorGeneric") as string) ?? "Failed to save settings. Please try again later.";
+          t?.("app.settings.saveErrorGeneric") ?? "Failed to save settings. Please try again later.";
       } finally {
         isSavingSettings.value = false;
       }

@@ -29,7 +29,7 @@ if (typeof (globalThis as any).ResizeObserver === "undefined") {
 }
 
 // 为测试构建一个最小的 i18n 实例，复用完整英文文案，避免出现缺失 key 的告警。
-const i18n = createI18n<any>({
+const i18n = (createI18n as any)({
   legacy: false,
   locale: "en",
   messages: { en: en as any },
@@ -99,7 +99,7 @@ describe("SmartPresetOnboardingWizard", () => {
     await Promise.resolve();
     await nextTick();
 
-    const t = (i18n.global as any).t.bind(i18n.global) as (key: string) => string;
+    const t = (key: string) => i18n.global.t(key);
     // welcome -> codec -> useCase -> presets，一共点击三次 Next
     for (let i = 0; i < 3; i += 1) {
       const nextButton = wrapper.get("[data-testid='preset-setup-wizard-next']");
@@ -179,7 +179,7 @@ describe("SmartPresetOnboardingWizard", () => {
     await Promise.resolve();
     await nextTick();
 
-    const t = (i18n.global as any).t.bind(i18n.global) as (key: string) => string;
+    const t = (key: string) => i18n.global.t(key);
     const nvencNotDetected = t("onboarding.nvencNotDetected");
 
     expect(wrapper.text()).toContain(nvencNotDetected);

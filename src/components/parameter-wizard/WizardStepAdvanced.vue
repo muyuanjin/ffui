@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { AudioConfig, FilterConfig, VideoConfig } from "@/types";
+import type { AudioConfig, FilterConfig, VideoConfig, Translate } from "@/types";
 
 const { video, audio, filters, advancedEnabled, ffmpegTemplate, highlightedCommandHtml, parseHint, parseHintClass, t } =
   defineProps<{
@@ -15,7 +15,7 @@ const { video, audio, filters, advancedEnabled, ffmpegTemplate, highlightedComma
     highlightedCommandHtml: string;
     parseHint: string | null;
     parseHintClass: string;
-    t: (key: string, params?: any) => string | unknown;
+    t: Translate;
   }>();
 
 const emit = defineEmits<{

@@ -1,5 +1,5 @@
 import { type Ref, type ComputedRef } from "vue";
-import type { TranscodeJob } from "@/types";
+import type { TranscodeJob, Translate } from "@/types";
 import { hasTauri, reorderQueue } from "@/lib/backend";
 
 /**
@@ -15,7 +15,7 @@ export interface BulkOpsDeps {
   /** Queue error message ref. */
   queueError: Ref<string | null>;
   /** Optional i18n translation function. */
-  t?: (key: string) => string;
+  t?: Translate;
   /** Refresh queue state from backend. */
   refreshQueueFromBackend: () => Promise<void>;
   /** Single job operation handlers. */
@@ -265,14 +265,14 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
   try {
     const ok = await reorderQueue(orderedIds);
     if (!ok) {
-      deps.queueError.value = (deps.t?.("queue.error.reorderRejected") as string) ?? "";
+      deps.queueError.value = deps.t?.("queue.error.reorderRejected") ?? "";
       return;
     }
     deps.queueError.value = null;
     await deps.refreshQueueFromBackend();
   } catch (error) {
     console.error("Failed to reorder waiting queue", error);
-    deps.queueError.value = (deps.t?.("queue.error.reorderFailed") as string) ?? "";
+    deps.queueError.value = deps.t?.("queue.error.reorderFailed") ?? "";
   }
 }
 

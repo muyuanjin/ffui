@@ -28,7 +28,7 @@ const makePreset = (id: string, audio: FFmpegPreset["audio"]): FFmpegPreset => (
 describe("PresetPanel 音频摘要展示", () => {
   it("copy 模式显示为“复制”", async () => {
     // 切换到中文，以便断言中文文案
-    (i18n.global.locale as any).value = "zh-CN";
+    i18n.global.locale.value = "zh-CN";
     const wrapper = mount(PresetPanel, {
       props: {
         presets: [makePreset("p1", { codec: "copy" })],

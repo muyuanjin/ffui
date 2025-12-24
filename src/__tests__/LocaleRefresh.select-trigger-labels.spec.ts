@@ -75,7 +75,7 @@ describe("Locale refresh for select trigger labels", () => {
     const trigger = wrapper.get('[data-testid="ffui-queue-view-mode-trigger"]');
     expect(trigger.text()).toContain("详情列表");
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
     expect(trigger.text()).toContain("Detailed list");
 
@@ -94,7 +94,7 @@ describe("Locale refresh for select trigger labels", () => {
     const trigger = wrapper.get('[data-testid="settings-ui-font-mode-trigger"]');
     expect(trigger.text()).toContain("系统默认");
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
     expect(trigger.text()).toContain("System default");
 
@@ -128,7 +128,7 @@ describe("Locale refresh for select trigger labels", () => {
     const trigger = wrapper.get('[data-testid="queue-mode-trigger"]');
     expect(trigger.text()).toContain("视图排序");
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
     expect(trigger.text()).toContain("View-only sort");
 
@@ -162,7 +162,7 @@ describe("Locale refresh for select trigger labels", () => {
     const trigger = wrapper.get('[data-testid="queue-sort-primary-trigger"]');
     expect(trigger.text()).toContain("按添加时间");
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
     expect(trigger.text()).toContain("Added time");
 
@@ -187,7 +187,7 @@ describe("Locale refresh for select trigger labels", () => {
     expect(modeTrigger.text()).toContain("按预估耗时加权");
     expect(scopeTrigger.text()).toContain("仅统计进行中/排队/等待的任务");
 
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
     await nextTick();
     expect(modeTrigger.text()).toContain("Weight by estimated processing time");
     expect(scopeTrigger.text()).toContain("Only active/queued/waiting jobs");

@@ -37,7 +37,7 @@ describe("QueueItem display basics", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
   });
 
   it("renders job sizes and savings without throwing", () => {

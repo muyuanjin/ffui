@@ -47,7 +47,7 @@ vi.mock("@/lib/backend", async () => {
   };
 });
 
-export const i18n = createI18n({
+export const i18n = (createI18n as any)({
   legacy: false,
   locale: "en",
   messages: {

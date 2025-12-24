@@ -36,7 +36,7 @@ describe("QueueItem compare button", () => {
   beforeEach(() => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
-    (i18n.global.locale as any).value = "en";
+    i18n.global.locale.value = "en";
   });
 
   it("renders a compare button on video cards and disables it when Tauri is unavailable", () => {

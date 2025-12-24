@@ -6,6 +6,7 @@ import MainDialogsStack from "./MainDialogsStack.vue";
 import { useDialogManager } from "@/composables/useDialogManager";
 import type { FFmpegPreset, QueueProgressStyle } from "@/types";
 import { i18n } from "@/__tests__/helpers/mainAppTauriDialog";
+import { DEFAULT_BATCH_COMPRESS_CONFIG } from "@/constants";
 
 const StubParameterWizard = defineComponent({
   name: "ParameterWizard",
@@ -60,7 +61,7 @@ const createWrapper = (dialogManager: ReturnType<typeof useDialogManager>) => {
       dialogManager,
       presets,
       presetPendingDelete: null,
-      smartConfig: {},
+      smartConfig: { ...DEFAULT_BATCH_COMPRESS_CONFIG },
       defaultVideoPresetId: null,
       queueProgressStyle,
       progressUpdateIntervalMs: 500,

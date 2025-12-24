@@ -2,7 +2,7 @@
 import { computed, toRef, toRefs } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { FFmpegPreset, TranscodeJob } from "@/types";
+import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { hasTauri } from "@/lib/backend";
@@ -31,7 +31,7 @@ const props = withDefaults(
     isRestartable: boolean;
     isCancellable: boolean;
     previewUrl: string | null;
-    t: (key: string, params?: any) => string | unknown;
+    t: Translate;
   }>(),
   {
     sizeChangeLevel: "decreased",
@@ -105,12 +105,12 @@ const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisa
 const compareDisabledText = computed(() => {
   const reason = compareDisabledReason.value;
   if (!reason) return null;
-  if (reason === "requires-tauri") return props.t("jobCompare.requiresTauri") as string;
-  if (reason === "not-video") return props.t("jobCompare.disabled.notVideo") as string;
-  if (reason === "status") return props.t("jobCompare.disabled.status") as string;
-  if (reason === "no-output") return props.t("jobCompare.disabled.noOutput") as string;
-  if (reason === "no-partial-output") return props.t("jobCompare.disabled.noPartialOutput") as string;
-  return props.t("jobCompare.disabled.unavailable") as string;
+  if (reason === "requires-tauri") return props.t("jobCompare.requiresTauri");
+  if (reason === "not-video") return props.t("jobCompare.disabled.notVideo");
+  if (reason === "status") return props.t("jobCompare.disabled.status");
+  if (reason === "no-output") return props.t("jobCompare.disabled.noOutput");
+  if (reason === "no-partial-output") return props.t("jobCompare.disabled.noPartialOutput");
+  return props.t("jobCompare.disabled.unavailable");
 });
 
 const emit = defineEmits<{

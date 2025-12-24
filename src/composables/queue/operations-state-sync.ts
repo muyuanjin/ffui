@@ -1,5 +1,5 @@
 import { type Ref } from "vue";
-import type { TranscodeJob, QueueState, QueueStateLite } from "@/types";
+import type { TranscodeJob, QueueState, QueueStateLite, Translate } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 
 const isTestEnv =
@@ -14,9 +14,8 @@ const startupNowMs = () => {
 
 const updateStartupMetrics = (patch: Record<string, unknown>) => {
   if (typeof window === "undefined") return;
-  const w = window as any;
-  const current = w.__FFUI_STARTUP_METRICS__ ?? {};
-  w.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
+  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
+  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
 };
 
 let loggedQueueStateLiteApplied = false;
@@ -83,7 +82,7 @@ export interface StateSyncDeps {
   /** Last queue snapshot timestamp. */
   lastQueueSnapshotAtMs: Ref<number | null>;
   /** Optional i18n translation function. */
-  t?: (key: string) => string;
+  t?: Translate;
   /** Callback when a job completes (for preset stats update). */
   onJobCompleted?: (job: TranscodeJob) => void;
 }
@@ -194,6 +193,6 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to refresh queue state", error);
-    deps.queueError.value = (deps.t?.("queue.error.loadFailed") as string) ?? "";
+    deps.queueError.value = deps.t?.("queue.error.loadFailed") ?? "";
   }
 }

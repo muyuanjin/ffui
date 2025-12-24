@@ -1,29 +1,12 @@
 import type { Ref, ComputedRef } from "vue";
-import type { TranscodeJob, CompositeBatchCompressTask, JobStatus } from "@/types";
+import type { TranscodeJob, CompositeBatchCompressTask, JobStatus, Translate } from "@/types";
 
 // ----- Filter & sort types -----
 
 export type QueueFilterStatus = JobStatus;
 export type QueueFilterKind = "manual" | "batchCompress";
 
-export type QueueSortField =
-  | "filename"
-  | "status"
-  | "addedTime"
-  | "finishedTime"
-  | "duration"
-  | "elapsed"
-  | "progress"
-  | "type"
-  | "path"
-  | "inputSize"
-  | "outputSize"
-  | "createdTime"
-  | "modifiedTime";
-
-export type QueueSortDirection = "asc" | "desc";
-
-export const ALL_QUEUE_SORT_FIELDS: readonly QueueSortField[] = [
+export const ALL_QUEUE_SORT_FIELDS = [
   "filename",
   "status",
   "addedTime",
@@ -37,9 +20,13 @@ export const ALL_QUEUE_SORT_FIELDS: readonly QueueSortField[] = [
   "outputSize",
   "createdTime",
   "modifiedTime",
-];
+] as const;
 
-export const ALL_QUEUE_SORT_DIRECTIONS: readonly QueueSortDirection[] = ["asc", "desc"];
+export type QueueSortField = (typeof ALL_QUEUE_SORT_FIELDS)[number];
+
+export const ALL_QUEUE_SORT_DIRECTIONS = ["asc", "desc"] as const;
+
+export type QueueSortDirection = (typeof ALL_QUEUE_SORT_DIRECTIONS)[number];
 
 export type QueueListItem = { kind: "batch"; batch: CompositeBatchCompressTask } | { kind: "job"; job: TranscodeJob };
 
@@ -53,7 +40,7 @@ export interface UseQueueFilteringOptions {
   /** Map of batch ID to composite task. */
   compositeTasksById: ComputedRef<Map<string, CompositeBatchCompressTask>>;
   /** Optional i18n translation function for error messages. */
-  t?: (key: string) => string;
+  t?: Translate;
 }
 
 export interface UseQueueFilteringReturn {

@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from "vue";
-import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob } from "@/types";
+import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { buildPreviewUrl, hasTauri, selectPlayableMediaPath } from "@/lib/backend";
 
 export type PreviewSourceMode = "output" | "input";
@@ -13,7 +13,7 @@ export interface UseMainAppPreviewOptions {
     openBatchDetail: (batch: CompositeBatchCompressTask) => void;
   };
   /** Optional i18n translation function for preview error messages. */
-  t?: (key: string) => string;
+  t?: Translate;
 }
 
 export interface UseMainAppPreviewReturn {
@@ -240,7 +240,7 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     } catch (e) {
       console.error("Failed to build preview URL for job:", e);
       const key = job.type === "image" ? "jobDetail.previewImageError" : "jobDetail.previewVideoError";
-      previewError.value = (t?.(key) as string) ?? "";
+      previewError.value = t?.(key) ?? "";
     }
   };
 
@@ -288,14 +288,14 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     const isInFlight = job.status !== "completed" && job.status !== "failed";
     if (isInFlight) {
       const key = "jobDetail.previewVideoError";
-      previewError.value = (t?.(key) as string) ?? key;
+      previewError.value = t?.(key) ?? key;
       return;
     }
 
     // If the user manually picked a source, keep the selection stable and fall back to frames.
     if (previewSourceSelection.value === "manual") {
       const key = "jobDetail.previewVideoError";
-      previewError.value = (t?.(key) as string) ?? key;
+      previewError.value = t?.(key) ?? key;
       return;
     }
 
@@ -325,12 +325,12 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     }
 
     const key = "jobDetail.previewVideoError";
-    previewError.value = (t?.(key) as string) ?? key;
+    previewError.value = t?.(key) ?? key;
   };
 
   const handleExpandedImagePreviewError = () => {
     const key = "jobDetail.previewImageError";
-    previewError.value = (t?.(key) as string) ?? "";
+    previewError.value = t?.(key) ?? "";
   };
 
   const openPreviewInSystemPlayer = async () => {

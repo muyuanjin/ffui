@@ -3,13 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import type { AudioConfig, VideoConfig } from "@/types";
+import type { AudioConfig, VideoConfig, Translate } from "@/types";
 
 const props = defineProps<{
   name: string;
   description: string;
   showRecipes?: boolean;
-  t: (key: string, params?: any) => string | unknown;
+  t: Translate;
 }>();
 
 const emit = defineEmits<{
@@ -39,7 +39,7 @@ const applyRecipe = (payload: {
   ffmpegTemplate?: string;
 }) => {
   emit("select-recipe", {
-    name: props.t(payload.nameKey) as string,
+    name: props.t(payload.nameKey),
     description: payload.description,
     video: payload.video,
     audio: payload.audio,

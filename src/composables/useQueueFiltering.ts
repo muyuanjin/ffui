@@ -28,8 +28,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
   const canUseStorage = () => {
     if (typeof window === "undefined") return false;
     try {
-      const anyWindow = window as any;
-      return typeof anyWindow.localStorage !== "undefined";
+      return typeof window.localStorage !== "undefined";
     } catch {
       return false;
     }
@@ -55,13 +54,13 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     }
   };
 
-  const isQueueSortField = (value: unknown): value is QueueSortField => {
-    return typeof value === "string" && (ALL_QUEUE_SORT_FIELDS as readonly string[]).includes(value);
-  };
+  const queueSortFields = new Set<string>(ALL_QUEUE_SORT_FIELDS);
+  const isQueueSortField = (value: unknown): value is QueueSortField =>
+    typeof value === "string" && queueSortFields.has(value);
 
-  const isQueueSortDirection = (value: unknown): value is QueueSortDirection => {
-    return typeof value === "string" && (ALL_QUEUE_SORT_DIRECTIONS as readonly string[]).includes(value);
-  };
+  const queueSortDirections = new Set<string>(ALL_QUEUE_SORT_DIRECTIONS);
+  const isQueueSortDirection = (value: unknown): value is QueueSortDirection =>
+    typeof value === "string" && queueSortDirections.has(value);
 
   // ----- State -----
   const selectedJobIds = ref<Set<string>>(new Set());
@@ -182,7 +181,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
         filterRegexError.value = null;
         lastValidFilterRegex = rx;
       } catch {
-        filterRegexError.value = (t?.("queue.filters.invalidRegex") as string) ?? "";
+        filterRegexError.value = t?.("queue.filters.invalidRegex") ?? "";
         // Keep using the last valid regex (if any) so the UI remains stable.
         filterRegex.value = lastValidFilterRegex;
       }

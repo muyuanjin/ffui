@@ -12,7 +12,7 @@ import UltimateParameterPanel from "@/components/UltimateParameterPanel.vue";
 import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
 import SmartPresetOnboardingWizard from "@/components/dialogs/SmartPresetOnboardingWizard.vue";
 import ImportCommandsDialog from "@/components/dialogs/ImportCommandsDialog.vue";
-import type { FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
+import type { FFmpegPreset, TranscodeJob, QueueProgressStyle, BatchCompressConfig } from "@/types";
 import type { UseDialogManagerReturn } from "@/composables/useDialogManager";
 import type { PreviewSourceMode } from "@/composables/main-app/useMainAppPreview";
 
@@ -22,7 +22,7 @@ const props = withDefaults(
     presets: FFmpegPreset[];
     presetPendingDelete: FFmpegPreset | null;
     presetsPendingBatchDelete?: FFmpegPreset[];
-    smartConfig: any;
+    smartConfig: BatchCompressConfig;
     defaultVideoPresetId: string | null;
     queueProgressStyle: QueueProgressStyle;
     progressUpdateIntervalMs: number;
@@ -71,7 +71,7 @@ const emit = defineEmits<{
   (e: "savePreset", preset: FFmpegPreset): void;
   (e: "closeWizard"): void;
   (e: "closeParameterPanel"): void;
-  (e: "runBatchCompress", config: any): void;
+  (e: "runBatchCompress", config: BatchCompressConfig): void;
   (e: "closeBatchCompressWizard"): void;
   (e: "confirmDeletePreset"): void;
   (e: "cancelDeletePreset"): void;

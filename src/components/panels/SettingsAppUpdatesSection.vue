@@ -43,13 +43,13 @@ const { t, locale } = useI18n();
 
 const autoCheckModel = computed<boolean>({
   get() {
-    const raw = (props.appSettings as any)?.updater?.autoCheck;
+    const raw = props.appSettings?.updater?.autoCheck;
     if (typeof raw === "boolean") return raw;
     return props.appUpdate.autoCheckDefault ?? true;
   },
   set(value) {
     if (!props.appSettings) return;
-    const current = props.appSettings as any;
+    const current = props.appSettings;
     const updater = { ...(current.updater ?? {}) };
     updater.autoCheck = value === true;
     emit("update:appSettings", { ...current, updater });

@@ -17,13 +17,13 @@ class ResizeObserverMock {
 
 // 注意：vue-i18n 的类型推导对大型 messages 对象会产生“Type instantiation is excessively deep”。
 // 在测试里使用宽松 schema，避免在这里耗尽类型推导深度。
-const i18n = createI18n<any>({
+const i18n = (createI18n as any)({
   legacy: false,
   locale: "en",
   // 在测试环境内也挂载完整的英文文案，避免反复出现 intlify “Not found” 告警。
   messages: { en: en as any },
 });
-const t = (key: string) => (i18n.global as any).t(key) as string;
+const t = (key: string) => String(i18n.global.t(key));
 
 describe("ParameterWizard", () => {
   it("does not carry over x264 tune film when saving an NVENC preset", async () => {

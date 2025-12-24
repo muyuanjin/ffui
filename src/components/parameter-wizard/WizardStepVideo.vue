@@ -2,7 +2,7 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import type { EncoderType, VideoConfig } from "@/types";
+import type { EncoderType, VideoConfig, Translate } from "@/types";
 
 const { video, encoderOptions, presetOptions, rateControlLabel, isCopyEncoder, t } = defineProps<{
   video: VideoConfig;
@@ -10,7 +10,7 @@ const { video, encoderOptions, presetOptions, rateControlLabel, isCopyEncoder, t
   presetOptions: Record<string, string[]>;
   rateControlLabel: string;
   isCopyEncoder: boolean;
-  t: (key: string, params?: any) => string;
+  t: Translate;
 }>();
 
 const emit = defineEmits<{

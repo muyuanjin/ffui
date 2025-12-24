@@ -219,7 +219,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     expect(new Set(deletedIds)).toEqual(new Set(["manual-completed"]));
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
     expect(error).toBe(expected);
 
     const selected = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
@@ -295,7 +295,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     ).toBe(false);
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const expected = (i18n as any).global.t("queue.error.deleteActiveNotAllowed") as string;
+    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
     expect(error).toBe(expected);
 
     const selected = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
