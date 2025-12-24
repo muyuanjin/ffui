@@ -1,5 +1,9 @@
 use std::fs;
-use std::io::Write;
+use std::io::{
+    BufWriter,
+    Read,
+    Write,
+};
 use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
@@ -16,15 +20,15 @@ use crate::ffui_core::tools::probe::configure_background_command;
 use crate::ffui_core::tools::resolve::tool_binary_name;
 use crate::ffui_core::tools::types::ExternalToolKind;
 
-fn build_reqwest_client(
+fn build_reqwest_blocking_client(
     timeout: Duration,
     context_label: &'static str,
     proxy: &network_proxy::ResolvedNetworkProxy,
-) -> Result<reqwest::Client> {
-    use reqwest::Client;
+) -> Result<reqwest::blocking::Client> {
+    use reqwest::blocking::Client;
 
     let builder = Client::builder().timeout(timeout);
-    let builder = network_proxy::apply_reqwest_builder(builder, proxy);
+    let builder = network_proxy::apply_reqwest_blocking_builder(builder, proxy);
 
     builder
         .build()
@@ -90,88 +94,99 @@ where
         .ok_or_else(|| anyhow!("destination {} has no parent directory", dest.display()))?;
     fs::create_dir_all(dir).with_context(|| format!("failed to create {}", dir.display()))?;
 
-    tauri::async_runtime::block_on(async move {
-        let proxy = network_proxy::resolve_effective_proxy_once();
-        let client =
-            build_reqwest_client(Duration::from_secs(30), "ffmpeg-static download", &proxy)?;
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    let client =
+        build_reqwest_blocking_client(Duration::from_secs(30), "ffmpeg-static download", &proxy)?;
 
-        let mut resp = client.get(url).send().await.with_context(|| {
-            format!(
-                "failed to download {} from {}",
-                tool_binary_name(ExternalToolKind::Ffmpeg),
-                url
-            )
-        })?;
+    let mut resp = client.get(url).send().with_context(|| {
+        format!(
+            "failed to download {} from {}",
+            tool_binary_name(ExternalToolKind::Ffmpeg),
+            url
+        )
+    })?;
 
-        if !resp.status().is_success() {
-            bail!(
-                "download of {} from {} failed with status {}",
-                tool_binary_name(ExternalToolKind::Ffmpeg),
-                url,
-                resp.status()
-            );
+    if !resp.status().is_success() {
+        bail!(
+            "download of {} from {} failed with status {}",
+            tool_binary_name(ExternalToolKind::Ffmpeg),
+            url,
+            resp.status()
+        );
+    }
+
+    let file =
+        fs::File::create(dest).with_context(|| format!("failed to create {}", dest.display()))?;
+    let mut file = BufWriter::new(file);
+
+    let total_len = resp.content_length();
+    let mut downloaded: u64 = 0;
+    let mut buf = [0u8; 64 * 1024];
+
+    loop {
+        let n = resp
+            .read(&mut buf)
+            .with_context(|| format!("failed to read downloaded bytes from {url}"))?;
+        if n == 0 {
+            break;
         }
+        file.write_all(&buf[..n])
+            .with_context(|| format!("failed to write {}", dest.display()))?;
+        downloaded = downloaded.saturating_add(n as u64);
+        on_progress(downloaded, total_len);
+    }
+    file.flush()
+        .with_context(|| format!("failed to flush {}", dest.display()))?;
 
-        let mut file = fs::File::create(dest)
-            .with_context(|| format!("failed to create {}", dest.display()))?;
+    mark_download_executable_if_unix(dest)?;
 
-        let total_len = resp.content_length();
-        let mut downloaded: u64 = 0;
-
-        while let Some(chunk) = resp
-            .chunk()
-            .await
-            .context("failed to read downloaded bytes")?
-        {
-            file.write_all(&chunk)
-                .with_context(|| format!("failed to write {}", dest.display()))?;
-            downloaded = downloaded.saturating_add(chunk.len() as u64);
-            on_progress(downloaded, total_len);
-        }
-
-        mark_download_executable_if_unix(dest)?;
-
-        Ok(())
-    })
+    Ok(())
 }
 
 pub(crate) fn download_bytes_with_reqwest<F>(url: &str, mut on_progress: F) -> Result<Vec<u8>>
 where
     F: FnMut(u64, Option<u64>), {
-    tauri::async_runtime::block_on(async move {
-        let proxy = network_proxy::resolve_effective_proxy_once();
-        let client = build_reqwest_client(Duration::from_secs(30), "avifenc download", &proxy)?;
+    const PREFETCH_CAPACITY_LIMIT_BYTES: usize = 16 * 1024 * 1024;
 
-        let mut resp = client
-            .get(url)
-            .send()
-            .await
-            .with_context(|| format!("failed to download avifenc from {url}"))?;
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    let client =
+        build_reqwest_blocking_client(Duration::from_secs(30), "avifenc download", &proxy)?;
 
-        if !resp.status().is_success() {
-            bail!(
-                "download of avifenc from {} failed with status {}",
-                url,
-                resp.status()
-            );
+    let mut resp = client
+        .get(url)
+        .send()
+        .with_context(|| format!("failed to download avifenc from {url}"))?;
+
+    if !resp.status().is_success() {
+        bail!(
+            "download of avifenc from {} failed with status {}",
+            url,
+            resp.status()
+        );
+    }
+
+    let total_len = resp.content_length();
+    let mut out = if let Some(total) = total_len.and_then(|n| usize::try_from(n).ok()) {
+        Vec::with_capacity(total.min(PREFETCH_CAPACITY_LIMIT_BYTES))
+    } else {
+        Vec::new()
+    };
+
+    let mut downloaded: u64 = 0;
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = resp
+            .read(&mut buf)
+            .with_context(|| format!("failed to read downloaded avifenc bytes from {url}"))?;
+        if n == 0 {
+            break;
         }
+        out.extend_from_slice(&buf[..n]);
+        downloaded = downloaded.saturating_add(n as u64);
+        on_progress(downloaded, total_len);
+    }
 
-        let total_len = resp.content_length();
-        let mut downloaded: u64 = 0;
-        let mut out = Vec::new();
-
-        while let Some(chunk) = resp
-            .chunk()
-            .await
-            .context("failed to read downloaded avifenc bytes")?
-        {
-            out.extend_from_slice(&chunk);
-            downloaded = downloaded.saturating_add(chunk.len() as u64);
-            on_progress(downloaded, total_len);
-        }
-
-        Ok(out)
-    })
+    Ok(out)
 }
 
 /// Best-effort: mark a downloaded file as executable on Unix platforms.
@@ -194,16 +209,15 @@ fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
 /// Lightweight HEAD to retrieve Content-Length when available. This is used
 /// to provide determinate progress for aria2c-driven downloads.
 pub(crate) fn content_length_head(url: &str) -> Option<u64> {
-    tauri::async_runtime::block_on(async move {
-        let proxy = network_proxy::resolve_effective_proxy_once();
-        let client =
-            build_reqwest_client(Duration::from_secs(5), "content-length probe", &proxy).ok()?;
-        let resp = client.head(url).send().await.ok()?;
-        resp.headers()
-            .get(reqwest::header::CONTENT_LENGTH)
-            .and_then(|h| h.to_str().ok())
-            .and_then(|s| s.parse::<u64>().ok())
-    })
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    let client =
+        build_reqwest_blocking_client(Duration::from_secs(5), "content-length probe", &proxy)
+            .ok()?;
+    let resp = client.head(url).send().ok()?;
+    resp.headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|h| h.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ use crate::app_exit::{
     pause_processing_jobs_for_exit,
 };
 use crate::ffui_core::TranscodingEngine;
+use crate::sync_ext::MutexExt;
 
 #[tauri::command]
 pub fn reset_exit_prompt(coordinator: State<'_, ExitCoordinator>) {
@@ -33,7 +34,7 @@ pub async fn exit_app_with_auto_wait(
 ) -> Result<ExitAutoWaitOutcome, String> {
     let engine = engine.inner().clone();
     let timeout_seconds = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         state.settings.exit_auto_wait_timeout_seconds
     };
 

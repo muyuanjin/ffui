@@ -12,6 +12,7 @@ use crate::ffui_core::tools::{
     try_refresh_libavif_release_from_github,
     ttl_hit,
 };
+use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
     /// Fast cached snapshot read for external tool statuses.
@@ -20,7 +21,7 @@ impl TranscodingEngine {
     /// external processes). It is safe to call on the startup UI path.
     pub fn external_tool_statuses_cached(&self) -> Vec<ExternalToolStatus> {
         let tools = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             state.settings.tools.clone()
         };
         hydrate_remote_version_cache_from_settings(&tools);
@@ -132,7 +133,7 @@ impl TranscodingEngine {
                     .as_millis() as u64;
 
                 let tools_settings = {
-                    let state = engine_clone.inner.state.lock().expect("engine state poisoned");
+                    let state = engine_clone.inner.state.lock_unpoisoned();
                     state.settings.tools.clone()
                 };
 
@@ -173,8 +174,7 @@ impl TranscodingEngine {
                             let mut state = engine_clone
                                 .inner
                                 .state
-                                .lock()
-                                .expect("engine state poisoned");
+                                .lock_unpoisoned();
                             let tools = &mut state.settings.tools;
                             let cache = tools
                                 .remote_version_cache
@@ -203,8 +203,7 @@ impl TranscodingEngine {
                             let mut state = engine_clone
                                 .inner
                                 .state
-                                .lock()
-                                .expect("engine state poisoned");
+                                .lock_unpoisoned();
                             let tools = &mut state.settings.tools;
                             let cache = tools
                                 .remote_version_cache
@@ -226,7 +225,7 @@ impl TranscodingEngine {
                 }
 
                 if should_persist_settings {
-                    let state = engine_clone.inner.state.lock().expect("engine state poisoned");
+                    let state = engine_clone.inner.state.lock_unpoisoned();
                     if let Err(err) = settings::save_settings(&state.settings) {
                         eprintln!(
                             "[tools_refresh] failed to persist remote TTL cache: {err:#}"

@@ -40,11 +40,7 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
 
     restore_jobs_from_snapshot(&restored.inner, snapshot);
 
-    let state = restored
-        .inner
-        .state
-        .lock()
-        .expect("restored engine state poisoned");
+    let state = restored.inner.state.lock_unpoisoned();
 
     assert!(
         state.jobs.contains_key(&first.id) && state.jobs.contains_key(&second.id),

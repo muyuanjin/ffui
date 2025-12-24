@@ -23,14 +23,14 @@ fn paused_jobs_do_not_mark_transcode_activity() {
     );
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let j = state.jobs.get_mut(&job.id).expect("job should exist");
         j.status = JobStatus::Paused;
     }
 
     update_job_progress(&inner, &job.id, Some(1.0), None, None);
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     assert!(
         state.settings.monitor.is_none(),
         "paused jobs must not create or update monitor.transcodeActivityDays"
@@ -54,14 +54,14 @@ fn processing_jobs_mark_transcode_activity() {
     );
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let j = state.jobs.get_mut(&job.id).expect("job should exist");
         j.status = JobStatus::Processing;
     }
 
     update_job_progress(&inner, &job.id, Some(1.0), None, None);
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let monitor = state
         .settings
         .monitor

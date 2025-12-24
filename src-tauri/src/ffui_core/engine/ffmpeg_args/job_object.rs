@@ -29,6 +29,9 @@ use windows::Win32::System::Threading::{
     PROCESS_ALL_ACCESS,
 };
 
+#[cfg(windows)]
+use crate::sync_ext::MutexExt;
+
 /// 包装 Job Object 句柄的原始指针，使其可以跨线程安全使用
 ///
 /// Windows Job Object 句柄本身是线程安全的，可以从任何线程访问。
@@ -86,7 +89,7 @@ pub fn init_child_process_job() -> bool {
         }
 
         // 保存 Job Object 句柄（存储原始指针值）；如已存在旧句柄，先关闭避免泄漏。
-        let mut guard = CHILD_PROCESS_JOB.lock().expect("job object mutex poisoned");
+        let mut guard = CHILD_PROCESS_JOB.lock_unpoisoned();
         if let Some(prev) = guard.take() {
             let prev_handle = windows::Win32::Foundation::HANDLE(prev.0 as *mut std::ffi::c_void);
             let _ = CloseHandle(prev_handle);
@@ -106,7 +109,7 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
     use windows::Win32::Foundation::HANDLE;
 
     unsafe {
-        let guard = CHILD_PROCESS_JOB.lock().expect("job object mutex poisoned");
+        let guard = CHILD_PROCESS_JOB.lock_unpoisoned();
         let job_ptr = match &*guard {
             Some(h) => h.0,
             None => {

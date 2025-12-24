@@ -44,7 +44,7 @@ fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
             && summary.total_processed >= summary.total_candidates
         {
             let status = {
-                let state = engine.inner.state.lock().expect("engine state poisoned");
+                let state = engine.inner.state.lock_unpoisoned();
                 state
                     .batch_compress_batches
                     .get(&batch_id)
@@ -56,7 +56,7 @@ fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
         }
 
         if attempt + 1 >= attempts_limit {
-            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let state = engine.inner.state.lock_unpoisoned();
             let debug = state.batch_compress_batches.get(&batch_id).cloned();
             panic!(
                 "Batch Compress batch did not reach Completed (all skipped children) within timeout: {debug:?}"
@@ -73,7 +73,7 @@ fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.batch_compress_batches.contains_key(&batch_id),
             "Batch Compress batch metadata should be removed after successful delete_batch_compress_batch",

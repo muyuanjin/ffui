@@ -19,6 +19,10 @@ use crate::ffui_core::domain::{
     QueueState,
     QueueStateLite,
 };
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 mod terminal_logs;
 
@@ -44,18 +48,14 @@ struct QueueStateSidecarPathGuard;
 #[cfg(test)]
 impl Drop for QueueStateSidecarPathGuard {
     fn drop(&mut self) {
-        let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
-            .lock()
-            .expect("queue state sidecar override lock poisoned");
+        let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE.lock_unpoisoned();
         *override_path = None;
     }
 }
 
 #[cfg(test)]
 fn override_queue_state_sidecar_path_for_tests(path: PathBuf) -> QueueStateSidecarPathGuard {
-    let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
-        .lock()
-        .expect("queue state sidecar override lock poisoned");
+    let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE.lock_unpoisoned();
     *override_path = Some(path);
     QueueStateSidecarPathGuard
 }
@@ -64,9 +64,7 @@ fn override_queue_state_sidecar_path_for_tests(path: PathBuf) -> QueueStateSidec
 fn queue_state_sidecar_path() -> Option<PathBuf> {
     #[cfg(test)]
     {
-        let override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE
-            .lock()
-            .expect("queue state sidecar override lock poisoned");
+        let override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE.lock_unpoisoned();
         if let Some(path) = override_path.as_ref() {
             return Some(path.clone());
         }
@@ -189,9 +187,7 @@ static PERSIST_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
 
 #[cfg(test)]
 pub(crate) fn lock_persist_test_mutex_for_tests() -> std::sync::MutexGuard<'static, ()> {
-    PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned")
+    PERSIST_TEST_MUTEX.lock_unpoisoned()
 }
 
 #[cfg(test)]
@@ -258,10 +254,7 @@ static QUEUE_PERSIST: once_cell::sync::Lazy<QueuePersistCoordinator> =
 #[cfg(test)]
 pub(super) fn reset_queue_persist_state_for_tests() {
     QUEUE_PERSIST_EPOCH.fetch_add(1, Ordering::SeqCst);
-    let mut state = QUEUE_PERSIST
-        .state
-        .lock()
-        .expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     state.last_write_at = None;
     state.last_snapshot = None;
     state.dirty_since_write = false;
@@ -271,10 +264,7 @@ pub(super) fn reset_queue_persist_state_for_tests() {
 }
 
 pub(super) fn peek_last_persisted_queue_state_lite() -> Option<QueueStateLite> {
-    let state = QUEUE_PERSIST
-        .state
-        .lock()
-        .expect("queue persist lock poisoned");
+    let state = QUEUE_PERSIST.state.lock_unpoisoned();
     state.last_snapshot.clone()
 }
 
@@ -311,33 +301,24 @@ fn has_newly_terminal_jobs(prev: Option<&QueueStateLite>, current: &QueueStateLi
 }
 
 fn ensure_worker_thread_started() {
-    let mut state = QUEUE_PERSIST
-        .state
-        .lock()
-        .expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     if state.worker_started {
         return;
     }
     state.worker_started = true;
     drop(state);
 
-    std::thread::Builder::new()
+    let spawned = std::thread::Builder::new()
         .name("ffui-queue-persist".to_string())
         .spawn(|| {
             loop {
                 let maybe_snapshot = {
-                    let mut state = QUEUE_PERSIST
-                        .state
-                        .lock()
-                        .expect("queue persist lock poisoned");
+                    let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
                     loop {
                         let deadline = match state.next_flush_at {
                             Some(deadline) => deadline,
                             None => {
-                                state = QUEUE_PERSIST
-                                    .cv
-                                    .wait(state)
-                                    .expect("queue persist condvar poisoned");
+                                state = QUEUE_PERSIST.cv.wait_unpoisoned(state);
                                 continue;
                             }
                         };
@@ -348,10 +329,7 @@ fn ensure_worker_thread_started() {
                         }
 
                         let timeout = deadline.saturating_duration_since(now);
-                        let (next, _) = QUEUE_PERSIST
-                            .cv
-                            .wait_timeout(state, timeout)
-                            .expect("queue persist condvar poisoned");
+                        let (next, _) = QUEUE_PERSIST.cv.wait_timeout_unpoisoned(state, timeout);
                         state = next;
                     }
 
@@ -373,7 +351,17 @@ fn ensure_worker_thread_started() {
                 }
             }
         })
-        .expect("failed to spawn queue persistence thread");
+        .map(|_| ());
+
+    if let Err(err) = spawned {
+        // Allow a later retry instead of leaving the persistence worker stuck
+        // in an unstarted state.
+        let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
+        state.worker_started = false;
+        drop(state);
+        QUEUE_PERSIST.cv.notify_all();
+        eprintln!("failed to spawn queue persistence thread: {err}");
+    }
 }
 
 /// Persist the given snapshot immediately, bypassing the debounce window.
@@ -383,10 +371,7 @@ fn ensure_worker_thread_started() {
 pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
     ensure_worker_thread_started();
 
-    let mut state = QUEUE_PERSIST
-        .state
-        .lock()
-        .expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     let epoch = current_queue_persist_epoch();
     state.last_snapshot = Some(snapshot.clone());
     state.last_write_at = Some(Instant::now());
@@ -405,10 +390,7 @@ pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
 pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
     ensure_worker_thread_started();
 
-    let mut state = QUEUE_PERSIST
-        .state
-        .lock()
-        .expect("queue persist lock poisoned");
+    let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     let now = Instant::now();
     let epoch = current_queue_persist_epoch();
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);

@@ -126,7 +126,7 @@ fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
     // Internal engine state should no longer have the job id in the queue,
     // and logs should contain the explanatory message.
     let inner = &engine.inner;
-    let state_lock = inner.state.lock().expect("engine state poisoned");
+    let state_lock = inner.state.lock_unpoisoned();
     assert!(
         !state_lock.queue.contains(&job.id),
         "queue should not contain cancelled job id"
@@ -176,7 +176,7 @@ fn log_external_command_stores_full_command_in_job_logs() {
 
     log_external_command(&engine.inner, &job.id, "ffmpeg", &args);
 
-    let state_lock = engine.inner.state.lock().expect("engine state poisoned");
+    let state_lock = engine.inner.state.lock_unpoisoned();
     let stored = state_lock
         .jobs
         .get(&job.id)
@@ -231,7 +231,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
     );
 
     let initial_cmd = {
-        let state_lock = engine.inner.state.lock().expect("engine state poisoned");
+        let state_lock = engine.inner.state.lock_unpoisoned();
         state_lock
             .jobs
             .get(&job.id)
@@ -249,7 +249,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
 
     // Simulate a paused/resumable job so the next ffmpeg spawn represents Run 2.
     {
-        let mut state_lock = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state_lock = engine.inner.state.lock_unpoisoned();
         let stored = state_lock.jobs.get_mut(&job.id).expect("job present");
         stored.status = JobStatus::Paused;
         stored.progress = 42.0;
@@ -276,7 +276,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
     ];
     log_external_command(&engine.inner, &job.id, "ffmpeg", &args);
 
-    let state_lock = engine.inner.state.lock().expect("engine state poisoned");
+    let state_lock = engine.inner.state.lock_unpoisoned();
     let stored = state_lock
         .jobs
         .get(&job.id)

@@ -22,7 +22,7 @@ fn worker_selection_respects_unified_concurrency_cap() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.settings.max_parallel_jobs = Some(1);
 
         let first = next_job_for_worker_locked(&mut state).expect("first selection");
@@ -90,7 +90,7 @@ fn worker_selection_respects_split_cpu_and_hardware_caps() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         let first = next_job_for_worker_locked(&mut state).expect("first selection");
         assert_eq!(first, cpu1.id, "FIFO selection should take first CPU job");

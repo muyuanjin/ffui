@@ -8,7 +8,7 @@ use std::path::{
 use crate::ffui_core::engine::is_video_file;
 
 fn push_unique(out: &mut Vec<String>, seen: &mut HashSet<String>, path: &Path) {
-    let s = path.to_string_lossy().to_string();
+    let s = path.to_string_lossy().into_owned();
     if seen.insert(s.clone()) {
         out.push(s);
     }
@@ -21,18 +21,13 @@ fn list_dir_sorted(dir: &Path) -> Vec<PathBuf> {
     };
 
     // Stable order: case-insensitive lexicographic by the final path segment.
-    entries.sort_by(|a, b| {
-        let an = a
+    entries.sort_by_cached_key(|p| {
+        let name = p
             .file_name()
             .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase())
-            .unwrap_or_default();
-        let bn = b
-            .file_name()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase())
-            .unwrap_or_default();
-        an.cmp(&bn)
+            .unwrap_or_default()
+            .to_string();
+        (name.to_ascii_lowercase(), name)
     });
     entries
 }

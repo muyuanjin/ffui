@@ -23,12 +23,13 @@ use crate::ffui_core::domain::{
     WaitMetadata,
 };
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+use crate::sync_ext::MutexExt;
 
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
     // Respect the configured queue persistence mode; when disabled we skip
     // loading any previous queue snapshot and start from a clean state.
     {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         if !matches!(
             state.settings.queue_persistence_mode,
             QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull
@@ -38,7 +39,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
     }
 
     let (mode, retention) = {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         (
             state.settings.queue_persistence_mode,
             state.settings.crash_recovery_log_retention,
@@ -135,7 +136,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     let mut tmp_output_candidates: Vec<(String, PathBuf, PathBuf, f64, Option<u64>)> = Vec::new();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
 
         for mut job in snapshot.jobs {
             job.ensure_run_history_from_legacy();
@@ -244,7 +245,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
 
         if !recovered_tmp_outputs.is_empty() {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             for (id, tmp_str, progress, elapsed_ms) in recovered_tmp_outputs {
                 if let Some(job) = state.jobs.get_mut(&id)
                     && job.wait_metadata.is_none()

@@ -22,6 +22,7 @@ use crate::ffui_core::domain::{
     TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
+use crate::sync_ext::MutexExt;
 
 #[cfg(test)]
 pub(crate) fn handle_image_file(
@@ -154,7 +155,7 @@ pub(crate) fn handle_image_file_with_id(
     // format). Note: current Batch Compress image pipeline encodes AVIF; `imageTargetFormat` may be
     // extended later.
     let (avif_target, tmp_output) = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let target = plan_output_path_with_extension(
             path,
             "avif",

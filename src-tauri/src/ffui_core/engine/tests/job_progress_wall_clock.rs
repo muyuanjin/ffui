@@ -10,7 +10,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
     let start_ms = current_time_millis();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
@@ -69,7 +69,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
     update_job_progress(&inner, &job_id, Some(55.0), None, None);
 
     let now_after = current_time_millis();
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let job = state.jobs.get(&job_id).expect("job present");
     let elapsed_ms = job.elapsed_ms.expect("elapsed_ms present");
 

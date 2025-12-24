@@ -12,6 +12,8 @@ use serde::{
 };
 use sysinfo::System;
 
+use crate::sync_ext::MutexExt;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CpuUsageSnapshot {
@@ -40,8 +42,7 @@ pub fn sample_cpu_usage() -> CpuUsageSnapshot {
             sys.refresh_cpu_usage();
             Mutex::new(sys)
         })
-        .lock()
-        .expect("cpu System mutex poisoned");
+        .lock_unpoisoned();
     sys.refresh_cpu_usage();
 
     let per_core: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
@@ -62,7 +63,7 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
     static NVML_INSTANCE: OnceLock<Mutex<Option<Nvml>>> = OnceLock::new();
 
     let mutex = NVML_INSTANCE.get_or_init(|| Mutex::new(None));
-    let mut guard = mutex.lock().expect("NVML mutex poisoned");
+    let mut guard = mutex.lock_unpoisoned();
     if guard.is_none() {
         match Nvml::init() {
             Ok(instance) => {
@@ -74,7 +75,9 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
         }
     }
 
-    let nvml = guard.as_ref().expect("NVML instance must be initialized");
+    let Some(nvml) = guard.as_ref() else {
+        return Err(NvmlError::Unknown);
+    };
     let device_count = nvml.device_count()?;
     if device_count == 0 {
         return Ok(GpuUsageSnapshot {

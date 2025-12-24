@@ -13,6 +13,10 @@ use crate::ffui_core::settings::{
     NetworkProxyMode,
     NetworkProxySettings,
 };
+use crate::sync_ext::{
+    MutexExt,
+    RwLockExt,
+};
 
 #[derive(Debug, Clone)]
 struct NetworkProxyConfig {
@@ -43,9 +47,7 @@ impl ResolvedNetworkProxy {
 }
 
 pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
-    let mut state = NETWORK_PROXY_CONFIG
-        .write()
-        .expect("NETWORK_PROXY_CONFIG lock poisoned");
+    let mut state = NETWORK_PROXY_CONFIG.write_unpoisoned();
     let mode = settings.map(|s| s.mode).unwrap_or(NetworkProxyMode::System);
     let proxy_url = settings
         .and_then(|s| s.proxy_url.as_ref())
@@ -56,9 +58,7 @@ pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
 }
 
 pub fn snapshot() -> (NetworkProxyMode, Option<String>) {
-    let state = NETWORK_PROXY_CONFIG
-        .read()
-        .expect("NETWORK_PROXY_CONFIG lock poisoned");
+    let state = NETWORK_PROXY_CONFIG.read_unpoisoned();
     (state.mode, state.custom_proxy_url.clone())
 }
 
@@ -76,39 +76,54 @@ pub fn apply_reqwest_builder(
     builder: reqwest::ClientBuilder,
     resolved: &ResolvedNetworkProxy,
 ) -> reqwest::ClientBuilder {
+    apply_reqwest_proxy_impl(
+        builder,
+        resolved,
+        |builder| builder.no_proxy(),
+        |builder, proxy| builder.proxy(proxy),
+    )
+}
+
+pub fn apply_reqwest_blocking_builder(
+    builder: reqwest::blocking::ClientBuilder,
+    resolved: &ResolvedNetworkProxy,
+) -> reqwest::blocking::ClientBuilder {
+    apply_reqwest_proxy_impl(
+        builder,
+        resolved,
+        |builder| builder.no_proxy(),
+        |builder, proxy| builder.proxy(proxy),
+    )
+}
+
+fn apply_reqwest_proxy_impl<T>(
+    builder: T,
+    resolved: &ResolvedNetworkProxy,
+    no_proxy: impl Fn(T) -> T,
+    with_proxy: impl Fn(T, reqwest::Proxy) -> T,
+) -> T {
     #[cfg(test)]
     {
-        let _ = resolved;
+        let _ = (resolved, &with_proxy);
         // Unit tests should be deterministic and avoid inheriting platform/system
         // proxy configuration (common on Windows via WinHTTP/WinINet).
-        builder.no_proxy()
+        no_proxy(builder)
     }
 
     #[cfg(not(test))]
     {
-        let mode = resolved.mode;
-        let proxy_url = resolved.proxy_url.clone();
-        match mode {
-            NetworkProxyMode::None => builder.no_proxy(),
-            NetworkProxyMode::Custom => {
-                if let Some(url) = proxy_url
-                    && let Ok(proxy) = reqwest::Proxy::all(&url)
+        let mut builder = builder;
+        match resolved.mode {
+            NetworkProxyMode::None => return no_proxy(builder),
+            NetworkProxyMode::Custom | NetworkProxyMode::System => {
+                if let Some(url) = resolved.proxy_url.as_deref()
+                    && let Ok(proxy) = reqwest::Proxy::all(url)
                 {
-                    builder.proxy(proxy)
-                } else {
-                    builder
-                }
-            }
-            NetworkProxyMode::System => {
-                if let Some(url) = proxy_url
-                    && let Ok(proxy) = reqwest::Proxy::all(&url)
-                {
-                    builder.proxy(proxy)
-                } else {
-                    builder
+                    builder = with_proxy(builder, proxy);
                 }
             }
         }
+        builder
     }
 }
 
@@ -133,9 +148,7 @@ pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNet
 }
 
 pub fn prepare_updater_proxy_env() -> ResolvedNetworkProxy {
-    let _guard = UPDATER_PROXY_ENV_MUTEX
-        .lock()
-        .expect("UPDATER_PROXY_ENV_MUTEX lock poisoned");
+    let _guard = UPDATER_PROXY_ENV_MUTEX.lock_unpoisoned();
 
     let resolved = resolve_effective_proxy_once();
     match resolved.mode {
@@ -426,7 +439,7 @@ mod tests {
 
     #[test]
     fn resolve_system_calls_platform_proxy_reader_when_env_missing() {
-        let _lock = ENV_MUTEX.lock().expect("ENV_MUTEX lock poisoned");
+        let _lock = ENV_MUTEX.lock_unpoisoned();
         let _env_guard = ProxyEnvGuard::capture();
         clear_proxy_env();
         apply_settings(Some(&NetworkProxySettings {
@@ -448,7 +461,7 @@ mod tests {
 
     #[test]
     fn aria2c_args_use_resolved_proxy_snapshot() {
-        let _lock = ENV_MUTEX.lock().expect("ENV_MUTEX lock poisoned");
+        let _lock = ENV_MUTEX.lock_unpoisoned();
         let _env_guard = ProxyEnvGuard::capture();
         clear_proxy_env();
 

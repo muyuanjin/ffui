@@ -1,9 +1,10 @@
 use super::*;
+use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
     /// Get the current application settings.
     pub fn settings(&self) -> AppSettings {
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         state.settings.clone()
     }
 
@@ -19,7 +20,7 @@ impl TranscodingEngine {
             new_percent,
             saved,
         ) = {
-            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let mut state = self.inner.state.lock_unpoisoned();
 
             let mut normalized = new_settings.clone();
             normalized.normalize();
@@ -88,4 +89,3 @@ impl TranscodingEngine {
         Ok(saved)
     }
 }
-

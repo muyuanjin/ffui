@@ -32,6 +32,7 @@ use crate::ffui_core::domain::{
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+use crate::sync_ext::MutexExt;
 
 mod restore;
 
@@ -193,7 +194,7 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
     #[cfg(test)]
     SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.set(c.get() + 1));
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     snapshot_queue_state_from_locked_state(&state)
 }
 
@@ -216,24 +217,16 @@ fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStat
 }
 
 pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     snapshot_queue_state_lite_from_locked_state(&state)
 }
 
 pub(super) fn notify_queue_listeners(inner: &Inner) {
-    let full_listeners = inner
-        .queue_listeners
-        .lock()
-        .expect("queue listeners lock poisoned")
-        .clone();
-    let lite_listeners = inner
-        .queue_lite_listeners
-        .lock()
-        .expect("queue lite listeners lock poisoned")
-        .clone();
+    let full_listeners = inner.queue_listeners.lock_unpoisoned().clone();
+    let lite_listeners = inner.queue_lite_listeners.lock_unpoisoned().clone();
 
     let (lite_snapshot, full_snapshot, persistence_mode, retention) = {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let lite = snapshot_queue_state_lite_from_locked_state(&state);
         let full = if full_listeners.is_empty() {
             None
@@ -263,7 +256,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
             prev_snapshot.as_ref(),
             &lite_snapshot,
             |job_id| {
-                let state = inner.state.lock().expect("engine state poisoned");
+                let state = inner.state.lock_unpoisoned();
                 state.jobs.get(job_id).cloned()
             },
         );
@@ -281,10 +274,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
 }
 
 pub(super) fn notify_batch_compress_listeners(inner: &Inner, progress: AutoCompressProgress) {
-    let listeners = inner
-        .batch_compress_listeners
-        .lock()
-        .expect("batch compress listeners lock poisoned");
+    let listeners = inner.batch_compress_listeners.lock_unpoisoned();
     for listener in listeners.iter() {
         listener(progress.clone());
     }
@@ -298,7 +288,7 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
 ) where
     F: FnOnce(&mut BatchCompressBatch), {
     let progress = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let batch = match state.batch_compress_batches.get_mut(batch_id) {
             Some(b) => b,
             None => return,
@@ -331,12 +321,12 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
 
 pub(super) fn register_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) {
     let key = path.to_string_lossy().into_owned();
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     state.known_batch_compress_outputs.insert(key);
 }
 
 pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) -> bool {
     let key = path.to_string_lossy().into_owned();
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     state.known_batch_compress_outputs.contains(&key)
 }

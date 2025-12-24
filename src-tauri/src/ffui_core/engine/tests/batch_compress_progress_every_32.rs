@@ -18,10 +18,7 @@ fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(progress);
+        snapshots_clone.lock_unpoisoned().push(progress);
     });
 
     let config = BatchCompressConfig {
@@ -56,7 +53,7 @@ fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {
         }
     };
 
-    let snapshots = snapshots.lock().expect("snapshots lock poisoned");
+    let snapshots = snapshots.lock_unpoisoned();
     let scanned_values = snapshots
         .iter()
         .filter(|s| s.batch_id == batch_id)

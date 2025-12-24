@@ -15,7 +15,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
     // Simulate the worker having taken this job from the queue and made
     // some progress.
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         // Pop the job from the queue as next_job_for_worker_locked would.
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
@@ -44,7 +44,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
         .expect("mark_job_waiting must succeed");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get(&job.id)
@@ -92,7 +92,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
     assert!(resumed, "resume_job must accept a Paused job");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get(&job.id)
@@ -125,7 +125,7 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get(&job.id)
@@ -165,7 +165,7 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
 
     // Simulate the worker having taken this job from the queue.
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.status = JobStatus::Processing;
@@ -177,7 +177,7 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
     assert!(restarted, "restart_job must accept a Processing job");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.cancelled_jobs.contains(&job.id),
             "restart_job must mark the job as cancelled for cooperative cancellation"
@@ -193,7 +193,7 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
         .expect("mark_job_cancelled must succeed for restart scenario");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get(&job.id)
@@ -236,7 +236,7 @@ fn resume_cancels_pending_wait_request_and_logs_when_processing() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.status = JobStatus::Processing;
@@ -251,7 +251,7 @@ fn resume_cancels_pending_wait_request_and_logs_when_processing() {
         "resume_job must cancel a pending wait request while job is processing"
     );
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state
         .jobs
         .get(&job.id)
@@ -296,7 +296,7 @@ fn resume_cancels_pending_wait_request_for_processing_job() {
 
     // 模拟 worker 已经取走任务并开始处理
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.status = JobStatus::Processing;
@@ -310,7 +310,7 @@ fn resume_cancels_pending_wait_request_for_processing_job() {
 
     // 验证 wait_request 已设置，但状态仍是 Processing
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.wait_requests.contains(&job.id),
             "wait_requests should contain the job id after wait_job"
@@ -333,7 +333,7 @@ fn resume_cancels_pending_wait_request_for_processing_job() {
 
     // 验证 wait_request 已被取消，任务继续处理
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.wait_requests.contains(&job.id),
             "wait_requests should be cleared after resume cancels the pending wait"
@@ -375,7 +375,7 @@ fn resume_rejects_processing_job_without_pending_wait_request() {
 
     // 模拟 worker 已经取走任务并开始处理
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.status = JobStatus::Processing;
@@ -392,7 +392,7 @@ fn resume_rejects_processing_job_without_pending_wait_request() {
 
     // 验证状态没有改变
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get(&job.id).expect("job must exist");
         assert_eq!(
             stored.status,
@@ -418,7 +418,7 @@ fn rapid_pause_resume_pause_sequence_handles_correctly() {
 
     // 模拟 worker 已经取走任务并开始处理
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.status = JobStatus::Processing;
@@ -440,7 +440,7 @@ fn rapid_pause_resume_pause_sequence_handles_correctly() {
 
     // 验证最终状态：有一个待处理的暂停请求
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.wait_requests.contains(&job.id),
             "wait_requests should contain the job id after final wait_job"
@@ -461,7 +461,7 @@ fn rapid_pause_resume_pause_sequence_handles_correctly() {
 
     // 验证任务现在是 Paused 状态
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get(&job.id).expect("job must exist");
         assert_eq!(
             stored.status,

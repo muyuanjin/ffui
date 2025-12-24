@@ -6,7 +6,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
     let job_id = "job-progress-monotonic".to_string();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
@@ -50,7 +50,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
     update_job_progress(&inner, &job_id, Some(-10.0), None, None);
 
     {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let job = state
             .jobs
             .get(&job_id)
@@ -62,7 +62,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
     update_job_progress(&inner, &job_id, Some(42.5), None, None);
 
     {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let job = state
             .jobs
             .get(&job_id)
@@ -77,7 +77,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
     update_job_progress(&inner, &job_id, Some(150.0), None, None);
 
     {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let job = state
             .jobs
             .get(&job_id)
@@ -89,7 +89,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
     update_job_progress(&inner, &job_id, Some(80.0), None, None);
 
     {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let job = state
             .jobs
             .get(&job_id)
@@ -119,10 +119,7 @@ fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_listener(move |state: QueueState| {
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(state);
+        snapshots_clone.lock_unpoisoned().push(state);
     });
 
     let job = engine.enqueue_transcode_job(
@@ -137,7 +134,7 @@ fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
     // Clear any initial snapshots from enqueue so we can focus on the
     // behaviour of update_job_progress itself.
     {
-        let mut states = snapshots.lock().expect("snapshots lock poisoned");
+        let mut states = snapshots.lock_unpoisoned();
         states.clear();
     }
 
@@ -145,7 +142,7 @@ fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
     // spawn_worker would normally do before calling process_transcode_job.
     {
         let inner = &engine.inner;
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get_mut(&job.id)
@@ -165,7 +162,7 @@ fn update_job_progress_emits_queue_snapshot_for_log_only_updates() {
         None,
     );
 
-    let states = snapshots.lock().expect("snapshots lock poisoned");
+    let states = snapshots.lock_unpoisoned();
     assert!(
         !states.is_empty(),
         "log-only progress updates for processing jobs must emit at least one queue snapshot"
@@ -193,7 +190,7 @@ fn update_job_progress_ignores_whitespace_only_log_lines() {
     let job_id = "job-whitespace-logs".to_string();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
@@ -247,7 +244,7 @@ fn update_job_progress_ignores_whitespace_only_log_lines() {
     update_job_progress(&inner, &job_id, None, Some("\t\t"), None);
     update_job_progress(&inner, &job_id, None, Some(""), None);
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let job = state
         .jobs
         .get(&job_id)
@@ -277,7 +274,7 @@ fn process_transcode_job_marks_failure_when_preset_missing() {
     let job_id = "job-missing-preset".to_string();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
@@ -323,7 +320,7 @@ fn process_transcode_job_marks_failure_when_preset_missing() {
         "processing a job with a missing preset should not bubble an error"
     );
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let job = state
         .jobs
         .get(&job_id)
@@ -351,7 +348,7 @@ fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
     let job_id = "job-log-trim".to_string();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(
             job_id.clone(),
             TranscodeJob {
@@ -403,7 +400,7 @@ fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
         update_job_progress(&inner, &job_id, None, Some(&line), None);
     }
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let job = state
         .jobs
         .get(&job_id)

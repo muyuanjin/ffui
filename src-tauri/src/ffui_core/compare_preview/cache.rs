@@ -15,6 +15,8 @@ use anyhow::{
 };
 use once_cell::sync::Lazy;
 
+use crate::sync_ext::MutexExt;
+
 const DEFAULT_COMPARE_CACHE_MAX_BYTES: u64 = 512 * 1024 * 1024; // 512 MiB
 const DEFAULT_COMPARE_CACHE_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60); // 30 days
 const DEFAULT_CLEANUP_THROTTLE: Duration = Duration::from_secs(120);
@@ -25,9 +27,7 @@ pub(super) fn maybe_cleanup_cache_now(cache_root: &Path) {
     let now = SystemTime::now();
 
     {
-        let mut last = LAST_CLEANUP_AT
-            .lock()
-            .expect("cleanup throttle lock poisoned");
+        let mut last = LAST_CLEANUP_AT.lock_unpoisoned();
         if let Some(prev) = *last
             && now.duration_since(prev).unwrap_or_default() < DEFAULT_CLEANUP_THROTTLE
         {

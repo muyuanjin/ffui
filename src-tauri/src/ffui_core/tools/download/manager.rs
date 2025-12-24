@@ -56,7 +56,7 @@ pub(crate) fn spawn_download_size_probe(
     kind: ExternalToolKind,
     tmp_path: PathBuf,
     total: Option<u64>,
-) -> (Arc<AtomicBool>, thread::JoinHandle<()>) {
+) -> (Arc<AtomicBool>, Option<thread::JoinHandle<()>>) {
     let stop = Arc::new(AtomicBool::new(false));
     let stop_flag = stop.clone();
     let handle = thread::Builder::new()
@@ -66,10 +66,13 @@ pub(crate) fn spawn_download_size_probe(
                 if let Ok(meta) = std::fs::metadata(&tmp_path) {
                     mark_download_progress(kind, meta.len(), total);
                 }
-                thread::sleep(Duration::from_millis(250));
+                thread::park_timeout(Duration::from_millis(250));
             }
         })
-        .expect("failed to spawn progress probe thread");
+        .ok();
+    if handle.is_none() {
+        eprintln!("failed to spawn progress probe thread");
+    }
     (stop, handle)
 }
 
@@ -81,10 +84,10 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 
     let result = match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
-            let url = match kind {
-                ExternalToolKind::Ffmpeg => default_ffmpeg_download_url()?,
-                ExternalToolKind::Ffprobe => default_ffprobe_download_url()?,
-                _ => unreachable!(),
+            let url = if matches!(kind, ExternalToolKind::Ffmpeg) {
+                default_ffmpeg_download_url()?
+            } else {
+                default_ffprobe_download_url()?
             };
 
             let release = current_ffmpeg_release();
@@ -94,7 +97,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
             let tmp_path = dir.join(format!("{filename}.tmp"));
-            let mut probe: Option<(Arc<AtomicBool>, thread::JoinHandle<()>)> = None;
+            let mut probe: Option<(Arc<AtomicBool>, Option<thread::JoinHandle<()>>)> = None;
 
             if super::net::aria2c_available() {
                 // Try to fetch a content length hint to expose determinate progress early.
@@ -121,7 +124,9 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             }
             if let Some((stop, handle)) = probe {
                 stop.store(true, Ordering::Relaxed);
-                let _ = handle.join();
+                if let Some(handle) = handle {
+                    let _ = handle.join();
+                }
             }
 
             // On Windows we must verify using an executable-looking path

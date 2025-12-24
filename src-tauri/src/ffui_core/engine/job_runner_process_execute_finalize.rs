@@ -34,7 +34,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
     if finalize_with_source_audio
         && let Err(err) = remux_segment_drop_audio(ffmpeg_path, tmp_output)
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             super::worker_utils::append_job_log_line(
                 job,
@@ -47,7 +47,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
     }
 
     if segment_durations.is_some() {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             super::worker_utils::append_job_log_line(
                 job,

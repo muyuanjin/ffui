@@ -76,7 +76,7 @@ fn batch_compress_video_enqueue_keeps_batch_children_consecutive_even_when_manua
         "Batch Compress queued job planned command should reflect the selected preset"
     );
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let queue_vec: Vec<String> = state.queue.iter().cloned().collect();
 
     assert_eq!(

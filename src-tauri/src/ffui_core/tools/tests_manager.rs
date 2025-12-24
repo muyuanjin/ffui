@@ -13,6 +13,7 @@ mod tools_tests_manager {
         ExternalToolKind,
         TOOL_DOWNLOAD_STATE,
     };
+    use crate::sync_ext::MutexExt;
 
     // 防回归：当 tools 目录下已存在且可通过 -version 验证的二进制时，
     // ensure_tool_available 不应再次下载。
@@ -83,9 +84,7 @@ mod tools_tests_manager {
             .unwrap();
 
         {
-            let mut map = TOOL_DOWNLOAD_STATE
-                .lock()
-                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
             map.clear();
         }
 

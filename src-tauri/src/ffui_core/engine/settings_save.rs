@@ -1,4 +1,5 @@
 use super::*;
+use crate::sync_ext::MutexExt;
 
 fn merge_backend_owned_tool_state(
     new_tools: &mut crate::ffui_core::settings::ExternalToolSettings,
@@ -28,7 +29,7 @@ impl TranscodingEngine {
             proxy_snapshot,
             saved,
         ) = {
-            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let mut state = self.inner.state.lock_unpoisoned();
 
             let mut normalized = new_settings.clone();
             normalized.normalize();

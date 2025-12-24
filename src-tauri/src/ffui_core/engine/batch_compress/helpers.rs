@@ -13,6 +13,7 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     last_tool_download_metadata,
 };
+use crate::sync_ext::MutexExt;
 
 pub(crate) fn current_time_millis() -> u64 {
     SystemTime::now()
@@ -30,7 +31,7 @@ pub(crate) fn next_job_id(inner: &Inner) -> String {
 
 pub(crate) fn record_tool_download(inner: &Inner, kind: ExternalToolKind, binary_path: &str) {
     let meta = last_tool_download_metadata(kind);
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     let settings_ref = &mut state.settings;
     let tools = &mut settings_ref.tools;
 

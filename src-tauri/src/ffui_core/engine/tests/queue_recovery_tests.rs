@@ -40,11 +40,7 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
 
     restore_jobs_from_snapshot(&restored.inner, snapshot);
 
-    let state = restored
-        .inner
-        .state
-        .lock()
-        .expect("restored engine state poisoned");
+    let state = restored.inner.state.lock_unpoisoned();
 
     assert!(
         state.jobs.contains_key(&first.id) && state.jobs.contains_key(&second.id),
@@ -77,7 +73,7 @@ fn crash_recovery_preserves_wait_target_seconds() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
         stored.status = JobStatus::Paused;
         stored.progress = 40.0;
@@ -106,7 +102,7 @@ fn crash_recovery_preserves_wait_target_seconds() {
     let restored = make_engine_with_preset();
     restore_jobs_from_snapshot(&restored.inner, snapshot);
 
-    let state = restored.inner.state.lock().expect("engine state poisoned");
+    let state = restored.inner.state.lock_unpoisoned();
     let restored_job = state.jobs.get(&job.id).expect("restored job exists");
     let meta = restored_job
         .wait_metadata
@@ -133,13 +129,13 @@ fn crash_recovery_dedupes_existing_queue_entries() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.queue.push_back(job.id.clone());
     }
 
     restore_jobs_from_snapshot(&engine.inner, QueueState { jobs: Vec::new() });
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let queue_vec: Vec<String> = state.queue.iter().cloned().collect();
     assert_eq!(
         queue_vec,

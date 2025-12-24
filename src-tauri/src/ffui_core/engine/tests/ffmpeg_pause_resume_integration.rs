@@ -103,7 +103,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
 
     // Simulate worker selection: mark job Processing and set timing fields.
     let selected_id = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("job must be selectable for worker")
     };
     assert_eq!(selected_id, job_id);
@@ -127,7 +127,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         handle.join().expect("pause thread must join");
 
         let (segment_path, processed_seconds) = {
-            let state = engine.inner.state.lock().expect("engine state poisoned");
+            let state = engine.inner.state.lock_unpoisoned();
             let stored = state.jobs.get(job_id).expect("job must exist");
             assert_eq!(
                 stored.status,
@@ -172,7 +172,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         "resume_job must accept paused job"
     );
     let selected_id = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("resumed job must be selectable")
     };
     assert_eq!(selected_id, job_id);
@@ -189,7 +189,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         "resume_job must accept paused job for final completion"
     );
     let selected_id = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("resumed job must be selectable")
     };
     assert_eq!(selected_id, job_id);
@@ -197,7 +197,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
     process_transcode_job(&engine.inner, &job_id).expect("process_transcode_job must complete");
 
     let status = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         state
             .jobs
             .get(&job_id)

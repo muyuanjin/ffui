@@ -18,6 +18,8 @@ use crate::ffui_core::domain::{
     RateControlMode,
     VideoConfig,
 };
+#[cfg(test)]
+use crate::sync_ext::MutexExt;
 
 // Many unit tests (and some integration-style tests) touch the same
 // shared presets file path. Guard this path under `cfg(test)` so
@@ -41,9 +43,7 @@ pub(super) fn with_presets_sidecar_lock<T>(f: impl FnOnce() -> T) -> T {
         return f();
     }
 
-    let _guard = PRESETS_SIDECAR_MUTEX
-        .lock()
-        .expect("preset sidecar mutex poisoned");
+    let _guard = PRESETS_SIDECAR_MUTEX.lock_unpoisoned();
     HELD.with(|flag| flag.set(true));
     struct Reset;
     impl Drop for Reset {

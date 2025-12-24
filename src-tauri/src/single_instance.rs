@@ -304,7 +304,7 @@ fn focus_existing_instance_by_exe_with_retries(exe_path: &Path) -> bool {
         if windows_focus::focus_primary_window_by_exe_path_best_effort(exe_path) {
             return true;
         }
-        thread::sleep(Duration::from_millis(50));
+        thread::park_timeout(Duration::from_millis(50));
     }
     false
 }
@@ -361,7 +361,7 @@ fn focus_main_window_best_effort(app: &AppHandle) {
         {
             return;
         }
-        thread::sleep(Duration::from_millis(50));
+        thread::park_timeout(Duration::from_millis(50));
     }
 }
 
@@ -411,7 +411,7 @@ fn read_lock_info_with_retries(lock_path: &Path) -> Result<LockInfo> {
             },
             Err(err) => last_error = Some(anyhow::Error::new(err)),
         }
-        thread::sleep(Duration::from_millis(25));
+        thread::park_timeout(Duration::from_millis(25));
     }
 
     Err(last_error.unwrap_or_else(|| anyhow::anyhow!("lock info unavailable")))

@@ -9,7 +9,7 @@ fn delete_batch_compress_batch_succeeds_without_batch_metadata_when_all_children
     let job2_id = "legacy-batch-child-terminal-2".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         let base_job = |id: &str, status: JobStatus| TranscodeJob {
             id: id.to_string(),
@@ -82,7 +82,7 @@ fn delete_batch_compress_batch_rejects_without_batch_metadata_when_any_child_is_
     let job2_id = "legacy-batch-child-non-terminal".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         let base_job = |id: &str, status: JobStatus| {
             let progress = if status == JobStatus::Processing {

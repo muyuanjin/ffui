@@ -58,6 +58,7 @@ use crate::ffui_core::settings::{
     self,
     AppSettings,
 };
+use crate::sync_ext::MutexExt;
 
 pub(crate) fn run_auto_compress(
     inner: &Arc<Inner>,
@@ -70,7 +71,7 @@ pub(crate) fn run_auto_compress(
     }
 
     let (settings_snapshot, presets, batch_id, started_at_ms) = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults = config.clone();
         if let Err(err) = settings::save_settings(&state.settings) {
             eprintln!("failed to persist Batch Compress defaults to settings.json: {err:#}");
@@ -125,7 +126,7 @@ pub(crate) fn run_auto_compress(
     let inner_clone = inner.clone();
     let config_clone = config.clone();
     let batch_id_for_thread = batch_id.clone();
-    thread::Builder::new()
+    let spawned = thread::Builder::new()
         .name(format!("batch-compress-{batch_id_for_thread}"))
         .spawn(move || {
             run_auto_compress_background(
@@ -137,7 +138,18 @@ pub(crate) fn run_auto_compress(
                 batch_id_for_thread,
             );
         })
-        .expect("failed to spawn Batch Compress background worker");
+        .map(|_| ());
+
+    if let Err(err) = spawned {
+        update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
+            batch.status = BatchCompressBatchStatus::Failed;
+            batch.completed_at_ms = Some(current_time_millis());
+        });
+        eprintln!("failed to spawn Batch Compress background worker: {err}");
+        return Err(anyhow::anyhow!(
+            "failed to start Batch Compress worker thread: {err}"
+        ));
+    }
 
     Ok(AutoCompressResult {
         root_path,
@@ -401,8 +413,12 @@ fn run_auto_compress_background(
         let settings_clone = settings_snapshot.clone();
         let presets_clone = presets.clone();
         let batch_id_clone = batch_id.clone();
+        let pending_job_ids: Vec<String> = pending_media_tasks
+            .iter()
+            .map(|(job_id, _, _)| job_id.clone())
+            .collect();
 
-        thread::Builder::new()
+        let spawned = thread::Builder::new()
             .name(format!("batch-compress-media-worker-{batch_id}"))
             .spawn(move || {
                 for (job_id, path, kind) in pending_media_tasks {
@@ -429,13 +445,11 @@ fn run_auto_compress_background(
 
                     match result {
                         Ok(job) => {
-                            let mut state =
-                                inner_clone.state.lock().expect("engine state poisoned");
+                            let mut state = inner_clone.state.lock_unpoisoned();
                             state.jobs.insert(job.id.clone(), job);
                         }
                         Err(err) => {
-                            let mut state =
-                                inner_clone.state.lock().expect("engine state poisoned");
+                            let mut state = inner_clone.state.lock_unpoisoned();
                             if let Some(job) = state.jobs.get_mut(&job_id) {
                                 job.status = JobStatus::Failed;
                                 job.progress = 100.0;
@@ -452,33 +466,16 @@ fn run_auto_compress_background(
                     mark_batch_compress_child_processed(&inner_clone, &job_id);
                 }
             })
-            .expect("failed to spawn batch compress media worker thread");
-    }
-}
+            .map(|_| ());
 
-#[allow(dead_code)]
-pub(crate) fn batch_compress_batch_summary(
-    inner: &Inner,
-    batch_id: &str,
-) -> Option<AutoCompressResult> {
-    let state = inner.state.lock().expect("engine state poisoned");
-    let batch = state.batch_compress_batches.get(batch_id)?.clone();
-
-    let mut jobs = Vec::new();
-    for job in state.jobs.values() {
-        if job.batch_id.as_deref() == Some(batch_id) {
-            jobs.push(job.clone());
+        if let Err(err) = spawned {
+            eprintln!("failed to spawn batch compress media worker thread: {err}");
+            super::orchestrator_helpers::handle_media_worker_spawn_failure(
+                &inner,
+                &batch_id,
+                pending_job_ids,
+                err,
+            );
         }
     }
-
-    Some(AutoCompressResult {
-        root_path: batch.root_path,
-        jobs,
-        total_files_scanned: batch.total_files_scanned,
-        total_candidates: batch.total_candidates,
-        total_processed: batch.total_processed,
-        batch_id: batch.batch_id,
-        started_at_ms: batch.started_at_ms,
-        completed_at_ms: batch.completed_at_ms.unwrap_or(batch.started_at_ms),
-    })
 }

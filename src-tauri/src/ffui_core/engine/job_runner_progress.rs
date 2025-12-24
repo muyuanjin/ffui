@@ -17,7 +17,7 @@ pub(super) fn update_job_progress(
     let now_ms = current_time_millis();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             // 更新累计已用时间：基于 processing_started_ms 计算当前段的时间，加上之前暂停时累积的时间
             if job.status == JobStatus::Processing {

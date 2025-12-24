@@ -121,7 +121,7 @@ fn wait_sends_quit_without_needing_stderr_lines() {
     let engine = make_engine_with_preset();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.settings.tools.ffmpeg_path = Some(mock_exe.to_string_lossy().into_owned());
         state.settings.tools.ffprobe_path = Some(mock_exe.to_string_lossy().into_owned());
         state.settings.tools.auto_download = false;
@@ -137,7 +137,7 @@ fn wait_sends_quit_without_needing_stderr_lines() {
     );
 
     let selected_id = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("job must be selectable for worker")
     };
     assert_eq!(selected_id, job.id);
@@ -155,7 +155,7 @@ fn wait_sends_quit_without_needing_stderr_lines() {
     .join()
     .expect("worker thread must join");
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job must exist");
     assert_eq!(
         stored.status,

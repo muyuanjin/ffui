@@ -84,7 +84,7 @@ fn delete_batch_compress_batch_succeeds_for_candidates_without_children() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.batch_compress_batches.contains_key(&batch_id),
             "Batch Compress batch metadata should be removed after successful delete_batch_compress_batch",

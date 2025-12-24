@@ -22,6 +22,8 @@ use crate::ffui_core::settings::types::{
     CrashRecoveryLogRetention,
     QueuePersistenceMode,
 };
+#[cfg(test)]
+use crate::sync_ext::MutexExt;
 
 #[cfg(test)]
 static QUEUE_LOGS_DIR_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =
@@ -33,9 +35,7 @@ pub(in crate::ffui_core::engine) struct QueueLogsDirGuard;
 #[cfg(test)]
 impl Drop for QueueLogsDirGuard {
     fn drop(&mut self) {
-        let mut override_dir = QUEUE_LOGS_DIR_OVERRIDE
-            .lock()
-            .expect("queue logs dir override lock poisoned");
+        let mut override_dir = QUEUE_LOGS_DIR_OVERRIDE.lock_unpoisoned();
         *override_dir = None;
     }
 }
@@ -44,9 +44,7 @@ impl Drop for QueueLogsDirGuard {
 pub(in crate::ffui_core::engine) fn override_queue_logs_dir_for_tests(
     dir: PathBuf,
 ) -> QueueLogsDirGuard {
-    let mut override_dir = QUEUE_LOGS_DIR_OVERRIDE
-        .lock()
-        .expect("queue logs dir override lock poisoned");
+    let mut override_dir = QUEUE_LOGS_DIR_OVERRIDE.lock_unpoisoned();
     *override_dir = Some(dir);
     QueueLogsDirGuard
 }
@@ -54,9 +52,7 @@ pub(in crate::ffui_core::engine) fn override_queue_logs_dir_for_tests(
 fn queue_logs_dir() -> Option<PathBuf> {
     #[cfg(test)]
     {
-        let override_dir = QUEUE_LOGS_DIR_OVERRIDE
-            .lock()
-            .expect("queue logs dir override lock poisoned");
+        let override_dir = QUEUE_LOGS_DIR_OVERRIDE.lock_unpoisoned();
         if let Some(dir) = override_dir.as_ref() {
             return Some(dir.clone());
         }

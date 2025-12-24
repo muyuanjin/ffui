@@ -36,6 +36,7 @@ mod tools_tests_runtime {
         ExternalToolStatus,
         update_latest_status_snapshot,
     };
+    use crate::sync_ext::MutexExt;
     pub(crate) static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
     #[test]
     fn tool_status_exposes_download_state_defaults() {
@@ -44,16 +45,12 @@ mod tools_tests_runtime {
         use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
         // Start from a clean runtime state so earlier tests do not leak.
         {
-            let mut map = TOOL_DOWNLOAD_STATE
-                .lock()
-                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
             map.clear();
         }
         // Also clear cached snapshot to avoid leaking in-progress flags.
         {
-            let mut snapshot = super::super::runtime_state::LATEST_TOOL_STATUS
-                .lock()
-                .expect("LATEST_TOOL_STATUS lock poisoned");
+            let mut snapshot = super::super::runtime_state::LATEST_TOOL_STATUS.lock_unpoisoned();
             snapshot.clear();
         }
         // When no download has been triggered, runtime fields should be defaulted.
@@ -83,9 +80,7 @@ mod tools_tests_runtime {
 
         // Reset cached release info to force recalculation.
         {
-            let mut cache = crate::ffui_core::tools::types::FFMPEG_RELEASE_CACHE
-                .lock()
-                .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+            let mut cache = crate::ffui_core::tools::types::FFMPEG_RELEASE_CACHE.lock_unpoisoned();
             *cache = None;
         }
         // Seed stale download metadata that should not override the latest release.
@@ -107,9 +102,7 @@ mod tools_tests_runtime {
 
         // Clean up to avoid leaking state into other tests.
         {
-            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD
-                .lock()
-                .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD.lock_unpoisoned();
             map.clear();
         }
     }
@@ -135,9 +128,7 @@ mod tools_tests_runtime {
 
         // Clean global state to avoid leaking into other tests.
         {
-            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD
-                .lock()
-                .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD.lock_unpoisoned();
             map.clear();
         }
     }
@@ -150,15 +141,11 @@ mod tools_tests_runtime {
             crate::test_support::EnvVarGuard::capture(["PATH", "FFUI_AVIFENC", "FFUI_TOOL"]);
 
         {
-            let mut map = TOOL_DOWNLOAD_STATE
-                .lock()
-                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
             map.clear();
         }
         {
-            let mut snapshot = super::super::runtime_state::LATEST_TOOL_STATUS
-                .lock()
-                .expect("LATEST_TOOL_STATUS lock poisoned");
+            let mut snapshot = super::super::runtime_state::LATEST_TOOL_STATUS.lock_unpoisoned();
             snapshot.clear();
         }
 
@@ -225,15 +212,11 @@ mod tools_tests_runtime {
         let _guard = TEST_MUTEX.lock().unwrap();
         // Start from a clean runtime state.
         {
-            let mut map = TOOL_DOWNLOAD_STATE
-                .lock()
-                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
             map.clear();
         }
         {
-            let mut snapshot = LATEST_TOOL_STATUS
-                .lock()
-                .expect("LATEST_TOOL_STATUS lock poisoned");
+            let mut snapshot = LATEST_TOOL_STATUS.lock_unpoisoned();
             snapshot.clear();
         }
 
@@ -280,10 +263,7 @@ mod tools_tests_runtime {
         );
         mark_download_progress(ExternalToolKind::Ffmpeg, 1024, Some(2048));
 
-        let snapshot = LATEST_TOOL_STATUS
-            .lock()
-            .expect("LATEST_TOOL_STATUS lock poisoned")
-            .clone();
+        let snapshot = LATEST_TOOL_STATUS.lock_unpoisoned().clone();
 
         let ffmpeg = snapshot
             .iter()
@@ -331,15 +311,11 @@ mod tools_tests_runtime {
         let _guard = TEST_MUTEX.lock().unwrap();
 
         {
-            let mut map = TOOL_DOWNLOAD_STATE
-                .lock()
-                .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
             map.clear();
         }
         {
-            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD
-                .lock()
-                .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+            let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD.lock_unpoisoned();
             map.clear();
         }
 
@@ -410,9 +386,7 @@ mod tools_tests_runtime {
 
         // Seed a snapshot so runtime updates have something to merge into.
         {
-            let mut snapshot = LATEST_TOOL_STATUS
-                .lock()
-                .expect("LATEST_TOOL_STATUS lock poisoned");
+            let mut snapshot = LATEST_TOOL_STATUS.lock_unpoisoned();
             snapshot.clear();
             snapshot.push(ExternalToolStatus {
                 kind: ExternalToolKind::Ffmpeg,
@@ -443,10 +417,7 @@ mod tools_tests_runtime {
             "auto-download completed for ffmpeg (path: /tmp/ffmpeg)".to_string(),
         );
 
-        let snapshot = LATEST_TOOL_STATUS
-            .lock()
-            .expect("LATEST_TOOL_STATUS lock poisoned")
-            .clone();
+        let snapshot = LATEST_TOOL_STATUS.lock_unpoisoned().clone();
         let ffmpeg = snapshot
             .iter()
             .find(|s| s.kind == ExternalToolKind::Ffmpeg)

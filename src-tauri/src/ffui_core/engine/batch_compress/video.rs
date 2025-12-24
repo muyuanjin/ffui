@@ -52,6 +52,7 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     ensure_tool_available,
 };
+use crate::sync_ext::MutexExt;
 
 #[allow(dead_code)]
 pub(crate) fn handle_video_file(
@@ -348,7 +349,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
         job.end_time = Some(now_ms);
         job.skip_reason = Some(format!("Size < {}MB", config.min_video_size_mb));
 
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         state.jobs.insert(id, job.clone());
         drop(state);
 
@@ -370,7 +371,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
             job.end_time = Some(now_ms);
             job.skip_reason = Some(format!("Codec is already {codec}"));
 
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             state.jobs.insert(id, job.clone());
             drop(state);
 
@@ -382,7 +383,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
     }
 
     // 为 Batch Compress 视频任务选择一个不会覆盖现有文件的输出路径，并记录到已知输出集合中。
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     let output_plan = plan_video_output_path(path, Some(preset), &output_policy, |candidate| {
         let s = candidate.to_string_lossy();
         candidate.exists() || state.known_batch_compress_outputs.contains(s.as_ref())

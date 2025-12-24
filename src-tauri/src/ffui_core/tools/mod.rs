@@ -186,5 +186,7 @@ fn spawn_download_size_probe(
     std::sync::Arc<std::sync::atomic::AtomicBool>,
     std::thread::JoinHandle<()>,
 ) {
-    download::manager::spawn_download_size_probe(kind, tmp_path, total)
+    let (stop, handle) = download::manager::spawn_download_size_probe(kind, tmp_path, total);
+    let handle = handle.expect("progress probe thread should spawn in tests");
+    (stop, handle)
 }

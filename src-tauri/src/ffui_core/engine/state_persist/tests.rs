@@ -8,6 +8,7 @@ use crate::ffui_core::domain::{
     TranscodeJobLite,
 };
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+use crate::sync_ext::MutexExt;
 
 fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
     TranscodeJob {
@@ -48,9 +49,7 @@ fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
 
 #[test]
 fn queue_state_lite_persists_first_real_command_for_restart() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -142,9 +141,7 @@ fn ignores_purely_non_terminal_changes() {
 
 #[test]
 fn debounced_persistence_flushes_after_burst_ends() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
     reset_queue_persist_state_for_tests();
 
     let tmp =
@@ -180,9 +177,7 @@ fn debounced_persistence_flushes_after_burst_ends() {
 
 #[test]
 fn debounced_persistence_limits_write_frequency_under_bursts() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -215,9 +210,7 @@ fn debounced_persistence_limits_write_frequency_under_bursts() {
 
 #[test]
 fn load_persisted_queue_state_accepts_lite_schema() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
 
     let tmp = std::env::temp_dir().join(format!(
         "ffui-test-queue-state-load-lite-{}.json",
@@ -244,9 +237,7 @@ fn load_persisted_queue_state_accepts_lite_schema() {
 
 #[test]
 fn queue_state_json_contains_slim_logs_only() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -296,9 +287,7 @@ fn queue_state_json_contains_slim_logs_only() {
 
 #[test]
 fn does_not_write_terminal_logs_without_terminal_transition() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
 
     let dir = std::env::temp_dir().join(format!(
         "ffui-test-queue-logs-non-terminal-{}",
@@ -338,9 +327,7 @@ fn does_not_write_terminal_logs_without_terminal_transition() {
 
 #[test]
 fn writes_terminal_log_exactly_once_on_terminal_transition() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
 
     let dir = std::env::temp_dir().join(format!(
         "ffui-test-queue-logs-terminal-write-{}",
@@ -395,9 +382,7 @@ fn writes_terminal_log_exactly_once_on_terminal_transition() {
 
 #[test]
 fn restore_merges_terminal_logs_into_memory_in_full_mode() {
-    let _guard = PERSIST_TEST_MUTEX
-        .lock()
-        .expect("PERSIST_TEST_MUTEX poisoned");
+    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
 
     let tmp = std::env::temp_dir().join(format!(
         "ffui-test-queue-state-restore-full-{}.json",
@@ -437,7 +422,7 @@ fn restore_merges_terminal_logs_into_memory_in_full_mode() {
     let inner = super::super::state::Inner::new(Vec::new(), settings);
     super::super::state::restore_jobs_from_persisted_queue(&inner);
 
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     let restored = state.jobs.get("job-1").expect("job restored");
     assert_eq!(
         restored.logs,

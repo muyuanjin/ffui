@@ -49,7 +49,7 @@ pub(super) fn build_effective_preset_for_resume(
 
         if !can_overlap_trim {
             if matches!(plan.strategy, ResumeStrategy::OverlapTrim) {
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     super::worker_utils::append_job_log_line(
                         job,
@@ -143,7 +143,7 @@ pub(super) fn build_effective_preset_for_resume(
         let adjusted_trim_start = (plan.trim_at_seconds + start_time_seconds).max(0.0);
         if start_time_seconds > 0.0 {
             let target_seconds = plan.trim_at_seconds;
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 super::worker_utils::append_job_log_line(
                     job,

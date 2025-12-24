@@ -13,6 +13,10 @@ use crate::ffui_core::{
     JobStatus,
     TranscodingEngine,
 };
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,7 +71,7 @@ pub fn pause_processing_jobs_for_exit(
     };
 
     let job_ids: Vec<String> = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         state
             .jobs
             .values()
@@ -85,7 +89,7 @@ pub fn pause_processing_jobs_for_exit(
     } else {
         None
     };
-    let mut state = engine.inner.state.lock().expect("engine state poisoned");
+    let mut state = engine.inner.state.lock_unpoisoned();
     loop {
         let remaining = job_ids.iter().filter(|job_id| {
             state
@@ -108,11 +112,7 @@ pub fn pause_processing_jobs_for_exit(
             Some(deadline) => tick.min(deadline.saturating_duration_since(Instant::now())),
             None => tick,
         };
-        let (guard, _) = engine
-            .inner
-            .cv
-            .wait_timeout(state, wait_for)
-            .expect("engine state poisoned");
+        let (guard, _) = engine.inner.cv.wait_timeout_unpoisoned(state, wait_for);
         state = guard;
     }
 
@@ -149,6 +149,7 @@ mod tests {
         QueuePersistenceMode,
         TranscodeJob,
     };
+    use crate::sync_ext::MutexExt;
 
     static ENV_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
         once_cell::sync::Lazy::new(|| Mutex::new(()));
@@ -196,7 +197,7 @@ mod tests {
 
         let job_id = "job-1".to_string();
         {
-            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            let mut state = engine.inner.state.lock_unpoisoned();
             state
                 .jobs
                 .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
@@ -208,7 +209,7 @@ mod tests {
         assert_eq!(outcome.completed_job_count, 0);
         assert_eq!(outcome.timed_out_job_count, 1);
 
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.wait_requests.contains(&job_id),
             "pause_processing_jobs_for_exit should request wait for processing jobs"
@@ -221,7 +222,7 @@ mod tests {
 
         let job_id = "job-2".to_string();
         {
-            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            let mut state = engine.inner.state.lock_unpoisoned();
             state
                 .jobs
                 .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
@@ -231,11 +232,7 @@ mod tests {
         let job_id_clone = job_id.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(80));
-            let mut state = engine_clone
-                .inner
-                .state
-                .lock()
-                .expect("engine state poisoned");
+            let mut state = engine_clone.inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(&job_id_clone) {
                 job.status = JobStatus::Paused;
             }
@@ -254,7 +251,7 @@ mod tests {
 
         let job_id = "job-4".to_string();
         {
-            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            let mut state = engine.inner.state.lock_unpoisoned();
             state
                 .jobs
                 .insert(job_id.clone(), make_job(&job_id, JobStatus::Processing));
@@ -264,11 +261,7 @@ mod tests {
         let job_id_clone = job_id.clone();
         std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(80));
-            let mut state = engine_clone
-                .inner
-                .state
-                .lock()
-                .expect("engine state poisoned");
+            let mut state = engine_clone.inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(&job_id_clone) {
                 job.status = JobStatus::Paused;
             }
@@ -285,7 +278,7 @@ mod tests {
     #[test]
     fn force_persist_queue_state_lite_now_writes_snapshot_when_crash_recovery_enabled() {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
-        let _guard = ENV_MUTEX.lock().expect("ENV_MUTEX poisoned");
+        let _guard = ENV_MUTEX.lock_unpoisoned();
 
         let tmp_dir = std::env::temp_dir();
         let stamp = std::time::SystemTime::now()
@@ -300,7 +293,7 @@ mod tests {
 
         let engine = TranscodingEngine::new_for_tests();
         {
-            let mut state = engine.inner.state.lock().expect("engine state poisoned");
+            let mut state = engine.inner.state.lock_unpoisoned();
             state.settings.queue_persistence_mode = QueuePersistenceMode::CrashRecoveryLite;
             state
                 .jobs

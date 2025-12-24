@@ -71,7 +71,7 @@ fn multi_worker_selection_respects_fifo_and_processing_limit() {
     let mut selected = Vec::new();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         for _ in 0..workers {
             if let Some(id) = next_job_for_worker_locked(&mut state) {
@@ -127,7 +127,7 @@ fn cancelling_processing_job_in_multi_worker_pool_only_affects_target_job() {
     let workers = 2usize;
     let mut processing_ids = Vec::new();
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         for _ in 0..workers {
             if let Some(id) = next_job_for_worker_locked(&mut state) {
                 processing_ids.push(id);
@@ -152,7 +152,7 @@ fn cancelling_processing_job_in_multi_worker_pool_only_affects_target_job() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.cancelled_jobs.contains(&target),
             "cancelled_jobs set must contain the target job id"
@@ -168,7 +168,7 @@ fn cancelling_processing_job_in_multi_worker_pool_only_affects_target_job() {
     mark_job_cancelled(&engine.inner, &target)
         .expect("mark_job_cancelled must succeed for target job");
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
 
     let target_job = state
         .jobs
@@ -211,7 +211,7 @@ fn multi_worker_wait_resume_respects_queue_order() {
 
     // Simulate two workers taking the first two jobs.
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let first = next_job_for_worker_locked(&mut state).expect("first job");
         let second = next_job_for_worker_locked(&mut state).expect("second job");
         assert_eq!(first, job_ids[0]);
@@ -244,7 +244,7 @@ fn multi_worker_wait_resume_respects_queue_order() {
         .expect("mark_job_waiting must succeed");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.queue.contains(&job_ids[0]),
             "paused job should not remain in the active scheduling queue"
@@ -256,7 +256,7 @@ fn multi_worker_wait_resume_respects_queue_order() {
     assert!(resumed, "resume_job must accept a Paused job");
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let queue_ids: Vec<String> = state.queue.iter().cloned().collect();
         assert_eq!(
             queue_ids,
@@ -321,7 +321,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     let job_id = "crash-recover-job".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.queue.push_back(job_id.clone());
         state.jobs.insert(
             job_id.clone(),
@@ -377,11 +377,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     let restored = make_engine_with_preset();
     restore_jobs_from_snapshot(&restored.inner, snapshot);
 
-    let state = restored
-        .inner
-        .state
-        .lock()
-        .expect("restored engine state poisoned");
+    let state = restored.inner.state.lock_unpoisoned();
     let restored_job = state
         .jobs
         .get(&job_id)
@@ -456,11 +452,7 @@ fn crash_recovery_does_not_reuse_job_ids_for_new_jobs() {
         new_job.id
     );
 
-    let state = restored
-        .inner
-        .state
-        .lock()
-        .expect("restored engine state poisoned");
+    let state = restored.inner.state.lock_unpoisoned();
     assert_eq!(
         state.jobs.len(),
         original_ids.len() + 1,

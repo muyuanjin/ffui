@@ -3,12 +3,12 @@
 // ============================================================================
 
 pub(super) fn is_job_cancelled(inner: &Inner, job_id: &str) -> bool {
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     state.cancelled_jobs.contains(job_id)
 }
 
 pub(super) fn is_job_wait_requested(inner: &Inner, job_id: &str) -> bool {
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     state.wait_requests.contains(job_id)
 }
 
@@ -29,7 +29,7 @@ pub(super) fn mark_job_waiting(
     let now_ms = current_time_millis();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Paused;
 
@@ -220,7 +220,7 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let restart_after_cancel = state.restart_requests.remove(job_id);
 
         if let Some(job) = state.jobs.get_mut(job_id) {

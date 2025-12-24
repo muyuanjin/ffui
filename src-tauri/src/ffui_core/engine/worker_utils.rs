@@ -15,9 +15,22 @@ use crate::ffui_core::domain::{
     JobStatus,
     TranscodeJob,
 };
+use crate::sync_ext::MutexExt;
 
 pub(super) const MAX_LOG_TAIL_BYTES: usize = 64 * 1024;
 pub(super) const MAX_LOG_LINES: usize = 500;
+
+fn truncate_string_to_last_bytes(s: &mut String, max_bytes: usize) {
+    if s.len() <= max_bytes {
+        return;
+    }
+
+    let mut start = s.len().saturating_sub(max_bytes);
+    while start < s.len() && !s.is_char_boundary(start) {
+        start = start.saturating_add(1);
+    }
+    s.replace_range(..start, "");
+}
 
 fn is_critical_log_line(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
@@ -50,20 +63,16 @@ pub(super) fn current_time_millis() -> u64 {
 }
 
 /// Recompute the `log_tail` field of a job by joining all logs and truncating
-/// to the last MAX_LOG_TAIL_BYTES characters if necessary.
+/// to the last MAX_LOG_TAIL_BYTES bytes (without splitting UTF-8 codepoints).
 pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
     if job.logs.is_empty() {
         job.log_tail = None;
         return;
     }
 
-    let joined = job.logs.join("\n");
-    if joined.len() > MAX_LOG_TAIL_BYTES {
-        let start = joined.len().saturating_sub(MAX_LOG_TAIL_BYTES);
-        job.log_tail = Some(joined[start..].to_string());
-    } else {
-        job.log_tail = Some(joined);
-    }
+    let mut joined = job.logs.join("\n");
+    truncate_string_to_last_bytes(&mut joined, MAX_LOG_TAIL_BYTES);
+    job.log_tail = Some(joined);
 }
 
 /// Keep log lines bounded while preserving "critical" diagnostics.
@@ -71,9 +80,9 @@ pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
 /// This trims by removing the oldest non-critical lines across runs first,
 /// keeping recent output while ensuring critical lines survive as long as
 /// possible. When all remaining lines are critical, it drops the oldest.
-pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
+pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) -> bool {
     if job.logs.len() <= MAX_LOG_LINES {
-        return;
+        return false;
     }
 
     if job.runs.is_empty() {
@@ -86,14 +95,12 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
                 break;
             }
         }
-        return;
+        return true;
     }
 
     // If the run logs drifted from the flat logs (should not happen after
     // migration), rebuild the flat view from runs before trimming.
-    if !job.runs.is_empty() {
-        sync_job_logs_with_runs_if_needed(job);
-    }
+    sync_job_logs_with_runs_if_needed(job);
 
     while job.logs.len() > MAX_LOG_LINES {
         let mut removed = false;
@@ -134,17 +141,39 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) {
             break;
         }
     }
+
+    true
+}
+
+fn append_log_tail(job: &mut TranscodeJob, line: &str) {
+    let tail = job.log_tail.get_or_insert_with(String::new);
+    if !tail.is_empty() {
+        tail.push('\n');
+    }
+    tail.push_str(line);
+    truncate_string_to_last_bytes(tail, MAX_LOG_TAIL_BYTES);
 }
 
 pub(super) fn append_job_log_line(job: &mut TranscodeJob, line: impl Into<String>) {
     let line = line.into();
-    job.logs.push(line.clone());
-    if let Some(run) = job.runs.last_mut() {
-        run.logs.push(line);
+    let will_trim = job.logs.len().saturating_add(1) > MAX_LOG_LINES;
+
+    // Common case: keep the tail up-to-date without rebuilding by joining all logs.
+    // If trimming is required, we will recompute from the final (trimmed) logs.
+    if !will_trim {
+        append_log_tail(job, &line);
     }
 
-    trim_job_logs_with_priority(job);
-    recompute_log_tail(job);
+    job.logs.push(line);
+    if let Some(run) = job.runs.last_mut()
+        && let Some(last) = job.logs.last()
+    {
+        run.logs.push(last.clone());
+    }
+
+    if will_trim && trim_job_logs_with_priority(job) {
+        recompute_log_tail(job);
+    }
 }
 
 /// Estimate the expected duration in seconds for a job based on preset statistics.
@@ -202,7 +231,7 @@ pub(super) fn estimate_job_seconds_for_preset(size_mb: f64, preset: &FFmpegPrese
 /// children are complete.
 pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
     let (batch_id_opt, progress_opt) = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get(job_id) {
             Some(job) => job.clone(),
             None => return,
@@ -266,5 +295,86 @@ pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
 
     if batch_id_opt.is_some() {
         notify_queue_listeners(inner);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffui_core::domain::{
+        JobSource,
+        JobStatus,
+        JobType,
+        TranscodeJobLite,
+    };
+
+    fn make_job() -> crate::ffui_core::domain::TranscodeJob {
+        crate::ffui_core::domain::TranscodeJob::from(TranscodeJobLite {
+            id: "job-1".to_string(),
+            filename: "C:/videos/sample.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: None,
+            original_size_mb: 0.0,
+            original_codec: None,
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Waiting,
+            progress: 0.0,
+            start_time: None,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            input_path: None,
+            output_path: None,
+            output_policy: None,
+            ffmpeg_command: None,
+            first_run_command: None,
+            first_run_started_at_ms: None,
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            preview_revision: 0,
+            log_tail: None,
+            log_head: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: None,
+            wait_metadata: None,
+            skip_reason: None,
+        })
+    }
+
+    #[test]
+    fn recompute_log_tail_never_panics_on_utf8_boundary() {
+        let mut job = make_job();
+
+        // Joined logs length = MAX_LOG_TAIL_BYTES + 1 bytes; start index would
+        // land in the middle of the first UTF-8 codepoint ("你") if sliced by bytes.
+        let s = format!("你{}", "a".repeat(MAX_LOG_TAIL_BYTES.saturating_sub(2)));
+        assert_eq!(s.len(), MAX_LOG_TAIL_BYTES + 1);
+
+        job.logs = vec![s];
+        recompute_log_tail(&mut job);
+
+        let tail = job.log_tail.expect("tail should be set");
+        assert!(
+            tail.len() <= MAX_LOG_TAIL_BYTES,
+            "tail must be bounded by bytes"
+        );
+        assert!(
+            tail.starts_with('a'),
+            "tail should drop the partial UTF-8 prefix safely"
+        );
+    }
+
+    #[test]
+    fn append_job_log_line_updates_log_tail_incrementally() {
+        let mut job = make_job();
+        append_job_log_line(&mut job, "line-1");
+        assert_eq!(job.log_tail.as_deref(), Some("line-1"));
+
+        append_job_log_line(&mut job, "line-2");
+        assert_eq!(job.log_tail.as_deref(), Some("line-1\nline-2"));
     }
 }

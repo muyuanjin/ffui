@@ -18,7 +18,7 @@ fn mark_job_waiting_does_not_double_count_wall_clock_on_first_pause() {
     let start_ms = current_time_millis();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get_mut(&job_id)
@@ -40,7 +40,7 @@ fn mark_job_waiting_does_not_double_count_wall_clock_on_first_pause() {
 
     let now_after = current_time_millis();
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state
         .jobs
         .get(&job_id)
@@ -76,7 +76,7 @@ fn mark_job_waiting_prefers_processed_seconds_override_over_progress_estimate() 
     let job_id = job.id.clone();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let stored = state
             .jobs
             .get_mut(&job_id)
@@ -100,7 +100,7 @@ fn mark_job_waiting_prefers_processed_seconds_override_over_progress_estimate() 
     mark_job_waiting(&engine.inner, &job_id, &tmp, &out, Some(100.0), Some(42.0))
         .expect("mark_job_waiting must succeed");
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state
         .jobs
         .get(&job_id)

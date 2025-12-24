@@ -28,6 +28,7 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     ensure_tool_available,
 };
+use crate::sync_ext::MutexExt;
 
 mod cache;
 use cache::maybe_cleanup_cache_now;
@@ -122,7 +123,7 @@ fn bucket_position(position: FallbackFramePosition, quality: FallbackFrameQualit
 }
 
 fn acquire_inflight_lock(key: &str) -> Arc<Mutex<()>> {
-    let mut map = INFLIGHT_LOCKS.lock().expect("inflight lock map poisoned");
+    let mut map = INFLIGHT_LOCKS.lock_unpoisoned();
     map.entry(key.to_string())
         .or_insert_with(|| Arc::new(Mutex::new(())))
         .clone()
@@ -324,7 +325,7 @@ pub(crate) fn extract_concat_preview_frame(
     }
 
     let inflight = acquire_inflight_lock(&key);
-    let _guard = inflight.lock().expect("inflight key lock poisoned");
+    let _guard = inflight.lock_unpoisoned();
 
     if is_non_empty_regular_file(&final_path) {
         maybe_cleanup_cache_now(&cache_root);

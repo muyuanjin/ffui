@@ -24,6 +24,7 @@ use crate::ffui_core::domain::{
     OutputPolicy,
     TranscodeJob,
 };
+use crate::sync_ext::MutexExt;
 
 fn normalize_os_path_string(raw: &str) -> String {
     #[cfg(windows)]
@@ -64,7 +65,7 @@ fn enqueue_transcode_job_no_notify(
     let codec_for_job = original_codec.clone();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let preset = state.presets.iter().find(|p| p.id == preset_id).cloned();
         let estimated_seconds = preset
             .as_ref()

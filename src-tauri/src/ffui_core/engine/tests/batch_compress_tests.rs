@@ -23,10 +23,7 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(progress);
+        snapshots_clone.lock_unpoisoned().push(progress);
     });
 
     let config = BatchCompressConfig {
@@ -64,7 +61,7 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
         }
     };
 
-    let snapshots_lock = snapshots.lock().expect("snapshots lock poisoned");
+    let snapshots_lock = snapshots.lock_unpoisoned();
     assert!(
         !snapshots_lock.is_empty(),
         "Batch Compress must emit at least one progress snapshot during run_auto_compress"
@@ -142,10 +139,7 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
     // progress notifications.
     engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
         let _ = engine_clone.queue_state();
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(progress);
+        snapshots_clone.lock_unpoisoned().push(progress);
     });
 
     let config = BatchCompressConfig {
@@ -181,7 +175,7 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
         }
     };
 
-    let snapshots_lock = snapshots.lock().expect("snapshots lock poisoned");
+    let snapshots_lock = snapshots.lock_unpoisoned();
     assert!(
         !snapshots_lock.is_empty(),
         "Batch Compress progress listener should have been invoked at least once"
@@ -217,10 +211,7 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_listener(move |state: QueueState| {
-        snapshots_clone
-            .lock()
-            .expect("queue snapshots lock poisoned")
-            .push(state);
+        snapshots_clone.lock_unpoisoned().push(state);
     });
 
     let config = BatchCompressConfig {
@@ -243,7 +234,7 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
     let mut attempts = 0;
     loop {
         let (has_partial, has_full) = {
-            let states = snapshots.lock().expect("queue snapshots lock poisoned");
+            let states = snapshots.lock_unpoisoned();
             let mut partial = false;
             let mut full = false;
             for state in states.iter() {
@@ -368,7 +359,7 @@ fn batch_compress_batch_carries_replace_original_flag() {
     let batch_id = descriptor.batch_id.clone();
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let batch = state
             .batch_compress_batches
             .get(&batch_id)

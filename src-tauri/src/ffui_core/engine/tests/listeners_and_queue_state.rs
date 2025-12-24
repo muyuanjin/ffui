@@ -17,10 +17,7 @@ fn queue_listener_observes_enqueue_and_cancel() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_listener(move |state: QueueState| {
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(state);
+        snapshots_clone.lock_unpoisoned().push(state);
     });
 
     let job = engine.enqueue_transcode_job(
@@ -33,7 +30,7 @@ fn queue_listener_observes_enqueue_and_cancel() {
     );
 
     {
-        let states = snapshots.lock().expect("snapshots lock poisoned");
+        let states = snapshots.lock_unpoisoned();
         assert!(
             states.iter().any(|s| s.jobs.iter().any(|j| j.id == job.id)),
             "listener should receive a snapshot containing the enqueued job"
@@ -44,7 +41,7 @@ fn queue_listener_observes_enqueue_and_cancel() {
     assert!(cancelled, "cancel_job should succeed for enqueued job");
 
     {
-        let states = snapshots.lock().expect("snapshots lock poisoned");
+        let states = snapshots.lock_unpoisoned();
         assert!(
             states.iter().any(|s| s
                 .jobs
@@ -65,10 +62,7 @@ fn queue_listener_observes_bulk_enqueue_as_single_snapshot() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_listener(move |state: QueueState| {
-        snapshots_clone
-            .lock()
-            .expect("snapshots lock poisoned")
-            .push(state);
+        snapshots_clone.lock_unpoisoned().push(state);
     });
 
     let jobs = engine.enqueue_transcode_jobs(
@@ -86,7 +80,7 @@ fn queue_listener_observes_bulk_enqueue_as_single_snapshot() {
 
     assert_eq!(jobs.len(), 3, "expected three enqueued jobs");
 
-    let states = snapshots.lock().expect("snapshots lock poisoned");
+    let states = snapshots.lock_unpoisoned();
     assert_eq!(
         states.len(),
         1,
@@ -154,11 +148,7 @@ fn queue_state_exposes_stable_queue_order_for_waiting_jobs() {
     // in the scheduling queue, and subsequent snapshots should clear its
     // queueOrder while leaving the second job untouched.
     {
-        let mut state_inner = engine
-            .inner
-            .state
-            .lock()
-            .expect("engine state poisoned for queueOrder test");
+        let mut state_inner = engine.inner.state.lock_unpoisoned();
         let popped = state_inner.queue.pop_front();
         assert_eq!(
             popped,
@@ -207,11 +197,7 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
     // Inject some heavy fields into the in-memory job so we can verify they
     // are not expanded in the lite snapshot.
     {
-        let mut state = engine
-            .inner
-            .state
-            .lock()
-            .expect("engine state poisoned for lite test");
+        let mut state = engine.inner.state.lock_unpoisoned();
         if let Some(j) = state.jobs.get_mut(&job.id) {
             j.logs = vec!["line-1".into(), "line-2".into()];
             j.ffmpeg_command = Some("ffmpeg -i input -c:v libx264 output".into());
@@ -322,10 +308,7 @@ fn queue_lite_listener_does_not_require_full_snapshot_builder() {
     let snapshots_clone = TestArc::clone(&snapshots);
 
     engine.register_queue_lite_listener(move |state: QueueStateLite| {
-        snapshots_clone
-            .lock()
-            .expect("lite snapshots lock poisoned")
-            .push(state);
+        snapshots_clone.lock_unpoisoned().push(state);
     });
 
     engine.enqueue_transcode_job(
@@ -343,6 +326,6 @@ fn queue_lite_listener_does_not_require_full_snapshot_builder() {
         "lite listener hot path should not build full queue snapshots"
     );
 
-    let states = snapshots.lock().expect("lite snapshots lock poisoned");
+    let states = snapshots.lock_unpoisoned();
     assert!(!states.is_empty(), "lite listener should receive updates");
 }

@@ -46,6 +46,7 @@ use crate::ffui_core::{
     ImageTargetFormat,
     JobStatus,
 };
+pub(super) use crate::sync_ext::MutexExt;
 
 mod common;
 

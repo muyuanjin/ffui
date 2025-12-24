@@ -89,7 +89,7 @@ fn restart_job_cleans_partial_segments_for_non_processing_job() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
         stored.wait_metadata = Some(WaitMetadata {
             last_progress_percent: Some(12.0),
@@ -114,7 +114,7 @@ fn restart_job_cleans_partial_segments_for_non_processing_job() {
     assert!(!marker0.exists(), "marker0 should be deleted");
     assert!(!marker1.exists(), "marker1 should be deleted");
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job exists");
     assert_eq!(stored.status, JobStatus::Waiting);
     assert!(
@@ -146,7 +146,7 @@ fn cancel_processing_job_cleans_partial_segments() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
         stored.status = JobStatus::Processing;
@@ -173,7 +173,7 @@ fn cancel_processing_job_cleans_partial_segments() {
     assert!(!marker0.exists(), "marker0 should be deleted");
     assert!(!marker1.exists(), "marker1 should be deleted");
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     assert!(
         state.cancelled_jobs.contains(&job.id),
         "cancelled_jobs should contain the job id after cancel_job"
@@ -199,7 +199,7 @@ fn mark_job_cancelled_cleans_segments_when_restarting_processing_job() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
         stored.status = JobStatus::Processing;
@@ -229,7 +229,7 @@ fn mark_job_cancelled_cleans_segments_when_restarting_processing_job() {
         "marker0 should be deleted after restart cancellation"
     );
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job exists");
     assert_eq!(stored.status, JobStatus::Waiting);
     assert!(
@@ -303,7 +303,7 @@ fn finalize_resume_cleanup_removes_noaudio_marker_files() {
 fn overlap_trim_uses_stream_start_time_offset_when_copyts_enabled() {
     static ENV_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
         once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
-    let _guard = ENV_MUTEX.lock().expect("env mutex poisoned");
+    let _guard = ENV_MUTEX.lock_unpoisoned();
 
     unsafe {
         std::env::set_var("FFUI_TEST_FFPROBE_STREAM_START_TIME_SECONDS", "5.0");

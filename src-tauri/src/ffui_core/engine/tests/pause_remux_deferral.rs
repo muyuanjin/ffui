@@ -129,7 +129,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
     // Configure engine to use the mock binary for both ffmpeg and ffprobe so
     // this test never relies on system tools.
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.settings.tools.ffmpeg_path = Some(mock_exe.to_string_lossy().into_owned());
         state.settings.tools.ffprobe_path = Some(mock_exe.to_string_lossy().into_owned());
         state.settings.tools.auto_download = false;
@@ -145,7 +145,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
     );
 
     let release_active_slot = |engine: &TranscodingEngine, job_id: &str| {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let input = state.jobs.get(job_id).map(|j| j.filename.clone());
         state.active_jobs.remove(job_id);
         if let Some(input) = input {
@@ -156,7 +156,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
 
     // --- Pause #1 (fresh run): pause must NOT remux (marker should stay absent).
     let job_id_1 = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("job should be eligible")
     };
     assert_eq!(job_id_1, job.id);
@@ -171,7 +171,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
     release_active_slot(&engine, &job.id);
 
     let (seg1, marker1, run_cmd_1) = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get(&job.id).expect("job exists");
         assert_eq!(stored.status, JobStatus::Paused, "job must be paused");
         let seg = stored
@@ -204,7 +204,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
         "resume should accept paused job"
     );
     let job_id_2 = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("job should be eligible again")
     };
     assert_eq!(job_id_2, job.id);
@@ -222,7 +222,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
     release_active_slot(&engine, &job.id);
 
     let (seg2, marker2) = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get(&job.id).expect("job exists");
         assert_eq!(stored.status, JobStatus::Paused, "job must be paused");
         let seg = stored
@@ -254,7 +254,7 @@ fn wait_defers_remux_until_resume_and_skips_when_marked_noaudio() {
         "resume should accept paused job"
     );
     let job_id_3 = {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         next_job_for_worker_locked(&mut state).expect("job should be eligible again")
     };
     assert_eq!(job_id_3, job.id);

@@ -28,7 +28,7 @@ fn finalize_successful_transcode_job(
     let mut final_output_path = output_path.to_path_buf();
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
 
         // 先基于不可变快照计算是否需要替换原文件以及相关路径，避免在同一作用域内
         // 同时对 state 进行可变和不可变借用。
@@ -117,7 +117,7 @@ fn finalize_successful_transcode_job(
     if let Some(times) = input_times.as_ref()
         && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             super::worker_utils::append_job_log_line(
                 job,

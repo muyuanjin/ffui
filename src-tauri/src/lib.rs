@@ -3,6 +3,7 @@ mod commands;
 mod ffui_core;
 mod queue_events;
 mod single_instance;
+mod sync_ext;
 mod system_metrics;
 
 #[cfg(test)]
@@ -30,6 +31,7 @@ use crate::ffui_core::{
     TranscodingEngine,
     init_child_process_job,
 };
+use crate::sync_ext::MutexExt;
 use crate::system_metrics::{
     MetricsState,
     spawn_metrics_sampler,
@@ -94,7 +96,7 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
     }
 
-    builder
+    let app = builder
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -185,7 +187,7 @@ pub fn run() {
 
             let engine = window.app_handle().state::<TranscodingEngine>();
             let (enabled, timeout_seconds, processing_job_count) = {
-                let state = engine.inner.state.lock().expect("engine state poisoned");
+                let state = engine.inner.state.lock_unpoisoned();
                 let count = state
                     .jobs
                     .values()
@@ -232,7 +234,13 @@ pub fn run() {
             }
 
             let _data_root = crate::ffui_core::init_data_root(app.handle())?;
-            let engine = TranscodingEngine::new().expect("failed to initialize transcoding engine");
+            let engine = match TranscodingEngine::new() {
+                Ok(engine) => engine,
+                Err(err) => {
+                    eprintln!("failed to initialize transcoding engine: {err:#}");
+                    return Ok(());
+                }
+            };
             app.manage(engine);
             app.manage(app_exit::ExitCoordinator::default());
 
@@ -326,73 +334,82 @@ pub fn run() {
             // Fallback: ensure the window becomes visible even if the frontend
             // never calls `window.show()` (for example when boot crashes).
             thread::spawn(move || {
-                thread::sleep(Duration::from_secs(10));
+                thread::park_timeout(Duration::from_secs(10));
                 if let Some(window) = handle.get_webview_window("main") {
                     let _ = window.show();
                 }
             });
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(|app, event| {
-            let tauri::RunEvent::ExitRequested { api, .. } = event else {
-                return;
-            };
+        .build(tauri::generate_context!());
 
-            let coordinator = app.state::<app_exit::ExitCoordinator>();
-            if coordinator.consume_exit_allowance() {
-                return;
-            }
+    let app = match app {
+        Ok(app) => app,
+        Err(err) => {
+            eprintln!("error while building tauri application: {err:#}");
+            return;
+        }
+    };
 
-            let engine = app.state::<TranscodingEngine>();
-            let (enabled, timeout_seconds, processing_job_count) = {
-                let state = engine.inner.state.lock().expect("engine state poisoned");
-                let count = state
-                    .jobs
-                    .values()
-                    .filter(|job| job.status == JobStatus::Processing)
-                    .count();
-                (
-                    state.settings.exit_auto_wait_enabled,
-                    state.settings.exit_auto_wait_timeout_seconds,
-                    count,
-                )
-            };
+    app.run(|app, event| {
+        let tauri::RunEvent::ExitRequested { api, .. } = event else {
+            return;
+        };
 
-            if !enabled || processing_job_count == 0 {
-                return;
-            }
+        let coordinator = app.state::<app_exit::ExitCoordinator>();
+        if coordinator.consume_exit_allowance() {
+            return;
+        }
 
-            if !coordinator.try_mark_system_exit_in_progress() {
-                api.prevent_exit();
-                return;
-            }
+        let engine = app.state::<TranscodingEngine>();
+        let (enabled, timeout_seconds, processing_job_count) = {
+            let state = engine.inner.state.lock_unpoisoned();
+            let count = state
+                .jobs
+                .values()
+                .filter(|job| job.status == JobStatus::Processing)
+                .count();
+            (
+                state.settings.exit_auto_wait_enabled,
+                state.settings.exit_auto_wait_timeout_seconds,
+                count,
+            )
+        };
 
+        if !enabled || processing_job_count == 0 {
+            return;
+        }
+
+        if !coordinator.try_mark_system_exit_in_progress() {
             api.prevent_exit();
+            return;
+        }
 
-            let handle = app.clone();
-            tauri::async_runtime::spawn(async move {
-                let engine = handle.state::<TranscodingEngine>().inner().clone();
-                let outcome = tauri::async_runtime::spawn_blocking(move || {
-                    let result = crate::app_exit::pause_processing_jobs_for_exit(&engine, timeout_seconds);
-                    if result.timed_out_job_count > 0 {
-                        eprintln!(
-                            "shutdown: auto-wait timed out for {} job(s) after {}s",
-                            result.timed_out_job_count, result.timeout_seconds
-                        );
-                    }
-                })
-                .await;
-                if let Err(err) = outcome {
-                    eprintln!("shutdown: auto-wait join failed: {err}");
+        api.prevent_exit();
+
+        let handle = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let engine = handle.state::<TranscodingEngine>().inner().clone();
+            let outcome = tauri::async_runtime::spawn_blocking(move || {
+                let result =
+                    crate::app_exit::pause_processing_jobs_for_exit(&engine, timeout_seconds);
+                if result.timed_out_job_count > 0 {
+                    eprintln!(
+                        "shutdown: auto-wait timed out for {} job(s) after {}s",
+                        result.timed_out_job_count, result.timeout_seconds
+                    );
                 }
+            })
+            .await;
+            if let Err(err) = outcome {
+                eprintln!("shutdown: auto-wait join failed: {err}");
+            }
 
-                let coordinator = handle.state::<app_exit::ExitCoordinator>();
-                coordinator.allow_exit();
-                handle.exit(0);
-            });
+            let coordinator = handle.state::<app_exit::ExitCoordinator>();
+            coordinator.allow_exit();
+            handle.exit(0);
         });
+    });
 }
 
 #[cfg(test)]

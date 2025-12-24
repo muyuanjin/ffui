@@ -12,6 +12,7 @@ use crate::ffui_core::domain::{
     JobStatus,
     WaitMetadata,
 };
+use crate::sync_ext::MutexExt;
 
 fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<std::path::PathBuf> {
     use std::collections::HashSet;
@@ -55,7 +56,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
     let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
     let result = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
             Some(job) => job.status.clone(),
             None => return false,
@@ -142,7 +143,7 @@ pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -
     let mut should_notify = false;
 
     let result = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
             Some(job) => job.status.clone(),
             None => return false,
@@ -172,7 +173,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
     let mut should_notify = false;
 
     let result = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get_mut(job_id) {
             Some(job) => job,
             None => return false,
@@ -231,7 +232,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
     let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
     let result = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get_mut(job_id) {
             Some(job) => job,
             None => return false,
@@ -294,7 +295,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
 /// work that is still running or scheduled.
 pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get(job_id) {
             Some(j) => j.clone(),
             None => return false,
@@ -347,7 +348,7 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     use crate::ffui_core::engine::state::BatchCompressBatchStatus;
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
 
         let batch_opt = state.batch_compress_batches.get(batch_id).cloned();
         if let Some(batch) = batch_opt.as_ref()

@@ -4,7 +4,7 @@
 
 pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
     let settings_snapshot = {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         state.settings.clone()
     };
 
@@ -109,7 +109,7 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
 // can always show users exactly what was executed, even if the tool exits
 // before emitting any progress or error output.
 pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, args: &[String]) {
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     if let Some(job) = state.jobs.get_mut(job_id) {
         let now_ms = super::worker_utils::current_time_millis();
         let cmd = format_command_for_log(program, args);

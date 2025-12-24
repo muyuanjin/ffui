@@ -24,6 +24,7 @@ use super::ui_fonts_types::{
     UiFontDownloadStatus,
 };
 use crate::ffui_core::network_proxy;
+use crate::sync_ext::MutexExt;
 
 async fn download_font_to_path(
     url: &str,
@@ -155,10 +156,7 @@ impl UiFontDownloadJob {
     fn update_snapshot<F>(&self, f: F) -> UiFontDownloadSnapshot
     where
         F: FnOnce(&mut UiFontDownloadSnapshot), {
-        let mut guard = self
-            .snapshot
-            .lock()
-            .expect("ui font download snapshot mutex poisoned");
+        let mut guard = self.snapshot.lock_unpoisoned();
         f(&mut guard);
         guard.clone()
     }
@@ -168,14 +166,12 @@ pub fn get_open_source_font_download_snapshot(
     manager: &UiFontDownloadManager,
     font_id: &str,
 ) -> Option<UiFontDownloadSnapshot> {
-    let jobs = manager.jobs.lock().ok()?;
+    let jobs = manager.jobs.lock_unpoisoned();
     jobs.get(font_id.trim()).map(|job| job.snapshot())
 }
 
 pub fn cancel_open_source_font_download(manager: &UiFontDownloadManager, font_id: &str) -> bool {
-    let Ok(jobs) = manager.jobs.lock() else {
-        return false;
-    };
+    let jobs = manager.jobs.lock_unpoisoned();
     let Some(job) = jobs.get(font_id.trim()) else {
         return false;
     };

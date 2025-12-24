@@ -21,7 +21,7 @@ fn delete_job_only_allows_terminal_statuses() {
     // Simulate a completed job by cloning and inserting into state directly.
     let completed_id = "job-completed-delete-test".to_string();
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         let mut completed = job_waiting.clone();
         completed.id = completed_id.clone();
         completed.status = JobStatus::Completed;
@@ -60,7 +60,7 @@ fn delete_batch_compress_child_job_is_deletable() {
     let job_id = "batch-compress-job-delete-test".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         // 为该批次注册一个简单的 Batch Compress 批次记录，模拟真实运行环境中的批次元数据。
         state.batch_compress_batches.insert(
@@ -140,7 +140,7 @@ fn delete_batch_compress_non_terminal_job_is_rejected() {
     let job_id = "batch-compress-job-reject-test".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         state.batch_compress_batches.insert(
             batch_id.clone(),
@@ -218,7 +218,7 @@ fn delete_batch_compress_batch_deletes_all_terminal_children_and_batch_metadata(
     let job2_id = "batch-compress-child-2".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         state.batch_compress_batches.insert(
             batch_id.clone(),
@@ -295,7 +295,7 @@ fn delete_batch_compress_batch_deletes_all_terminal_children_and_batch_metadata(
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.batch_compress_batches.contains_key(&batch_id),
             "Batch Compress batch metadata should be removed after delete_batch_compress_batch",
@@ -312,7 +312,7 @@ fn delete_batch_compress_batch_rejects_when_children_are_not_terminal() {
     let job2_id = "batch-compress-child-processing".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         state.batch_compress_batches.insert(
             batch_id.clone(),
@@ -395,7 +395,7 @@ fn delete_batch_compress_batch_rejects_when_children_are_not_terminal() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             state.batch_compress_batches.contains_key(&batch_id),
             "batch metadata must remain intact when delete_batch_compress_batch is rejected",
@@ -412,7 +412,7 @@ fn delete_batch_compress_batch_succeeds_when_status_is_running_but_all_children_
     let job2_id = "batch-compress-child-terminal-2".to_string();
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         // 兼容旧状态：批次 status 可能残留为 Running，但只要统计已完成且子任务均为终态，
         // delete_batch_compress_batch 仍应允许删除。
@@ -490,7 +490,7 @@ fn delete_batch_compress_batch_succeeds_when_status_is_running_but_all_children_
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(
             !state.batch_compress_batches.contains_key(&batch_id),
             "batch metadata should be removed after successful delete_batch_compress_batch",

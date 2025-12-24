@@ -47,6 +47,7 @@ use crate::ffui_core::tools::{
     ensure_tool_available,
     last_tool_download_metadata,
 };
+use crate::sync_ext::MutexExt;
 
 // Implementation is split across smaller include files to keep each source file
 // under the 500-line limit while preserving the original module API.

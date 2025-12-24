@@ -11,7 +11,7 @@ fn log_resume_plan_and_normalize_segments(
             ResumeStrategy::LegacySeek => "legacy_seek",
             ResumeStrategy::OverlapTrim => "overlap_trim",
         };
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             super::worker_utils::append_job_log_line(
                 job,
@@ -36,7 +36,7 @@ fn log_resume_plan_and_normalize_segments(
     if finalize_with_source_audio && !existing_segments.is_empty() {
         for seg in existing_segments {
             if let Err(err) = remux_segment_drop_audio(ffmpeg_path, seg.as_path()) {
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     super::worker_utils::append_job_log_line(
                         job,
@@ -181,7 +181,7 @@ impl PauseLatencyDebug {
         let exit_to_mark = mark_waiting_start_ms.saturating_sub(child_exit_ms);
         let mark_cost = mark_waiting_end_ms.saturating_sub(mark_waiting_start_ms);
 
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             super::worker_utils::append_job_log_line(
                 job,
@@ -231,7 +231,7 @@ impl FfmpegStderrPump {
 
     fn recv_timeout(&mut self, timeout: std::time::Duration) -> Option<String> {
         let Some(rx) = self.rx.as_ref() else {
-            std::thread::sleep(timeout);
+            std::thread::park_timeout(timeout);
             return None;
         };
 

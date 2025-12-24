@@ -86,7 +86,7 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
     let engine = make_engine_with_preset();
 
     let settings = {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         state.settings.clone()
     };
 
@@ -163,7 +163,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
     let new_percent = 50u8;
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.settings.preview_capture_percent = new_percent;
 
         let job = TranscodeJob {
@@ -225,7 +225,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
         "regenerated preview file should exist on disk"
     );
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state
         .jobs
         .get("job-1")
@@ -284,7 +284,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
     let refresh_token = 1u64;
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.preview_refresh_token = refresh_token;
         state.settings.preview_capture_percent = new_percent;
 
@@ -347,7 +347,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
         "old preview should be removed after refresh"
     );
 
-    let state = engine.inner.state.lock().expect("engine state poisoned");
+    let state = engine.inner.state.lock_unpoisoned();
     let stored = state
         .jobs
         .get("job-1")

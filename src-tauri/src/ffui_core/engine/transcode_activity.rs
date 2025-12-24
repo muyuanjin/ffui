@@ -17,6 +17,7 @@ use crate::ffui_core::{
     emit_transcode_activity_today_if_possible,
     settings,
 };
+use crate::sync_ext::MutexExt;
 
 const RETAIN_DAYS: usize = 7;
 
@@ -89,7 +90,7 @@ pub(super) fn snapshot_transcode_activity_today(
 
 pub(super) fn get_transcode_activity_today(inner: &Inner) -> TranscodeActivityToday {
     let now_ms = current_time_millis();
-    let state = inner.state.lock().expect("engine state poisoned");
+    let state = inner.state.lock_unpoisoned();
     snapshot_transcode_activity_today(&state.settings, now_ms)
 }
 
@@ -101,7 +102,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
     let bit = 1u32 << (hour as u32);
 
     let payload_to_emit = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
 
         let monitor = state
             .settings

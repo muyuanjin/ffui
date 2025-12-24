@@ -8,6 +8,7 @@ use super::super::state::{
     Inner,
     notify_queue_listeners,
 };
+use crate::sync_ext::MutexExt;
 
 /// Reorder the waiting queue according to the provided ordered job ids.
 /// Job ids not present in `ordered_ids` keep their relative order at the
@@ -16,7 +17,7 @@ pub(crate) fn reorder_waiting_jobs(inner: &Arc<Inner>, ordered_ids: Vec<String>)
     let mut should_notify = false;
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if state.queue.is_empty() || ordered_ids.is_empty() {
             return false;
         }

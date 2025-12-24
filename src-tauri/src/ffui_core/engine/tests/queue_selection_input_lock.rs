@@ -35,7 +35,7 @@ fn worker_selection_skips_jobs_with_active_input_path() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
 
         let first = next_job_for_worker_locked(&mut state).expect("first selection");
         assert_eq!(first, job1.id, "first worker should take the FIFO job");

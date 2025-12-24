@@ -6,6 +6,7 @@ use anyhow::{
 #[cfg(not(test))]
 use crate::ffui_core::network_proxy;
 use crate::ffui_core::tools::types::*;
+use crate::sync_ext::MutexExt;
 
 pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
     let idx = tag.find(|c: char| c.is_ascii_digit()).unwrap_or(0);
@@ -25,9 +26,7 @@ pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<FfmpegStaticRel
         tag: tag.clone(),
     };
 
-    let mut cache = FFMPEG_RELEASE_CACHE
-        .lock()
-        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
     *cache = Some(info.clone());
     Some(info)
 }
@@ -45,18 +44,14 @@ pub(crate) fn try_refresh_libavif_release_from_github() -> Option<LibavifRelease
         tag: tag.clone(),
     };
 
-    let mut cache = LIBAVIF_RELEASE_CACHE
-        .lock()
-        .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
     *cache = Some(info.clone());
     Some(info)
 }
 
 pub(crate) fn current_ffmpeg_release() -> FfmpegStaticRelease {
     {
-        let cache = FFMPEG_RELEASE_CACHE
-            .lock()
-            .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+        let cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
         if let Some(info) = cache.as_ref() {
             return info.clone();
         }
@@ -74,18 +69,14 @@ pub(crate) fn current_ffmpeg_release() -> FfmpegStaticRelease {
         },
     };
 
-    let mut cache = FFMPEG_RELEASE_CACHE
-        .lock()
-        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
     *cache = Some(info.clone());
     info
 }
 
 pub(crate) fn current_libavif_release() -> LibavifRelease {
     {
-        let cache = LIBAVIF_RELEASE_CACHE
-            .lock()
-            .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+        let cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
         if let Some(info) = cache.as_ref() {
             return info.clone();
         }
@@ -103,9 +94,7 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
         },
     };
 
-    let mut cache = LIBAVIF_RELEASE_CACHE
-        .lock()
-        .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
     *cache = Some(info.clone());
     info
 }
@@ -114,72 +103,64 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
 fn fetch_ffmpeg_release_from_github() -> Option<String> {
     use std::time::Duration;
 
+    use reqwest::blocking::Client;
     use serde::Deserialize;
 
-    tauri::async_runtime::block_on(async move {
-        use reqwest::Client;
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    let builder = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .user_agent("ffui/ffmpeg-static-updater");
+    let builder = network_proxy::apply_reqwest_blocking_builder(builder, &proxy);
 
-        let proxy = network_proxy::resolve_effective_proxy_once();
-        let builder = Client::builder()
-            .timeout(Duration::from_secs(5))
-            .user_agent("ffui/ffmpeg-static-updater");
-        let builder = network_proxy::apply_reqwest_builder(builder, &proxy);
+    let client = builder.build().ok()?;
+    let resp = client
+        .get("https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest")
+        .send()
+        .ok()?;
 
-        let client = builder.build().ok()?;
-        let resp = client
-            .get("https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest")
-            .send()
-            .await
-            .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
 
-        if !resp.status().is_success() {
-            return None;
-        }
+    #[derive(Deserialize)]
+    struct Release {
+        tag_name: String,
+    }
 
-        #[derive(Deserialize)]
-        struct Release {
-            tag_name: String,
-        }
-
-        let release: Release = resp.json().await.ok()?;
-        Some(release.tag_name)
-    })
+    let release: Release = resp.json().ok()?;
+    Some(release.tag_name)
 }
 
 #[cfg(not(test))]
 fn fetch_libavif_release_from_github() -> Option<String> {
     use std::time::Duration;
 
+    use reqwest::blocking::Client;
     use serde::Deserialize;
 
-    tauri::async_runtime::block_on(async move {
-        use reqwest::Client;
+    let proxy = network_proxy::resolve_effective_proxy_once();
+    let builder = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .user_agent("ffui/libavif-updater");
+    let builder = network_proxy::apply_reqwest_blocking_builder(builder, &proxy);
 
-        let proxy = network_proxy::resolve_effective_proxy_once();
-        let builder = Client::builder()
-            .timeout(Duration::from_secs(5))
-            .user_agent("ffui/libavif-updater");
-        let builder = network_proxy::apply_reqwest_builder(builder, &proxy);
+    let client = builder.build().ok()?;
+    let resp = client
+        .get("https://api.github.com/repos/AOMediaCodec/libavif/releases/latest")
+        .send()
+        .ok()?;
 
-        let client = builder.build().ok()?;
-        let resp = client
-            .get("https://api.github.com/repos/AOMediaCodec/libavif/releases/latest")
-            .send()
-            .await
-            .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
 
-        if !resp.status().is_success() {
-            return None;
-        }
+    #[derive(Deserialize)]
+    struct Release {
+        tag_name: String,
+    }
 
-        #[derive(Deserialize)]
-        struct Release {
-            tag_name: String,
-        }
-
-        let release: Release = resp.json().await.ok()?;
-        Some(release.tag_name)
-    })
+    let release: Release = resp.json().ok()?;
+    Some(release.tag_name)
 }
 
 #[cfg(test)]

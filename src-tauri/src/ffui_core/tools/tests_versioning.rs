@@ -2,15 +2,14 @@
 mod tools_tests_versioning {
     use crate::ffui_core::tools::ExternalToolKind;
     use crate::ffui_core::tools::tests_runtime::TEST_MUTEX;
+    use crate::sync_ext::MutexExt;
 
     #[test]
     fn effective_remote_version_for_avifenc_has_a_fallback_value() {
         let _guard = TEST_MUTEX.lock().unwrap();
 
         {
-            let mut cache = crate::ffui_core::tools::types::LIBAVIF_RELEASE_CACHE
-                .lock()
-                .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+            let mut cache = crate::ffui_core::tools::types::LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
             *cache = None;
         }
 

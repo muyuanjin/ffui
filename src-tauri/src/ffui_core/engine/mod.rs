@@ -75,6 +75,7 @@ use crate::ffui_core::tools::{
     tool_status,
     update_probe_cache_from_statuses,
 };
+use crate::sync_ext::MutexExt;
 
 fn normalize_os_path_string(raw: &str) -> String {
     #[cfg(windows)]
@@ -103,9 +104,7 @@ impl TranscodingEngine {
     /// state in the background, and spawns worker threads to process jobs.
     pub fn new() -> Result<Self> {
         #[cfg(test)]
-        let _guard = ENGINE_TEST_MUTEX
-            .lock()
-            .expect("ENGINE_TEST_MUTEX lock poisoned");
+        let _guard = ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
@@ -124,7 +123,7 @@ impl TranscodingEngine {
             // If crash recovery is enabled, pre-bump the job id counter to a
             // high watermark so any new enqueues happening before the recovery
             // thread finishes cannot collide with persisted job ids.
-            let state = inner.state.lock().expect("engine state poisoned");
+            let state = inner.state.lock_unpoisoned();
             if matches!(
                 state.settings.queue_persistence_mode,
                 crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
@@ -143,7 +142,7 @@ impl TranscodingEngine {
             // Run this on a dedicated background thread so application startup
             // is never blocked by queue deserialization.
             let inner_clone = inner.clone();
-            std::thread::Builder::new()
+            let result = std::thread::Builder::new()
                 .name("ffui-queue-recovery".to_string())
                 .spawn(move || {
                     restore_jobs_from_persisted_queue(&inner_clone);
@@ -152,7 +151,17 @@ impl TranscodingEngine {
                         .store(true, std::sync::atomic::Ordering::Release);
                     inner_clone.cv.notify_all();
                 })
-                .expect("failed to spawn queue recovery thread");
+                .map(|_| ());
+
+            if let Err(err) = result {
+                // Ensure callers waiting on crash recovery do not hang forever
+                // if spawning the recovery worker fails.
+                inner
+                    .queue_recovery_done
+                    .store(true, std::sync::atomic::Ordering::Release);
+                inner.cv.notify_all();
+                eprintln!("failed to spawn queue recovery thread: {err}");
+            }
         }
         worker::spawn_worker(inner.clone());
 
@@ -188,7 +197,7 @@ impl TranscodingEngine {
     /// join targets, etc.) to be durable before the process exits.
     pub fn force_persist_queue_state_lite_now(&self) -> bool {
         let mode = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             state.settings.queue_persistence_mode
         };
 
@@ -207,7 +216,7 @@ impl TranscodingEngine {
 
     /// Fetch full details for a single job from the in-memory engine state.
     pub fn job_detail(&self, job_id: &str) -> Option<TranscodeJob> {
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         state.jobs.get(job_id).cloned()
     }
 
@@ -217,11 +226,7 @@ impl TranscodingEngine {
     pub fn register_queue_listener<F>(&self, listener: F)
     where
         F: Fn(QueueState) + Send + Sync + 'static, {
-        let mut listeners = self
-            .inner
-            .queue_listeners
-            .lock()
-            .expect("queue listeners lock poisoned");
+        let mut listeners = self.inner.queue_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
 
@@ -229,11 +234,7 @@ impl TranscodingEngine {
     pub fn register_queue_lite_listener<F>(&self, listener: F)
     where
         F: Fn(QueueStateLite) + Send + Sync + 'static, {
-        let mut listeners = self
-            .inner
-            .queue_lite_listeners
-            .lock()
-            .expect("queue lite listeners lock poisoned");
+        let mut listeners = self.inner.queue_lite_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
 
@@ -241,23 +242,19 @@ impl TranscodingEngine {
     pub fn register_batch_compress_listener<F>(&self, listener: F)
     where
         F: Fn(AutoCompressProgress) + Send + Sync + 'static, {
-        let mut listeners = self
-            .inner
-            .batch_compress_listeners
-            .lock()
-            .expect("batch compress listeners lock poisoned");
+        let mut listeners = self.inner.batch_compress_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
 
     /// Get the list of available presets.
     pub fn presets(&self) -> Arc<Vec<FFmpegPreset>> {
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         state.presets.clone()
     }
 
     /// Save or update a preset.
     pub fn save_preset(&self, preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
-        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let mut state = self.inner.state.lock_unpoisoned();
         let presets = Arc::make_mut(&mut state.presets);
         if let Some(existing) = presets.iter_mut().find(|p| p.id == preset.id) {
             *existing = preset;
@@ -270,7 +267,7 @@ impl TranscodingEngine {
 
     /// Replace the full preset list with the provided snapshot.
     pub fn replace_presets(&self, next: Vec<FFmpegPreset>) -> Result<Arc<Vec<FFmpegPreset>>> {
-        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let mut state = self.inner.state.lock_unpoisoned();
         state.presets = Arc::new(next);
         settings::save_presets(&state.presets)?;
         Ok(state.presets.clone())
@@ -278,7 +275,7 @@ impl TranscodingEngine {
 
     /// Delete a preset by ID.
     pub fn delete_preset(&self, preset_id: &str) -> Result<Arc<Vec<FFmpegPreset>>> {
-        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let mut state = self.inner.state.lock_unpoisoned();
         let presets = Arc::make_mut(&mut state.presets);
         presets.retain(|p| p.id != preset_id);
         settings::save_presets(presets)?;
@@ -290,7 +287,7 @@ impl TranscodingEngine {
     /// The new order is determined by the `ordered_ids` slice. Any preset IDs
     /// not present in the slice are appended at the end in their original order.
     pub fn reorder_presets(&self, ordered_ids: &[String]) -> Result<Arc<Vec<FFmpegPreset>>> {
-        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let mut state = self.inner.state.lock_unpoisoned();
         let presets = Arc::make_mut(&mut state.presets);
 
         // Build index map for O(1) lookup
@@ -315,7 +312,7 @@ impl TranscodingEngine {
 
     /// Get the current application settings.
     pub fn settings(&self) -> AppSettings {
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         state.settings.clone()
     }
 
@@ -353,7 +350,7 @@ impl TranscodingEngine {
         let normalized = normalize_os_path_string(trimmed);
         let input = Path::new(&normalized);
 
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         let preset = preset_id
             .as_deref()
             .and_then(|id| state.presets.iter().find(|p| p.id == id));
@@ -429,7 +426,7 @@ impl TranscodingEngine {
         // filesystem/probing work outside the lock to avoid blocking other
         // startup commands and queue snapshots.
         let tools = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             state.settings.tools.clone()
         };
         let statuses = vec![
@@ -444,7 +441,7 @@ impl TranscodingEngine {
         crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
 
         {
-            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let mut state = self.inner.state.lock_unpoisoned();
             if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses)
                 && let Err(err) = settings::save_settings(&state.settings)
             {
@@ -457,7 +454,7 @@ impl TranscodingEngine {
 
     /// Get the Batch Compress default configuration.
     pub fn batch_compress_defaults(&self) -> BatchCompressConfig {
-        let state = self.inner.state.lock().expect("engine state poisoned");
+        let state = self.inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults.clone()
     }
 
@@ -466,7 +463,7 @@ impl TranscodingEngine {
         &self,
         config: BatchCompressConfig,
     ) -> Result<BatchCompressConfig> {
-        let mut state = self.inner.state.lock().expect("engine state poisoned");
+        let mut state = self.inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults = config.clone();
         settings::save_settings(&state.settings)?;
         Ok(config)

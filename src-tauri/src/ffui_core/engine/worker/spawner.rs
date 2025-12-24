@@ -16,6 +16,10 @@ use super::super::{
 };
 use super::selection::next_job_for_worker_locked;
 use crate::ffui_core::domain::JobStatus;
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 /// Spawn (or extend) worker threads to satisfy current concurrency settings.
 pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
@@ -26,7 +30,7 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
         }
     }
 
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     let desired = match state.settings.parallelism_mode() {
         crate::ffui_core::settings::TranscodeParallelismMode::Unified => {
             state.settings.effective_max_parallel_jobs() as usize
@@ -41,10 +45,14 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
     while state.spawned_workers < desired {
         let index = state.spawned_workers;
         let inner_clone = inner.clone();
-        thread::Builder::new()
+        let result = thread::Builder::new()
             .name(format!("ffui-transcode-worker-{index}"))
             .spawn(move || worker_loop(inner_clone))
-            .expect("failed to spawn transcoding worker thread");
+            .map(|_| ());
+        if let Err(err) = result {
+            eprintln!("failed to spawn transcoding worker thread: {err}");
+            break;
+        }
         state.spawned_workers += 1;
     }
 }
@@ -53,10 +61,10 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
 fn worker_loop(inner: Arc<Inner>) {
     loop {
         let job_id = {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             loop {
                 while state.queue.is_empty() {
-                    state = inner.cv.wait(state).expect("engine state poisoned");
+                    state = inner.cv.wait_unpoisoned(state);
                 }
 
                 if let Some(id) = next_job_for_worker_locked(&mut state) {
@@ -66,7 +74,7 @@ fn worker_loop(inner: Arc<Inner>) {
                 // Queue is non-empty but no job is currently eligible (e.g. all
                 // jobs are blocked behind an active input). Wait until either a
                 // worker finishes or a queue mutation makes progress possible.
-                state = inner.cv.wait(state).expect("engine state poisoned");
+                state = inner.cv.wait_unpoisoned(state);
             }
         };
 
@@ -80,7 +88,7 @@ fn worker_loop(inner: Arc<Inner>) {
         // Call the job runner to process the transcode job
         if let Err(err) = job_runner::process_transcode_job(&inner, &job_id) {
             {
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(&job_id) {
                     job.status = JobStatus::Failed;
                     job.progress = 100.0;
@@ -94,7 +102,7 @@ fn worker_loop(inner: Arc<Inner>) {
         }
 
         {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             let input = state.jobs.get(&job_id).map(|j| j.filename.clone());
             state.active_jobs.remove(&job_id);
             if let Some(input) = input {

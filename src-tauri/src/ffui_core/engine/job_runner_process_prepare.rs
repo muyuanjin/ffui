@@ -53,7 +53,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         job_filename,
         mut job_wait_metadata,
     ) = {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get(job_id) {
             Some(job) => job.clone(),
             None => return Ok(None),
@@ -83,7 +83,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     if job_type != JobType::Video {
         // For now, only video jobs are processed by the background worker.
         {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 job.status = JobStatus::Skipped;
                 job.progress = 100.0;
@@ -100,7 +100,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         Some(p) => p,
         None => {
             {
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     job.status = JobStatus::Failed;
                     job.progress = 100.0;
@@ -125,7 +125,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
 
     if did_download {
         {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 super::worker_utils::append_job_log_line(
                     job,
@@ -188,7 +188,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         // Prefer a job-specific output path when provided (for example from
         // Batch Compress), falling back to the deterministic helper for older
         // manual jobs.
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get(job_id) {
             if let Some(ref out) = job.output_path {
                 PathBuf::from(out)
@@ -221,7 +221,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             recompute_processed_seconds_from_segments(meta, &settings_snapshot, media_info.duration_seconds);
 	        if corrected {
 	            let processed = meta.processed_seconds.unwrap_or(0.0);
-	            let mut state = inner.state.lock().expect("engine state poisoned");
+	            let mut state = inner.state.lock_unpoisoned();
 		                if let Some(job) = state.jobs.get_mut(job_id)
 		                    && let Some(job_meta) = job.wait_metadata.as_mut()
 		                {
@@ -252,7 +252,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             let gop_seconds = (gop as f64) / fps;
             if gop_seconds.is_finite() && gop_seconds > backtrack {
                 backtrack = gop_seconds;
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     super::worker_utils::append_job_log_line(
                         job,
@@ -296,7 +296,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     );
 
     {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.input_path = Some(input_path.to_string_lossy().into_owned());
             job.output_path = Some(output_path.to_string_lossy().into_owned());

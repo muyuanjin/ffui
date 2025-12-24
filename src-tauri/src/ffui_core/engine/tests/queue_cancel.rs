@@ -25,7 +25,7 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
     fs::write(&seg0, b"partial").expect("write segment0");
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         state.queue.retain(|id| id != &job.id);
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
         stored.status = JobStatus::Paused;
@@ -47,7 +47,7 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
     );
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         let stored = state.jobs.get(&job.id).expect("job exists after cancel");
         assert_eq!(stored.status, JobStatus::Cancelled);
         assert!(stored.wait_metadata.is_none());
@@ -79,7 +79,7 @@ fn cancel_processing_job_clears_pending_wait_request() {
     );
 
     {
-        let mut state = engine.inner.state.lock().expect("engine state poisoned");
+        let mut state = engine.inner.state.lock_unpoisoned();
         // Simulate a worker having claimed the job.
         state.queue.retain(|id| id != &job.id);
         let stored = state.jobs.get_mut(&job.id).expect("job exists");
@@ -90,7 +90,7 @@ fn cancel_processing_job_clears_pending_wait_request() {
     assert!(engine.cancel_job(&job.id));
 
     {
-        let state = engine.inner.state.lock().expect("engine state poisoned");
+        let state = engine.inner.state.lock_unpoisoned();
         assert!(!state.wait_requests.contains(&job.id));
         assert!(state.cancelled_jobs.contains(&job.id));
     }

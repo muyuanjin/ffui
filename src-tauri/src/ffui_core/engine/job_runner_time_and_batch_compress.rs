@@ -29,7 +29,7 @@ pub(super) fn record_tool_download_with_inner(
     // truth.
     let meta = last_tool_download_metadata(kind);
 
-    let mut state = inner.state.lock().expect("engine state poisoned");
+    let mut state = inner.state.lock_unpoisoned();
     let settings_ref = &mut state.settings;
     let tools = &mut settings_ref.tools;
 
@@ -73,7 +73,7 @@ pub(super) fn record_tool_download_with_inner(
 
 pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
     let batch_id_opt = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get(job_id) {
             Some(job) => job.clone(),
             None => return,

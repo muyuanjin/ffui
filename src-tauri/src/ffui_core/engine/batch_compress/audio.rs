@@ -39,6 +39,7 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     ensure_tool_available,
 };
+use crate::sync_ext::MutexExt;
 
 /// 根据输入扩展名与目标音频编码，选择与容器兼容的输出扩展名。
 ///
@@ -267,7 +268,7 @@ pub(crate) fn handle_audio_file_with_id(
     let target_ext = choose_audio_output_extension(ext.as_deref(), &codec_type);
 
     let output_path = {
-        let mut state = inner.state.lock().expect("engine state poisoned");
+        let mut state = inner.state.lock_unpoisoned();
         let out = plan_output_path_with_extension(
             path,
             &target_ext,

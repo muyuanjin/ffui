@@ -9,6 +9,7 @@ use crate::ffui_core::tools::{
     ExternalToolKind,
     ensure_tool_available,
 };
+use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
     /// Ensure a video job has a readable preview image on disk.
@@ -22,7 +23,7 @@ impl TranscodingEngine {
         use std::path::Path;
 
         let (job_type, input_path, duration_seconds) = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             let job = state.jobs.get(job_id)?;
             (
                 job.job_type.clone(),
@@ -53,7 +54,7 @@ impl TranscodingEngine {
         let preview_str = preview_path.to_string_lossy().into_owned();
 
         {
-            let mut state = self.inner.state.lock().expect("engine state poisoned");
+            let mut state = self.inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 job.preview_path = Some(preview_str.clone());
                 job.preview_revision = job.preview_revision.saturating_add(1);
@@ -86,7 +87,7 @@ impl TranscodingEngine {
         };
 
         let jobs_snapshot: Vec<(String, String, Option<f64>)> = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             if state.preview_refresh_token != refresh_token {
                 return;
             }
@@ -118,7 +119,7 @@ impl TranscodingEngine {
 
         for (job_id, input_path, duration_seconds) in jobs_snapshot {
             {
-                let state = self.inner.state.lock().expect("engine state poisoned");
+                let state = self.inner.state.lock_unpoisoned();
                 if state.preview_refresh_token != refresh_token {
                     return;
                 }
@@ -138,7 +139,7 @@ impl TranscodingEngine {
             let preview_str = preview_path.to_string_lossy().into_owned();
 
             let previous_preview: Option<String> = {
-                let mut state = self.inner.state.lock().expect("engine state poisoned");
+                let mut state = self.inner.state.lock_unpoisoned();
                 if state.preview_refresh_token != refresh_token {
                     return;
                 }
@@ -161,7 +162,7 @@ impl TranscodingEngine {
         }
 
         let referenced_previews: HashSet<String> = {
-            let state = self.inner.state.lock().expect("engine state poisoned");
+            let state = self.inner.state.lock_unpoisoned();
             if state.preview_refresh_token != refresh_token {
                 return;
             }

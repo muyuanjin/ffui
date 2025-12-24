@@ -26,7 +26,7 @@ fn execute_transcode_job(
     //（例如 `q\n`）来让 ffmpeg 优雅结束当前分段，因此这里显式关闭
     // `non_interactive`，避免自动注入 `-nostdin`。
     let job_output_policy = {
-        let state = inner.state.lock().expect("engine state poisoned");
+        let state = inner.state.lock_unpoisoned();
         state
             .jobs
             .get(job_id)
@@ -104,7 +104,7 @@ fn execute_transcode_job(
             && d > 0.0
         {
             total_duration = Some(d);
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 if let Some(info) = job.media_info.as_mut() {
                     info.duration_seconds = Some(d);
@@ -133,7 +133,7 @@ fn execute_transcode_job(
                 && elapsed > total * 1.01
             {
                 total_duration = Some(elapsed);
-                let mut state = inner.state.lock().expect("engine state poisoned");
+                let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     if let Some(info) = job.media_info.as_mut() {
                         info.duration_seconds = Some(elapsed);
@@ -241,7 +241,7 @@ fn execute_transcode_job(
 
     if !status.success() {
         {
-            let mut state = inner.state.lock().expect("engine state poisoned");
+            let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
                 job.status = JobStatus::Failed;
                 job.progress = 100.0;
@@ -298,7 +298,7 @@ fn execute_transcode_job(
             }
             Err(err) => {
                 {
-                    let mut state = inner.state.lock().expect("engine state poisoned");
+                    let mut state = inner.state.lock_unpoisoned();
                     if let Some(job) = state.jobs.get_mut(job_id) {
                         job.status = JobStatus::Failed;
                         job.progress = 100.0;

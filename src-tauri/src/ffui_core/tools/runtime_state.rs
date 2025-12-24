@@ -12,6 +12,7 @@ use tauri::Emitter;
 
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;
+use crate::sync_ext::MutexExt;
 
 /// Name of the Tauri event used to push external tool status snapshots to the
 /// frontend. The payload is a full Vec<ExternalToolStatus>.
@@ -37,9 +38,7 @@ pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
 }
 
 pub(crate) fn cached_tool_status_snapshot() -> Vec<super::types::ExternalToolStatus> {
-    let lock = LATEST_TOOL_STATUS
-        .lock()
-        .expect("LATEST_TOOL_STATUS lock poisoned");
+    let lock = LATEST_TOOL_STATUS.lock_unpoisoned();
     lock.clone()
 }
 
@@ -60,16 +59,12 @@ pub(crate) fn ttl_hit(now_ms: u64, checked_at_ms: Option<u64>, ttl_ms: u64) -> b
 }
 
 pub(crate) fn cached_ffmpeg_release_version() -> Option<String> {
-    let cache = FFMPEG_RELEASE_CACHE
-        .lock()
-        .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+    let cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
     cache.as_ref().map(|info| info.version.clone())
 }
 
 pub(crate) fn cached_libavif_release_version() -> Option<String> {
-    let cache = LIBAVIF_RELEASE_CACHE
-        .lock()
-        .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+    let cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
     cache.as_ref().map(|info| info.version.clone())
 }
 
@@ -87,9 +82,7 @@ pub(crate) fn hydrate_remote_version_cache_from_settings(settings: &ExternalTool
     {
         // Do not overwrite an already-populated cache (for example a successful
         // refresh that happened earlier in this process).
-        let mut lock = FFMPEG_RELEASE_CACHE
-            .lock()
-            .expect("FFMPEG_RELEASE_CACHE lock poisoned");
+        let mut lock = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
         if lock.is_none() {
             *lock = Some(FfmpegStaticRelease { version, tag });
         }
@@ -98,9 +91,7 @@ pub(crate) fn hydrate_remote_version_cache_from_settings(settings: &ExternalTool
     if let Some(libavif) = cache.libavif.as_ref()
         && let (Some(version), Some(tag)) = (libavif.version.clone(), libavif.tag.clone())
     {
-        let mut lock = LIBAVIF_RELEASE_CACHE
-            .lock()
-            .expect("LIBAVIF_RELEASE_CACHE lock poisoned");
+        let mut lock = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
         if lock.is_none() {
             *lock = Some(LibavifRelease { version, tag });
         }
@@ -109,9 +100,7 @@ pub(crate) fn hydrate_remote_version_cache_from_settings(settings: &ExternalTool
 
 pub(crate) fn update_latest_status_snapshot(statuses: Vec<super::types::ExternalToolStatus>) {
     {
-        let mut lock = LATEST_TOOL_STATUS
-            .lock()
-            .expect("LATEST_TOOL_STATUS lock poisoned");
+        let mut lock = LATEST_TOOL_STATUS.lock_unpoisoned();
         *lock = statuses;
     }
 
@@ -132,9 +121,7 @@ fn merge_download_state_into_latest_snapshot(kind: ExternalToolKind) {
     // nothing to merge into and no event should be emitted.
     let runtime = snapshot_download_state(kind);
 
-    let mut lock = LATEST_TOOL_STATUS
-        .lock()
-        .expect("LATEST_TOOL_STATUS lock poisoned");
+    let mut lock = LATEST_TOOL_STATUS.lock_unpoisoned();
     if lock.is_empty() {
         return;
     }
@@ -156,9 +143,7 @@ fn merge_download_state_into_latest_snapshot(kind: ExternalToolKind) {
 fn emit_tool_status_event_if_possible() {
     if let Some(handle) = APP_HANDLE.get() {
         let snapshot = {
-            let lock = LATEST_TOOL_STATUS
-                .lock()
-                .expect("LATEST_TOOL_STATUS lock poisoned");
+            let lock = LATEST_TOOL_STATUS.lock_unpoisoned();
             lock.clone()
         };
         if snapshot.is_empty() {
@@ -173,17 +158,13 @@ fn emit_tool_status_event_if_possible() {
 pub(super) fn with_download_state<F, R>(kind: ExternalToolKind, f: F) -> R
 where
     F: FnOnce(&mut ToolDownloadRuntimeState) -> R, {
-    let mut map = TOOL_DOWNLOAD_STATE
-        .lock()
-        .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+    let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
     let entry = map.entry(kind).or_default();
     f(entry)
 }
 
 pub(super) fn snapshot_download_state(kind: ExternalToolKind) -> ToolDownloadRuntimeState {
-    let map = TOOL_DOWNLOAD_STATE
-        .lock()
-        .expect("TOOL_DOWNLOAD_STATE lock poisoned");
+    let map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
     map.get(&kind).cloned().unwrap_or_default()
 }
 
@@ -334,18 +315,14 @@ pub(super) fn record_last_tool_download(
     version: Option<String>,
     tag: Option<String>,
 ) {
-    let mut map = LAST_TOOL_DOWNLOAD
-        .lock()
-        .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+    let mut map = LAST_TOOL_DOWNLOAD.lock_unpoisoned();
     map.insert(kind, ToolDownloadMetadata { url, version, tag });
 }
 
 pub fn last_tool_download_metadata(
     kind: ExternalToolKind,
 ) -> Option<(String, Option<String>, Option<String>)> {
-    let map = LAST_TOOL_DOWNLOAD
-        .lock()
-        .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+    let map = LAST_TOOL_DOWNLOAD.lock_unpoisoned();
     map.get(&kind)
         .map(|m| (m.url.clone(), m.version.clone(), m.tag.clone()))
 }
@@ -368,9 +345,7 @@ pub fn hydrate_last_tool_download_from_settings(settings: &ExternalToolSettings)
         return;
     };
 
-    let mut map = LAST_TOOL_DOWNLOAD
-        .lock()
-        .expect("LAST_TOOL_DOWNLOAD lock poisoned");
+    let mut map = LAST_TOOL_DOWNLOAD.lock_unpoisoned();
 
     let mut seed =
         |kind: ExternalToolKind, info: &Option<crate::ffui_core::settings::DownloadedToolInfo>| {

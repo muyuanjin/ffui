@@ -7,6 +7,10 @@ use crate::ffui_core::{
     previews_root_dir_best_effort,
     referenced_preview_filenames,
 };
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 fn wait_for_queue_recovery(engine: &TranscodingEngine) {
     use std::sync::atomic::Ordering;
@@ -15,14 +19,10 @@ fn wait_for_queue_recovery(engine: &TranscodingEngine) {
         return;
     }
 
-    let guard = engine.inner.state.lock().expect("engine state poisoned");
-    let _guard = engine
-        .inner
-        .cv
-        .wait_while(guard, |_| {
-            !engine.inner.queue_recovery_done.load(Ordering::Acquire)
-        })
-        .expect("engine state poisoned");
+    let guard = engine.inner.state.lock_unpoisoned();
+    let _guard = engine.inner.cv.wait_while_unpoisoned(guard, |_| {
+        !engine.inner.queue_recovery_done.load(Ordering::Acquire)
+    });
 }
 
 fn cleanup_preview_caches_worker(

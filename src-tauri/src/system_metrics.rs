@@ -38,6 +38,10 @@ use crate::ffui_core::{
     TranscodingEngine,
     sample_gpu_usage,
 };
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 /// Canonical event name for streaming system metrics snapshots.
 pub const METRICS_EVENT_NAME: &str = "system-metrics://update";
@@ -193,11 +197,7 @@ impl MetricsState {
     }
 
     pub fn push_snapshot(&self, snapshot: MetricsSnapshot) {
-        let mut history = self
-            .inner
-            .history
-            .lock()
-            .expect("system metrics history lock poisoned");
+        let mut history = self.inner.history.lock_unpoisoned();
         let capacity = self.inner.config.history_capacity;
         if history.len() >= capacity {
             history.pop_front();
@@ -206,11 +206,7 @@ impl MetricsState {
     }
 
     pub fn history(&self) -> Vec<MetricsSnapshot> {
-        let history = self
-            .inner
-            .history
-            .lock()
-            .expect("system metrics history lock poisoned");
+        let history = self.inner.history.lock_unpoisoned();
         history.iter().cloned().collect()
     }
 
@@ -231,16 +227,8 @@ impl MetricsState {
     }
 
     pub(crate) fn wait_for_wakeup_or_timeout(&self, timeout: Duration) {
-        let guard = self
-            .inner
-            .wake_lock
-            .lock()
-            .expect("system metrics wake lock poisoned");
-        let _ = self
-            .inner
-            .wake_cv
-            .wait_timeout(guard, timeout)
-            .expect("system metrics wake condvar wait failed");
+        let guard = self.inner.wake_lock.lock_unpoisoned();
+        let _ = self.inner.wake_cv.wait_timeout_unpoisoned(guard, timeout);
     }
 
     #[allow(dead_code)]
@@ -334,8 +322,9 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                             &mut last_instant,
                         );
 
-                        let sys = sys.as_mut().expect("sysinfo System missing");
-                        let networks = networks.as_mut().expect("sysinfo Networks missing");
+                        let (Some(sys), Some(networks)) = (sys.as_mut(), networks.as_mut()) else {
+                            continue;
+                        };
 
                         let now = Instant::now();
                         let elapsed = last_instant
@@ -356,7 +345,7 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                             eprintln!("failed to emit system metrics event: {err}");
                         }
 
-                        thread::sleep(sampling_interval);
+                        metrics_state.wait_for_wakeup_or_timeout(sampling_interval);
                     }
                 }
             }

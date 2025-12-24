@@ -1,7 +1,11 @@
 use super::TranscodingEngine;
+use crate::sync_ext::{
+    CondvarExt,
+    MutexExt,
+};
 
 pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
-    std::thread::Builder::new()
+    let result = std::thread::Builder::new()
         .name("ffui-preview-cache-gc".to_string())
         .spawn(move || {
             use std::sync::atomic::Ordering;
@@ -14,19 +18,15 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
             let _ = crate::ffui_core::clear_fallback_frame_cache();
 
             if !engine.inner.queue_recovery_done.load(Ordering::Acquire) {
-                let guard = engine.inner.state.lock().expect("engine state poisoned");
-                let _guard = engine
-                    .inner
-                    .cv
-                    .wait_while(guard, |_| {
-                        !engine.inner.queue_recovery_done.load(Ordering::Acquire)
-                    })
-                    .expect("engine state poisoned");
+                let guard = engine.inner.state.lock_unpoisoned();
+                let _guard = engine.inner.cv.wait_while_unpoisoned(guard, |_| {
+                    !engine.inner.queue_recovery_done.load(Ordering::Acquire)
+                });
             }
 
             // Give startup a little breathing room so background I/O is less
             // likely to contend with UI initialization.
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::park_timeout(Duration::from_secs(1));
 
             let preview_paths = engine
                 .queue_state()
@@ -42,5 +42,9 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
                     crate::ffui_core::cleanup_unreferenced_previews(&previews_root, &referenced);
             }
         })
-        .expect("failed to spawn preview cache cleanup thread");
+        .map(|_| ());
+
+    if let Err(err) = result {
+        eprintln!("failed to spawn preview cache cleanup thread: {err}");
+    }
 }
