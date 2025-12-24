@@ -6,6 +6,7 @@ import { hasTauri } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
+import { usePresetLookup } from "@/composables/presets/usePresetLookup";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
@@ -56,6 +57,8 @@ const getBatchCardProps = (batch: CompositeBatchCompressTask) => {
     sortCompareFn: props.sortCompareFn,
   };
 };
+
+const { resolvePresetForJob: getPresetForJob } = usePresetLookup(() => props.presets);
 
 const getBatchCardListeners = (batch: CompositeBatchCompressTask) => {
   return {
@@ -268,7 +271,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
                 :key="job.id"
                 :job="job"
                 :is-pausing="pausingJobIds.has(job.id)"
-                :preset="presets.find((p) => p.id === job.presetId) ?? presets[0]"
+                :preset="getPresetForJob(job)"
                 :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                 :can-cancel="canCancelJob(job)"
                 :can-wait="hasTauri()"
@@ -334,7 +337,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
                   v-else
                   :job="item.job"
                   :is-pausing="pausingJobIds.has(item.job.id)"
-                  :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+                  :preset="getPresetForJob(item.job)"
                   :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                   :can-cancel="canCancelJob(item.job)"
                   :can-wait="hasTauri()"
@@ -376,7 +379,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
               "
               :job="item.job"
               :is-pausing="pausingJobIds.has(item.job.id)"
-              :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+              :preset="getPresetForJob(item.job)"
               :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="false"
               :can-restart="hasTauri() && queueMode === 'queue'"
@@ -410,7 +413,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
               v-else
               :job="item.job"
               :is-pausing="pausingJobIds.has(item.job.id)"
-              :preset="presets.find((p) => p.id === item.job.presetId) ?? presets[0]"
+              :preset="getPresetForJob(item.job)"
               :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
               :can-cancel="canCancelJob(item.job)"
               :can-wait="hasTauri()"

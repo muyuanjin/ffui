@@ -8,6 +8,7 @@ import type { CheckboxRootProps } from "@/components/ui/checkbox";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
+import { usePresetLookup } from "@/composables/presets/usePresetLookup";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const SkippedItemsStack = defineAsyncComponent(() => import("@/components/queue-item/SkippedItemsStack.vue"));
@@ -55,6 +56,19 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const { resolvePresetForJob: getPresetForJob } = usePresetLookup(() => props.presets);
+
+const jobTypeCounts = computed(() => {
+  const counts = { video: 0, image: 0, audio: 0 };
+  const jobs = props.batch.jobs ?? [];
+  for (const job of jobs) {
+    if (job.type === "video") counts.video += 1;
+    else if (job.type === "image") counts.image += 1;
+    else if (job.type === "audio") counts.audio += 1;
+  }
+  return counts;
+});
 
 /**
  * 计算批次级选中状态：true=全选，false=未选，"indeterminate"=部分选中
@@ -157,9 +171,7 @@ const getBatchProgressVariant = (batch: CompositeBatchCompressTask): ProgressVar
       <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
         <span
           >{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }} / {{ t("queue.typeAudio") }}:
-          {{ batch.jobs.filter((j) => j.type === "video").length }} /
-          {{ batch.jobs.filter((j) => j.type === "image").length }} /
-          {{ batch.jobs.filter((j) => j.type === "audio").length }}</span
+          {{ jobTypeCounts.video }} / {{ jobTypeCounts.image }} / {{ jobTypeCounts.audio }}</span
         >
         <span>{{ t("queue.status.completed") }}: {{ batch.completedCount }}</span>
         <span v-if="batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ batch.skippedCount }}</span>
@@ -170,7 +182,7 @@ const getBatchProgressVariant = (batch: CompositeBatchCompressTask): ProgressVar
           v-for="child in sortedJobs"
           :key="child.id"
           :job="child"
-          :preset="presets.find((p) => p.id === child.presetId) ?? presets[0]"
+          :preset="getPresetForJob(child)"
           :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
           :can-cancel="canCancelJob(child)"
           :can-restart="true"
