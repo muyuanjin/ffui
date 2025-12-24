@@ -113,6 +113,9 @@ export function appendQueueJob(job: TranscodeJob): TranscodeJob[] {
 }
 
 export function emitQueueState(jobs: TranscodeJob[]): void {
+  // Keep the mocked "get_queue_state(_lite)" source of truth in sync with
+  // event-driven updates so tests model the real backend behaviour.
+  queueJobs = jobs;
   queueStateHandler?.({ payload: { jobs } });
 }
 

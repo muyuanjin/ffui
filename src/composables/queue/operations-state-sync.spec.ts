@@ -249,4 +249,26 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value[0].status).toBe("completed");
     expect(deps.queueError.value).toBeNull();
   });
+
+  it("refreshQueueFromBackend dedupes concurrent refresh calls for the same jobs ref", async () => {
+    let resolvePromise!: (value: QueueStateLite) => void;
+    loadQueueStateMock.mockImplementation(
+      () =>
+        new Promise<QueueStateLite>((r) => {
+          resolvePromise = r;
+        }),
+    );
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([]),
+    });
+
+    const p1 = refreshQueueFromBackend(deps);
+    const p2 = refreshQueueFromBackend(deps);
+
+    expect(loadQueueStateMock).toHaveBeenCalledTimes(1);
+
+    resolvePromise({ jobs: [] });
+    await Promise.all([p1, p2]);
+  });
 });

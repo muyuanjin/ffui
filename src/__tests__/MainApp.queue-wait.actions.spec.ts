@@ -75,6 +75,20 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     useBackendMock({
       resume_transcode_job: (payload) => {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        setQueueJobs([
+          {
+            id: jobId,
+            filename: "C:/videos/resume-me.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            originalCodec: "h264",
+            presetId: "preset-1",
+            status: "waiting",
+            progress: 30,
+            logs: [],
+          } as TranscodeJob,
+        ]);
         return true;
       },
     });
@@ -88,6 +102,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("waiting");
+    expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
   });
 
   it("cancels a paused job immediately when backend accepts cancel_transcode_job", async () => {
@@ -339,6 +354,20 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     useBackendMock({
       resume_transcode_job: (payload) => {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        setQueueJobs([
+          {
+            id: jobId,
+            filename: "C:/videos/context-resume.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            originalCodec: "h264",
+            presetId: "preset-1",
+            status: "waiting",
+            progress: 60,
+            logs: [],
+          } as TranscodeJob,
+        ]);
         return true;
       },
     });
@@ -361,5 +390,6 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("waiting");
     expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", expect.objectContaining({ jobId }));
+    expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
   });
 });

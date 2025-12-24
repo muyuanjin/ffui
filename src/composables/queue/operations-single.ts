@@ -97,6 +97,13 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
     const ok = await resumeTranscodeJob(jobId);
     if (!ok) {
       deps.queueError.value = deps.t?.("queue.error.resumeRejected") ?? "";
+      const errorText = deps.queueError.value;
+      try {
+        await deps.refreshQueueFromBackend();
+      } catch {
+        // Keep original error text; refresh failures are handled inside refreshQueueFromBackend.
+      }
+      deps.queueError.value = errorText;
       return;
     }
 
@@ -111,9 +118,19 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
       return job;
     });
     deps.queueError.value = null;
+    void deps.refreshQueueFromBackend().catch((error) => {
+      console.error("Failed to refresh queue state after resume", error);
+    });
   } catch (error) {
     console.error("Failed to resume job", error);
     deps.queueError.value = deps.t?.("queue.error.resumeFailed") ?? "";
+    const errorText = deps.queueError.value;
+    try {
+      await deps.refreshQueueFromBackend();
+    } catch {
+      // Keep original error text; refresh failures are handled inside refreshQueueFromBackend.
+    }
+    deps.queueError.value = errorText;
   }
 }
 

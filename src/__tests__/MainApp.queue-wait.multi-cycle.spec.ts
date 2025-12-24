@@ -3,7 +3,14 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import type { TranscodeJob } from "@/types";
-import { emitQueueState, i18n, invokeMock, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
+import {
+  emitQueueState,
+  getQueueJobs,
+  i18n,
+  invokeMock,
+  setQueueJobs,
+  useBackendMock,
+} from "./helpers/mainAppTauriDialog";
 import MainApp from "@/MainApp.vue";
 
 function getJobsFromVm(vm: any): TranscodeJob[] {
@@ -41,6 +48,8 @@ describe("MainApp repeated wait/resume cycles", () => {
       resume_transcode_job: (payload) => {
         calls.push("resume");
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        const current = getQueueJobs();
+        setQueueJobs(current.map((job) => (job.id === jobId ? { ...job, status: "waiting" } : job)));
         return true;
       },
     });

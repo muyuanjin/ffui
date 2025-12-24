@@ -24,6 +24,8 @@ const asMutableRecord = (job: TranscodeJob): MutableRecord => {
   return job as unknown as MutableRecord;
 };
 
+const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
+
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
   const prevAny = asMutableRecord(previous);
   const nextAny = asMutableRecord(next);
@@ -164,24 +166,39 @@ export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, d
  */
 export async function refreshQueueFromBackend(deps: StateSyncDeps) {
   if (!hasTauri()) return;
-  try {
-    const previousJobs = deps.jobs.value;
-    const startedAt = startupNowMs();
-    const state = await loadQueueStateLite();
-    const elapsedMs = startupNowMs() - startedAt;
-    const backendJobs = (state as QueueStateLite).jobs ?? [];
+  const key = deps.jobs as unknown as object;
+  const existing = refreshInFlightByJobs.get(key);
+  if (existing) {
+    return existing;
+  }
 
-    if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {
-      loggedQueueRefresh = true;
-      updateStartupMetrics({ getQueueStateLiteMs: elapsedMs });
-      perfLog(`[perf] get_queue_state_lite: ${elapsedMs.toFixed(1)}ms`);
+  const task = (async () => {
+    try {
+      const previousJobs = deps.jobs.value;
+      const startedAt = startupNowMs();
+      const state = await loadQueueStateLite();
+      const elapsedMs = startupNowMs() - startedAt;
+      const backendJobs = (state as QueueStateLite).jobs ?? [];
+
+      if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {
+        loggedQueueRefresh = true;
+        updateStartupMetrics({ getQueueStateLiteMs: elapsedMs });
+        perfLog(`[perf] get_queue_state_lite: ${elapsedMs.toFixed(1)}ms`);
+      }
+
+      detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
+      recomputeJobsFromBackend(backendJobs, deps);
+      deps.queueError.value = null;
+    } catch (error) {
+      console.error("Failed to refresh queue state", error);
+      deps.queueError.value = deps.t?.("queue.error.loadFailed") ?? "";
     }
+  })();
 
-    detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
-    recomputeJobsFromBackend(backendJobs, deps);
-    deps.queueError.value = null;
-  } catch (error) {
-    console.error("Failed to refresh queue state", error);
-    deps.queueError.value = deps.t?.("queue.error.loadFailed") ?? "";
+  refreshInFlightByJobs.set(key, task);
+  try {
+    await task;
+  } finally {
+    refreshInFlightByJobs.delete(key);
   }
 }
