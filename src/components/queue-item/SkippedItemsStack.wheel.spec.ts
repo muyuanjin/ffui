@@ -54,7 +54,7 @@ describe("SkippedItemsStack wheel soft snap", () => {
     vi.useRealTimers();
   });
 
-  it("does not preventDefault when already at the boundary and cannot step", async () => {
+  it("wraps around when scrolling past the beginning/end (infinite)", async () => {
     const jobs = [makeJob("job-1"), makeJob("job-2")];
     const wrapper = mount(SkippedItemsStack, {
       props: { skippedJobs: jobs, maxStackLayers: 5 },
@@ -77,40 +77,17 @@ describe("SkippedItemsStack wheel soft snap", () => {
     container.dispatchEvent(wheelUpAtStart);
     await wrapper.vm.$nextTick();
 
-    expect(wheelUpAtStart.defaultPrevented).toBe(false);
-    expect(wrapper.get("[data-testid='ffui-skipped-stack-position']").text()).toContain("1 / 2");
-  });
-
-  it("preventsDefault only when a step actually happens", async () => {
-    const jobs = [makeJob("job-1"), makeJob("job-2")];
-    const wrapper = mount(SkippedItemsStack, {
-      props: { skippedJobs: jobs, maxStackLayers: 5 },
-      global: {
-        plugins: [i18n],
-        stubs: {
-          Badge: true,
-          Button: true,
-          DropdownMenu: true,
-          DropdownMenuContent: true,
-          DropdownMenuItem: true,
-          DropdownMenuTrigger: true,
-        },
-      },
-    });
-
-    const container = wrapper.get(".skipped-stack-container").element;
-
-    const wheelDown = new WheelEvent("wheel", { deltaY: 140, cancelable: true, deltaMode: 0 });
-    container.dispatchEvent(wheelDown);
-    await wrapper.vm.$nextTick();
-
-    expect(wheelDown.defaultPrevented).toBe(true);
+    expect(wheelUpAtStart.defaultPrevented).toBe(true);
     expect(wrapper.get("[data-testid='ffui-skipped-stack-position']").text()).toContain("2 / 2");
+
+    vi.advanceTimersByTime(60);
+    await wrapper.vm.$nextTick();
 
     const wheelDownAtEnd = new WheelEvent("wheel", { deltaY: 140, cancelable: true, deltaMode: 0 });
     container.dispatchEvent(wheelDownAtEnd);
     await wrapper.vm.$nextTick();
 
-    expect(wheelDownAtEnd.defaultPrevented).toBe(false);
+    expect(wheelDownAtEnd.defaultPrevented).toBe(true);
+    expect(wrapper.get("[data-testid='ffui-skipped-stack-position']").text()).toContain("1 / 2");
   });
 });

@@ -193,7 +193,12 @@ const statusClass = (analysis: ImportCommandLineAnalysis): string => {
 
       <DialogFooter class="gap-2">
         <Button variant="outline" @click="emit('update:open', false)">{{ t("app.actions.cancel") }}</Button>
-        <Button variant="secondary" :disabled="structuredEligibleCount === 0" @click="importStructured">
+        <Button
+          variant="secondary"
+          class="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600"
+          :disabled="structuredEligibleCount === 0"
+          @click="importStructured"
+        >
           {{ t("presets.importAsEditable", { count: structuredEligibleCount }) }}
         </Button>
         <Button :disabled="customEligibleCount === 0" @click="importCustom">

@@ -39,11 +39,12 @@ const dragOffset = ref(0);
 const containerRef = ref<HTMLElement | null>(null);
 
 const wheelSnap = createWheelSoftSnapController({
-  getThresholdPx: () => 60,
+  // Keep it responsive to trackpads/mice; the skipped stack is small so a lower threshold feels better.
+  getThresholdPx: () => 36,
   getPageSizePx: () => containerRef.value?.clientHeight ?? 240,
-  minIntervalMs: 45,
+  minIntervalMs: 35,
   gestureResetMs: 150,
-  maxAccumulatedPx: 600,
+  maxAccumulatedPx: 900,
 });
 
 // 预览图缓存（按 job id 存储生成的预览路径）
@@ -101,6 +102,18 @@ const clampedMenuPosition = computed(() => {
 const displayedJobs = computed(() => {
   return props.skippedJobs.slice(0, Math.min(props.skippedJobs.length, 20));
 });
+
+watch(
+  () => displayedJobs.value.length,
+  (len) => {
+    if (len <= 0) {
+      activeIndex.value = 0;
+      return;
+    }
+    activeIndex.value = ((activeIndex.value % len) + len) % len;
+  },
+  { immediate: true },
+);
 
 const parseSkipReason = (reason: string | undefined, jobType: string): string => {
   return parseSkippedJobReason({
@@ -263,11 +276,12 @@ const handlePointerUp = (e: PointerEvent) => {
 
   // 根据拖拽距离决定是否切换卡片
   const threshold = 40;
-  if (Math.abs(dragOffset.value) > threshold) {
-    if (dragOffset.value > 0 && activeIndex.value > 0) {
-      activeIndex.value--;
-    } else if (dragOffset.value < 0 && activeIndex.value < displayedJobs.value.length - 1) {
-      activeIndex.value++;
+  const len = displayedJobs.value.length;
+  if (Math.abs(dragOffset.value) > threshold && len > 0) {
+    if (dragOffset.value > 0) {
+      activeIndex.value = (activeIndex.value - 1 + len) % len;
+    } else {
+      activeIndex.value = (activeIndex.value + 1) % len;
     }
   }
   dragOffset.value = 0;
@@ -277,21 +291,17 @@ const handlePointerUp = (e: PointerEvent) => {
 // 鼠标滚轮事件处理
 const handleWheel = (e: WheelEvent) => {
   const len = displayedJobs.value.length;
-  if (len === 0) return;
+  if (len <= 1) return;
 
   wheelSnap.onWheel(e, {
-    shouldConsume: (direction) => {
-      if (direction > 0) return activeIndex.value < len - 1;
-      return activeIndex.value > 0;
-    },
+    shouldConsume: () => true,
     onStep: (direction) => {
+      if (len === 0) return false;
       if (direction > 0) {
-        if (activeIndex.value >= len - 1) return false;
-        activeIndex.value++;
-        return true;
+        activeIndex.value = (activeIndex.value + 1) % len;
+      } else {
+        activeIndex.value = (activeIndex.value - 1 + len) % len;
       }
-      if (activeIndex.value <= 0) return false;
-      activeIndex.value--;
       return true;
     },
   });
@@ -305,10 +315,12 @@ const handleCardClick = (index: number) => {
 
 // 键盘导航
 const handleKeyDown = (e: KeyboardEvent) => {
-  if (e.key === "ArrowLeft" && activeIndex.value > 0) {
-    activeIndex.value--;
-  } else if (e.key === "ArrowRight" && activeIndex.value < displayedJobs.value.length - 1) {
-    activeIndex.value++;
+  const len = displayedJobs.value.length;
+  if (len === 0) return;
+  if (e.key === "ArrowLeft") {
+    activeIndex.value = (activeIndex.value - 1 + len) % len;
+  } else if (e.key === "ArrowRight") {
+    activeIndex.value = (activeIndex.value + 1) % len;
   }
 };
 
