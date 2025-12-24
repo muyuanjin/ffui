@@ -1,0 +1,11 @@
+{
+  "path": ["src-tauri/src"],
+  "pattern": "**/*.rs",
+  "minLines": 8,
+  "minTokens": 80,
+  "threshold": 0,
+  "reporters": ["console", "html", "json"],
+  "output": ".jscpd/rust",
+  "ignore": ["**/tests/**"],
+  "exitCode": 1
+}

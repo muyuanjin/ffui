@@ -669,6 +669,8 @@ await runFrontendNpmStep("Frontend formatting (prettier --check)", ["run", "form
 await runFrontendNpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
 await runFrontendNpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
 await runFrontendNpmStep("i18n key check", ["run", "check:i18n"], opts);
+await runFrontendNpmStep("Duplicate check (frontend, jscpd)", ["run", "dup:frontend"], opts);
+await runFrontendNpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts);
 
 const rustRootDir = "src-tauri";
 const available = {

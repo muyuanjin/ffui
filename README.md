@@ -173,6 +173,21 @@ cd src-tauri
 cargo test
 ```
 
+## Duplicate code detection
+
+The repository includes basic duplicate-code checks for both frontend and backend (jscpd):
+
+```bash
+# Frontend (jscpd), reports in .jscpd/
+npm run dup:frontend
+
+# Backend (Rust, jscpd), reports in .jscpd/
+npm run dup:rust
+
+# Run both
+npm run dup:all
+```
+
 ## Directory layout
 
 - `src/` – Vue 3 frontend.
@@ -402,6 +417,21 @@ npm run test:watch
 ```bash
 cd src-tauri
 cargo test
+```
+
+## 代码重复检测
+
+仓库内提供了前端/后端的重复代码检测命令：
+
+```bash
+# 前端（jscpd），报告输出在 .jscpd/
+npm run dup:frontend
+
+# 后端（Rust，jscpd），报告输出在 .jscpd/
+npm run dup:rust
+
+# 一次跑完两侧
+npm run dup:all
 ```
 
 ## 目录结构

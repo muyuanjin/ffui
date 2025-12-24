@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+/target/
 *.local
 
 # Editor directories and files
@@ -35,3 +36,6 @@ dist-ssr
 
 # Docs screenshot artifacts (generated locally)
 /tools/docs-screenshots/artifacts/
+
+# Duplicate-code reports (local)
+/.jscpd/

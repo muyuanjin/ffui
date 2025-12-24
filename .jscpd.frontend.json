@@ -1,0 +1,18 @@
+{
+  "path": ["src"],
+  "pattern": "**/*.{ts,tsx,vue}",
+  "minLines": 8,
+  "minTokens": 80,
+  "threshold": 0,
+  "reporters": ["console", "html", "json"],
+  "output": ".jscpd/frontend",
+  "ignore": [
+    "**/*.spec.*",
+    "**/*.test.*",
+    "**/__tests__/**",
+    "**/components/__tests__/**",
+    "**/components/ui/**",
+    "**/locales/**"
+  ],
+  "exitCode": 1
+}
