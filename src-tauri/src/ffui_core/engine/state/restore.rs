@@ -1,10 +1,11 @@
+use std::collections::BTreeMap;
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use super::super::state_persist::{load_persisted_queue_state, load_persisted_terminal_job_logs};
 use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
-use crate::ffui_core::domain::{JobStatus, JobType, QueueState, WaitMetadata};
+use crate::ffui_core::domain::{JobStatus, JobType, QueueState, TranscodeJob, WaitMetadata};
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 
@@ -116,7 +117,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     }
 
     let mut waiting: Vec<(u64, String)> = Vec::new();
-    let mut tmp_output_candidates: Vec<(String, PathBuf, PathBuf, f64, Option<u64>)> = Vec::new();
+    let mut segment_probes: Vec<SegmentProbe> = Vec::new();
 
     {
         let mut state = inner.state.lock_unpoisoned();
@@ -158,23 +159,17 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                     job.status,
                     JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
                 )
-                && job.wait_metadata.is_none()
+                && should_probe_segments_for_crash_recovery(&job)
             {
-                let legacy_tmp_output = build_video_tmp_output_path(Path::new(&job.filename));
-                let job_tmp_output =
-                    super::super::job_runner::build_video_job_segment_tmp_output_path(
-                        Path::new(&job.filename),
-                        None,
-                        &id,
-                        0,
-                    );
-                tmp_output_candidates.push((
-                    id.clone(),
-                    job_tmp_output,
-                    legacy_tmp_output,
-                    job.progress,
-                    job.elapsed_ms,
-                ));
+                segment_probes.push(SegmentProbe {
+                    id: id.clone(),
+                    input_path: PathBuf::from(job.filename.trim()),
+                    output_path: job.output_path.as_deref().map(|s| PathBuf::from(s.trim())),
+                    legacy_tmp_output: build_video_tmp_output_path(Path::new(&job.filename)),
+                    progress: job.progress,
+                    elapsed_ms: job.elapsed_ms,
+                    existing_wait_metadata: job.wait_metadata.clone(),
+                });
             }
 
             if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
@@ -210,38 +205,32 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
     // Perform any filesystem probes (e.g. temp output existence checks)
     // outside the engine lock to avoid blocking concurrent queue snapshots.
-    if !tmp_output_candidates.is_empty() {
-        let mut recovered_tmp_outputs: Vec<(String, String, f64, Option<u64>)> = Vec::new();
-        for (id, job_tmp_output, legacy_tmp_output, progress, elapsed_ms) in tmp_output_candidates {
-            let chosen = if job_tmp_output.exists() {
-                Some(job_tmp_output)
-            } else if legacy_tmp_output.exists() {
-                Some(legacy_tmp_output)
-            } else {
-                None
-            };
+    if !segment_probes.is_empty() {
+        let mut recovered: Vec<(String, WaitMetadata)> = Vec::new();
 
-            if let Some(tmp_output) = chosen {
-                let tmp_str = tmp_output.to_string_lossy().into_owned();
-                recovered_tmp_outputs.push((id, tmp_str, progress, elapsed_ms));
+        for probe in segment_probes {
+            let meta = recover_wait_metadata_from_filesystem(&probe);
+            if let Some(meta) = meta {
+                recovered.push((probe.id, meta));
             }
         }
 
-        if !recovered_tmp_outputs.is_empty() {
+        if !recovered.is_empty() {
             let mut state = inner.state.lock_unpoisoned();
-            for (id, tmp_str, progress, elapsed_ms) in recovered_tmp_outputs {
-                if let Some(job) = state.jobs.get_mut(&id)
-                    && job.wait_metadata.is_none()
-                {
-                    job.wait_metadata = Some(WaitMetadata {
-                        last_progress_percent: Some(progress),
-                        processed_wall_millis: elapsed_ms,
-                        processed_seconds: None,
-                        target_seconds: None,
-                        tmp_output_path: Some(tmp_str.clone()),
-                        segments: Some(vec![tmp_str]),
-                        segment_end_targets: None,
-                    });
+            for (id, meta) in recovered {
+                let Some(job) = state.jobs.get_mut(&id) else {
+                    continue;
+                };
+                // Only apply if we actually improve crash-recovery ability:
+                // - missing wait metadata
+                // - or existing metadata has no usable segment paths.
+                let should_apply = job
+                    .wait_metadata
+                    .as_ref()
+                    .map(|m| wait_metadata_has_no_usable_paths(m))
+                    .unwrap_or(true);
+                if should_apply {
+                    job.wait_metadata = Some(meta);
                 }
             }
         }
@@ -265,4 +254,229 @@ fn build_video_tmp_output_path(input: &Path) -> PathBuf {
         .unwrap_or("output");
     let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
     parent.join(format!("{stem}.compressed.tmp.{ext}"))
+}
+
+#[derive(Debug, Clone)]
+struct SegmentProbe {
+    id: String,
+    input_path: PathBuf,
+    output_path: Option<PathBuf>,
+    legacy_tmp_output: PathBuf,
+    progress: f64,
+    elapsed_ms: Option<u64>,
+    existing_wait_metadata: Option<WaitMetadata>,
+}
+
+fn should_probe_segments_for_crash_recovery(job: &TranscodeJob) -> bool {
+    // We probe when crash recovery might have missed `wait_metadata` due to
+    // debounce/force-kill timing, or when metadata exists but contains no
+    // usable segment paths (e.g. output policy changed across refactors).
+    match job.wait_metadata.as_ref() {
+        None => true,
+        Some(meta) => {
+            let has_any_paths = meta
+                .segments
+                .as_ref()
+                .map(|v| v.iter().any(|s| !s.trim().is_empty()))
+                .unwrap_or(false)
+                || meta
+                    .tmp_output_path
+                    .as_ref()
+                    .map(|s| !s.trim().is_empty())
+                    .unwrap_or(false);
+            !has_any_paths
+        }
+    }
+}
+
+fn wait_metadata_has_no_usable_paths(meta: &WaitMetadata) -> bool {
+    if let Some(segs) = meta.segments.as_ref()
+        && segs.iter().any(|s| {
+            let trimmed = s.trim();
+            !trimmed.is_empty() && Path::new(trimmed).exists()
+        })
+    {
+        return false;
+    }
+    if let Some(tmp) = meta.tmp_output_path.as_ref() {
+        let trimmed = tmp.trim();
+        if !trimmed.is_empty() && Path::new(trimmed).exists() {
+            return false;
+        }
+    }
+    true
+}
+
+fn recover_wait_metadata_from_filesystem(probe: &SegmentProbe) -> Option<WaitMetadata> {
+    let mut found: BTreeMap<u64, PathBuf> = BTreeMap::new();
+
+    // 1) Prefer output-path-derived segments (supports fixed output directories
+    // and the post-refactor "{stem}.{jobId}.segN.tmp.{ext}" naming).
+    if let Some(output_path) = probe.output_path.as_ref() {
+        discover_segments_for_output_path(output_path, &probe.id, None, &mut found);
+    }
+
+    // 2) Also scan for per-job ".compressed.{jobId}.segN.tmp.*" segments placed
+    // next to the input (legacy, or same-as-input output policy).
+    discover_segments_for_input_path(&probe.input_path, &probe.id, &mut found);
+
+    // 3) Fall back to a single legacy temp output file when segment naming is unknown.
+    if found.is_empty() && probe.legacy_tmp_output.exists() {
+        found.insert(0, probe.legacy_tmp_output.clone());
+    }
+
+    // 4) Merge in any existing wait metadata paths that still exist on disk.
+    if let Some(existing) = probe.existing_wait_metadata.as_ref() {
+        for (idx, path) in wait_metadata_existing_paths(existing)
+            .into_iter()
+            .enumerate()
+        {
+            if path.exists() {
+                // Use a stable, monotonic key when we cannot parse the true segment index.
+                let key = u64::try_from(10_000_000usize.saturating_add(idx)).unwrap_or(u64::MAX);
+                found.entry(key).or_insert(path);
+            }
+        }
+    }
+
+    let mut segments: Vec<String> = Vec::new();
+    for (_idx, path) in found {
+        segments.push(path.to_string_lossy().into_owned());
+    }
+    if segments.is_empty() {
+        return None;
+    }
+
+    let last = segments.last().cloned();
+    let mut meta = probe
+        .existing_wait_metadata
+        .clone()
+        .unwrap_or(WaitMetadata {
+            last_progress_percent: Some(probe.progress),
+            processed_wall_millis: probe.elapsed_ms,
+            processed_seconds: None,
+            target_seconds: None,
+            tmp_output_path: None,
+            segments: None,
+            segment_end_targets: None,
+        });
+    meta.last_progress_percent = meta.last_progress_percent.or(Some(probe.progress));
+    meta.processed_wall_millis = meta.processed_wall_millis.or(probe.elapsed_ms);
+    meta.segments = Some(segments);
+    meta.tmp_output_path = last;
+
+    // If we reconstructed/merged segment paths, any per-segment join targets
+    // are no longer guaranteed to align. Let the resume pipeline probe or
+    // rebuild targets conservatively.
+    meta.segment_end_targets = None;
+
+    Some(meta)
+}
+
+fn wait_metadata_existing_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    if let Some(segs) = meta.segments.as_ref() {
+        for s in segs {
+            let trimmed = s.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            out.push(PathBuf::from(trimmed));
+        }
+    }
+    if out.is_empty()
+        && let Some(tmp) = meta.tmp_output_path.as_ref()
+    {
+        let trimmed = tmp.trim();
+        if !trimmed.is_empty() {
+            out.push(PathBuf::from(trimmed));
+        }
+    }
+    out
+}
+
+fn discover_segments_for_output_path(
+    output_path: &Path,
+    job_id: &str,
+    expected_ext: Option<&str>,
+    out: &mut BTreeMap<u64, PathBuf>,
+) {
+    let Some(parent) = output_path.parent() else {
+        return;
+    };
+    let Some(stem) = output_path.file_stem().and_then(|s| s.to_str()) else {
+        return;
+    };
+    let ext_from_output = output_path.extension().and_then(|s| s.to_str());
+    let expected_ext = expected_ext.or(ext_from_output);
+
+    let prefix = format!("{stem}.{job_id}.seg");
+    discover_segments_in_dir(parent, &prefix, expected_ext, out);
+}
+
+fn discover_segments_for_input_path(
+    input_path: &Path,
+    job_id: &str,
+    out: &mut BTreeMap<u64, PathBuf>,
+) {
+    let Some(parent) = input_path.parent() else {
+        return;
+    };
+    let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) else {
+        return;
+    };
+
+    // Newer "compressed" per-job naming (used when outputs live next to input).
+    let compressed_prefix = format!("{stem}.compressed.{job_id}.seg");
+    discover_segments_in_dir(parent, &compressed_prefix, None, out);
+
+    // Legacy ".compressed.tmp.{ext}" file is handled by the caller (single-path fallback).
+}
+
+fn discover_segments_in_dir(
+    dir: &Path,
+    prefix: &str,
+    expected_ext: Option<&str>,
+    out: &mut BTreeMap<u64, PathBuf>,
+) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(v) => v,
+        Err(_) => return,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        let Some((idx, ext)) = parse_segment_index_and_ext(name, prefix) else {
+            continue;
+        };
+        if let Some(expected) = expected_ext {
+            if !ext.eq_ignore_ascii_case(expected) {
+                continue;
+            }
+        }
+        out.entry(idx).or_insert(path);
+    }
+}
+
+fn parse_segment_index_and_ext(name: &str, prefix: &str) -> Option<(u64, String)> {
+    if !name.starts_with(prefix) {
+        return None;
+    }
+    let rest = &name[prefix.len()..];
+    let (idx_part, ext_part) = rest.split_once(".tmp.")?;
+    if idx_part.is_empty() || !idx_part.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+    let idx = idx_part.parse::<u64>().ok()?;
+    let ext = ext_part.trim();
+    if ext.is_empty() {
+        return None;
+    }
+    Some((idx, ext.to_string()))
 }

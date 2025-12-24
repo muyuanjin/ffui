@@ -9,8 +9,8 @@ use super::state_persist::{
     peek_last_persisted_queue_state_lite, persist_queue_state_lite, persist_terminal_logs_if_needed,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress, FFmpegPreset, MediaInfo, QueueState, QueueStateLite, TranscodeJob,
-    TranscodeJobLite,
+    AutoCompressProgress, FFmpegPreset, JobStatus, MediaInfo, QueueState, QueueStateLite,
+    TranscodeJob, TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
@@ -236,6 +236,60 @@ fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStat
     QueueStateLite { jobs }
 }
 
+fn repair_queue_invariants_locked(state: &mut EngineState) {
+    // Ensure the waiting queue is internally consistent so jobs never become
+    // "stuck" due to state corruption, refactors, or crash-recovery edge cases.
+    //
+    // Invariants:
+    // - `queue` contains unique job ids
+    // - `queue` only contains ids for jobs that exist and are Waiting/Queued
+    // - `active_jobs` only contains Processing jobs
+    // - `active_inputs` matches `active_jobs`
+    // - all Waiting/Queued jobs appear in `queue`
+    let stale_active: Vec<String> = state
+        .active_jobs
+        .iter()
+        .filter(|id| {
+            state
+                .jobs
+                .get(*id)
+                .map(|job| job.status != JobStatus::Processing)
+                .unwrap_or(true)
+        })
+        .cloned()
+        .collect();
+    for id in stale_active {
+        state.active_jobs.remove(&id);
+    }
+    state.active_inputs = state
+        .active_jobs
+        .iter()
+        .filter_map(|id| state.jobs.get(id).map(|job| job.filename.clone()))
+        .collect();
+
+    let mut seen: HashSet<String> = HashSet::with_capacity(state.queue.len());
+    state.queue.retain(|id| {
+        if !seen.insert(id.clone()) {
+            return false;
+        }
+        match state.jobs.get(id) {
+            Some(job) => matches!(job.status, JobStatus::Waiting | JobStatus::Queued),
+            None => false,
+        }
+    });
+
+    for (id, job) in state.jobs.iter() {
+        if !matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
+            continue;
+        }
+        if seen.contains(id) {
+            continue;
+        }
+        state.queue.push_back(id.clone());
+        seen.insert(id.clone());
+    }
+}
+
 pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
     let state = inner.state.lock_unpoisoned();
     snapshot_queue_state_lite_from_locked_state(&state)
@@ -246,7 +300,8 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     let lite_listeners = inner.queue_lite_listeners.lock_unpoisoned().clone();
 
     let (lite_snapshot, full_snapshot, persistence_mode, retention) = {
-        let state = inner.state.lock_unpoisoned();
+        let mut state = inner.state.lock_unpoisoned();
+        repair_queue_invariants_locked(&mut state);
         let lite = snapshot_queue_state_lite_from_locked_state(&state);
         let full = if full_listeners.is_empty() {
             None

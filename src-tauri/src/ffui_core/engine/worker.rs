@@ -1,6 +1,7 @@
 //! Worker orchestration: fan-out to specialized submodules for spawning,
 //! job selection, enqueue, and queue control.
 
+mod cleanup;
 mod control;
 mod enqueue;
 mod selection;

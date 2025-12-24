@@ -1,3 +1,4 @@
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::thread;
 
@@ -75,14 +76,14 @@ fn worker_loop(inner: Arc<Inner>) {
         notify_queue_listeners(&inner);
 
         // Call the job runner to process the transcode job
-        if let Err(err) = job_runner::process_transcode_job(&inner, &job_id) {
+        let result = guarded_job_runner(|| job_runner::process_transcode_job(&inner, &job_id));
+        if let Err(reason) = result {
             {
                 let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(&job_id) {
                     job.status = JobStatus::Failed;
                     job.progress = 100.0;
                     job.end_time = Some(current_time_millis());
-                    let reason = format!("Transcode failed: {err:#}");
                     job.failure_reason = Some(reason.clone());
                     append_job_log_line(job, reason);
                 }
@@ -104,5 +105,46 @@ fn worker_loop(inner: Arc<Inner>) {
         notify_queue_listeners(&inner);
         // Wake any worker threads waiting for a previously blocked input.
         inner.cv.notify_all();
+    }
+}
+
+fn guarded_job_runner<F>(f: F) -> Result<(), String>
+where
+    F: FnOnce() -> anyhow::Result<()> + std::panic::UnwindSafe,
+{
+    match catch_unwind(AssertUnwindSafe(f)) {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(err)) => Err(format!("Transcode failed: {err:#}")),
+        Err(payload) => Err(format!(
+            "Transcode panicked: {}",
+            panic_payload_to_string(payload)
+        )),
+    }
+}
+
+fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(s) = payload.downcast_ref::<&str>() {
+        return s.to_string();
+    }
+    if let Some(s) = payload.downcast_ref::<String>() {
+        return s.clone();
+    }
+    "unknown panic payload".to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn guarded_job_runner_turns_panics_into_errors() {
+        let result = guarded_job_runner(|| -> anyhow::Result<()> {
+            panic!("boom");
+        });
+        let msg = result.expect_err("expected panic to be converted into error");
+        assert!(
+            msg.contains("Transcode panicked: boom"),
+            "expected panic message to be captured, got: {msg}"
+        );
     }
 }

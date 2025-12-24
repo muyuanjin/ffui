@@ -1,9 +1,12 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{append_job_log_line, current_time_millis};
 use crate::ffui_core::domain::{JobStatus, WaitMetadata};
 use crate::sync_ext::MutexExt;
+
+use super::cleanup::collect_job_tmp_cleanup_paths;
 
 fn cancel_waiting_like_job(
     state: &mut super::super::state::EngineState,
@@ -142,14 +145,29 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
 
     let result = {
         let mut state = inner.state.lock_unpoisoned();
-        let job = match state.jobs.get_mut(job_id) {
-            Some(job) => job,
+        let status = match state.jobs.get(job_id) {
+            Some(job) => job.status.clone(),
             None => return false,
         };
 
-        match job.status {
+        match status {
+            JobStatus::Waiting | JobStatus::Queued => {
+                // Idempotent: ensure the job is enqueued so users can safely
+                // click "resume" even if the frontend snapshot is stale.
+                if !state.queue.iter().any(|id| id == job_id) {
+                    state.queue.push_back(job_id.to_string());
+                }
+                // Any stale flags become irrelevant.
+                state.wait_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.restart_requests.remove(job_id);
+                should_notify = true;
+                true
+            }
             JobStatus::Paused => {
-                job.status = JobStatus::Waiting;
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Waiting;
+                }
                 if !state.queue.iter().any(|id| id == job_id) {
                     state.queue.push_back(job_id.to_string());
                 }
@@ -158,11 +176,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
             }
             JobStatus::Processing => {
                 // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
-                let wait_request_cancelled = {
-                    // 先释放对 job 的可变借用，再操作 wait_requests，避免重复可变借用。
-                    let _ = job;
-                    state.wait_requests.remove(job_id)
-                };
+                let wait_request_cancelled = state.wait_requests.remove(job_id);
 
                 if !wait_request_cancelled {
                     // 没有待处理的暂停请求，任务正在正常处理中，无需操作
@@ -262,6 +276,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
 /// for deletion. Active or waiting jobs are kept to avoid silently losing
 /// work that is still running or scheduled.
 pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str) -> bool {
+    let mut cleanup_paths: Vec<PathBuf> = Vec::new();
     {
         let mut state = inner.state.lock_unpoisoned();
         let job = match state.jobs.get(job_id) {
@@ -281,6 +296,8 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
                     return false;
                 }
 
+                cleanup_paths.extend(collect_job_tmp_cleanup_paths(&job));
+
                 // Remove from waiting queue and book-keeping sets.
                 state.queue.retain(|id| id != job_id);
                 state.cancelled_jobs.remove(job_id);
@@ -298,6 +315,10 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
     }
 
     notify_queue_listeners(inner);
+
+    for path in cleanup_paths {
+        let _ = std::fs::remove_file(path);
+    }
     true
 }
 
@@ -315,6 +336,7 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
 ) -> bool {
     use crate::ffui_core::engine::state::BatchCompressBatchStatus;
 
+    let mut cleanup_paths: Vec<PathBuf> = Vec::new();
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -384,6 +406,12 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
             }
 
             for job_id in &child_job_ids {
+                if let Some(job) = state.jobs.get(job_id) {
+                    cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
+                }
+            }
+
+            for job_id in &child_job_ids {
                 state.queue.retain(|id| id != job_id);
                 state.cancelled_jobs.remove(job_id);
                 state.wait_requests.remove(job_id);
@@ -398,5 +426,9 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     }
 
     notify_queue_listeners(inner);
+
+    for path in cleanup_paths {
+        let _ = std::fs::remove_file(path);
+    }
     true
 }
