@@ -3,10 +3,17 @@
 //! 使用 Windows Job Objects 确保当父进程（FFUI）被强制终止时，
 //! 所有由它启动的 ffmpeg 子进程也会被自动终止。
 //!
-//! 原理：创建一个带有 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE 标志的 Job Object，
+//! 原理：创建一个带有 `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` 标志的 Job Object，
 //! 将所有子进程添加到这个 Job Object 中。当 Job Object 的最后一个句柄被关闭时
 //! （即父进程退出时），Windows 会自动终止所有关联的子进程。
 
+#[cfg(windows)]
+use std::os::windows::io::{
+    AsRawHandle,
+    FromRawHandle,
+    OwnedHandle,
+    RawHandle,
+};
 #[cfg(windows)]
 use std::sync::Mutex;
 
@@ -32,25 +39,13 @@ use windows::Win32::System::Threading::{
 #[cfg(windows)]
 use crate::sync_ext::MutexExt;
 
-/// 包装 Job Object 句柄的原始指针，使其可以跨线程安全使用
-///
-/// Windows Job Object 句柄本身是线程安全的，可以从任何线程访问。
-/// 这个包装类型允许我们在静态变量中存储句柄。
-#[cfg(windows)]
-struct JobHandle(isize);
-
-#[cfg(windows)]
-unsafe impl Send for JobHandle {}
-#[cfg(windows)]
-unsafe impl Sync for JobHandle {}
-
 /// 全局 Job Object 句柄，用于管理所有 ffmpeg 子进程
 #[cfg(windows)]
-static CHILD_PROCESS_JOB: Lazy<Mutex<Option<JobHandle>>> = Lazy::new(|| Mutex::new(None));
+static CHILD_PROCESS_JOB: Lazy<Mutex<Option<OwnedHandle>>> = Lazy::new(|| Mutex::new(None));
 
 /// 初始化全局 Job Object
 ///
-/// 应在应用启动时调用一次。创建一个带有 KILL_ON_JOB_CLOSE 标志的 Job Object，
+/// 应在应用启动时调用一次。创建一个带有 `KILL_ON_JOB_CLOSE` 标志的 Job Object，
 /// 这样当父进程退出时，所有添加到此 Job Object 的子进程都会被自动终止。
 #[cfg(windows)]
 pub fn init_child_process_job() -> bool {
@@ -79,7 +74,8 @@ pub fn init_child_process_job() -> bool {
             job_handle,
             JobObjectExtendedLimitInformation,
             &info as *const _ as *const std::ffi::c_void,
-            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            u32::try_from(std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>())
+                .expect("job object info size must fit in u32"),
         );
 
         if let Err(e) = set_result {
@@ -88,13 +84,11 @@ pub fn init_child_process_job() -> bool {
             return false;
         }
 
-        // 保存 Job Object 句柄（存储原始指针值）；如已存在旧句柄，先关闭避免泄漏。
+        let job_owned = OwnedHandle::from_raw_handle(job_handle.0 as RawHandle);
+
+        // 保存 Job Object 句柄；如已存在旧句柄，替换后自动 Drop 避免泄漏。
         let mut guard = CHILD_PROCESS_JOB.lock_unpoisoned();
-        if let Some(prev) = guard.take() {
-            let prev_handle = windows::Win32::Foundation::HANDLE(prev.0 as *mut std::ffi::c_void);
-            let _ = CloseHandle(prev_handle);
-        }
-        *guard = Some(JobHandle(job_handle.0 as isize));
+        let _prev = guard.replace(job_owned);
 
         true
     }
@@ -110,14 +104,13 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
 
     unsafe {
         let guard = CHILD_PROCESS_JOB.lock_unpoisoned();
-        let job_ptr = match &*guard {
-            Some(h) => h.0,
+        let job_handle = match guard.as_ref() {
+            Some(h) => HANDLE(h.as_raw_handle()),
             None => {
                 // Job Object 未初始化，跳过
                 return false;
             }
         };
-        let job_handle = HANDLE(job_ptr as *mut std::ffi::c_void);
 
         // 打开子进程句柄
         let process_handle = match OpenProcess(PROCESS_ALL_ACCESS, false, child_pid) {
@@ -138,10 +131,10 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
         let _ = CloseHandle(process_handle);
 
         if let Err(e) = assign_result {
-            // 错误码 5 (ERROR_ACCESS_DENIED) 通常表示进程已经属于另一个 Job Object
+            // HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED) (0x8007_0005) 通常表示进程已经属于另一个 Job Object
             // 这在某些情况下是正常的（例如从 IDE 启动时）
-            let code = e.code().0 as u32;
-            if code != 5 {
+            let code = u32::from_ne_bytes(e.code().0.to_ne_bytes());
+            if code != 0x8007_0005 {
                 crate::debug_eprintln!("将子进程 {child_pid} 添加到 Job Object 失败: {e}");
             }
             return false;
@@ -168,6 +161,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn owned_handle_is_send_sync() {
+        fn assert_send_sync<T: Send + Sync>() {}
+        assert_send_sync::<OwnedHandle>();
+    }
+
+    #[test]
     fn test_init_child_process_job() {
         // 测试 Job Object 初始化
         let result = init_child_process_job();
@@ -184,7 +183,7 @@ mod tests {
         init_child_process_job();
 
         // 尝试添加一个不存在的进程 ID
-        let result = assign_child_to_job(999999999);
+        let result = assign_child_to_job(999_999_999);
         assert!(!result, "添加不存在的进程应该失败");
     }
 }
