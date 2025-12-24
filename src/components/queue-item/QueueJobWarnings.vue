@@ -4,6 +4,7 @@ import { AlertTriangle } from "lucide-vue-next";
 import type { JobWarning } from "@/types";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   warnings?: JobWarning[];
@@ -11,6 +12,8 @@ const props = defineProps<{
 
 const normalizedWarnings = computed(() => (props.warnings ?? []).filter(Boolean));
 const hasWarnings = computed(() => normalizedWarnings.value.length > 0);
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -22,7 +25,7 @@ const hasWarnings = computed(() => normalizedWarnings.value.length > 0);
           variant="ghost"
           size="icon-xs"
           class="h-5 w-5 rounded-md text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
-          aria-label="Warnings"
+          :aria-label="t('queue.warnings.ariaLabel')"
           @click.stop
           @mousedown.stop
         >
@@ -31,7 +34,7 @@ const hasWarnings = computed(() => normalizedWarnings.value.length > 0);
       </TooltipTrigger>
       <TooltipContent class="max-w-[320px] border-amber-500/40 bg-amber-500/10 text-amber-50">
         <div class="space-y-1">
-          <p class="font-semibold text-amber-100">输出警告</p>
+          <p class="font-semibold text-amber-100">{{ t("queue.warnings.title") }}</p>
           <ul class="space-y-1">
             <li v-for="w in normalizedWarnings" :key="w.code" class="text-[11px] leading-snug">
               {{ w.message }}

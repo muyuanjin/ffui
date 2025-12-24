@@ -152,11 +152,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       if (useRegex) {
         candidate = text;
       } else {
-        const tokens = text
-          .split(/\s+/)
-          .map((t) => t.trim())
-          .filter((t) => t.length > 0);
-        const regexToken = tokens.find((token) => token.toLowerCase().startsWith("regex:"));
+        const regexToken = filterTextTokens.value.find((token) => token.toLowerCase().startsWith("regex:"));
         if (!regexToken) {
           // No regex token in unified query mode; clear regex state.
           filterRegex.value = null;
@@ -210,6 +206,75 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return result;
   });
 
+  type ParsedTextFilterCriteria =
+    | {
+        mode: "none";
+        rawText: "";
+        plainTokensLower: string[];
+        sizeFilter: SizeFilter | null;
+      }
+    | {
+        mode: "regex";
+        rawText: string;
+        plainTokensLower: string[];
+        sizeFilter: SizeFilter | null;
+      }
+    | {
+        mode: "tokens";
+        rawText: string;
+        plainTokensLower: string[];
+        sizeFilter: SizeFilter | null;
+      };
+
+  const filterTextTokens = computed<string[]>(() => {
+    const text = filterText.value.trim();
+    if (!text) return [];
+    return text
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+  });
+
+  const parsedTextCriteria = computed<ParsedTextFilterCriteria>(() => {
+    const rawText = filterText.value.trim();
+    if (!rawText) {
+      return { mode: "none", rawText: "", plainTokensLower: [], sizeFilter: null };
+    }
+
+    if (filterUseRegex.value) {
+      return { mode: "regex", rawText, plainTokensLower: [], sizeFilter: null };
+    }
+
+    let sizeFilter: SizeFilter | null = null;
+    const plainTokensLower: string[] = [];
+
+    for (const token of filterTextTokens.value) {
+      if (token === "/") {
+        // Treat a bare "/" token (for example from "a size>10 / regex:...")
+        // as a visual separator, not a filter term.
+        continue;
+      }
+
+      // Regex tokens are handled by the watcher and exposed via filterRegex.
+      if (token.toLowerCase().startsWith("regex:")) {
+        continue;
+      }
+
+      const parsed = parseSizeFilterToken(token);
+      if (parsed) {
+        sizeFilter = parsed;
+        continue;
+      }
+
+      const needle = token.toLowerCase();
+      if (needle) {
+        plainTokensLower.push(needle);
+      }
+    }
+
+    return { mode: "tokens", rawText, plainTokensLower, sizeFilter };
+  });
+
   // ----- Filter Methods -----
   const jobMatchesFilters = (job: TranscodeJob): boolean => {
     if (activeStatusFilters.value.size > 0) {
@@ -225,8 +290,8 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       }
     }
 
-    const rawText = filterText.value.trim();
-    if (!rawText) {
+    const criteria = parsedTextCriteria.value;
+    if (criteria.mode === "none") {
       return true;
     }
 
@@ -234,7 +299,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     if (!haystack) return false;
 
     // Global regex mode: entire input is treated as a single regex pattern.
-    if (filterUseRegex.value) {
+    if (criteria.mode === "regex") {
       const rx = filterRegex.value;
       if (!rx) {
         // When the regex is invalid and no previous valid regex exists, keep
@@ -248,40 +313,9 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     // - plain text tokens (substring match)
     // - size tokens like "size>10mb"
     // - an optional regex token "regex:pattern"
-    const tokens = rawText
-      .split(/\s+/)
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0);
-
-    let sizeFilter: SizeFilter | null = null;
-    const plainTokens: string[] = [];
-
-    for (const token of tokens) {
-      if (token === "/") {
-        // Treat a bare "/" token (for example from "a size>10 / regex:...")
-        // as a visual separator, not a filter term.
-        continue;
-      }
-
-      // Regex tokens are handled by the watcher and exposed via filterRegex,
-      // so we skip them in the plain-text set here.
-      if (token.toLowerCase().startsWith("regex:")) {
-        continue;
-      }
-
-      const parsed = parseSizeFilterToken(token);
-      if (parsed) {
-        sizeFilter = parsed;
-      } else {
-        plainTokens.push(token);
-      }
-    }
-
     // Plain-text token matching: each token must be present in the haystack
     // (logical AND across tokens).
-    for (const token of plainTokens) {
-      const needle = token.toLowerCase();
-      if (!needle) continue;
+    for (const needle of criteria.plainTokensLower) {
       if (!haystack.includes(needle)) {
         return false;
       }
@@ -296,11 +330,11 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
       }
     }
 
-    if (!sizeFilter) {
+    if (!criteria.sizeFilter) {
       return true;
     }
 
-    return matchesSizeFilter(job, sizeFilter);
+    return matchesSizeFilter(job, criteria.sizeFilter);
   };
 
   const batchMatchesFilters = (batch: CompositeBatchCompressTask): boolean => {

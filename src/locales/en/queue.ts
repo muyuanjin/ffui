@@ -69,6 +69,13 @@ const queue = {
     estimated: "estimated",
     remaining: "remaining",
   },
+  media: {
+    duration: "Duration {time}",
+  },
+  warnings: {
+    ariaLabel: "Warnings",
+    title: "Output warnings",
+  },
   source: {
     manual: "Manual",
     batchCompress: "Batch Compress",

@@ -63,16 +63,6 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
       deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
       return;
     }
-
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (job.id !== jobId) return job;
-      if (job.status === "processing") {
-        return {
-          ...job,
-        };
-      }
-      return job;
-    });
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to wait job", error);

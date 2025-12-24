@@ -230,13 +230,17 @@ function reorderWaitingQueueLocal(orderedIds: string[], deps: Pick<BulkOpsDeps, 
   const explicitSet = new Set(orderedIds);
   const remaining = waitingIds.filter((id) => !explicitSet.has(id));
   const nextOrder = [...orderedIds, ...remaining];
+  const orderIndex = new Map<string, number>(nextOrder.map((id, index) => [id, index]));
+  const originalIndex = new Map<string, number>(deps.jobs.value.map((job, index) => [job.id, index]));
 
   deps.jobs.value = deps.jobs.value.slice().sort((a, b) => {
-    const ai = nextOrder.indexOf(a.id);
-    const bi = nextOrder.indexOf(b.id);
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
+    const ai = orderIndex.get(a.id);
+    const bi = orderIndex.get(b.id);
+    if (ai === undefined && bi === undefined) {
+      return (originalIndex.get(a.id) ?? 0) - (originalIndex.get(b.id) ?? 0);
+    }
+    if (ai === undefined) return 1;
+    if (bi === undefined) return -1;
     return ai - bi;
   });
 }

@@ -69,6 +69,13 @@ const queue = {
     estimated: "预估",
     remaining: "剩余",
   },
+  media: {
+    duration: "时长 {time}",
+  },
+  warnings: {
+    ariaLabel: "警告",
+    title: "输出警告",
+  },
   source: {
     manual: "手动添加",
     batchCompress: "批量压缩",
