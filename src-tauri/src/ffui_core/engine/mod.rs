@@ -9,6 +9,7 @@ mod job_runner;
 mod output_policy_paths;
 mod preview_cache_gc;
 mod preview_refresh;
+mod segment_discovery;
 mod settings_save;
 mod state;
 mod state_persist;

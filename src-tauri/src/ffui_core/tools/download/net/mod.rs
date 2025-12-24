@@ -18,6 +18,33 @@ pub(crate) struct NetworkAttemptInfo {
     pub(crate) message: Option<String>,
 }
 
+fn send_reqwest_blocking_with_proxy_fallback(
+    proxy_client: Option<&reqwest::blocking::Client>,
+    direct_client: &reqwest::blocking::Client,
+    resolved: &network_proxy::ResolvedNetworkProxy,
+    info: &mut NetworkAttemptInfo,
+    send: impl Fn(&reqwest::blocking::Client) -> Result<reqwest::blocking::Response>,
+) -> Result<reqwest::blocking::Response> {
+    if let Some(client) = proxy_client {
+        match send(client) {
+            Ok(resp) => Ok(resp),
+            Err(err) => {
+                if resolved.fallback_to_direct_on_error() {
+                    info.fell_back_to_direct = true;
+                    info.message = Some(format!(
+                        "[proxy] request failed; falling back to direct: {err:#}"
+                    ));
+                    send(direct_client)
+                } else {
+                    Err(err)
+                }
+            }
+        }
+    } else {
+        send(direct_client)
+    }
+}
+
 fn build_reqwest_blocking_client(
     timeout: Duration,
     context_label: &'static str,
@@ -83,8 +110,10 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<Networ
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
     let force_no_proxy = resolved.is_no_proxy_mode();
 
-    let mut info = NetworkAttemptInfo::default();
-    info.message = plan_message;
+    let mut info = NetworkAttemptInfo {
+        message: plan_message,
+        ..Default::default()
+    };
 
     let run = |use_proxy: bool| -> Result<()> {
         let mut cmd = Command::new("aria2c");
@@ -156,8 +185,10 @@ where
     let resolved = network_proxy::resolve_effective_proxy_once();
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
 
-    let mut info = NetworkAttemptInfo::default();
-    info.message = plan_message;
+    let mut info = NetworkAttemptInfo {
+        message: plan_message,
+        ..Default::default()
+    };
 
     let force_no_proxy = resolved.is_no_proxy_mode();
     let (proxy_client, direct_client) = if force_no_proxy {
@@ -207,24 +238,13 @@ where
         })
     };
 
-    let mut resp = if let Some(client) = proxy_client.as_ref() {
-        match send(client) {
-            Ok(resp) => resp,
-            Err(err) => {
-                if resolved.fallback_to_direct_on_error() {
-                    info.fell_back_to_direct = true;
-                    info.message = Some(format!(
-                        "[proxy] request failed; falling back to direct: {err:#}"
-                    ));
-                    send(&direct_client)?
-                } else {
-                    return Err(err);
-                }
-            }
-        }
-    } else {
-        send(&direct_client)?
-    };
+    let mut resp = send_reqwest_blocking_with_proxy_fallback(
+        proxy_client.as_ref(),
+        &direct_client,
+        &resolved,
+        &mut info,
+        send,
+    )?;
 
     if !resp.status().is_success() {
         bail!(
@@ -275,8 +295,10 @@ where
     let resolved = network_proxy::resolve_effective_proxy_once();
     let (parsed_proxy, plan_message) = resolve_proxy_plan(&resolved)?;
 
-    let mut info = NetworkAttemptInfo::default();
-    info.message = plan_message;
+    let mut info = NetworkAttemptInfo {
+        message: plan_message,
+        ..Default::default()
+    };
 
     let force_no_proxy = resolved.is_no_proxy_mode();
     let (proxy_client, direct_client) = if force_no_proxy {
@@ -323,24 +345,13 @@ where
             .with_context(|| format!("failed to download avifenc from {url}"))
     };
 
-    let mut resp = if let Some(client) = proxy_client.as_ref() {
-        match send(client) {
-            Ok(resp) => resp,
-            Err(err) => {
-                if resolved.fallback_to_direct_on_error() {
-                    info.fell_back_to_direct = true;
-                    info.message = Some(format!(
-                        "[proxy] request failed; falling back to direct: {err:#}"
-                    ));
-                    send(&direct_client)?
-                } else {
-                    return Err(err);
-                }
-            }
-        }
-    } else {
-        send(&direct_client)?
-    };
+    let mut resp = send_reqwest_blocking_with_proxy_fallback(
+        proxy_client.as_ref(),
+        &direct_client,
+        &resolved,
+        &mut info,
+        send,
+    )?;
 
     if !resp.status().is_success() {
         bail!(

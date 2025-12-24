@@ -54,7 +54,7 @@ pub fn parse_reqwest_proxy_for(
         return Ok(None);
     };
 
-    let proxy = reqwest::Proxy::all(url).with_context(|| format!("invalid proxy URL: {}", url))?;
+    let proxy = reqwest::Proxy::all(url).with_context(|| format!("invalid proxy URL: {url}"))?;
     Ok(Some(ParsedReqwestProxy { proxy }))
 }
 

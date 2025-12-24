@@ -6,6 +6,7 @@ use super::super::state_persist::{load_persisted_queue_state, load_persisted_ter
 use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
 use crate::ffui_core::domain::{JobStatus, JobType, QueueState, TranscodeJob, WaitMetadata};
+use crate::ffui_core::engine::segment_discovery;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 
@@ -165,7 +166,6 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                     id: id.clone(),
                     input_path: PathBuf::from(job.filename.trim()),
                     output_path: job.output_path.as_deref().map(|s| PathBuf::from(s.trim())),
-                    legacy_tmp_output: build_video_tmp_output_path(Path::new(&job.filename)),
                     progress: job.progress,
                     elapsed_ms: job.elapsed_ms,
                     existing_wait_metadata: job.wait_metadata.clone(),
@@ -227,7 +227,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 let should_apply = job
                     .wait_metadata
                     .as_ref()
-                    .map(|m| wait_metadata_has_no_usable_paths(m))
+                    .map(wait_metadata_has_no_usable_paths)
                     .unwrap_or(true);
                 if should_apply {
                     job.wait_metadata = Some(meta);
@@ -246,22 +246,11 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     inner.cv.notify_all();
 }
 
-fn build_video_tmp_output_path(input: &Path) -> PathBuf {
-    let parent = input.parent().unwrap_or_else(|| Path::new("."));
-    let stem = input
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("output");
-    let ext = input.extension().and_then(|e| e.to_str()).unwrap_or("mp4");
-    parent.join(format!("{stem}.compressed.tmp.{ext}"))
-}
-
 #[derive(Debug, Clone)]
 struct SegmentProbe {
     id: String,
     input_path: PathBuf,
     output_path: Option<PathBuf>,
-    legacy_tmp_output: PathBuf,
     progress: f64,
     elapsed_ms: Option<u64>,
     existing_wait_metadata: Option<WaitMetadata>,
@@ -313,16 +302,20 @@ fn recover_wait_metadata_from_filesystem(probe: &SegmentProbe) -> Option<WaitMet
     // 1) Prefer output-path-derived segments (supports fixed output directories
     // and the post-refactor "{stem}.{jobId}.segN.tmp.{ext}" naming).
     if let Some(output_path) = probe.output_path.as_ref() {
-        discover_segments_for_output_path(output_path, &probe.id, None, &mut found);
+        segment_discovery::discover_segments_for_output_path(output_path, &probe.id, &mut found);
     }
 
     // 2) Also scan for per-job ".compressed.{jobId}.segN.tmp.*" segments placed
     // next to the input (legacy, or same-as-input output policy).
-    discover_segments_for_input_path(&probe.input_path, &probe.id, &mut found);
+    segment_discovery::discover_segments_for_input_path(&probe.input_path, &probe.id, &mut found);
 
     // 3) Fall back to a single legacy temp output file when segment naming is unknown.
-    if found.is_empty() && probe.legacy_tmp_output.exists() {
-        found.insert(0, probe.legacy_tmp_output.clone());
+    if found.is_empty()
+        && let Some(legacy_tmp) =
+            segment_discovery::build_legacy_video_tmp_output_path(&probe.input_path)
+        && legacy_tmp.exists()
+    {
+        found.insert(0, legacy_tmp);
     }
 
     // 4) Merge in any existing wait metadata paths that still exist on disk.
@@ -395,88 +388,4 @@ fn wait_metadata_existing_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
     out
 }
 
-fn discover_segments_for_output_path(
-    output_path: &Path,
-    job_id: &str,
-    expected_ext: Option<&str>,
-    out: &mut BTreeMap<u64, PathBuf>,
-) {
-    let Some(parent) = output_path.parent() else {
-        return;
-    };
-    let Some(stem) = output_path.file_stem().and_then(|s| s.to_str()) else {
-        return;
-    };
-    let ext_from_output = output_path.extension().and_then(|s| s.to_str());
-    let expected_ext = expected_ext.or(ext_from_output);
-
-    let prefix = format!("{stem}.{job_id}.seg");
-    discover_segments_in_dir(parent, &prefix, expected_ext, out);
-}
-
-fn discover_segments_for_input_path(
-    input_path: &Path,
-    job_id: &str,
-    out: &mut BTreeMap<u64, PathBuf>,
-) {
-    let Some(parent) = input_path.parent() else {
-        return;
-    };
-    let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) else {
-        return;
-    };
-
-    // Newer "compressed" per-job naming (used when outputs live next to input).
-    let compressed_prefix = format!("{stem}.compressed.{job_id}.seg");
-    discover_segments_in_dir(parent, &compressed_prefix, None, out);
-
-    // Legacy ".compressed.tmp.{ext}" file is handled by the caller (single-path fallback).
-}
-
-fn discover_segments_in_dir(
-    dir: &Path,
-    prefix: &str,
-    expected_ext: Option<&str>,
-    out: &mut BTreeMap<u64, PathBuf>,
-) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(v) => v,
-        Err(_) => return,
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if !path.is_file() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
-            continue;
-        };
-        let Some((idx, ext)) = parse_segment_index_and_ext(name, prefix) else {
-            continue;
-        };
-        if let Some(expected) = expected_ext {
-            if !ext.eq_ignore_ascii_case(expected) {
-                continue;
-            }
-        }
-        out.entry(idx).or_insert(path);
-    }
-}
-
-fn parse_segment_index_and_ext(name: &str, prefix: &str) -> Option<(u64, String)> {
-    if !name.starts_with(prefix) {
-        return None;
-    }
-    let rest = &name[prefix.len()..];
-    let (idx_part, ext_part) = rest.split_once(".tmp.")?;
-    if idx_part.is_empty() || !idx_part.chars().all(|c| c.is_ascii_digit()) {
-        return None;
-    }
-    let idx = idx_part.parse::<u64>().ok()?;
-    let ext = ext_part.trim();
-    if ext.is_empty() {
-        return None;
-    }
-    Some((idx, ext.to_string()))
-}
+// Legacy ".compressed.tmp.{ext}" file is handled by the filesystem recovery probe.

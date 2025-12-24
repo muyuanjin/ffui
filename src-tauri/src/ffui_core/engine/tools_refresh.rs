@@ -11,6 +11,54 @@ use crate::ffui_core::tools::{
 use crate::ffui_core::tools::{mark_tool_error, mark_tool_message};
 use crate::sync_ext::MutexExt;
 
+type CheckedRemoteRefresh = fn() -> anyhow::Result<(String, String, Option<String>)>;
+type BestEffortRemoteRefresh = fn() -> Option<(String, String)>;
+type RemoteRefreshTuple = (Option<String>, Option<String>, Option<String>);
+
+fn best_effort_remote_refresh(
+    manual: bool,
+    checked: CheckedRemoteRefresh,
+    best_effort: BestEffortRemoteRefresh,
+) -> anyhow::Result<RemoteRefreshTuple> {
+    if manual {
+        return checked().map(|(version, tag, note)| (Some(version), Some(tag), note));
+    }
+    Ok(best_effort()
+        .map(|(version, tag)| (Some(version), Some(tag), None))
+        .unwrap_or((None, None, None)))
+}
+
+fn store_remote_version_cache<F>(engine: &TranscodingEngine, update: F)
+where
+    F: FnOnce(&mut crate::ffui_core::settings::types::RemoteToolVersionCache),
+{
+    let mut state = engine.inner.state.lock_unpoisoned();
+    let tools = &mut state.settings.tools;
+    let cache = tools
+        .remote_version_cache
+        .get_or_insert_with(Default::default);
+    update(cache);
+}
+
+fn mark_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: String) {
+    if kinds.is_empty() {
+        return;
+    }
+    if let Some((last, rest)) = kinds.split_last() {
+        for kind in rest.iter().copied() {
+            mark_tool_message(kind, note.clone());
+        }
+        mark_tool_message(*last, note);
+    }
+}
+
+fn mark_proxy_remote_check_error(kinds: &[ExternalToolKind], err: anyhow::Error) {
+    let msg = format!("[proxy] remote version check failed: {err:#}");
+    for kind in kinds.iter().copied() {
+        mark_tool_error(kind, msg.clone());
+    }
+}
+
 impl TranscodingEngine {
     /// Fast cached snapshot read for external tool statuses.
     ///
@@ -167,42 +215,33 @@ impl TranscodingEngine {
                 let mut remote_updated = false;
                 let mut should_persist_settings = false;
                 if should_check_ffmpeg {
-                    let refreshed = if manual_remote_check {
-                        refresh_ffmpeg_static_release_from_github_checked()
-                            .map(|(version, tag, note)| (Some(version), Some(tag), note))
-                    } else {
-                        Ok(
-                            try_refresh_ffmpeg_static_release_from_github()
-                                .map(|(version, tag)| (Some(version), Some(tag), None))
-                                .unwrap_or((None, None, None)),
-                        )
-                    };
+                    let refreshed = best_effort_remote_refresh(
+                        manual_remote_check,
+                        refresh_ffmpeg_static_release_from_github_checked,
+                        try_refresh_ffmpeg_static_release_from_github,
+                    );
 
                     match refreshed {
                         Ok((Some(version), Some(tag), note)) => {
                             remote_updated = true;
                             should_persist_settings = true;
-                            let mut state = engine_clone
-                                .inner
-                                .state
-                                .lock_unpoisoned();
-                            let tools = &mut state.settings.tools;
-                            let cache = tools
-                                .remote_version_cache
-                                .get_or_insert_with(Default::default);
-                            cache.ffmpeg_static = Some(
-                                crate::ffui_core::settings::types::RemoteToolVersionInfo {
-                                    checked_at_ms: Some(now_ms),
-                                    version: Some(version),
-                                    tag: Some(tag),
-                                },
-                            );
+                            store_remote_version_cache(&engine_clone, |cache| {
+                                cache.ffmpeg_static = Some(
+                                    crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                        checked_at_ms: Some(now_ms),
+                                        version: Some(version),
+                                        tag: Some(tag),
+                                    },
+                                );
+                            });
 
-                            if manual_remote_check {
-                                if let Some(note) = note {
-                                    mark_tool_message(ExternalToolKind::Ffmpeg, note.clone());
-                                    mark_tool_message(ExternalToolKind::Ffprobe, note);
-                                }
+                            if manual_remote_check
+                                && let Some(note) = note
+                            {
+                                mark_proxy_note_for_kinds(
+                                    &[ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                                    note,
+                                );
                             }
                         }
                         Ok((_v, _t, _note)) => {
@@ -211,49 +250,39 @@ impl TranscodingEngine {
                             );
                         }
                         Err(err) => {
-                            let msg = format!("[proxy] remote version check failed: {err:#}");
-                            mark_tool_error(ExternalToolKind::Ffmpeg, msg.clone());
-                            mark_tool_error(ExternalToolKind::Ffprobe, msg);
+                            mark_proxy_remote_check_error(
+                                &[ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                                err,
+                            );
                         }
                     }
                 }
 
                 if should_check_libavif {
-                    let refreshed = if manual_remote_check {
-                        refresh_libavif_release_from_github_checked()
-                            .map(|(version, tag, note)| (Some(version), Some(tag), note))
-                    } else {
-                        Ok(
-                            try_refresh_libavif_release_from_github()
-                                .map(|(version, tag)| (Some(version), Some(tag), None))
-                                .unwrap_or((None, None, None)),
-                        )
-                    };
+                    let refreshed = best_effort_remote_refresh(
+                        manual_remote_check,
+                        refresh_libavif_release_from_github_checked,
+                        try_refresh_libavif_release_from_github,
+                    );
 
                     match refreshed {
                         Ok((Some(version), Some(tag), note)) => {
                             remote_updated = true;
                             should_persist_settings = true;
-                            let mut state = engine_clone
-                                .inner
-                                .state
-                                .lock_unpoisoned();
-                            let tools = &mut state.settings.tools;
-                            let cache = tools
-                                .remote_version_cache
-                                .get_or_insert_with(Default::default);
-                            cache.libavif = Some(
-                                crate::ffui_core::settings::types::RemoteToolVersionInfo {
-                                    checked_at_ms: Some(now_ms),
-                                    version: Some(version),
-                                    tag: Some(tag),
-                                },
-                            );
+                            store_remote_version_cache(&engine_clone, |cache| {
+                                cache.libavif = Some(
+                                    crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                        checked_at_ms: Some(now_ms),
+                                        version: Some(version),
+                                        tag: Some(tag),
+                                    },
+                                );
+                            });
 
-                            if manual_remote_check {
-                                if let Some(note) = note {
-                                    mark_tool_message(ExternalToolKind::Avifenc, note);
-                                }
+                            if manual_remote_check
+                                && let Some(note) = note
+                            {
+                                mark_proxy_note_for_kinds(&[ExternalToolKind::Avifenc], note);
                             }
                         }
                         Ok((_v, _t, _note)) => {
@@ -262,8 +291,7 @@ impl TranscodingEngine {
                             );
                         }
                         Err(err) => {
-                            let msg = format!("[proxy] remote version check failed: {err:#}");
-                            mark_tool_error(ExternalToolKind::Avifenc, msg);
+                            mark_proxy_remote_check_error(&[ExternalToolKind::Avifenc], err);
                         }
                     }
                 }
