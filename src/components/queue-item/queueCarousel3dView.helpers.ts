@@ -1,11 +1,13 @@
 import { Film, Image, Music } from "lucide-vue-next";
 import type { QueueListItem } from "@/composables";
+import type { JobStatus, JobType } from "@/types";
+import type { ProgressVariant } from "@/components/ui/progress";
 
 const clampNumber = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
 };
 
-export const getTypeIcon = (type: string) => {
+export const getTypeIcon = (type: JobType | string) => {
   switch (type) {
     case "video":
       return Film;
@@ -18,7 +20,7 @@ export const getTypeIcon = (type: string) => {
   }
 };
 
-export const getStatusClass = (status: string) => {
+export const getStatusClass = (status: JobStatus) => {
   switch (status) {
     case "completed":
       return "border-emerald-500/60 text-emerald-200 bg-emerald-500/20";
@@ -38,7 +40,7 @@ export const getStatusClass = (status: string) => {
   }
 };
 
-export const getProgressVariant = (status: string) => {
+export const getProgressVariant = (status: JobStatus): ProgressVariant => {
   switch (status) {
     case "completed":
       return "success";

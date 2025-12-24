@@ -15,7 +15,7 @@ import { highlightFfmpegCommand, normalizeFfmpegTemplate, getFfmpegCommandPrevie
 
 // ----- Types -----
 
-export interface PresetEditorState {
+interface PresetEditorFields {
   name: Ref<string>;
   description: Ref<string>;
   global: GlobalConfig;
@@ -32,6 +32,8 @@ export interface PresetEditorState {
   parseHint: Ref<string | null>;
   parseHintVariant: Ref<"neutral" | "ok" | "warning">;
 }
+
+export interface PresetEditorState extends PresetEditorFields {}
 
 export interface UsePresetEditorOptions {
   /** Initial preset to edit. */
@@ -42,21 +44,22 @@ export interface UsePresetEditorOptions {
 
 export interface UsePresetEditorReturn {
   // ----- State -----
-  name: Ref<string>;
-  description: Ref<string>;
-  global: GlobalConfig;
-  input: InputTimelineConfig;
-  mapping: MappingConfig;
-  video: VideoConfig;
-  audio: AudioConfig;
-  filters: FilterConfig;
-  subtitles: SubtitlesConfig;
-  container: ContainerConfig;
-  hardware: HardwareConfig;
-  advancedEnabled: Ref<boolean>;
-  ffmpegTemplate: Ref<string>;
-  parseHint: Ref<string | null>;
-  parseHintVariant: Ref<"neutral" | "ok" | "warning">;
+  // (shared with PresetEditorState)
+  name: PresetEditorFields["name"];
+  description: PresetEditorFields["description"];
+  global: PresetEditorFields["global"];
+  input: PresetEditorFields["input"];
+  mapping: PresetEditorFields["mapping"];
+  video: PresetEditorFields["video"];
+  audio: PresetEditorFields["audio"];
+  filters: PresetEditorFields["filters"];
+  subtitles: PresetEditorFields["subtitles"];
+  container: PresetEditorFields["container"];
+  hardware: PresetEditorFields["hardware"];
+  advancedEnabled: PresetEditorFields["advancedEnabled"];
+  ffmpegTemplate: PresetEditorFields["ffmpegTemplate"];
+  parseHint: PresetEditorFields["parseHint"];
+  parseHintVariant: PresetEditorFields["parseHintVariant"];
 
   // ----- Computed -----
   /** Whether the encoder is set to 'copy'. */
@@ -172,15 +175,15 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
     const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
     // 只在可以确定是 x264 专用取值时，才在非 x264 编码器上清理 tune，避免误删 NVENC/AV1 的 hq 等合法调优参数。
     if (normalizedVideo.encoder !== "libx264") {
-      const rawTune = (normalizedVideo as any).tune as string | undefined;
+      const rawTune = normalizedVideo.tune;
       if (typeof rawTune === "string" && rawTune.trim().length > 0) {
         const x264OnlyTunes = ["film", "animation", "grain", "stillimage", "psnr", "ssim", "fastdecode", "zerolatency"];
         if (x264OnlyTunes.includes(rawTune)) {
-          delete (normalizedVideo as any).tune;
+          delete normalizedVideo.tune;
         }
       } else if (rawTune === undefined) {
         // 避免把 value 为 undefined 的 tune 透传给后端，保持结构简洁。
-        delete (normalizedVideo as any).tune;
+        delete normalizedVideo.tune;
       }
     }
 

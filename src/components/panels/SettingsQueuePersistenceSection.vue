@@ -22,6 +22,12 @@ const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K
   emit("update:appSettings", { ...props.appSettings, [key]: value });
 };
 
+const updateQueuePersistenceMode = (value: unknown) => {
+  if (value === "none" || value === "crashRecoveryLite" || value === "crashRecoveryFull") {
+    updateSetting("queuePersistenceMode", value);
+  }
+};
+
 const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>) => {
   const existing = (props.appSettings.crashRecoveryLogRetention ??
     ({} as CrashRecoveryRetention)) as CrashRecoveryRetention;
@@ -39,7 +45,7 @@ const updateCrashRecoveryLogRetention = (patch: Partial<CrashRecoveryRetention>)
       class="grid gap-0.5"
       :class="adaptiveFill ? 'auto-rows-min content-between flex-1' : ''"
       :model-value="appSettings.queuePersistenceMode ?? 'none'"
-      @update:model-value="(v) => updateSetting('queuePersistenceMode', v as any)"
+      @update:model-value="updateQueuePersistenceMode"
     >
       <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
         <RadioGroupItem id="queue-persistence-none" value="none" class="mt-[2px] h-3 w-3 border-border/50" />

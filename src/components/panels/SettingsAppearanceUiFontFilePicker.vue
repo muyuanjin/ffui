@@ -50,8 +50,8 @@ const chooseUiFontFile = async () => {
       uiFontFilePath: imported.path,
       uiFontFileSourceName: sourceName,
     });
-  } catch (error) {
-    uiFontFileError.value = String((error as any)?.message ?? error);
+  } catch (error: unknown) {
+    uiFontFileError.value = error instanceof Error ? error.message : String(error);
   } finally {
     uiFontFileBusy.value = false;
   }

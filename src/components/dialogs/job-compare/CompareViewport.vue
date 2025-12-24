@@ -2,24 +2,9 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import CompareMediaStage from "./CompareMediaStage.vue";
-export type CompareMode = "side-by-side" | "wipe" | "blink";
-const props = defineProps<{
-  open: boolean;
-  mode: CompareMode;
-  loadingSources: boolean;
-  sourcesError: string | null;
-  usingFrameCompare: boolean;
-  inputVideoUrl: string | null;
-  outputVideoUrl: string | null;
-  inputFrameUrl: string | null;
-  inputFrameLoading: boolean;
-  inputFrameError: string | null;
-  inputFrameQuality?: "low" | "high" | null;
-  outputFrameUrl: string | null;
-  outputFrameLoading: boolean;
-  outputFrameError: string | null;
-  outputFrameQuality?: "low" | "high" | null;
-}>();
+import type { CompareViewportProps } from "./types";
+
+const props = defineProps<CompareViewportProps>();
 const emit = defineEmits<{
   frameImgError: [side: "input" | "output"];
   nativeError: [];

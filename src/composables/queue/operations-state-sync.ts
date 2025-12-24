@@ -1,22 +1,10 @@
 import { type Ref } from "vue";
 import type { TranscodeJob, QueueState, QueueStateLite, Translate } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
+import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-
-const startupNowMs = () => {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-  return Date.now();
-};
-
-const updateStartupMetrics = (patch: Record<string, unknown>) => {
-  if (typeof window === "undefined") return;
-  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
-  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
-};
 
 let loggedQueueStateLiteApplied = false;
 let loggedQueueRefresh = false;
@@ -29,8 +17,8 @@ const isObject = (value: unknown): value is Record<string, unknown> => {
 };
 
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
-  const prevAny = previous as any;
-  const nextAny = next as any;
+  const prevAny = previous as unknown as Record<string, unknown>;
+  const nextAny = next as unknown as Record<string, unknown>;
 
   // Remove properties that are missing from the backend snapshot (treat missing as undefined),
   // ensuring the in-memory job list stays aligned with the backend source of truth.
@@ -57,7 +45,7 @@ function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
       if (
         prevKeys.length === nextKeys.length &&
         prevKeys.every((k) => k in value) &&
-        prevKeys.every((k) => (prevValue as any)[k] === (value as any)[k])
+        prevKeys.every((k) => prevValue[k] === value[k])
       ) {
         continue;
       }

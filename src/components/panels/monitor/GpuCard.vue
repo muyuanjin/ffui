@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from "vue";
 import VChart from "vue-echarts";
 import "echarts";
+import type { EChartsCoreOption } from "echarts/core";
 import type { GpuUsageSnapshot } from "@/types";
 import { useI18n } from "vue-i18n";
 
@@ -9,7 +9,7 @@ interface Props {
   /** GPU 数据快照 */
   gpu: GpuUsageSnapshot | null;
   /** ECharts 图表配置 */
-  chartOption: any;
+  chartOption: EChartsCoreOption;
   /** GPU 使用率（百分比） */
   gpuUsage: number;
   /** GPU 显存使用率（百分比） */
@@ -18,9 +18,6 @@ interface Props {
 
 defineProps<Props>();
 const { t } = useI18n();
-
-// GPU 温度（临时模拟数据，实际应从 props 传入）
-const gpuTemp = computed(() => Math.floor(Math.random() * 30 + 50));
 </script>
 
 <template>
@@ -46,7 +43,7 @@ const gpuTemp = computed(() => Math.floor(Math.random() * 30 + 50));
       </div>
       <div class="stat">
         <span class="stat-label">{{ t("monitor.gpuTemp") }}</span>
-        <span class="stat-value">{{ gpuTemp }}°C</span>
+        <span class="stat-value">{{ t("app.settings.unknownValue") }}</span>
       </div>
     </div>
   </div>

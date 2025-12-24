@@ -97,10 +97,11 @@ type PreserveTimesState = { created: boolean; modified: boolean; accessed: boole
 const normalizePreserveTimes = (value: OutputPolicy["preserveFileTimes"]): PreserveTimesState => {
   if (value === true) return { created: true, modified: true, accessed: true };
   if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
     return {
-      created: !!(value as any).created,
-      modified: !!(value as any).modified,
-      accessed: !!(value as any).accessed,
+      created: !!record.created,
+      modified: !!record.modified,
+      accessed: !!record.accessed,
     };
   }
   return { created: false, modified: false, accessed: false };
@@ -115,6 +116,18 @@ const updatePreserveTimes = (patch: Partial<PreserveTimesState>) => {
   const allFalse = !next.created && !next.modified && !next.accessed;
   const preserveFileTimes: OutputPolicy["preserveFileTimes"] = allTrue ? true : allFalse ? false : next;
   updatePolicy({ preserveFileTimes });
+};
+
+const updateContainerModeFromSelect = (value: unknown) => {
+  if (value === "default" || value === "keepInput" || value === "force") {
+    updateContainerMode(value);
+  }
+};
+
+const updateDirectoryModeFromSelect = (value: unknown) => {
+  if (value === "sameAsInput" || value === "fixed") {
+    updateDirectory(value, fixedDirectory.value);
+  }
 };
 
 const pickDirectory = async () => {
@@ -173,8 +186,8 @@ const refreshPreview = () => {
         outputPolicy: effectivePolicyForPreview.value,
       });
       if (resolved) previewResolvedPath.value = normalizePathForDisplay(resolved);
-    } catch (err: any) {
-      previewError.value = String(err?.message ?? err ?? "preview failed");
+    } catch (err: unknown) {
+      previewError.value = err instanceof Error ? err.message : String(err ?? "preview failed");
     } finally {
       previewLoading.value = false;
     }
@@ -208,7 +221,7 @@ const pickPreviewFile = async () => {
       <div class="space-y-1.5">
         <Label class="text-xs">{{ t("outputPolicy.containerLabel") }}</Label>
         <div class="flex items-center gap-2">
-          <Select :model-value="containerMode" @update:model-value="(v) => updateContainerMode(v as any)">
+          <Select :model-value="containerMode" @update:model-value="updateContainerModeFromSelect">
             <SelectTrigger class="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>
@@ -232,7 +245,7 @@ const pickPreviewFile = async () => {
       <div v-if="!props.lockLocationAndName" class="space-y-1.5">
         <Label class="text-xs">{{ t("outputPolicy.dirLabel") }}</Label>
         <div class="flex items-center gap-2">
-          <Select :model-value="directoryMode" @update:model-value="(v) => updateDirectory(v as any, fixedDirectory)">
+          <Select :model-value="directoryMode" @update:model-value="updateDirectoryModeFromSelect">
             <SelectTrigger class="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

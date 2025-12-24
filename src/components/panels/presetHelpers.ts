@@ -72,7 +72,7 @@ export const getAudioSummary = (audio: FFmpegPreset["audio"], t: TranslateFn) =>
   const bitrateValue = typeof audio.bitrate === "number" && audio.bitrate > 0 ? audio.bitrate : null;
 
   if (audio.codec === "aac") {
-    const profile = (audio as any).loudnessProfile as string | undefined;
+    const profile = audio.loudnessProfile;
     if (bitrateValue != null) {
       if (profile === "ebuR128") {
         return t("presets.audioAacLoudnormEbu", { kbps: bitrateValue });

@@ -114,6 +114,50 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value[0].outputPath).toBeUndefined();
   });
 
+  it("applyQueueStateFromBackend preserves job object identities even when backend ordering changes", () => {
+    const jobA: TranscodeJob = {
+      id: "job-a",
+      filename: "C:/videos/a.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    };
+
+    const jobB: TranscodeJob = {
+      id: "job-b",
+      filename: "C:/videos/b.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([jobA, jobB]),
+      batchCompressJobs: ref<TranscodeJob[]>([]),
+    });
+
+    const refA = deps.jobs.value[0];
+    const refB = deps.jobs.value[1];
+
+    applyQueueStateFromBackend({ jobs: [jobB, jobA] }, deps);
+
+    expect(deps.jobs.value).toHaveLength(2);
+    expect(deps.jobs.value[0].id).toBe("job-b");
+    expect(deps.jobs.value[1].id).toBe("job-a");
+    expect(deps.jobs.value[0]).toBe(refB);
+    expect(deps.jobs.value[1]).toBe(refA);
+  });
+
   it("applyQueueStateFromBackend does not duplicate batch compress jobs that already exist in backend snapshot", () => {
     const batchCompressJob: TranscodeJob = {
       id: "scan-1",

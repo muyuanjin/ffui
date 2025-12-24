@@ -76,13 +76,12 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
 
 // ----- Queue Reordering -----
 
-/**
- * Build ordered IDs of waiting jobs (waiting/queued/paused).
- * Sorts by queueOrder, then startTime, then id.
- */
-export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] {
-  const waiting = deps.jobs.value
-    .filter((job) => job.status === "waiting" || job.status === "queued" || job.status === "paused")
+const isWaitingStatus = (status: TranscodeJob["status"]) =>
+  status === "waiting" || status === "queued" || status === "paused";
+
+function sortWaitingJobs(jobs: TranscodeJob[]): TranscodeJob[] {
+  return jobs
+    .filter((job) => isWaitingStatus(job.status))
     .slice()
     .sort((a, b) => {
       const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
@@ -93,7 +92,14 @@ export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] 
       if (as !== bs) return as - bs;
       return a.id.localeCompare(b.id);
     });
-  return waiting.map((job) => job.id);
+}
+
+/**
+ * Build ordered IDs of waiting jobs (waiting/queued/paused).
+ * Sorts by queueOrder, then startTime, then id.
+ */
+export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] {
+  return sortWaitingJobs(deps.jobs.value).map((job) => job.id);
 }
 
 type WaitingGroupKind = "manual" | "batch";
@@ -106,22 +112,8 @@ interface WaitingGroup {
   ids: string[];
 }
 
-const isWaitingStatus = (status: TranscodeJob["status"]) =>
-  status === "waiting" || status === "queued" || status === "paused";
-
 function buildWaitingGroups(jobs: TranscodeJob[]): WaitingGroup[] {
-  const waitingJobs = jobs
-    .filter((job) => isWaitingStatus(job.status))
-    .slice()
-    .sort((a, b) => {
-      const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-      const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-      if (ao !== bo) return ao - bo;
-      const as = a.startTime ?? 0;
-      const bs = b.startTime ?? 0;
-      if (as !== bs) return as - bs;
-      return a.id.localeCompare(b.id);
-    });
+  const waitingJobs = sortWaitingJobs(jobs);
 
   const groups: WaitingGroup[] = [];
   const batchIndexById = new Map<string, number>();

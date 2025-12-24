@@ -291,8 +291,7 @@ export function useMainAppSetup() {
   const ffmpegResolvedPath = computed(() => {
     const status = settings.toolStatuses.value.find((s) => s.kind === "ffmpeg");
     if (status?.resolvedPath) return status.resolvedPath;
-    const tools = (settings.appSettings.value as any)?.tools as import("@/types").ExternalToolSettings | undefined;
-    return tools?.ffmpegPath ?? null;
+    return settings.appSettings.value?.tools?.ffmpegPath ?? null;
   });
   const queuePanelProps = createQueuePanelProps({
     queueJobsForDisplay: queue.queueJobsForDisplay,

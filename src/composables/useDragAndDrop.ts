@@ -38,9 +38,9 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
     if (types && Array.from(types).includes("Files")) return true;
     // Some environments expose items with kind === 'file'.
     const items = e.dataTransfer?.items;
-    if (items && Array.from(items).some((it) => (it as any)?.kind === "file")) return true;
+    if (items && Array.from(items).some((it) => it.kind === "file")) return true;
     // During drop, some environments only populate `dataTransfer.files`.
-    const filesLen = (e as any)?.dataTransfer?.files?.length ?? 0;
+    const filesLen = e.dataTransfer?.files?.length ?? 0;
     if (filesLen > 0) return true;
     return false;
   };
@@ -62,16 +62,18 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
 
   const handleDrop = async (e: DragEvent) => {
     const isFile = isFileDragEvent(e);
-    const hasFiles = !!(e as any)?.dataTransfer?.files && (e as any).dataTransfer.files.length > 0;
+    const files = e.dataTransfer?.files ?? null;
+    const hasFiles = !!files && files.length > 0;
     if (isFile || hasFiles) e.preventDefault();
     isDragging.value = false;
 
     // 浏览器拖放处理（在部分环境只在 drop 阶段提供 files）
-    if ((isFile || hasFiles) && (e as any).dataTransfer?.files) {
+    if ((isFile || hasFiles) && files) {
       const paths: string[] = [];
-      for (const file of (e as any).dataTransfer.files as FileList) {
+      for (const file of Array.from(files)) {
         // 在 Electron/Tauri 环境下 file.path 存在；在浏览器环境下退回 file.name。
-        paths.push((file as any).path || file.name);
+        const filePath = "path" in file ? (file as unknown as { path?: unknown }).path : undefined;
+        paths.push(typeof filePath === "string" && filePath.trim().length > 0 ? filePath : file.name);
       }
       if (paths.length > 0 && onFilesDropped) {
         onFilesDropped(paths);

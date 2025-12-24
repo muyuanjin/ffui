@@ -90,7 +90,7 @@ const statusKey = computed(() => {
       <Progress
         v-if="item.job.status !== 'waiting' && item.job.status !== 'skipped'"
         :model-value="item.job.progress"
-        :variant="getProgressVariant(item.job.status) as any"
+        :variant="getProgressVariant(item.job.status)"
         class="h-1 flex-1"
       />
       <span

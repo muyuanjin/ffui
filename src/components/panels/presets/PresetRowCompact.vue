@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { toRefs } from "vue";
 import { Button } from "@/components/ui/button";
 import { highlightFfmpegCommand, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
@@ -21,8 +20,6 @@ const props = defineProps<{
   selected: boolean;
 }>();
 
-const { preset, selected } = toRefs(props);
-
 const emit = defineEmits<{
   (e: "toggle-select", presetId: string): void;
   (e: "duplicate", preset: FFmpegPreset): void;
@@ -42,7 +39,7 @@ const handleRowClick = (event: MouseEvent) => {
   );
   if (shouldIgnore) return;
 
-  emit("toggle-select", preset.value.id);
+  emit("toggle-select", props.preset.id);
 };
 </script>
 

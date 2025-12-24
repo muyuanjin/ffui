@@ -1,4 +1,4 @@
-import type { FFmpegPreset, VideoConfig } from "@/types";
+import type { FFmpegPreset, SubtitlesConfig, VideoConfig } from "@/types";
 import { buildFfmpegCommandFromStructured } from "@/lib/ffmpegCommand";
 import { normalizeForComparison } from "../templateTokens";
 import { splitCommandLine, stripQuotes } from "../utils";
@@ -117,17 +117,17 @@ export const tryParseStructuredPreset = (tokensWithProgram: string[]): { preset?
 
   if (state.reasons.length > 0) return { reasons: state.reasons };
 
-  const subtitles: any = {};
-  if ((state.filters as any).__subtitleDrop) {
+  const subtitles: SubtitlesConfig = {};
+  if (state.filters.__subtitleDrop) {
     subtitles.strategy = "drop";
   }
-  if ((state.filters as any).__burnInFilter) {
+  const burnFilter = state.filters.__burnInFilter;
+  if (burnFilter) {
     subtitles.strategy = "burn_in";
-    subtitles.burnInFilter = (state.filters as any).__burnInFilter;
+    subtitles.burnInFilter = burnFilter;
   }
-  delete (state.filters as any).__subtitleDrop;
-  const burnFilter = (state.filters as any).__burnInFilter;
-  delete (state.filters as any).__burnInFilter;
+  delete state.filters.__subtitleDrop;
+  delete state.filters.__burnInFilter;
 
   const preset: FFmpegPreset = {
     id: "import-temp",
@@ -137,9 +137,9 @@ export const tryParseStructuredPreset = (tokensWithProgram: string[]): { preset?
     input: Object.keys(state.input).length > 0 ? state.input : undefined,
     mapping: Object.keys(state.mapping).length > 0 ? state.mapping : undefined,
     video: state.video as VideoConfig,
-    audio: state.audio as any,
+    audio: state.audio as FFmpegPreset["audio"],
     filters: state.filters,
-    subtitles: burnFilter || subtitles.strategy ? (subtitles as any) : undefined,
+    subtitles: burnFilter || subtitles.strategy ? subtitles : undefined,
     stats: {
       usageCount: 0,
       totalInputSizeMB: 0,

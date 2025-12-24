@@ -328,7 +328,7 @@ onUnmounted(() => {
     stageResizeObserver = null;
   }
   if (typeof window !== "undefined") {
-    window.removeEventListener("resize", scheduleStageLayoutRefresh as any);
+    window.removeEventListener("resize", scheduleStageLayoutRefresh);
   }
   if (stageResizeFallbackTimer) {
     clearTimeout(stageResizeFallbackTimer);

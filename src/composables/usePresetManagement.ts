@@ -1,6 +1,8 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
 import type { FFmpegPreset, TranscodeJob, AppSettings } from "@/types";
 import { hasTauri, loadPresets, savePresetOnBackend, deletePresetOnBackend, saveAppSettings } from "@/lib/backend";
+import { INITIAL_PRESETS } from "@/lib/initialPresets";
+import { applyPresetStatsDelta, getPresetStatsDeltaFromJob } from "@/lib/presetStats";
 
 // ----- Composable -----
 
@@ -62,37 +64,6 @@ export interface UsePresetManagementReturn {
   /** Handle completed job (update preset stats). */
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
 }
-
-const INITIAL_PRESETS: FFmpegPreset[] = [
-  {
-    id: "p1",
-    name: "Universal 1080p",
-    description: "x264 Medium CRF 23. Standard for web.",
-    video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
-    audio: { codec: "copy" },
-    filters: { scale: "-2:1080" },
-    stats: {
-      usageCount: 0,
-      totalInputSizeMB: 0,
-      totalOutputSizeMB: 0,
-      totalTimeSeconds: 0,
-    },
-  },
-  {
-    id: "p2",
-    name: "Archive Master",
-    description: "x264 Slow CRF 18. Near lossless.",
-    video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
-    audio: { codec: "copy" },
-    filters: {},
-    stats: {
-      usageCount: 0,
-      totalInputSizeMB: 0,
-      totalOutputSizeMB: 0,
-      totalTimeSeconds: 0,
-    },
-  },
-];
 
 /**
  * Composable for preset management.
@@ -280,32 +251,13 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
   };
 
   const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
-    presets.value = presets.value.map((preset) =>
-      preset.id === presetId
-        ? {
-            ...preset,
-            stats: {
-              usageCount: preset.stats.usageCount + 1,
-              totalInputSizeMB: preset.stats.totalInputSizeMB + input,
-              totalOutputSizeMB: preset.stats.totalOutputSizeMB + output,
-              totalTimeSeconds: preset.stats.totalTimeSeconds + timeSeconds,
-            },
-          }
-        : preset,
-    );
+    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds);
   };
 
   const handleCompletedJobFromBackend = (job: TranscodeJob) => {
-    const input = job.originalSizeMB;
-    const output = job.outputSizeMB;
-    if (!input || !output || input <= 0 || output <= 0) {
-      return;
-    }
-    if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
-      return;
-    }
-    const durationSeconds = (job.endTime - job.startTime) / 1000;
-    updatePresetStats(job.presetId, input, output, durationSeconds);
+    const delta = getPresetStatsDeltaFromJob(job);
+    if (!delta) return;
+    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds);
   };
 
   return {

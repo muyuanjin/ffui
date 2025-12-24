@@ -10,8 +10,16 @@ const props = defineProps<{
   modelValue: string;
   entries: FormatCatalogEntry[];
   placeholder?: string;
+  /** Optional "auto" option value (rendered as a fixed item before groups). */
+  autoValue?: string;
+  /** Label for the optional auto option. */
+  autoLabel?: string;
   /** Optional filter: only show these kinds (others are hidden). */
   allowedKinds?: FormatKind[];
+  /** Optional extra classes for SelectTrigger (appended after defaults). */
+  triggerClass?: string;
+  /** Optional extra classes for SelectContent (appended after defaults). */
+  contentClass?: string;
 }>();
 
 const emit = defineEmits<{
@@ -21,7 +29,12 @@ const emit = defineEmits<{
 const query = ref("");
 
 const selectedEntry = computed(() => props.entries.find((e) => e.value === props.modelValue) ?? null);
-const selectedLabel = computed(() => selectedEntry.value?.label ?? props.modelValue);
+const selectedLabel = computed(() => {
+  if (props.autoValue && props.modelValue === props.autoValue) {
+    return props.autoLabel ?? props.modelValue;
+  }
+  return selectedEntry.value?.label ?? props.modelValue;
+});
 
 const visibleEntries = computed(() => {
   const allowed = props.allowedKinds?.length
@@ -45,16 +58,23 @@ watch(
 
 <template>
   <Select :model-value="modelValue" @update:model-value="(v) => emit('update:modelValue', String(v))">
-    <SelectTrigger class="h-8 text-xs w-[220px]" :title="selectedLabel">
+    <SelectTrigger class="h-8 text-xs w-[220px]" :class="triggerClass" :title="selectedLabel">
       <SelectValue :placeholder="placeholder ?? '选择格式'">
         {{ selectedLabel }}
       </SelectValue>
     </SelectTrigger>
-    <SelectContent class="w-[320px]">
+    <SelectContent class="w-[320px]" :class="contentClass">
       <div class="p-1">
         <Input v-model="query" class="h-8 text-xs" placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..." />
       </div>
       <Separator class="my-1" />
+
+      <template v-if="autoValue">
+        <SelectItem :value="autoValue">
+          {{ autoLabel ?? autoValue }}
+        </SelectItem>
+        <Separator class="my-1" />
+      </template>
 
       <template v-if="hasAny">
         <template v-if="groups.video.length">

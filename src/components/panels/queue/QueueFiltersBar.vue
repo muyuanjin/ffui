@@ -56,6 +56,36 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const primarySortFieldOptions: QueueSortField[] = [
+  "addedTime",
+  "finishedTime",
+  "filename",
+  "status",
+  "duration",
+  "elapsed",
+  "type",
+  "path",
+  "inputSize",
+  "outputSize",
+  "createdTime",
+  "modifiedTime",
+];
+
+const secondarySortFieldOptions: QueueSortField[] = [
+  "filename",
+  "status",
+  "addedTime",
+  "finishedTime",
+  "duration",
+  "elapsed",
+  "type",
+  "path",
+  "inputSize",
+  "outputSize",
+  "createdTime",
+  "modifiedTime",
+];
+
 // Local UI state: whether the filter panel (tags + text input) is expanded.
 const filterPanelOpen = ref(false);
 // Local UI state: whether the secondary sort controls are expanded.
@@ -137,18 +167,9 @@ const toggleSecondarySortDirection = () => {
                 <SelectValue>{{ t(`queue.sort.fields.${props.sortPrimary}`) }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="addedTime">{{ t("queue.sort.fields.addedTime") }}</SelectItem>
-                <SelectItem value="finishedTime">{{ t("queue.sort.fields.finishedTime") }}</SelectItem>
-                <SelectItem value="filename">{{ t("queue.sort.fields.filename") }}</SelectItem>
-                <SelectItem value="status">{{ t("queue.sort.fields.status") }}</SelectItem>
-                <SelectItem value="duration">{{ t("queue.sort.fields.duration") }}</SelectItem>
-                <SelectItem value="elapsed">{{ t("queue.sort.fields.elapsed") }}</SelectItem>
-                <SelectItem value="type">{{ t("queue.sort.fields.type") }}</SelectItem>
-                <SelectItem value="path">{{ t("queue.sort.fields.path") }}</SelectItem>
-                <SelectItem value="inputSize">{{ t("queue.sort.fields.inputSize") }}</SelectItem>
-                <SelectItem value="outputSize">{{ t("queue.sort.fields.outputSize") }}</SelectItem>
-                <SelectItem value="createdTime">{{ t("queue.sort.fields.createdTime") }}</SelectItem>
-                <SelectItem value="modifiedTime">{{ t("queue.sort.fields.modifiedTime") }}</SelectItem>
+                <SelectItem v-for="field in primarySortFieldOptions" :key="field" :value="field">
+                  {{ t(`queue.sort.fields.${field}`) }}
+                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -200,18 +221,9 @@ const toggleSecondarySortDirection = () => {
                   <SelectValue>{{ t(`queue.sort.fields.${props.sortSecondary}`) }}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="filename">{{ t("queue.sort.fields.filename") }}</SelectItem>
-                  <SelectItem value="status">{{ t("queue.sort.fields.status") }}</SelectItem>
-                  <SelectItem value="addedTime">{{ t("queue.sort.fields.addedTime") }}</SelectItem>
-                  <SelectItem value="finishedTime">{{ t("queue.sort.fields.finishedTime") }}</SelectItem>
-                  <SelectItem value="duration">{{ t("queue.sort.fields.duration") }}</SelectItem>
-                  <SelectItem value="elapsed">{{ t("queue.sort.fields.elapsed") }}</SelectItem>
-                  <SelectItem value="type">{{ t("queue.sort.fields.type") }}</SelectItem>
-                  <SelectItem value="path">{{ t("queue.sort.fields.path") }}</SelectItem>
-                  <SelectItem value="inputSize">{{ t("queue.sort.fields.inputSize") }}</SelectItem>
-                  <SelectItem value="outputSize">{{ t("queue.sort.fields.outputSize") }}</SelectItem>
-                  <SelectItem value="createdTime">{{ t("queue.sort.fields.createdTime") }}</SelectItem>
-                  <SelectItem value="modifiedTime">{{ t("queue.sort.fields.modifiedTime") }}</SelectItem>
+                  <SelectItem v-for="field in secondarySortFieldOptions" :key="field" :value="field">
+                    {{ t(`queue.sort.fields.${field}`) }}
+                  </SelectItem>
                 </SelectContent>
               </Select>
 

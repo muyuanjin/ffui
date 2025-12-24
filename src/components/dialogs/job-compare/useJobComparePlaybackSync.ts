@@ -4,6 +4,11 @@ type PlaybackSyncHandle = { kind: "raf"; id: number } | { kind: "rvfc"; video: H
 
 type SeekHandle = { kind: "raf"; id: number } | { kind: "timeout"; id: number };
 
+type RvfcVideo = HTMLVideoElement & {
+  requestVideoFrameCallback?: (cb: (now: number, metadata: VideoFrameCallbackMetadata) => void) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+};
+
 const seekVideoIfNeeded = (video: HTMLVideoElement, seconds: number) => {
   const epsilon = 1 / 120;
   const current = Number.isFinite(video.currentTime) ? video.currentTime : null;
@@ -38,7 +43,7 @@ export function useJobComparePlaybackSync(options: {
       window.cancelAnimationFrame(handle.id);
     } else {
       try {
-        (handle.video as any).cancelVideoFrameCallback?.(handle.id);
+        (handle.video as RvfcVideo).cancelVideoFrameCallback?.(handle.id);
       } catch {
         // ignore
       }
@@ -301,12 +306,12 @@ export function useJobComparePlaybackSync(options: {
       }
     };
 
-    const supportsRvfc = typeof (master as any).requestVideoFrameCallback === "function";
-    if (supportsRvfc) {
+    const rvfcMaster = master as RvfcVideo;
+    if (typeof rvfcMaster.requestVideoFrameCallback === "function") {
       const loop = () => {
-        const id = (master as any).requestVideoFrameCallback((_now: number, meta: any) => {
+        const id = rvfcMaster.requestVideoFrameCallback((_now, meta) => {
           if (!options.isPlaying.value) return;
-          const mediaTime = Number.isFinite(meta?.mediaTime) ? meta.mediaTime : master.currentTime;
+          const mediaTime = Number.isFinite(meta.mediaTime) ? meta.mediaTime : master.currentTime;
           tick(mediaTime);
           if (options.isPlaying.value) loop();
         });

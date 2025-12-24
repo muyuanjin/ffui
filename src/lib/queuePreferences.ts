@@ -55,8 +55,7 @@ const isValidCarouselSpeed = (value: unknown): value is number => {
 const canUseStorage = () => {
   if (typeof window === "undefined") return false;
   try {
-    const anyWindow = window as any;
-    return typeof anyWindow.localStorage !== "undefined";
+    return typeof window.localStorage !== "undefined";
   } catch {
     return false;
   }

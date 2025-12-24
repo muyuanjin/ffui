@@ -16,25 +16,13 @@ import {
   fetchExternalToolCandidates,
   downloadExternalToolNow,
 } from "@/lib/backend";
+import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-
-const startupNowMs = () => {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-  return Date.now();
-};
-
-const updateStartupMetrics = (patch: Record<string, unknown>) => {
-  if (typeof window === "undefined") return;
-  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
-  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
-};
 
 let loggedAppSettingsLoad = false;
 let loggedToolStatusLoad = false;
@@ -45,8 +33,8 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
   const next: AppSettings = { ...settings };
 
   // Normalize the locale string so we don't persist empty/whitespace values.
-  if (typeof (next as any).locale === "string") {
-    const normalized = (next as any).locale.trim();
+  if (typeof next.locale === "string") {
+    const normalized = next.locale.trim();
     next.locale = normalized.length > 0 ? normalized : undefined;
   }
 
@@ -316,7 +304,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const getToolCustomPath = (kind: ExternalToolKind): string => {
     const settings = appSettings.value;
     if (!settings) return "";
-    const tools = (settings as any).tools as import("@/types").ExternalToolSettings | undefined;
+    const tools = (settings as Partial<AppSettings>).tools;
     if (!tools) return "";
     if (kind === "ffmpeg") return tools.ffmpegPath ?? "";
     if (kind === "ffprobe") return tools.ffprobePath ?? "";
@@ -327,7 +315,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const setToolCustomPath = (kind: ExternalToolKind, value: string | number) => {
     const settings = appSettings.value;
     if (!settings) return;
-    const root = settings as any;
+    const root = settings as AppSettings & { tools?: import("@/types").ExternalToolSettings };
     if (!root.tools) {
       root.tools = {
         autoDownload: false,
@@ -381,7 +369,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   watch(
     () => ({
       statuses: toolStatuses.value,
-      autoUpdateEnabled: (appSettings.value as any)?.tools?.autoUpdate ?? false,
+      autoUpdateEnabled: appSettings.value?.tools?.autoUpdate ?? false,
     }),
     async ({ statuses, autoUpdateEnabled }) => {
       if (!hasTauri() || !autoUpdateEnabled) return;

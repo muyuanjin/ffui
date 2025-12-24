@@ -10,26 +10,17 @@ import {
   enqueueTranscodeJobs,
   expandManualJobInputs,
 } from "@/lib/backend";
+import { INITIAL_PRESETS } from "@/lib/initialPresets";
+import { applyPresetStatsDelta, getPresetStatsDeltaFromJob } from "@/lib/presetStats";
+import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { UseMainAppShellReturn } from "./useMainAppShell";
 import type { UseMainAppDialogsReturn } from "./useMainAppDialogs";
-import { usePresetLibraryActions } from "./presets/usePresetLibraryActions";
+import { usePresetLibraryActions, type PresetLibraryActionsReturn } from "./presets/usePresetLibraryActions";
+import { ensureManualPresetId, resolveManualPreset } from "./useMainAppQueue.ui";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-
-const startupNowMs = () => {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-  return Date.now();
-};
-
-const updateStartupMetrics = (patch: Record<string, unknown>) => {
-  if (typeof window === "undefined") return;
-  const current = window.__FFUI_STARTUP_METRICS__ ?? {};
-  window.__FFUI_STARTUP_METRICS__ = Object.assign({}, current, patch);
-};
 
 let loggedPresetsLoad = false;
 
@@ -43,21 +34,9 @@ export interface UseMainAppPresetsOptions {
   shell?: UseMainAppShellReturn;
 }
 
-export interface UseMainAppPresetsReturn {
+export interface UseMainAppPresetsReturn extends PresetLibraryActionsReturn {
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   presetPendingDelete: Ref<FFmpegPreset | null>;
-  presetsPendingBatchDelete: ComputedRef<FFmpegPreset[]>;
-  requestBatchDeletePresets: (presetIds: string[]) => void;
-  confirmBatchDeletePresets: () => Promise<void>;
-  cancelBatchDeletePresets: () => void;
-  duplicatePreset: (sourcePreset: FFmpegPreset) => Promise<void>;
-  importPresetsBundleFromFile: () => Promise<void>;
-  importPresetsBundleFromClipboard: () => Promise<void>;
-  importPresetsCandidates: (presetsToImport: FFmpegPreset[]) => Promise<void>;
-  exportSelectedPresetsBundleToFile: (presetIds: string[]) => Promise<void>;
-  exportSelectedPresetsBundleToClipboard: (presetIds: string[]) => Promise<void>;
-  exportSelectedPresetsTemplateCommandsToClipboard: (presetIdsInDisplayOrder: string[]) => Promise<void>;
-  exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
   handleSavePreset: (preset: FFmpegPreset) => Promise<void>;
   handleReorderPresets: (orderedIds: string[]) => Promise<void>;
   handleImportSmartPackConfirmed: (
@@ -73,37 +52,6 @@ export interface UseMainAppPresetsReturn {
   openPresetEditor: (preset: FFmpegPreset) => void;
   addManualJob: (mode?: "files" | "folder") => Promise<void>;
 }
-
-const INITIAL_PRESETS: FFmpegPreset[] = [
-  {
-    id: "p1",
-    name: "Universal 1080p",
-    description: "x264 Medium CRF 23. Standard for web.",
-    video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
-    audio: { codec: "copy" },
-    filters: { scale: "-2:1080" },
-    stats: {
-      usageCount: 0,
-      totalInputSizeMB: 0,
-      totalOutputSizeMB: 0,
-      totalTimeSeconds: 0,
-    },
-  },
-  {
-    id: "p2",
-    name: "Archive Master",
-    description: "x264 Slow CRF 18. Near lossless.",
-    video: { encoder: "libx264", rateControl: "crf", qualityValue: 18, preset: "slow" },
-    audio: { codec: "copy" },
-    filters: {},
-    stats: {
-      usageCount: 0,
-      totalInputSizeMB: 0,
-      totalOutputSizeMB: 0,
-      totalTimeSeconds: 0,
-    },
-  },
-];
 
 const LEGACY_DEFAULT_PRESET_IDS = new Set(INITIAL_PRESETS.map((preset) => preset.id));
 
@@ -123,49 +71,28 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
 
   const presetPendingDelete = ref<FFmpegPreset | null>(null);
 
-  const manualJobPreset = computed<FFmpegPreset | null>(() => {
-    const list = presets.value;
-    if (!list || list.length === 0) return null;
-    const id = manualJobPresetId.value;
-    if (!id) return list[0];
-    return list.find((p) => p.id === id) ?? list[0];
-  });
+  const manualJobPreset = computed<FFmpegPreset | null>(() =>
+    resolveManualPreset(presets.value, manualJobPresetId.value),
+  );
 
-  // Ensure manualJobPresetId always points at an existing preset.
-  const ensureManualPresetId = () => {
-    const list = presets.value;
-    if (!list || list.length === 0) {
-      manualJobPresetId.value = null;
-      return;
-    }
-    if (!manualJobPresetId.value || !list.some((p) => p.id === manualJobPresetId.value)) {
-      manualJobPresetId.value = list[0].id;
-    }
-  };
-
-  ensureManualPresetId();
+  const ensureManualPresetIdLocal = () => ensureManualPresetId(presets.value, manualJobPresetId);
+  ensureManualPresetIdLocal();
 
   const libraryActions = usePresetLibraryActions({
     locale,
     presets,
-    ensureManualPresetId,
+    ensureManualPresetId: ensureManualPresetIdLocal,
     shell,
   });
 
   const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
-    presets.value = presets.value.map((preset) =>
-      preset.id === presetId
-        ? {
-            ...preset,
-            stats: {
-              usageCount: preset.stats.usageCount + 1,
-              totalInputSizeMB: preset.stats.totalInputSizeMB + input,
-              totalOutputSizeMB: preset.stats.totalOutputSizeMB + output,
-              totalTimeSeconds: preset.stats.totalTimeSeconds + timeSeconds,
-            },
-          }
-        : preset,
-    );
+    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds);
+  };
+
+  const applyLocalStatsUpdateFromJob = (job: TranscodeJob) => {
+    const delta = getPresetStatsDeltaFromJob(job);
+    if (!delta) return;
+    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds);
   };
 
   const handleCompletedJobFromBackend = (job: TranscodeJob) => {
@@ -177,7 +104,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
           const loaded = await loadPresets();
           if (Array.isArray(loaded) && loaded.length > 0) {
             presets.value = loaded;
-            ensureManualPresetId();
+            ensureManualPresetIdLocal();
             return;
           }
         } catch (e) {
@@ -185,31 +112,13 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
         }
 
         // 后端加载失败时退回到前端本地累加逻辑，至少保证当前会话内的统计是连贯的。
-        const input = job.originalSizeMB;
-        const output = job.outputSizeMB;
-        if (!input || !output || input <= 0 || output <= 0) {
-          return;
-        }
-        if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
-          return;
-        }
-        const durationSeconds = (job.endTime - job.startTime) / 1000;
-        updatePresetStats(job.presetId, input, output, durationSeconds);
+        applyLocalStatsUpdateFromJob(job);
       })();
       return;
     }
 
     // 非 Tauri / 测试环境下保持原有的本地统计行为，方便单元测试和纯网页模式演示。
-    const input = job.originalSizeMB;
-    const output = job.outputSizeMB;
-    if (!input || !output || input <= 0 || output <= 0) {
-      return;
-    }
-    if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
-      return;
-    }
-    const durationSeconds = (job.endTime - job.startTime) / 1000;
-    updatePresetStats(job.presetId, input, output, durationSeconds);
+    applyLocalStatsUpdateFromJob(job);
   };
 
   const reloadPresets = async () => {
@@ -218,7 +127,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       const loaded = await loadPresets();
       if (Array.isArray(loaded) && loaded.length > 0) {
         presets.value = loaded;
-        ensureManualPresetId();
+        ensureManualPresetIdLocal();
       }
     } catch (error) {
       console.error("Failed to reload presets from backend:", error);
@@ -232,7 +141,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     } else {
       presets.value.push(preset);
     }
-    ensureManualPresetId();
+    ensureManualPresetIdLocal();
 
     dialogManager.closeWizard();
     dialogManager.closeParameterPanel();
@@ -294,7 +203,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
     }
 
-    ensureManualPresetId();
+    ensureManualPresetIdLocal();
   };
 
   const cancelDeletePreset = () => {
@@ -407,7 +316,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
 
       presets.value = latestPresets;
-      ensureManualPresetId();
+      ensureManualPresetIdLocal();
 
       if (shell) {
         shell.activeTab.value = "presets";
@@ -431,7 +340,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
     }
 
-    ensureManualPresetId();
+    ensureManualPresetIdLocal();
 
     if (shell) {
       shell.activeTab.value = "presets";
@@ -459,27 +368,16 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
         presets.value = loaded;
       }
       presetsLoadedFromBackend.value = true;
-      ensureManualPresetId();
+      ensureManualPresetIdLocal();
     } catch (e) {
       console.error("Failed to load presets:", e);
     }
   });
 
   return {
+    ...libraryActions,
     manualJobPreset,
     presetPendingDelete,
-    presetsPendingBatchDelete: libraryActions.presetsPendingBatchDelete,
-    requestBatchDeletePresets: libraryActions.requestBatchDeletePresets,
-    confirmBatchDeletePresets: libraryActions.confirmBatchDeletePresets,
-    cancelBatchDeletePresets: libraryActions.cancelBatchDeletePresets,
-    duplicatePreset: libraryActions.duplicatePreset,
-    importPresetsBundleFromFile: libraryActions.importPresetsBundleFromFile,
-    importPresetsBundleFromClipboard: libraryActions.importPresetsBundleFromClipboard,
-    importPresetsCandidates: libraryActions.importPresetsCandidates,
-    exportSelectedPresetsBundleToFile: libraryActions.exportSelectedPresetsBundleToFile,
-    exportSelectedPresetsBundleToClipboard: libraryActions.exportSelectedPresetsBundleToClipboard,
-    exportSelectedPresetsTemplateCommandsToClipboard: libraryActions.exportSelectedPresetsTemplateCommandsToClipboard,
-    exportPresetToFile: libraryActions.exportPresetToFile,
     handleSavePreset,
     handleReorderPresets,
     handleImportSmartPackConfirmed,

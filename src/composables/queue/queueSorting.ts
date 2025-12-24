@@ -3,6 +3,7 @@ import type { TranscodeJob } from "@/types";
 import { compareJobsByField, getJobSortValue } from "./filtering-utils";
 import { progressiveMergeSort } from "./progressiveSort";
 import type { QueueSortDirection, QueueSortField } from "./useQueueFiltering.types";
+import { compareJobsInWaitingGroup as compareJobsInWaitingGroupBase } from "./jobStatus";
 
 // Thresholds for progressive sorting of large queues. For small/medium lists
 // we keep the simple synchronous sort; for very large lists we first sort a
@@ -87,20 +88,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
   };
 
   const compareJobsInWaitingGroup = (a: TranscodeJob, b: TranscodeJob): number => {
-    const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-    if (ao !== bo) return ao - bo;
-
-    let result = compareJobsByConfiguredFields(a, b);
-    if (result !== 0) return result;
-
-    const as = a.startTime ?? 0;
-    const bs = b.startTime ?? 0;
-    if (as !== bs) return as - bs;
-
-    if (a.id < b.id) return -1;
-    if (a.id > b.id) return 1;
-    return 0;
+    return compareJobsInWaitingGroupBase(a, b, compareJobsByConfiguredFields);
   };
 
   // For large queues, compute a first sorted chunk quickly and defer the

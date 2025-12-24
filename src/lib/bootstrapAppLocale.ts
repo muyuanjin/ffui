@@ -51,16 +51,15 @@ const defaultGetSearch = () => {
 
 const defaultGetNavigatorLocales = (): string[] => {
   if (typeof navigator === "undefined") return [];
-  const nav = navigator as any;
 
   const out: string[] = [];
-  if (Array.isArray(nav.languages)) {
-    for (const item of nav.languages) {
+  if (Array.isArray(navigator.languages)) {
+    for (const item of navigator.languages) {
       if (typeof item === "string" && item.trim()) out.push(item);
     }
   }
-  if (typeof nav.language === "string" && nav.language.trim()) {
-    out.push(nav.language);
+  if (typeof navigator.language === "string" && navigator.language.trim()) {
+    out.push(navigator.language);
   }
   try {
     const intlLocale = Intl?.DateTimeFormat?.().resolvedOptions?.().locale;

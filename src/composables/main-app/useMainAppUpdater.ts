@@ -1,6 +1,7 @@
 import { computed, onMounted, ref, watch, type Ref } from "vue";
 import type { AppSettings } from "@/types";
 import { fetchAppUpdaterCapabilities, hasTauri, prepareAppUpdaterProxy, saveAppSettings } from "@/lib/backend";
+import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 
 export interface UseMainAppUpdaterOptions {
   appSettings: Ref<AppSettings | null>;
@@ -161,7 +162,7 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
     return !isDevEnv() && updaterConfigured.value !== false;
   });
 
-  let updateHandle: any | null = null;
+  let updateHandle: Update | null = null;
   let autoCheckTriggered = false;
 
   type UpdaterPatch = Partial<NonNullable<AppSettings["updater"]>>;
@@ -282,16 +283,15 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
 
     try {
       await prepareAppUpdaterProxy();
-      await updateHandle.downloadAndInstall((event: any) => {
-        const kind = event?.event;
-        if (kind === "Started") {
-          const len = event?.data?.contentLength;
+      await updateHandle.downloadAndInstall((event: DownloadEvent) => {
+        if (event.event === "Started") {
+          const len = event.data.contentLength;
           totalBytes.value = typeof len === "number" ? len : null;
           downloadedBytes.value = 0;
           return;
         }
-        if (kind === "Progress") {
-          const chunk = event?.data?.chunkLength;
+        if (event.event === "Progress") {
+          const chunk = event.data.chunkLength;
           if (typeof chunk === "number" && Number.isFinite(chunk)) {
             downloadedBytes.value += chunk;
           }

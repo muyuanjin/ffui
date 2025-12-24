@@ -33,7 +33,7 @@ export const applyFiltersToken = (
         continue;
       }
       if (part.startsWith("subtitles=")) {
-        (state.filters as any).__burnInFilter = part;
+        state.filters.__burnInFilter = part;
         continue;
       }
       vfChainParts.push(part);
@@ -55,7 +55,7 @@ export const applyFiltersToken = (
     return { consumed: 1 };
   }
   if (token === "-sn") {
-    (state.filters as any).__subtitleDrop = true;
+    state.filters.__subtitleDrop = true;
     return { consumed: 0 };
   }
 

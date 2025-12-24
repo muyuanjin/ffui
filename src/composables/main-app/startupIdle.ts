@@ -5,6 +5,11 @@ export interface StartupIdleScheduleOptions {
   win?: Window & typeof globalThis;
 }
 
+type RequestIdleCallbackWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  };
+
 /**
  * Schedule a callback behind the startup idle gate. When requestIdleCallback is
  * available we use it with a bounded timeout so startup work cannot be
@@ -18,9 +23,9 @@ export function scheduleStartupIdle(cb: () => void, options: StartupIdleSchedule
     return;
   }
 
-  const anyWindow = win as any;
-  if (typeof anyWindow.requestIdleCallback === "function") {
-    anyWindow.requestIdleCallback(cb, { timeout: options.timeoutMs });
+  const requestIdleCallback = (win as RequestIdleCallbackWindow).requestIdleCallback;
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(cb, { timeout: options.timeoutMs });
   } else {
     win.setTimeout(cb, 0);
   }

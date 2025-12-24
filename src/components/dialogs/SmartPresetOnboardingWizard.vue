@@ -196,9 +196,9 @@ const fetchSmartPresets = async () => {
   try {
     const list = await loadSmartDefaultPresets();
     allPresets.value = Array.isArray(list) ? list : [];
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("failed to load smart default presets", err);
-    error.value = String(err?.message ?? err ?? "Unknown error");
+    error.value = err instanceof Error ? err.message : String(err ?? "Unknown error");
   } finally {
     loading.value = false;
   }

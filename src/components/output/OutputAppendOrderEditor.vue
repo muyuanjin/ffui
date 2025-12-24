@@ -11,6 +11,7 @@ import { GripVertical } from "lucide-vue-next";
 
 import type { OutputFilenameAppend, OutputFilenamePolicy } from "@/types";
 import { normalizeAppendOrder } from "@/lib/outputPolicyPreview";
+import type { SortableEvent } from "sortablejs";
 
 const props = defineProps<{
   filename: OutputFilenamePolicy;
@@ -105,7 +106,7 @@ useSortable(sortableRef, order, {
   forceFallback: true,
   fallbackOnBody: true,
   fallbackClass: "drag-fallback",
-  onUpdate: (e: any) => {
+  onUpdate: (e: SortableEvent) => {
     const oldIndex = e?.oldIndex;
     const newIndex = e?.newIndex;
     if (typeof oldIndex !== "number" || typeof newIndex !== "number") return;

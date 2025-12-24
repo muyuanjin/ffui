@@ -14,6 +14,7 @@ import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
 import { GripVertical, Trash2, Copy, Download, Upload, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "@/components/ui/select";
+import type { SortableEvent } from "sortablejs";
 import PresetRowCompact from "./presets/PresetRowCompact.vue";
 import PresetCardGrid from "./presets/PresetCardGrid.vue";
 
@@ -184,7 +185,7 @@ useSortable(containerRef, localPresets, {
   forceFallback: true,
   fallbackOnBody: true,
   fallbackClass: "drag-fallback",
-  onUpdate: (evt: any) => {
+  onUpdate: (evt: SortableEvent) => {
     const oldIndex = evt?.oldIndex;
     const newIndex = evt?.newIndex;
     if (typeof oldIndex !== "number" || typeof newIndex !== "number") return;

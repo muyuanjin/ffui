@@ -42,11 +42,15 @@ const makeZeroStats = (): FFmpegPreset["stats"] => ({
   totalTimeSeconds: 0,
 });
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
 const generateUniquePresetId = (existingIds: Set<string>): string => {
   const tryRandom = () => {
-    const hasCrypto = typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function";
-    if (hasCrypto) {
-      return `preset-${(crypto as any).randomUUID()}`;
+    const cryptoObj = typeof crypto !== "undefined" ? crypto : null;
+    if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+      return `preset-${cryptoObj.randomUUID()}`;
     }
     const rand = Math.random().toString(16).slice(2);
     return `preset-${Date.now().toString(16)}-${rand}`;
@@ -194,14 +198,20 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     const existingNames = new Set(presets.value.map((p) => p.name));
     const normalizedPresets: FFmpegPreset[] = [];
 
-    for (const preset of incoming as any[]) {
-      if (!preset || typeof preset !== "object") continue;
+    for (const presetValue of incoming) {
+      if (!isRecord(presetValue)) continue;
+      const preset = presetValue as Partial<FFmpegPreset> & Record<string, unknown>;
       const newId = generateUniquePresetId(existingIds);
       existingIds.add(newId);
-      const newName = dedupeImportedName((preset as any).name, existingNames, locale.value);
+      const newName = dedupeImportedName(
+        typeof preset.name === "string" ? preset.name : "",
+        existingNames,
+        locale.value,
+      );
       existingNames.add(newName);
+      const basePreset = preset as unknown as FFmpegPreset;
       normalizedPresets.push({
-        ...(preset as any),
+        ...basePreset,
         id: newId,
         name: newName,
         stats: makeZeroStats(),
@@ -259,8 +269,8 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     try {
       const text = await readFromClipboard();
       if (!text || text.trim().length === 0) return;
-      const parsed = JSON.parse(text);
-      await importPresetsCore((parsed as any)?.presets);
+      const parsed = JSON.parse(text) as unknown;
+      await importPresetsCore(isRecord(parsed) ? parsed.presets : null);
     } catch (e) {
       console.error("Failed to import presets bundle from clipboard:", e);
     }
@@ -325,7 +335,9 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     if (normalizedIds.length === 0) return;
 
     const byId = new Map(presets.value.map((preset) => [preset.id, preset] as const));
-    const selectedPresets: FFmpegPreset[] = normalizedIds.map((id) => byId.get(id)).filter(Boolean) as FFmpegPreset[];
+    const selectedPresets = normalizedIds
+      .map((id) => byId.get(id))
+      .filter((preset): preset is FFmpegPreset => Boolean(preset));
     if (selectedPresets.length === 0) return;
 
     const lines = selectedPresets.map((preset) => {

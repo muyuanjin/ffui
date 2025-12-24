@@ -24,6 +24,7 @@ import {
   bulkMoveSelectedJobsToTop as bulkMoveSelectedJobsToTopImpl,
   bulkMoveSelectedJobsToBottom as bulkMoveSelectedJobsToBottomImpl,
 } from "./queue/operations-bulk";
+import type { QueueOperationMethods } from "./queue/queueOperations.types";
 
 // ----- Composable -----
 
@@ -52,32 +53,12 @@ export interface UseQueueOperationsOptions {
   onJobCompleted?: (job: TranscodeJob) => void;
 }
 
-export interface UseQueueOperationsReturn {
+export interface UseQueueOperationsReturn extends QueueOperationMethods {
   // ----- Queue State Methods -----
-  /** Refresh the queue state from backend. */
-  refreshQueueFromBackend: () => Promise<void>;
   /** Apply queue state from backend. */
   applyQueueStateFromBackend: (state: QueueState) => void;
   /** Recompute jobs from backend data. */
   recomputeJobsFromBackend: (backendJobs: TranscodeJob[]) => void;
-
-  // ----- Single Job Operations -----
-  /** Wait (pause) a processing job. */
-  handleWaitJob: (jobId: string) => Promise<void>;
-  /** Resume a paused job. */
-  handleResumeJob: (jobId: string) => Promise<void>;
-  /** Restart a job. */
-  handleRestartJob: (jobId: string) => Promise<void>;
-  /** Cancel a job. */
-  handleCancelJob: (jobId: string) => Promise<void>;
-
-  // ----- Enqueue Methods -----
-  /** Add a mock manual job (for non-Tauri environments). */
-  addManualJobMock: () => void;
-  /** Enqueue a manual job from a file path. */
-  enqueueManualJobFromPath: (path: string) => Promise<void>;
-  /** Enqueue manual jobs from multiple input paths (files and/or directories). */
-  enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
 
   // ----- Bulk Operations -----
   /** Cancel all selected jobs. */

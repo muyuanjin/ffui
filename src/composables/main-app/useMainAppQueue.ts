@@ -7,11 +7,17 @@ import type {
   QueueViewMode,
   TranscodeJob,
 } from "@/types";
+import type { QueueOperationMethods } from "../queue/queueOperations.types";
 import { useQueuePreferences } from "@/lib/queuePreferences";
 import { type QueueListItem, useQueueFiltering, useQueueOperations, type UseQueueFilteringReturn } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
-import { ensureManualPresetId, getQueueIconGridClass, ICON_VIEW_MAX_VISIBLE_ITEMS } from "./useMainAppQueue.ui";
+import {
+  ensureManualPresetId,
+  getQueueIconGridClass,
+  ICON_VIEW_MAX_VISIBLE_ITEMS,
+  resolveManualPreset,
+} from "./useMainAppQueue.ui";
 import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./useMainAppQueue.waiting";
 
 export { getQueueIconGridClass } from "./useMainAppQueue.ui";
@@ -30,33 +36,36 @@ export interface UseMainAppQueueOptions {
   startupIdleReady?: Ref<boolean>;
 }
 
-export interface UseMainAppQueueReturn extends Pick<
-  UseQueueFilteringReturn,
-  | "selectedJobIds"
-  | "activeStatusFilters"
-  | "activeTypeFilters"
-  | "filterText"
-  | "filterUseRegex"
-  | "filterRegexError"
-  | "sortPrimary"
-  | "sortPrimaryDirection"
-  | "sortSecondary"
-  | "sortSecondaryDirection"
-  | "filteredJobs"
-  | "hasActiveFilters"
-  | "hasSelection"
-  | "queueModeProcessingJobs"
-  | "queueModeWaitingJobs"
-  | "selectAllVisibleJobs"
-  | "invertSelection"
-  | "clearSelection"
-  | "toggleStatusFilter"
-  | "toggleTypeFilter"
-  | "resetQueueFilters"
-  | "toggleFilterRegexMode"
-  | "toggleJobSelected"
-  | "compareJobsForDisplay"
-> {
+export interface UseMainAppQueueReturn
+  extends
+    QueueOperationMethods,
+    Pick<
+      UseQueueFilteringReturn,
+      | "selectedJobIds"
+      | "activeStatusFilters"
+      | "activeTypeFilters"
+      | "filterText"
+      | "filterUseRegex"
+      | "filterRegexError"
+      | "sortPrimary"
+      | "sortPrimaryDirection"
+      | "sortSecondary"
+      | "sortSecondaryDirection"
+      | "filteredJobs"
+      | "hasActiveFilters"
+      | "hasSelection"
+      | "queueModeProcessingJobs"
+      | "queueModeWaitingJobs"
+      | "selectAllVisibleJobs"
+      | "invertSelection"
+      | "clearSelection"
+      | "toggleStatusFilter"
+      | "toggleTypeFilter"
+      | "resetQueueFilters"
+      | "toggleFilterRegexMode"
+      | "toggleJobSelected"
+      | "compareJobsForDisplay"
+    > {
   queueViewMode: Ref<QueueViewMode>;
   queueProgressStyle: Ref<QueueProgressStyle>;
   queueMode: Ref<QueueMode>;
@@ -78,15 +87,6 @@ export interface UseMainAppQueueReturn extends Pick<
   visibleQueueItems: ComputedRef<QueueListItem[]>;
   iconViewItems: ComputedRef<QueueListItem[]>;
   hasPrimarySortTies: ComputedRef<boolean>;
-
-  refreshQueueFromBackend: () => Promise<void>;
-  handleWaitJob: (jobId: string) => Promise<void>;
-  handleResumeJob: (jobId: string) => Promise<void>;
-  handleRestartJob: (jobId: string) => Promise<void>;
-  handleCancelJob: (jobId: string) => Promise<void>;
-  addManualJobMock: () => void;
-  enqueueManualJobFromPath: (path: string) => Promise<void>;
-  enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
 
   bulkCancel: () => Promise<void>;
   bulkWait: () => Promise<void>;
@@ -175,13 +175,9 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     return getQueueIconGridClass(queueViewMode.value);
   });
 
-  const manualJobPreset = computed<FFmpegPreset | null>(() => {
-    const list = presets.value;
-    if (!list || list.length === 0) return null;
-    const id = manualJobPresetId.value;
-    if (!id) return list[0];
-    return list.find((p) => p.id === id) ?? list[0];
-  });
+  const manualJobPreset = computed<FFmpegPreset | null>(() =>
+    resolveManualPreset(presets.value, manualJobPresetId.value),
+  );
 
   ensureManualPresetId(presets.value, manualJobPresetId);
   const batchCompressJobs = computed<TranscodeJob[]>(() => jobs.value.filter((job) => job.source === "batch_compress"));

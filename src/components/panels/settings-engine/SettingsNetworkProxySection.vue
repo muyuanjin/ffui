@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings } from "@/types";
+import type { AppSettings, NetworkProxyMode, NetworkProxySettings } from "@/types";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -15,10 +15,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-type NetworkProxyMode = "none" | "system" | "custom";
 const networkProxyMode = computed<NetworkProxyMode>({
   get() {
-    const raw = (props.appSettings as any)?.networkProxy?.mode;
+    const raw = props.appSettings.networkProxy?.mode;
     if (raw === "none" || raw === "custom") return raw;
     return "system";
   },
@@ -27,7 +26,7 @@ const networkProxyMode = computed<NetworkProxyMode>({
       emit("update:appSettings", { ...props.appSettings, networkProxy: undefined });
       return;
     }
-    const current = (props.appSettings as any).networkProxy ?? {};
+    const current: NetworkProxySettings = props.appSettings.networkProxy ?? { mode: "custom" };
     emit("update:appSettings", {
       ...props.appSettings,
       networkProxy: { ...current, mode },
@@ -35,10 +34,15 @@ const networkProxyMode = computed<NetworkProxyMode>({
   },
 });
 
+const updateNetworkProxyMode = (value: unknown) => {
+  if (value === "none" || value === "system" || value === "custom") {
+    networkProxyMode.value = value;
+  }
+};
+
 const networkProxyUrlDraft = ref<string | null>(null);
 const getNetworkProxyUrlInputValue = () => {
-  const raw = (props.appSettings as any)?.networkProxy?.proxyUrl;
-  return typeof raw === "string" ? raw : "";
+  return props.appSettings.networkProxy?.proxyUrl ?? "";
 };
 
 const setNetworkProxyUrlDraft = (value: string) => {
@@ -52,7 +56,7 @@ const commitNetworkProxyUrlDraft = () => {
   if (networkProxyMode.value !== "custom") return;
   const trimmed = draft.trim();
   const nextUrl = trimmed.length > 0 ? trimmed : undefined;
-  const current = (props.appSettings as any).networkProxy ?? { mode: "custom" };
+  const current: NetworkProxySettings = props.appSettings.networkProxy ?? { mode: "custom" };
   emit("update:appSettings", {
     ...props.appSettings,
     networkProxy: { ...current, mode: "custom", proxyUrl: nextUrl },
@@ -69,7 +73,7 @@ const commitNetworkProxyUrlDraft = () => {
       <RadioGroup
         class="flex items-center justify-end gap-2"
         :model-value="networkProxyMode"
-        @update:model-value="(v) => (networkProxyMode = v as any)"
+        @update:model-value="updateNetworkProxyMode"
       >
         <label class="flex items-center gap-1 cursor-pointer">
           <RadioGroupItem

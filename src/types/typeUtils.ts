@@ -1,4 +1,4 @@
-export type DeepWritable<T> = T extends (...args: any[]) => any
+export type DeepWritable<T> = T extends (...args: unknown[]) => unknown
   ? T
   : T extends ReadonlyArray<infer U>
     ? Array<DeepWritable<U>>

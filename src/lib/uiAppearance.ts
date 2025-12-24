@@ -125,7 +125,7 @@ export function applyUiAppearanceToDocument(options: {
 
     // Clear any inline zoom overrides; scaling is applied via CSS using the
     // dataset + CSS variables, so we keep this attribute-driven and consistent.
-    (document.documentElement.style as any).zoom = "";
+    document.documentElement.style.removeProperty("zoom");
   }
 
   return { uiScalePercent, uiFontFamily, uiFontSizePercent };

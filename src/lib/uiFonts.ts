@@ -40,11 +40,14 @@ export async function applyDownloadedUiFont(downloaded: DownloadedFontInfo) {
     assetUrl,
     format: downloaded.format,
   });
-  if (typeof document !== "undefined" && "fonts" in document) {
+  if (typeof document !== "undefined") {
     try {
       // Hint the browser to load the font immediately so the UI updates without
       // requiring a manual re-render or toggling settings.
-      await (document as any).fonts.load(`16px "${downloaded.familyName}"`);
+      const fonts = document.fonts;
+      if (fonts && typeof fonts.load === "function") {
+        await fonts.load(`16px "${downloaded.familyName}"`);
+      }
     } catch {
       // Best-effort: some webviews may not fully support FontFaceSet APIs.
     }

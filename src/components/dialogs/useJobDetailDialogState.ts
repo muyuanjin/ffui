@@ -6,6 +6,7 @@ import {
   hasTauri,
   loadPreviewDataUrl,
 } from "@/lib/backend";
+import { copyToClipboard } from "@/lib/copyToClipboard";
 import type { FFmpegPreset, JobRun, TranscodeJob } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
@@ -130,22 +131,6 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
       } catch (regenError) {
         console.error("JobDetailDialog: failed to regenerate preview", regenError);
       }
-    }
-  };
-
-  const copyToClipboard = async (value: string | undefined | null) => {
-    if (!value) return;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      const textarea = document.createElement("textarea");
-      textarea.value = value;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
     }
   };
 

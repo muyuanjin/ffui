@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import VChart from "vue-echarts";
 import "echarts";
+import type { EChartsCoreOption } from "echarts/core";
 import { useI18n } from "vue-i18n";
 
 interface Props {
   /** ECharts 热力图配置 */
-  chartOption: any;
+  chartOption: EChartsCoreOption;
   /** CPU 核心数量 */
   coreCount: number;
 }

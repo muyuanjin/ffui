@@ -5,6 +5,7 @@ import { splitCommandLine, stripQuotes } from "./utils";
 import { inferNameFromTokens } from "./structured/inferName";
 import { isKnownOption } from "./structured/knownOptions";
 import { parseAudioCodecType, parseEncoderType } from "./structured/codecs";
+import { createGetValueAfter } from "./structured/getValueAfter";
 import { tryParseStructuredPreset } from "./structured/parseStructuredPreset";
 
 export const analyzeImportCommandLine = (raw: string): ImportCommandLineAnalysis => {
@@ -62,14 +63,7 @@ export const createCustomTemplatePresetFromAnalysis = (analysis: ImportCommandLi
   if (!analysis.eligibility.custom || !analysis.argsOnlyTemplate) return null;
   const suggested = analysis.suggestedName?.trim() || "Imported Command";
   const tokens = splitCommandLine(analysis.normalizedTemplate);
-  const getValueAfter = (flag: string): string | null => {
-    const idx = tokens.findIndex((t) => stripQuotes(t) === flag);
-    if (idx < 0) return null;
-    const value = tokens[idx + 1];
-    if (!value) return null;
-    if (stripQuotes(value).startsWith("-")) return null;
-    return stripQuotes(value);
-  };
+  const getValueAfter = createGetValueAfter(tokens);
 
   const encoder = (getValueAfter("-c:v") as VideoConfig["encoder"]) || "libx264";
   const audioCodec = (getValueAfter("-c:a") as AudioCodecType) || "copy";

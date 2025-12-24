@@ -1,26 +1,10 @@
 <script setup lang="ts">
-import { computed, type CSSProperties } from "vue";
+import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import CompareWipeLayers from "./CompareWipeLayers.vue";
-import type { CompareMode } from "./CompareViewport.vue";
+import type { CompareMediaStageProps } from "./types";
 
-const props = defineProps<{
-  mode: CompareMode;
-  usingFrameCompare: boolean;
-  inputVideoUrl: string | null;
-  outputVideoUrl: string | null;
-  inputFrameUrl: string | null;
-  inputFrameLoading: boolean;
-  inputFrameError: string | null;
-  inputFrameQuality?: "low" | "high" | null;
-  outputFrameUrl: string | null;
-  outputFrameLoading: boolean;
-  outputFrameError: string | null;
-  outputFrameQuality?: "low" | "high" | null;
-  transformStyle: CSSProperties;
-  wipePercent: number;
-  blinkShowInput: boolean;
-}>();
+const props = defineProps<CompareMediaStageProps>();
 
 const emit = defineEmits<{
   frameImgError: [side: "input" | "output"];

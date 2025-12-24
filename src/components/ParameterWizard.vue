@@ -168,7 +168,7 @@ const buildPresetFromState = (): FFmpegPreset => {
   // 防止把 x264 的 tune 选项带到 NVENC/AV1 预设里，从而生成非法 ffmpeg 参数。
   const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
   if (normalizedVideo.encoder !== "libx264") {
-    delete (normalizedVideo as any).tune;
+    delete normalizedVideo.tune;
   }
 
   const newPreset: FFmpegPreset = {

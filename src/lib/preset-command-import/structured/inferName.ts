@@ -1,15 +1,8 @@
-import { stripQuotes } from "../utils";
+import { createGetValueAfter } from "./getValueAfter";
 
 export const inferNameFromTokens = (tokensWithProgram: string[]): string => {
   const tokens = tokensWithProgram.slice(1);
-  const getValueAfter = (flag: string): string | null => {
-    const idx = tokens.findIndex((t) => stripQuotes(t) === flag);
-    if (idx < 0) return null;
-    const value = tokens[idx + 1];
-    if (!value) return null;
-    if (stripQuotes(value).startsWith("-")) return null;
-    return stripQuotes(value);
-  };
+  const getValueAfter = createGetValueAfter(tokens);
 
   const videoCodec = getValueAfter("-c:v");
   if (videoCodec === "copy") return "copy (remux)";

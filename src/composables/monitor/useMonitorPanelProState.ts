@@ -1,6 +1,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSystemMetrics } from "@/composables";
+import type { EChartsCoreOption } from "echarts/core";
 import {
   smoothEma,
   createFixedBuffer,
@@ -17,6 +18,75 @@ const CHART_ANIMATION = {
 } as const;
 
 const HEATMAP_TIME_WINDOW = 30;
+
+type MiniLineSeries = {
+  name: string;
+  data: number[];
+};
+
+const createAxisTooltip = (formatValue: (value: number) => string) => ({
+  trigger: "axis" as const,
+  valueFormatter(value: number) {
+    if (typeof value !== "number" || Number.isNaN(value)) return "--";
+    return formatValue(value);
+  },
+  formatter: (params: unknown) => {
+    if (!Array.isArray(params) || params.length === 0) return "";
+    const first = params[0];
+    if (!first || typeof first !== "object") return "";
+    const record = first as Record<string, unknown>;
+    const seriesName = typeof record.seriesName === "string" ? record.seriesName : "";
+    const value = record.value;
+    if (!seriesName || typeof value !== "number" || Number.isNaN(value)) return "";
+    return `${seriesName}: ${formatValue(value)}`;
+  },
+});
+
+const getHeadroomMax = (values: number[]): number => {
+  const maxValue = values.reduce((max, v) => (v > max ? v : max), 0);
+  return maxValue <= 0 ? 1 : maxValue * 1.2;
+};
+
+const createMiniThroughputChartOption = (labels: string[], series: MiniLineSeries[]) => {
+  const allValues = series.flatMap((s) => s.data);
+  const maxWithHeadroom = getHeadroomMax(allValues);
+
+  const option = {
+    ...CHART_ANIMATION,
+    grid: {
+      left: 4,
+      right: 4,
+      top: 4,
+      bottom: 6,
+    },
+    xAxis: {
+      type: "category",
+      data: labels,
+      boundaryGap: false,
+      axisLabel: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: "value",
+      min: 0,
+      max: maxWithHeadroom,
+      axisLabel: { show: false },
+      splitLine: { show: false },
+    },
+    series: series.map((s) => ({
+      name: s.name,
+      type: "line",
+      data: s.data,
+      showSymbol: false,
+      smooth: false,
+      lineStyle: { width: 1.5 },
+    })),
+    tooltip: createAxisTooltip((value) => `${value.toFixed(2)} MB/s`),
+  } satisfies EChartsCoreOption;
+
+  return option;
+};
 
 export function useMonitorPanelProState() {
   const { t } = useI18n();
@@ -116,7 +186,7 @@ export function useMonitorPanelProState() {
     const usageBuffer = createFixedBuffer(usage, GPU_CHART_WINDOW);
     const memoryBuffer = createFixedBuffer(memory, GPU_CHART_WINDOW);
 
-    return {
+    const option = {
       ...CHART_ANIMATION,
       grid: {
         left: 8,
@@ -159,19 +229,11 @@ export function useMonitorPanelProState() {
           areaStyle: { opacity: 0.2 },
         },
       ],
-      tooltip: {
-        trigger: "axis",
-        valueFormatter(value: number) {
-          if (typeof value !== "number" || Number.isNaN(value)) return "--";
-          return `${value.toFixed(1)}%`;
-        },
-        formatter: (params: any) => {
-          const data = params[0];
-          return `${data.seriesName}: ${data.value.toFixed(1)}%`;
-        },
-      },
+      tooltip: createAxisTooltip((value) => `${value.toFixed(1)}%`),
       legend: { show: false },
-    };
+    } satisfies EChartsCoreOption;
+
+    return option;
   });
 
   const heatmapTimeLabels = computed(() =>
@@ -182,7 +244,7 @@ export function useMonitorPanelProState() {
     const cores = perCoreSeries.value;
     if (!cores.length) return null;
 
-    const data: any[] = [];
+    const data: Array<[number, number, number]> = [];
     const timePoints = cores[0]?.values.length || 0;
 
     cores.forEach((core, coreIndex) => {
@@ -193,7 +255,7 @@ export function useMonitorPanelProState() {
       }
     });
 
-    return {
+    const option = {
       ...CHART_ANIMATION,
       backgroundColor: "transparent",
       grid: {
@@ -243,9 +305,19 @@ export function useMonitorPanelProState() {
       ],
       tooltip: {
         backgroundColor: "rgba(0, 0, 0, 0.8)",
-        formatter: (params: any) => `${t("monitor.cpu")} ${params.value[1]}: ${params.value[2].toFixed(1)}%`,
+        formatter: (params: unknown) => {
+          if (!params || typeof params !== "object") return "";
+          const value = (params as Record<string, unknown>).value;
+          if (!Array.isArray(value) || value.length < 3) return "";
+          const coreIndex = value[1];
+          const percent = value[2];
+          if (typeof coreIndex !== "number" || typeof percent !== "number" || Number.isNaN(percent)) return "";
+          return `${t("monitor.cpu")} ${coreIndex}: ${percent.toFixed(1)}%`;
+        },
       },
-    };
+    } satisfies EChartsCoreOption;
+
+    return option;
   });
 
   const networkMiniSeries = computed(() => {
@@ -274,60 +346,10 @@ export function useMonitorPanelProState() {
 
   const networkChartOption = computed(() => {
     const { rx, tx } = networkMiniSeries.value;
-    const allValues = [...rx, ...tx];
-    const maxValue = allValues.reduce((max, v) => (v > max ? v : max), 0);
-    const maxWithHeadroom = maxValue <= 0 ? 1 : maxValue * 1.2;
-
-    return {
-      ...CHART_ANIMATION,
-      grid: {
-        left: 4,
-        right: 4,
-        top: 4,
-        bottom: 6,
-      },
-      xAxis: {
-        type: "category",
-        data: miniChartLabels,
-        boundaryGap: false,
-        axisLabel: { show: false },
-        axisLine: { show: false },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        max: maxWithHeadroom,
-        axisLabel: { show: false },
-        splitLine: { show: false },
-      },
-      series: [
-        {
-          name: "RX",
-          type: "line",
-          data: rx,
-          showSymbol: false,
-          smooth: false,
-          lineStyle: { width: 1.5 },
-        },
-        {
-          name: "TX",
-          type: "line",
-          data: tx,
-          showSymbol: false,
-          smooth: false,
-          lineStyle: { width: 1.5 },
-        },
-      ],
-      tooltip: {
-        trigger: "axis",
-        valueFormatter(value: number) {
-          if (typeof value !== "number" || Number.isNaN(value)) return "--";
-          return `${value.toFixed(2)} MB/s`;
-        },
-        formatter: (params: any) => `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
-      },
-    };
+    return createMiniThroughputChartOption(miniChartLabels, [
+      { name: "RX", data: rx },
+      { name: "TX", data: tx },
+    ]);
   });
 
   const diskMiniSeries = computed(() => {
@@ -354,60 +376,10 @@ export function useMonitorPanelProState() {
 
   const diskChartOption = computed(() => {
     const { read, write } = diskMiniSeries.value;
-    const allValues = [...read, ...write];
-    const maxValue = allValues.reduce((max, v) => (v > max ? v : max), 0);
-    const maxWithHeadroom = maxValue <= 0 ? 1 : maxValue * 1.2;
-
-    return {
-      ...CHART_ANIMATION,
-      grid: {
-        left: 4,
-        right: 4,
-        top: 4,
-        bottom: 6,
-      },
-      xAxis: {
-        type: "category",
-        data: miniChartLabels,
-        boundaryGap: false,
-        axisLabel: { show: false },
-        axisLine: { show: false },
-        axisTick: { show: false },
-      },
-      yAxis: {
-        type: "value",
-        min: 0,
-        max: maxWithHeadroom,
-        axisLabel: { show: false },
-        splitLine: { show: false },
-      },
-      series: [
-        {
-          name: "Read",
-          type: "line",
-          data: read,
-          showSymbol: false,
-          smooth: false,
-          lineStyle: { width: 1.5 },
-        },
-        {
-          name: "Write",
-          type: "line",
-          data: write,
-          showSymbol: false,
-          smooth: false,
-          lineStyle: { width: 1.5 },
-        },
-      ],
-      tooltip: {
-        trigger: "axis",
-        valueFormatter(value: number) {
-          if (typeof value !== "number" || Number.isNaN(value)) return "--";
-          return `${value.toFixed(2)} MB/s`;
-        },
-        formatter: (params: any) => `${params[0].seriesName}: ${params[0].value.toFixed(2)} MB/s`,
-      },
-    };
+    return createMiniThroughputChartOption(miniChartLabels, [
+      { name: "Read", data: read },
+      { name: "Write", data: write },
+    ]);
   });
 
   return {

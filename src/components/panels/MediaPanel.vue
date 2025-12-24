@@ -79,9 +79,12 @@ const copyRawJson = async () => {
   if (!hasRawJson.value || !props.rawJson) return;
 
   try {
-    if (typeof navigator !== "undefined" && "clipboard" in navigator && (navigator as any).clipboard?.writeText) {
-      await navigator.clipboard.writeText(props.rawJson);
-      return;
+    if (typeof navigator !== "undefined") {
+      const clipboard = (navigator as Navigator & { clipboard?: Clipboard }).clipboard;
+      if (clipboard && typeof clipboard.writeText === "function") {
+        await clipboard.writeText(props.rawJson);
+        return;
+      }
     }
 
     if (typeof document !== "undefined") {

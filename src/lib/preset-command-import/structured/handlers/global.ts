@@ -1,6 +1,19 @@
 import { stripQuotes } from "../../utils";
 import type { StructuredParseState, TokenHandlerResult } from "../state";
 import { readValue } from "../readValue";
+import type { LogLevel } from "@/types";
+
+const LOG_LEVELS: ReadonlySet<LogLevel> = new Set([
+  "quiet",
+  "panic",
+  "fatal",
+  "error",
+  "warning",
+  "info",
+  "verbose",
+  "debug",
+  "trace",
+]);
 
 export const applyGlobalToken = (
   state: StructuredParseState,
@@ -20,7 +33,12 @@ export const applyGlobalToken = (
   if (token === "-loglevel") {
     const v = readValue(tokens, i, "-loglevel", state.reasons);
     if (!v) return { consumed: 0 };
-    state.global.logLevel = stripQuotes(v) as any;
+    const candidate = stripQuotes(v).toLowerCase();
+    if (!LOG_LEVELS.has(candidate as LogLevel)) {
+      state.reasons.push(`不支持的 -loglevel：${candidate}`);
+      return { consumed: 1, stop: true };
+    }
+    state.global.logLevel = candidate as LogLevel;
     return { consumed: 1 };
   }
   if (token === "-hide_banner") {

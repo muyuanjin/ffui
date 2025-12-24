@@ -27,3 +27,9 @@ export function ensureManualPresetId(presets: FFmpegPreset[], manualJobPresetId:
     manualJobPresetId.value = presets[0].id;
   }
 }
+
+export function resolveManualPreset(presets: FFmpegPreset[], manualJobPresetId: string | null): FFmpegPreset | null {
+  if (!presets || presets.length === 0) return null;
+  if (!manualJobPresetId) return presets[0];
+  return presets.find((p) => p.id === manualJobPresetId) ?? presets[0];
+}

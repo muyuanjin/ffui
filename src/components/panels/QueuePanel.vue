@@ -42,6 +42,38 @@ const canCancelJob = (job: TranscodeJob): boolean => {
   return hasTauri() && ["waiting", "queued", "processing", "paused"].includes(job.status);
 };
 
+const getBatchCardProps = (batch: CompositeBatchCompressTask) => {
+  return {
+    batch,
+    presets: props.presets,
+    ffmpegResolvedPath: props.ffmpegResolvedPath ?? null,
+    queueRowVariant: props.queueRowVariant,
+    queueProgressStyle: props.queueProgressStyle,
+    progressUpdateIntervalMs: props.progressUpdateIntervalMs,
+    selectedJobIds: props.selectedJobIds,
+    isExpanded: isBatchExpanded(batch.batchId),
+    canCancelJob,
+    sortCompareFn: props.sortCompareFn,
+  };
+};
+
+const getBatchCardListeners = (batch: CompositeBatchCompressTask) => {
+  return {
+    toggleBatchExpanded: (batchId: string) => emit("toggleBatchExpanded", batchId),
+    cancelJob: (jobId: string) => emit("cancelJob", jobId),
+    waitJob: (jobId: string) => emit("waitJob", jobId),
+    resumeJob: (jobId: string) => emit("resumeJob", jobId),
+    restartJob: (jobId: string) => emit("restartJob", jobId),
+    toggleJobSelected: (jobId: string) => emit("toggleJobSelected", jobId),
+    inspectJob: (job: TranscodeJob) => emit("inspectJob", job),
+    previewJob: (job: TranscodeJob) => emit("previewJob", job),
+    compareJob: (job: TranscodeJob) => emit("compareJob", job),
+    openJobContextMenu: (payload: { job: TranscodeJob; event: MouseEvent }) => emit("openJobContextMenu", payload),
+    contextmenuBatch: (payload: { batch: CompositeBatchCompressTask; event: MouseEvent }) =>
+      handleBatchContextMenu(batch, payload.event),
+  };
+};
+
 /**
  * 判断一个 Batch Compress 批次是否“完全选中”（所有子任务都在 selectedJobIds 中）。
  * 用于图标视图下的复合卡片选中状态和批量点击行为。
@@ -335,27 +367,8 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
           >
             <QueueBatchCompressBatchCard
               v-if="item.kind === 'batch' && !queueModeWaitingBatchIds.has(item.batch.batchId)"
-              :batch="item.batch"
-              :presets="presets"
-              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-              :queue-row-variant="queueRowVariant"
-              :queue-progress-style="queueProgressStyle"
-              :progress-update-interval-ms="progressUpdateIntervalMs"
-              :selected-job-ids="selectedJobIds"
-              :is-expanded="isBatchExpanded(item.batch.batchId)"
-              :can-cancel-job="canCancelJob"
-              :sort-compare-fn="sortCompareFn"
-              @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
-              @cancel-job="emit('cancelJob', $event)"
-              @wait-job="emit('waitJob', $event)"
-              @resume-job="emit('resumeJob', $event)"
-              @restart-job="emit('restartJob', $event)"
-              @toggle-job-selected="emit('toggleJobSelected', $event)"
-              @inspect-job="emit('inspectJob', $event)"
-              @preview-job="emit('previewJob', $event)"
-              @compare-job="emit('compareJob', $event)"
-              @open-job-context-menu="emit('openJobContextMenu', $event)"
-              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
+              v-bind="getBatchCardProps(item.batch)"
+              v-on="getBatchCardListeners(item.batch)"
             />
             <QueueItem
               v-else-if="
@@ -390,27 +403,8 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
           >
             <QueueBatchCompressBatchCard
               v-if="item.kind === 'batch'"
-              :batch="item.batch"
-              :presets="presets"
-              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-              :queue-row-variant="queueRowVariant"
-              :queue-progress-style="queueProgressStyle"
-              :progress-update-interval-ms="progressUpdateIntervalMs"
-              :selected-job-ids="selectedJobIds"
-              :is-expanded="isBatchExpanded(item.batch.batchId)"
-              :can-cancel-job="canCancelJob"
-              :sort-compare-fn="sortCompareFn"
-              @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
-              @cancel-job="emit('cancelJob', $event)"
-              @wait-job="emit('waitJob', $event)"
-              @resume-job="emit('resumeJob', $event)"
-              @restart-job="emit('restartJob', $event)"
-              @toggle-job-selected="emit('toggleJobSelected', $event)"
-              @inspect-job="emit('inspectJob', $event)"
-              @preview-job="emit('previewJob', $event)"
-              @compare-job="emit('compareJob', $event)"
-              @open-job-context-menu="emit('openJobContextMenu', $event)"
-              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
+              v-bind="getBatchCardProps(item.batch)"
+              v-on="getBatchCardListeners(item.batch)"
             />
             <QueueItem
               v-else

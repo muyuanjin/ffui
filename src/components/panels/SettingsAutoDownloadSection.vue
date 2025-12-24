@@ -46,6 +46,12 @@ const toolsMode = computed<ExternalToolsMode>({
     emit("update:appSettings", next);
   },
 });
+
+const updateToolsMode = (value: unknown) => {
+  if (value === "autoManaged" || value === "installOnly" || value === "manual" || value === "custom") {
+    toolsMode.value = value;
+  }
+};
 </script>
 
 <template>
@@ -69,7 +75,7 @@ const toolsMode = computed<ExternalToolsMode>({
           data-testid="settings-auto-download-mode-group"
           class="grid auto-rows-min content-between gap-0.5 flex-1"
           :model-value="toolsMode"
-          @update:model-value="(v) => (toolsMode = v as any)"
+          @update:model-value="updateToolsMode"
         >
           <label class="flex items-start gap-1.5 cursor-pointer p-1 rounded hover:bg-accent/5">
             <RadioGroupItem
