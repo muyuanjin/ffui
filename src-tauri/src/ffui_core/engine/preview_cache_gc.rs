@@ -1,8 +1,5 @@
 use super::TranscodingEngine;
-use crate::sync_ext::{
-    CondvarExt,
-    MutexExt,
-};
+use crate::sync_ext::{CondvarExt, MutexExt};
 
 pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
     let result = std::thread::Builder::new()

@@ -1,19 +1,9 @@
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::{
-    DataRootState,
-    PRESETS_FILENAME,
-    QUEUE_LOGS_DIRNAME,
-    QUEUE_STATE_FILENAME,
-    SETTINGS_FILENAME,
+    DataRootState, PRESETS_FILENAME, QUEUE_LOGS_DIRNAME, QUEUE_STATE_FILENAME, SETTINGS_FILENAME,
     TOOLS_DIRNAME,
 };
 

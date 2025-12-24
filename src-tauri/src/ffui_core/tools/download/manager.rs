@@ -1,50 +1,29 @@
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
-use anyhow::{
-    Context,
-    Result,
-    anyhow,
-};
+use anyhow::{Context, Result, anyhow};
 
 use super::extract::extract_avifenc_from_zip;
 use super::net::{
-    download_bytes_with_reqwest,
-    download_file_with_aria2c,
-    download_file_with_reqwest,
+    download_bytes_with_reqwest, download_file_with_aria2c, download_file_with_reqwest,
 };
 use super::release::{
-    current_ffmpeg_release,
-    default_avifenc_zip_url,
-    default_ffmpeg_download_url,
-    default_ffprobe_download_url,
-    semantic_version_from_tag,
+    current_ffmpeg_release, default_avifenc_zip_url, default_ffmpeg_download_url,
+    default_ffprobe_download_url, semantic_version_from_tag,
 };
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::discover::discover_candidates;
 use crate::ffui_core::tools::probe::verify_tool_binary;
 use crate::ffui_core::tools::resolve::{
-    custom_path_for,
-    downloaded_tool_filename,
-    downloaded_tool_path,
-    looks_like_bare_program_name,
-    resolve_in_path,
-    tool_binary_name,
-    tools_dir,
+    custom_path_for, downloaded_tool_filename, downloaded_tool_path, looks_like_bare_program_name,
+    resolve_in_path, tool_binary_name, tools_dir,
 };
 use crate::ffui_core::tools::runtime_state::{
-    mark_download_error,
-    mark_download_finished,
-    mark_download_progress,
-    mark_download_started,
-    record_last_tool_download,
-    snapshot_download_state,
+    mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
+    record_last_tool_download, snapshot_download_state,
 };
 use crate::ffui_core::tools::types::*;
 

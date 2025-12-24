@@ -6,8 +6,7 @@ mod tools_tests_runtime_clear_error {
 
     use crate::ffui_core::tools::ExternalToolKind;
     use crate::ffui_core::tools::runtime_state::{
-        clear_tool_runtime_error,
-        snapshot_download_state,
+        clear_tool_runtime_error, snapshot_download_state,
     };
 
     static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));

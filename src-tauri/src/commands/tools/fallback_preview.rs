@@ -2,10 +2,7 @@ use serde::Deserialize;
 use tauri::State;
 
 use crate::ffui_core::{
-    FallbackFramePosition,
-    FallbackFrameQuality,
-    TranscodingEngine,
-    clear_fallback_frame_cache,
+    FallbackFramePosition, FallbackFrameQuality, TranscodingEngine, clear_fallback_frame_cache,
     extract_fallback_frame,
 };
 

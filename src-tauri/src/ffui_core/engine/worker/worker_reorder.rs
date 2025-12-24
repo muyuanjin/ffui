@@ -1,13 +1,7 @@
-use std::collections::{
-    HashSet,
-    VecDeque,
-};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
-use super::super::state::{
-    Inner,
-    notify_queue_listeners,
-};
+use super::super::state::{Inner, notify_queue_listeners};
 use crate::sync_ext::MutexExt;
 
 /// Reorder the waiting queue according to the provided ordered job ids.

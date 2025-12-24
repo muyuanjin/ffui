@@ -1,21 +1,11 @@
-use chrono::{
-    Datelike,
-    Local,
-    TimeZone,
-    Timelike,
-};
+use chrono::{Datelike, Local, TimeZone, Timelike};
 
 use super::state::Inner;
 use super::worker_utils::current_time_millis;
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::settings::types::{
-    MonitorSettings,
-    TranscodeActivityDay,
-};
+use crate::ffui_core::settings::types::{MonitorSettings, TranscodeActivityDay};
 use crate::ffui_core::{
-    TranscodeActivityToday,
-    emit_transcode_activity_today_if_possible,
-    settings,
+    TranscodeActivityToday, emit_transcode_activity_today_if_possible, settings,
 };
 use crate::sync_ext::MutexExt;
 

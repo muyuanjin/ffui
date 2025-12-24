@@ -6,31 +6,18 @@
 //! - Media inspection and preview generation
 //! - Developer tools and taskbar progress management
 
+#![allow(clippy::redundant_pub_crate)]
+
 use std::path::PathBuf;
 
-use tauri::{
-    AppHandle,
-    State,
-    WebviewWindow,
-};
+use tauri::{AppHandle, State, WebviewWindow};
 
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    force_download_tool_binary,
-    verify_tool_binary,
-};
+use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
 use crate::ffui_core::{
-    CpuUsageSnapshot,
-    ExternalToolCandidate,
-    ExternalToolStatus,
-    GpuUsageSnapshot,
-    TranscodeActivityToday,
-    TranscodingEngine,
+    CpuUsageSnapshot, ExternalToolCandidate, ExternalToolStatus, GpuUsageSnapshot,
+    TranscodeActivityToday, TranscodingEngine,
 };
-use crate::system_metrics::{
-    MetricsSnapshot,
-    MetricsState,
-};
+use crate::system_metrics::{MetricsSnapshot, MetricsState};
 
 pub(crate) mod fallback_preview;
 pub(crate) mod playable_media;
@@ -91,7 +78,7 @@ pub async fn get_external_tool_candidates(
     engine: State<'_, TranscodingEngine>,
     kind: ExternalToolKind,
 ) -> Result<Vec<ExternalToolCandidate>, String> {
-    let tools_settings = engine.settings().tools.clone();
+    let tools_settings = engine.settings().tools;
     tauri::async_runtime::spawn_blocking(move || {
         crate::ffui_core::tools::tool_candidates(kind, &tools_settings)
     })
@@ -197,6 +184,9 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     use std::fs;
     use std::path::Path;
 
+    use base64::Engine as _;
+    use base64::engine::general_purpose;
+
     let trimmed = preview_path.trim();
     if trimmed.is_empty() {
         return Err("preview_path is empty".to_string());
@@ -208,10 +198,7 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
         fs::canonicalize(path).map_err(|e| format!("preview_path is not a readable file: {e}"))?;
 
     let preview_root = preview_root_dir_for_security()?;
-    let preview_root_canon = match fs::canonicalize(&preview_root) {
-        Ok(path) => path,
-        Err(_) => preview_root,
-    };
+    let preview_root_canon = fs::canonicalize(&preview_root).unwrap_or(preview_root);
 
     if !canonical.starts_with(&preview_root_canon) {
         return Err("preview_path is outside the previews directory".to_string());
@@ -222,11 +209,10 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
     let ext = canonical
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .map(str::to_ascii_lowercase);
     let mime = match ext.as_deref() {
         Some("png") => "image/png",
         Some("webp") => "image/webp",
-        Some("jpg" | "jpeg") => "image/jpeg",
         _ => "image/jpeg",
     };
 
@@ -237,8 +223,6 @@ pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
 
     let bytes = fs::read(&canonical).map_err(|e| e.to_string())?;
 
-    use base64::Engine as _;
-    use base64::engine::general_purpose;
     let encoded = general_purpose::STANDARD.encode(&bytes);
 
     Ok(format!("data:{mime};base64,{encoded}"))
@@ -276,10 +260,7 @@ mod tests {
     #[test]
     fn get_preview_data_url_rejects_paths_outside_preview_root() {
         use std::fs;
-        use std::time::{
-            SystemTime,
-            UNIX_EPOCH,
-        };
+        use std::time::{SystemTime, UNIX_EPOCH};
 
         let tmp_dir = std::env::temp_dir();
         let timestamp = SystemTime::now()

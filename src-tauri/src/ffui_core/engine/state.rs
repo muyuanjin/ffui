@@ -1,33 +1,15 @@
 #[cfg(test)]
 use std::cell::Cell;
-use std::collections::{
-    HashMap,
-    HashSet,
-    VecDeque,
-};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
-use std::sync::atomic::{
-    AtomicBool,
-    AtomicU64,
-};
-use std::sync::{
-    Arc,
-    Condvar,
-    Mutex,
-};
+use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::{Arc, Condvar, Mutex};
 
 use super::state_persist::{
-    peek_last_persisted_queue_state_lite,
-    persist_queue_state_lite,
-    persist_terminal_logs_if_needed,
+    peek_last_persisted_queue_state_lite, persist_queue_state_lite, persist_terminal_logs_if_needed,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress,
-    FFmpegPreset,
-    MediaInfo,
-    QueueState,
-    QueueStateLite,
-    TranscodeJob,
+    AutoCompressProgress, FFmpegPreset, MediaInfo, QueueState, QueueStateLite, TranscodeJob,
     TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
@@ -324,7 +306,8 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
     force_notify: bool,
     f: F,
 ) where
-    F: FnOnce(&mut BatchCompressBatch), {
+    F: FnOnce(&mut BatchCompressBatch),
+{
     let progress = {
         let mut state = inner.state.lock_unpoisoned();
         let batch = match state.batch_compress_batches.get_mut(batch_id) {

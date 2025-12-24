@@ -1,12 +1,6 @@
 use crate::ffui_core::domain::{
-    AudioCodecType,
-    AudioConfig,
-    EncoderType,
-    FFmpegPreset,
-    FilterConfig,
-    PresetStats,
-    RateControlMode,
-    VideoConfig,
+    AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, PresetStats,
+    RateControlMode, VideoConfig,
 };
 
 pub(super) fn empty_stats() -> PresetStats {

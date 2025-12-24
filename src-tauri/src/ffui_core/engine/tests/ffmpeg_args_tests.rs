@@ -1,8 +1,5 @@
 use super::*;
-use crate::ffui_core::domain::{
-    OutputContainerPolicy,
-    OutputPolicy,
-};
+use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
 
 #[test]
 fn build_ffmpeg_args_injects_progress_flags_for_standard_preset() {

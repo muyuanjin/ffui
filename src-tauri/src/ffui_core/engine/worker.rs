@@ -8,17 +8,9 @@ mod spawner;
 mod worker_reorder;
 
 pub(super) use control::{
-    cancel_job,
-    delete_batch_compress_batch,
-    delete_job,
-    restart_job,
-    resume_job,
-    wait_job,
+    cancel_job, delete_batch_compress_batch, delete_job, restart_job, resume_job, wait_job,
 };
-pub(super) use enqueue::{
-    enqueue_transcode_job,
-    enqueue_transcode_jobs,
-};
+pub(super) use enqueue::{enqueue_transcode_job, enqueue_transcode_jobs};
 #[cfg(test)]
 pub(super) use selection::next_job_for_worker_locked;
 pub(super) use spawner::spawn_worker;

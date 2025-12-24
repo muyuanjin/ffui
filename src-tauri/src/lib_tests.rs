@@ -6,10 +6,7 @@ use crate::commands::tools::playable_media::select_playable_media_path;
 #[test]
 fn get_preview_data_url_builds_data_url_prefix() {
     use std::fs;
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     let tmp_dir = std::env::temp_dir();
     // Write a small dummy JPEG-like payload into the previews directory and
@@ -39,10 +36,7 @@ fn get_preview_data_url_builds_data_url_prefix() {
 #[test]
 fn select_playable_media_path_prefers_first_existing_candidate() {
     use std::fs;
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     // Create a temporary file on disk so we can exercise the helper against
     // both missing and existing candidates without relying on any fixed
@@ -78,10 +72,7 @@ fn select_playable_media_path_prefers_first_existing_candidate() {
 #[test]
 fn select_playable_media_path_trims_and_picks_existing_file() {
     use std::fs;
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     let tmp_dir = std::env::temp_dir();
     let timestamp = SystemTime::now()
@@ -108,10 +99,7 @@ fn select_playable_media_path_trims_and_picks_existing_file() {
 
 #[test]
 fn select_playable_media_path_falls_back_to_first_non_empty_candidate() {
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     let tmp_dir = std::env::temp_dir();
     let timestamp = SystemTime::now()

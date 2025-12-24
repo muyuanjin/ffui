@@ -19,7 +19,7 @@ fn pick_meta_mode_prefers_latest_timestamp() {
         fallback_notice_dismissed: Some(false),
     };
     assert_eq!(
-        meta::pick_meta_mode(Some(meta_a), Some(meta_b)),
+        meta::pick_meta_mode(Some(&meta_a), Some(&meta_b)),
         Some(DataRootMode::Portable)
     );
 }
@@ -64,7 +64,7 @@ fn resolve_data_root_prefers_portable_when_marker_exists() {
         exe_name: "ffui.exe".to_string(),
     };
 
-    let state = resolve::resolve_data_root_with(&context, |_| true).expect("resolve data root");
+    let state = resolve::resolve_data_root_with(&context, |_| true);
     assert_eq!(state.desired_mode, DataRootMode::Portable);
     assert_eq!(state.effective_mode, DataRootMode::Portable);
     assert_eq!(state.data_root, portable_root.path());
@@ -81,7 +81,7 @@ fn resolve_data_root_falls_back_when_portable_not_writable() {
         exe_name: "ffui-portable.exe".to_string(),
     };
 
-    let state = resolve::resolve_data_root_with(&context, |_| false).expect("resolve data root");
+    let state = resolve::resolve_data_root_with(&context, |_| false);
     assert_eq!(state.desired_mode, DataRootMode::Portable);
     assert_eq!(state.effective_mode, DataRootMode::System);
     assert_eq!(state.data_root, system_root.path());

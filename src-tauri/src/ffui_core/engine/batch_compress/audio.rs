@@ -1,43 +1,21 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
-use super::super::ffmpeg_args::{
-    apply_global_args,
-    format_command_for_log,
-};
+use super::super::ffmpeg_args::{apply_global_args, format_command_for_log};
 use super::super::output_policy_paths::plan_output_path_with_extension;
-use super::super::state::{
-    Inner,
-    register_known_batch_compress_output_with_inner,
-};
+use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    capture_input_times_if_needed,
-    current_time_millis,
-    make_batch_compress_job,
-    next_job_id,
-    record_tool_download,
-    run_ffmpeg_and_finalize_tmp_output,
+    capture_input_times_if_needed, current_time_millis, make_batch_compress_job, next_job_id,
+    record_tool_download, run_ffmpeg_and_finalize_tmp_output,
 };
 use crate::ffui_core::domain::{
-    AudioCodecType,
-    BatchCompressConfig,
-    FFmpegPreset,
-    JobRun,
-    JobStatus,
-    JobType,
-    TranscodeJob,
+    AudioCodecType, BatchCompressConfig, FFmpegPreset, JobRun, JobStatus, JobType, TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 use crate::sync_ext::MutexExt;
 
 /// 根据输入扩展名与目标音频编码，选择与容器兼容的输出扩展名。

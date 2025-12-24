@@ -1,7 +1,4 @@
-use anyhow::{
-    Result,
-    anyhow,
-};
+use anyhow::{Result, anyhow};
 
 #[cfg(not(test))]
 use crate::ffui_core::network_proxy;
@@ -164,12 +161,12 @@ fn fetch_libavif_release_from_github() -> Option<String> {
 }
 
 #[cfg(test)]
-fn fetch_ffmpeg_release_from_github() -> Option<String> {
+const fn fetch_ffmpeg_release_from_github() -> Option<String> {
     None
 }
 
 #[cfg(test)]
-fn fetch_libavif_release_from_github() -> Option<String> {
+const fn fetch_libavif_release_from_github() -> Option<String> {
     None
 }
 

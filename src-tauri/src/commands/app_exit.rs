@@ -1,13 +1,6 @@
-use tauri::{
-    AppHandle,
-    State,
-};
+use tauri::{AppHandle, State};
 
-use crate::app_exit::{
-    ExitAutoWaitOutcome,
-    ExitCoordinator,
-    pause_processing_jobs_for_exit,
-};
+use crate::app_exit::{ExitAutoWaitOutcome, ExitCoordinator, pause_processing_jobs_for_exit};
 use crate::ffui_core::TranscodingEngine;
 use crate::sync_ext::MutexExt;
 

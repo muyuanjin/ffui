@@ -1,19 +1,11 @@
 use std::path::PathBuf;
-use std::time::{
-    Duration,
-    SystemTime,
-};
+use std::time::{Duration, SystemTime};
 
-use filetime::{
-    FileTime,
-    set_file_mtime,
-};
+use filetime::{FileTime, set_file_mtime};
 
 use super::*;
 use crate::ffui_core::preview_common::{
-    ensure_dir_exists,
-    extract_frame_with_seek_backoffs,
-    frame_tmp_filename,
+    ensure_dir_exists, extract_frame_with_seek_backoffs, frame_tmp_filename,
 };
 
 #[test]

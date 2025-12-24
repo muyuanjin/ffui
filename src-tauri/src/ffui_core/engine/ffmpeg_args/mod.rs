@@ -13,36 +13,22 @@ mod utils;
 // Batch Compress queueing, etc).
 pub(crate) use builder::build_ffmpeg_args;
 pub(super) use builder_tail::{
-    apply_audio_args,
-    apply_audio_filter_args,
-    apply_container_args,
-    apply_global_args,
+    apply_audio_args, apply_audio_filter_args, apply_container_args, apply_global_args,
     apply_mapping_disposition_and_metadata_args,
 };
-pub(super) use container::{
-    infer_output_extension,
-    normalize_container_format,
-};
+pub(super) use container::{infer_output_extension, normalize_container_format};
 #[cfg(test)]
 pub(super) use detect::parse_ffprobe_frame_rate;
 pub(super) use detect::{
-    detect_best_effort_video_start_time_seconds,
-    detect_duration_seconds,
-    detect_video_codec,
-    detect_video_dimensions_and_frame_rate,
-    detect_video_stream_duration_seconds,
+    detect_best_effort_video_start_time_seconds, detect_duration_seconds, detect_video_codec,
+    detect_video_dimensions_and_frame_rate, detect_video_stream_duration_seconds,
 };
-pub use job_object::{
-    assign_child_to_job,
-    init_child_process_job,
-};
+pub use job_object::{assign_child_to_job, init_child_process_job};
 pub(super) use platform::configure_background_command;
 #[cfg(test)]
 pub(super) use progress::parse_ffmpeg_time_to_seconds;
 pub(super) use progress::{
-    compute_progress_percent,
-    is_ffmpeg_progress_end,
-    parse_ffmpeg_duration_from_metadata_line,
+    compute_progress_percent, is_ffmpeg_progress_end, parse_ffmpeg_duration_from_metadata_line,
     parse_ffmpeg_progress_line,
 };
 pub(super) use utils::ensure_progress_args;

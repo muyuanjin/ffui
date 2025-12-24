@@ -1,28 +1,13 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::super::output_policy_paths::plan_output_path_with_extension;
-use super::super::state::{
-    Inner,
-    register_known_batch_compress_output_with_inner,
-};
-use super::helpers::{
-    capture_input_times_if_needed,
-    make_batch_compress_job,
-    next_job_id,
-};
+use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
+use super::helpers::{capture_input_times_if_needed, make_batch_compress_job, next_job_id};
 use super::image_encode_avif::encode_image_to_avif;
-use crate::ffui_core::domain::{
-    BatchCompressConfig,
-    JobStatus,
-    JobType,
-    TranscodeJob,
-};
+use crate::ffui_core::domain::{BatchCompressConfig, JobStatus, JobType, TranscodeJob};
 use crate::ffui_core::settings::AppSettings;
 use crate::sync_ext::MutexExt;
 

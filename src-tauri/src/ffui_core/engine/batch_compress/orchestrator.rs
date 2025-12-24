@@ -1,63 +1,30 @@
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{
-    Hash,
-    Hasher,
-};
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{
-    Duration,
-    Instant,
-};
-use std::{
-    fs,
-    thread,
-};
+use std::time::{Duration, Instant};
+use std::{fs, thread};
 
 use anyhow::Result;
 
 use super::super::state::{
-    BATCH_COMPRESS_PROGRESS_EVERY,
-    BatchCompressBatch,
-    BatchCompressBatchStatus,
-    Inner,
-    is_known_batch_compress_output_with_inner,
-    notify_batch_compress_listeners,
+    BATCH_COMPRESS_PROGRESS_EVERY, BatchCompressBatch, BatchCompressBatchStatus, Inner,
+    is_known_batch_compress_output_with_inner, notify_batch_compress_listeners,
     update_batch_compress_batch_with_inner,
 };
-use super::super::worker_utils::{
-    append_job_log_line,
-    mark_batch_compress_child_processed,
-};
+use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
 use super::audio::handle_audio_file_with_id;
-use super::detection::{
-    is_audio_file,
-    is_image_file,
-    is_video_file,
-};
-use super::helpers::{
-    current_time_millis,
-    next_job_id,
-    notify_queue_listeners,
-};
+use super::detection::{is_audio_file, is_image_file, is_video_file};
+use super::helpers::{current_time_millis, next_job_id, notify_queue_listeners};
 use super::image::handle_image_file_with_id;
 use super::orchestrator_helpers::{
-    insert_audio_stub_job,
-    insert_image_stub_job,
-    set_job_processing,
+    insert_audio_stub_job, insert_image_stub_job, set_job_processing,
 };
 use super::video::enqueue_batch_compress_video_job;
 use crate::ffui_core::domain::{
-    AutoCompressProgress,
-    AutoCompressResult,
-    BatchCompressConfig,
-    FFmpegPreset,
-    JobStatus,
+    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobStatus,
 };
-use crate::ffui_core::settings::{
-    self,
-    AppSettings,
-};
+use crate::ffui_core::settings::{self, AppSettings};
 use crate::sync_ext::MutexExt;
 
 pub(crate) fn run_auto_compress(

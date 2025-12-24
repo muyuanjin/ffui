@@ -1,34 +1,18 @@
 use std::ffi::OsString;
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::preview_common::{
-    append_preview_frame_jpeg_args,
-    bucket_percent_position,
-    bucket_seconds_position,
-    configure_background_command,
-    extract_frame_with_seek_backoffs,
-    file_fingerprint,
-    hash_key,
-    is_regular_file,
-    two_stage_seek_args,
-    with_cached_preview_frame,
+    append_preview_frame_jpeg_args, bucket_percent_position, bucket_seconds_position,
+    configure_background_command, extract_frame_with_seek_backoffs, file_fingerprint, hash_key,
+    is_regular_file, two_stage_seek_args, with_cached_preview_frame,
 };
 use crate::ffui_core::ffprobe::ffprobe_format_duration_seconds;
 use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 mod cache;
 use cache::maybe_cleanup_cache_now;

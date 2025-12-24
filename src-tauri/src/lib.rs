@@ -5,6 +5,15 @@ macro_rules! debug_eprintln {
         {
             eprintln!($($arg)*);
         }
+        // In release builds we still want the arguments to be "used" so we
+        // don't get unused variable/import warnings, but we do not want to
+        // evaluate potentially expensive formatting expressions.
+        #[cfg(not(debug_assertions))]
+        {
+            let _ = || {
+                let _ = format_args!($($arg)*);
+            };
+        }
     }};
 }
 
@@ -30,22 +39,13 @@ use std::thread;
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{
-    Emitter,
-    Manager,
-};
+use tauri::{Emitter, Manager};
 
 use crate::ffui_core::{
-    AutoCompressProgress,
-    JobStatus,
-    TranscodingEngine,
-    init_child_process_job,
+    AutoCompressProgress, JobStatus, TranscodingEngine, init_child_process_job,
 };
 use crate::sync_ext::MutexExt;
-use crate::system_metrics::{
-    MetricsState,
-    spawn_metrics_sampler,
-};
+use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

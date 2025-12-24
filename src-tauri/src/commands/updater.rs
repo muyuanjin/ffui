@@ -42,14 +42,12 @@ fn has_endpoints(updater_config: &Value) -> bool {
     let Some(endpoints) = endpoints.as_array() else {
         return false;
     };
-    endpoints.iter().any(|value| {
-        value
-            .as_str()
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false)
-    })
+    endpoints
+        .iter()
+        .any(|value| value.as_str().is_some_and(|s| !s.trim().is_empty()))
 }
 
+#[allow(clippy::redundant_pub_crate)]
 pub(crate) fn updater_is_configured(config: &tauri::Config) -> bool {
     let Some(updater) = config.plugins.0.get("updater") else {
         return false;

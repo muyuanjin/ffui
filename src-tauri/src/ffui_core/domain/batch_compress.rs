@@ -1,13 +1,10 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 use super::job::TranscodeJob;
 use super::output_policy::OutputPolicy;
 
 /// 保留结果的条件类型
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum SavingConditionType {
     /// 按压缩率判断
@@ -24,12 +21,12 @@ pub struct FileTypeFilter {
     /// 是否启用该类型
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// 具体的文件扩展名（不含点号），如 ["mp4", "mkv"]
+    /// 具体的文件扩展名（不含点号），如 `["mp4", "mkv"]`
     #[serde(default)]
     pub extensions: Vec<String>,
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 
@@ -123,11 +120,11 @@ impl Default for BatchCompressConfig {
     }
 }
 
-fn default_audio_size_kb() -> u64 {
+const fn default_audio_size_kb() -> u64 {
     500
 }
 
-fn default_saving_absolute_mb() -> f64 {
+const fn default_saving_absolute_mb() -> f64 {
     5.0
 }
 

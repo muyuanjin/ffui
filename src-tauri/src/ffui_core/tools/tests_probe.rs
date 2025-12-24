@@ -1,15 +1,9 @@
 #[cfg(test)]
 mod tools_tests_probe {
     use std::env;
-    use std::fs::{
-        self,
-        File,
-    };
+    use std::fs::{self, File};
     use std::io::Write;
-    use std::path::{
-        Path,
-        PathBuf,
-    };
+    use std::path::{Path, PathBuf};
 
     #[cfg(unix)]
     fn make_executable(path: &Path, label: &str) {
@@ -221,9 +215,7 @@ mod tools_tests_probe {
     #[test]
     fn persisted_probe_cache_avoids_spawning_on_subsequent_startup() {
         use crate::ffui_core::tools::{
-            ExternalToolKind,
-            hydrate_probe_cache_from_settings,
-            tool_status,
+            ExternalToolKind, hydrate_probe_cache_from_settings, tool_status,
             update_probe_cache_from_statuses,
         };
 
@@ -258,7 +250,7 @@ mod tools_tests_probe {
             "expected ffmpeg to be spawned once on the first run"
         );
 
-        let mut persisted = settings.clone();
+        let mut persisted = settings;
         assert!(
             update_probe_cache_from_statuses(&mut persisted, std::slice::from_ref(&status)),
             "expected probe cache to be updated after a successful probe"

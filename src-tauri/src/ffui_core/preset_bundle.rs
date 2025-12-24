@@ -1,27 +1,11 @@
 use std::path::Path;
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{
-    Context,
-    Result,
-    bail,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use anyhow::{Context, Result, bail};
+use serde::{Deserialize, Serialize};
 
-use crate::ffui_core::settings::io::{
-    read_json_file,
-    write_json_file,
-};
-use crate::ffui_core::{
-    FFmpegPreset,
-    PresetStats,
-};
+use crate::ffui_core::settings::io::{read_json_file, write_json_file};
+use crate::ffui_core::{FFmpegPreset, PresetStats};
 
 pub const PRESET_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
@@ -201,9 +185,9 @@ mod tests {
         assert_eq!(bundle.presets.len(), 1);
         let preset = bundle.presets.first().expect("preset");
         assert_eq!(preset.stats.usage_count, 0);
-        assert_eq!(preset.stats.total_input_size_mb, 0.0);
-        assert_eq!(preset.stats.total_output_size_mb, 0.0);
-        assert_eq!(preset.stats.total_time_seconds, 0.0);
+        assert!(preset.stats.total_input_size_mb.abs() < f64::EPSILON);
+        assert!(preset.stats.total_output_size_mb.abs() < f64::EPSILON);
+        assert!(preset.stats.total_time_seconds.abs() < f64::EPSILON);
     }
 
     #[test]

@@ -1,8 +1,5 @@
 use std::path::PathBuf;
-use std::{
-    env,
-    fs,
-};
+use std::{env, fs};
 
 use serde::Serialize;
 
@@ -11,6 +8,7 @@ struct CapturePayload {
     argv: Vec<String>,
 }
 
+#[allow(clippy::too_many_lines)]
 fn main() {
     let argv: Vec<String> = env::args().skip(1).collect();
 
@@ -98,20 +96,11 @@ fn main() {
             .and_then(|v| v.parse().ok());
     let silent_mode_active = silent_wait_timeout_ms.is_some();
     if let Some(timeout_ms) = silent_wait_timeout_ms {
-        use std::io::{
-            BufRead,
-            BufReader,
-        };
+        use std::io::{BufRead, BufReader};
         use std::sync::Arc;
-        use std::sync::atomic::{
-            AtomicBool,
-            Ordering,
-        };
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::thread;
-        use std::time::{
-            Duration,
-            Instant,
-        };
+        use std::time::{Duration, Instant};
 
         let quit = Arc::new(AtomicBool::new(false));
         let quit_reader = quit.clone();
@@ -163,16 +152,9 @@ fn main() {
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false)
     {
-        use std::io::{
-            BufRead,
-            BufReader,
-            Write as IoWrite,
-        };
+        use std::io::{BufRead, BufReader, Write as IoWrite};
         use std::sync::Arc;
-        use std::sync::atomic::{
-            AtomicBool,
-            Ordering,
-        };
+        use std::sync::atomic::{AtomicBool, Ordering};
         use std::thread;
         use std::time::Duration;
 

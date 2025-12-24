@@ -5,23 +5,12 @@ use std::sync::Mutex;
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 use super::AtomicU64;
-use crate::ffui_core::domain::{
-    JobRun,
-    JobStatus,
-    QueueStateLite,
-    TranscodeJob,
-};
-use crate::ffui_core::settings::types::{
-    CrashRecoveryLogRetention,
-    QueuePersistenceMode,
-};
+use crate::ffui_core::domain::{JobRun, JobStatus, QueueStateLite, TranscodeJob};
+use crate::ffui_core::settings::types::{CrashRecoveryLogRetention, QueuePersistenceMode};
 #[cfg(test)]
 use crate::sync_ext::MutexExt;
 

@@ -8,12 +8,7 @@
 //! （即父进程退出时），Windows 会自动终止所有关联的子进程。
 
 #[cfg(windows)]
-use std::os::windows::io::{
-    AsRawHandle,
-    FromRawHandle,
-    OwnedHandle,
-    RawHandle,
-};
+use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 #[cfg(windows)]
 use std::sync::Mutex;
 
@@ -23,18 +18,12 @@ use once_cell::sync::Lazy;
 use windows::Win32::Foundation::CloseHandle;
 #[cfg(windows)]
 use windows::Win32::System::JobObjects::{
-    AssignProcessToJobObject,
-    CreateJobObjectW,
-    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-    JobObjectExtendedLimitInformation,
+    AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
     SetInformationJobObject,
 };
 #[cfg(windows)]
-use windows::Win32::System::Threading::{
-    OpenProcess,
-    PROCESS_ALL_ACCESS,
-};
+use windows::Win32::System::Threading::{OpenProcess, PROCESS_ALL_ACCESS};
 
 #[cfg(windows)]
 use crate::sync_ext::MutexExt;

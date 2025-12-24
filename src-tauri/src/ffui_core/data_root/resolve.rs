@@ -1,31 +1,12 @@
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use tauri::Manager;
 
-use super::meta::{
-    DataRootMeta,
-    meta_path,
-    pick_meta_mode,
-    read_meta,
-    write_meta,
-};
+use super::meta::{DataRootMeta, meta_path, pick_meta_mode, read_meta, write_meta};
 use super::{
-    DataRootMode,
-    DataRootState,
-    META_FILENAME,
-    PRESETS_FILENAME,
-    QUEUE_LOGS_DIRNAME,
-    QUEUE_STATE_FILENAME,
-    SETTINGS_FILENAME,
-    UI_FONTS_DIRNAME,
-    now_ms,
+    DataRootMode, DataRootState, META_FILENAME, PRESETS_FILENAME, QUEUE_LOGS_DIRNAME,
+    QUEUE_STATE_FILENAME, SETTINGS_FILENAME, UI_FONTS_DIRNAME, now_ms,
 };
 
 #[derive(Debug, Clone)]
@@ -98,10 +79,10 @@ pub(super) fn is_dir_writable(path: &Path) -> bool {
 pub(super) fn resolve_data_root_with(
     context: &DataRootContext,
     probe_writable: impl Fn(&Path) -> bool,
-) -> Result<DataRootState> {
+) -> DataRootState {
     let system_meta = read_meta(&context.system_root);
     let portable_meta = read_meta(&context.portable_root);
-    let desired_mode = pick_meta_mode(system_meta.clone(), portable_meta.clone())
+    let desired_mode = pick_meta_mode(system_meta.as_ref(), portable_meta.as_ref())
         .unwrap_or_else(|| default_desired_mode(context));
 
     let portable_writable =
@@ -149,7 +130,7 @@ pub(super) fn resolve_data_root_with(
         }
     }
 
-    Ok(DataRootState {
+    DataRootState {
         desired_mode,
         effective_mode,
         fallback_active,
@@ -157,7 +138,7 @@ pub(super) fn resolve_data_root_with(
         data_root,
         system_root: context.system_root.clone(),
         portable_root: context.portable_root.clone(),
-    })
+    }
 }
 
 fn portable_root_from_exe_path(exe_path: &Path) -> Result<PathBuf> {
@@ -169,8 +150,7 @@ fn portable_root_from_exe_path(exe_path: &Path) -> Result<PathBuf> {
         if ancestor
             .extension()
             .and_then(|s| s.to_str())
-            .map(|s| s.eq_ignore_ascii_case("app"))
-            .unwrap_or(false)
+            .is_some_and(|s| s.eq_ignore_ascii_case("app"))
             && let Some(parent) = ancestor.parent()
         {
             return Ok(parent.to_path_buf());

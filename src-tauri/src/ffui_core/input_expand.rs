@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
 use crate::ffui_core::engine::is_video_file;
 

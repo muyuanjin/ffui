@@ -1,31 +1,12 @@
 use std::path::Path;
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{
-    Context,
-    Result,
-    bail,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use anyhow::{Context, Result, bail};
+use serde::{Deserialize, Serialize};
 
-use crate::ffui_core::settings::io::{
-    read_json_file,
-    write_json_file,
-};
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    verify_tool_binary,
-};
-use crate::ffui_core::{
-    AppSettings,
-    FFmpegPreset,
-};
+use crate::ffui_core::settings::io::{read_json_file, write_json_file};
+use crate::ffui_core::tools::{ExternalToolKind, verify_tool_binary};
+use crate::ffui_core::{AppSettings, FFmpegPreset};
 
 pub const CONFIG_BUNDLE_SCHEMA_VERSION: u32 = 1;
 
@@ -67,8 +48,8 @@ fn now_ms() -> u64 {
     .unwrap_or(u64::MAX)
 }
 
-fn validate_tool_path(path: &Option<String>, kind: ExternalToolKind) -> Result<()> {
-    let trimmed = path.as_deref().unwrap_or("").trim();
+fn validate_tool_path(path: Option<&str>, kind: ExternalToolKind) -> Result<()> {
+    let trimmed = path.unwrap_or("").trim();
     if trimmed.is_empty() {
         return Ok(());
     }
@@ -86,13 +67,16 @@ fn validate_config_bundle(bundle: &ConfigBundle) -> Result<()> {
             CONFIG_BUNDLE_SCHEMA_VERSION
         );
     }
-    validate_tool_path(&bundle.settings.tools.ffmpeg_path, ExternalToolKind::Ffmpeg)?;
     validate_tool_path(
-        &bundle.settings.tools.ffprobe_path,
+        bundle.settings.tools.ffmpeg_path.as_deref(),
+        ExternalToolKind::Ffmpeg,
+    )?;
+    validate_tool_path(
+        bundle.settings.tools.ffprobe_path.as_deref(),
         ExternalToolKind::Ffprobe,
     )?;
     validate_tool_path(
-        &bundle.settings.tools.avifenc_path,
+        bundle.settings.tools.avifenc_path.as_deref(),
         ExternalToolKind::Avifenc,
     )?;
     Ok(())
@@ -100,27 +84,29 @@ fn validate_config_bundle(bundle: &ConfigBundle) -> Result<()> {
 
 pub fn export_config_bundle(
     path: &Path,
-    settings: AppSettings,
+    mut settings: AppSettings,
     presets: Vec<FFmpegPreset>,
     app_version: String,
 ) -> Result<ConfigBundleExportResult> {
-    let mut normalized_settings = settings.clone();
-    normalized_settings.normalize();
+    settings.normalize();
     let exported_at_ms = now_ms();
+    let preset_count = presets.len();
     let bundle = ConfigBundle {
         schema_version: CONFIG_BUNDLE_SCHEMA_VERSION,
-        app_version: app_version.clone(),
+        app_version,
         exported_at_ms,
-        settings: normalized_settings,
+        settings,
         presets,
     };
     write_json_file(path, &bundle)
         .with_context(|| format!("failed to write config bundle {}", path.display()))?;
+
+    let ConfigBundle { app_version, .. } = bundle;
     Ok(ConfigBundleExportResult {
         path: path.to_string_lossy().into_owned(),
         app_version,
         exported_at_ms,
-        preset_count: bundle.presets.len(),
+        preset_count,
     })
 }
 

@@ -1,26 +1,11 @@
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
-use std::sync::{
-    Arc,
-    RwLock,
-};
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use once_cell::sync::OnceCell;
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 mod meta;
 mod migration;
@@ -100,7 +85,7 @@ fn set_global_state(state: DataRootState) -> Arc<RwLock<DataRootState>> {
 
 pub fn init_data_root(app: &tauri::AppHandle) -> Result<DataRootInfo> {
     let context = resolve::data_root_context_from_app(app)?;
-    let state = resolve::resolve_data_root_with(&context, resolve::is_dir_writable)?;
+    let state = resolve::resolve_data_root_with(&context, resolve::is_dir_writable);
     migration::migrate_legacy_sidecars(&state, &context.exe_dir);
     set_global_state(state.clone());
     Ok(to_info(&state))
@@ -213,26 +198,28 @@ pub fn acknowledge_fallback_notice() -> Result<()> {
     let lock = DATA_ROOT_STATE
         .get()
         .context("data root is not initialized")?;
-    let mut guard = lock
-        .write()
-        .map_err(|_| anyhow::anyhow!("data root lock poisoned"))?;
-    if !guard.fallback_active {
-        return Ok(());
-    }
-    if guard.fallback_notice_pending {
-        guard.fallback_notice_pending = false;
-        let meta = meta::DataRootMeta {
-            schema_version: 1,
-            desired_mode: Some(guard.desired_mode),
-            last_selected_at_ms: Some(now_ms()),
-            fallback_notice_dismissed: Some(true),
-        };
-        if let Err(err) = meta::write_meta(&guard.system_root, &meta) {
-            crate::debug_eprintln!(
-                "failed to acknowledge data root fallback notice {}: {err:#}",
-                meta::meta_path(&guard.system_root).display()
-            );
+    let (system_root, desired_mode) = {
+        let mut guard = lock
+            .write()
+            .map_err(|_| anyhow::anyhow!("data root lock poisoned"))?;
+        if !guard.fallback_active || !guard.fallback_notice_pending {
+            return Ok(());
         }
+        guard.fallback_notice_pending = false;
+        (guard.system_root.clone(), guard.desired_mode)
+    };
+
+    let meta = meta::DataRootMeta {
+        schema_version: 1,
+        desired_mode: Some(desired_mode),
+        last_selected_at_ms: Some(now_ms()),
+        fallback_notice_dismissed: Some(true),
+    };
+    if let Err(err) = meta::write_meta(&system_root, &meta) {
+        crate::debug_eprintln!(
+            "failed to acknowledge data root fallback notice {}: {err:#}",
+            meta::meta_path(&system_root).display()
+        );
     }
     Ok(())
 }
@@ -285,7 +272,9 @@ pub fn set_desired_mode(mode: DataRootMode) -> Result<DataRootInfo> {
     guard.fallback_active = fallback_active;
     guard.fallback_notice_pending = fallback_notice_pending;
 
-    Ok(to_info(&guard))
+    let info = to_info(&guard);
+    drop(guard);
+    Ok(info)
 }
 
 fn to_info(state: &DataRootState) -> DataRootInfo {

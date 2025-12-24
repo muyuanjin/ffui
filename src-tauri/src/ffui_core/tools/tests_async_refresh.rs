@@ -2,12 +2,10 @@
 mod tools_tests_async_refresh {
     use crate::ffui_core::tools::tests_runtime::TEST_MUTEX;
     use crate::ffui_core::tools::{
-        ExternalToolKind,
-        ExternalToolStatus,
-        finish_tool_status_refresh,
-        try_begin_tool_status_refresh,
-        ttl_hit,
+        ExternalToolKind, ExternalToolStatus, finish_tool_status_refresh,
+        try_begin_tool_status_refresh, ttl_hit,
     };
+    use serde_json::json;
 
     #[test]
     fn tool_status_refresh_dedupes_concurrent_requests() {
@@ -44,8 +42,6 @@ mod tools_tests_async_refresh {
     #[test]
     fn tool_status_event_payload_contract_is_camelcase() {
         let _guard = TEST_MUTEX.lock().unwrap();
-
-        use serde_json::json;
 
         let status = ExternalToolStatus {
             kind: ExternalToolKind::Ffmpeg,

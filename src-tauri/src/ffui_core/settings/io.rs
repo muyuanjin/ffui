@@ -1,18 +1,9 @@
 use std::fs;
-use std::io::{
-    BufReader,
-    Write,
-};
+use std::io::{BufReader, Write};
 use std::path::Path;
 
-use anyhow::{
-    Context,
-    Result,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 
 /// Reads and deserializes a JSON file into the specified type.
 ///

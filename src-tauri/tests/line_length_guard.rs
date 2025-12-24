@@ -1,10 +1,7 @@
 //! 本测试禁止修改或跳过，必须运行，用于防止单个后端源码文件超过500行，请通过重构拆分解决。
 
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
 const THRESHOLD: usize = 500;
 const NOTE: &str =

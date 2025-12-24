@@ -1,28 +1,14 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{
-    AtomicBool,
-    AtomicU64,
-    Ordering,
-};
-use std::sync::{
-    Arc,
-    Mutex,
-};
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use tauri::Emitter;
 use tokio::io::AsyncWriteExt;
 
 use super::ui_fonts_catalog::open_source_fonts_catalog;
-use super::ui_fonts_types::{
-    DownloadedFontInfo,
-    UiFontDownloadSnapshot,
-    UiFontDownloadStatus,
-};
+use super::ui_fonts_types::{DownloadedFontInfo, UiFontDownloadSnapshot, UiFontDownloadStatus};
 use crate::ffui_core::network_proxy;
 use crate::sync_ext::MutexExt;
 
@@ -170,7 +156,8 @@ impl UiFontDownloadJob {
 
     fn update_snapshot<F>(&self, f: F) -> UiFontDownloadSnapshot
     where
-        F: FnOnce(&mut UiFontDownloadSnapshot), {
+        F: FnOnce(&mut UiFontDownloadSnapshot),
+    {
         let mut guard = self.snapshot.lock_unpoisoned();
         f(&mut guard);
         guard.clone()
@@ -186,14 +173,16 @@ pub fn get_open_source_font_download_snapshot(
 }
 
 pub fn cancel_open_source_font_download(manager: &UiFontDownloadManager, font_id: &str) -> bool {
-    let jobs = manager.jobs.lock_unpoisoned();
-    let Some(job) = jobs.get(font_id.trim()) else {
-        return false;
+    let job = {
+        let jobs = manager.jobs.lock_unpoisoned();
+        jobs.get(font_id.trim()).cloned()
     };
+    let Some(job) = job else { return false };
     job.mark_cancel_requested();
     true
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn start_open_source_font_download(
     app: tauri::AppHandle,
     manager: &UiFontDownloadManager,
@@ -238,19 +227,20 @@ pub fn start_open_source_font_download(
     }
 
     let session_id = manager.next_session_id.fetch_add(1, Ordering::Relaxed);
+    let id_for_job = id.clone();
+    let format_for_task = format.clone();
     let job = Arc::new(UiFontDownloadJob::new(
         session_id,
-        id.clone(),
-        family_name.clone(),
-        format.clone(),
+        id_for_job,
+        family_name,
+        format,
     ));
-    jobs.insert(id.clone(), job.clone());
+    jobs.insert(id, job.clone());
     drop(jobs);
 
-    let app_for_task = app.clone();
-    let fonts_dir_for_task = fonts_dir.clone();
-    let dest_for_task = dest.clone();
-    let format_for_task = format.clone();
+    let app_for_task = app;
+    let fonts_dir_for_task = fonts_dir;
+    let dest_for_task = dest;
     let job_for_task = job.clone();
 
     tauri::async_runtime::spawn(async move {

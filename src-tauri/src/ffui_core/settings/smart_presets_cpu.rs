@@ -1,9 +1,4 @@
-use super::preset_templates::{
-    base_preset,
-    filters_empty,
-    video_svtav1_crf,
-    video_x264_crf,
-};
+use super::preset_templates::{base_preset, filters_empty, video_svtav1_crf, video_x264_crf};
 use crate::ffui_core::domain::FFmpegPreset;
 
 pub(crate) fn smart_presets_for_cpu_only() -> Vec<FFmpegPreset> {

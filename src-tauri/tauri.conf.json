@@ -4,9 +4,9 @@
   "version": "0.2.1",
   "identifier": "com.muyuanjin.ffui",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "pnpm run dev",
     "devUrl": "http://localhost:5188",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "pnpm -s run build",
     "frontendDist": "../dist"
   },
   "app": {

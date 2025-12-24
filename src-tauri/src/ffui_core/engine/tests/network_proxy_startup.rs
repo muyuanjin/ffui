@@ -1,8 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::{
-    AtomicUsize,
-    Ordering,
-};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crate::ffui_core::engine::TranscodingEngine;
 use crate::ffui_core::network_proxy;

@@ -1,11 +1,6 @@
 use super::super::state::EngineState;
 use super::super::worker_utils::current_time_millis;
-use crate::ffui_core::domain::{
-    EncoderType,
-    FFmpegPreset,
-    JobStatus,
-    TranscodeJob,
-};
+use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob};
 use crate::ffui_core::settings::TranscodeParallelismMode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

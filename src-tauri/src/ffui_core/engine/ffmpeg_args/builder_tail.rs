@@ -1,10 +1,6 @@
 use super::normalize_container_format;
 use crate::ffui_core::domain::{
-    AudioCodecType,
-    EncoderType,
-    FFmpegPreset,
-    OverwriteBehavior,
-    SubtitleStrategy,
+    AudioCodecType, EncoderType, FFmpegPreset, OverwriteBehavior, SubtitleStrategy,
 };
 
 pub(in crate::ffui_core::engine) fn apply_global_args(

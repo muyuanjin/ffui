@@ -3,16 +3,9 @@ use std::fs;
 #[cfg(windows)]
 use std::fs::File;
 #[cfg(windows)]
-use std::io::{
-    Read,
-    Seek,
-    SeekFrom,
-};
+use std::io::{Read, Seek, SeekFrom};
 use std::process::Command;
-use std::time::{
-    Duration,
-    SystemTime,
-};
+use std::time::{Duration, SystemTime};
 
 use super::runtime_state::mark_arch_incompatible_for_session;
 use super::types::*;
@@ -135,7 +128,7 @@ pub(crate) fn seed_probe_cache_from_persisted(
 }
 
 #[cfg(test)]
-pub(crate) fn reset_probe_cache_for_tests() {
+pub(super) fn reset_probe_cache_for_tests() {
     if let Ok(mut map) = VERIFY_CACHE.lock() {
         map.clear();
     }

@@ -1,33 +1,17 @@
 use std::path::Path;
 
 use super::builder_tail::{
-    apply_audio_args,
-    apply_container_args,
-    apply_filter_args,
-    apply_global_args,
-    apply_hw_args,
-    apply_mapping_disposition_and_metadata_args,
-    apply_subtitle_args,
+    apply_audio_args, apply_container_args, apply_filter_args, apply_global_args, apply_hw_args,
+    apply_mapping_disposition_and_metadata_args, apply_subtitle_args,
 };
 use super::builder_webm::should_fallback_webm_forced_container;
-use super::output_policy::{
-    enforce_output_muxer_for_template,
-    forced_muxer_for_policy,
-};
+use super::output_policy::{enforce_output_muxer_for_template, forced_muxer_for_policy};
 use super::utils::ensure_progress_args;
 use crate::ffui_core::domain::{
-    DurationMode,
-    EncoderType,
-    FFmpegPreset,
-    OutputContainerPolicy,
-    OutputPolicy,
-    RateControlMode,
+    DurationMode, EncoderType, FFmpegPreset, OutputContainerPolicy, OutputPolicy, RateControlMode,
     SeekMode,
 };
-use crate::ffui_core::engine::template_args::{
-    split_template_args,
-    strip_leading_ffmpeg_program,
-};
+use crate::ffui_core::engine::template_args::{split_template_args, strip_leading_ffmpeg_program};
 
 /// 构建 ffmpeg 参数列表。
 ///

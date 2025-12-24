@@ -1,46 +1,16 @@
 use std::ffi::c_void;
-use std::mem::{
-    size_of,
-    zeroed,
-};
+use std::mem::{size_of, zeroed};
 
-use windows::Win32::Foundation::{
-    CloseHandle,
-    GetLastError,
-    HANDLE,
-    HWND,
-};
-use windows::Win32::Security::{
-    GetTokenInformation,
-    TOKEN_ELEVATION,
-    TOKEN_QUERY,
-    TokenElevation,
-};
+use windows::Win32::Foundation::{CloseHandle, GetLastError, HANDLE, HWND};
+use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
 use windows::Win32::System::Threading::{
-    CreateProcessW,
-    DeleteProcThreadAttributeList,
-    EXTENDED_STARTUPINFO_PRESENT,
-    GetCurrentProcess,
-    InitializeProcThreadAttributeList,
-    LPPROC_THREAD_ATTRIBUTE_LIST,
-    OpenProcess,
-    OpenProcessToken,
-    PROC_THREAD_ATTRIBUTE_PARENT_PROCESS,
-    PROCESS_CREATE_PROCESS,
-    PROCESS_CREATION_FLAGS,
-    PROCESS_INFORMATION,
-    STARTUPINFOEXW,
-    UpdateProcThreadAttribute,
+    CreateProcessW, DeleteProcThreadAttributeList, EXTENDED_STARTUPINFO_PRESENT, GetCurrentProcess,
+    InitializeProcThreadAttributeList, LPPROC_THREAD_ATTRIBUTE_LIST, OpenProcess, OpenProcessToken,
+    PROC_THREAD_ATTRIBUTE_PARENT_PROCESS, PROCESS_CREATE_PROCESS, PROCESS_CREATION_FLAGS,
+    PROCESS_INFORMATION, STARTUPINFOEXW, UpdateProcThreadAttribute,
 };
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetShellWindow,
-    GetWindowThreadProcessId,
-};
-use windows::core::{
-    Error as WinError,
-    PCWSTR,
-    PWSTR,
-};
+use windows::Win32::UI::WindowsAndMessaging::{GetShellWindow, GetWindowThreadProcessId};
+use windows::core::{Error as WinError, PCWSTR, PWSTR};
 
 #[allow(dead_code)]
 const SKIP_FLAG_ENV: &str = "FFUI_SKIP_ELEVATION_SHIM";

@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::types::*;
 use crate::ffui_core::settings::ExternalToolSettings;

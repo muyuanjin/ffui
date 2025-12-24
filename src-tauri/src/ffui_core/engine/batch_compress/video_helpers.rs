@@ -2,10 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use super::super::worker_utils::{
-    base_seconds_per_mb,
-    encoder_factor_for_estimate,
-};
+use super::super::worker_utils::{base_seconds_per_mb, encoder_factor_for_estimate};
 use crate::ffui_core::domain::FFmpegPreset;
 use crate::ffui_core::settings::AppSettings;
 

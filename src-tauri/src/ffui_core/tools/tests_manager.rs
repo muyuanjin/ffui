@@ -1,18 +1,12 @@
 #[cfg(all(test, not(windows)))]
 mod tools_tests_manager {
-    use std::fs::{
-        self,
-        File,
-    };
+    use std::fs::{self, File};
     use std::io::Write;
     use std::time::Duration;
 
     use crate::ffui_core::settings::ExternalToolSettings;
     use crate::ffui_core::tools::ensure_tool_available;
-    use crate::ffui_core::tools::types::{
-        ExternalToolKind,
-        TOOL_DOWNLOAD_STATE,
-    };
+    use crate::ffui_core::tools::types::{ExternalToolKind, TOOL_DOWNLOAD_STATE};
     use crate::sync_ext::MutexExt;
 
     // 防回归：当 tools 目录下已存在且可通过 -version 验证的二进制时，

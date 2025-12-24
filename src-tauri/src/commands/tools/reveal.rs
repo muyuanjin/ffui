@@ -1,7 +1,4 @@
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 #[cfg(not(test))]
 use std::process::Command;
 
@@ -39,7 +36,8 @@ fn normalize_reveal_target(path: &Path) -> Result<RevealTarget, String> {
     Err("path does not exist and has no accessible parent directory".to_string())
 }
 
-fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+fn build_reveal_command(target: RevealTarget) -> RevealCommand {
     #[cfg(target_os = "windows")]
     {
         let program = "explorer.exe".to_string();
@@ -53,7 +51,7 @@ fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
             }
             RevealTarget::OpenDirectory(path) => vec![path.to_string_lossy().to_string()],
         };
-        Ok(RevealCommand { program, args })
+        RevealCommand { program, args }
     }
 
     #[cfg(target_os = "macos")]
@@ -63,7 +61,7 @@ fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
             RevealTarget::SelectFile(path) => vec!["-R".to_string(), path.to_string_lossy().into()],
             RevealTarget::OpenDirectory(path) => vec![path.to_string_lossy().to_string()],
         };
-        Ok(RevealCommand { program, args })
+        RevealCommand { program, args }
     }
 
     #[cfg(target_os = "linux")]
@@ -74,16 +72,10 @@ fn build_reveal_command(target: RevealTarget) -> Result<RevealCommand, String> {
             RevealTarget::OpenDirectory(path) => path,
         };
         let dir_str = dir.to_string_lossy().to_string();
-        Ok(RevealCommand {
+        RevealCommand {
             program,
             args: vec![dir_str],
-        })
-    }
-
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        let _ = target;
-        Err("reveal_path_in_folder is not supported on this platform".to_string())
+        }
     }
 }
 
@@ -102,16 +94,22 @@ fn execute_reveal_command(_cmd: &RevealCommand) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn reveal_path_in_folder_impl(path: String) -> Result<(), String> {
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+pub(super) fn reveal_path_in_folder_impl(path: String) -> Result<(), String> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
         return Err("path is empty".to_string());
     }
 
     let normalized_target = normalize_reveal_target(Path::new(trimmed))?;
-    let command = build_reveal_command(normalized_target)?;
+    let command = build_reveal_command(normalized_target);
     execute_reveal_command(&command)?;
     Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+pub(super) fn reveal_path_in_folder_impl(_path: String) -> Result<(), String> {
+    Err("reveal_path_in_folder is not supported on this platform".to_string())
 }
 
 #[cfg(test)]
@@ -145,8 +143,7 @@ mod tests {
     #[test]
     fn build_reveal_command_uses_xdg_open_parent_directory() {
         let tmp = tempfile::NamedTempFile::new().expect("temp file must be created");
-        let command =
-            build_reveal_command(RevealTarget::SelectFile(tmp.path().to_path_buf())).unwrap();
+        let command = build_reveal_command(RevealTarget::SelectFile(tmp.path().to_path_buf()));
 
         assert_eq!(command.program, "xdg-open");
         assert_eq!(
@@ -165,7 +162,7 @@ mod tests {
     #[test]
     fn build_reveal_command_splits_select_arg_on_windows() {
         let path = std::path::PathBuf::from(r"C:\\videos\\sample.mp4");
-        let command = build_reveal_command(RevealTarget::SelectFile(path)).unwrap();
+        let command = build_reveal_command(RevealTarget::SelectFile(path));
 
         assert_eq!(command.program, "explorer.exe");
         assert_eq!(

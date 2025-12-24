@@ -20,10 +20,7 @@ mod video_paths;
 
 pub(crate) use detection::is_video_file;
 #[cfg(test)]
-pub(super) use detection::{
-    build_image_avif_paths,
-    is_batch_compress_style_output,
-};
+pub(super) use detection::{build_image_avif_paths, is_batch_compress_style_output};
 #[cfg(test)]
 pub(super) use image::handle_image_file;
 pub(super) use orchestrator::run_auto_compress;

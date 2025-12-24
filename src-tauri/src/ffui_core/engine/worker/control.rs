@@ -1,17 +1,8 @@
 use std::sync::Arc;
 
-use super::super::state::{
-    Inner,
-    notify_queue_listeners,
-};
-use super::super::worker_utils::{
-    append_job_log_line,
-    current_time_millis,
-};
-use crate::ffui_core::domain::{
-    JobStatus,
-    WaitMetadata,
-};
+use super::super::state::{Inner, notify_queue_listeners};
+use super::super::worker_utils::{append_job_log_line, current_time_millis};
+use crate::ffui_core::domain::{JobStatus, WaitMetadata};
 use crate::sync_ext::MutexExt;
 
 fn cancel_waiting_like_job(

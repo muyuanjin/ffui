@@ -1,36 +1,14 @@
 use std::path::Path;
 
-use windows::Win32::Foundation::{
-    BOOL,
-    HWND,
-    LPARAM,
-};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
 use windows::Win32::System::Threading::{
-    AttachThreadInput,
-    OpenProcess,
-    PROCESS_NAME_FORMAT,
-    PROCESS_QUERY_LIMITED_INFORMATION,
+    AttachThreadInput, OpenProcess, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
     QueryFullProcessImageNameW,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop,
-    EnumWindows,
-    GetForegroundWindow,
-    GetWindowTextLengthW,
-    GetWindowTextW,
-    GetWindowThreadProcessId,
-    HWND_NOTOPMOST,
-    HWND_TOPMOST,
-    IsIconic,
-    IsWindowVisible,
-    SW_RESTORE,
-    SW_SHOW,
-    SWP_NOMOVE,
-    SWP_NOSIZE,
-    SWP_SHOWWINDOW,
-    SetForegroundWindow,
-    SetWindowPos,
-    ShowWindow,
+    BringWindowToTop, EnumWindows, GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW,
+    GetWindowThreadProcessId, HWND_NOTOPMOST, HWND_TOPMOST, IsIconic, IsWindowVisible, SW_RESTORE,
+    SW_SHOW, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos, ShowWindow,
     SwitchToThisWindow,
 };
 
@@ -156,10 +134,7 @@ fn normalize_windows_path_for_compare(value: &str) -> String {
 
 fn query_process_image_path(pid: u32) -> Option<String> {
     use windows::Win32::Foundation::{
-        CloseHandle,
-        ERROR_INSUFFICIENT_BUFFER,
-        GetLastError,
-        HANDLE,
+        CloseHandle, ERROR_INSUFFICIENT_BUFFER, GetLastError, HANDLE,
     };
 
     unsafe {

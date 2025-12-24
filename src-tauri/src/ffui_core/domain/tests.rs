@@ -1,14 +1,8 @@
 #[cfg(test)]
 mod domain_contract_tests {
-    use serde_json::{
-        Value,
-        json,
-    };
+    use serde_json::{Value, json};
 
-    use super::super::batch_compress::{
-        AutoCompressProgress,
-        AutoCompressResult,
-    };
+    use super::super::batch_compress::{AutoCompressProgress, AutoCompressResult};
     use super::super::job::*;
     use super::super::preset::PresetStats;
 

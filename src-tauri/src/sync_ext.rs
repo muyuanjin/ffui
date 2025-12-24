@@ -1,11 +1,5 @@
 use std::sync::{
-    Condvar,
-    Mutex,
-    MutexGuard,
-    RwLock,
-    RwLockReadGuard,
-    RwLockWriteGuard,
-    WaitTimeoutResult,
+    Condvar, Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard, WaitTimeoutResult,
 };
 use std::time::Duration;
 
@@ -143,7 +137,8 @@ impl CondvarExt for Condvar {
         condition: F,
     ) -> MutexGuard<'a, T>
     where
-        F: FnMut(&mut T) -> bool, {
+        F: FnMut(&mut T) -> bool,
+    {
         match self.wait_while(guard, condition) {
             Ok(guard) => guard,
             Err(err) => {
@@ -162,12 +157,7 @@ impl CondvarExt for Condvar {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{
-        Arc,
-        Condvar,
-        Mutex,
-        RwLock,
-    };
+    use std::sync::{Arc, Condvar, Mutex, RwLock};
     use std::time::Duration;
 
     use super::*;

@@ -1,7 +1,4 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase", tag = "mode")]
@@ -74,7 +71,8 @@ pub struct OutputFilenamePolicy {
     pub append_order: Vec<OutputFilenameAppend>,
 }
 
-fn is_false(v: &bool) -> bool {
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_false(v: &bool) -> bool {
     !*v
 }
 

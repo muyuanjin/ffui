@@ -1,26 +1,11 @@
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
-use anyhow::{
-    Context,
-    Result,
-};
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 
-use super::{
-    DataRootMode,
-    META_FILENAME,
-};
-use crate::ffui_core::settings::io::{
-    read_json_file,
-    write_json_file,
-};
+use super::{DataRootMode, META_FILENAME};
+use crate::ffui_core::settings::io::{read_json_file, write_json_file};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -64,23 +49,16 @@ fn meta_preference(meta: &DataRootMeta) -> Option<(DataRootMode, u64)> {
 }
 
 pub(super) fn pick_meta_mode(
-    system: Option<DataRootMeta>,
-    portable: Option<DataRootMeta>,
+    system: Option<&DataRootMeta>,
+    portable: Option<&DataRootMeta>,
 ) -> Option<DataRootMode> {
-    let system_pref = system.as_ref().and_then(meta_preference);
-    let portable_pref = portable.as_ref().and_then(meta_preference);
+    let system_pref = system.and_then(meta_preference);
+    let portable_pref = portable.and_then(meta_preference);
     match (system_pref, portable_pref) {
         (Some((mode_a, ts_a)), Some((mode_b, ts_b))) => {
-            if ts_b > ts_a {
-                Some(mode_b)
-            } else if ts_a > ts_b {
-                Some(mode_a)
-            } else {
-                Some(mode_b)
-            }
+            Some(if ts_b >= ts_a { mode_b } else { mode_a })
         }
-        (Some((mode, _)), None) => Some(mode),
-        (None, Some((mode, _))) => Some(mode),
+        (Some((mode, _)), None) | (None, Some((mode, _))) => Some(mode),
         (None, None) => None,
     }
 }

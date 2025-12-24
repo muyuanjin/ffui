@@ -85,8 +85,8 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
         serde_json::json!({
             "path": path,
             "exists": metadata.is_some(),
-            "isFile": metadata.as_ref().map(|m| m.is_file()).unwrap_or(false),
-            "isDir": metadata.as_ref().map(|m| m.is_dir()).unwrap_or(false),
+            "isFile": metadata.as_ref().is_some_and(std::fs::Metadata::is_file),
+            "isDir": metadata.as_ref().is_some_and(std::fs::Metadata::is_dir),
             "sizeBytes": size_bytes,
             "createdMs": created_ms,
             "modifiedMs": modified_ms,
@@ -136,9 +136,9 @@ pub(super) fn log_external_command(inner: &Inner, job_id: &str, program: &str, a
         {
             last.started_at_ms = Some(now_ms);
             if last.logs.is_empty() && !job.logs.is_empty() {
-                last.logs = job.logs.clone();
+                last.logs.clone_from(&job.logs);
             }
-            last.command = cmd.clone();
+            last.command.clone_from(&cmd);
         } else {
             job.runs.push(crate::ffui_core::domain::JobRun {
                 command: cmd.clone(),

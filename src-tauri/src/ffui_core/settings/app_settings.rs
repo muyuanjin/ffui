@@ -1,9 +1,6 @@
 use anyhow::Result;
 
-use super::io::{
-    read_json_file,
-    write_json_file,
-};
+use super::io::{read_json_file, write_json_file};
 use super::types::AppSettings;
 use crate::ffui_core::data_root::settings_path;
 

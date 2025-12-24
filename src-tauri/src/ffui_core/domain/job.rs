@@ -1,12 +1,12 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 use super::output_policy::OutputPolicy;
-fn is_zero(v: &u64) -> bool {
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_zero(v: &u64) -> bool {
     *v == 0
 }
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadata {
@@ -335,8 +335,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
         let (first_run_command, first_run_started_at_ms) = job
             .runs
             .first()
-            .map(|r| (Some(r.command.clone()), r.started_at_ms))
-            .unwrap_or((None, None));
+            .map_or((None, None), |r| (Some(r.command.clone()), r.started_at_ms));
 
         Self {
             id: job.id.clone(),
@@ -378,7 +377,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
 impl From<&QueueState> for QueueStateLite {
     fn from(snapshot: &QueueState) -> Self {
         let jobs = snapshot.jobs.iter().map(TranscodeJobLite::from).collect();
-        QueueStateLite { jobs }
+        Self { jobs }
     }
 }
 
@@ -440,6 +439,6 @@ impl From<TranscodeJobLite> for TranscodeJob {
 impl From<QueueStateLite> for QueueState {
     fn from(snapshot: QueueStateLite) -> Self {
         let jobs = snapshot.jobs.into_iter().map(TranscodeJob::from).collect();
-        QueueState { jobs }
+        Self { jobs }
     }
 }

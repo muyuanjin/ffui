@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use super::*;
-use crate::ffui_core::domain::{
-    TranscodeJob,
-    TranscodeJobLite,
-};
+use crate::ffui_core::domain::{TranscodeJob, TranscodeJobLite};
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 

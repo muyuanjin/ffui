@@ -1,9 +1,5 @@
 use super::template::infer_template_output_codecs;
-use crate::ffui_core::domain::{
-    AudioCodecType,
-    EncoderType,
-    FFmpegPreset,
-};
+use crate::ffui_core::domain::{AudioCodecType, EncoderType, FFmpegPreset};
 
 pub(in crate::ffui_core::engine) fn should_fallback_webm(
     preset: Option<&FFmpegPreset>,

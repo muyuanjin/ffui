@@ -37,43 +37,21 @@ use std::sync::Arc;
 use anyhow::Result;
 pub use ffmpeg_args::init_child_process_job;
 use state::{
-    Inner,
-    restore_jobs_from_persisted_queue,
-    snapshot_queue_state,
-    snapshot_queue_state_lite,
+    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
 };
 
 use crate::ffui_core::domain::{
-    AutoCompressProgress,
-    AutoCompressResult,
-    BatchCompressConfig,
-    FFmpegPreset,
-    JobSource,
-    JobType,
-    OutputPolicy,
-    QueueState,
-    QueueStateLite,
-    TranscodeJob,
+    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource,
+    JobType, OutputPolicy, QueueState, QueueStateLite, TranscodeJob,
 };
 use crate::ffui_core::monitor::{
-    CpuUsageSnapshot,
-    GpuUsageSnapshot,
-    sample_cpu_usage,
-    sample_gpu_usage,
+    CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
 };
-use crate::ffui_core::settings::{
-    self,
-    AppSettings,
-};
+use crate::ffui_core::settings::{self, AppSettings};
 use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ExternalToolStatus,
-    clear_tool_runtime_error,
-    hydrate_last_tool_download_from_settings,
-    hydrate_probe_cache_from_settings,
-    hydrate_remote_version_cache_from_settings,
-    tool_status,
-    update_probe_cache_from_statuses,
+    ExternalToolKind, ExternalToolStatus, clear_tool_runtime_error,
+    hydrate_last_tool_download_from_settings, hydrate_probe_cache_from_settings,
+    hydrate_remote_version_cache_from_settings, tool_status, update_probe_cache_from_statuses,
 };
 use crate::sync_ext::MutexExt;
 
@@ -115,10 +93,7 @@ impl TranscodingEngine {
         let inner = Arc::new(Inner::new(presets, settings));
         {
             use std::sync::atomic::Ordering;
-            use std::time::{
-                SystemTime,
-                UNIX_EPOCH,
-            };
+            use std::time::{SystemTime, UNIX_EPOCH};
 
             // If crash recovery is enabled, pre-bump the job id counter to a
             // high watermark so any new enqueues happening before the recovery
@@ -227,7 +202,8 @@ impl TranscodingEngine {
     #[cfg(test)]
     pub fn register_queue_listener<F>(&self, listener: F)
     where
-        F: Fn(QueueState) + Send + Sync + 'static, {
+        F: Fn(QueueState) + Send + Sync + 'static,
+    {
         let mut listeners = self.inner.queue_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
@@ -235,7 +211,8 @@ impl TranscodingEngine {
     /// Register a listener for lightweight queue state changes.
     pub fn register_queue_lite_listener<F>(&self, listener: F)
     where
-        F: Fn(QueueStateLite) + Send + Sync + 'static, {
+        F: Fn(QueueStateLite) + Send + Sync + 'static,
+    {
         let mut listeners = self.inner.queue_lite_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
@@ -243,7 +220,8 @@ impl TranscodingEngine {
     /// Register a listener for Batch Compress progress updates.
     pub fn register_batch_compress_listener<F>(&self, listener: F)
     where
-        F: Fn(AutoCompressProgress) + Send + Sync + 'static, {
+        F: Fn(AutoCompressProgress) + Send + Sync + 'static,
+    {
         let mut listeners = self.inner.batch_compress_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }

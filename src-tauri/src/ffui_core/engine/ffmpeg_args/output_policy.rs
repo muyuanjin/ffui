@@ -1,10 +1,7 @@
 use std::path::Path;
 
 use super::normalize_container_format;
-use crate::ffui_core::domain::{
-    OutputContainerPolicy,
-    OutputPolicy,
-};
+use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
 
 pub(super) fn forced_muxer_for_policy(
     policy: Option<&OutputPolicy>,

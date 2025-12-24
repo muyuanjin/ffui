@@ -1,14 +1,8 @@
 use std::collections::HashSet;
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 pub(crate) fn previews_root_dir_best_effort() -> Result<PathBuf> {
     crate::ffui_core::previews_dir()

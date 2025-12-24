@@ -1,14 +1,8 @@
 use super::state::notify_queue_listeners;
-use super::{
-    TranscodingEngine,
-    job_runner,
-};
+use super::{TranscodingEngine, job_runner};
 use crate::ffui_core::domain::JobType;
 use crate::ffui_core::settings::ExternalToolSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
@@ -73,10 +67,7 @@ impl TranscodingEngine {
     ) {
         use std::collections::HashSet;
         use std::fs;
-        use std::path::{
-            Path,
-            PathBuf,
-        };
+        use std::path::{Path, PathBuf};
 
         let previews_root = match crate::ffui_core::previews_dir() {
             Ok(dir) => dir,

@@ -1,24 +1,12 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{
-    Arc,
-    Mutex,
-};
-use std::time::{
-    Duration,
-    SystemTime,
-};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 
 use super::FallbackFrameQuality;
@@ -104,10 +92,7 @@ pub(crate) fn file_fingerprint(path: &Path) -> (u64, Option<u128>) {
 
 pub(crate) fn hash_key(parts: &[&str]) -> u64 {
     use std::collections::hash_map::DefaultHasher;
-    use std::hash::{
-        Hash,
-        Hasher,
-    };
+    use std::hash::{Hash, Hasher};
     let mut hasher = DefaultHasher::new();
     for part in parts {
         part.hash(&mut hasher);
@@ -151,7 +136,8 @@ pub(crate) fn extract_frame_with_seek_backoffs<F>(
     mut run_ffmpeg: F,
 ) -> Result<f64>
 where
-    F: FnMut(f64, &Path) -> Result<()>, {
+    F: FnMut(f64, &Path) -> Result<()>,
+{
     let mut last_error: Option<anyhow::Error> = None;
     for offset in seek_backoffs_seconds {
         let attempt_seconds = (base_seek_seconds - offset).max(0.0);
@@ -243,7 +229,8 @@ pub(crate) fn with_cached_preview_frame<F>(
     run: F,
 ) -> Result<PathBuf>
 where
-    F: FnOnce(&Path, &Path) -> Result<()>, {
+    F: FnOnce(&Path, &Path) -> Result<()>,
+{
     ensure_dir_exists(frames_dir)?;
 
     let final_path = frames_dir.join(format!("{hash:016x}.jpg"));

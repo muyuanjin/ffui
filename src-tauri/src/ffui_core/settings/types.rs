@@ -1,27 +1,14 @@
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
 mod types_helpers;
 
-pub use super::monitor_updater_types::{
-    AppUpdaterSettings,
-    MonitorSettings,
-    TranscodeActivityDay,
-};
+pub use super::monitor_updater_types::{AppUpdaterSettings, MonitorSettings, TranscodeActivityDay};
 use super::proxy::NetworkProxySettings;
 pub use super::tool_probe_cache::{
-    ExternalToolBinaryFingerprint,
-    ExternalToolProbeCache,
-    ExternalToolProbeCacheEntry,
+    ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
 };
 use crate::ffui_core::domain::{
-    BatchCompressConfig,
-    FileTypeFilter,
-    ImageTargetFormat,
-    OutputPolicy,
-    SavingConditionType,
+    BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
 };
 
 /// Human-readable metadata for a downloaded tool binary.

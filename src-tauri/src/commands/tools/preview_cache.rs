@@ -1,16 +1,10 @@
 use tauri::State;
 
 use crate::ffui_core::{
-    TranscodingEngine,
-    cleanup_unreferenced_previews,
-    clear_fallback_frame_cache,
-    previews_root_dir_best_effort,
-    referenced_preview_filenames,
+    TranscodingEngine, cleanup_unreferenced_previews, clear_fallback_frame_cache,
+    previews_root_dir_best_effort, referenced_preview_filenames,
 };
-use crate::sync_ext::{
-    CondvarExt,
-    MutexExt,
-};
+use crate::sync_ext::{CondvarExt, MutexExt};
 
 fn wait_for_queue_recovery(engine: &TranscodingEngine) {
     use std::sync::atomic::Ordering;
@@ -43,10 +37,7 @@ fn cleanup_preview_caches_worker(
         .filter_map(|j| j.preview_path);
     let referenced = referenced_preview_filenames(preview_paths);
 
-    let previews_root = match previews_root_override {
-        Some(path) => Ok(path),
-        None => previews_root_dir_best_effort(),
-    };
+    let previews_root = previews_root_override.map_or_else(previews_root_dir_best_effort, Ok);
 
     match previews_root {
         Ok(previews_root) => {
@@ -101,7 +92,7 @@ mod tests {
         fs::write(&txt, b"txt").unwrap();
 
         let engine_for_thread = engine.clone();
-        let previews_root_for_thread = previews_root.clone();
+        let previews_root_for_thread = previews_root;
         let handle = std::thread::spawn(move || {
             cleanup_preview_caches_worker(engine_for_thread, Some(previews_root_for_thread));
         });

@@ -1,10 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 fn truncate_for_error(s: &str, max_chars: usize) -> String {
     if max_chars == 0 {

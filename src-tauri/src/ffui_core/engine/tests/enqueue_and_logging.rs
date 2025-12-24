@@ -89,10 +89,7 @@ fn enqueue_transcode_job_plans_output_path_with_filename_immediately() {
 
 #[test]
 fn enqueue_transcode_job_snapshots_queue_output_policy() {
-    use crate::ffui_core::domain::{
-        OutputContainerPolicy,
-        OutputPolicy,
-    };
+    use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
 
     let dir = env::temp_dir();
     let path = dir.join("ffui_test_output_policy_snapshot.mp4");
@@ -105,9 +102,11 @@ fn enqueue_transcode_job_snapshots_queue_output_policy() {
 
     let engine = make_engine_with_preset();
 
-    let mut policy = OutputPolicy::default();
-    policy.container = OutputContainerPolicy::Force {
-        format: "mkv".to_string(),
+    let policy = OutputPolicy {
+        container: OutputContainerPolicy::Force {
+            format: "mkv".to_string(),
+        },
+        ..Default::default()
     };
 
     {

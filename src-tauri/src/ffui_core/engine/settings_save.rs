@@ -118,9 +118,7 @@ mod tests {
     #[test]
     fn merge_backend_owned_tool_state_preserves_probe_cache_when_omitted() {
         use crate::ffui_core::settings::types::{
-            ExternalToolBinaryFingerprint,
-            ExternalToolProbeCache,
-            ExternalToolProbeCacheEntry,
+            ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
         };
 
         let old_tools = crate::ffui_core::settings::ExternalToolSettings {
@@ -153,9 +151,7 @@ mod tests {
     #[test]
     fn merge_backend_owned_tool_state_does_not_override_probe_cache_when_present() {
         use crate::ffui_core::settings::types::{
-            ExternalToolBinaryFingerprint,
-            ExternalToolProbeCache,
-            ExternalToolProbeCacheEntry,
+            ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
         };
 
         let old_tools = crate::ffui_core::settings::ExternalToolSettings {

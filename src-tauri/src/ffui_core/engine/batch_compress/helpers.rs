@@ -2,31 +2,16 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 use std::sync::atomic::Ordering;
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::super::ffmpeg_args::configure_background_command;
-use super::super::state::{
-    Inner,
-    notify_queue_listeners as notify_engine_queue_listeners,
-};
+use super::super::state::{Inner, notify_queue_listeners as notify_engine_queue_listeners};
 use super::super::worker_utils::append_job_log_line;
 use crate::ffui_core::domain::{
-    BatchCompressConfig,
-    JobSource,
-    JobStatus,
-    JobType,
-    MediaInfo,
-    OutputPolicy,
-    PreserveFileTimesPolicy,
-    TranscodeJob,
+    BatchCompressConfig, JobSource, JobStatus, JobType, MediaInfo, OutputPolicy,
+    PreserveFileTimesPolicy, TranscodeJob,
 };
 use crate::ffui_core::tools::ExternalToolKind;
 

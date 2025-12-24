@@ -1,11 +1,5 @@
-use std::ffi::{
-    OsStr,
-    OsString,
-};
-use std::sync::{
-    Mutex,
-    MutexGuard,
-};
+use std::ffi::{OsStr, OsString};
+use std::sync::{Mutex, MutexGuard};
 
 use once_cell::sync::Lazy;
 
@@ -20,11 +14,7 @@ pub fn make_transcode_job_for_tests(
     progress: f64,
     start_time: Option<u64>,
 ) -> crate::ffui_core::TranscodeJob {
-    use crate::ffui_core::{
-        JobSource,
-        JobType,
-        TranscodeJob,
-    };
+    use crate::ffui_core::{JobSource, JobType, TranscodeJob};
 
     /* jscpd:ignore-start */
     TranscodeJob {
@@ -84,7 +74,8 @@ impl EnvVarGuard {
     pub fn capture<I, S>(keys: I) -> Self
     where
         I: IntoIterator<Item = S>,
-        S: AsRef<str>, {
+        S: AsRef<str>,
+    {
         let prev = keys
             .into_iter()
             .map(|k| {

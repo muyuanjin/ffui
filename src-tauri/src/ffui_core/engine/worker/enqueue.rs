@@ -3,26 +3,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use super::super::ffmpeg_args::{
-    build_ffmpeg_args,
-    format_command_for_log,
-};
+use super::super::ffmpeg_args::{build_ffmpeg_args, format_command_for_log};
 use super::super::output_policy_paths::plan_video_output_path;
-use super::super::state::{
-    Inner,
-    notify_queue_listeners,
-};
-use super::super::worker_utils::{
-    current_time_millis,
-    estimate_job_seconds_for_preset,
-};
+use super::super::state::{Inner, notify_queue_listeners};
+use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 use crate::ffui_core::domain::{
-    JobSource,
-    JobStatus,
-    JobType,
-    MediaInfo,
-    OutputPolicy,
-    TranscodeJob,
+    JobSource, JobStatus, JobType, MediaInfo, OutputPolicy, TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 

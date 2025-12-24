@@ -1,15 +1,12 @@
 #[cfg(test)]
-pub(crate) use tools_tests_runtime::TEST_MUTEX;
+pub(super) use tools_tests_runtime::TEST_MUTEX;
 
 #[cfg(test)]
 mod tools_tests_runtime {
     #[cfg(windows)]
     use std::fs::File;
     #[cfg(not(windows))]
-    use std::fs::{
-        self,
-        File,
-    };
+    use std::fs::{self, File};
     use std::io::Write;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
@@ -20,29 +17,20 @@ mod tools_tests_runtime {
 
     use crate::ffui_core::settings::ExternalToolSettings;
     #[cfg(not(windows))]
-    use crate::ffui_core::settings::{
-        DownloadedToolInfo,
-        DownloadedToolState,
-    };
+    use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
     use crate::ffui_core::tools::runtime_state::{
-        LATEST_TOOL_STATUS,
-        mark_download_finished,
-        mark_download_progress,
-        mark_download_started,
+        LATEST_TOOL_STATUS, mark_download_finished, mark_download_progress, mark_download_started,
     };
     use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
     use crate::ffui_core::tools::{
-        ExternalToolKind,
-        ExternalToolStatus,
-        update_latest_status_snapshot,
+        ExternalToolKind, ExternalToolStatus, update_latest_status_snapshot,
     };
     use crate::sync_ext::MutexExt;
-    pub(crate) static TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+    pub(in crate::ffui_core::tools) static TEST_MUTEX: Lazy<Mutex<()>> =
+        Lazy::new(|| Mutex::new(()));
     #[test]
     fn tool_status_exposes_download_state_defaults() {
         let _guard = TEST_MUTEX.lock().unwrap();
-        use crate::ffui_core::tools::tool_status;
-        use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
         // Start from a clean runtime state so earlier tests do not leak.
         {
             let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
@@ -65,7 +53,7 @@ mod tools_tests_runtime {
             probe_cache: None,
         };
 
-        let status = tool_status(ExternalToolKind::Ffmpeg, &settings);
+        let status = crate::ffui_core::tools::tool_status(ExternalToolKind::Ffmpeg, &settings);
         assert!(!status.download_in_progress);
         assert!(status.download_progress.is_none() || status.download_progress == Some(0.0));
         assert!(status.downloaded_bytes.is_none());

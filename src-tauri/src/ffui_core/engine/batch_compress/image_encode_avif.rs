@@ -2,37 +2,18 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
-use super::super::ffmpeg_args::{
-    configure_background_command,
-    format_command_for_log,
-};
-use super::super::state::{
-    Inner,
-    register_known_batch_compress_output_with_inner,
-};
+use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
+use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
-use super::helpers::{
-    current_time_millis,
-    record_tool_download,
-};
+use super::helpers::{current_time_millis, record_tool_download};
 use crate::ffui_core::domain::{
-    BatchCompressConfig,
-    JobRun,
-    JobStatus,
-    PreserveFileTimesPolicy,
-    TranscodeJob,
+    BatchCompressConfig, JobRun, JobStatus, PreserveFileTimesPolicy, TranscodeJob,
 };
 use crate::ffui_core::engine::file_times::FileTimesSnapshot;
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 struct FinalizeAvifEncodeSpec<'a> {
     inner: &'a Inner,

@@ -1,18 +1,9 @@
 use std::env;
-use std::fs::{
-    self,
-    File,
-};
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::{
-    Command,
-    Stdio,
-};
-use std::sync::{
-    Arc as TestArc,
-    Mutex as TestMutex,
-};
+use std::process::{Command, Stdio};
+use std::sync::{Arc as TestArc, Mutex as TestMutex};
 
 use super::batch_compress::*;
 use super::ffmpeg_args::*;
@@ -21,31 +12,13 @@ use super::state::*;
 use super::worker::*;
 use super::*;
 use crate::ffui_core::domain::{
-    AudioCodecType,
-    AudioConfig,
-    ContainerConfig,
-    DurationMode,
-    EncoderType,
-    FilterConfig,
-    GlobalConfig,
-    HardwareConfig,
-    InputTimelineConfig,
-    MappingConfig,
-    MediaInfo,
-    OverwriteBehavior,
-    PresetStats,
-    RateControlMode,
-    SeekMode,
-    SubtitleStrategy,
-    SubtitlesConfig,
-    VideoConfig,
+    AudioCodecType, AudioConfig, ContainerConfig, DurationMode, EncoderType, FilterConfig,
+    GlobalConfig, HardwareConfig, InputTimelineConfig, MappingConfig, MediaInfo, OverwriteBehavior,
+    PresetStats, RateControlMode, SeekMode, SubtitleStrategy, SubtitlesConfig, VideoConfig,
     WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::{
-    ImageTargetFormat,
-    JobStatus,
-};
+use crate::ffui_core::{ImageTargetFormat, JobStatus};
 pub(super) use crate::sync_ext::MutexExt;
 
 mod common;

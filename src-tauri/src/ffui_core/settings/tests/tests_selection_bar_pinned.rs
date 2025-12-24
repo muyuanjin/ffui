@@ -1,7 +1,4 @@
-use serde_json::{
-    Value,
-    json,
-};
+use serde_json::{Value, json};
 
 use crate::ffui_core::settings::AppSettings;
 

@@ -1,8 +1,5 @@
 use crate::ffui_core::{
-    QueueStateLite,
-    TaskbarProgressMode,
-    TaskbarProgressScope,
-    TranscodeJobLite,
+    QueueStateLite, TaskbarProgressMode, TaskbarProgressScope, TranscodeJobLite,
 };
 
 // jscpd:ignore-start
@@ -55,14 +52,8 @@ pub fn update_taskbar_progress_lite(
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,
 ) {
-    use tauri::window::{
-        ProgressBarState,
-        ProgressBarStatus,
-    };
-    use tauri::{
-        Manager,
-        UserAttentionType,
-    };
+    use tauri::window::{ProgressBarState, ProgressBarStatus};
+    use tauri::{Manager, UserAttentionType};
 
     if let Some(window) = app.get_webview_window("main") {
         let completed_queue =
@@ -143,11 +134,7 @@ pub fn update_taskbar_progress_lite(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffui_core::{
-        JobStatus,
-        QueueState,
-        TranscodeJob,
-    };
+    use crate::ffui_core::{JobStatus, QueueState, TranscodeJob};
 
     fn make_full_job_with_start(
         id: &str,

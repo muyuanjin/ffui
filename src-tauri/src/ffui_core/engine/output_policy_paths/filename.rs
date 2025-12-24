@@ -3,11 +3,7 @@ use regex::Regex;
 
 use super::utils::random_hex;
 use crate::ffui_core::domain::{
-    EncoderType,
-    FFmpegPreset,
-    OutputFilenameAppend,
-    OutputPolicy,
-    RateControlMode,
+    EncoderType, FFmpegPreset, OutputFilenameAppend, OutputPolicy, RateControlMode,
 };
 
 pub(super) fn apply_filename_policy(

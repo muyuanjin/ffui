@@ -1,12 +1,6 @@
-use serde_json::{
-    Value,
-    json,
-};
+use serde_json::{Value, json};
 
-use super::types::{
-    DEFAULT_UI_SCALE_PERCENT,
-    UiFontFamily,
-};
+use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 
 mod network_proxy;

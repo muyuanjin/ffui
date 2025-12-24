@@ -2,10 +2,7 @@ use super::*;
 
 #[test]
 fn presets_snapshot_is_reused_and_cow_on_mutation() {
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     let tmp_dir = std::env::temp_dir();
     let timestamp = SystemTime::now()

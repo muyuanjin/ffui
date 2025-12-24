@@ -1,11 +1,5 @@
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-use std::sync::{
-    Arc,
-    Mutex,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use tauri::Emitter;
@@ -157,7 +151,8 @@ fn emit_tool_status_event_if_possible() {
 
 pub(super) fn with_download_state<F, R>(kind: ExternalToolKind, f: F) -> R
 where
-    F: FnOnce(&mut ToolDownloadRuntimeState) -> R, {
+    F: FnOnce(&mut ToolDownloadRuntimeState) -> R,
+{
     let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
     let entry = map.entry(kind).or_default();
     f(entry)

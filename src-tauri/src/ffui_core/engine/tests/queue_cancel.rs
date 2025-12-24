@@ -1,7 +1,4 @@
-use std::{
-    env,
-    fs,
-};
+use std::{env, fs};
 
 use super::*;
 use crate::ffui_core::domain::WaitMetadata;

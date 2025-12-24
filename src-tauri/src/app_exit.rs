@@ -1,22 +1,10 @@
-use std::sync::atomic::{
-    AtomicBool,
-    Ordering,
-};
-use std::time::{
-    Duration,
-    Instant,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
-use crate::ffui_core::{
-    JobStatus,
-    TranscodingEngine,
-};
-use crate::sync_ext::{
-    CondvarExt,
-    MutexExt,
-};
+use crate::ffui_core::{JobStatus, TranscodingEngine};
+use crate::sync_ext::{CondvarExt, MutexExt};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -142,12 +130,7 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
-    use crate::ffui_core::{
-        JobSource,
-        JobType,
-        QueuePersistenceMode,
-        TranscodeJob,
-    };
+    use crate::ffui_core::{JobSource, JobType, QueuePersistenceMode, TranscodeJob};
     use crate::sync_ext::MutexExt;
 
     static ENV_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
@@ -221,9 +204,12 @@ mod tests {
         assert_eq!(outcome.completed_job_count, 0);
         assert_eq!(outcome.timed_out_job_count, 1);
 
-        let state = engine.inner.state.lock_unpoisoned();
+        let has_wait_request = {
+            let state = engine.inner.state.lock_unpoisoned();
+            state.wait_requests.contains(&job_id)
+        };
         assert!(
-            state.wait_requests.contains(&job_id),
+            has_wait_request,
             "pause_processing_jobs_for_exit should request wait for processing jobs"
         );
     }
@@ -233,7 +219,7 @@ mod tests {
         let engine = TranscodingEngine::new_for_tests();
 
         let job_id = insert_processing_job(&engine, "job-2");
-        spawn_pause_job_after_delay(engine.clone(), job_id.clone(), Duration::from_millis(80));
+        spawn_pause_job_after_delay(engine.clone(), job_id, Duration::from_millis(80));
 
         let outcome = pause_processing_jobs_for_exit(&engine, 1.0);
 
@@ -247,7 +233,7 @@ mod tests {
         let engine = TranscodingEngine::new_for_tests();
 
         let job_id = insert_processing_job(&engine, "job-4");
-        spawn_pause_job_after_delay(engine.clone(), job_id.clone(), Duration::from_millis(80));
+        spawn_pause_job_after_delay(engine.clone(), job_id, Duration::from_millis(80));
 
         let outcome = pause_processing_jobs_for_exit(&engine, 0.0);
 

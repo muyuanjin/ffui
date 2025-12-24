@@ -2,10 +2,7 @@ use std::sync::RwLock;
 
 use once_cell::sync::Lazy;
 
-use crate::ffui_core::settings::{
-    NetworkProxyMode,
-    NetworkProxySettings,
-};
+use crate::ffui_core::settings::{NetworkProxyMode, NetworkProxySettings};
 use crate::sync_ext::RwLockExt;
 
 #[derive(Debug, Clone)]
@@ -194,16 +191,9 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
 fn proxy_from_windows_inet_settings() -> Option<String> {
     use windows::Win32::Foundation::ERROR_SUCCESS;
     use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER,
-        RRF_RT_REG_DWORD,
-        RRF_RT_REG_EXPAND_SZ,
-        RRF_RT_REG_SZ,
-        RegGetValueW,
+        HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RRF_RT_REG_EXPAND_SZ, RRF_RT_REG_SZ, RegGetValueW,
     };
-    use windows::core::{
-        HSTRING,
-        PCWSTR,
-    };
+    use windows::core::{HSTRING, PCWSTR};
 
     const SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Internet Settings";
 

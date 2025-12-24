@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use serde::{
-    Deserialize,
-    Serialize,
-};
+use serde::{Deserialize, Serialize};
 
-use super::config::*;
+use super::config::{
+    AudioConfig, ContainerConfig, FilterConfig, GlobalConfig, HardwareConfig, InputTimelineConfig,
+    MappingConfig, SubtitlesConfig, VideoConfig,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

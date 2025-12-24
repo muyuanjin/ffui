@@ -3,16 +3,8 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 
-use super::io::{
-    read_json_file,
-    write_json_file,
-};
-use super::preset_templates::{
-    base_preset,
-    filters_empty,
-    filters_scale,
-    video_x264_crf,
-};
+use super::io::{read_json_file, write_json_file};
+use super::preset_templates::{base_preset, filters_empty, filters_scale, video_x264_crf};
 use crate::ffui_core::data_root::presets_path;
 use crate::ffui_core::domain::FFmpegPreset;
 #[cfg(test)]
@@ -33,21 +25,22 @@ pub(super) fn with_presets_sidecar_lock<T>(f: impl FnOnce() -> T) -> T {
         static HELD: Cell<bool> = const { Cell::new(false) };
     }
 
-    // Allow re-entrancy within the same thread so tests can compose
-    // `with_presets_sidecar_lock` with `load_presets`/`save_presets` without
-    // deadlocking on the non-reentrant std::sync::Mutex.
-    if HELD.with(|flag| flag.get()) {
-        return f();
-    }
-
-    let _guard = PRESETS_SIDECAR_MUTEX.lock_unpoisoned();
-    HELD.with(|flag| flag.set(true));
     struct Reset;
     impl Drop for Reset {
         fn drop(&mut self) {
             HELD.with(|flag| flag.set(false));
         }
     }
+
+    // Allow re-entrancy within the same thread so tests can compose
+    // `with_presets_sidecar_lock` with `load_presets`/`save_presets` without
+    // deadlocking on the non-reentrant std::sync::Mutex.
+    if HELD.with(Cell::get) {
+        return f();
+    }
+
+    let _guard = PRESETS_SIDECAR_MUTEX.lock_unpoisoned();
+    HELD.with(|flag| flag.set(true));
     let _reset = Reset;
     f()
 }
@@ -130,9 +123,9 @@ mod tests {
         assert!(!presets.is_empty(), "default_presets should not be empty");
         for preset in presets {
             assert_eq!(preset.stats.usage_count, 0);
-            assert_eq!(preset.stats.total_input_size_mb, 0.0);
-            assert_eq!(preset.stats.total_output_size_mb, 0.0);
-            assert_eq!(preset.stats.total_time_seconds, 0.0);
+            assert!(preset.stats.total_input_size_mb.abs() < f64::EPSILON);
+            assert!(preset.stats.total_output_size_mb.abs() < f64::EPSILON);
+            assert!(preset.stats.total_time_seconds.abs() < f64::EPSILON);
         }
     }
 }

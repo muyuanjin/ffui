@@ -1,21 +1,10 @@
-use std::time::{
-    SystemTime,
-    UNIX_EPOCH,
-};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::state::{
-    BatchCompressBatchStatus,
-    Inner,
-    notify_batch_compress_listeners,
-    notify_queue_listeners,
+    BatchCompressBatchStatus, Inner, notify_batch_compress_listeners, notify_queue_listeners,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress,
-    EncoderType,
-    FFmpegPreset,
-    JobStatus,
-    PresetStats,
-    TranscodeJob,
+    AutoCompressProgress, EncoderType, FFmpegPreset, JobStatus, PresetStats, TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 

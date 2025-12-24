@@ -1,7 +1,4 @@
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::{Path, PathBuf};
 
 use super::ui_fonts_types::DownloadedFontInfo;
 

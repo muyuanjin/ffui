@@ -21,31 +21,17 @@ mod types;
 
 // Re-export API
 pub(crate) use candidates::tool_candidates;
-pub(crate) use download::{
-    ensure_tool_available,
-    force_download_tool_binary,
-};
+pub(crate) use download::{ensure_tool_available, force_download_tool_binary};
 pub(crate) use probe::verify_tool_binary;
 pub(crate) use runtime_state::{
-    cached_ffmpeg_release_version,
-    cached_libavif_release_version,
-    cached_tool_status_snapshot,
-    clear_tool_runtime_error,
-    finish_tool_status_refresh,
-    hydrate_last_tool_download_from_settings,
-    hydrate_remote_version_cache_from_settings,
-    last_tool_download_metadata,
-    set_app_handle as set_tool_event_app_handle,
-    try_begin_tool_status_refresh,
-    ttl_hit,
+    cached_ffmpeg_release_version, cached_libavif_release_version, cached_tool_status_snapshot,
+    clear_tool_runtime_error, finish_tool_status_refresh, hydrate_last_tool_download_from_settings,
+    hydrate_remote_version_cache_from_settings, last_tool_download_metadata,
+    set_app_handle as set_tool_event_app_handle, try_begin_tool_status_refresh, ttl_hit,
     update_latest_status_snapshot,
 };
 pub(crate) use status::tool_status;
-pub use types::{
-    ExternalToolCandidate,
-    ExternalToolKind,
-    ExternalToolStatus,
-};
+pub use types::{ExternalToolCandidate, ExternalToolKind, ExternalToolStatus};
 
 pub(crate) fn hydrate_probe_cache_from_settings(
     settings: &crate::ffui_core::settings::ExternalToolSettings,
@@ -87,14 +73,10 @@ pub(crate) fn update_probe_cache_from_statuses(
     tools: &mut crate::ffui_core::settings::ExternalToolSettings,
     statuses: &[ExternalToolStatus],
 ) -> bool {
-    use std::time::{
-        SystemTime,
-        UNIX_EPOCH,
-    };
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::ffui_core::settings::types::{
-        ExternalToolBinaryFingerprint,
-        ExternalToolProbeCacheEntry,
+        ExternalToolBinaryFingerprint, ExternalToolProbeCacheEntry,
     };
 
     let now_ms = SystemTime::now()

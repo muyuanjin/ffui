@@ -9,18 +9,11 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
-use tauri::{
-    AppHandle,
-    State,
-};
+use tauri::{AppHandle, State};
 
 use crate::ffui_core::{
-    FFmpegPreset,
-    PresetBundle,
-    PresetBundleExportResult,
-    TranscodingEngine,
-    export_presets_bundle as export_presets_bundle_impl,
-    hardware_smart_default_presets,
+    FFmpegPreset, PresetBundle, PresetBundleExportResult, TranscodingEngine,
+    export_presets_bundle as export_presets_bundle_impl, hardware_smart_default_presets,
     read_presets_bundle as read_presets_bundle_impl,
 };
 

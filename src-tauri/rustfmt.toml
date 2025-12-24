@@ -2,19 +2,8 @@ max_width = 100
 tab_spaces = 4
 use_small_heuristics = "Default"
 
-# 空格规则
-space_before_colon = false
-space_after_colon = true       # 类型冒号后加空格: Type
-
 # 代码块格式
-brace_style = "PreferSameLine"     # 类C语言大括号风格
 match_arm_leading_pipes = "Never"  # match分支不前置竖线
-empty_item_single_line = true      # 空结构体保持单行
-imports_layout = "Vertical"
-
-
 
 # 导入管理
-imports_granularity = "Module"     # 按Module分组导入
 reorder_imports = true            # 自动排序导入
-group_imports = "StdExternalCrate"   # 按组导入

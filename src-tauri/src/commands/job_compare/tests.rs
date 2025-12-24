@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::ffui_core::{
-    MediaInfo,
-    WaitMetadata,
-};
+use crate::ffui_core::{MediaInfo, WaitMetadata};
 
 fn sample_video_job(status: JobStatus) -> TranscodeJob {
     TranscodeJob {

@@ -3,25 +3,11 @@ use std::path::Path;
 use std::sync::Arc;
 
 use super::super::state::{
-    BatchCompressBatchStatus,
-    Inner,
-    update_batch_compress_batch_with_inner,
+    BatchCompressBatchStatus, Inner, update_batch_compress_batch_with_inner,
 };
-use super::super::worker_utils::{
-    append_job_log_line,
-    mark_batch_compress_child_processed,
-};
-use super::helpers::{
-    current_time_millis,
-    make_batch_compress_job,
-    notify_queue_listeners,
-};
-use crate::ffui_core::domain::{
-    AutoCompressResult,
-    BatchCompressConfig,
-    JobStatus,
-    JobType,
-};
+use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
+use super::helpers::{current_time_millis, make_batch_compress_job, notify_queue_listeners};
+use crate::ffui_core::domain::{AutoCompressResult, BatchCompressConfig, JobStatus, JobType};
 use crate::sync_ext::MutexExt;
 
 pub(super) fn insert_image_stub_job(

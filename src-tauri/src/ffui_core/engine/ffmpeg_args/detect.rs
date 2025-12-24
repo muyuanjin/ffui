@@ -1,18 +1,12 @@
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::configure_background_command;
 use crate::ffui_core::ffprobe::ffprobe_format_duration_seconds;
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 
 fn parse_first_non_empty_line_as_f64(stdout: &[u8]) -> Option<f64> {
     let s = String::from_utf8_lossy(stdout);

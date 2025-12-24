@@ -1,25 +1,17 @@
 use super::ui_fonts_types::SystemFontFamily;
 
+#[allow(clippy::too_many_lines)]
 pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
     #[cfg(windows)]
     {
-        use std::collections::{
-            BTreeMap,
-            BTreeSet,
-        };
+        use std::collections::{BTreeMap, BTreeSet};
 
         use windows::Win32::Globalization::GetUserDefaultLocaleName;
         use windows::Win32::Graphics::DirectWrite::{
-            DWRITE_FACTORY_TYPE_SHARED,
-            DWriteCreateFactory,
-            IDWriteFactory,
-            IDWriteFontCollection,
+            DWRITE_FACTORY_TYPE_SHARED, DWriteCreateFactory, IDWriteFactory, IDWriteFontCollection,
             IDWriteLocalizedStrings,
         };
-        use windows::Win32::System::Com::{
-            COINIT_MULTITHREADED,
-            CoInitializeEx,
-        };
+        use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
 
         fn get_user_locale_name() -> Option<String> {
             // LOCALE_NAME_MAX_LENGTH is 85 incl. null terminator.
@@ -107,7 +99,7 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
         let mut collection: Option<IDWriteFontCollection> = None;
         unsafe {
             factory
-                .GetSystemFontCollection(&mut collection, false)
+                .GetSystemFontCollection(&raw mut collection, false)
                 .map_err(|e| format!("failed to get system font collection: {e:?}"))?;
         }
         let collection = collection.ok_or_else(|| "system font collection is null".to_string())?;
@@ -128,7 +120,7 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
             }
 
             let mut name_set: BTreeSet<String> = BTreeSet::new();
-            for (_locale, name) in entries.iter() {
+            for (_locale, name) in &entries {
                 let trimmed = name.trim();
                 if !trimmed.is_empty() {
                     name_set.insert(trimmed.to_string());

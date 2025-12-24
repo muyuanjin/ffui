@@ -2,51 +2,26 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 
-use anyhow::{
-    Context,
-    Result,
-};
+use anyhow::{Context, Result};
 
 use super::super::ffmpeg_args::{
-    build_ffmpeg_args as build_queue_ffmpeg_args,
-    format_command_for_log,
+    build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log,
 };
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    BatchCompressJobSpec,
-    current_time_millis,
-    make_batch_compress_job,
-    next_job_id,
-    record_tool_download,
-    run_ffmpeg_and_finalize_tmp_output,
+    BatchCompressJobSpec, current_time_millis, make_batch_compress_job, next_job_id,
+    record_tool_download, run_ffmpeg_and_finalize_tmp_output,
 };
-use super::video_helpers::{
-    detect_video_codec,
-    estimate_job_seconds_for_preset,
-};
-use super::video_paths::{
-    build_ffmpeg_args,
-    build_video_output_path,
-    build_video_tmp_output_path,
-};
+use super::video_helpers::{detect_video_codec, estimate_job_seconds_for_preset};
+use super::video_paths::{build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path};
 use crate::ffui_core::domain::{
-    BatchCompressConfig,
-    FFmpegPreset,
-    JobRun,
-    JobStatus,
-    JobType,
-    OutputDirectoryPolicy,
-    OutputFilenamePolicy,
-    OutputPolicy,
-    TranscodeJob,
+    BatchCompressConfig, FFmpegPreset, JobRun, JobStatus, JobType, OutputDirectoryPolicy,
+    OutputFilenamePolicy, OutputPolicy, TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::tools::{
-    ExternalToolKind,
-    ensure_tool_available,
-};
+use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 use crate::sync_ext::MutexExt;
 
 #[allow(dead_code)]
