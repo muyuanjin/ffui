@@ -8,6 +8,9 @@ import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import SettingsAppearanceSection from "@/components/panels/SettingsAppearanceSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
+import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
+import PresetGlobalTab from "@/components/preset-editor/PresetGlobalTab.vue";
+import PresetInputTab from "@/components/preset-editor/PresetInputTab.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { AppSettings } from "@/types";
@@ -193,5 +196,79 @@ describe("Locale refresh for select trigger labels", () => {
     expect(scopeTrigger.text()).toContain("Only active/queued/waiting jobs");
 
     wrapper.unmount();
+  });
+
+  it("updates the OutputPolicyEditor select trigger labels when locale changes", async () => {
+    const i18n = makeI18n();
+    const wrapper = mount(OutputPolicyEditor, {
+      props: {},
+      global: { plugins: [i18n] },
+    });
+
+    const containerTrigger = wrapper.get('[data-testid="output-policy-container-mode-trigger"]');
+    const directoryTrigger = wrapper.get('[data-testid="output-policy-directory-mode-trigger"]');
+    expect(containerTrigger.text()).toContain("默认");
+    expect(directoryTrigger.text()).toContain("原文件目录");
+
+    i18n.global.locale.value = "en";
+    await nextTick();
+    expect(containerTrigger.text()).toContain("Default");
+    expect(directoryTrigger.text()).toContain("Same as input");
+
+    wrapper.unmount();
+  });
+
+  it("updates the preset editor select trigger labels when locale changes", async () => {
+    const i18n = makeI18n();
+
+    const globalWrapper = mount(PresetGlobalTab, {
+      props: {
+        globalConfig: {
+          overwriteBehavior: "ask",
+          hideBanner: false,
+          enableReport: false,
+          logLevel: undefined,
+        },
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const overwriteTrigger = globalWrapper.get('[data-testid="preset-global-overwrite-behavior-trigger"]');
+    expect(overwriteTrigger.text()).toContain("遵循");
+
+    i18n.global.locale.value = "en";
+    await nextTick();
+    expect(overwriteTrigger.text()).toContain("Follow ffmpeg");
+
+    globalWrapper.unmount();
+
+    // PresetInputTab uses separate translation keys; verify both seek + duration mode labels refresh.
+    i18n.global.locale.value = "zh-CN";
+    await nextTick();
+
+    const inputWrapper = mount(PresetInputTab, {
+      props: {
+        inputTimeline: {
+          seekMode: "output",
+          seekPosition: undefined,
+          accurateSeek: false,
+          durationMode: undefined,
+          duration: undefined,
+        },
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const seekModeTrigger = inputWrapper.get('[data-testid="preset-input-seek-mode-trigger"]');
+    const durationModeTrigger = inputWrapper.get('[data-testid="preset-input-duration-mode-trigger"]');
+    expect(seekModeTrigger.text()).toContain("更精确");
+    expect(durationModeTrigger.text()).toContain("不限制时长");
+
+    i18n.global.locale.value = "en";
+    await nextTick();
+    expect(seekModeTrigger.text()).toContain("After -i");
+    expect(durationModeTrigger.text()).toContain("Process full input");
+
+    inputWrapper.unmount();
   });
 });

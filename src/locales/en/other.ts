@@ -6,6 +6,20 @@ const other = {
     next: "Next",
     stepOf: "Step {step} of {total}",
   },
+  formatSelect: {
+    placeholder: "Choose format",
+    searchPlaceholder: "Search: mp4 / .mp4 / matroska / m2ts ...",
+    groups: {
+      video: "Video",
+      audio: "Audio",
+      image: "Image",
+    },
+    disabledHints: {
+      audio: "Audio-only; structured video presets do not support this picker.",
+      image: "Image format; not supported by current container settings.",
+    },
+    emptyHint: "No matches. Try clearing search or typing an extension (e.g. `.m2ts`).",
+  },
   onboarding: {
     title: "Preset Setup Wizard",
     welcomeTitle: "Welcome to FFUI",

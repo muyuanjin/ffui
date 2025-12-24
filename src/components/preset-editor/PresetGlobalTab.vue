@@ -65,8 +65,12 @@ const overwriteBehaviorTitle = computed(() => {
             }
           "
         >
-          <SelectTrigger class="h-9 text-xs" :title="overwriteBehaviorTitle">
-            <SelectValue />
+          <SelectTrigger
+            class="h-9 text-xs"
+            :title="overwriteBehaviorTitle"
+            data-testid="preset-global-overwrite-behavior-trigger"
+          >
+            <SelectValue>{{ overwriteBehaviorTitle }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ask">

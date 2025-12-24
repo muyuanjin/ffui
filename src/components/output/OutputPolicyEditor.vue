@@ -59,6 +59,16 @@ const forcedContainerFormat = computed(() =>
   policy.value.container.mode === "force" ? policy.value.container.format : "mkv",
 );
 
+const containerModeLabel = computed(() => {
+  const value = containerMode.value;
+  const map: Record<OutputPolicy["container"]["mode"], string> = {
+    default: t("outputPolicy.container.default"),
+    keepInput: t("outputPolicy.container.keepInput"),
+    force: t("outputPolicy.container.force"),
+  };
+  return map[value] ?? "";
+});
+
 const queueOutputContainerEntries = computed(() =>
   FORMAT_CATALOG.filter((e) => e.kind !== "video" || !["mpegts", "hls", "dash"].includes(e.value)),
 );
@@ -67,6 +77,15 @@ const directoryMode = computed(() => policy.value.directory.mode);
 const fixedDirectory = computed(() =>
   policy.value.directory.mode === "fixed" ? policy.value.directory.directory : "",
 );
+
+const directoryModeLabel = computed(() => {
+  const value = directoryMode.value;
+  const map: Record<OutputPolicy["directory"]["mode"], string> = {
+    sameAsInput: t("outputPolicy.dir.sameAsInput"),
+    fixed: t("outputPolicy.dir.fixed"),
+  };
+  return map[value] ?? "";
+});
 
 const regexPatternInput = ref("");
 const regexReplacementInput = ref("");
@@ -222,8 +241,8 @@ const pickPreviewFile = async () => {
         <Label class="text-xs">{{ t("outputPolicy.containerLabel") }}</Label>
         <div class="flex items-center gap-2">
           <Select :model-value="containerMode" @update:model-value="updateContainerModeFromSelect">
-            <SelectTrigger class="h-8 text-xs">
-              <SelectValue />
+            <SelectTrigger class="h-8 text-xs" data-testid="output-policy-container-mode-trigger">
+              <SelectValue>{{ containerModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">{{ t("outputPolicy.container.default") }}</SelectItem>
@@ -236,7 +255,7 @@ const pickPreviewFile = async () => {
             v-if="containerMode === 'force'"
             :model-value="forcedContainerFormat"
             :entries="queueOutputContainerEntries"
-            placeholder="选择格式"
+            :placeholder="t('formatSelect.placeholder') as string"
             @update:model-value="(v) => updatePolicy({ container: { mode: 'force', format: String(v) } })"
           />
         </div>
@@ -246,8 +265,8 @@ const pickPreviewFile = async () => {
         <Label class="text-xs">{{ t("outputPolicy.dirLabel") }}</Label>
         <div class="flex items-center gap-2">
           <Select :model-value="directoryMode" @update:model-value="updateDirectoryModeFromSelect">
-            <SelectTrigger class="h-8 text-xs">
-              <SelectValue />
+            <SelectTrigger class="h-8 text-xs" data-testid="output-policy-directory-mode-trigger">
+              <SelectValue>{{ directoryModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="sameAsInput">{{ t("outputPolicy.dir.sameAsInput") }}</SelectItem>

@@ -23,6 +23,22 @@ const accurateSeekChecked = computed<boolean>({
 });
 
 const { t } = useI18n();
+
+const seekModeLabel = computed(() => {
+  const value = inputTimeline.seekMode ?? "output";
+  const map: Record<SeekMode, string> = {
+    output: t("presetEditor.panel.seekModeOutput"),
+    input: t("presetEditor.panel.seekModeInput"),
+  };
+  return map[value] ?? "";
+});
+
+const durationModeLabel = computed(() => {
+  const value = inputTimeline.durationMode;
+  if (value === "duration") return t("presetEditor.panel.durationModeDuration");
+  if (value === "to") return t("presetEditor.panel.durationModeTo");
+  return "";
+});
 </script>
 
 <template>
@@ -44,8 +60,8 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger class="h-9 text-xs">
-            <SelectValue />
+          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-seek-mode-trigger">
+            <SelectValue>{{ seekModeLabel }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="output">
@@ -92,8 +108,8 @@ const { t } = useI18n();
             }
           "
         >
-          <SelectTrigger class="h-9 text-xs">
-            <SelectValue :placeholder="t('presetEditor.panel.durationModePlaceholder')" />
+          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-duration-mode-trigger">
+            <SelectValue>{{ durationModeLabel || t("presetEditor.panel.durationModePlaceholder") }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="duration">

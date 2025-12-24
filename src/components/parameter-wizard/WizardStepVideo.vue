@@ -86,8 +86,8 @@ const emit = defineEmits<{
           :model-value="video.preset"
           @update:model-value="(value) => emit('update-video', { preset: value as string })"
         >
-          <SelectTrigger>
-            <SelectValue />
+          <SelectTrigger data-testid="wizard-video-preset-trigger">
+            <SelectValue>{{ video.preset }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="p in presetOptions[video.encoder]" :key="p" :value="p">

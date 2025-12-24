@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import { useI18n } from "vue-i18n";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
@@ -27,6 +28,8 @@ const emit = defineEmits<{
 }>();
 
 const query = ref("");
+
+const { t } = useI18n();
 
 const selectedEntry = computed(() => props.entries.find((e) => e.value === props.modelValue) ?? null);
 const selectedLabel = computed(() => {
@@ -59,13 +62,13 @@ watch(
 <template>
   <Select :model-value="modelValue" @update:model-value="(v) => emit('update:modelValue', String(v))">
     <SelectTrigger class="h-8 text-xs w-[220px]" :class="triggerClass" :title="selectedLabel">
-      <SelectValue :placeholder="placeholder ?? '选择格式'">
-        {{ selectedLabel }}
+      <SelectValue :placeholder="placeholder ?? t('formatSelect.placeholder')">
+        <template v-if="selectedLabel">{{ selectedLabel }}</template>
       </SelectValue>
     </SelectTrigger>
     <SelectContent class="w-[320px]" :class="contentClass">
       <div class="p-1">
-        <Input v-model="query" class="h-8 text-xs" placeholder="搜索：mp4 / .mp4 / matroska / m2ts ..." />
+        <Input v-model="query" class="h-8 text-xs" :placeholder="t('formatSelect.searchPlaceholder') as string" />
       </div>
       <Separator class="my-1" />
 
@@ -78,7 +81,9 @@ watch(
 
       <template v-if="hasAny">
         <template v-if="groups.video.length">
-          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">视频</div>
+          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {{ t("formatSelect.groups.video") }}
+          </div>
           <SelectItem v-for="e in groups.video" :key="e.value" :value="e.value" :disabled="!!e.disabledInVideoPickers">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
@@ -89,22 +94,30 @@ watch(
 
         <template v-if="groups.audio.length">
           <Separator class="my-1" />
-          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">音频</div>
+          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {{ t("formatSelect.groups.audio") }}
+          </div>
           <SelectItem v-for="e in groups.audio" :key="e.value" :value="e.value" :disabled="true">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight"> 仅音频；当前结构化视频预设不启用 </span>
+              <span class="text-[10px] text-muted-foreground leading-tight">
+                {{ t("formatSelect.disabledHints.audio") }}
+              </span>
             </div>
           </SelectItem>
         </template>
 
         <template v-if="groups.image.length">
           <Separator class="my-1" />
-          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">图片</div>
+          <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            {{ t("formatSelect.groups.image") }}
+          </div>
           <SelectItem v-for="e in groups.image" :key="e.value" :value="e.value" :disabled="true">
             <div class="flex flex-col">
               <span class="text-sm">{{ e.label }}</span>
-              <span class="text-[10px] text-muted-foreground leading-tight"> 图片格式；当前容器设置不启用 </span>
+              <span class="text-[10px] text-muted-foreground leading-tight">
+                {{ t("formatSelect.disabledHints.image") }}
+              </span>
             </div>
           </SelectItem>
         </template>
@@ -112,7 +125,7 @@ watch(
 
       <template v-else>
         <div class="px-2 py-2 text-xs text-muted-foreground">
-          未找到匹配项。可尝试清空搜索或输入扩展名（例如 `.m2ts`）。
+          {{ t("formatSelect.emptyHint") }}
         </div>
       </template>
     </SelectContent>

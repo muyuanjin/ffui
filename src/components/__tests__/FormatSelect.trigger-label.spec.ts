@@ -1,12 +1,28 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { createI18n } from "vue-i18n";
 
 import FormatSelect from "@/components/formats/FormatSelect.vue";
 import type { FormatCatalogEntry } from "@/lib/formatCatalog";
 
 describe("FormatSelect trigger label", () => {
   it("shows only the short label in the trigger (not the note/description)", () => {
+    const i18n = createI18n({
+      legacy: false,
+      locale: "en",
+      messages: {
+        en: {
+          formatSelect: {
+            placeholder: "Select format",
+            searchPlaceholder: "Search formats",
+            groups: { video: "Video", audio: "Audio", image: "Image" },
+            disabledHints: { audio: "Audio formats are not supported", image: "Image formats are not supported" },
+            emptyHint: "No formats",
+          },
+        },
+      },
+    });
     const entries: FormatCatalogEntry[] = [
       {
         value: "webm",
@@ -23,6 +39,7 @@ describe("FormatSelect trigger label", () => {
         entries,
       },
       global: {
+        plugins: [i18n],
         stubs: {
           Select: { template: `<div data-testid="select"><slot /></div>` },
           SelectTrigger: { template: `<button data-testid="trigger"><slot /></button>` },

@@ -25,6 +25,36 @@ const isNvencEncoder = computed(
 );
 
 const isX264Encoder = computed(() => video.encoder === "libx264");
+
+const rateControlModeLabel = computed(() => {
+  const raw = String(video.rateControl ?? "").trim();
+  return raw ? raw.toUpperCase() : "";
+});
+
+const passModeLabel = computed(() => {
+  const raw = video.pass ? String(video.pass) : "single";
+  const map: Record<string, string> = {
+    single: t("presetEditor.video.passSingle"),
+    "1": t("presetEditor.video.passFirst"),
+    "2": t("presetEditor.video.passSecond"),
+  };
+  return map[raw] ?? raw;
+});
+
+const aqModeLabel = (value: "auto" | "on") => {
+  return value === "on" ? t("presetEditor.video.enableOption") : t("presetEditor.video.autoOption");
+};
+
+const spatialAqModeLabel = computed(() => aqModeLabel(video.spatialAq === true ? "on" : "auto"));
+const temporalAqModeLabel = computed(() => aqModeLabel(video.temporalAq === true ? "on" : "auto"));
+
+const bRefModeLabel = computed(() => {
+  return video.bRefMode ? String(video.bRefMode) : t("presetEditor.video.autoOption");
+});
+
+const tuneLabel = computed(() => {
+  return video.tune ? String(video.tune) : t("presetEditor.video.autoOption");
+});
 </script>
 
 <template>
@@ -117,8 +147,8 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               }
             "
           >
-            <SelectTrigger class="h-9">
-              <SelectValue />
+            <SelectTrigger class="h-9" data-testid="preset-video-rate-control-trigger">
+              <SelectValue>{{ rateControlModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem v-if="video.encoder !== 'hevc_nvenc'" value="crf"> CRF </SelectItem>
@@ -177,8 +207,8 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               }
             "
           >
-            <SelectTrigger class="h-9">
-              <SelectValue />
+            <SelectTrigger class="h-9" data-testid="preset-video-pass-trigger">
+              <SelectValue>{{ passModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="single">
@@ -205,8 +235,8 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
             }
           "
         >
-          <SelectTrigger class="h-9">
-            <SelectValue />
+          <SelectTrigger class="h-9" data-testid="preset-video-preset-trigger">
+            <SelectValue>{{ video.preset }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="p in PRESET_OPTIONS[video.encoder]" :key="p" :value="p">
@@ -288,7 +318,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
             "
           >
             <SelectTrigger class="h-9">
-              <SelectValue :placeholder="t('presetEditor.video.bRefModePlaceholder')" />
+              <SelectValue>{{ bRefModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem :value="AUTO_VALUE">
@@ -342,7 +372,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               "
             >
               <SelectTrigger class="h-9">
-                <SelectValue />
+                <SelectValue>{{ spatialAqModeLabel }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">{{ t("presetEditor.video.autoOption") }}</SelectItem>
@@ -365,7 +395,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               "
             >
               <SelectTrigger class="h-9">
-                <SelectValue />
+                <SelectValue>{{ temporalAqModeLabel }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="auto">{{ t("presetEditor.video.autoOption") }}</SelectItem>
@@ -393,7 +423,7 @@ const isX264Encoder = computed(() => video.encoder === "libx264");
               "
             >
               <SelectTrigger class="h-9">
-                <SelectValue :placeholder="t('presetEditor.video.tunePlaceholder')" />
+                <SelectValue>{{ tuneLabel }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem :value="AUTO_VALUE">

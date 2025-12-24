@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import type { AudioConfig, DeepWritable, SubtitleStrategy, SubtitlesConfig } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,26 @@ const audio: DeepWritable<AudioConfig> = props.audio;
 const subtitles: DeepWritable<SubtitlesConfig> = props.subtitles;
 
 const { t } = useI18n();
+
+const bitrateLabel = computed(() => {
+  const raw = audio.bitrate != null ? String(audio.bitrate) : "";
+  const map: Record<string, string> = {
+    "128": t("presetEditor.audio.bitrate128"),
+    "192": t("presetEditor.audio.bitrate192"),
+    "320": t("presetEditor.audio.bitrate320"),
+  };
+  return map[raw] ?? raw;
+});
+
+const subtitlesStrategyLabel = computed(() => {
+  const value = (subtitles.strategy ?? "keep") as SubtitleStrategy;
+  const map: Record<SubtitleStrategy, string> = {
+    keep: t("presetEditor.panel.subtitlesKeep"),
+    drop: t("presetEditor.panel.subtitlesDrop"),
+    burn_in: t("presetEditor.panel.subtitlesBurnIn"),
+  };
+  return map[value] ?? "";
+});
 </script>
 
 <template>
@@ -82,8 +103,8 @@ const { t } = useI18n();
                   }
                 "
               >
-                <SelectTrigger class="h-9 text-xs">
-                  <SelectValue />
+                <SelectTrigger class="h-9 text-xs" data-testid="preset-audio-bitrate-trigger">
+                  <SelectValue>{{ bitrateLabel }}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="128">
@@ -277,8 +298,8 @@ const { t } = useI18n();
               }
             "
           >
-            <SelectTrigger class="h-9 text-xs">
-              <SelectValue />
+            <SelectTrigger class="h-9 text-xs" data-testid="preset-audio-subtitles-strategy-trigger">
+              <SelectValue>{{ subtitlesStrategyLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="keep">

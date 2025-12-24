@@ -6,6 +6,20 @@ const other = {
     next: "下一步",
     stepOf: "第 {step} 步，共 {total} 步",
   },
+  formatSelect: {
+    placeholder: "选择格式",
+    searchPlaceholder: "搜索：mp4 / .mp4 / matroska / m2ts ...",
+    groups: {
+      video: "视频",
+      audio: "音频",
+      image: "图片",
+    },
+    disabledHints: {
+      audio: "仅音频；当前结构化视频预设不启用",
+      image: "图片格式；当前容器设置不启用",
+    },
+    emptyHint: "未找到匹配项。可尝试清空搜索或输入扩展名（例如 `.m2ts`）。",
+  },
   onboarding: {
     title: "预设引导",
     welcomeTitle: "欢迎使用 FFUI",

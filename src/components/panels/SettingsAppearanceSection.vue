@@ -16,6 +16,7 @@ import {
   percentOptions,
   scaleOptionTone,
 } from "@/components/panels/settings-appearance/appearanceOptions";
+import { normalizeSystemFontFamilies } from "@/components/panels/settings-appearance/systemFonts";
 const props = defineProps<{
   appSettings: AppSettings | null;
 }>();
@@ -66,29 +67,7 @@ const refreshSystemFonts = async () => {
   systemFontsLoading.value = true;
   try {
     const raw = await fetchSystemFontFamilies();
-    const byPrimary = new Map<string, SystemFontFamily>();
-    const normalizeKey = (value: string) => value.trim().toLowerCase();
-    for (const entry of Array.isArray(raw) ? raw : []) {
-      const primary = String(entry.primary ?? "").trim();
-      if (!primary) continue;
-      const names = Array.isArray(entry.names) ? entry.names : [];
-      const key = normalizeKey(primary);
-      const existing = byPrimary.get(key);
-      if (!existing) {
-        byPrimary.set(key, { primary, names: names.slice() });
-        continue;
-      }
-      existing.names = Array.from(
-        new Map(
-          existing.names
-            .concat(names)
-            .map((name) => String(name ?? "").trim())
-            .filter((name) => name.length > 0)
-            .map((name) => [normalizeKey(name), name] as const),
-        ).values(),
-      );
-    }
-    systemFonts.value = Array.from(byPrimary.values()).sort((a, b) => a.primary.localeCompare(b.primary));
+    systemFonts.value = normalizeSystemFontFamilies(raw);
   } finally {
     systemFontsLoading.value = false;
   }
@@ -287,6 +266,15 @@ const uiOpenSourceFontIdModel = computed<string>({
     emit("update:appSettings", next);
   },
 });
+
+const uiScalePercentLabel = computed(() => `${uiScalePercentModel.value}%`);
+const uiFontSizePxLabel = computed(() => `${uiFontSizePxModel.value}px`);
+const uiOpenSourceFontLabel = computed(() => {
+  const id = uiOpenSourceFontIdModel.value.trim();
+  if (!id) return "";
+  const entry = openSourceFonts.value.find((f) => f.id === id);
+  return entry?.name ?? entry?.familyName ?? id;
+});
 </script>
 <template>
   <Card class="border-border/50 bg-card/95 shadow-sm" data-testid="settings-card-appearance" :data-locale="locale">
@@ -304,7 +292,9 @@ const uiOpenSourceFontIdModel = computed<string>({
           <div class="space-y-1">
             <p class="text-xs font-medium text-foreground">{{ t("app.settings.uiScaleLabel") }}</p>
             <Select v-model="uiScalePercentModel">
-              <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30"><SelectValue /></SelectTrigger>
+              <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30">
+                <SelectValue>{{ uiScalePercentLabel }}</SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem
                   v-for="p in percentOptions"
@@ -321,7 +311,9 @@ const uiOpenSourceFontIdModel = computed<string>({
           <div class="space-y-1">
             <p class="text-xs font-medium text-foreground">{{ t("app.settings.uiFontSizeLabel") }}</p>
             <Select v-model="uiFontSizePxModel">
-              <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30"><SelectValue /></SelectTrigger>
+              <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30">
+                <SelectValue>{{ uiFontSizePxLabel }}</SelectValue>
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem
                   v-for="px in fontSizePxOptions"
@@ -450,7 +442,7 @@ const uiOpenSourceFontIdModel = computed<string>({
         </div>
         <Select v-model="uiOpenSourceFontIdModel">
           <SelectTrigger class="h-7 text-[11px] bg-background/50 border-border/30">
-            <SelectValue />
+            <SelectValue>{{ uiOpenSourceFontLabel }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem v-for="f in openSourceFonts" :key="f.id" :value="f.id" class="text-[11px]">{{

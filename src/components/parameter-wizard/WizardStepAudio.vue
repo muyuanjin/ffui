@@ -66,8 +66,16 @@ const emit = defineEmits<{
             :model-value="String(audio.bitrate)"
             @update:model-value="(value) => emit('update-audio', { bitrate: Number(value as string) })"
           >
-            <SelectTrigger class="h-8 text-xs">
-              <SelectValue />
+            <SelectTrigger class="h-8 text-xs" data-testid="wizard-audio-bitrate-trigger">
+              <SelectValue>{{
+                audio.bitrate === 128
+                  ? t("presetEditor.audio.bitrate128")
+                  : audio.bitrate === 192
+                    ? t("presetEditor.audio.bitrate192")
+                    : audio.bitrate === 320
+                      ? t("presetEditor.audio.bitrate320")
+                      : String(audio.bitrate ?? "")
+              }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="128">
