@@ -67,6 +67,12 @@ export interface ExternalToolStatus {
   lastDownloadError?: string;
   /** Last informational message about download/update activity for this tool. */
   lastDownloadMessage?: string;
+  /** Last error message emitted while manually checking remote updates for this tool. */
+  lastRemoteCheckError?: string;
+  /** Last informational message emitted while manually checking remote updates for this tool. */
+  lastRemoteCheckMessage?: string;
+  /** Unix epoch timestamp in milliseconds when the last manual remote check completed. */
+  lastRemoteCheckAtMs?: number;
 }
 
 export interface ExternalToolCandidate {

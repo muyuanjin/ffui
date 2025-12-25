@@ -40,7 +40,11 @@ const props = withDefaults(
     /** Whether tool statuses have been refreshed at least once this session. */
     toolStatusesFresh?: boolean;
     /** Trigger an async tool status refresh (non-blocking). */
-    refreshToolStatuses?: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
+    refreshToolStatuses?: (options?: {
+      remoteCheck?: boolean;
+      manualRemoteCheck?: boolean;
+      remoteCheckKind?: ExternalToolKind;
+    }) => Promise<void>;
     /** App updater UI state snapshot. */
     appUpdate?: AppUpdateUiState;
     /** Manually trigger an app update check. */

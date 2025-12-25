@@ -212,5 +212,8 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         bytes_per_second: runtime.bytes_per_second,
         last_download_error: runtime_for_status.last_error,
         last_download_message: runtime.last_message,
+        last_remote_check_error: runtime.last_remote_check_error,
+        last_remote_check_message: runtime.last_remote_check_message,
+        last_remote_check_at_ms: runtime.last_remote_check_at_ms,
     }
 }

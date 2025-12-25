@@ -166,14 +166,18 @@ export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolSta
 export const refreshExternalToolStatusesAsync = async (options?: {
   remoteCheck?: boolean;
   manualRemoteCheck?: boolean;
+  remoteCheckKind?: ExternalToolKind;
 }): Promise<boolean> => {
   const remoteCheck = options?.remoteCheck ?? false;
   const manualRemoteCheck = options?.manualRemoteCheck ?? false;
+  const remoteCheckKind = options?.remoteCheckKind;
   return invoke<boolean>("refresh_external_tool_statuses_async", {
     remoteCheck,
     remote_check: remoteCheck,
     manualRemoteCheck,
     manual_remote_check: manualRemoteCheck,
+    remoteCheckKind,
+    remote_check_kind: remoteCheckKind,
   });
 };
 

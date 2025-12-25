@@ -116,7 +116,11 @@ export interface UseAppSettingsReturn {
    */
   markSaved: (serializedOrSettings: string | AppSettings) => void;
   /** Refresh external tool statuses. */
-  refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
+  refreshToolStatuses: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+    remoteCheckKind?: ExternalToolKind;
+  }) => Promise<void>;
   /** Manually trigger download/update for a given tool kind. */
   downloadToolNow: (kind: ExternalToolKind) => Promise<void>;
   /** Enumerate available candidate binaries for a tool. */
@@ -290,11 +294,16 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
   };
 
-  const refreshToolStatuses = async (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => {
+  const refreshToolStatuses = async (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+    remoteCheckKind?: ExternalToolKind;
+  }) => {
     if (!hasTauri()) return;
     try {
       const remoteCheck = options?.remoteCheck ?? false;
       const manualRemoteCheck = options?.manualRemoteCheck ?? false;
+      const remoteCheckKind = options?.remoteCheckKind;
       updateStartupMetrics({ toolsRefreshRequestedAtMs: startupNowMs() });
       if (typeof performance !== "undefined" && "mark" in performance) {
         performance.mark("tools_refresh_requested");
@@ -302,6 +311,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       const started = await refreshExternalToolStatusesAsync({
         remoteCheck,
         manualRemoteCheck,
+        remoteCheckKind,
       });
       awaitingToolsRefreshEvent = started;
     } catch (error) {

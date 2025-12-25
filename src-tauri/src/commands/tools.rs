@@ -61,10 +61,12 @@ pub fn refresh_external_tool_statuses_async(
     engine: State<'_, TranscodingEngine>,
     remote_check: Option<bool>,
     manual_remote_check: Option<bool>,
+    remote_check_kind: Option<ExternalToolKind>,
 ) -> bool {
     engine.refresh_external_tool_statuses_async(
         remote_check.unwrap_or(false),
         manual_remote_check.unwrap_or(false),
+        remote_check_kind,
     )
 }
 

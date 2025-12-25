@@ -36,6 +36,7 @@ const app = {
     checkToolUpdateLogSummaryResultUpToDate: "Result: up to date.",
     checkToolUpdateLogSummaryResultToolMissing: "Result: executable not found; cannot compare versions.",
     checkToolUpdateLogSummaryResultRemoteUnknown: "Result: remote version unknown; cannot determine.",
+    checkToolUpdateLogSummaryResultRemoteCheckFailed: "Result: remote check failed.",
     checkToolUpdateLogDuration: "Elapsed: {seconds}s",
     checkToolUpdateLogTimeout:
       "Timed out waiting for status snapshot ({seconds}s). The backend may still be checking, or network/GitHub might be blocked; try again later.",

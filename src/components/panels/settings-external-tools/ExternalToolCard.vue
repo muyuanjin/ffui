@@ -312,10 +312,13 @@ const copyToClipboard = async (value: string | undefined | null) => {
 
     <!-- Update available / manual download actions -->
     <div class="mt-1 flex items-center justify-between text-[9px]">
-      <span v-if="tool.updateAvailable && !tool.lastDownloadError" class="text-amber-600">
+      <span v-if="tool.updateAvailable && !tool.lastDownloadError && !tool.lastRemoteCheckError" class="text-amber-600">
         {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
       </span>
-      <span v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError" class="text-emerald-600">
+      <span
+        v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError && !tool.lastRemoteCheckError"
+        class="text-emerald-600"
+      >
         {{ t("app.settings.toolUpToDateHint") }}
       </span>
       <div class="flex items-center gap-1.5">
@@ -412,8 +415,13 @@ const copyToClipboard = async (value: string | undefined | null) => {
       </div>
     </div>
 
+    <!-- Remote check error message -->
+    <p v-if="tool.lastRemoteCheckError" class="mt-1 text-[9px] text-red-600 dark:text-red-400 leading-snug">
+      {{ tool.lastRemoteCheckError }}
+    </p>
+
     <!-- Download error message -->
-    <p v-if="tool.lastDownloadError" class="mt-1 text-[9px] text-red-600 dark:text-red-400 leading-snug">
+    <p v-else-if="tool.lastDownloadError" class="mt-1 text-[9px] text-red-600 dark:text-red-400 leading-snug">
       {{ tool.lastDownloadError }}
     </p>
 

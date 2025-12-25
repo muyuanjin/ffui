@@ -262,23 +262,36 @@ pub(super) fn mark_download_error(kind: ExternalToolKind, message: String) {
     emit_tool_status_event_if_possible();
 }
 
-/// Store a non-fatal informational message for a tool (for example a proxy
-/// fallback notice during update checks). This does not change the download
-/// progress state.
-pub(crate) fn mark_tool_message(kind: ExternalToolKind, message: String) {
+pub(crate) fn clear_tool_remote_check_state(kind: ExternalToolKind) {
     with_download_state(kind, |state| {
-        state.last_message = Some(message);
+        state.last_remote_check_error = None;
+        state.last_remote_check_message = None;
+        state.last_remote_check_at_ms = None;
     });
-    merge_download_state_into_latest_snapshot(kind);
-    emit_tool_status_event_if_possible();
 }
 
-pub(crate) fn mark_tool_error(kind: ExternalToolKind, message: String) {
+pub(crate) fn record_tool_remote_check_error(
+    kind: ExternalToolKind,
+    message: String,
+    checked_at_ms: u64,
+) {
     with_download_state(kind, |state| {
-        state.last_error = Some(message);
+        state.last_remote_check_error = Some(message);
+        state.last_remote_check_message = None;
+        state.last_remote_check_at_ms = Some(checked_at_ms);
     });
-    merge_download_state_into_latest_snapshot(kind);
-    emit_tool_status_event_if_possible();
+}
+
+pub(crate) fn record_tool_remote_check_message(
+    kind: ExternalToolKind,
+    message: String,
+    checked_at_ms: u64,
+) {
+    with_download_state(kind, |state| {
+        state.last_remote_check_error = None;
+        state.last_remote_check_message = Some(message);
+        state.last_remote_check_at_ms = Some(checked_at_ms);
+    });
 }
 
 pub(super) fn mark_arch_incompatible_for_session(

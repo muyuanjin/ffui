@@ -22,7 +22,11 @@ export interface UseMainAppSettingsReturn {
   scheduleSaveSettings: () => void;
   persistNow: (nextSettings?: AppSettings) => Promise<void>;
   markSaved: (serializedOrSettings: string | AppSettings) => void;
-  refreshToolStatuses: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
+  refreshToolStatuses: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+    remoteCheckKind?: ExternalToolKind;
+  }) => Promise<void>;
   downloadToolNow: ReturnType<typeof useAppSettings>["downloadToolNow"];
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
   progressUpdateIntervalMs: ReturnType<typeof useJobProgress>["progressUpdateIntervalMs"];

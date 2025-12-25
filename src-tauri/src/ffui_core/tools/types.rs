@@ -45,6 +45,12 @@ pub struct ExternalToolStatus {
     pub last_download_error: Option<String>,
     /// Last informational message about download/update activity.
     pub last_download_message: Option<String>,
+    /// Last error message observed while manually checking remote updates for this tool.
+    pub last_remote_check_error: Option<String>,
+    /// Last informational message observed while manually checking remote updates for this tool.
+    pub last_remote_check_message: Option<String>,
+    /// Unix epoch timestamp in milliseconds when the last manual remote check completed.
+    pub last_remote_check_at_ms: Option<u64>,
 }
 
 /// A concrete, verified candidate binary for a given external tool kind.
@@ -92,6 +98,9 @@ pub(super) struct ToolDownloadRuntimeState {
     pub(super) started_at: Option<std::time::Instant>,
     pub(super) last_error: Option<String>,
     pub(super) last_message: Option<String>,
+    pub(super) last_remote_check_error: Option<String>,
+    pub(super) last_remote_check_message: Option<String>,
+    pub(super) last_remote_check_at_ms: Option<u64>,
     /// True when we have determined that the auto-downloaded binary for this
     /// tool cannot be executed on the current system (for example 32-bit vs
     /// 64-bit mismatch). In this case we will not attempt to execute it again

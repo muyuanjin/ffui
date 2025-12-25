@@ -35,6 +35,7 @@ const app = {
     checkToolUpdateLogSummaryResultUpToDate: "结论：已是最新版本。",
     checkToolUpdateLogSummaryResultToolMissing: "结论：未检测到可执行文件，无法比较版本。",
     checkToolUpdateLogSummaryResultRemoteUnknown: "结论：远端版本未知，无法判断是否最新。",
+    checkToolUpdateLogSummaryResultRemoteCheckFailed: "结论：远端检查失败。",
     checkToolUpdateLogDuration: "耗时：{seconds}s",
     checkToolUpdateLogTimeout:
       "等待状态快照超时（{seconds}s）。可能网络不通、GitHub 被阻断或后端仍在检查；可稍后重试。",

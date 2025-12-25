@@ -8,7 +8,9 @@ use crate::ffui_core::tools::{
     try_refresh_ffmpeg_static_release_from_github, try_refresh_libavif_release_from_github,
     ttl_hit,
 };
-use crate::ffui_core::tools::{mark_tool_error, mark_tool_message};
+use crate::ffui_core::tools::{
+    clear_tool_remote_check_state, record_tool_remote_check_error, record_tool_remote_check_message,
+};
 use crate::sync_ext::MutexExt;
 
 type CheckedRemoteRefresh = fn() -> anyhow::Result<(String, String, Option<String>)>;
@@ -40,22 +42,20 @@ where
     update(cache);
 }
 
-fn mark_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: String) {
-    if kinds.is_empty() {
-        return;
-    }
-    if let Some((last, rest)) = kinds.split_last() {
-        for kind in rest.iter().copied() {
-            mark_tool_message(kind, note.clone());
-        }
-        mark_tool_message(*last, note);
+fn record_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: String, checked_at_ms: u64) {
+    for kind in kinds.iter().copied() {
+        record_tool_remote_check_message(kind, note.clone(), checked_at_ms);
     }
 }
 
-fn mark_proxy_remote_check_error(kinds: &[ExternalToolKind], err: anyhow::Error) {
+fn record_proxy_remote_check_error(
+    kinds: &[ExternalToolKind],
+    err: anyhow::Error,
+    checked_at_ms: u64,
+) {
     let msg = format!("[proxy] remote version check failed: {err:#}");
     for kind in kinds.iter().copied() {
-        mark_tool_error(kind, msg.clone());
+        record_tool_remote_check_error(kind, msg.clone(), checked_at_ms);
     }
 }
 
@@ -105,6 +105,9 @@ impl TranscodingEngine {
                 bytes_per_second: None,
                 last_download_error: None,
                 last_download_message: None,
+                last_remote_check_error: None,
+                last_remote_check_message: None,
+                last_remote_check_at_ms: None,
             },
             ExternalToolStatus {
                 kind: ExternalToolKind::Ffprobe,
@@ -122,6 +125,9 @@ impl TranscodingEngine {
                 bytes_per_second: None,
                 last_download_error: None,
                 last_download_message: None,
+                last_remote_check_error: None,
+                last_remote_check_message: None,
+                last_remote_check_at_ms: None,
             },
             ExternalToolStatus {
                 kind: ExternalToolKind::Avifenc,
@@ -139,6 +145,9 @@ impl TranscodingEngine {
                 bytes_per_second: None,
                 last_download_error: None,
                 last_download_message: None,
+                last_remote_check_error: None,
+                last_remote_check_message: None,
+                last_remote_check_at_ms: None,
             },
         ]
     }
@@ -151,6 +160,7 @@ impl TranscodingEngine {
         &self,
         remote_check: bool,
         manual_remote_check: bool,
+        remote_check_kind: Option<ExternalToolKind>,
     ) -> bool {
         if !try_begin_tool_status_refresh() {
             crate::debug_eprintln!("[tools_refresh] dedupe hit (already in progress)");
@@ -204,16 +214,27 @@ impl TranscodingEngine {
                 let libavif_ttl_hit =
                     ttl_hit(now_ms, persisted_libavif.and_then(|info| info.checked_at_ms), TTL_MS);
 
-                let should_check_ffmpeg =
-                    remote_check && (manual_remote_check || !remote_ttl_hit);
-                let should_check_libavif =
-                    remote_check && (manual_remote_check || !libavif_ttl_hit);
+                let (should_check_ffmpeg, should_check_libavif) = match remote_check_kind {
+                    Some(ExternalToolKind::Ffmpeg) | Some(ExternalToolKind::Ffprobe) => {
+                        (remote_check, false)
+                    }
+                    Some(ExternalToolKind::Avifenc) => (false, remote_check),
+                    None => (
+                        remote_check && (manual_remote_check || !remote_ttl_hit),
+                        remote_check && (manual_remote_check || !libavif_ttl_hit),
+                    ),
+                };
                 crate::debug_eprintln!(
                     "[tools_refresh] start remote_check={remote_check} manual={manual_remote_check} ttl_hit_ffmpeg={remote_ttl_hit} ttl_hit_libavif={libavif_ttl_hit}"
                 );
 
                 let mut remote_updated = false;
                 let mut should_persist_settings = false;
+                if manual_remote_check {
+                    if let Some(kind) = remote_check_kind {
+                        clear_tool_remote_check_state(kind);
+                    }
+                }
                 if should_check_ffmpeg {
                     let refreshed = best_effort_remote_refresh(
                         manual_remote_check,
@@ -235,13 +256,12 @@ impl TranscodingEngine {
                                 );
                             });
 
-                            if manual_remote_check
-                                && let Some(note) = note
-                            {
-                                mark_proxy_note_for_kinds(
-                                    &[ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-                                    note,
-                                );
+                            if manual_remote_check && let Some(note) = note {
+                                let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
+                                    Some(kind) => vec![kind],
+                                    None => vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                                };
+                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
                             }
                         }
                         Ok((_v, _t, _note)) => {
@@ -250,10 +270,11 @@ impl TranscodingEngine {
                             );
                         }
                         Err(err) => {
-                            mark_proxy_remote_check_error(
-                                &[ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-                                err,
-                            );
+                            let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
+                                Some(kind) => vec![kind],
+                                None => vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                            };
+                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
                         }
                     }
                 }
@@ -279,10 +300,12 @@ impl TranscodingEngine {
                                 );
                             });
 
-                            if manual_remote_check
-                                && let Some(note) = note
-                            {
-                                mark_proxy_note_for_kinds(&[ExternalToolKind::Avifenc], note);
+                            if manual_remote_check && let Some(note) = note {
+                                let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
+                                    Some(kind) => vec![kind],
+                                    None => vec![ExternalToolKind::Avifenc],
+                                };
+                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
                             }
                         }
                         Ok((_v, _t, _note)) => {
@@ -291,7 +314,11 @@ impl TranscodingEngine {
                             );
                         }
                         Err(err) => {
-                            mark_proxy_remote_check_error(&[ExternalToolKind::Avifenc], err);
+                            let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
+                                Some(kind) => vec![kind],
+                                None => vec![ExternalToolKind::Avifenc],
+                            };
+                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
                         }
                     }
                 }

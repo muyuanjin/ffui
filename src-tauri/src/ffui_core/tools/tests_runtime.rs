@@ -225,6 +225,9 @@ mod tools_tests_runtime {
             bytes_per_second: None,
             last_download_error: None,
             last_download_message: None,
+            last_remote_check_error: None,
+            last_remote_check_message: None,
+            last_remote_check_at_ms: None,
         };
         let base_ffprobe = ExternalToolStatus {
             kind: ExternalToolKind::Ffprobe,
@@ -242,6 +245,9 @@ mod tools_tests_runtime {
             bytes_per_second: None,
             last_download_error: None,
             last_download_message: None,
+            last_remote_check_error: None,
+            last_remote_check_message: None,
+            last_remote_check_at_ms: None,
         };
         update_latest_status_snapshot(vec![base_ffmpeg, base_ffprobe]);
         // Start a download for ffmpeg and simulate progress; only ffmpeg should change.
@@ -392,6 +398,9 @@ mod tools_tests_runtime {
                 bytes_per_second: None,
                 last_download_error: None,
                 last_download_message: None,
+                last_remote_check_error: None,
+                last_remote_check_message: None,
+                last_remote_check_at_ms: None,
             });
         }
 

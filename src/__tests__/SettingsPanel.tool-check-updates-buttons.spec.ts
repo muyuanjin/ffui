@@ -150,6 +150,7 @@ describe("SettingsPanel external tools check updates button", () => {
     expect(refreshToolStatuses).toHaveBeenCalledWith({
       remoteCheck: true,
       manualRemoteCheck: true,
+      remoteCheckKind: "avifenc",
     });
     expect(wrapper.get('[data-testid="tool-check-update-avifenc"]').text()).toBe("检查中…");
     expect(wrapper.get('[data-testid="tool-check-update-hover-log-avifenc"]').text()).toContain("开始检查更新");

@@ -18,7 +18,11 @@ const props = defineProps<{
   /** Whether tool statuses have been refreshed at least once this session. */
   toolStatusesFresh?: boolean;
   fetchToolCandidates: (kind: ExternalToolKind) => Promise<ExternalToolCandidate[]>;
-  refreshToolStatuses?: (options?: { remoteCheck?: boolean; manualRemoteCheck?: boolean }) => Promise<void>;
+  refreshToolStatuses?: (options?: {
+    remoteCheck?: boolean;
+    manualRemoteCheck?: boolean;
+    remoteCheckKind?: ExternalToolKind;
+  }) => Promise<void>;
 }>();
 
 const emit = defineEmits<{
@@ -137,20 +141,23 @@ watch(
         }),
       );
 
-      if (!status.resolvedPath) {
-        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultToolMissing"), "warn");
-      } else if (!status.remoteVersion) {
-        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"), "warn");
-      } else if (status.updateAvailable) {
-        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"));
+      if (status.lastRemoteCheckError) {
+        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultRemoteCheckFailed"), "error");
+        appendCheckUpdateLog(request.kind, status.lastRemoteCheckError, "error");
       } else {
-        appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpToDate"));
-      }
+        if (!status.resolvedPath) {
+          appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultToolMissing"), "warn");
+        } else if (!status.remoteVersion) {
+          appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"), "warn");
+        } else if (status.updateAvailable) {
+          appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"));
+        } else {
+          appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpToDate"));
+        }
 
-      if (status.lastDownloadError) {
-        appendCheckUpdateLog(request.kind, status.lastDownloadError, "error");
-      } else if (status.lastDownloadMessage && status.lastDownloadMessage.startsWith("[proxy]")) {
-        appendCheckUpdateLog(request.kind, status.lastDownloadMessage, "warn");
+        if (status.lastRemoteCheckMessage && status.lastRemoteCheckMessage.startsWith("[proxy]")) {
+          appendCheckUpdateLog(request.kind, status.lastRemoteCheckMessage, "warn");
+        }
       }
     }
 
@@ -191,7 +198,7 @@ const handleCheckToolUpdate = async (kind: ExternalToolKind) => {
   checkUpdateActiveRequest.value = { id, kind, startedAtMs, timeoutId };
 
   try {
-    await props.refreshToolStatuses({ remoteCheck: true, manualRemoteCheck: true });
+    await props.refreshToolStatuses({ remoteCheck: true, manualRemoteCheck: true, remoteCheckKind: kind });
     if (checkUpdateActiveRequest.value?.id !== id) return;
     appendCheckUpdateLog(kind, t("app.settings.checkToolUpdateLogAwaitingSnapshot"));
   } catch (error) {

@@ -59,6 +59,9 @@ mod tools_tests_async_refresh {
             bytes_per_second: Some(789.0),
             last_download_error: None,
             last_download_message: Some("downloading".to_string()),
+            last_remote_check_error: None,
+            last_remote_check_message: None,
+            last_remote_check_at_ms: None,
         };
 
         let value = serde_json::to_value(vec![status]).expect("serialize tool status payload");

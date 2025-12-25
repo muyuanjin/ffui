@@ -152,7 +152,7 @@ const proxyUrlError = computed<string | null>(() => {
     </p>
 
     <div v-if="networkProxyMode !== 'none'" class="mt-1 flex items-center justify-between gap-2">
-      <span class="text-[10px] text-muted-foreground">
+      <span class="text-[10px] text-foreground">
         {{ t("app.settings.networkProxyFallbackLabel") }}
       </span>
       <Switch
