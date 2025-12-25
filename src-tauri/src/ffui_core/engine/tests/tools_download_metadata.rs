@@ -2,7 +2,7 @@ use super::common::*;
 use crate::ffui_core::tools::ExternalToolKind;
 
 #[test]
-fn manual_tool_download_updates_settings_paths_even_without_metadata() {
+fn manual_tool_download_records_download_metadata_without_custom_path_override() {
     let engine = make_engine_with_preset();
 
     let initial = engine.settings();
@@ -15,10 +15,9 @@ fn manual_tool_download_updates_settings_paths_even_without_metadata() {
     engine.record_manual_tool_download(ExternalToolKind::Ffmpeg, path);
 
     let updated = engine.settings();
-    assert_eq!(
-        updated.tools.ffmpeg_path.as_deref(),
-        Some(path),
-        "record_manual_tool_download must persist the provided binary path into settings.tools.ffmpeg_path"
+    assert!(
+        updated.tools.ffmpeg_path.is_none(),
+        "record_manual_tool_download must not populate settings.tools.ffmpeg_path (CUSTOM override)"
     );
 
     let downloaded = updated

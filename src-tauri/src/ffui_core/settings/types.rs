@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+mod tool_custom_path_sanitize;
 mod types_helpers;
 
 pub use super::monitor_updater_types::{AppUpdaterSettings, MonitorSettings, TranscodeActivityDay};
@@ -348,6 +349,8 @@ impl AppSettings {
         self.max_parallel_hw_jobs =
             types_helpers::normalize_parallel_limit(self.max_parallel_hw_jobs);
         types_helpers::normalize_string_option(&mut self.locale);
+        self.tools
+            .sanitize_custom_paths_for_auto_managed_downloads();
 
         // Preserve user-configured values (including <= 0 for "infinite wait") while
         // still recovering from invalid numeric inputs.

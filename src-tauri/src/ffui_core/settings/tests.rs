@@ -6,6 +6,7 @@ use super::*;
 mod network_proxy;
 mod presets_loading;
 mod tests_selection_bar_pinned;
+mod tools_custom_path_sanitization;
 mod updater_metadata;
 
 #[test]

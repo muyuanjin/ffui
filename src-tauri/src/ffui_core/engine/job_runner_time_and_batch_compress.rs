@@ -19,17 +19,16 @@ pub(super) fn current_time_millis() -> u64 {
 pub(super) fn record_tool_download_with_inner(
     inner: &Inner,
     kind: ExternalToolKind,
-    binary_path: &str,
+    _binary_path: &str,
 ) {
-    // Persist the last downloaded tool metadata (when available) together
-    // with the concrete binary path into settings.json so that:
+    // Persist the last downloaded tool metadata (when available) into settings.json so that:
     // - the Settings panel can display human-readable version information;
-    // - future runs prefer the known-good binary instead of relying on PATH.
+    // - future runs can reuse persisted metadata for update hints.
     //
-    // When no metadata has been recorded yet (for example in certain manual
-    // test setups), we still update the path and create a minimal
-    // DownloadedToolInfo entry so the UI and engine have a single source of
-    // truth.
+    // NOTE: We intentionally do not persist `tools.{ffmpeg,ffprobe,avifenc}_path` here.
+    // Those fields represent user-provided "CUSTOM" overrides. Auto-downloaded binaries
+    // are resolved via the tools directory on disk, so writing them into the custom path
+    // would incorrectly auto-fill the Settings UI and change precedence semantics.
     let meta = last_tool_download_metadata(kind);
 
     let settings_snapshot = {
@@ -51,17 +50,12 @@ pub(super) fn record_tool_download_with_inner(
         match kind {
             ExternalToolKind::Ffmpeg => {
                 downloaded.ffmpeg = Some(info);
-                // Prefer the auto-downloaded (or manually-triggered) binary for
-                // future invocations.
-                tools.ffmpeg_path = Some(binary_path.to_string());
             }
             ExternalToolKind::Ffprobe => {
                 downloaded.ffprobe = Some(info);
-                tools.ffprobe_path = Some(binary_path.to_string());
             }
             ExternalToolKind::Avifenc => {
                 downloaded.avifenc = Some(info);
-                tools.avifenc_path = Some(binary_path.to_string());
             }
         }
 
