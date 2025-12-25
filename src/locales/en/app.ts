@@ -36,6 +36,8 @@ const app = {
     checkToolUpdateLogSummaryResultUpToDate: "Result: up to date.",
     checkToolUpdateLogSummaryResultToolMissing: "Result: executable not found; cannot compare versions.",
     checkToolUpdateLogSummaryResultRemoteUnknown: "Result: remote version unknown; cannot determine.",
+    checkToolUpdateLogSummaryResultVersionUncomparableWithHint:
+      "Result: local version format is not comparable; cannot determine; click Update to switch to the recommended remote version.",
     checkToolUpdateLogSummaryResultRemoteCheckFailed: "Result: remote check failed.",
     checkToolUpdateLogDuration: "Elapsed: {seconds}s",
     checkToolUpdateLogTimeout:
@@ -74,6 +76,7 @@ const app = {
     downloadInProgress: "Downloading, please wait…",
     updateAvailableHint: "Update available: {version}",
     toolUpToDateHint: "Up to date",
+    toolUpdateCheckUnknownHint: "Version not comparable",
     customToolPathFooter:
       "When a custom path is set, it takes precedence; otherwise the app searches the auto-downloaded tools directory or system PATH.",
     autoDownloadSectionTitle: "Auto-download",

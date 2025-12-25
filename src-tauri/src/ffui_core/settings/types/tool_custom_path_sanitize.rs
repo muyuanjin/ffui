@@ -35,20 +35,20 @@ impl ExternalToolSettings {
             "avifenc"
         });
 
-        if let Some(current) = self.ffmpeg_path.as_deref() {
-            if paths_equivalent_for_settings(current, &expected_ffmpeg) {
-                self.ffmpeg_path = None;
-            }
+        if let Some(current) = self.ffmpeg_path.as_deref()
+            && paths_equivalent_for_settings(current, &expected_ffmpeg)
+        {
+            self.ffmpeg_path = None;
         }
-        if let Some(current) = self.ffprobe_path.as_deref() {
-            if paths_equivalent_for_settings(current, &expected_ffprobe) {
-                self.ffprobe_path = None;
-            }
+        if let Some(current) = self.ffprobe_path.as_deref()
+            && paths_equivalent_for_settings(current, &expected_ffprobe)
+        {
+            self.ffprobe_path = None;
         }
-        if let Some(current) = self.avifenc_path.as_deref() {
-            if paths_equivalent_for_settings(current, &expected_avifenc) {
-                self.avifenc_path = None;
-            }
+        if let Some(current) = self.avifenc_path.as_deref()
+            && paths_equivalent_for_settings(current, &expected_avifenc)
+        {
+            self.avifenc_path = None;
         }
     }
 

@@ -77,6 +77,7 @@ describe("SettingsPanel external tools check updates button", () => {
         resolvedPath: "C:/tools/ffmpeg.exe",
         source: "path",
         version: "ffmpeg version 6.0",
+        updateCheckResult: "upToDate",
         updateAvailable: false,
         autoDownloadEnabled: false,
         autoUpdateEnabled: false,
@@ -87,6 +88,7 @@ describe("SettingsPanel external tools check updates button", () => {
         resolvedPath: "C:/tools/ffprobe.exe",
         source: "path",
         version: "ffprobe version 6.0",
+        updateCheckResult: "upToDate",
         updateAvailable: false,
         autoDownloadEnabled: false,
         autoUpdateEnabled: false,
@@ -97,6 +99,7 @@ describe("SettingsPanel external tools check updates button", () => {
         resolvedPath: "C:/tools/avifenc.exe",
         source: "path",
         version: "avifenc 1.3.0",
+        updateCheckResult: "upToDate",
         updateAvailable: false,
         autoDownloadEnabled: false,
         autoUpdateEnabled: false,
@@ -164,6 +167,7 @@ describe("SettingsPanel external tools check updates button", () => {
           ? {
               ...status,
               remoteVersion: "avifenc 1.3.0",
+              updateCheckResult: "upToDate",
               updateAvailable: false,
             }
           : status,
@@ -187,6 +191,7 @@ describe("SettingsPanel external tools check updates button", () => {
         resolvedPath: "C:/tools/ffmpeg.exe",
         source: "path",
         version: "ffmpeg version 6.0",
+        updateCheckResult: "upToDate",
         updateAvailable: false,
         autoDownloadEnabled: false,
         autoUpdateEnabled: false,
@@ -226,6 +231,77 @@ describe("SettingsPanel external tools check updates button", () => {
 
     expect(wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text()).toContain("等待状态快照超时");
     expect(wrapper.text()).not.toContain("已检查");
+
+    wrapper.unmount();
+  });
+
+  it("shows an 'uncomparable' conclusion when backend reports updateCheckResult=unknown", async () => {
+    const toolStatuses: ExternalToolStatus[] = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "custom",
+        version: "ffmpeg version N-121700-g36e5576a44-20251108",
+        remoteVersion: undefined,
+        updateCheckResult: "unknown",
+        updateAvailable: false,
+        autoDownloadEnabled: false,
+        autoUpdateEnabled: false,
+        downloadInProgress: false,
+      },
+    ];
+
+    let resolveRefresh: () => void = () => {};
+    const refreshToolStatuses = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRefresh = () => resolve();
+        }),
+    );
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
+        },
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses,
+        refreshToolStatuses,
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    await flushPromises();
+    const ffmpegBtn = wrapper.get('[data-testid="tool-check-update-ffmpeg"]');
+
+    await ffmpegBtn.trigger("click");
+    await flushPromises();
+    resolveRefresh();
+    await flushPromises();
+
+    await wrapper.setProps({
+      toolStatuses: [
+        {
+          ...toolStatuses[0],
+          remoteVersion: "6.1.1",
+          updateCheckResult: "unknown",
+          updateAvailable: false,
+        },
+      ],
+    });
+    await flushPromises();
+
+    const log = wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text();
+    expect(log).toContain("结论：本地版本格式不支持比较");
+    expect(log).toContain("可点击“更新”");
+    expect(log).not.toContain("结论：已是最新版本");
 
     wrapper.unmount();
   });

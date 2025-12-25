@@ -21,6 +21,7 @@ vi.mock("@/lib/backend", () => {
             source: "path",
             version: "ffmpeg version 6.0",
             remoteVersion: undefined,
+            updateCheckResult: "unknown",
             updateAvailable: false,
             autoDownloadEnabled: false,
             autoUpdateEnabled: false,

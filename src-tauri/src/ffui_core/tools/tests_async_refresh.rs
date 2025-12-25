@@ -2,8 +2,8 @@
 mod tools_tests_async_refresh {
     use crate::ffui_core::tools::tests_runtime::TEST_MUTEX;
     use crate::ffui_core::tools::{
-        ExternalToolKind, ExternalToolStatus, finish_tool_status_refresh,
-        try_begin_tool_status_refresh, ttl_hit,
+        ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
+        finish_tool_status_refresh, try_begin_tool_status_refresh, ttl_hit,
     };
     use serde_json::json;
 
@@ -49,6 +49,7 @@ mod tools_tests_async_refresh {
             source: Some("path".to_string()),
             version: Some("ffmpeg version 6.0".to_string()),
             remote_version: Some("6.1.1".to_string()),
+            update_check_result: ExternalToolUpdateCheckResult::UpdateAvailable,
             update_available: true,
             auto_download_enabled: true,
             auto_update_enabled: true,
@@ -72,12 +73,14 @@ mod tools_tests_async_refresh {
 
         assert!(obj.contains_key("resolvedPath"));
         assert!(obj.contains_key("remoteVersion"));
+        assert!(obj.contains_key("updateCheckResult"));
         assert!(obj.contains_key("downloadInProgress"));
         assert!(obj.contains_key("downloadProgress"));
 
         // Sanity check: snake_case keys should not appear in the event payload.
         assert_eq!(obj.get("remote_version"), None);
         assert_eq!(obj.get("download_in_progress"), None);
+        assert_eq!(obj.get("update_check_result"), None);
 
         // Also ensure the kind enum is serialized in the expected format.
         assert_eq!(obj.get("kind"), Some(&json!("ffmpeg")));

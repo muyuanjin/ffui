@@ -149,6 +149,12 @@ watch(
           appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultToolMissing"), "warn");
         } else if (!status.remoteVersion) {
           appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultRemoteUnknown"), "warn");
+        } else if (status.updateCheckResult === "unknown") {
+          appendCheckUpdateLog(
+            request.kind,
+            t("app.settings.checkToolUpdateLogSummaryResultVersionUncomparableWithHint"),
+            "warn",
+          );
         } else if (status.updateAvailable) {
           appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpdateAvailable"));
         } else {

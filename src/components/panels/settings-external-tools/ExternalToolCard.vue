@@ -316,10 +316,26 @@ const copyToClipboard = async (value: string | undefined | null) => {
         {{ t("app.settings.updateAvailableHint", { version: tool.remoteVersion ?? tool.version ?? "?" }) }}
       </span>
       <span
-        v-else-if="tool.resolvedPath && !tool.updateAvailable && !tool.lastDownloadError && !tool.lastRemoteCheckError"
+        v-else-if="
+          tool.resolvedPath &&
+          tool.updateCheckResult === 'upToDate' &&
+          !tool.lastDownloadError &&
+          !tool.lastRemoteCheckError
+        "
         class="text-emerald-600"
       >
         {{ t("app.settings.toolUpToDateHint") }}
+      </span>
+      <span
+        v-else-if="
+          tool.resolvedPath &&
+          tool.updateCheckResult === 'unknown' &&
+          !tool.lastDownloadError &&
+          !tool.lastRemoteCheckError
+        "
+        class="text-amber-600"
+      >
+        {{ t("app.settings.toolUpdateCheckUnknownHint") }}
       </span>
       <div class="flex items-center gap-1.5">
         <HoverCard v-if="!tool.downloadInProgress && checkUpdateLogs.length > 0" :open-delay="180" :close-delay="90">
@@ -403,14 +419,21 @@ const copyToClipboard = async (value: string | undefined | null) => {
           }}
         </Button>
         <Button
-          v-if="!tool.downloadInProgress && (tool.updateAvailable || !tool.resolvedPath)"
+          v-if="
+            !tool.downloadInProgress &&
+            (tool.updateAvailable || !tool.resolvedPath || (tool.updateCheckResult === 'unknown' && tool.remoteVersion))
+          "
           data-testid="tool-download-action"
           variant="outline"
           size="sm"
           class="h-5 px-2 text-[9px]"
           @click="emit('download')"
         >
-          {{ tool.updateAvailable ? t("app.settings.updateToolButton") : t("app.settings.downloadToolButton") }}
+          {{
+            tool.updateAvailable || (tool.updateCheckResult === "unknown" && tool.remoteVersion)
+              ? t("app.settings.updateToolButton")
+              : t("app.settings.downloadToolButton")
+          }}
         </Button>
       </div>
     </div>

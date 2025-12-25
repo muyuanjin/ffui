@@ -43,6 +43,8 @@ export interface ExternalToolSettings {
 
 export type ExternalToolKind = "ffmpeg" | "ffprobe" | "avifenc";
 
+export type ExternalToolUpdateCheckResult = "upToDate" | "updateAvailable" | "unknown";
+
 export interface ExternalToolStatus {
   kind: ExternalToolKind;
   resolvedPath?: string;
@@ -50,6 +52,7 @@ export interface ExternalToolStatus {
   version?: string;
   /** Latest remote version string when known (for update hints). */
   remoteVersion?: string;
+  updateCheckResult: ExternalToolUpdateCheckResult;
   updateAvailable: boolean;
   autoDownloadEnabled: boolean;
   autoUpdateEnabled: boolean;

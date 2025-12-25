@@ -358,7 +358,7 @@ pub(crate) fn detect_video_stream_last_frame_timestamp_seconds(
         && last.is_finite()
         && last > start
     {
-        last = last - start;
+        last -= start;
     }
 
     if last.is_finite() && last > 0.0 {

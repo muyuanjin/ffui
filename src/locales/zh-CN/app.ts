@@ -35,6 +35,8 @@ const app = {
     checkToolUpdateLogSummaryResultUpToDate: "结论：已是最新版本。",
     checkToolUpdateLogSummaryResultToolMissing: "结论：未检测到可执行文件，无法比较版本。",
     checkToolUpdateLogSummaryResultRemoteUnknown: "结论：远端版本未知，无法判断是否最新。",
+    checkToolUpdateLogSummaryResultVersionUncomparableWithHint:
+      "结论：本地版本格式不支持比较，无法判断是否最新；如需切换到远端推荐版本，可点击“更新”。",
     checkToolUpdateLogSummaryResultRemoteCheckFailed: "结论：远端检查失败。",
     checkToolUpdateLogDuration: "耗时：{seconds}s",
     checkToolUpdateLogTimeout:
@@ -73,6 +75,7 @@ const app = {
     downloadInProgress: "正在下载，请稍候...",
     updateAvailableHint: "检测到可用更新：{version}",
     toolUpToDateHint: "已是最新版本",
+    toolUpdateCheckUnknownHint: "版本不可比较",
     customToolPathFooter: "当设置了自定义路径时优先使用自定义路径，否则从自动下载的 tools 目录或系统 PATH 查找。",
     autoDownloadSectionTitle: "自动下载",
     autoDownloadSectionDescription: "选择外部工具的自动下载 / 自动更新策略。",

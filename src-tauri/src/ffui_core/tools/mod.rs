@@ -32,7 +32,9 @@ pub(crate) use runtime_state::{
     update_latest_status_snapshot,
 };
 pub(crate) use status::tool_status;
-pub use types::{ExternalToolCandidate, ExternalToolKind, ExternalToolStatus};
+pub use types::{
+    ExternalToolCandidate, ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
+};
 
 pub(crate) fn hydrate_probe_cache_from_settings(
     settings: &crate::ffui_core::settings::ExternalToolSettings,

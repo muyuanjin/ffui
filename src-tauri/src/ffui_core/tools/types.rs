@@ -12,6 +12,14 @@ pub enum ExternalToolKind {
     Avifenc,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ExternalToolUpdateCheckResult {
+    UpToDate,
+    UpdateAvailable,
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalToolStatus {
@@ -21,6 +29,7 @@ pub struct ExternalToolStatus {
     pub version: Option<String>,
     /// Latest remote version string when known (for update hints).
     pub remote_version: Option<String>,
+    pub update_check_result: ExternalToolUpdateCheckResult,
     pub update_available: bool,
     pub auto_download_enabled: bool,
     pub auto_update_enabled: bool,

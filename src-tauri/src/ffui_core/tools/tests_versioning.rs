@@ -38,4 +38,18 @@ mod tools_tests_versioning {
             "semver compare should prevent downgrade prompts"
         );
     }
+
+    #[test]
+    fn should_mark_update_available_returns_false_when_versions_are_not_comparable() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        assert!(
+            !crate::ffui_core::tools::status::should_mark_update_available(
+                "custom",
+                Some("ffmpeg version N-121700-g36e5576a44-20251108"),
+                Some("6.1.1"),
+            ),
+            "non-semver local versions should not be treated as huge semantic versions"
+        );
+    }
 }

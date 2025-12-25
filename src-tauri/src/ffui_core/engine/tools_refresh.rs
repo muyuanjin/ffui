@@ -1,8 +1,8 @@
 use super::TranscodingEngine;
 use crate::ffui_core::settings;
 use crate::ffui_core::tools::{
-    ExternalToolKind, ExternalToolStatus, cached_ffmpeg_release_version,
-    cached_tool_status_snapshot, finish_tool_status_refresh,
+    ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
+    cached_ffmpeg_release_version, cached_tool_status_snapshot, finish_tool_status_refresh,
     hydrate_remote_version_cache_from_settings, refresh_ffmpeg_static_release_from_github_checked,
     refresh_libavif_release_from_github_checked, try_begin_tool_status_refresh,
     try_refresh_ffmpeg_static_release_from_github, try_refresh_libavif_release_from_github,
@@ -97,6 +97,7 @@ impl TranscodingEngine {
                 source: None,
                 version: None,
                 remote_version: cached_remote.clone(),
+                update_check_result: ExternalToolUpdateCheckResult::Unknown,
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,
@@ -117,6 +118,7 @@ impl TranscodingEngine {
                 source: None,
                 version: None,
                 remote_version: cached_remote,
+                update_check_result: ExternalToolUpdateCheckResult::Unknown,
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,
@@ -137,6 +139,7 @@ impl TranscodingEngine {
                 source: None,
                 version: None,
                 remote_version: cached_libavif,
+                update_check_result: ExternalToolUpdateCheckResult::Unknown,
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,

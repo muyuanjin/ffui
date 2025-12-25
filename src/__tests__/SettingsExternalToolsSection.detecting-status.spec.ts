@@ -41,6 +41,7 @@ const makeMissingToolStatus = (): ExternalToolStatus => ({
   source: undefined,
   version: undefined,
   remoteVersion: undefined,
+  updateCheckResult: "unknown",
   updateAvailable: false,
   autoDownloadEnabled: false,
   autoUpdateEnabled: false,

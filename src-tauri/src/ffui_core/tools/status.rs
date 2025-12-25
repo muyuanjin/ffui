@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use super::discover::discover_candidates;
@@ -7,8 +8,13 @@ use super::runtime_state::{
     cached_ffmpeg_release_version, cached_libavif_release_version, last_tool_download_metadata,
     snapshot_download_state,
 };
-use super::types::{ExternalToolKind, ExternalToolStatus, FFMPEG_STATIC_VERSION, LIBAVIF_VERSION};
+use super::types::{
+    ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult, FFMPEG_STATIC_VERSION,
+    LIBAVIF_VERSION,
+};
 use crate::ffui_core::settings::ExternalToolSettings;
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 fn parse_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
     let normalized = input.trim().trim_start_matches('v');
@@ -30,21 +36,12 @@ fn version_is_newer(candidate: &str, baseline: &str) -> bool {
     }
 }
 
+static SEMVER_LIKE_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)\b(v?\d+(?:\.\d+){1,2})\b").expect("semver regex"));
+
 fn extract_semver_like(input: &str) -> Option<String> {
-    let trimmed = input.trim();
-    let start = trimmed.find(|c: char| c.is_ascii_digit())?;
-    let mut end = start;
-    for (idx, ch) in trimmed[start..].char_indices() {
-        if ch.is_ascii_digit() || ch == '.' {
-            end = start + idx + ch.len_utf8();
-            continue;
-        }
-        break;
-    }
-    if end <= start {
-        return None;
-    }
-    Some(trimmed[start..end].to_string())
+    let caps = SEMVER_LIKE_RE.captures(input)?;
+    Some(caps.get(1)?.as_str().to_string())
 }
 
 fn extract_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
@@ -52,6 +49,7 @@ fn extract_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
     parse_version_tuple(&semver)
 }
 
+#[cfg(test)]
 pub(super) fn should_mark_update_available(
     source: &str,
     local_version: Option<&str>,
@@ -59,14 +57,19 @@ pub(super) fn should_mark_update_available(
 ) -> bool {
     let _ = source;
     match (local_version, remote_version) {
-        (Some(local), Some(remote)) => {
-            match (extract_version_tuple(local), extract_version_tuple(remote)) {
-                (Some(local_t), Some(remote_t)) => remote_t > local_t,
-                _ => !local.contains(remote),
-            }
-        }
+        (Some(local), Some(remote)) => match compare_update_versions(local, remote) {
+            Some(Ordering::Less) => true,
+            Some(_) => false,
+            None => false,
+        },
         _ => false,
     }
+}
+
+fn compare_update_versions(local: &str, remote: &str) -> Option<Ordering> {
+    let local_t = extract_version_tuple(local)?;
+    let remote_t = extract_version_tuple(remote)?;
+    Some(local_t.cmp(&remote_t))
 }
 
 pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<String> {
@@ -186,12 +189,15 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
     }
 
     let remote_version = effective_remote_version_for(kind);
-    let update_available = match (&source, &version, &remote_version) {
-        (Some(source), version, remote) => {
-            should_mark_update_available(source, version.as_deref(), remote.as_deref())
-        }
-        (None, _, _) => false,
+    let update_check_result = match (&version, &remote_version) {
+        (Some(local), Some(remote)) => match compare_update_versions(local, remote) {
+            Some(Ordering::Less) => ExternalToolUpdateCheckResult::UpdateAvailable,
+            Some(_) => ExternalToolUpdateCheckResult::UpToDate,
+            None => ExternalToolUpdateCheckResult::Unknown,
+        },
+        _ => ExternalToolUpdateCheckResult::Unknown,
     };
+    let update_available = update_check_result == ExternalToolUpdateCheckResult::UpdateAvailable;
 
     ExternalToolStatus {
         kind,
@@ -199,6 +205,7 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
         source,
         version,
         remote_version,
+        update_check_result,
         update_available,
         auto_download_enabled: settings.auto_download,
         auto_update_enabled: settings.auto_update,

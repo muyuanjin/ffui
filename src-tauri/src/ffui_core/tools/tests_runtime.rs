@@ -23,7 +23,8 @@ mod tools_tests_runtime {
     };
     use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
     use crate::ffui_core::tools::{
-        ExternalToolKind, ExternalToolStatus, update_latest_status_snapshot,
+        ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
+        update_latest_status_snapshot,
     };
     use crate::sync_ext::MutexExt;
     pub(in crate::ffui_core::tools) static TEST_MUTEX: Lazy<Mutex<()>> =
@@ -215,6 +216,7 @@ mod tools_tests_runtime {
             source: Some("path".to_string()),
             version: Some("ffmpeg version 6.0".to_string()),
             remote_version: Some("6.0".to_string()),
+            update_check_result: ExternalToolUpdateCheckResult::UpToDate,
             update_available: false,
             auto_download_enabled: true,
             auto_update_enabled: true,
@@ -235,6 +237,7 @@ mod tools_tests_runtime {
             source: Some("path".to_string()),
             version: Some("ffprobe version 6.0".to_string()),
             remote_version: Some("6.0".to_string()),
+            update_check_result: ExternalToolUpdateCheckResult::UpToDate,
             update_available: false,
             auto_download_enabled: true,
             auto_update_enabled: true,
@@ -388,6 +391,7 @@ mod tools_tests_runtime {
                 source: Some("path".to_string()),
                 version: Some("ffmpeg version 6.0".to_string()),
                 remote_version: Some("6.0".to_string()),
+                update_check_result: ExternalToolUpdateCheckResult::UpdateAvailable,
                 update_available: true,
                 auto_download_enabled: true,
                 auto_update_enabled: true,

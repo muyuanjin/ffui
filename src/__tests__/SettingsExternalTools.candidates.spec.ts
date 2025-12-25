@@ -41,6 +41,7 @@ const makeToolStatus = (kind: ExternalToolKind): ExternalToolStatus => ({
   resolvedPath: `C:/tools/${kind}.exe`,
   source: "path",
   version: "ffmpeg version 6.0",
+  updateCheckResult: "upToDate",
   updateAvailable: false,
   autoDownloadEnabled: false,
   autoUpdateEnabled: false,

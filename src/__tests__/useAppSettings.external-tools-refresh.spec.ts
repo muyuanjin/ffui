@@ -69,6 +69,7 @@ describe("useAppSettings external tool async refresh", () => {
         source: "path",
         version: "ffmpeg version 6.0",
         remoteVersion: "6.1.1",
+        updateCheckResult: "updateAvailable",
         updateAvailable: true,
         autoDownloadEnabled: true,
         autoUpdateEnabled: true,

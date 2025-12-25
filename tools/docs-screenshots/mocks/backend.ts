@@ -304,6 +304,7 @@ export const clearAllAppData = async (): Promise<AppSettings> => {
 export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolStatus[]> => {
   const settings = await loadAppSettings();
   const base = {
+    updateCheckResult: "unknown",
     updateAvailable: false,
     autoDownloadEnabled: settings.tools.autoDownload,
     autoUpdateEnabled: settings.tools.autoUpdate,
