@@ -22,14 +22,16 @@ pub(super) use detect::parse_ffprobe_frame_rate;
 pub(super) use detect::{
     detect_best_effort_video_start_time_seconds, detect_duration_seconds, detect_video_codec,
     detect_video_dimensions_and_frame_rate, detect_video_stream_duration_seconds,
+    detect_video_stream_last_frame_timestamp_seconds,
 };
 pub use job_object::{assign_child_to_job, init_child_process_job};
 pub(super) use platform::configure_background_command;
+pub(super) use progress::parse_ffmpeg_progress_line;
 #[cfg(test)]
 pub(super) use progress::parse_ffmpeg_time_to_seconds;
 pub(super) use progress::{
     compute_progress_percent, is_ffmpeg_progress_end, parse_ffmpeg_duration_from_metadata_line,
-    parse_ffmpeg_progress_line,
+    parse_ffmpeg_progress_sample,
 };
 pub(super) use utils::ensure_progress_args;
 pub(crate) use utils::format_command_for_log;

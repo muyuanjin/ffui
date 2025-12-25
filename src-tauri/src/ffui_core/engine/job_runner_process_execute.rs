@@ -126,7 +126,10 @@ fn execute_transcode_job(
             }
         }
 
-        if let Some((elapsed, speed)) = parse_ffmpeg_progress_line(line) {
+        let sample = parse_ffmpeg_progress_sample(line);
+        let parsed = parse_ffmpeg_progress_line(line)
+            .or_else(|| sample.elapsed_seconds.map(|elapsed| (elapsed, sample.speed)));
+        if let Some((elapsed, speed)) = parsed {
             if let Some(total) = total_duration
                 && elapsed.is_finite()
                 && total.is_finite()
@@ -160,6 +163,20 @@ fn execute_transcode_job(
                 last_effective_elapsed_seconds = Some(effective_elapsed);
             }
 
+            if sample.frame.is_some() || last_effective_elapsed_seconds.is_some() {
+                let mut state = inner.state.lock_unpoisoned();
+                if let Some(job) = state.jobs.get_mut(job_id)
+                    && let Some(meta) = job.wait_metadata.as_mut()
+                {
+                    if let Some(seconds) = last_effective_elapsed_seconds {
+                        meta.last_progress_out_time_seconds = Some(seconds);
+                    }
+                    if let Some(frame) = sample.frame {
+                        meta.last_progress_frame = Some(frame);
+                    }
+                }
+            }
+
             if wait_requested {
                 update_job_progress(inner, job_id, None, Some(line), speed);
             } else {
@@ -170,6 +187,15 @@ fn execute_transcode_job(
                 update_job_progress(inner, job_id, Some(percent), Some(line), speed);
             }
         } else {
+            if sample.frame.is_some() {
+                let mut state = inner.state.lock_unpoisoned();
+                if let Some(job) = state.jobs.get_mut(job_id)
+                    && let Some(meta) = job.wait_metadata.as_mut()
+                    && let Some(frame) = sample.frame
+                {
+                    meta.last_progress_frame = Some(frame);
+                }
+            }
             update_job_progress(inner, job_id, None, Some(line), None);
         }
 

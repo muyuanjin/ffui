@@ -58,6 +58,8 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                     processed_wall_millis: Some(3_000),
                     processed_seconds: Some(60.0),
                     target_seconds: Some(60.0),
+                    last_progress_out_time_seconds: None,
+                    last_progress_frame: None,
                     tmp_output_path: None,
                     segments: None,
                     segment_end_targets: None,

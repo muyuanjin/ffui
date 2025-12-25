@@ -94,6 +94,8 @@ fn restart_job_cleans_partial_segments_for_non_processing_job() {
             processed_wall_millis: None,
             processed_seconds: Some(1.2),
             target_seconds: Some(1.2),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
             segments: Some(vec![
                 seg0.to_string_lossy().into_owned(),
@@ -153,6 +155,8 @@ fn cancel_processing_job_cleans_partial_segments() {
             processed_wall_millis: None,
             processed_seconds: Some(1.2),
             target_seconds: Some(1.2),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some(seg1.to_string_lossy().into_owned()),
             segments: Some(vec![
                 seg0.to_string_lossy().into_owned(),
@@ -206,6 +210,8 @@ fn mark_job_cancelled_cleans_segments_when_restarting_processing_job() {
             processed_wall_millis: None,
             processed_seconds: Some(1.2),
             target_seconds: Some(1.2),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
             segments: Some(vec![seg0.to_string_lossy().into_owned()]),
             segment_end_targets: None,

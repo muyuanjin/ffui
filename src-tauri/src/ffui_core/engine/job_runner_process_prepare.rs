@@ -323,6 +323,8 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             processed_wall_millis: None,
                             processed_seconds: None,
                             target_seconds: None,
+                            last_progress_out_time_seconds: None,
+                            last_progress_frame: None,
                             tmp_output_path: Some(tmp_str.clone()),
                             segments: Some(vec![tmp_str]),
                             segment_end_targets: None,

@@ -91,6 +91,8 @@ fn crash_recovery_preserves_wait_target_seconds() {
             processed_wall_millis: Some(1234),
             processed_seconds: Some(40.0),
             target_seconds: Some(40.0),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
             segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
             segment_end_targets: None,

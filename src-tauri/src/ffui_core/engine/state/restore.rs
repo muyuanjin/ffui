@@ -342,6 +342,8 @@ fn recover_wait_metadata_from_filesystem(probe: &SegmentProbe) -> Option<WaitMet
             processed_wall_millis: probe.elapsed_ms,
             processed_seconds: None,
             target_seconds: None,
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: None,
             segments: None,
             segment_end_targets: None,

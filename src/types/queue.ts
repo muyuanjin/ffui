@@ -58,6 +58,17 @@ export interface WaitMetadata {
   processedSeconds?: number;
   /** Intended join target time in seconds for restart-based resume. */
   targetSeconds?: number;
+  /**
+   * Best-effort last seen ffmpeg `-progress` out_time while the job is actively
+   * processing (seconds). Used for crash recovery to avoid relying only on
+   * container duration heuristics.
+   */
+  lastProgressOutTimeSeconds?: number;
+  /**
+   * Best-effort last seen ffmpeg `-progress` frame counter while the job is
+   * actively processing. Primarily a diagnostic + recovery hint.
+   */
+  lastProgressFrame?: number;
   /** Path to a partial or temporary output file captured during processing. */
   tmpOutputPath?: string;
   /**

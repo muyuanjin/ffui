@@ -49,6 +49,8 @@ fn sample_video_job(status: JobStatus) -> TranscodeJob {
             processed_wall_millis: None,
             processed_seconds: Some(12.5),
             target_seconds: Some(12.5),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
             segments: Some(vec![
                 "C:/app-data/tmp/seg0.mp4".to_string(),

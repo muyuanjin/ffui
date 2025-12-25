@@ -105,6 +105,27 @@ fn parse_ffmpeg_progress_line_handles_out_time_and_out_time_ms() {
 }
 
 #[test]
+fn parse_ffmpeg_progress_sample_extracts_frame_and_out_time_ms() {
+    let sample = parse_ffmpeg_progress_sample("frame=10 out_time_ms=820000 progress=continue");
+    assert_eq!(sample.frame, Some(10));
+    assert!(
+        (sample.elapsed_seconds.unwrap_or_default() - 0.82).abs() < 0.001,
+        "elapsed seconds should be derived from out_time_ms"
+    );
+
+    // Also accept the classic "frame=  899 ... time=.." format where frame is split across tokens.
+    let sample = parse_ffmpeg_progress_sample(
+        "frame=  899 fps=174 q=29.0 size=   12800KiB time=00:00:32.51 bitrate=3224.5kbits/s speed=6.29x",
+    );
+    assert_eq!(sample.frame, Some(899));
+    assert!(
+        (sample.elapsed_seconds.unwrap_or_default() - 32.51).abs() < 0.001,
+        "elapsed seconds should be derived from time="
+    );
+    assert!((sample.speed.unwrap_or_default() - 6.29).abs() < 0.001);
+}
+
+#[test]
 fn is_ffmpeg_progress_end_detects_end_marker() {
     assert!(!is_ffmpeg_progress_end("progress=continue"));
     assert!(is_ffmpeg_progress_end("progress=end"));

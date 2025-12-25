@@ -299,6 +299,8 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
             processed_wall_millis: Some(1234),
             processed_seconds: Some(1.0),
             target_seconds: Some(1.0),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: None,
             segments: None,
             segment_end_targets: None,

@@ -15,6 +15,7 @@ use super::ffmpeg_args::{
     detect_video_dimensions_and_frame_rate, detect_video_stream_duration_seconds,
     format_command_for_log, infer_output_extension, is_ffmpeg_progress_end,
     parse_ffmpeg_duration_from_metadata_line, parse_ffmpeg_progress_line,
+    parse_ffmpeg_progress_sample,
 };
 use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,

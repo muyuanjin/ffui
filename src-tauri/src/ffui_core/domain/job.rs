@@ -24,6 +24,13 @@ pub struct WaitMetadata {
     /// paused. When media duration is unknown this may be None.
     pub processed_seconds: Option<f64>,
     pub target_seconds: Option<f64>,
+    /// Best-effort last seen `-progress` out_time (seconds) while the job was
+    /// actively processing. This is persisted frequently for crash recovery so
+    /// we can avoid relying solely on container duration guesses.
+    pub last_progress_out_time_seconds: Option<f64>,
+    /// Best-effort last seen `-progress` frame counter while the job was
+    /// actively processing. This is primarily a diagnostic and recovery hint.
+    pub last_progress_frame: Option<u64>,
     /// Path to a partial output segment or temporary output file, when
     /// available. This is intended for future crash-recovery and resume
     /// strategies; callers must tolerate it being absent.

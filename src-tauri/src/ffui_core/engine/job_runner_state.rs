@@ -159,6 +159,8 @@ pub(super) fn mark_job_waiting(
                 processed_wall_millis: Some(elapsed_wall_ms),
                 processed_seconds,
                 target_seconds: processed_seconds,
+                last_progress_out_time_seconds: None,
+                last_progress_frame: None,
                 tmp_output_path: Some(tmp_str),
                 segments: Some(segments),
                 segment_end_targets: (!segment_end_targets.is_empty()).then_some(segment_end_targets),

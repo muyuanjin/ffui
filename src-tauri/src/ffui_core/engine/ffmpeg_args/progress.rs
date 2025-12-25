@@ -16,6 +16,58 @@ pub(crate) fn compute_progress_percent(total_duration: Option<f64>, elapsed_seco
     }
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub(crate) struct FfmpegProgressSample {
+    pub(crate) elapsed_seconds: Option<f64>,
+    pub(crate) speed: Option<f64>,
+    pub(crate) frame: Option<u64>,
+}
+
+pub(crate) fn parse_ffmpeg_progress_sample(line: &str) -> FfmpegProgressSample {
+    let mut sample = FfmpegProgressSample::default();
+    let mut iter = line.split_whitespace().peekable();
+
+    while let Some(token) = iter.next() {
+        let (key, value) = match token.split_once('=') {
+            Some((k, v)) if !v.is_empty() => (k, v),
+            Some((k, _)) => {
+                let Some(next) = iter.peek().copied() else {
+                    continue;
+                };
+                // Consume the value token when we handled a "key=" token form.
+                let _ = iter.next();
+                (k, next)
+            }
+            None => continue,
+        };
+
+        match key {
+            "time" | "out_time" => {
+                sample.elapsed_seconds = Some(parse_ffmpeg_time_to_seconds(value));
+            }
+            "out_time_ms" => {
+                if let Ok(us) = value.parse::<f64>() {
+                    sample.elapsed_seconds = Some(us / 1_000_000.0);
+                }
+            }
+            "speed" => {
+                let value = value.trim_end_matches('x');
+                if let Ok(v) = value.parse::<f64>() {
+                    sample.speed = Some(v);
+                }
+            }
+            "frame" => {
+                if let Ok(v) = value.parse::<u64>() {
+                    sample.frame = Some(v);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    sample
+}
+
 pub(crate) fn parse_ffmpeg_progress_line(line: &str) -> Option<(f64, Option<f64>)> {
     let mut elapsed: Option<f64> = None;
     let mut speed: Option<f64> = None;

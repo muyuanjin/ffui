@@ -43,6 +43,8 @@ fn delete_job_cleans_resume_segment_tmp_artifacts() {
             processed_wall_millis: Some(1234),
             processed_seconds: Some(12.0),
             target_seconds: Some(12.0),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
             tmp_output_path: Some(seg1.to_string_lossy().into_owned()),
             segments: Some(vec![
                 seg0.to_string_lossy().into_owned(),

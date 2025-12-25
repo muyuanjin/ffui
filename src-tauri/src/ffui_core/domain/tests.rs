@@ -60,6 +60,8 @@ mod domain_contract_tests {
                 processed_wall_millis: Some(3210),
                 processed_seconds: Some(12.5),
                 target_seconds: Some(12.5),
+                last_progress_out_time_seconds: Some(12.345_678),
+                last_progress_frame: Some(4242),
                 tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
                 segments: Some(vec!["C:/app-data/tmp/seg1.mp4".to_string()]),
                 segment_end_targets: None,
@@ -146,6 +148,18 @@ mod domain_contract_tests {
                 .and_then(Value::as_f64)
                 .expect("processedSeconds present"),
             12.5
+        );
+        assert_eq!(
+            wait.get("lastProgressOutTimeSeconds")
+                .and_then(Value::as_f64)
+                .expect("lastProgressOutTimeSeconds present"),
+            12.345_678
+        );
+        assert_eq!(
+            wait.get("lastProgressFrame")
+                .and_then(Value::as_u64)
+                .expect("lastProgressFrame present"),
+            4242
         );
 
         let media = value

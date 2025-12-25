@@ -25,6 +25,23 @@ fn parse_first_non_empty_line_as_f64(stdout: &[u8]) -> Option<f64> {
     None
 }
 
+fn parse_last_non_empty_line_as_f64(stdout: &[u8]) -> Option<f64> {
+    let s = String::from_utf8_lossy(stdout);
+    for raw in s.lines().rev() {
+        let line = raw.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Ok(v) = line.parse::<f64>()
+            && v.is_finite()
+            && v > 0.0
+        {
+            return Some(v);
+        }
+    }
+    None
+}
+
 fn parse_time_base_and_duration_ts(stdout: &[u8]) -> Option<f64> {
     let s = String::from_utf8_lossy(stdout);
     let mut time_base: Option<f64> = None;
@@ -283,6 +300,76 @@ pub(crate) fn detect_best_effort_video_start_time_seconds(
             .and_then(parse_first_non_empty_line_as_f64)
     };
     format_start.map(|v| v.max(0.0))
+}
+
+pub(crate) fn detect_video_stream_last_frame_timestamp_seconds(
+    path: &Path,
+    settings: &AppSettings,
+) -> Result<f64> {
+    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, &settings.tools)?;
+
+    // Probe only the tail of the segment and read the last displayed timestamp.
+    // This is used as a conservative resume boundary and as a fallback when
+    // container duration metadata drifts by 1–2 frames on VFR/B-frame content.
+    let mut cmd = Command::new(&ffprobe_path);
+    configure_background_command(&mut cmd);
+    let output = cmd
+        .arg("-v")
+        .arg("error")
+        .arg("-select_streams")
+        .arg("v:0")
+        .arg("-sseof")
+        .arg("-2.0")
+        .arg("-show_frames")
+        .arg("-show_entries")
+        .arg("frame=best_effort_timestamp_time")
+        .arg("-of")
+        .arg("default=nw=1:nk=1")
+        .arg(path.as_os_str())
+        .output()
+        .with_context(|| {
+            format!(
+                "failed to run ffprobe for last frame timestamp on {}",
+                path.display()
+            )
+        })?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "ffprobe failed for {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    let Some(mut last) = parse_last_non_empty_line_as_f64(&output.stdout) else {
+        return Err(anyhow::anyhow!(
+            "ffprobe returned empty or unparsable last-frame timestamp for {} (stderr: {})",
+            path.display(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    };
+
+    // If timestamps start at a non-zero origin, shift back to a segment-local
+    // time domain so callers can treat this as a "duration-like" value.
+    if let Some(start) = detect_best_effort_video_start_time_seconds(path, settings)
+        && start.is_finite()
+        && start > 0.0
+        && last.is_finite()
+        && last > start
+    {
+        last = last - start;
+    }
+
+    if last.is_finite() && last > 0.0 {
+        Ok(last)
+    } else {
+        Err(anyhow::anyhow!(
+            "ffprobe returned a non-positive or non-finite last-frame timestamp for {}: {}",
+            path.display(),
+            last
+        ))
+    }
 }
 
 #[cfg(test)]
