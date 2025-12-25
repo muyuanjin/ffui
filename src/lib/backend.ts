@@ -21,6 +21,7 @@ import type {
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 import { hasTauri } from "./backend.core";
+import { appendQueryParam } from "./url";
 export type {
   AppUpdaterCapabilities,
   DownloadedFontInfo,
@@ -467,13 +468,6 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
     console.error("Failed to convert local preview path with convertFileSrc", error);
     return path;
   }
-};
-
-const appendQueryParam = (url: string, key: string, value: string): string => {
-  const [withoutHash, hash = ""] = url.split("#");
-  const separator = withoutHash.includes("?") ? "&" : "?";
-  const next = `${withoutHash}${separator}${encodeURIComponent(key)}=${encodeURIComponent(value)}`;
-  return hash ? `${next}#${hash}` : next;
 };
 
 /**
