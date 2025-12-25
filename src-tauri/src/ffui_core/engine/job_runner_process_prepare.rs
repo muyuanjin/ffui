@@ -236,13 +236,13 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
     // durations as a fallback. This keeps the restart-based resume boundary
     // stable across pauses/resumes.
     if let Some(meta) = job_wait_metadata.as_mut() {
-        let corrected = recompute_processed_seconds_from_segments(
+        let recompute = recompute_processed_seconds_from_segments(
             meta,
             &settings_snapshot,
             media_info.duration_seconds,
             backtrack_seconds,
         );
-        if corrected {
+        if recompute.metadata_changed {
             let processed = meta.processed_seconds.unwrap_or(0.0);
             let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id)
@@ -257,10 +257,20 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                 job_meta
                     .segment_end_targets
                     .clone_from(&meta.segment_end_targets);
-                super::worker_utils::append_job_log_line(
-                    job,
-                    format!("resume: recomputed processedSeconds from partial segments: {processed:.6}s"),
-                );
+                if recompute.processed_seconds_changed {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        format!(
+                            "resume: recomputed processedSeconds from partial segments: {processed:.6}s"
+                        ),
+                    );
+                } else {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        "resume: normalized waitMetadata segments/segmentEndTargets alignment"
+                            .to_string(),
+                    );
+                }
             }
         }
     }

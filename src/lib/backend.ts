@@ -21,6 +21,7 @@ import type {
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 import { hasTauri } from "./backend.core";
+import { normalizeQueueStateLiteWaitMetadata } from "./backend.queue-state-lite-normalize";
 import { appendQueryParam } from "./url";
 export type {
   AppUpdaterCapabilities,
@@ -232,7 +233,8 @@ export const loadQueueState = async (): Promise<QueueState> => {
 };
 
 export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
-  return invoke<QueueStateLite>("get_queue_state_lite");
+  const state = await invoke<QueueStateLite>("get_queue_state_lite");
+  return normalizeQueueStateLiteWaitMetadata(state);
 };
 
 export const expandManualJobInputs = async (paths: string[], options?: { recursive?: boolean }): Promise<string[]> => {

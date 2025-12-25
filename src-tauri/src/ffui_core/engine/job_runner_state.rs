@@ -66,7 +66,7 @@ pub(super) fn mark_job_waiting(
                 .and_then(|m| m.duration_seconds)
                 .or(total_duration);
 
-            let processed_seconds = if let Some(v) = processed_seconds_override
+            let mut processed_seconds = if let Some(v) = processed_seconds_override
                 && v.is_finite()
                 && v > 0.0
             {
@@ -145,15 +145,35 @@ pub(super) fn mark_job_waiting(
                 }
             }
 
-            if let Some(end) = processed_seconds.filter(|v| v.is_finite() && *v > 0.0)
+            let end = processed_seconds.filter(|v| v.is_finite() && *v > 0.0);
+            let prev_target = segment_end_targets.last().copied();
+            if let Some(end) = end
                 && segment_end_targets.len() + 1 == segments.len()
                 && segment_end_targets
                     .last()
                     .is_none_or(|v| (*v - end).abs() > 1e-9)
             {
                 segment_end_targets.push(end);
+            } else if !segment_end_targets.is_empty()
+                && segment_end_targets.len() + 1 == segments.len()
+                && let Some(prev) = prev_target
+                && (end.is_none() || end.unwrap_or(prev) <= prev + 1e-9)
+            {
+                // If the pause boundary did not advance beyond the previously
+                // recorded join target, keep concat metadata aligned by dropping
+                // the newly-created "zero progress" segment.
+                if segments.last() == Some(&tmp_str) {
+                    segments.pop();
+                }
+                if processed_seconds.is_none() {
+                    processed_seconds = Some(prev);
+                }
             }
 
+            let tmp_output_path_for_meta = segments
+                .last()
+                .cloned()
+                .unwrap_or_else(|| tmp_str.clone());
             job.wait_metadata = Some(WaitMetadata {
                 last_progress_percent: percent,
                 processed_wall_millis: Some(elapsed_wall_ms),
@@ -161,7 +181,7 @@ pub(super) fn mark_job_waiting(
                 target_seconds: processed_seconds,
                 last_progress_out_time_seconds: None,
                 last_progress_frame: None,
-                tmp_output_path: Some(tmp_str),
+                tmp_output_path: Some(tmp_output_path_for_meta),
                 segments: Some(segments),
                 segment_end_targets: (!segment_end_targets.is_empty()).then_some(segment_end_targets),
             });

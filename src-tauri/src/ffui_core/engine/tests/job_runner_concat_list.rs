@@ -8,7 +8,7 @@ fn build_concat_demuxer_list_contents_writes_duration_and_outpoint() {
         PathBuf::from("C:/tmp/seg0.mkv"),
         PathBuf::from("C:/tmp/seg1.mkv"),
     ];
-    let content = build_concat_demuxer_list_contents(&segments, Some(&[1.234_567]))
+    let content = build_concat_demuxer_list_contents(&segments, Some(&[1.234_567][..]))
         .expect("build concat list");
     assert!(
         content.contains("file 'C:/tmp/seg0.mkv'\n"),

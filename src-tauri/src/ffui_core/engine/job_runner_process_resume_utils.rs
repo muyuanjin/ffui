@@ -35,8 +35,14 @@ pub(super) fn should_apply_crash_recovery_rollback(meta: &WaitMetadata) -> bool 
         && meta.processed_seconds.is_none()
         && meta
             .segment_end_targets
-            .as_ref()
-            .is_none_or(Vec::is_empty)
+        .as_ref()
+        .is_none_or(Vec::is_empty)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RecomputeWaitMetadataResult {
+    pub(super) metadata_changed: bool,
+    pub(super) processed_seconds_changed: bool,
 }
 
 pub(super) fn maybe_apply_crash_recovery_rollback(
@@ -81,7 +87,27 @@ pub(super) fn recompute_processed_seconds_from_segments(
     settings: &AppSettings,
     media_duration: Option<f64>,
     crash_recovery_rollback_seconds: f64,
-) -> bool {
+) -> RecomputeWaitMetadataResult {
+    let prior_processed_seconds = meta.processed_seconds.unwrap_or(0.0);
+    let prior_target_seconds = meta.target_seconds;
+    let prior_segments = meta.segments.clone();
+    let prior_segment_end_targets = meta.segment_end_targets.clone();
+    let prior_tmp_output_path = meta.tmp_output_path.clone();
+
+    let build_result = |meta: &WaitMetadata| {
+        let processed_seconds_changed =
+            (meta.processed_seconds.unwrap_or(0.0) - prior_processed_seconds).abs() > 0.000_5;
+        let metadata_changed = processed_seconds_changed
+            || meta.target_seconds != prior_target_seconds
+            || meta.segments != prior_segments
+            || meta.segment_end_targets != prior_segment_end_targets
+            || meta.tmp_output_path != prior_tmp_output_path;
+        RecomputeWaitMetadataResult {
+            metadata_changed,
+            processed_seconds_changed,
+        }
+    };
+
     // Crash recovery: if we have a last-seen `-progress out_time` value but no
     // per-segment join targets, synthesize `segment_end_targets` so concat can
     // clip the prior segment to an exact boundary (avoids frame misalignment).
@@ -154,7 +180,6 @@ pub(super) fn recompute_processed_seconds_from_segments(
 
                 if target.is_finite() && target > 0.0 {
                     end_targets.push(target);
-                    let prior = meta.processed_seconds.unwrap_or(0.0);
                     meta.segment_end_targets = Some(end_targets);
                     meta.processed_seconds = Some(target);
                     meta.target_seconds = Some(target);
@@ -163,7 +188,7 @@ pub(super) fn recompute_processed_seconds_from_segments(
                         .last()
                         .cloned()
                         .or_else(|| meta.tmp_output_path.clone());
-                    return (target - prior).abs() > 0.000_5;
+                    return build_result(meta);
                 }
             }
         }
@@ -234,7 +259,6 @@ pub(super) fn recompute_processed_seconds_from_segments(
             let clamped = media_duration
                 .filter(|d| d.is_finite() && *d > 0.0)
                 .map_or(target, |limit| target.min(limit));
-            let prior = meta.processed_seconds.unwrap_or(0.0);
             meta.processed_seconds = Some(clamped);
             meta.target_seconds = Some(clamped);
             meta.segments = Some(valid_segments.clone());
@@ -244,7 +268,7 @@ pub(super) fn recompute_processed_seconds_from_segments(
                 .or_else(|| meta.tmp_output_path.clone());
             meta.segment_end_targets =
                 (!valid_end_targets.is_empty()).then_some(valid_end_targets);
-            return (clamped - prior).abs() > 0.000_5;
+            return build_result(meta);
         }
     }
 
@@ -285,7 +309,10 @@ pub(super) fn recompute_processed_seconds_from_segments(
     let total: f64 = durations.iter().copied().sum();
 
     if valid_segments.is_empty() || !total.is_finite() || total <= 0.0 {
-        return false;
+        return RecomputeWaitMetadataResult {
+            metadata_changed: false,
+            processed_seconds_changed: false,
+        };
     }
 
         let clamped_total = media_duration
@@ -354,8 +381,7 @@ pub(super) fn recompute_processed_seconds_from_segments(
         .cloned()
         .or_else(|| meta.tmp_output_path.clone());
 
-    // Treat this as a correction when it meaningfully changes the offset.
-    (meta.processed_seconds.unwrap_or(0.0) - prior).abs() > 0.000_5
+    build_result(meta)
 }
 
 pub(super) fn choose_processed_seconds_after_wait(

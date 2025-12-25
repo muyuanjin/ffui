@@ -3,11 +3,11 @@
   "sources": [
     {
       "path": "docs/ffmpeg_commands.txt",
-      "sha256": "337fdd033beb6deebd1d11069dfdb59ccee5e165fe05d1218bea37f359040da3"
+      "sha256": "bdbcfc7470145f434547058c4d91743551a0385fbf6234a225708614b6e8974a"
     },
     {
       "path": "docs/ffmpeg_commands2.txt",
-      "sha256": "9c0702c80f76f8d500a4f650db8d7090e809983b21b1cb920b5c2a467b584bc3"
+      "sha256": "65094c7d8e642ebc8b604951de576e8326b7f2dec3f2395bd81c7b97fbd68b5f"
     }
   ],
   "entries": [

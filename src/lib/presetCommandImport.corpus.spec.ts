@@ -24,6 +24,10 @@ type CorpusFixture = {
 
 const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex");
 
+const normalizeTextForHash = (value: string): string => {
+  return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+};
+
 const loadCorpusFixture = (): CorpusFixture => {
   const fixturePath = resolve(process.cwd(), "src-tauri/tests/ffmpeg-command-corpus.fixture.json");
   return JSON.parse(readFileSync(fixturePath, "utf8")) as CorpusFixture;
@@ -36,7 +40,7 @@ describe("presetCommandImport corpus (docs/ffmpeg_commands*.txt)", () => {
 
     for (const [docPath, expectedHash] of sourcesByPath) {
       const abs = resolve(process.cwd(), docPath);
-      const actualHash = sha256(readFileSync(abs, "utf8"));
+      const actualHash = sha256(normalizeTextForHash(readFileSync(abs, "utf8")));
       expect(actualHash).toBe(expectedHash);
     }
 

@@ -159,7 +159,12 @@ fn execute_transcode_job(
             }
 
             let effective_elapsed = resume_target_seconds.map_or(elapsed, |base| base + elapsed);
-            if effective_elapsed.is_finite() && effective_elapsed > 0.0 {
+            if elapsed.is_finite()
+                && elapsed > 0.0
+                && effective_elapsed.is_finite()
+                && last_effective_elapsed_seconds
+                    .is_none_or(|last| effective_elapsed > last + 0.000_001)
+            {
                 last_effective_elapsed_seconds = Some(effective_elapsed);
             }
 

@@ -137,6 +137,20 @@ mod tests {
     static ENV_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
         once_cell::sync::Lazy::new(|| Mutex::new(()));
 
+    fn install_queue_state_sidecar_path(prefix: &str) -> std::path::PathBuf {
+        let tmp_dir = std::env::temp_dir();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let sidecar_path = tmp_dir.join(format!("{prefix}_{stamp}.json"));
+        // SAFETY: this test serializes env var writes with ENV_MUTEX.
+        unsafe {
+            std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
+        }
+        sidecar_path
+    }
+
     fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
         TranscodeJob {
             id: id.to_string(),
@@ -249,16 +263,7 @@ mod tests {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
         let _guard = ENV_MUTEX.lock_unpoisoned();
 
-        let tmp_dir = std::env::temp_dir();
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        let sidecar_path = tmp_dir.join(format!("ffui_exit_persist_test_{stamp}.json"));
-        // SAFETY: this test serializes env var writes with ENV_MUTEX.
-        unsafe {
-            std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
-        }
+        let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test");
 
         let engine = TranscodingEngine::new_for_tests();
         {
@@ -291,16 +296,7 @@ mod tests {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
         let _guard = ENV_MUTEX.lock_unpoisoned();
 
-        let tmp_dir = std::env::temp_dir();
-        let stamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
-        let sidecar_path = tmp_dir.join(format!("ffui_exit_persist_test_none_{stamp}.json"));
-        // SAFETY: this test serializes env var writes with ENV_MUTEX.
-        unsafe {
-            std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
-        }
+        let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test_none");
 
         let engine = TranscodingEngine::new_for_tests();
         {

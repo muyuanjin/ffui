@@ -114,3 +114,73 @@ fn mark_job_waiting_prefers_processed_seconds_override_over_progress_estimate() 
         "processed_seconds must come from override when provided"
     );
 }
+
+#[test]
+fn mark_job_waiting_does_not_append_zero_progress_segments_for_resumed_jobs() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/wait-zero-progress.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    let job_id = job.id;
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job_id)
+            .expect("job must exist after enqueue");
+        stored.status = JobStatus::Processing;
+        stored.progress = 50.0;
+        stored.wait_metadata = Some(WaitMetadata {
+            last_progress_percent: Some(12.5),
+            processed_wall_millis: Some(1_000),
+            processed_seconds: Some(12.5),
+            target_seconds: Some(12.5),
+            last_progress_out_time_seconds: None,
+            last_progress_frame: None,
+            tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
+            segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
+            segment_end_targets: Some(vec![12.5]),
+        });
+    }
+
+    let tmp = PathBuf::from("C:/tmp/seg1.mkv");
+    let out = PathBuf::from("C:/videos/wait-zero-progress.out.mp4");
+
+    mark_job_waiting(&engine.inner, &job_id, &tmp, &out, Some(100.0), Some(12.5))
+        .expect("mark_job_waiting must succeed");
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job_id)
+        .expect("job must remain present after wait");
+    let meta = stored
+        .wait_metadata
+        .as_ref()
+        .expect("wait_metadata should be set");
+
+    let expected_segments = vec!["C:/tmp/seg0.mkv".to_string()];
+    assert_eq!(
+        meta.segments.as_deref(),
+        Some(expected_segments.as_slice()),
+        "zero-progress resumed segments should not be appended to segments"
+    );
+    assert_eq!(
+        meta.segment_end_targets.as_deref(),
+        Some(&[12.5][..]),
+        "segment_end_targets must remain aligned with segments"
+    );
+    assert_eq!(
+        meta.tmp_output_path.as_deref(),
+        Some("C:/tmp/seg0.mkv"),
+        "tmp_output_path should remain on the effective last segment"
+    );
+}
