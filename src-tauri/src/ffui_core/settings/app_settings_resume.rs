@@ -8,7 +8,8 @@ impl AppSettings {
             // Allow explicit 0 to disable overlap trimming for debugging or
             // performance-sensitive workflows.
             .filter(|v| v.is_finite() && *v >= 0.0)
-            .map(|v| v.clamp(0.0, MAX_BACKTRACK_SECONDS))
-            .unwrap_or(DEFAULT_BACKTRACK_SECONDS)
+            .map_or(DEFAULT_BACKTRACK_SECONDS, |v| {
+                v.clamp(0.0, MAX_BACKTRACK_SECONDS)
+            })
     }
 }

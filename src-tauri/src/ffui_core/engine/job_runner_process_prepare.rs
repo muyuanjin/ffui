@@ -74,7 +74,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             job.preset_id.clone(),
             cached_media_info,
             job.filename.clone(),
-            job.wait_metadata.clone(),
+            job.wait_metadata,
         )
     };
 
@@ -96,23 +96,20 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         return Ok(None);
     }
 
-    let preset = match preset {
-        Some(p) => p,
-        None => {
-            {
-                let mut state = inner.state.lock_unpoisoned();
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    job.status = JobStatus::Failed;
-                    job.progress = 100.0;
-                    job.end_time = Some(current_time_millis());
-                    let reason = format!("No preset found for preset id '{preset_id}'");
-                    job.failure_reason = Some(reason.clone());
-                    super::worker_utils::append_job_log_line(job, reason);
-                }
+    let Some(preset) = preset else {
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            if let Some(job) = state.jobs.get_mut(job_id) {
+                job.status = JobStatus::Failed;
+                job.progress = 100.0;
+                job.end_time = Some(current_time_millis());
+                let reason = format!("No preset found for preset id '{preset_id}'");
+                job.failure_reason = Some(reason.clone());
+                super::worker_utils::append_job_log_line(job, reason);
             }
-            mark_batch_compress_child_processed(inner, job_id);
-            return Ok(None);
         }
+        mark_batch_compress_child_processed(inner, job_id);
+        return Ok(None);
     };
 
     // Ensure ffmpeg is available, honoring auto-download / update settings.
@@ -212,36 +209,6 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         }
     };
 
-    // If the job has existing partial segments (paused/crash recovery), recompute
-    // processed_seconds based on recorded join targets (preferred) or segment
-    // durations as a fallback. This keeps the restart-based resume boundary
-    // stable across pauses/resumes.
-    if let Some(meta) = job_wait_metadata.as_mut() {
-        let corrected =
-            recompute_processed_seconds_from_segments(meta, &settings_snapshot, media_info.duration_seconds);
-	        if corrected {
-	            let processed = meta.processed_seconds.unwrap_or(0.0);
-	            let mut state = inner.state.lock_unpoisoned();
-		                if let Some(job) = state.jobs.get_mut(job_id)
-		                    && let Some(job_meta) = job.wait_metadata.as_mut()
-		                {
-			                job_meta.processed_seconds = Some(processed);
-                    // Align join target with the corrected processed seconds so
-                    // crash recovery and future resume planning stay consistent.
-                    job_meta.target_seconds = Some(processed);
-			                job_meta.segments = meta.segments.clone();
-			                job_meta.tmp_output_path = meta.tmp_output_path.clone();
-                            job_meta.segment_end_targets = meta.segment_end_targets.clone();
-			                super::worker_utils::append_job_log_line(
-			                    job,
-			                    format!(
-		                        "resume: recomputed processedSeconds from partial segments: {processed:.6}s"
-		                    ),
-		                );
-	            }
-	        }
-	    }
-
     let backtrack_seconds = {
         let mut backtrack = settings_snapshot.effective_resume_backtrack_seconds();
         if job_wait_metadata.is_some()
@@ -249,7 +216,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             && gop > 0
             && let Some(fps) = media_info.frame_rate.filter(|v| v.is_finite() && *v > 0.0)
         {
-            let gop_seconds = (gop as f64) / fps;
+            let gop_seconds = f64::from(gop) / fps;
             if gop_seconds.is_finite() && gop_seconds > backtrack {
                 backtrack = gop_seconds;
                 let mut state = inner.state.lock_unpoisoned();
@@ -265,6 +232,40 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         }
         backtrack
     };
+
+    // If the job has existing partial segments (paused/crash recovery), recompute
+    // processed_seconds based on recorded join targets (preferred) or segment
+    // durations as a fallback. This keeps the restart-based resume boundary
+    // stable across pauses/resumes.
+    if let Some(meta) = job_wait_metadata.as_mut() {
+        let corrected = recompute_processed_seconds_from_segments(
+            meta,
+            &settings_snapshot,
+            media_info.duration_seconds,
+            backtrack_seconds,
+        );
+        if corrected {
+            let processed = meta.processed_seconds.unwrap_or(0.0);
+            let mut state = inner.state.lock_unpoisoned();
+            if let Some(job) = state.jobs.get_mut(job_id)
+                && let Some(job_meta) = job.wait_metadata.as_mut()
+            {
+                job_meta.processed_seconds = Some(processed);
+                // Align join target with the corrected processed seconds so
+                // crash recovery and future resume planning stay consistent.
+                job_meta.target_seconds = Some(processed);
+                job_meta.segments.clone_from(&meta.segments);
+                job_meta.tmp_output_path.clone_from(&meta.tmp_output_path);
+                job_meta
+                    .segment_end_targets
+                    .clone_from(&meta.segment_end_targets);
+                super::worker_utils::append_job_log_line(
+                    job,
+                    format!("resume: recomputed processedSeconds from partial segments: {processed:.6}s"),
+                );
+            }
+        }
+    }
     let (
         mut resume_target_seconds,
         mut existing_segments,
@@ -313,8 +314,8 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                         // recovery can pick it up even if ffmpeg is interrupted.
                         meta.tmp_output_path = Some(tmp_str.clone());
                         let mut segs = meta.segments.clone().unwrap_or_default();
-                        if segs.last().map(|s| s != &tmp_str).unwrap_or(true) {
-                            segs.push(tmp_str.clone());
+                        if segs.last() != Some(&tmp_str) {
+                            segs.push(tmp_str);
                         }
                         meta.segments = Some(segs);
                     }
@@ -325,7 +326,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             processed_seconds: None,
                             target_seconds: None,
                             tmp_output_path: Some(tmp_str.clone()),
-                            segments: Some(vec![tmp_str.clone()]),
+                            segments: Some(vec![tmp_str]),
                             segment_end_targets: None,
                         });
                     }
@@ -333,7 +334,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             }
             state
                 .media_info_cache
-                .insert(job_filename.clone(), media_info.clone());
+                .insert(job_filename, media_info);
         }
     }
     // Broadcast an updated queue snapshot with media metadata and preview path before starting the heavy ffmpeg transcode.
@@ -372,7 +373,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
         segment_end_targets: existing_segment_end_targets,
         tmp_output,
         total_duration,
-        ffmpeg_path: ffmpeg_path.clone(),
-        ffmpeg_source: ffmpeg_source.clone(),
+        ffmpeg_path,
+        ffmpeg_source,
     }))
 }

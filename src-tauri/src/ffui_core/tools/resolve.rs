@@ -2,10 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use super::types::*;
+use super::types::ExternalToolKind;
 use crate::ffui_core::settings::ExternalToolSettings;
 
-pub(super) fn tool_binary_name(kind: ExternalToolKind) -> &'static str {
+pub(super) const fn tool_binary_name(kind: ExternalToolKind) -> &'static str {
     match kind {
         ExternalToolKind::Ffmpeg => "ffmpeg",
         ExternalToolKind::Ffprobe => "ffprobe",

@@ -27,7 +27,7 @@ pub(super) fn collect_job_tmp_cleanup_paths(job: &TranscodeJob) -> Vec<PathBuf> 
     if let Some(output_path) = job
         .output_path
         .as_deref()
-        .map(|s| s.trim())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
     {
         segment_discovery::discover_segments_for_output_path(

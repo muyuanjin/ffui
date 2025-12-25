@@ -101,25 +101,19 @@ pub struct MetricsConfig {
 }
 
 fn env_u64(name: &str, default: u64) -> u64 {
-    match std::env::var(name) {
-        Ok(value) => value.parse::<u64>().unwrap_or(default),
-        Err(_) => default,
-    }
+    std::env::var(name).map_or(default, |value| value.parse::<u64>().unwrap_or(default))
 }
 
 fn env_usize(name: &str, default: usize) -> usize {
-    match std::env::var(name) {
-        Ok(value) => value.parse::<usize>().unwrap_or(default),
-        Err(_) => default,
-    }
+    std::env::var(name).map_or(default, |value| value.parse::<usize>().unwrap_or(default))
 }
 
 impl Default for MetricsConfig {
     fn default() -> Self {
-        let base_interval_ms = match std::env::var("FFUI_METRICS_INTERVAL_MS") {
-            Ok(value) => value.parse::<u64>().unwrap_or(DEFAULT_SAMPLING_INTERVAL_MS),
-            Err(_) => DEFAULT_SAMPLING_INTERVAL_MS,
-        };
+        let base_interval_ms = std::env::var("FFUI_METRICS_INTERVAL_MS")
+            .map_or(DEFAULT_SAMPLING_INTERVAL_MS, |value| {
+                value.parse::<u64>().unwrap_or(DEFAULT_SAMPLING_INTERVAL_MS)
+            });
         Self {
             sampling_interval: Duration::from_millis(base_interval_ms),
             idle_interval: Duration::from_millis(env_u64(
@@ -219,7 +213,7 @@ impl Default for MetricsState {
 fn apply_settings_overrides(config: &mut MetricsConfig, settings: &AppSettings) {
     if let Some(ms) = settings.metrics_interval_ms {
         // Clamp to a sensible floor to avoid busy-looping the sampler thread.
-        let clamped_ms = ms.max(100) as u64;
+        let clamped_ms = u64::from(ms.max(100));
         config.sampling_interval = Duration::from_millis(clamped_ms);
     }
 }
@@ -230,7 +224,7 @@ enum SamplingMode {
     Idle(Duration),
 }
 
-fn sampling_mode(subscribers: usize, config: &MetricsConfig) -> SamplingMode {
+const fn sampling_mode(subscribers: usize, config: &MetricsConfig) -> SamplingMode {
     if subscribers == 0 {
         SamplingMode::Idle(config.idle_interval)
     } else {
@@ -296,10 +290,9 @@ pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState)
                         };
 
                         let now = Instant::now();
-                        let elapsed = last_instant
-                            .replace(now)
-                            .map(|prev| now.saturating_duration_since(prev))
-                            .unwrap_or(sampling_interval);
+                        let elapsed = last_instant.replace(now).map_or(sampling_interval, |prev| {
+                            now.saturating_duration_since(prev)
+                        });
 
                         let dt = if elapsed.is_zero() {
                             sampling_interval
@@ -333,7 +326,7 @@ fn sample_metrics(
     sys.refresh_cpu_usage();
     sys.refresh_memory();
 
-    let cores: Vec<f32> = sys.cpus().iter().map(|cpu| cpu.cpu_usage()).collect();
+    let cores: Vec<f32> = sys.cpus().iter().map(sysinfo::Cpu::cpu_usage).collect();
     let total = if cores.is_empty() {
         0.0
     } else {

@@ -7,7 +7,7 @@ use super::runtime_state::{
     cached_ffmpeg_release_version, cached_libavif_release_version, last_tool_download_metadata,
     snapshot_download_state,
 };
-use super::types::*;
+use super::types::{ExternalToolKind, ExternalToolStatus, FFMPEG_STATIC_VERSION, LIBAVIF_VERSION};
 use crate::ffui_core::settings::ExternalToolSettings;
 
 fn parse_version_tuple(input: &str) -> Option<(u64, u64, u64)> {
@@ -80,11 +80,9 @@ pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<Str
             }
             let fallback = FFMPEG_STATIC_VERSION;
             let persisted_version = last_tool_download_metadata(kind).and_then(|(_url, v, _tag)| v);
-            let remote = match persisted_version {
-                Some(v) if version_is_newer(v.as_str(), fallback) => v,
-                None => fallback.to_string(),
-                Some(_) => fallback.to_string(),
-            };
+            let remote = persisted_version
+                .filter(|v| version_is_newer(v.as_str(), fallback))
+                .unwrap_or_else(|| fallback.to_string());
             Some(remote)
         }
         ExternalToolKind::Avifenc => {
@@ -139,15 +137,14 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
     }
 
     let bin = tool_binary_name(kind).to_string();
-    let path_candidate = resolve_in_path(&bin)
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|| bin.clone());
-    push_candidate(&mut seen, &mut candidates, path_candidate.clone(), "path");
+    let path_candidate =
+        resolve_in_path(&bin).map_or_else(|| bin.clone(), |p| p.to_string_lossy().into_owned());
+    push_candidate(&mut seen, &mut candidates, path_candidate, "path");
 
     // Fast path: custom/download/PATH candidates are authoritative. Only do
     // secondary discovery (env/registry/indexers) if these candidates fail,
     // so startup refresh does not pay for scans it will never use.
-    for (path, src) in candidates.iter() {
+    for (path, src) in &candidates {
         if src == "path" && runtime.path_arch_incompatible {
             continue;
         }
@@ -166,7 +163,7 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
             push_candidate(&mut seen, &mut candidates, s, discovered.source);
         }
 
-        for (path, src) in candidates[discovered_start..].iter() {
+        for (path, src) in &candidates[discovered_start..] {
             if src == "path" && runtime.path_arch_incompatible {
                 continue;
             }

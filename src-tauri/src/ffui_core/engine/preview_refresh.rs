@@ -186,8 +186,7 @@ impl TranscodingEngine {
                         .ok()
                         .map(|root| (candidate, root))
                 })
-                .map(|(candidate, root)| candidate.starts_with(&root))
-                .unwrap_or(false);
+                .is_some_and(|(candidate, root)| candidate.starts_with(&root));
 
             if safe_to_delete {
                 let _ = fs::remove_file(&old);

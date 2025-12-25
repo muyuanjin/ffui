@@ -25,21 +25,23 @@ fn best_effort_remote_refresh(
     if manual {
         return checked().map(|(version, tag, note)| (Some(version), Some(tag), note));
     }
-    Ok(best_effort()
-        .map(|(version, tag)| (Some(version), Some(tag), None))
-        .unwrap_or((None, None, None)))
+    Ok(best_effort().map_or((None, None, None), |(version, tag)| {
+        (Some(version), Some(tag), None)
+    }))
 }
 
 fn store_remote_version_cache<F>(engine: &TranscodingEngine, update: F)
 where
     F: FnOnce(&mut crate::ffui_core::settings::types::RemoteToolVersionCache),
 {
-    let mut state = engine.inner.state.lock_unpoisoned();
-    let tools = &mut state.settings.tools;
-    let cache = tools
-        .remote_version_cache
-        .get_or_insert_with(Default::default);
-    update(cache);
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let tools = &mut state.settings.tools;
+        let cache = tools
+            .remote_version_cache
+            .get_or_insert_with(Default::default);
+        update(cache);
+    }
 }
 
 fn record_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: String, checked_at_ms: u64) {
@@ -114,7 +116,7 @@ impl TranscodingEngine {
                 resolved_path: None,
                 source: None,
                 version: None,
-                remote_version: cached_remote.clone(),
+                remote_version: cached_remote,
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,
@@ -134,7 +136,7 @@ impl TranscodingEngine {
                 resolved_path: None,
                 source: None,
                 version: None,
-                remote_version: cached_libavif.clone(),
+                remote_version: cached_libavif,
                 update_available: false,
                 auto_download_enabled: tools.auto_download,
                 auto_update_enabled: tools.auto_update,
@@ -215,7 +217,7 @@ impl TranscodingEngine {
                     ttl_hit(now_ms, persisted_libavif.and_then(|info| info.checked_at_ms), TTL_MS);
 
                 let (should_check_ffmpeg, should_check_libavif) = match remote_check_kind {
-                    Some(ExternalToolKind::Ffmpeg) | Some(ExternalToolKind::Ffprobe) => {
+                    Some(ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe) => {
                         (remote_check, false)
                     }
                     Some(ExternalToolKind::Avifenc) => (false, remote_check),
@@ -230,11 +232,10 @@ impl TranscodingEngine {
 
                 let mut remote_updated = false;
                 let mut should_persist_settings = false;
-                if manual_remote_check {
-                    if let Some(kind) = remote_check_kind {
+                if manual_remote_check
+                    && let Some(kind) = remote_check_kind {
                         clear_tool_remote_check_state(kind);
                     }
-                }
                 if should_check_ffmpeg {
                     let refreshed = best_effort_remote_refresh(
                         manual_remote_check,
@@ -256,26 +257,33 @@ impl TranscodingEngine {
                                 );
                             });
 
-                            if manual_remote_check && let Some(note) = note {
-                                let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
-                                    Some(kind) => vec![kind],
-                                    None => vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-                                };
-                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
-                            }
+	                            if manual_remote_check && let Some(note) = note {
+	                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+	                                    .map_or_else(
+	                                        || {
+	                                            vec![
+	                                                ExternalToolKind::Ffmpeg,
+	                                                ExternalToolKind::Ffprobe,
+	                                            ]
+	                                        },
+	                                        |kind| vec![kind],
+	                                    );
+	                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
+	                            }
                         }
                         Ok((_v, _t, _note)) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
                         }
-                        Err(err) => {
-                            let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
-                                Some(kind) => vec![kind],
-                                None => vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-                            };
-                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
-                        }
+	                        Err(err) => {
+	                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+	                                .map_or_else(
+	                                    || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+	                                    |kind| vec![kind],
+	                                );
+	                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
+	                        }
                     }
                 }
 
@@ -300,26 +308,26 @@ impl TranscodingEngine {
                                 );
                             });
 
-                            if manual_remote_check && let Some(note) = note {
-                                let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
-                                    Some(kind) => vec![kind],
-                                    None => vec![ExternalToolKind::Avifenc],
-                                };
-                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
-                            }
+	                            if manual_remote_check && let Some(note) = note {
+	                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+	                                    .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
+	                                        vec![kind]
+	                                    });
+	                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
+	                            }
                         }
                         Ok((_v, _t, _note)) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] libavif remote version check failed (best-effort)"
                             );
                         }
-                        Err(err) => {
-                            let report_kinds: Vec<ExternalToolKind> = match remote_check_kind {
-                                Some(kind) => vec![kind],
-                                None => vec![ExternalToolKind::Avifenc],
-                            };
-                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
-                        }
+	                        Err(err) => {
+	                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+	                                .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
+	                                    vec![kind]
+	                                });
+	                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
+	                        }
                     }
                 }
 

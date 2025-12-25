@@ -246,10 +246,10 @@ fn execute_transcode_job(
                 job.status = JobStatus::Failed;
                 job.progress = 100.0;
                 job.end_time = Some(current_time_millis());
-                let code_desc = match status.code() {
-                    Some(code) => format!("exit code {code}"),
-                    None => "terminated by signal".to_string(),
-	                };
+	                let code_desc = status.code().map_or_else(
+	                    || "terminated by signal".to_string(),
+	                    |code| format!("exit code {code}"),
+	                );
 	                let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
 	                job.failure_reason = Some(reason.clone());
 	                super::worker_utils::append_job_log_line(job, reason);
@@ -267,14 +267,26 @@ fn execute_transcode_job(
 
     let final_output_size_bytes: u64;
 
-    if !existing_segments.is_empty() {
+    if existing_segments.is_empty() {
+        let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
+
+        fs::rename(&tmp_output, &output_path).with_context(|| {
+            format!(
+                "failed to rename {} -> {}",
+                tmp_output.display(),
+                output_path.display()
+            )
+        })?;
+
+        final_output_size_bytes = new_size_bytes;
+    } else {
         // When resuming with audio mux-from-source, the current tmp output is
         // expected to be video-only (we inject `-map -0:a`). Mark it so the
         // finalize step can skip a redundant remux pass.
         if resume_plan.is_some() && finalize_with_source_audio {
             let _ = mark_segment_noaudio_done(tmp_output.as_path());
         }
-        let mut all_segments = existing_segments.clone();
+        let mut all_segments = existing_segments;
         all_segments.push(tmp_output.clone());
 
         let segment_durations =
@@ -315,18 +327,6 @@ fn execute_transcode_job(
                 return Ok(());
             }
         }
-    } else {
-        let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
-
-        fs::rename(&tmp_output, &output_path).with_context(|| {
-            format!(
-                "failed to rename {} -> {}",
-                tmp_output.display(),
-                output_path.display()
-            )
-        })?;
-
-        final_output_size_bytes = new_size_bytes;
     }
 
     finalize_successful_transcode_job(

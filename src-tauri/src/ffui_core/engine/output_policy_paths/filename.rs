@@ -110,8 +110,7 @@ fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
             RateControlMode::Cbr => preset
                 .video
                 .bitrate_kbps
-                .map(|b| format!("cbr{b}k"))
-                .unwrap_or_else(|| "cbr".to_string()),
+                .map_or_else(|| "cbr".to_string(), |b| format!("cbr{b}k")),
             RateControlMode::Vbr => {
                 let avg = preset.video.bitrate_kbps;
                 let max = preset.video.max_bitrate_kbps;

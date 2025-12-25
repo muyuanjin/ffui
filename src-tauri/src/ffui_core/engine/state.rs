@@ -148,7 +148,7 @@ pub(super) fn reset_snapshot_queue_state_calls() {
 
 #[cfg(test)]
 pub(super) fn snapshot_queue_state_calls() -> usize {
-    SNAPSHOT_QUEUE_STATE_CALLS.with(|c| c.get())
+    SNAPSHOT_QUEUE_STATE_CALLS.with(std::cell::Cell::get)
 }
 
 trait QueueOrderSortable {
@@ -202,7 +202,7 @@ fn snapshot_queue_state_from_locked_state(state: &EngineState) -> QueueState {
     let order_by_id = build_queue_order_map(state);
 
     let mut jobs: Vec<TranscodeJob> = Vec::with_capacity(state.jobs.len());
-    for (id, job) in state.jobs.iter() {
+    for (id, job) in &state.jobs {
         let mut clone = job.clone();
         clone.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(clone);
@@ -225,7 +225,7 @@ fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStat
     let order_by_id = build_queue_order_map(state);
 
     let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
-    for (id, job) in state.jobs.iter() {
+    for (id, job) in &state.jobs {
         let mut lite = TranscodeJobLite::from(job);
         lite.queue_order = order_by_id.get(id.as_str()).copied();
         jobs.push(lite);
@@ -253,8 +253,7 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
             state
                 .jobs
                 .get(*id)
-                .map(|job| job.status != JobStatus::Processing)
-                .unwrap_or(true)
+                .is_none_or(|job| job.status != JobStatus::Processing)
         })
         .cloned()
         .collect();
@@ -272,13 +271,13 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
         if !seen.insert(id.clone()) {
             return false;
         }
-        match state.jobs.get(id) {
-            Some(job) => matches!(job.status, JobStatus::Waiting | JobStatus::Queued),
-            None => false,
-        }
+        state
+            .jobs
+            .get(id)
+            .is_some_and(|job| matches!(job.status, JobStatus::Waiting | JobStatus::Queued))
     });
 
-    for (id, job) in state.jobs.iter() {
+    for (id, job) in &state.jobs {
         if !matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
             continue;
         }
@@ -338,19 +337,19 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
         persist_queue_state_lite(&lite_snapshot);
     }
 
-    for listener in lite_listeners.iter() {
+    for listener in &lite_listeners {
         listener(lite_snapshot.clone());
     }
     if let Some(full_snapshot) = full_snapshot {
-        for listener in full_listeners.iter() {
+        for listener in &full_listeners {
             listener(full_snapshot.clone());
         }
     }
 }
 
 pub(super) fn notify_batch_compress_listeners(inner: &Inner, progress: AutoCompressProgress) {
-    let listeners = inner.batch_compress_listeners.lock_unpoisoned();
-    for listener in listeners.iter() {
+    let listeners = inner.batch_compress_listeners.lock_unpoisoned().clone();
+    for listener in &listeners {
         listener(progress.clone());
     }
 }
@@ -365,9 +364,8 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
 {
     let progress = {
         let mut state = inner.state.lock_unpoisoned();
-        let batch = match state.batch_compress_batches.get_mut(batch_id) {
-            Some(b) => b,
-            None => return,
+        let Some(batch) = state.batch_compress_batches.get_mut(batch_id) else {
+            return;
         };
 
         f(batch);
@@ -434,7 +432,7 @@ mod tests {
     }
 
     fn assert_queue_order_snapshot<J: QueueOrderSortable>(jobs: &[J]) {
-        let ids: Vec<&str> = jobs.iter().map(|job| job.id_str()).collect();
+        let ids: Vec<&str> = jobs.iter().map(super::QueueOrderSortable::id_str).collect();
         assert_eq!(ids, vec!["b", "a", "c"]);
 
         assert_eq!(jobs[0].queue_order(), Some(0));
@@ -454,7 +452,12 @@ mod tests {
             .and_then(|v| v.as_array())
             .expect("jobs array present");
         assert_eq!(jobs[0].get("id").and_then(|v| v.as_str()), Some("b"));
-        assert_eq!(jobs[0].get("queueOrder").and_then(|v| v.as_u64()), Some(0));
+        assert_eq!(
+            jobs[0]
+                .get("queueOrder")
+                .and_then(serde_json::Value::as_u64),
+            Some(0)
+        );
     }
 
     #[test]

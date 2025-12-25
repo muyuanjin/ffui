@@ -94,7 +94,7 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
             vf_parts.push(format!("fps={fps}"));
         }
         if let Some(subtitles) = &preset.subtitles
-            && let Some(SubtitleStrategy::BurnIn) = subtitles.strategy
+            && matches!(subtitles.strategy, Some(SubtitleStrategy::BurnIn))
             && let Some(filter) = &subtitles.burn_in_filter
             && !filter.is_empty()
         {
@@ -112,7 +112,7 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
         if !vf_parts.is_empty() {
             combined.push_str(&vf_parts.join(","));
         }
-        if let Some(chain) = vf_chain.map(|s| s.to_string()) {
+        if let Some(chain) = vf_chain.map(std::string::ToString::to_string) {
             if !combined.is_empty() {
                 combined.push(',');
             }
@@ -209,7 +209,7 @@ pub(in crate::ffui_core::engine) fn apply_mapping_disposition_and_metadata_args(
 
 pub(super) fn apply_subtitle_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
     if let Some(subtitles) = &preset.subtitles
-        && let Some(SubtitleStrategy::Drop) = subtitles.strategy
+        && matches!(subtitles.strategy, Some(SubtitleStrategy::Drop))
     {
         args.push("-sn".to_string());
     }
@@ -222,8 +222,13 @@ pub(in crate::ffui_core::engine) fn apply_container_args(
 ) {
     if let Some(container) = &preset.container {
         let muxer = forced_muxer
-            .map(|s| s.to_string())
-            .or_else(|| container.format.as_deref().map(|s| s.to_string()));
+            .map(std::string::ToString::to_string)
+            .or_else(|| {
+                container
+                    .format
+                    .as_deref()
+                    .map(std::string::ToString::to_string)
+            });
         if let Some(format) = muxer
             && !format.trim().is_empty()
         {

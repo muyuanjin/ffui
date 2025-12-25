@@ -405,8 +405,7 @@ fn restore_merges_terminal_logs_into_memory_in_full_mode() {
         restored
             .log_tail
             .as_ref()
-            .map(|t| t.contains("restored-3"))
-            .unwrap_or(false),
+            .is_some_and(|t| t.contains("restored-3")),
         "expected restored logTail to be recomputed from full logs"
     );
 

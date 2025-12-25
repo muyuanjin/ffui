@@ -29,11 +29,11 @@ pub(crate) fn apply_file_times(path: &Path, times: &FileTimesSnapshot) -> Result
         let current_accessed = meta
             .as_ref()
             .and_then(|m| m.accessed().ok())
-            .unwrap_or(SystemTime::now());
+            .unwrap_or_else(SystemTime::now);
         let current_modified = meta
             .as_ref()
             .and_then(|m| m.modified().ok())
-            .unwrap_or(SystemTime::now());
+            .unwrap_or_else(SystemTime::now);
 
         let accessed = times.accessed.unwrap_or(current_accessed);
         let modified = times.modified.unwrap_or(current_modified);
@@ -75,7 +75,7 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
     const WINDOWS_EPOCH_DIFF_SECS: u64 = 11_644_473_600;
     let duration = created.duration_since(UNIX_EPOCH).unwrap_or_default();
     let intervals_100ns =
-        duration.as_secs().saturating_mul(10_000_000) + (duration.subsec_nanos() as u64 / 100);
+        duration.as_secs().saturating_mul(10_000_000) + (u64::from(duration.subsec_nanos()) / 100);
     let windows_intervals =
         intervals_100ns.saturating_add(WINDOWS_EPOCH_DIFF_SECS.saturating_mul(10_000_000));
 
@@ -97,7 +97,8 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
     }
     .map_err(|e| e.to_string())?;
 
-    let res = unsafe { SetFileTime(handle, Some(&ft), None, None) }.map_err(|e| e.to_string());
+    let res =
+        unsafe { SetFileTime(handle, Some(&raw const ft), None, None) }.map_err(|e| e.to_string());
     unsafe {
         let _ = CloseHandle(handle);
     }

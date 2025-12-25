@@ -45,7 +45,7 @@ pub(crate) fn handle_image_file_with_id(
     let original_codec = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .map(str::to_ascii_lowercase);
     let mut job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
         job_id: resolved_job_id,
         filename,
@@ -62,7 +62,7 @@ pub(crate) fn handle_image_file_with_id(
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase())
+        .map(str::to_ascii_lowercase)
         .unwrap_or_default();
 
     let preserve_times_policy = config.output_policy.preserve_file_times.clone();

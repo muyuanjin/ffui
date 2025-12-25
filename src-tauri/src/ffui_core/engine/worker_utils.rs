@@ -100,7 +100,7 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) -> bool {
         let mut removed = false;
         let mut prefix = 0usize;
 
-        for run in job.runs.iter_mut() {
+        for run in &mut job.runs {
             if run.logs.is_empty() {
                 continue;
             }
@@ -121,7 +121,7 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) -> bool {
 
         // All remaining lines are critical; drop the oldest available line.
         let prefix = 0usize;
-        for run in job.runs.iter_mut() {
+        for run in &mut job.runs {
             if run.logs.is_empty() {
                 continue;
             }
@@ -213,7 +213,7 @@ pub(super) fn base_seconds_per_mb(stats: &PresetStats) -> Option<f64> {
     }
 }
 
-pub(super) fn encoder_factor_for_estimate(encoder: &EncoderType) -> f64 {
+pub(super) const fn encoder_factor_for_estimate(encoder: &EncoderType) -> f64 {
     match encoder {
         EncoderType::LibSvtAv1 => 1.5,
         EncoderType::HevcNvenc => 0.9,
@@ -231,14 +231,12 @@ pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
             None => return,
         };
 
-        let batch_id = match job.batch_id.clone() {
-            Some(id) => id,
-            None => return,
+        let Some(batch_id) = job.batch_id.clone() else {
+            return;
         };
 
-        let batch = match state.batch_compress_batches.get_mut(&batch_id) {
-            Some(b) => b,
-            None => return,
+        let Some(batch) = state.batch_compress_batches.get_mut(&batch_id) else {
+            return;
         };
 
         if !matches!(

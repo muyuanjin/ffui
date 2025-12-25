@@ -53,12 +53,12 @@ pub(super) fn focus_primary_window_by_exe_path_best_effort(exe_path: &Path) -> b
             hwnd: HWND(std::ptr::null_mut()),
             hwnd_title_match: HWND(std::ptr::null_mut()),
         };
-        let lparam = LPARAM((&mut state as *mut FindWindowByExeState) as isize);
+        let lparam = LPARAM((&raw mut state) as isize);
         let _ = EnumWindows(Some(enum_windows_find_by_exe_path), lparam);
-        let hwnd = if state.hwnd_title_match != HWND(std::ptr::null_mut()) {
-            state.hwnd_title_match
-        } else {
+        let hwnd = if state.hwnd_title_match == HWND(std::ptr::null_mut()) {
             state.hwnd
+        } else {
+            state.hwnd_title_match
         };
         if hwnd != HWND(std::ptr::null_mut()) {
             return focus_hwnd_raw_best_effort(hwnd);
@@ -83,7 +83,7 @@ unsafe extern "system" fn enum_windows_find_by_exe_path(hwnd: HWND, lparam: LPAR
         }
 
         let mut wpid: u32 = 0;
-        let _thread = GetWindowThreadProcessId(hwnd, Some(&mut wpid));
+        let _thread = GetWindowThreadProcessId(hwnd, Some(&raw mut wpid));
         if wpid == 0 || wpid == state.current_pid {
             return BOOL(1);
         }
@@ -147,7 +147,7 @@ fn query_process_image_path(pid: u32) -> Option<String> {
                 process,
                 PROCESS_NAME_FORMAT(0),
                 windows::core::PWSTR(buffer.as_mut_ptr()),
-                &mut size,
+                &raw mut size,
             )
             .is_ok();
             if ok {

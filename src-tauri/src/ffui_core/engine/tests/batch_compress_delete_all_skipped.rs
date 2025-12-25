@@ -30,10 +30,10 @@ fn delete_batch_compress_batch_succeeds_when_all_children_are_skipped() {
     };
 
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for all-skipped delete test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待 Batch Compress 批次状态稳定：应扫描到文件并将批次标记为 Completed。
     let attempts_limit = 120;

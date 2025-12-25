@@ -5,14 +5,13 @@ use crate::ffui_core::{QueueStateLite, TranscodingEngine};
 use crate::taskbar_progress::update_taskbar_progress_lite;
 
 fn parse_bool_env(value: Option<&str>, default: bool) -> bool {
-    match value {
-        None => default,
-        Some(raw) => match raw.trim().to_ascii_lowercase().as_str() {
+    value.map_or(default, |raw| {
+        match raw.trim().to_ascii_lowercase().as_str() {
             "1" | "true" | "yes" | "on" => true,
             "0" | "false" | "no" | "off" => false,
             _ => default,
-        },
-    }
+        }
+    })
 }
 
 fn full_queue_state_events_enabled() -> bool {

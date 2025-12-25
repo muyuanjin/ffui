@@ -56,7 +56,7 @@ pub(crate) fn cleanup_unreferenced_previews(
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
-            .map(|s| s.to_ascii_lowercase());
+            .map(str::to_ascii_lowercase);
         if !matches!(ext.as_deref(), Some("jpg" | "jpeg" | "png" | "webp")) {
             continue;
         }

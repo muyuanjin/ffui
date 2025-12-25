@@ -8,7 +8,7 @@ use std::process::Command;
 use std::time::{Duration, SystemTime};
 
 use super::runtime_state::mark_arch_incompatible_for_session;
-use super::types::*;
+use super::types::ExternalToolKind;
 
 // Avoid visible console windows for helper commands on Windows.
 #[cfg(windows)]
@@ -181,11 +181,11 @@ fn extract_first_non_empty_line(stdout: &[u8], stderr: &[u8]) -> Option<String> 
         .lines()
         .map(str::trim)
         .find(|l| !l.is_empty())
-        .map(|l| l.to_string())
+        .map(std::string::ToString::to_string)
 }
 
 #[cfg(windows)]
-fn current_windows_pe_machine() -> Option<u16> {
+const fn current_windows_pe_machine() -> Option<u16> {
     // Map Rust target_arch to PE machine codes.
     // IMAGE_FILE_MACHINE_AMD64 = 0x8664; I386 = 0x014c; ARM64 = 0xAA64.
     #[cfg(target_arch = "x86_64")]
@@ -216,7 +216,7 @@ fn parse_pe_machine(path: &str) -> Option<u16> {
     f.seek(SeekFrom::Start(0x3C)).ok()?;
     let mut off_buf = [0u8; 4];
     f.read_exact(&mut off_buf).ok()?;
-    let pe_off = u32::from_le_bytes(off_buf) as u64;
+    let pe_off = u64::from(u32::from_le_bytes(off_buf));
     // PE signature + Machine
     f.seek(SeekFrom::Start(pe_off)).ok()?;
     let mut sig = [0u8; 4];
@@ -230,15 +230,11 @@ fn parse_pe_machine(path: &str) -> Option<u16> {
 }
 
 #[cfg(windows)]
-fn pe_arch_compatible_with_host(machine: u16) -> bool {
-    match (current_windows_pe_machine(), machine) {
-        (Some(0x8664), 0x8664) => true, // AMD64 host, AMD64 binary
-        (Some(0x014c), 0x014c) => true, // x86 host, x86 binary
-        (Some(0xAA64), 0xAA64) => true, // ARM64 host, ARM64 binary
-        // 64-bit Windows cannot run 32-bit? It can via WoW64 for AMD64. We accept that.
-        (Some(0x8664), 0x014c) => true, // AMD64 host can run I386 via WoW64
-        _ => false,
-    }
+const fn pe_arch_compatible_with_host(machine: u16) -> bool {
+    matches!(
+        (current_windows_pe_machine(), machine),
+        (Some(0x8664), 0x8664 | 0x014c) | (Some(0x014c), 0x014c) | (Some(0xAA64), 0xAA64)
+    )
 }
 
 pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &str) -> bool {
@@ -266,108 +262,105 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
     // code some builds use for `--version`. For avifenc we only care that the
     // binary can be spawned at all; many builds exit non‑zero when called
     // without real input, so we treat any successful spawn as "available".
-    match kind {
-        ExternalToolKind::Avifenc => {
-            #[cfg(windows)]
-            {
-                // Fast path on Windows: if PE architecture is compatible, treat as available
-                // without spawning a process.
-                if let Some(machine) = parse_pe_machine(path) {
-                    let ok = pe_arch_compatible_with_host(machine);
-                    if !ok {
-                        let err = std::io::Error::from_raw_os_error(193);
-                        mark_arch_incompatible_for_session(kind, source, path, &err);
-                        cache_store_with_version(kind, path, false, None);
-                        return false;
-                    }
-                    cache_store_with_version(kind, path, true, None);
-                    if debug_log {
-                        crate::debug_eprintln!(
-                            "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
-                        );
-                    }
-                    return true;
-                }
-            }
-            cmd.arg("--version");
-            match cmd.output() {
-                Ok(out) => {
-                    if debug_log {
-                        crate::debug_eprintln!(
-                            "[verify_tool_binary] kind=avifenc path={} source={} status={} stdout_len={} stderr_len={}",
-                            path,
-                            source,
-                            out.status,
-                            out.stdout.len(),
-                            out.stderr.len()
-                        );
-                    }
-                    let version = extract_first_non_empty_line(&out.stdout, &out.stderr);
-                    cache_store_with_version(kind, path, true, version);
-                    true
-                }
-                Err(err) => {
-                    if debug_log {
-                        crate::debug_eprintln!(
-                            "[verify_tool_binary] kind=avifenc path={} source={} error_kind={:?} os_error={:?}",
-                            path,
-                            source,
-                            err.kind(),
-                            err.raw_os_error()
-                        );
-                    }
-                    if is_exec_arch_mismatch(&err) {
-                        mark_arch_incompatible_for_session(kind, source, path, &err);
-                    }
+    if kind == ExternalToolKind::Avifenc {
+        #[cfg(windows)]
+        {
+            // Fast path on Windows: if PE architecture is compatible, treat as available
+            // without spawning a process.
+            if let Some(machine) = parse_pe_machine(path) {
+                let ok = pe_arch_compatible_with_host(machine);
+                if !ok {
+                    let err = std::io::Error::from_raw_os_error(193);
+                    mark_arch_incompatible_for_session(kind, source, path, &err);
                     cache_store_with_version(kind, path, false, None);
-                    false
+                    return false;
                 }
+                cache_store_with_version(kind, path, true, None);
+                if debug_log {
+                    crate::debug_eprintln!(
+                        "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
+                    );
+                }
+                return true;
             }
         }
-        _ => {
-            // Prefer `-version` which works for ffmpeg/ffprobe and avoids the
-            // non-zero exit code some builds use for `--version`.
-            cmd.arg("-version");
-            match cmd.output() {
-                Ok(out) => {
-                    if debug_log {
-                        crate::debug_eprintln!(
-                            "[verify_tool_binary] path={} source={} status={} stdout_len={} stderr_len={}",
-                            path,
-                            source,
-                            out.status,
-                            out.stdout.len(),
-                            out.stderr.len()
-                        );
-                    }
-                    let ok = out.status.success();
-                    let version = if ok {
-                        extract_ffmpeg_version_line(&out.stdout)
-                    } else {
-                        None
-                    };
-                    cache_store_with_version(kind, path, ok, version);
-                    ok
+        cmd.arg("--version");
+        match cmd.output() {
+            Ok(out) => {
+                if debug_log {
+                    crate::debug_eprintln!(
+                        "[verify_tool_binary] kind=avifenc path={} source={} status={} stdout_len={} stderr_len={}",
+                        path,
+                        source,
+                        out.status,
+                        out.stdout.len(),
+                        out.stderr.len()
+                    );
                 }
-                Err(err) => {
-                    if debug_log {
-                        crate::debug_eprintln!(
-                            "[verify_tool_binary] path={} source={} error_kind={:?} os_error={:?}",
-                            path,
-                            source,
-                            err.kind(),
-                            err.raw_os_error()
-                        );
-                    }
-                    if is_exec_arch_mismatch(&err) {
-                        // Treat this as an architecture incompatibility and remember it
-                        // for the rest of the session so we do not keep trying to run
-                        // a broken binary.
-                        mark_arch_incompatible_for_session(kind, source, path, &err);
-                    }
-                    cache_store_with_version(kind, path, false, None);
-                    false
+                let version = extract_first_non_empty_line(&out.stdout, &out.stderr);
+                cache_store_with_version(kind, path, true, version);
+                true
+            }
+            Err(err) => {
+                if debug_log {
+                    crate::debug_eprintln!(
+                        "[verify_tool_binary] kind=avifenc path={} source={} error_kind={:?} os_error={:?}",
+                        path,
+                        source,
+                        err.kind(),
+                        err.raw_os_error()
+                    );
                 }
+                if is_exec_arch_mismatch(&err) {
+                    mark_arch_incompatible_for_session(kind, source, path, &err);
+                }
+                cache_store_with_version(kind, path, false, None);
+                false
+            }
+        }
+    } else {
+        // Prefer `-version` which works for ffmpeg/ffprobe and avoids the
+        // non-zero exit code some builds use for `--version`.
+        cmd.arg("-version");
+        match cmd.output() {
+            Ok(out) => {
+                if debug_log {
+                    crate::debug_eprintln!(
+                        "[verify_tool_binary] path={} source={} status={} stdout_len={} stderr_len={}",
+                        path,
+                        source,
+                        out.status,
+                        out.stdout.len(),
+                        out.stderr.len()
+                    );
+                }
+                let ok = out.status.success();
+                let version = if ok {
+                    extract_ffmpeg_version_line(&out.stdout)
+                } else {
+                    None
+                };
+                cache_store_with_version(kind, path, ok, version);
+                ok
+            }
+            Err(err) => {
+                if debug_log {
+                    crate::debug_eprintln!(
+                        "[verify_tool_binary] path={} source={} error_kind={:?} os_error={:?}",
+                        path,
+                        source,
+                        err.kind(),
+                        err.raw_os_error()
+                    );
+                }
+                if is_exec_arch_mismatch(&err) {
+                    // Treat this as an architecture incompatibility and remember it
+                    // for the rest of the session so we do not keep trying to run
+                    // a broken binary.
+                    mark_arch_incompatible_for_session(kind, source, path, &err);
+                }
+                cache_store_with_version(kind, path, false, None);
+                false
             }
         }
     }

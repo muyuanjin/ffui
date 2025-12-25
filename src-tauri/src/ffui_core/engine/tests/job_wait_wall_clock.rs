@@ -14,7 +14,7 @@ fn mark_job_waiting_does_not_double_count_wall_clock_on_first_pause() {
         "preset-1".into(),
     );
 
-    let job_id = job.id.clone();
+    let job_id = job.id;
     let start_ms = current_time_millis();
 
     {
@@ -73,7 +73,7 @@ fn mark_job_waiting_prefers_processed_seconds_override_over_progress_estimate() 
         "preset-1".into(),
     );
 
-    let job_id = job.id.clone();
+    let job_id = job.id;
 
     {
         let mut state = engine.inner.state.lock_unpoisoned();

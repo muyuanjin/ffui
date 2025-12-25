@@ -60,17 +60,15 @@ fn mask_for_date(settings: &AppSettings, date_key: &str) -> u32 {
     };
     days.iter()
         .find(|d| d.date == date_key)
-        .map(|d| d.active_hours_mask)
-        .unwrap_or(0)
+        .map_or(0, |d| d.active_hours_mask)
 }
 
 pub(super) fn snapshot_transcode_activity_today(
     settings: &AppSettings,
     now_ms: u64,
 ) -> TranscodeActivityToday {
-    let date_key = local_date_key_and_hour(now_ms)
-        .map(|(date, _)| date)
-        .unwrap_or_else(|| "1970-01-01".to_string());
+    let date_key =
+        local_date_key_and_hour(now_ms).map_or_else(|| "1970-01-01".to_string(), |(date, _)| date);
     let mask = mask_for_date(settings, &date_key);
 
     TranscodeActivityToday {
@@ -90,7 +88,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
     let Some((date_key, hour)) = local_date_key_and_hour(now_ms) else {
         return;
     };
-    let bit = 1u32 << (hour as u32);
+    let bit = 1u32 << u32::from(hour);
 
     let payload_to_emit = {
         let mut state = inner.state.lock_unpoisoned();
@@ -104,8 +102,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
         let current_mask = days
             .iter()
             .find(|d| d.date == date_key)
-            .map(|d| d.active_hours_mask)
-            .unwrap_or(0);
+            .map_or(0, |d| d.active_hours_mask);
         let new_mask = current_mask | bit;
         if new_mask == current_mask {
             return;

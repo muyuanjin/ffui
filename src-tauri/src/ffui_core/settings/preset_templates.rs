@@ -3,7 +3,7 @@ use crate::ffui_core::domain::{
     RateControlMode, VideoConfig,
 };
 
-pub(super) fn empty_stats() -> PresetStats {
+pub(super) const fn empty_stats() -> PresetStats {
     PresetStats {
         usage_count: 0,
         total_input_size_mb: 0.0,
@@ -12,7 +12,7 @@ pub(super) fn empty_stats() -> PresetStats {
     }
 }
 
-pub(super) fn audio_copy() -> AudioConfig {
+pub(super) const fn audio_copy() -> AudioConfig {
     AudioConfig {
         codec: AudioCodecType::Copy,
         bitrate: None,
@@ -26,7 +26,7 @@ pub(super) fn audio_copy() -> AudioConfig {
     }
 }
 
-pub(super) fn filters_empty() -> FilterConfig {
+pub(super) const fn filters_empty() -> FilterConfig {
     FilterConfig {
         scale: None,
         crop: None,
@@ -63,7 +63,7 @@ pub(super) fn video_x264_crf(
         level: None,
         gop_size: None,
         bf: None,
-        pix_fmt: pix_fmt.map(|s| s.to_string()),
+        pix_fmt: pix_fmt.map(std::string::ToString::to_string),
         b_ref_mode: None,
         rc_lookahead: None,
         spatial_aq: None,
@@ -92,7 +92,7 @@ pub(super) fn video_svtav1_crf(
         level: None,
         gop_size,
         bf,
-        pix_fmt: pix_fmt.map(|s| s.to_string()),
+        pix_fmt: pix_fmt.map(std::string::ToString::to_string),
         b_ref_mode: None,
         rc_lookahead: None,
         spatial_aq: None,

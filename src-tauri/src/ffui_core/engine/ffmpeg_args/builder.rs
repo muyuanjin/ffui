@@ -38,8 +38,7 @@ pub(crate) fn build_ffmpeg_args(
         && preset
             .ffmpeg_template
             .as_ref()
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false)
+            .is_some_and(|s| !s.trim().is_empty())
         && let Some(template) = &preset.ffmpeg_template
     {
         let mut args = split_template_args(template);
@@ -57,7 +56,7 @@ pub(crate) fn build_ffmpeg_args(
         // using advanced templates. This allows restart-based resume to inject
         // an input-side `-ss` without requiring explicit placeholders.
         if let Some(timeline) = &preset.input
-            && let Some(SeekMode::Input) = timeline.seek_mode
+            && matches!(timeline.seek_mode, Some(SeekMode::Input))
             && let Some(pos) = &timeline.seek_position
             && !pos.trim().is_empty()
             && !args.iter().any(|a| a == "-ss")
@@ -96,7 +95,7 @@ pub(crate) fn build_ffmpeg_args(
     apply_global_args(&mut args, preset);
 
     if let Some(timeline) = &preset.input
-        && let Some(SeekMode::Input) = timeline.seek_mode
+        && matches!(timeline.seek_mode, Some(SeekMode::Input))
     {
         if let Some(pos) = &timeline.seek_position
             && !pos.is_empty()
@@ -113,7 +112,7 @@ pub(crate) fn build_ffmpeg_args(
     args.push(input.to_string_lossy().into_owned());
 
     if let Some(timeline) = &preset.input {
-        if let Some(SeekMode::Output) = timeline.seek_mode
+        if matches!(timeline.seek_mode, Some(SeekMode::Output))
             && let Some(pos) = &timeline.seek_position
             && !pos.is_empty()
         {
@@ -272,11 +271,11 @@ pub(crate) fn build_ffmpeg_args(
                 args.push("-rc-lookahead".to_string());
                 args.push(lookahead.to_string());
             }
-            if let Some(true) = preset.video.spatial_aq {
+            if preset.video.spatial_aq == Some(true) {
                 args.push("-spatial-aq".to_string());
                 args.push("1".to_string());
             }
-            if let Some(true) = preset.video.temporal_aq {
+            if preset.video.temporal_aq == Some(true) {
                 args.push("-temporal-aq".to_string());
                 args.push("1".to_string());
             }

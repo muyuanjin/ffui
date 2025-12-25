@@ -67,8 +67,7 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
             return path
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|e| e.eq_ignore_ascii_case("exe"))
-                .unwrap_or(false);
+                .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
         }
         // On Unix, cargo emits the binary without an extension, while sidecar artifacts
         // (e.g. dep-info `.d`) share the same prefix.
@@ -84,8 +83,7 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
-                    .unwrap_or(false)
+                    .is_some_and(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
             })
             .filter(|p| is_mock_ffmpeg_exe(p))
             .collect();
@@ -245,8 +243,7 @@ fn custom_eligible_templates_spawn_mock_ffmpeg_with_argv_fidelity() {
         .filter(|e| {
             e.args_only_template
                 .as_ref()
-                .map(|s| !s.trim().is_empty())
-                .unwrap_or(false)
+                .is_some_and(|s| !s.trim().is_empty())
         })
         .collect();
     custom_entries.sort_by(|a, b| a.id.cmp(&b.id));

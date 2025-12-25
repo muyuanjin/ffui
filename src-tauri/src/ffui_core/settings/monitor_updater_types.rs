@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-fn is_true(value: &bool) -> bool {
+const fn is_true(value: &bool) -> bool {
     *value
 }
 
-fn default_true() -> bool {
+const fn default_true() -> bool {
     true
 }
 

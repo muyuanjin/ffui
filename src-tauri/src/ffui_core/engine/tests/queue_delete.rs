@@ -113,7 +113,7 @@ fn delete_batch_compress_child_job_is_deletable() {
                 log_tail: None,
                 failure_reason: None,
                 warnings: Vec::new(),
-                batch_id: Some(batch_id.clone()),
+                batch_id: Some(batch_id),
                 wait_metadata: None,
             },
         );
@@ -191,7 +191,7 @@ fn delete_batch_compress_non_terminal_job_is_rejected() {
                 log_tail: None,
                 failure_reason: None,
                 warnings: Vec::new(),
-                batch_id: Some(batch_id.clone()),
+                batch_id: Some(batch_id),
                 wait_metadata: None,
             },
         );

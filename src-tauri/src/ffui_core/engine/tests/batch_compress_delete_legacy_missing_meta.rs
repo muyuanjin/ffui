@@ -54,8 +54,8 @@ fn delete_batch_compress_batch_succeeds_without_batch_metadata_when_all_children
         state
             .jobs
             .insert(job2_id.clone(), base_job(&job2_id, JobStatus::Skipped));
-        state.queue.push_back(job1_id.clone());
-        state.queue.push_back(job2_id.clone());
+        state.queue.push_back(job1_id);
+        state.queue.push_back(job2_id);
     }
 
     assert!(

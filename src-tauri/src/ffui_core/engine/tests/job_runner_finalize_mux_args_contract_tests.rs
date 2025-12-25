@@ -76,13 +76,13 @@ fn build_mux_args_for_resumed_output_maps_streams_and_respects_subtitle_keep() {
     let args = build_mux_args_for_resumed_output(&joined_video, &input_path, &mux_tmp, &preset);
 
     let mux_out = mux_tmp.to_string_lossy().into_owned();
-    assert_eq!(args.first().map(|s| s.as_str()), Some("-y"));
+    assert_eq!(args.first().map(std::string::String::as_str), Some("-y"));
     assert!(
         args.contains(&"-shortest".to_string()),
         "mux args should include -shortest"
     );
     assert_eq!(
-        args.last().map(|s| s.as_str()),
+        args.last().map(std::string::String::as_str),
         Some(mux_out.as_str()),
         "last arg should be output path"
     );

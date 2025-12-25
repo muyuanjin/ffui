@@ -23,7 +23,7 @@ use crate::sync_ext::MutexExt;
 /// - AAC 输出默认使用 m4a（mp4 容器），除非输入已是 m4a/m4b/aac/mp4。
 /// - Copy 输出延用原始扩展；若缺失则回退 m4a。
 fn choose_audio_output_extension(input_ext: Option<&str>, codec: &AudioCodecType) -> String {
-    let ext = input_ext.map(|s| s.to_ascii_lowercase());
+    let ext = input_ext.map(str::to_ascii_lowercase);
 
     match codec {
         AudioCodecType::Aac => match ext.as_deref() {
@@ -57,7 +57,7 @@ pub(crate) fn handle_audio_file_with_id(
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .map(str::to_ascii_lowercase);
 
     // 根据 Batch Compress 配置选择音频预设：优先 audioPresetId，其次回退为空字符串。
     let audio_preset_id = config.audio_preset_id.clone().unwrap_or_default();
@@ -141,38 +141,41 @@ pub(crate) fn handle_audio_file_with_id(
         loudness_range,
         true_peak_db,
         af_chain,
-    ): AudioChainConfig = if let Some(ref preset) = preset {
-        let ac = &preset.audio;
-        (
-            ac.codec.clone(),
-            ac.bitrate,
-            ac.sample_rate_hz,
-            ac.channels,
-            ac.channel_layout.clone(),
-            ac.loudness_profile.clone(),
-            ac.target_lufs,
-            ac.loudness_range,
-            ac.true_peak_db,
-            preset
-                .filters
-                .af_chain
-                .as_ref()
-                .map(|s| s.trim().to_string()),
-        )
-    } else {
-        (
-            AudioCodecType::Aac,
-            Some(128),
-            Some(48_000),
-            Some(2),
-            Some("stereo".to_string()),
-            Some("none".to_string()),
-            None,
-            None,
-            None,
-            None,
-        )
-    };
+    ): AudioChainConfig = preset.as_ref().map_or_else(
+        || {
+            (
+                AudioCodecType::Aac,
+                Some(128),
+                Some(48_000),
+                Some(2),
+                Some("stereo".to_string()),
+                Some("none".to_string()),
+                None,
+                None,
+                None,
+                None,
+            )
+        },
+        |preset| {
+            let ac = &preset.audio;
+            (
+                ac.codec.clone(),
+                ac.bitrate,
+                ac.sample_rate_hz,
+                ac.channels,
+                ac.channel_layout.clone(),
+                ac.loudness_profile.clone(),
+                ac.target_lufs,
+                ac.loudness_range,
+                ac.true_peak_db,
+                preset
+                    .filters
+                    .af_chain
+                    .as_ref()
+                    .map(|s| s.trim().to_string()),
+            )
+        },
+    );
 
     let target_ext = choose_audio_output_extension(ext.as_deref(), &codec_type);
 

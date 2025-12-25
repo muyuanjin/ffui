@@ -81,7 +81,7 @@ fn batch_compress_video_enqueue_keeps_batch_children_consecutive_even_when_manua
 
     assert_eq!(
         queue_vec,
-        vec![job1.id.clone(), job2.id.clone(), manual_job.id.clone()],
+        vec![job1.id, job2.id, manual_job.id],
         "Batch Compress batch children should remain consecutive in waiting queue"
     );
 }

@@ -12,10 +12,9 @@ fn push_unique(out: &mut Vec<String>, seen: &mut HashSet<String>, path: &Path) {
 }
 
 fn list_dir_sorted(dir: &Path) -> Vec<PathBuf> {
-    let mut entries: Vec<PathBuf> = match fs::read_dir(dir) {
-        Ok(read_dir) => read_dir.filter_map(|e| e.ok().map(|e| e.path())).collect(),
-        Err(_) => Vec::new(),
-    };
+    let mut entries: Vec<PathBuf> = fs::read_dir(dir)
+        .map(|read_dir| read_dir.filter_map(|e| e.ok().map(|e| e.path())).collect())
+        .unwrap_or_default();
 
     // Stable order: case-insensitive lexicographic by the final path segment.
     entries.sort_by_cached_key(|p| {
@@ -31,9 +30,8 @@ fn list_dir_sorted(dir: &Path) -> Vec<PathBuf> {
 
 fn expand_dir(dir: &Path, recursive: bool, out: &mut Vec<String>, seen: &mut HashSet<String>) {
     for path in list_dir_sorted(dir) {
-        let meta = match fs::symlink_metadata(&path) {
-            Ok(meta) => meta,
-            Err(_) => continue,
+        let Ok(meta) = fs::symlink_metadata(&path) else {
+            continue;
         };
         let file_type = meta.file_type();
         if file_type.is_symlink() {
@@ -74,9 +72,8 @@ pub(crate) fn expand_manual_job_inputs(paths: &[String], recursive: bool) -> Vec
             continue;
         }
         let path = PathBuf::from(trimmed);
-        let meta = match fs::symlink_metadata(&path) {
-            Ok(meta) => meta,
-            Err(_) => continue,
+        let Ok(meta) = fs::symlink_metadata(&path) else {
+            continue;
         };
         let file_type = meta.file_type();
         if file_type.is_symlink() {

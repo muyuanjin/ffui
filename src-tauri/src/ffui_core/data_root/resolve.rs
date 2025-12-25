@@ -210,7 +210,7 @@ mod tests {
 
         let mut probe_files: Vec<String> = std::fs::read_dir(&root)
             .expect("read_dir")
-            .filter_map(|entry| entry.ok())
+            .filter_map(std::result::Result::ok)
             .filter_map(|entry| entry.file_name().into_string().ok())
             .filter(|name| name.starts_with(".ffui-write-test-"))
             .collect();

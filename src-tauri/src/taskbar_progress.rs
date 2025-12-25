@@ -6,14 +6,14 @@ mod lite;
 
 pub use lite::update_taskbar_progress_lite;
 
-fn is_terminal(status: &JobStatus) -> bool {
+const fn is_terminal(status: &JobStatus) -> bool {
     matches!(
         status,
         JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
     )
 }
 
-pub(super) trait JobProgressModel {
+pub trait JobProgressModel {
     fn status(&self) -> &JobStatus;
     fn progress_percent(&self) -> f64;
     fn start_time_ms(&self) -> Option<u64>;
@@ -57,7 +57,7 @@ impl JobProgressModel for TranscodeJob {
 fn cohort_start_ms_for_active_scope_generic<J: JobProgressModel>(jobs: &[J]) -> Option<u64> {
     jobs.iter()
         .filter(|job| !is_terminal(job.status()))
-        .filter_map(|job| job.start_time_ms())
+        .filter_map(JobProgressModel::start_time_ms)
         .min()
 }
 
@@ -78,10 +78,8 @@ fn eligible_jobs_for_scope_generic<'a, J: JobProgressModel>(
                 if !is_terminal(job.status()) {
                     return true;
                 }
-                match cohort_start_ms {
-                    Some(start_ms) => job.start_time_ms().map(|t| t >= start_ms).unwrap_or(false),
-                    None => false,
-                }
+                cohort_start_ms
+                    .is_some_and(|start_ms| job.start_time_ms().is_some_and(|t| t >= start_ms))
             }))
         }
     }
@@ -95,7 +93,6 @@ fn normalized_job_progress_generic<J: JobProgressModel>(job: &J) -> f64 {
             JobStatus::Processing | JobStatus::Paused => {
                 (job.progress_percent().clamp(0.0, 100.0)) / 100.0
             }
-            JobStatus::Waiting | JobStatus::Queued => 0.0,
             _ => 0.0,
         }
     }
@@ -139,7 +136,7 @@ fn job_weight_generic<J: JobProgressModel>(job: &J, mode: TaskbarProgressMode) -
     weight.max(1.0e-3)
 }
 
-pub(super) fn compute_taskbar_progress_generic<J: JobProgressModel>(
+pub fn compute_taskbar_progress_generic<J: JobProgressModel>(
     jobs: &[J],
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,

@@ -90,7 +90,8 @@ fn execute_reveal_command(cmd: &RevealCommand) -> Result<(), String> {
 }
 
 #[cfg(test)]
-fn execute_reveal_command(_cmd: &RevealCommand) -> Result<(), String> {
+#[allow(clippy::unnecessary_wraps)]
+const fn execute_reveal_command(_cmd: &RevealCommand) -> Result<(), String> {
     Ok(())
 }
 
@@ -123,7 +124,7 @@ mod tests {
 
         match target {
             RevealTarget::SelectFile(path) => assert_eq!(path, tmp.path()),
-            other => panic!("expected SelectFile, got {other:?}"),
+            RevealTarget::OpenDirectory(path) => panic!("expected SelectFile, got {path:?}"),
         }
     }
 
@@ -135,7 +136,7 @@ mod tests {
         let target = normalize_reveal_target(&missing).expect("missing file should fall back");
         match target {
             RevealTarget::OpenDirectory(path) => assert_eq!(path, dir.path()),
-            other => panic!("expected OpenDirectory fallback, got {other:?}"),
+            RevealTarget::SelectFile(path) => panic!("expected OpenDirectory, got {path:?}"),
         }
     }
 
@@ -176,7 +177,7 @@ mod tests {
 
     #[test]
     fn reveal_path_in_folder_rejects_empty_input() {
-        let result = reveal_path_in_folder_impl("".to_string());
+        let result = reveal_path_in_folder_impl(String::new());
         assert!(result.is_err(), "empty paths should be rejected");
     }
 }

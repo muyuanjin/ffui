@@ -30,7 +30,7 @@ pub(super) fn insert_image_stub_job(
     let original_codec = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .map(str::to_ascii_lowercase);
 
     let job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
         job_id: job_id.to_string(),
@@ -68,7 +68,7 @@ pub(super) fn insert_audio_stub_job(
     let ext = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase());
+        .map(str::to_ascii_lowercase);
 
     let job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
         job_id: job_id.to_string(),
@@ -91,7 +91,7 @@ pub(super) fn set_job_processing(inner: &Inner, job_id: &str) {
     let mut state = inner.state.lock_unpoisoned();
     if let Some(job) = state.jobs.get_mut(job_id) {
         job.status = JobStatus::Processing;
-        job.start_time.get_or_insert(current_time_millis());
+        job.start_time.get_or_insert_with(current_time_millis);
     }
 }
 
@@ -127,15 +127,17 @@ pub(crate) fn batch_compress_batch_summary(
     inner: &Inner,
     batch_id: &str,
 ) -> Option<AutoCompressResult> {
-    let state = inner.state.lock_unpoisoned();
-    let batch = state.batch_compress_batches.get(batch_id)?.clone();
-
-    let mut jobs = Vec::new();
-    for job in state.jobs.values() {
-        if job.batch_id.as_deref() == Some(batch_id) {
-            jobs.push(job.clone());
-        }
-    }
+    let (batch, jobs) = {
+        let state = inner.state.lock_unpoisoned();
+        let batch = state.batch_compress_batches.get(batch_id)?.clone();
+        let jobs = state
+            .jobs
+            .values()
+            .filter(|job| job.batch_id.as_deref() == Some(batch_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        (batch, jobs)
+    };
 
     Some(AutoCompressResult {
         root_path: batch.root_path,

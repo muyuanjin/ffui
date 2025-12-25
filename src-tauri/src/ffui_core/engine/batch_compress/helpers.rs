@@ -40,7 +40,7 @@ pub(crate) fn notify_queue_listeners(inner: &Inner) {
     notify_engine_queue_listeners(inner);
 }
 
-pub(crate) fn size_only_media_info(original_size_mb: f64) -> MediaInfo {
+pub(crate) const fn size_only_media_info(original_size_mb: f64) -> MediaInfo {
     MediaInfo {
         duration_seconds: None,
         width: None,

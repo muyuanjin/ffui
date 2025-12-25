@@ -9,7 +9,7 @@ pub enum NetworkProxyMode {
     Custom,
 }
 
-fn default_fallback_to_direct_on_error() -> bool {
+const fn default_fallback_to_direct_on_error() -> bool {
     true
 }
 

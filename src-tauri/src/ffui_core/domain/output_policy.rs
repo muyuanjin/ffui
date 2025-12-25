@@ -126,33 +126,33 @@ impl Default for PreserveFileTimesPolicy {
 }
 
 impl PreserveFileTimesPolicy {
-    pub fn created(&self) -> bool {
+    pub const fn created(&self) -> bool {
         match self {
             Self::Bool(v) => *v,
             Self::Detailed { created, .. } => *created,
         }
     }
 
-    pub fn modified(&self) -> bool {
+    pub const fn modified(&self) -> bool {
         match self {
             Self::Bool(v) => *v,
             Self::Detailed { modified, .. } => *modified,
         }
     }
 
-    pub fn accessed(&self) -> bool {
+    pub const fn accessed(&self) -> bool {
         match self {
             Self::Bool(v) => *v,
             Self::Detailed { accessed, .. } => *accessed,
         }
     }
 
-    pub fn any(&self) -> bool {
+    pub const fn any(&self) -> bool {
         self.created() || self.modified() || self.accessed()
     }
 }
 
-fn is_preserve_file_times_disabled(v: &PreserveFileTimesPolicy) -> bool {
+const fn is_preserve_file_times_disabled(v: &PreserveFileTimesPolicy) -> bool {
     !v.any()
 }
 

@@ -38,7 +38,7 @@ fn now_ms() -> u64 {
     .unwrap_or(u64::MAX)
 }
 
-fn zero_stats() -> PresetStats {
+const fn zero_stats() -> PresetStats {
     PresetStats {
         usage_count: 0,
         total_input_size_mb: 0.0,
@@ -47,7 +47,7 @@ fn zero_stats() -> PresetStats {
     }
 }
 
-fn sanitize_preset_for_export(mut preset: FFmpegPreset) -> FFmpegPreset {
+const fn sanitize_preset_for_export(mut preset: FFmpegPreset) -> FFmpegPreset {
     preset.stats = zero_stats();
     preset
 }

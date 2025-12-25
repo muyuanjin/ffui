@@ -42,9 +42,9 @@ pub(super) fn record_tool_download_with_inner(
 
     let (url, version, tag) = meta.unwrap_or_else(|| (String::new(), None, None));
     let info = DownloadedToolInfo {
-        version: version.clone(),
-        tag: tag.clone(),
-        source_url: if url.is_empty() { None } else { Some(url.clone()) },
+        version,
+        tag,
+        source_url: if url.is_empty() { None } else { Some(url) },
         downloaded_at: Some(current_time_millis()),
     };
 

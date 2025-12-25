@@ -25,7 +25,7 @@ use crate::ffui_core::tools::runtime_state::{
     mark_download_error, mark_download_finished, mark_download_progress, mark_download_started,
     record_last_tool_download, snapshot_download_state,
 };
-use crate::ffui_core::tools::types::*;
+use crate::ffui_core::tools::types::{ExternalToolKind, LIBAVIF_VERSION};
 
 fn backup_existing_tool_binary(dest_path: &PathBuf) -> Option<PathBuf> {
     if !dest_path.exists() {
@@ -318,9 +318,8 @@ pub(crate) fn ensure_tool_available(
     //    absolute path when possible so that logs and queue commands can show where the binary actually
     //    lives.
     let bin = tool_binary_name(kind).to_string();
-    let path_candidate = resolve_in_path(&bin)
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|| bin.clone());
+    let path_candidate =
+        resolve_in_path(&bin).map_or_else(|| bin.clone(), |p| p.to_string_lossy().into_owned());
     candidates.push((path_candidate.clone(), "path".to_string()));
 
     // Enrich with additional discovered locations (env/registry/indexers).

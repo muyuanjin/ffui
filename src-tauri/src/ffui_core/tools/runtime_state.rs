@@ -4,7 +4,11 @@ use std::time::Instant;
 
 use tauri::Emitter;
 
-use super::types::*;
+use super::types::{
+    ExternalToolKind, FFMPEG_RELEASE_CACHE, FfmpegStaticRelease, LAST_TOOL_DOWNLOAD,
+    LIBAVIF_RELEASE_CACHE, LibavifRelease, TOOL_DOWNLOAD_STATE, ToolDownloadMetadata,
+    ToolDownloadRuntimeState,
+};
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::sync_ext::MutexExt;
 
@@ -47,9 +51,7 @@ pub(crate) fn finish_tool_status_refresh() {
 }
 
 pub(crate) fn ttl_hit(now_ms: u64, checked_at_ms: Option<u64>, ttl_ms: u64) -> bool {
-    checked_at_ms
-        .map(|checked_at| now_ms.saturating_sub(checked_at) < ttl_ms)
-        .unwrap_or(false)
+    checked_at_ms.is_some_and(|checked_at| now_ms.saturating_sub(checked_at) < ttl_ms)
 }
 
 pub(crate) fn cached_ffmpeg_release_version() -> Option<String> {
@@ -127,8 +129,8 @@ fn merge_download_state_into_latest_snapshot(kind: ExternalToolKind) {
             status.downloaded_bytes = runtime.downloaded_bytes;
             status.total_bytes = runtime.total_bytes;
             status.bytes_per_second = runtime.bytes_per_second;
-            status.last_download_error = runtime.last_error.clone();
-            status.last_download_message = runtime.last_message.clone();
+            status.last_download_error.clone_from(&runtime.last_error);
+            status.last_download_message = runtime.last_message;
             break;
         }
     }

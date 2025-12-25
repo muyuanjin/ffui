@@ -201,7 +201,7 @@ where
                 true,
             )?,
         )
-    } else if let Some(parsed) = parsed_proxy.clone() {
+    } else if let Some(parsed) = parsed_proxy {
         info.used_proxy = true;
         let proxy_client = build_reqwest_blocking_client(
             Duration::from_secs(30),
@@ -311,7 +311,7 @@ where
                 true,
             )?,
         )
-    } else if let Some(parsed) = parsed_proxy.clone() {
+    } else if let Some(parsed) = parsed_proxy {
         info.used_proxy = true;
         let proxy_client = build_reqwest_blocking_client(
             Duration::from_secs(30),
@@ -362,11 +362,11 @@ where
     }
 
     let total_len = resp.content_length();
-    let mut out = if let Some(total) = total_len.and_then(|n| usize::try_from(n).ok()) {
-        Vec::with_capacity(total.min(PREFETCH_CAPACITY_LIMIT_BYTES))
-    } else {
-        Vec::new()
-    };
+    let mut out = total_len
+        .and_then(|n| usize::try_from(n).ok())
+        .map_or_else(Vec::new, |total| {
+            Vec::with_capacity(total.min(PREFETCH_CAPACITY_LIMIT_BYTES))
+        });
 
     let mut downloaded: u64 = 0;
     let mut buf = [0u8; 64 * 1024];

@@ -34,9 +34,7 @@ pub(crate) fn reserve_unique_batch_compress_video_output_path(
 
         let candidate_str = candidate.to_string_lossy().into_owned();
         if !candidate.exists() && !state.known_batch_compress_outputs.contains(&candidate_str) {
-            state
-                .known_batch_compress_outputs
-                .insert(candidate_str.clone());
+            state.known_batch_compress_outputs.insert(candidate_str);
             break candidate;
         }
 

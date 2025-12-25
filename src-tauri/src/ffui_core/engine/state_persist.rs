@@ -100,9 +100,8 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
         return;
     }
 
-    let path = match queue_state_sidecar_path() {
-        Some(p) => p,
-        None => return,
+    let Some(path) = queue_state_sidecar_path() else {
+        return;
     };
 
     if let Some(parent) = path.parent()
@@ -212,7 +211,7 @@ struct QueuePersistCoordinator {
 }
 
 impl QueuePersistCoordinator {
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             state: Mutex::new(QueuePersistState {
                 last_write_at: None,
@@ -293,12 +292,9 @@ fn ensure_worker_thread_started() {
                 let maybe_snapshot = {
                     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
                     loop {
-                        let deadline = match state.next_flush_at {
-                            Some(deadline) => deadline,
-                            None => {
-                                state = QUEUE_PERSIST.cv.wait_unpoisoned(state);
-                                continue;
-                            }
+                        let Some(deadline) = state.next_flush_at else {
+                            state = QUEUE_PERSIST.cv.wait_unpoisoned(state);
+                            continue;
                         };
 
                         let now = Instant::now();
@@ -311,16 +307,16 @@ fn ensure_worker_thread_started() {
                         state = next;
                     }
 
-                    if !state.dirty_since_write {
-                        state.next_flush_at = None;
-                        None
-                    } else {
+                    if state.dirty_since_write {
                         let snapshot = state.last_snapshot.clone();
                         let epoch = current_queue_persist_epoch();
                         state.last_write_at = Some(Instant::now());
                         state.dirty_since_write = false;
                         state.next_flush_at = None;
                         snapshot.map(|snapshot| (epoch, snapshot))
+                    } else {
+                        state.next_flush_at = None;
+                        None
                     }
                 };
 
@@ -384,8 +380,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
             state.next_flush_at = None;
             let to_write = state
                 .last_snapshot
-                .as_ref()
-                .cloned()
+                .clone()
                 .unwrap_or_else(|| snapshot.clone());
             drop(state);
             persist_queue_state_inner(&to_write, epoch);
@@ -398,8 +393,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                 state.next_flush_at = None;
                 let to_write = state
                     .last_snapshot
-                    .as_ref()
-                    .cloned()
+                    .clone()
                     .unwrap_or_else(|| snapshot.clone());
                 drop(state);
                 persist_queue_state_inner(&to_write, epoch);
@@ -410,10 +404,11 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
             // so the latest snapshot is persisted even if no more updates
             // arrive after the burst ends.
             let flush_at = last + debounce;
-            state.next_flush_at = match state.next_flush_at {
-                Some(existing) => Some(existing.min(flush_at)),
-                None => Some(flush_at),
-            };
+            state.next_flush_at = Some(
+                state
+                    .next_flush_at
+                    .map_or(flush_at, |existing| existing.min(flush_at)),
+            );
             QUEUE_PERSIST.cv.notify_all();
         }
     }

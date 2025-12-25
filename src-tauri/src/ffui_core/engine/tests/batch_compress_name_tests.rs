@@ -28,10 +28,10 @@ fn batch_compress_keeps_compressed_named_files_as_candidates() {
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for compressed-name test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     let summary = {
         let mut attempts = 0;
@@ -43,11 +43,10 @@ fn batch_compress_keeps_compressed_named_files_as_candidates() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!(
-                    "Batch Compress batch did not include compressed-named video within timeout"
-                );
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress batch did not include compressed-named video within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };
@@ -99,10 +98,10 @@ fn batch_compress_treats_avif_as_candidate_when_enabled() {
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for avif candidate test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     let summary = {
         let mut attempts = 0;
@@ -115,9 +114,10 @@ fn batch_compress_treats_avif_as_candidate_when_enabled() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!("Batch Compress avif test did not reach processed state within timeout");
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress avif test did not reach processed state within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };

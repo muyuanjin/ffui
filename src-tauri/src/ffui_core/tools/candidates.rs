@@ -13,7 +13,7 @@ pub fn tool_candidates(
     settings: &ExternalToolSettings,
 ) -> Vec<ExternalToolCandidate> {
     let current_status = super::status::tool_status(kind, settings);
-    let current_path = current_status.resolved_path.clone();
+    let current_path = current_status.resolved_path;
     let runtime = snapshot_download_state(kind);
 
     let mut candidates: Vec<(String, String)> = Vec::new();
@@ -43,9 +43,8 @@ pub fn tool_candidates(
     }
 
     let bin = tool_binary_name(kind).to_string();
-    let path_candidate = resolve_in_path(&bin)
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|| bin.clone());
+    let path_candidate =
+        resolve_in_path(&bin).map_or_else(|| bin.clone(), |p| p.to_string_lossy().into_owned());
     push_candidate(path_candidate, "path");
 
     // Add additional discovered paths (env overrides, registry, indexers).

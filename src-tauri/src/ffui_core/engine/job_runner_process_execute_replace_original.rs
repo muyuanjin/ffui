@@ -5,9 +5,7 @@ fn apply_replace_original_video_output(
     final_output_path: &mut std::path::PathBuf,
 ) {
     let final_dir = input_path
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
+        .parent().map_or_else(|| std::path::PathBuf::from("."), std::path::Path::to_path_buf);
     let stem = input_path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -35,7 +33,9 @@ fn apply_replace_original_video_output(
         ),
     }
 
-    if output_path != candidate_final {
+    if output_path == candidate_final {
+        *final_output_path = candidate_final;
+    } else {
         match std::fs::rename(output_path, &candidate_final) {
             Ok(()) => {
                 super::worker_utils::append_job_log_line(
@@ -57,7 +57,5 @@ fn apply_replace_original_video_output(
                 ),
             ),
         }
-    } else {
-        *final_output_path = candidate_final;
     }
 }

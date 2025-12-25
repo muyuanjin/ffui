@@ -29,10 +29,10 @@ fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // Wait for the background scan to finish (no eligible candidates so it should complete fast).
     let _summary = {
@@ -46,9 +46,10 @@ fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 200 {
-                panic!("Batch Compress batch did not reach expected summary within timeout");
-            }
+            assert!(
+                (attempts <= 200),
+                "Batch Compress batch did not reach expected summary within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(25));
         }
     };

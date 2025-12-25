@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    AppSettings, ExternalToolKind, Result, TranscodingEngine, clear_tool_runtime_error, settings,
+    state, worker,
+};
 use crate::sync_ext::MutexExt;
 
 fn merge_backend_owned_tool_state(
@@ -6,13 +9,15 @@ fn merge_backend_owned_tool_state(
     old_tools: &crate::ffui_core::settings::ExternalToolSettings,
 ) {
     if new_tools.downloaded.is_none() {
-        new_tools.downloaded = old_tools.downloaded.clone();
+        new_tools.downloaded.clone_from(&old_tools.downloaded);
     }
     if new_tools.remote_version_cache.is_none() {
-        new_tools.remote_version_cache = old_tools.remote_version_cache.clone();
+        new_tools
+            .remote_version_cache
+            .clone_from(&old_tools.remote_version_cache);
     }
     if new_tools.probe_cache.is_none() {
-        new_tools.probe_cache = old_tools.probe_cache.clone();
+        new_tools.probe_cache.clone_from(&old_tools.probe_cache);
     }
 }
 
@@ -31,7 +36,7 @@ impl TranscodingEngine {
         ) = {
             let mut state = self.inner.state.lock_unpoisoned();
 
-            let mut normalized = new_settings.clone();
+            let mut normalized = new_settings;
             normalized.normalize();
 
             let old_tools = state.settings.tools.clone();

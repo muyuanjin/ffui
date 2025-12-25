@@ -5,7 +5,10 @@ use anyhow::Context;
 
 #[cfg(not(test))]
 use crate::ffui_core::network_proxy;
-use crate::ffui_core::tools::types::*;
+use crate::ffui_core::tools::types::{
+    ExternalToolKind, FFMPEG_RELEASE_CACHE, FFMPEG_STATIC_TAG, FFMPEG_STATIC_VERSION,
+    FfmpegStaticRelease, LIBAVIF_RELEASE_CACHE, LIBAVIF_VERSION, LibavifRelease,
+};
 use crate::sync_ext::MutexExt;
 
 pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
@@ -21,13 +24,12 @@ pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
 pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<FfmpegStaticRelease> {
     let tag = fetch_ffmpeg_release_from_github()?;
     let version = semantic_version_from_tag(&tag);
-    let info = FfmpegStaticRelease {
-        version: version.clone(),
-        tag: tag.clone(),
-    };
+    let info = FfmpegStaticRelease { version, tag };
 
-    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     Some(info)
 }
 
@@ -39,13 +41,12 @@ pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<FfmpegStaticRel
 pub(crate) fn try_refresh_libavif_release_from_github() -> Option<LibavifRelease> {
     let tag = fetch_libavif_release_from_github()?;
     let version = semantic_version_from_tag(&tag);
-    let info = LibavifRelease {
-        version: version.clone(),
-        tag: tag.clone(),
-    };
+    let info = LibavifRelease { version, tag };
 
-    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     Some(info)
 }
 
@@ -58,19 +59,21 @@ pub(crate) fn current_ffmpeg_release() -> FfmpegStaticRelease {
     }
 
     let from_github = fetch_ffmpeg_release_from_github();
-    let info = match from_github {
-        Some(tag) => {
-            let version = semantic_version_from_tag(&tag);
-            FfmpegStaticRelease { version, tag }
-        }
-        None => FfmpegStaticRelease {
+    let info = from_github.map_or_else(
+        || FfmpegStaticRelease {
             version: FFMPEG_STATIC_VERSION.to_string(),
             tag: FFMPEG_STATIC_TAG.to_string(),
         },
-    };
+        |tag| {
+            let version = semantic_version_from_tag(&tag);
+            FfmpegStaticRelease { version, tag }
+        },
+    );
 
-    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     info
 }
 
@@ -83,19 +86,21 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
     }
 
     let from_github = fetch_libavif_release_from_github();
-    let info = match from_github {
-        Some(tag) => {
-            let version = semantic_version_from_tag(&tag);
-            LibavifRelease { version, tag }
-        }
-        None => LibavifRelease {
+    let info = from_github.map_or_else(
+        || LibavifRelease {
             version: semantic_version_from_tag(LIBAVIF_VERSION),
             tag: LIBAVIF_VERSION.to_string(),
         },
-    };
+        |tag| {
+            let version = semantic_version_from_tag(&tag);
+            LibavifRelease { version, tag }
+        },
+    );
 
-    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     info
 }
 
@@ -109,13 +114,12 @@ pub(crate) fn refresh_ffmpeg_release_from_github_checked()
 -> Result<(FfmpegStaticRelease, Option<String>)> {
     let (tag, note) = fetch_ffmpeg_release_from_github_checked()?;
     let version = semantic_version_from_tag(&tag);
-    let info = FfmpegStaticRelease {
-        version: version.clone(),
-        tag: tag.clone(),
-    };
+    let info = FfmpegStaticRelease { version, tag };
 
-    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     Ok((info, note))
 }
 
@@ -124,13 +128,12 @@ pub(crate) fn refresh_libavif_release_from_github_checked()
 -> Result<(LibavifRelease, Option<String>)> {
     let (tag, note) = fetch_libavif_release_from_github_checked()?;
     let version = semantic_version_from_tag(&tag);
-    let info = LibavifRelease {
-        version: version.clone(),
-        tag: tag.clone(),
-    };
+    let info = LibavifRelease { version, tag };
 
-    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
-    *cache = Some(info.clone());
+    {
+        let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
+        *cache = Some(info.clone());
+    }
     Ok((info, note))
 }
 
@@ -140,6 +143,11 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
 
     use reqwest::blocking::Client;
     use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct Release {
+        tag_name: String,
+    }
 
     let proxy = network_proxy::resolve_effective_proxy_once();
     let builder = Client::builder()
@@ -157,11 +165,6 @@ fn fetch_ffmpeg_release_from_github() -> Option<String> {
         return None;
     }
 
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
-
     let release: Release = resp.json().ok()?;
     Some(release.tag_name)
 }
@@ -172,6 +175,11 @@ fn fetch_libavif_release_from_github() -> Option<String> {
 
     use reqwest::blocking::Client;
     use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    struct Release {
+        tag_name: String,
+    }
 
     let proxy = network_proxy::resolve_effective_proxy_once();
     let builder = Client::builder()
@@ -187,11 +195,6 @@ fn fetch_libavif_release_from_github() -> Option<String> {
 
     if !resp.status().is_success() {
         return None;
-    }
-
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
     }
 
     let release: Release = resp.json().ok()?;

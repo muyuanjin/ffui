@@ -62,7 +62,7 @@ pub fn init_child_process_job() -> bool {
         let set_result = SetInformationJobObject(
             job_handle,
             JobObjectExtendedLimitInformation,
-            &info as *const _ as *const std::ffi::c_void,
+            (&raw const info).cast::<std::ffi::c_void>(),
             u32::try_from(std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>())
                 .expect("job object info size must fit in u32"),
         );

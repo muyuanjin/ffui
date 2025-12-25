@@ -108,7 +108,7 @@ fn maybe_inject_stats_period_for_download(
         .progress_update_interval_ms
         .unwrap_or(DEFAULT_PROGRESS_UPDATE_INTERVAL_MS);
     // Clamp into a sensible range [50ms, 2000ms] to avoid extreme values.
-    let clamped_ms = interval_ms.clamp(50, 2000) as f64;
+    let clamped_ms = f64::from(interval_ms.clamp(50, 2000));
     let stats_period_secs = clamped_ms / 1000.0;
     let stats_arg = format!("{stats_period_secs:.3}");
     cmd.arg("-stats_period").arg(&stats_arg);
@@ -135,31 +135,31 @@ struct PauseLatencyDebug {
 }
 
 impl PauseLatencyDebug {
-    fn mark_wait_seen(&mut self, now_ms: u64) {
+    const fn mark_wait_seen(&mut self, now_ms: u64) {
         if self.wait_seen_ms.is_none() {
             self.wait_seen_ms = Some(now_ms);
         }
     }
 
-    fn mark_q_sent(&mut self, now_ms: u64) {
+    const fn mark_q_sent(&mut self, now_ms: u64) {
         if self.q_sent_ms.is_none() {
             self.q_sent_ms = Some(now_ms);
         }
     }
 
-    fn mark_child_exit(&mut self, now_ms: u64) {
+    const fn mark_child_exit(&mut self, now_ms: u64) {
         if self.child_exit_ms.is_none() {
             self.child_exit_ms = Some(now_ms);
         }
     }
 
-    fn mark_mark_waiting_start(&mut self, now_ms: u64) {
+    const fn mark_mark_waiting_start(&mut self, now_ms: u64) {
         if self.mark_waiting_start_ms.is_none() {
             self.mark_waiting_start_ms = Some(now_ms);
         }
     }
 
-    fn mark_mark_waiting_end(&mut self, now_ms: u64) {
+    const fn mark_mark_waiting_end(&mut self, now_ms: u64) {
         if self.mark_waiting_end_ms.is_none() {
             self.mark_waiting_end_ms = Some(now_ms);
         }

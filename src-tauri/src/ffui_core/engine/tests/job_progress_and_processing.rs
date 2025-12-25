@@ -423,8 +423,7 @@ fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
     assert!(
         job.logs
             .last()
-            .map(|l| l.contains("noise-line-519"))
-            .unwrap_or(false),
+            .is_some_and(|l| l.contains("noise-line-519")),
         "most recent log lines should remain present after trimming",
     );
 

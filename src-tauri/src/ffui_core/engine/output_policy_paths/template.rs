@@ -20,7 +20,7 @@ pub(in crate::ffui_core::engine) fn infer_template_output_codecs(
         }
         i += 1;
     }
-    let start = last_input_index.map(|idx| idx + 1).unwrap_or(0);
+    let start = last_input_index.map_or(0, |idx| idx + 1);
 
     let mut v: Option<String> = None;
     let mut a: Option<String> = None;
@@ -58,7 +58,7 @@ pub(super) fn infer_template_output_muxer(template: &str) -> Option<String> {
         }
         i += 1;
     }
-    let start = last_input_index.map(|idx| idx + 1).unwrap_or(0);
+    let start = last_input_index.map_or(0, |idx| idx + 1);
     let mut j = start;
     let mut fmt: Option<String> = None;
     while j + 1 < output_index {

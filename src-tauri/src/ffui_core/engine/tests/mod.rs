@@ -34,6 +34,7 @@ mod batch_compress_name_tests;
 mod batch_compress_progress_every_32;
 mod batch_compress_tests;
 mod concurrency_caps_selection;
+mod crash_recovery_conservative_rollback;
 mod crash_recovery_merge_tests;
 mod crash_recovery_segment_discovery;
 mod enqueue_and_logging;

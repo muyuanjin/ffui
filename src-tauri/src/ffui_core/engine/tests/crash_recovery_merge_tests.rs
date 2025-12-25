@@ -54,7 +54,7 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
     let queue_vec: Vec<String> = state.queue.iter().cloned().collect();
     assert_eq!(
         queue_vec,
-        vec![first.id.clone(), second.id.clone(), new_job.id.clone()],
+        vec![first.id, second.id, new_job.id],
         "persisted waiting jobs should be restored ahead of newly enqueued jobs"
     );
 }

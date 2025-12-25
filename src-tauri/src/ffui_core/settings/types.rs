@@ -92,7 +92,7 @@ pub struct ExternalToolSettings {
     pub probe_cache: Option<ExternalToolProbeCache>,
 }
 
-pub fn default_preview_capture_percent() -> u8 {
+pub const fn default_preview_capture_percent() -> u8 {
     25
 }
 

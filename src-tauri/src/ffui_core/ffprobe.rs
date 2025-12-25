@@ -28,7 +28,7 @@ fn parse_ffprobe_format_duration_seconds(
 
     let first_non_empty = stdout_s
         .lines()
-        .map(|l| l.trim())
+        .map(str::trim)
         .find(|l| !l.is_empty())
         .unwrap_or_default()
         .to_string();

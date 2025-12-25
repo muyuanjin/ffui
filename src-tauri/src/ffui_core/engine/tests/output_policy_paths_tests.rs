@@ -173,7 +173,7 @@ fn plan_video_output_path_adds_counter_suffix_on_collision() {
     let policy = OutputPolicy::default();
 
     let first = plan_video_output_path(&input, None, &policy, |_| false).output_path;
-    std::fs::create_dir_all(first.parent().unwrap_or(dir.path())).expect("create parent");
+    std::fs::create_dir_all(first.parent().unwrap_or_else(|| dir.path())).expect("create parent");
     std::fs::write(&first, b"existing").expect("write collision file");
 
     let second = plan_video_output_path(&input, None, &policy, |_| false).output_path;
@@ -195,7 +195,7 @@ fn preview_video_output_path_does_not_probe_filesystem_for_collisions() {
     let policy = OutputPolicy::default();
 
     let planned = plan_video_output_path(&input, None, &policy, |_| false).output_path;
-    std::fs::create_dir_all(planned.parent().unwrap_or(dir.path())).expect("create parent");
+    std::fs::create_dir_all(planned.parent().unwrap_or_else(|| dir.path())).expect("create parent");
     std::fs::write(&planned, b"existing").expect("write collision file");
 
     let preview = preview_video_output_path(&input, None, &policy).output_path;

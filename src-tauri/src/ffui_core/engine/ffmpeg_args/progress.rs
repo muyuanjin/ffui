@@ -58,7 +58,7 @@ pub(crate) fn parse_ffmpeg_time_to_seconds(s: &str) -> f64 {
             let h = parts[0].parse::<f64>().unwrap_or(0.0);
             let m = parts[1].parse::<f64>().unwrap_or(0.0);
             let sec = parts[2].parse::<f64>().unwrap_or(0.0);
-            return h * 3600.0 + m * 60.0 + sec;
+            return h.mul_add(3600.0, m * 60.0) + sec;
         }
     }
     s.parse::<f64>().unwrap_or(0.0)

@@ -168,7 +168,7 @@ struct SerializablePreset {
 
 impl From<SerializablePreset> for FFmpegPreset {
     fn from(value: SerializablePreset) -> Self {
-        FFmpegPreset {
+        Self {
             id: value.id,
             name: value.name,
             description: value.description,
@@ -191,7 +191,7 @@ impl From<SerializablePreset> for FFmpegPreset {
     }
 }
 
-fn empty_stats() -> PresetStats {
+const fn empty_stats() -> PresetStats {
     PresetStats {
         usage_count: 0,
         total_input_size_mb: 0.0,
@@ -200,7 +200,7 @@ fn empty_stats() -> PresetStats {
     }
 }
 
-fn default_filter_config() -> FilterConfig {
+const fn default_filter_config() -> FilterConfig {
     FilterConfig {
         scale: None,
         crop: None,

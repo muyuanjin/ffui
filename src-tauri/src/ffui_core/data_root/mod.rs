@@ -295,10 +295,10 @@ fn to_info(state: &DataRootState) -> DataRootInfo {
 pub fn override_data_root_dir_for_tests(dir: PathBuf) -> DataRootOverrideGuard {
     let lock = DATA_ROOT_OVERRIDE_LOCK
         .lock()
-        .unwrap_or_else(|err| err.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let mut guard = DATA_ROOT_OVERRIDE
         .write()
-        .unwrap_or_else(|err| err.into_inner());
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     *guard = Some(dir);
     DataRootOverrideGuard { _lock: lock }
 }
@@ -313,7 +313,7 @@ impl Drop for DataRootOverrideGuard {
     fn drop(&mut self) {
         let mut guard = DATA_ROOT_OVERRIDE
             .write()
-            .unwrap_or_else(|err| err.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         *guard = None;
     }
 }

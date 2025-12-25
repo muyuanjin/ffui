@@ -60,9 +60,9 @@ fn log_single_instance(instance_key: &str, message: &str) {
 #[derive(Debug)]
 pub struct SingleInstanceGuard {
     #[cfg(windows)]
-    _mutex: windows::Win32::Foundation::HANDLE,
+    mutex: windows::Win32::Foundation::HANDLE,
     #[cfg(not(windows))]
-    _lock_file: std::fs::File,
+    lock_file: std::fs::File,
 }
 
 #[cfg(windows)]
@@ -70,8 +70,15 @@ impl Drop for SingleInstanceGuard {
     fn drop(&mut self) {
         unsafe {
             use windows::Win32::Foundation::CloseHandle;
-            let _ = CloseHandle(self._mutex);
+            let _ = CloseHandle(self.mutex);
         }
+    }
+}
+
+#[cfg(not(windows))]
+impl Drop for SingleInstanceGuard {
+    fn drop(&mut self) {
+        let _ = self.lock_file.unlock();
     }
 }
 
@@ -170,9 +177,7 @@ pub fn ensure_single_instance_or_focus_existing() -> Result<EnsureOutcome> {
                 log_single_instance(&instance_key, &format!("primary lock-acquired port={port}"));
 
                 Ok(EnsureOutcome::Primary(PrimaryInstance {
-                    guard: SingleInstanceGuard {
-                        _lock_file: lock_file,
-                    },
+                    guard: SingleInstanceGuard { lock_file },
                     focus_server: Some(focus_server),
                 }))
             }
@@ -262,7 +267,7 @@ fn ensure_single_instance_windows(exe_path: &Path, instance_key: &str) -> Result
 
     log_single_instance(instance_key, "primary mutex-created; continuing startup");
     Ok(EnsureOutcome::Primary(PrimaryInstance {
-        guard: SingleInstanceGuard { _mutex: mutex },
+        guard: SingleInstanceGuard { mutex },
         focus_server: None,
     }))
 }

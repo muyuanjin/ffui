@@ -39,8 +39,8 @@ fn crash_recovery_recovers_wait_metadata_segments_from_output_directory() {
     let seg0_str = seg0.to_string_lossy().into_owned();
     let seg1_str = seg1.to_string_lossy().into_owned();
     assert_eq!(
-        meta.segments.as_ref().map(|v| v.as_slice()),
-        Some(&[seg0_str.clone(), seg1_str.clone()][..]),
+        meta.segments.as_deref(),
+        Some(&[seg0_str, seg1_str.clone()][..]),
         "recovered segments should match output-based segN.tmp naming"
     );
     assert_eq!(

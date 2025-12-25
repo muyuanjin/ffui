@@ -35,18 +35,14 @@ pub(in crate::ffui_core::engine) fn should_fallback_webm(
         | EncoderType::Av1Qsv
         | EncoderType::Av1Amf
         | EncoderType::LibSvtAv1 => true,
-        EncoderType::Copy => input_ext
-            .map(|e| e.eq_ignore_ascii_case("webm"))
-            .unwrap_or(false),
+        EncoderType::Copy => input_ext.is_some_and(|e| e.eq_ignore_ascii_case("webm")),
         _ => false,
     };
 
     // FFUI currently only supports AAC or copy for audio; WebM needs Opus/Vorbis.
     let audio_ok = match preset.audio.codec {
-        AudioCodecType::Copy => input_ext
-            .map(|e| e.eq_ignore_ascii_case("webm"))
-            .unwrap_or(false),
-        _ => false,
+        AudioCodecType::Copy => input_ext.is_some_and(|e| e.eq_ignore_ascii_case("webm")),
+        AudioCodecType::Aac => false,
     };
 
     !(video_ok && audio_ok)
@@ -55,12 +51,9 @@ pub(in crate::ffui_core::engine) fn should_fallback_webm(
 fn is_webm_video_codec(codec: &str, input_ext: Option<&str>) -> bool {
     let c = codec.trim().to_ascii_lowercase();
     match c.as_str() {
-        "vp8" | "libvpx" => true,
-        "vp9" | "libvpx-vp9" => true,
-        "av1" | "libaom-av1" | "libsvtav1" | "av1_nvenc" | "av1_qsv" | "av1_amf" => true,
-        "copy" => input_ext
-            .map(|e| e.eq_ignore_ascii_case("webm"))
-            .unwrap_or(false),
+        "vp8" | "libvpx" | "vp9" | "libvpx-vp9" | "av1" | "libaom-av1" | "libsvtav1"
+        | "av1_nvenc" | "av1_qsv" | "av1_amf" => true,
+        "copy" => input_ext.is_some_and(|e| e.eq_ignore_ascii_case("webm")),
         _ => false,
     }
 }
@@ -68,11 +61,8 @@ fn is_webm_video_codec(codec: &str, input_ext: Option<&str>) -> bool {
 fn is_webm_audio_codec(codec: &str, input_ext: Option<&str>) -> bool {
     let c = codec.trim().to_ascii_lowercase();
     match c.as_str() {
-        "opus" | "libopus" => true,
-        "vorbis" | "libvorbis" => true,
-        "copy" => input_ext
-            .map(|e| e.eq_ignore_ascii_case("webm"))
-            .unwrap_or(false),
+        "opus" | "libopus" | "vorbis" | "libvorbis" => true,
+        "copy" => input_ext.is_some_and(|e| e.eq_ignore_ascii_case("webm")),
         _ => false,
     }
 }

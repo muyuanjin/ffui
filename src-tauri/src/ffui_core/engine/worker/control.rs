@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{append_job_log_line, current_time_millis};
-use crate::ffui_core::domain::{JobStatus, WaitMetadata};
+use crate::ffui_core::domain::JobStatus;
 use crate::sync_ext::MutexExt;
 
 use super::cleanup::collect_job_tmp_cleanup_paths;
@@ -17,9 +17,7 @@ fn cancel_waiting_like_job(
     // Remove from queue and mark as cancelled without ever starting ffmpeg.
     state.queue.retain(|id| id != job_id);
     if let Some(job) = state.jobs.get_mut(job_id) {
-        if let Some(meta) = job.wait_metadata.as_ref() {
-            cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
-        }
+        cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
         job.status = JobStatus::Cancelled;
         job.progress = 0.0;
         job.end_time = Some(current_time_millis());
@@ -31,10 +29,6 @@ fn cancel_waiting_like_job(
     state.cancelled_jobs.remove(job_id);
     state.wait_requests.remove(job_id);
     state.restart_requests.remove(job_id);
-}
-
-fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<std::path::PathBuf> {
-    super::super::job_runner::collect_wait_metadata_cleanup_paths(meta)
 }
 
 /// Cancel a job by ID.
@@ -79,12 +73,8 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                 // Mark for cooperative cancellation; the worker thread will
                 // observe this and terminate the underlying ffmpeg process.
                 // If a wait request is pending, cancel takes precedence.
-                if let Some(meta) = state
-                    .jobs
-                    .get(job_id)
-                    .and_then(|job| job.wait_metadata.as_ref())
-                {
-                    cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
+                if let Some(job) = state.jobs.get(job_id) {
+                    cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
                 }
                 state.wait_requests.remove(job_id);
                 state.cancelled_jobs.insert(job_id.to_string());
@@ -178,10 +168,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                 // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
                 let wait_request_cancelled = state.wait_requests.remove(job_id);
 
-                if !wait_request_cancelled {
-                    // 没有待处理的暂停请求，任务正在正常处理中，无需操作
-                    false
-                } else {
+                if wait_request_cancelled {
                     if let Some(job) = state.jobs.get_mut(job_id) {
                         append_job_log_line(
                             job,
@@ -191,6 +178,9 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                     }
                     should_notify = true;
                     true
+                } else {
+                    // 没有待处理的暂停请求，任务正在正常处理中，无需操作
+                    false
                 }
             }
             _ => false,
@@ -215,9 +205,8 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
 
     let result = {
         let mut state = inner.state.lock_unpoisoned();
-        let job = match state.jobs.get_mut(job_id) {
-            Some(job) => job,
-            None => return false,
+        let Some(job) = state.jobs.get_mut(job_id) else {
+            return false;
         };
 
         match job.status {
@@ -230,9 +219,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
             }
             _ => {
                 // Reset immediately for non-processing jobs.
-                if let Some(meta) = job.wait_metadata.as_ref() {
-                    cleanup_paths.extend(collect_wait_metadata_cleanup_paths(meta));
-                }
+                cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
                 job.status = JobStatus::Waiting;
                 job.progress = 0.0;
                 job.end_time = None;

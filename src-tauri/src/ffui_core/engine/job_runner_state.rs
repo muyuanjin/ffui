@@ -50,8 +50,7 @@ pub(super) fn mark_job_waiting(
             let current_segment_ms = job
                 .processing_started_ms
                 .or(job.start_time)
-                .map(|start| now_ms.saturating_sub(start))
-                .unwrap_or(0);
+                .map_or(0, |start| now_ms.saturating_sub(start));
             let elapsed_wall_ms = previous_wall_ms + current_segment_ms;
             job.elapsed_ms = Some(elapsed_wall_ms);
 
@@ -103,7 +102,7 @@ pub(super) fn mark_job_waiting(
                 segments.push(prev_tmp.clone());
             }
 
-            if segments.last().map(|s| s != &tmp_str).unwrap_or(true) {
+            if segments.last() != Some(&tmp_str) {
                 segments.push(tmp_str.clone());
             }
 
@@ -114,7 +113,7 @@ pub(super) fn mark_job_waiting(
             let previous_segments_len = job
                 .wait_metadata
                 .as_ref()
-                .and_then(|m| m.segments.as_ref().map(|v| v.len()))
+                .and_then(|m| m.segments.as_ref().map(std::vec::Vec::len))
                 .or_else(|| {
                     job.wait_metadata
                         .as_ref()
@@ -150,8 +149,7 @@ pub(super) fn mark_job_waiting(
                 && segment_end_targets.len() + 1 == segments.len()
                 && segment_end_targets
                     .last()
-                    .map(|v| (*v - end).abs() > 1e-9)
-                    .unwrap_or(true)
+                    .is_none_or(|v| (*v - end).abs() > 1e-9)
             {
                 segment_end_targets.push(end);
             }
@@ -161,13 +159,13 @@ pub(super) fn mark_job_waiting(
                 processed_wall_millis: Some(elapsed_wall_ms),
                 processed_seconds,
                 target_seconds: processed_seconds,
-                tmp_output_path: Some(tmp_str.clone()),
+                tmp_output_path: Some(tmp_str),
                 segments: Some(segments),
                 segment_end_targets: (!segment_end_targets.is_empty()).then_some(segment_end_targets),
             });
 
             if job.output_path.is_none() {
-                job.output_path = Some(output_str.clone());
+                job.output_path = Some(output_str);
             }
 
             // Jobs in a paused/waiting-with-progress state are intentionally
@@ -192,7 +190,7 @@ pub(super) fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<Pa
     if let Some(segs) = meta.segments.as_ref()
         && !segs.is_empty()
     {
-        raw_paths.extend(segs.iter().map(|s| s.as_str()));
+        raw_paths.extend(segs.iter().map(std::string::String::as_str));
     } else if let Some(tmp) = meta.tmp_output_path.as_ref() {
         raw_paths.push(tmp.as_str());
     }

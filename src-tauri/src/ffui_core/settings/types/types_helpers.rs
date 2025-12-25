@@ -4,19 +4,19 @@ use super::{
 };
 use crate::ffui_core::domain::OutputPolicy;
 
-pub(super) fn default_ui_scale_percent() -> u16 {
+pub(super) const fn default_ui_scale_percent() -> u16 {
     DEFAULT_UI_SCALE_PERCENT
 }
 
-pub(super) fn is_default_ui_scale_percent(value: &u16) -> bool {
+pub(super) const fn is_default_ui_scale_percent(value: &u16) -> bool {
     *value == DEFAULT_UI_SCALE_PERCENT
 }
 
-pub(super) fn default_ui_font_size_percent() -> u16 {
+pub(super) const fn default_ui_font_size_percent() -> u16 {
     DEFAULT_UI_FONT_SIZE_PERCENT
 }
 
-pub(super) fn is_default_ui_font_size_percent(value: &u16) -> bool {
+pub(super) const fn is_default_ui_font_size_percent(value: &u16) -> bool {
     *value == DEFAULT_UI_FONT_SIZE_PERCENT
 }
 
@@ -24,19 +24,19 @@ pub(super) fn is_ui_font_family_system(value: &UiFontFamily) -> bool {
     *value == UiFontFamily::System
 }
 
-pub(super) fn is_false(value: &bool) -> bool {
+pub(super) const fn is_false(value: &bool) -> bool {
     !*value
 }
 
-pub(super) fn is_true(value: &bool) -> bool {
+pub(super) const fn is_true(value: &bool) -> bool {
     *value
 }
 
-pub(super) fn default_exit_auto_wait_enabled() -> bool {
+pub(super) const fn default_exit_auto_wait_enabled() -> bool {
     true
 }
 
-pub(super) fn default_exit_auto_wait_timeout_seconds() -> f64 {
+pub(super) const fn default_exit_auto_wait_timeout_seconds() -> f64 {
     DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS
 }
 
@@ -50,9 +50,8 @@ pub(super) fn is_default_output_policy(policy: &OutputPolicy) -> bool {
 
 pub(super) fn normalize_parallel_limit(value: Option<u8>) -> Option<u8> {
     match value {
-        Some(0) => None,
+        Some(0) | None => None,
         Some(v) => Some(v.clamp(1, MAX_PARALLEL_JOBS_LIMIT)),
-        None => None,
     }
 }
 

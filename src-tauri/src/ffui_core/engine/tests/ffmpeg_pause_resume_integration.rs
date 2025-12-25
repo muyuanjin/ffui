@@ -99,7 +99,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
         None,
         "preset-1".into(),
     );
-    let job_id = job.id.clone();
+    let job_id = job.id;
 
     // Simulate worker selection: mark job Processing and set timing fields.
     let selected_id = {
@@ -283,7 +283,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
                 continue;
             }
             // format: stream_index, dts, pts, duration, size, md5
-            let parts: Vec<&str> = line.split(',').map(|p| p.trim()).collect();
+            let parts: Vec<&str> = line.split(',').map(str::trim).collect();
             if let Some(md5) = parts.get(5) {
                 hashes.push((*md5).to_string());
             }

@@ -77,9 +77,8 @@ pub(crate) fn is_non_empty_regular_file(path: &Path) -> bool {
 }
 
 pub(crate) fn file_fingerprint(path: &Path) -> (u64, Option<u128>) {
-    let meta = match fs::metadata(path) {
-        Ok(m) => m,
-        Err(_) => return (0, None),
+    let Ok(meta) = fs::metadata(path) else {
+        return (0, None);
     };
     let len = meta.len();
     let modified_ms = meta.modified().ok().and_then(|t| {
@@ -122,7 +121,7 @@ pub(crate) fn move_tmp_to_final(tmp_path: &Path, final_path: &Path) -> Result<()
     fs::rename(tmp_path, final_path).or_else(|_| {
         fs::copy(tmp_path, final_path)
             .map(|_| ())
-            .and_then(|_| fs::remove_file(tmp_path))
+            .and_then(|()| fs::remove_file(tmp_path))
     })?;
     Ok(())
 }
@@ -300,9 +299,8 @@ pub(crate) fn cleanup_frames_cache(
                 continue;
             }
 
-            let meta = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
+            let Ok(meta) = entry.metadata() else {
+                continue;
             };
 
             let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
@@ -314,7 +312,7 @@ pub(crate) fn cleanup_frames_cache(
     let now = SystemTime::now();
 
     if let Some(ttl) = ttl {
-        for (path, _, modified) in entries.iter() {
+        for (path, _, modified) in &entries {
             if now.duration_since(*modified).unwrap_or_default() > ttl {
                 let _ = fs::remove_file(path);
             }

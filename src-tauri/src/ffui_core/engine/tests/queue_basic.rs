@@ -41,7 +41,7 @@ fn inspect_media_produces_json_for_generated_clip() {
         .get("file")
         .expect("inspect_media should enrich ffprobe JSON with a top-level \"file\" object");
     assert_eq!(
-        file.get("exists").and_then(|v| v.as_bool()),
+        file.get("exists").and_then(serde_json::Value::as_bool),
         Some(true),
         "file.exists should be true for the generated test clip"
     );

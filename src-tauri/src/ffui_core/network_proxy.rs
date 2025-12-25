@@ -33,11 +33,11 @@ impl ResolvedNetworkProxy {
         self.proxy_url.as_deref()
     }
 
-    pub fn fallback_to_direct_on_error(&self) -> bool {
+    pub const fn fallback_to_direct_on_error(&self) -> bool {
         self.fallback_to_direct_on_error
     }
 
-    pub fn is_no_proxy_mode(&self) -> bool {
+    pub const fn is_no_proxy_mode(&self) -> bool {
         matches!(self.mode, NetworkProxyMode::None)
     }
 }
@@ -60,16 +60,14 @@ pub fn parse_reqwest_proxy_for(
 
 pub fn apply_settings(settings: Option<&NetworkProxySettings>) {
     let mut state = NETWORK_PROXY_CONFIG.write_unpoisoned();
-    let mode = settings.map(|s| s.mode).unwrap_or(NetworkProxyMode::System);
+    let mode = settings.map_or(NetworkProxyMode::System, |s| s.mode);
     let proxy_url = settings
         .and_then(|s| s.proxy_url.as_ref())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
     state.mode = mode;
     state.custom_proxy_url = proxy_url;
-    state.fallback_to_direct_on_error = settings
-        .map(|s| s.fallback_to_direct_on_error)
-        .unwrap_or(true);
+    state.fallback_to_direct_on_error = settings.is_none_or(|s| s.fallback_to_direct_on_error);
 }
 
 pub fn snapshot() -> (NetworkProxyMode, Option<String>, bool) {
@@ -121,12 +119,7 @@ pub fn apply_aria2c_args(cmd: &mut std::process::Command, resolved: &ResolvedNet
         NetworkProxyMode::None => {
             cmd.arg("--all-proxy=").arg("--no-proxy=*");
         }
-        NetworkProxyMode::Custom => {
-            if let Some(url) = proxy_url {
-                cmd.arg("--all-proxy").arg(url);
-            }
-        }
-        NetworkProxyMode::System => {
+        NetworkProxyMode::Custom | NetworkProxyMode::System => {
             if let Some(url) = proxy_url {
                 cmd.arg("--all-proxy").arg(url);
             }
@@ -212,8 +205,8 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
                 PCWSTR(name.as_ptr()),
                 RRF_RT_REG_DWORD,
                 None,
-                Some((&mut value as *mut u32).cast()),
-                Some(&mut size),
+                Some((&raw mut value).cast()),
+                Some(&raw mut size),
             )
         };
         if status == ERROR_SUCCESS {
@@ -235,7 +228,7 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
                 flags,
                 None,
                 None,
-                Some(&mut size),
+                Some(&raw mut size),
             )
         };
         if status != ERROR_SUCCESS || size < 2 {
@@ -252,7 +245,7 @@ fn proxy_from_windows_inet_settings() -> Option<String> {
                 flags,
                 None,
                 Some(buf.as_mut_ptr().cast()),
-                Some(&mut size),
+                Some(&raw mut size),
             )
         };
         if status != ERROR_SUCCESS {

@@ -39,7 +39,7 @@ pub fn sample_cpu_usage() -> CpuUsageSnapshot {
         .lock_unpoisoned();
     sys.refresh_cpu_usage();
 
-    let per_core: Vec<f32> = sys.cpus().iter().map(|c| c.cpu_usage()).collect();
+    let per_core: Vec<f32> = sys.cpus().iter().map(sysinfo::Cpu::cpu_usage).collect();
     let overall = if per_core.is_empty() {
         0.0
     } else {

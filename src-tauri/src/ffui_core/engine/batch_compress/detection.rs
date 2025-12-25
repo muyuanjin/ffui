@@ -3,13 +3,12 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub(crate) fn is_image_file(path: &Path) -> bool {
-    let ext = match path
+    let Some(ext) = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase())
-    {
-        Some(ext) => ext,
-        None => return false,
+        .map(str::to_ascii_lowercase)
+    else {
+        return false;
     };
     matches!(
         ext.as_str(),
@@ -18,13 +17,12 @@ pub(crate) fn is_image_file(path: &Path) -> bool {
 }
 
 pub(crate) fn is_video_file(path: &Path) -> bool {
-    let ext = match path
+    let Some(ext) = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase())
-    {
-        Some(ext) => ext,
-        None => return false,
+        .map(str::to_ascii_lowercase)
+    else {
+        return false;
     };
     matches!(
         ext.as_str(),
@@ -33,13 +31,12 @@ pub(crate) fn is_video_file(path: &Path) -> bool {
 }
 
 pub(crate) fn is_audio_file(path: &Path) -> bool {
-    let ext = match path
+    let Some(ext) = path
         .extension()
         .and_then(|e| e.to_str())
-        .map(|s| s.to_ascii_lowercase())
-    {
-        Some(ext) => ext,
-        None => return false,
+        .map(str::to_ascii_lowercase)
+    else {
+        return false;
     };
     matches!(
         ext.as_str(),

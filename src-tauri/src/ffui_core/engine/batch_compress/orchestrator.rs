@@ -93,7 +93,7 @@ pub(crate) fn run_auto_compress(
     // Kick off the actual Batch Compress work on a background thread so the
     // Tauri command can return immediately with lightweight batch metadata.
     let inner_clone = inner.clone();
-    let config_clone = config.clone();
+    let config_clone = config;
     let batch_id_for_thread = batch_id.clone();
     let spawned = thread::Builder::new()
         .name(format!("batch-compress-{batch_id_for_thread}"))
@@ -148,7 +148,7 @@ fn run_auto_compress_background(
     let mut pending_scanned: u64 = 0;
     let mut scanned_total: u64 = 0;
     let mut last_force_flush = Instant::now();
-    let mut stack = vec![root.clone()];
+    let mut stack = vec![root];
     while let Some(dir) = stack.pop() {
         let entries = match fs::read_dir(&dir) {
             Ok(e) => e,
@@ -245,7 +245,7 @@ fn run_auto_compress_background(
             let ext = path
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|s| s.to_ascii_lowercase())
+                .map(str::to_ascii_lowercase)
                 .unwrap_or_default();
 
             let audio_filter = &config.audio_filter;
@@ -372,9 +372,9 @@ fn run_auto_compress_background(
 
     if !pending_media_tasks.is_empty() {
         let inner_clone = Arc::clone(&inner);
-        let config_clone = config.clone();
-        let settings_clone = settings_snapshot.clone();
-        let presets_clone = presets.clone();
+        let config_clone = config;
+        let settings_clone = settings_snapshot;
+        let presets_clone = presets;
         let batch_id_clone = batch_id.clone();
         let pending_job_ids: Vec<String> = pending_media_tasks
             .iter()

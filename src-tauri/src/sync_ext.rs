@@ -3,7 +3,7 @@ use std::sync::{
 };
 use std::time::Duration;
 
-pub(crate) trait MutexExt<T> {
+pub trait MutexExt<T> {
     #[track_caller]
     fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
 }
@@ -27,7 +27,7 @@ impl<T> MutexExt<T> for Mutex<T> {
     }
 }
 
-pub(crate) trait RwLockExt<T> {
+pub trait RwLockExt<T> {
     #[track_caller]
     fn read_unpoisoned(&self) -> RwLockReadGuard<'_, T>;
     #[track_caller]
@@ -70,7 +70,7 @@ impl<T> RwLockExt<T> for RwLock<T> {
     }
 }
 
-pub(crate) trait CondvarExt {
+pub trait CondvarExt {
     #[track_caller]
     fn wait_unpoisoned<'a, T>(&self, guard: MutexGuard<'a, T>) -> MutexGuard<'a, T>;
 

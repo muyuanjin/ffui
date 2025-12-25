@@ -32,14 +32,12 @@ pub(super) fn build_effective_preset_for_resume(
             && effective_preset
                 .ffmpeg_template
                 .as_ref()
-                .map(|s| !s.trim().is_empty())
-                .unwrap_or(false);
+                .is_some_and(|s| !s.trim().is_empty());
         let has_filter_complex = effective_preset
             .filters
             .filter_complex
             .as_ref()
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false);
+            .is_some_and(|s| !s.trim().is_empty());
         let can_overlap_trim = !has_template
             && !has_filter_complex
             && !matches!(
@@ -76,42 +74,38 @@ pub(super) fn build_effective_preset_for_resume(
     if let Some(offset) = *resume_target_seconds {
         let seek = resume_plan
             .as_ref()
-            .map(|p| p.seek_seconds)
-            .unwrap_or(offset);
+            .map_or(offset, |p| p.seek_seconds);
 
-        match effective_preset.input {
-            Some(ref mut timeline) => {
-                use crate::ffui_core::domain::SeekMode;
-                match timeline.seek_mode {
-                    None | Some(SeekMode::Input) => {
-                        timeline.seek_mode = Some(SeekMode::Input);
-                        timeline.seek_position = Some(format!("{seek:.6}"));
-                        if timeline.accurate_seek.is_none() {
-                            timeline.accurate_seek = Some(true);
-                        }
-                    }
-                    Some(SeekMode::Output) => {
-                        // Preserve caller-provided output-side seeking; disable
-                        // automatic resume for such advanced timelines.
-                        *resume_target_seconds = None;
-                        *resume_plan = None;
-                        finalize_with_source_audio = false;
-                        existing_segments.clear();
-                        effective_preset = preset.clone();
+        if let Some(ref mut timeline) = effective_preset.input {
+            use crate::ffui_core::domain::SeekMode;
+            match timeline.seek_mode {
+                None | Some(SeekMode::Input) => {
+                    timeline.seek_mode = Some(SeekMode::Input);
+                    timeline.seek_position = Some(format!("{seek:.6}"));
+                    if timeline.accurate_seek.is_none() {
+                        timeline.accurate_seek = Some(true);
                     }
                 }
+                Some(SeekMode::Output) => {
+                    // Preserve caller-provided output-side seeking; disable
+                    // automatic resume for such advanced timelines.
+                    *resume_target_seconds = None;
+                    *resume_plan = None;
+                    finalize_with_source_audio = false;
+                    existing_segments.clear();
+                    effective_preset = preset.clone();
+                }
             }
-            None => {
-                use crate::ffui_core::domain::{InputTimelineConfig, SeekMode};
-                let timeline = InputTimelineConfig {
-                    seek_mode: Some(SeekMode::Input),
-                    seek_position: Some(format!("{seek:.6}")),
-                    duration_mode: None,
-                    duration: None,
-                    accurate_seek: Some(true),
-                };
-                effective_preset.input = Some(timeline);
-            }
+        } else {
+            use crate::ffui_core::domain::{InputTimelineConfig, SeekMode};
+            let timeline = InputTimelineConfig {
+                seek_mode: Some(SeekMode::Input),
+                seek_position: Some(format!("{seek:.6}")),
+                duration_mode: None,
+                duration: None,
+                accurate_seek: Some(true),
+            };
+            effective_preset.input = Some(timeline);
         }
     }
 

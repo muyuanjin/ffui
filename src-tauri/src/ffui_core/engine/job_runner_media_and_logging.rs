@@ -56,31 +56,30 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
         let path_ref = Path::new(&path);
         let metadata = fs::metadata(path_ref).ok();
 
-        // Use a by-reference pattern match so we can still inspect the
-        // Option later when building the JSON object.
-        let (size_bytes, created_ms, modified_ms, accessed_ms) = if let Some(ref m) = metadata {
-            let size = Some(m.len());
+        let (size_bytes, created_ms, modified_ms, accessed_ms) = metadata.as_ref().map_or(
+            (None, None, None, None),
+            |m| {
+                let size = Some(m.len());
 
-            let created = m
-                .created()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .and_then(|d| u64::try_from(d.as_millis()).ok());
-            let modified = m
-                .modified()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .and_then(|d| u64::try_from(d.as_millis()).ok());
-            let accessed = m
-                .accessed()
-                .ok()
-                .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                .and_then(|d| u64::try_from(d.as_millis()).ok());
+                let created = m
+                    .created()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .and_then(|d| u64::try_from(d.as_millis()).ok());
+                let modified = m
+                    .modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .and_then(|d| u64::try_from(d.as_millis()).ok());
+                let accessed = m
+                    .accessed()
+                    .ok()
+                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+                    .and_then(|d| u64::try_from(d.as_millis()).ok());
 
-            (size, created, modified, accessed)
-        } else {
-            (None, None, None, None)
-        };
+                (size, created, modified, accessed)
+            },
+        );
 
         serde_json::json!({
             "path": path,

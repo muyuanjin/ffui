@@ -31,10 +31,10 @@ fn delete_batch_compress_batch_succeeds_for_candidates_without_children() {
     };
 
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed even when video preset id is unknown");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待 Batch Compress 批次统计结果稳定：应有 >=1 个候选且已全部处理完。
     let summary = {
@@ -48,11 +48,10 @@ fn delete_batch_compress_batch_succeeds_for_candidates_without_children() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!(
-                    "Batch Compress batch did not reach expected summary (candidates without children) within timeout"
-                );
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress batch did not reach expected summary (candidates without children) within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };

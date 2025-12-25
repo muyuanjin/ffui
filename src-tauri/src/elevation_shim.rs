@@ -43,7 +43,7 @@ pub fn is_process_elevated() -> bool {
     unsafe {
         let mut token: HANDLE = HANDLE::default();
         let current_process = GetCurrentProcess();
-        if OpenProcessToken(current_process, TOKEN_QUERY, &mut token).is_err() {
+        if OpenProcessToken(current_process, TOKEN_QUERY, &raw mut token).is_err() {
             return false;
         }
 
@@ -53,9 +53,9 @@ pub fn is_process_elevated() -> bool {
         if GetTokenInformation(
             token,
             TokenElevation,
-            Some(&mut elevation as *mut _ as *mut c_void),
+            Some((&raw mut elevation).cast::<c_void>()),
             size,
-            &mut size,
+            &raw mut size,
         )
         .is_err()
         {
@@ -110,7 +110,7 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
         }
 
         let mut shell_pid: u32 = 0;
-        GetWindowThreadProcessId(shell_hwnd, Some(&mut shell_pid));
+        GetWindowThreadProcessId(shell_hwnd, Some(&raw mut shell_pid));
         if shell_pid == 0 {
             return Err(ShimSpawnError::Other(anyhow::anyhow!(
                 "GetWindowThreadProcessId returned pid=0"
@@ -130,23 +130,25 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
             LPPROC_THREAD_ATTRIBUTE_LIST::default(),
             1,
             0,
-            &mut attr_list_size,
+            &raw mut attr_list_size,
         );
 
         let mut attr_buf: Vec<u8> = vec![0u8; attr_list_size];
-        let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr() as *mut c_void);
+        let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr().cast::<c_void>());
 
-        InitializeProcThreadAttributeList(attr_list, 1, 0, &mut attr_list_size).map_err(|e| {
-            ShimSpawnError::Other(anyhow::anyhow!(
-                "InitializeProcThreadAttributeList (2) failed: {e}"
-            ))
-        })?;
+        InitializeProcThreadAttributeList(attr_list, 1, 0, &raw mut attr_list_size).map_err(
+            |e| {
+                ShimSpawnError::Other(anyhow::anyhow!(
+                    "InitializeProcThreadAttributeList (2) failed: {e}"
+                ))
+            },
+        )?;
 
         UpdateProcThreadAttribute(
             attr_list,
             0,
             PROC_THREAD_ATTRIBUTE_PARENT_PROCESS as usize,
-            Some(&shell_process as *const _ as *const c_void),
+            Some((&raw const shell_process).cast::<c_void>()),
             size_of::<HANDLE>(),
             None,
             None,
@@ -184,8 +186,8 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
             PROCESS_CREATION_FLAGS(EXTENDED_STARTUPINFO_PRESENT.0),
             None,
             PCWSTR::null(),
-            &si.StartupInfo,
-            &mut pi,
+            &raw const si.StartupInfo,
+            &raw mut pi,
         );
 
         if let Err(e) = create_result {

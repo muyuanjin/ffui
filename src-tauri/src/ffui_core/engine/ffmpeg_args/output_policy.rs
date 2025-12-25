@@ -50,7 +50,7 @@ pub(super) fn enforce_output_muxer_for_template(
         }
         i += 1;
     }
-    let start = last_input_index.map(|idx| idx + 1).unwrap_or(0);
+    let start = last_input_index.map_or(0, |idx| idx + 1);
 
     let mut j = start;
     while j + 1 < output_index {

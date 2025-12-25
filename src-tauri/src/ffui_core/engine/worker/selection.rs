@@ -27,7 +27,7 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         let hw_cap = state.settings.effective_max_parallel_hw_jobs() as usize;
         let mut active_cpu = 0usize;
         let mut active_hw = 0usize;
-        for id in state.active_jobs.iter() {
+        for id in &state.active_jobs {
             let Some(job) = state.jobs.get(id) else {
                 continue;
             };
@@ -90,7 +90,7 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
 
 fn classify_job(state: &EngineState, job: &TranscodeJob) -> ParallelismClass {
     let preset = state.presets.iter().find(|p| p.id == job.preset_id);
-    preset.map(classify_preset).unwrap_or(ParallelismClass::Cpu)
+    preset.map_or(ParallelismClass::Cpu, classify_preset)
 }
 
 fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {
@@ -98,8 +98,7 @@ fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {
         && preset
             .ffmpeg_template
             .as_ref()
-            .map(|s| !s.trim().is_empty())
-            .unwrap_or(false)
+            .is_some_and(|s| !s.trim().is_empty())
         && let Some(template) = preset.ffmpeg_template.as_deref()
         && let (Some(enc), _) =
             crate::ffui_core::engine::output_policy_paths::infer_template_output_codecs(template)

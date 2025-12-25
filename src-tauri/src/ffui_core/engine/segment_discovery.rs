@@ -51,9 +51,8 @@ fn discover_segments_in_dir(
     expected_ext: Option<&str>,
     out: &mut BTreeMap<u64, PathBuf>,
 ) {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(v) => v,
-        Err(_) => return,
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
     };
 
     for entry in entries.flatten() {

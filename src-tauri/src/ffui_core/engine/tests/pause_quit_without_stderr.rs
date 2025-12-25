@@ -9,8 +9,7 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
             return path
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(|e| e.eq_ignore_ascii_case("exe"))
-                .unwrap_or(false);
+                .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
         }
         path.extension().is_none()
     }
@@ -24,8 +23,7 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
             .filter(|p| {
                 p.file_name()
                     .and_then(|n| n.to_str())
-                    .map(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
-                    .unwrap_or(false)
+                    .is_some_and(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
             })
             .filter(|p| is_mock_ffmpeg_exe(p))
             .collect();

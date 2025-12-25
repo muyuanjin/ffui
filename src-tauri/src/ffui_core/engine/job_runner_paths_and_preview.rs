@@ -312,7 +312,7 @@ pub(super) fn compute_preview_seek_seconds(
 
     // Clamp the configured percentage into a sane range so bogus configs
     // cannot cause us to seek past the end or before the first second.
-    let percent = (capture_percent as f64).clamp(0.0, 100.0);
+    let percent = f64::from(capture_percent).clamp(0.0, 100.0);
     let raw = duration * percent / 100.0;
 
     // For very short clips, prefer a simple midpoint to avoid degenerate

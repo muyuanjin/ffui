@@ -72,7 +72,7 @@ pub(crate) fn handle_video_file(
         preset_id: config.video_preset_id.clone(),
         original_size_mb,
         original_codec: None,
-        input_path: input_path.clone(),
+        input_path,
         output_policy: config.output_policy.clone(),
         batch_id: batch_id.to_string(),
         start_time: None,
@@ -104,14 +104,11 @@ pub(crate) fn handle_video_file(
         }
     }
 
-    let preset = match preset {
-        Some(p) => p,
-        None => {
-            job.status = JobStatus::Skipped;
-            job.progress = 100.0;
-            job.skip_reason = Some("No matching preset for videoPresetId".to_string());
-            return Ok(job);
-        }
+    let Some(preset) = preset else {
+        job.status = JobStatus::Skipped;
+        job.progress = 100.0;
+        job.skip_reason = Some("No matching preset for videoPresetId".to_string());
+        return Ok(job);
     };
 
     // Pre-compute an approximate processing time for this job so the
@@ -207,7 +204,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
         preset_id: preset.id.clone(),
         original_size_mb,
         original_codec: None,
-        input_path: input_path.clone(),
+        input_path,
         output_policy: output_policy.clone(),
         batch_id: batch_id.to_string(),
         start_time: Some(now_ms),
@@ -299,8 +296,8 @@ pub(crate) fn enqueue_batch_compress_video_job(
     }
 
     match last_sibling_index {
-        Some(idx) if idx < queue_vec.len() => queue_vec.insert(idx + 1, id.clone()),
-        _ => queue_vec.push(id.clone()),
+        Some(idx) if idx < queue_vec.len() => queue_vec.insert(idx + 1, id),
+        _ => queue_vec.push(id),
     }
 
     state.queue = VecDeque::from(queue_vec);

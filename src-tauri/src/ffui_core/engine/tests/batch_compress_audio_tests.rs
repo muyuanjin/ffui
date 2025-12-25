@@ -47,10 +47,10 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
     }
 
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for audio-only Batch Compress test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待批次汇总达到预期：1 个扫描文件、1 个候选、1 个已处理（被标记为 Skipped）。
     let summary = {
@@ -64,9 +64,10 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!("Batch Compress audio batch did not reach expected summary within timeout");
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress audio batch did not reach expected summary within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };

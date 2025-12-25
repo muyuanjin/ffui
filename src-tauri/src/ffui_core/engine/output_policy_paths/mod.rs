@@ -200,10 +200,10 @@ fn infer_container_extension_and_muxer(
             } else {
                 // Keep the user-selected extension even when the muxer name differs
                 // (e.g. wmv -> asf, ts/m2ts -> mpegts, m4a -> mp4).
-                let mut ext = if !requested_ext.is_empty() {
-                    requested_ext
-                } else {
+                let mut ext = if requested_ext.is_empty() {
                     infer_output_extension(Some(muxer.as_str()), input_ext)
+                } else {
+                    requested_ext
                 };
                 let mut forced_muxer = Some(muxer);
 

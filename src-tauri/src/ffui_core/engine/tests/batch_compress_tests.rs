@@ -40,7 +40,7 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
         .run_auto_compress(root_path.clone(), config)
         .expect("run_auto_compress should succeed for synthetic tree");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待后台 Batch Compress 批次完成，最多轮询约 5 秒。
     let summary = {
@@ -54,9 +54,10 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!("Batch Compress batch did not reach expected summary within timeout");
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress batch did not reach expected summary within timeout"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };
@@ -153,10 +154,10 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for lock-free listener test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待批次完成以便能够读取稳定的汇总信息。
     let summary = {
@@ -168,9 +169,10 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
                 break summary;
             }
             attempts += 1;
-            if attempts > 100 {
-                panic!("Batch Compress batch did not finish within timeout in lock-free test");
-            }
+            assert!(
+                (attempts <= 100),
+                "Batch Compress batch did not finish within timeout in lock-free test"
+            );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
     };
@@ -225,10 +227,10 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for full snapshot test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     // 等待监听器接收到包含所有子任务的快照，最多轮询约 5 秒。
     let mut attempts = 0;
@@ -261,9 +263,10 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
         }
 
         attempts += 1;
-        if attempts > 100 {
-            panic!("Batch Compress queue snapshot did not include all children within timeout");
-        }
+        assert!(
+            (attempts <= 100),
+            "Batch Compress queue snapshot did not include all children within timeout"
+        );
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
@@ -353,10 +356,10 @@ fn batch_compress_batch_carries_replace_original_flag() {
     };
 
     let descriptor = engine
-        .run_auto_compress(root_path.clone(), config)
+        .run_auto_compress(root_path, config)
         .expect("run_auto_compress should succeed for replace_original flag test");
 
-    let batch_id = descriptor.batch_id.clone();
+    let batch_id = descriptor.batch_id;
 
     {
         let state = engine.inner.state.lock_unpoisoned();

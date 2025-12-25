@@ -148,9 +148,9 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
                 hkey,
                 PCWSTR(name.as_ptr()),
                 None,
-                Some(&mut typ),
+                Some(&raw mut typ),
                 None,
-                Some(&mut cb),
+                Some(&raw mut cb),
             )
         }
         .is_err()
@@ -164,9 +164,9 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
                 hkey,
                 PCWSTR(name.as_ptr()),
                 None,
-                Some(&mut typ),
+                Some(&raw mut typ),
                 Some(buf.as_mut_ptr().cast()),
-                Some(&mut cb),
+                Some(&raw mut cb),
             )
         }
         .is_err()
@@ -182,7 +182,8 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
     fn open_subkey(root: HKEY, path: &str) -> Option<HKEY> {
         let p: Vec<u16> = path.encode_utf16().chain(std::iter::once(0)).collect();
         let mut hk: HKEY = HKEY(std::ptr::null_mut());
-        let ok = unsafe { RegOpenKeyExW(root, PCWSTR(p.as_ptr()), 0, KEY_READ, &mut hk) }.is_ok();
+        let ok =
+            unsafe { RegOpenKeyExW(root, PCWSTR(p.as_ptr()), 0, KEY_READ, &raw mut hk) }.is_ok();
         if ok { Some(hk) } else { None }
     }
 
@@ -210,7 +211,7 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
 
 #[cfg(windows)]
 fn everything_search(program: &str) -> Option<Vec<PathBuf>> {
-    use everything_sdk::ergo::*;
+    use everything_sdk::ergo::{RequestFlags, global};
     let mut list: Vec<PathBuf> = Vec::new();
     // Everything SDK 要求单进程全局序列化访问，这里做一次短查询。
     if let Ok(mut global) = global().try_lock() {
@@ -249,13 +250,14 @@ fn sort_by_proximity(paths: &mut [PathBuf]) {
         p.to_string_lossy().replace('/', "\\").to_ascii_lowercase()
     }
     let data_root = crate::ffui_core::data_root_dir().ok();
-    let (data_root_s, tools_dir_s) = if let Some(dir) = data_root {
-        let root_s = norm(&dir);
-        let tools_s = norm(&dir.join(crate::ffui_core::data_root::TOOLS_DIRNAME));
-        (root_s, tools_s)
-    } else {
-        (String::new(), String::new())
-    };
+    let (data_root_s, tools_dir_s) = data_root.map_or_else(
+        || (String::new(), String::new()),
+        |dir| {
+            let root_s = norm(&dir);
+            let tools_s = norm(&dir.join(crate::ffui_core::data_root::TOOLS_DIRNAME));
+            (root_s, tools_s)
+        },
+    );
     let windir_s = std::env::var_os("WINDIR")
         .map(|v| norm(Path::new(&v)))
         .unwrap_or_default();

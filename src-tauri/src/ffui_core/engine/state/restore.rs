@@ -31,9 +31,8 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
         )
     };
 
-    let snapshot = match load_persisted_queue_state() {
-        Some(s) => s,
-        None => return,
+    let Some(snapshot) = load_persisted_queue_state() else {
+        return;
     };
 
     // In full crash recovery mode, load per-job logs from disk before inserting
@@ -65,7 +64,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
         use std::collections::HashMap;
         let map: HashMap<String, Vec<crate::ffui_core::domain::JobRun>> =
             terminal_logs.into_iter().collect();
-        for job in snapshot.jobs.iter_mut() {
+        for job in &mut snapshot.jobs {
             if let Some(runs) = map.get(&job.id) {
                 job.runs = runs.clone();
                 job.logs = runs
@@ -182,7 +181,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
         waiting.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
 
-        let recovered_ids: Vec<String> = waiting.drain(..).map(|(_, id)| id).collect();
+        let recovered_ids: Vec<String> = waiting.into_iter().map(|(_, id)| id).collect();
         let recovered_set: HashSet<String> = recovered_ids.iter().cloned().collect();
         let existing_ids: Vec<String> = state.queue.iter().cloned().collect();
 
@@ -227,8 +226,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 let should_apply = job
                     .wait_metadata
                     .as_ref()
-                    .map(wait_metadata_has_no_usable_paths)
-                    .unwrap_or(true);
+                    .is_none_or(wait_metadata_has_no_usable_paths);
                 if should_apply {
                     job.wait_metadata = Some(meta);
                 }
@@ -260,22 +258,17 @@ fn should_probe_segments_for_crash_recovery(job: &TranscodeJob) -> bool {
     // We probe when crash recovery might have missed `wait_metadata` due to
     // debounce/force-kill timing, or when metadata exists but contains no
     // usable segment paths (e.g. output policy changed across refactors).
-    match job.wait_metadata.as_ref() {
-        None => true,
-        Some(meta) => {
-            let has_any_paths = meta
-                .segments
+    job.wait_metadata.as_ref().is_none_or(|meta| {
+        let has_any_paths = meta
+            .segments
+            .as_ref()
+            .is_some_and(|v| v.iter().any(|s| !s.trim().is_empty()))
+            || meta
+                .tmp_output_path
                 .as_ref()
-                .map(|v| v.iter().any(|s| !s.trim().is_empty()))
-                .unwrap_or(false)
-                || meta
-                    .tmp_output_path
-                    .as_ref()
-                    .map(|s| !s.trim().is_empty())
-                    .unwrap_or(false);
-            !has_any_paths
-        }
-    }
+                .is_some_and(|s| !s.trim().is_empty());
+        !has_any_paths
+    })
 }
 
 fn wait_metadata_has_no_usable_paths(meta: &WaitMetadata) -> bool {

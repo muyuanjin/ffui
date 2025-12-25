@@ -266,6 +266,7 @@ pub fn run() {
                     CHANGEFILTERSTRUCT,
                     ChangeWindowMessageFilterEx,
                     MSGFLT_ALLOW,
+                    MSGFLTINFO_STATUS,
                     WINDOW_MESSAGE_FILTER_ACTION,
                     WM_COPYDATA,
                     WM_DROPFILES,
@@ -282,22 +283,22 @@ pub fn run() {
                     // 需要放行的消息包括：
                     //   WM_DROPFILES、WM_COPYDATA 和 0x0049（内部的 WM_COPYGLOBALDATA）。
                     unsafe {
-                        let mut filter: CHANGEFILTERSTRUCT =
-                            CHANGEFILTERSTRUCT {
-                                cbSize: u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
-                                    .expect("CHANGEFILTERSTRUCT size fits in u32"),
-                                ExtStatus: Default::default(),
-                            };
+	                        let mut filter: CHANGEFILTERSTRUCT =
+	                            CHANGEFILTERSTRUCT {
+	                                cbSize: u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
+	                                    .expect("CHANGEFILTERSTRUCT size fits in u32"),
+	                                ExtStatus: MSGFLTINFO_STATUS::default(),
+	                            };
 
                         let hwnd = HWND(hwnd.0);
                         let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
 
                         for msg in messages {
-                            filter.cbSize = u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
-                                .expect("CHANGEFILTERSTRUCT size fits in u32");
-                            filter.ExtStatus = Default::default();
-                            let _ = ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&mut filter));
-                        }
+	                            filter.cbSize = u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
+	                                .expect("CHANGEFILTERSTRUCT size fits in u32");
+	                            filter.ExtStatus = MSGFLTINFO_STATUS::default();
+	                            let _ = ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&raw mut filter));
+	                        }
                     }
                 }
             }
@@ -336,7 +337,7 @@ pub fn run() {
                 let engine = app.state::<TranscodingEngine>();
                 let event_handle = handle.clone();
                 engine.register_batch_compress_listener(move |progress: AutoCompressProgress| {
-                    if let Err(err) = event_handle.emit("auto-compress://progress", progress.clone()) {
+                    if let Err(err) = event_handle.emit("auto-compress://progress", progress) {
                         crate::debug_eprintln!("failed to emit auto-compress progress event: {err}");
                     }
                 });

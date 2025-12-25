@@ -70,7 +70,7 @@ fn effective_log_retention(
     }
 }
 
-pub(in crate::ffui_core::engine) fn is_terminal_status(status: &JobStatus) -> bool {
+pub(in crate::ffui_core::engine) const fn is_terminal_status(status: &JobStatus) -> bool {
     matches!(
         status,
         JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
@@ -88,13 +88,11 @@ struct PersistedTerminalJobRunHistory {
 }
 
 fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
-    let path = match queue_job_log_path(job_id) {
-        Some(p) => p,
-        None => return,
+    let Some(path) = queue_job_log_path(job_id) else {
+        return;
     };
-    let dir = match path.parent() {
-        Some(p) => p,
-        None => return,
+    let Some(dir) = path.parent() else {
+        return;
     };
     if let Err(err) = fs::create_dir_all(dir) {
         crate::debug_eprintln!(
@@ -141,16 +139,15 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
 }
 
 fn enforce_terminal_log_retention(retention: CrashRecoveryLogRetention) {
-    let dir = match queue_logs_dir() {
-        Some(d) => d,
-        None => return,
+    let Some(dir) = queue_logs_dir() else {
+        return;
     };
     if !dir.exists() {
         return;
     }
 
     let max_files = retention.max_files.unwrap_or(0) as usize;
-    let max_total_bytes = (retention.max_total_mb.unwrap_or(0) as u64)
+    let max_total_bytes = u64::from(retention.max_total_mb.unwrap_or(0))
         .saturating_mul(1024)
         .saturating_mul(1024);
 
@@ -173,9 +170,8 @@ fn enforce_terminal_log_retention(retention: CrashRecoveryLogRetention) {
         if path.extension().and_then(|e| e.to_str()) != Some("log") {
             continue;
         }
-        let meta = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
+        let Ok(meta) = entry.metadata() else {
+            continue;
         };
         if !meta.is_file() {
             continue;
@@ -222,9 +218,8 @@ pub(in crate::ffui_core::engine) fn load_persisted_terminal_job_logs(
         let Some(path) = queue_job_log_path(job_id) else {
             continue;
         };
-        let data = match fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(_) => continue,
+        let Ok(data) = fs::read_to_string(&path) else {
+            continue;
         };
 
         if let Ok(payload) = serde_json::from_str::<PersistedTerminalJobRunHistory>(&data)
@@ -238,7 +233,7 @@ pub(in crate::ffui_core::engine) fn load_persisted_terminal_job_logs(
         // log file. Load it as a single run with an unknown command.
         let lines = data
             .lines()
-            .map(|s| s.to_string())
+            .map(std::string::ToString::to_string)
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>();
         if !lines.is_empty() {
@@ -277,8 +272,7 @@ pub(in crate::ffui_core::engine) fn persist_terminal_logs_if_needed(
         }
         let was_terminal = prev
             .and_then(|p| p.jobs.iter().find(|j| j.id == job.id))
-            .map(|j| is_terminal_status(&j.status))
-            .unwrap_or(false);
+            .is_some_and(|j| is_terminal_status(&j.status));
         if was_terminal {
             continue;
         }
@@ -290,14 +284,14 @@ pub(in crate::ffui_core::engine) fn persist_terminal_logs_if_needed(
             continue;
         }
 
-        let runs = if !full.runs.is_empty() {
-            full.runs.clone()
-        } else {
+        let runs = if full.runs.is_empty() {
             vec![JobRun {
                 command: full.ffmpeg_command.clone().unwrap_or_default(),
                 logs: full.logs.clone(),
                 started_at_ms: full.start_time,
             }]
+        } else {
+            full.runs.clone()
         };
         persist_terminal_job_run_history(job.id.as_str(), &runs);
     }

@@ -144,7 +144,7 @@ fn enqueue_transcode_job_no_notify(
             wait_metadata: None,
         };
         state.queue.push_back(id.clone());
-        state.jobs.insert(id.clone(), job.clone());
+        state.jobs.insert(id, job.clone());
         job
     }
 }

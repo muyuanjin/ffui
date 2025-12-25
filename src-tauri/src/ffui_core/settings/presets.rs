@@ -86,9 +86,7 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
         // presets like "Universal 1080p" (id p1) are always present for the
         // transcoding engine. Otherwise, respect exactly what the user saved
         // (including intentional removal of built-in presets).
-        let presets: Vec<FFmpegPreset> = if !path.exists() {
-            default_presets()
-        } else {
+        let presets: Vec<FFmpegPreset> = if path.exists() {
             match read_json_file::<Vec<FFmpegPreset>>(&path) {
                 Ok(existing) if !existing.is_empty() => existing,
                 Ok(_) => default_presets(),
@@ -100,6 +98,8 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
                     default_presets()
                 }
             }
+        } else {
+            default_presets()
         };
 
         Ok(presets)
