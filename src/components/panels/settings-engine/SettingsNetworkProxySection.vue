@@ -90,7 +90,7 @@ const proxyUrlError = computed<string | null>(() => {
   if (!text) return null;
   try {
     const u = new URL(text);
-    if (u.protocol !== "http:" && u.protocol !== "https:") {
+    if (u.protocol !== "http:" && u.protocol !== "https:" && u.protocol !== "socks5:" && u.protocol !== "socks5h:") {
       return t("app.settings.networkProxyUrlInvalid");
     }
     return null;

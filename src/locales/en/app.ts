@@ -107,9 +107,9 @@ const app = {
       "When enabled, FFUI retries without proxy and shows a warning. When disabled, it fails fast (strict).",
     networkProxyUrlLabel: "Proxy URL",
     networkProxyUrlPlaceholder: "e.g. http://127.0.0.1:7890",
-    networkProxyUrlInvalid: "Invalid proxy URL (expected http://host:port or https://host:port).",
+    networkProxyUrlInvalid: "Invalid proxy URL (expected http(s)://host:port or socks5(h)://host:port).",
     networkProxyUrlHint:
-      "Currently supports HTTP/HTTPS proxies (e.g. http://host:port). Changes take effect immediately.",
+      "Supports HTTP/HTTPS and SOCKS5 proxies (e.g. http://host:port or socks5://host:port). Changes take effect immediately.",
     performanceConcurrencyTitle: "Concurrency",
     previewCaptureLabel: "Preview capture position (%)",
     previewCaptureHelp: "Percentage of total video duration used when capturing thumbnails; default is 25.",

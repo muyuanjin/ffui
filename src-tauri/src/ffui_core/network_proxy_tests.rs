@@ -136,6 +136,17 @@ fn updater_proxy_override_uses_platform_proxy_when_env_missing() {
     assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
+#[test]
+fn reqwest_proxy_parser_accepts_socks5_urls_when_enabled() {
+    let resolved = ResolvedNetworkProxy {
+        mode: NetworkProxyMode::Custom,
+        proxy_url: Some("socks5://127.0.0.1:1080".to_string()),
+        fallback_to_direct_on_error: true,
+    };
+    let parsed = parse_reqwest_proxy_for(&resolved).expect("parse socks5 proxy URL");
+    assert!(parsed.is_some());
+}
+
 fn cmd_args(cmd: &std::process::Command) -> Vec<String> {
     cmd.get_args()
         .map(|s| s.to_string_lossy().into_owned())
