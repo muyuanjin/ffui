@@ -41,6 +41,13 @@ pub fn init_child_process_job() -> bool {
     use std::mem::zeroed;
 
     unsafe {
+        {
+            let guard = CHILD_PROCESS_JOB.lock_unpoisoned();
+            if guard.is_some() {
+                return true;
+            }
+        }
+
         // 创建一个匿名 Job Object
         let job_handle = match CreateJobObjectW(None, None) {
             Ok(h) => h,
@@ -75,8 +82,12 @@ pub fn init_child_process_job() -> bool {
 
         let job_owned = OwnedHandle::from_raw_handle(job_handle.0 as RawHandle);
 
-        // 保存 Job Object 句柄；如已存在旧句柄，替换后自动 Drop 避免泄漏。
+        // 保存 Job Object 句柄；并发初始化时仅保留第一个创建的句柄。
         let mut guard = CHILD_PROCESS_JOB.lock_unpoisoned();
+        if guard.is_some() {
+            drop(job_owned);
+            return true;
+        }
         let _prev = guard.replace(job_owned);
 
         true
@@ -92,12 +103,14 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
     use windows::Win32::Foundation::HANDLE;
 
     unsafe {
-        let guard = CHILD_PROCESS_JOB.lock_unpoisoned();
-        let job_handle = match guard.as_ref() {
-            Some(h) => HANDLE(h.as_raw_handle()),
-            None => {
-                // Job Object 未初始化，跳过
-                return false;
+        let job_handle = {
+            let guard = CHILD_PROCESS_JOB.lock_unpoisoned();
+            match guard.as_ref() {
+                Some(h) => HANDLE(h.as_raw_handle()),
+                None => {
+                    // Job Object 未初始化，跳过
+                    return false;
+                }
             }
         };
 
