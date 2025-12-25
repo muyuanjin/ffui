@@ -27,6 +27,7 @@ fn finalize_successful_transcode_job(
     // `.compressed` 后的路径（同时原文件被移入回收站）。
     let mut final_output_path = output_path.to_path_buf();
 
+    let mut presets_to_persist: Option<std::sync::Arc<Vec<_>>> = None;
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -109,9 +110,12 @@ fn finalize_successful_transcode_job(
                 preset.stats.total_output_size_mb += output_mb;
                 preset.stats.total_time_seconds += elapsed;
             }
-            // Persist updated presets.
-            let _ = crate::ffui_core::settings::save_presets(presets);
+            presets_to_persist = Some(state.presets.clone());
         }
+    }
+
+    if let Some(presets_to_persist) = presets_to_persist {
+        let _ = crate::ffui_core::settings::save_presets(presets_to_persist.as_ref());
     }
 
     if let Some(times) = input_times.as_ref()

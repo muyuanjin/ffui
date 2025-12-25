@@ -142,7 +142,7 @@ impl TranscodingEngine {
                 crate::debug_eprintln!("failed to spawn queue recovery thread: {err}");
             }
         }
-        worker::spawn_worker(inner.clone());
+        worker::spawn_worker(&inner);
 
         let engine = Self { inner };
         preview_cache_gc::spawn_preview_cache_gc(engine.clone());
@@ -320,9 +320,9 @@ impl TranscodingEngine {
 
     pub fn preview_output_path(
         &self,
-        input_path: String,
-        preset_id: Option<String>,
-        output_policy: OutputPolicy,
+        input_path: &str,
+        preset_id: Option<&str>,
+        output_policy: &OutputPolicy,
     ) -> Option<String> {
         let trimmed = input_path.trim();
         if trimmed.is_empty() {
@@ -332,10 +332,8 @@ impl TranscodingEngine {
         let input = Path::new(&normalized);
 
         let state = self.inner.state.lock_unpoisoned();
-        let preset = preset_id
-            .as_deref()
-            .and_then(|id| state.presets.iter().find(|p| p.id == id));
-        let plan = output_policy_paths::preview_video_output_path(input, preset, &output_policy);
+        let preset = preset_id.and_then(|id| state.presets.iter().find(|p| p.id == id));
+        let plan = output_policy_paths::preview_video_output_path(input, preset, output_policy);
         Some(plan.output_path.to_string_lossy().into_owned())
     }
 
@@ -421,15 +419,18 @@ impl TranscodingEngine {
         // on every download tick.
         crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
 
-        {
+        let settings_to_persist = {
             let mut state = self.inner.state.lock_unpoisoned();
-            if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses)
-                && let Err(err) = settings::save_settings(&state.settings)
-            {
-                crate::debug_eprintln!(
-                    "[tools_probe_cache] failed to persist probe cache: {err:#}"
-                );
+            if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses) {
+                Some(state.settings.clone())
+            } else {
+                None
             }
+        };
+        if let Some(settings_to_persist) = settings_to_persist
+            && let Err(err) = settings::save_settings(&settings_to_persist)
+        {
+            crate::debug_eprintln!("[tools_probe_cache] failed to persist probe cache: {err:#}");
         }
 
         statuses
@@ -446,9 +447,12 @@ impl TranscodingEngine {
         &self,
         config: BatchCompressConfig,
     ) -> Result<BatchCompressConfig> {
-        let mut state = self.inner.state.lock_unpoisoned();
-        state.settings.batch_compress_defaults = config.clone();
-        settings::save_settings(&state.settings)?;
+        let settings_snapshot = {
+            let mut state = self.inner.state.lock_unpoisoned();
+            state.settings.batch_compress_defaults = config.clone();
+            state.settings.clone()
+        };
+        settings::save_settings(&settings_snapshot)?;
         Ok(config)
     }
 
@@ -468,8 +472,8 @@ impl TranscodingEngine {
     }
 
     /// Inspect media file metadata using ffprobe.
-    pub fn inspect_media(&self, path: String) -> Result<String> {
-        job_runner::inspect_media(&self.inner, &path)
+    pub fn inspect_media(&self, path: &str) -> Result<String> {
+        job_runner::inspect_media(&self.inner, path)
     }
 
     /// Return today's transcode activity buckets for the Monitor heatmap.

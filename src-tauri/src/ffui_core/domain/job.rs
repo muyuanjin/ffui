@@ -46,7 +46,7 @@ pub struct JobWarning {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     Waiting,
@@ -59,7 +59,7 @@ pub enum JobStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobType {
     Video,
@@ -67,7 +67,7 @@ pub enum JobType {
     Audio,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum JobSource {
     Manual,
@@ -340,13 +340,13 @@ impl From<&TranscodeJob> for TranscodeJobLite {
         Self {
             id: job.id.clone(),
             filename: job.filename.clone(),
-            job_type: job.job_type.clone(),
-            source: job.source.clone(),
+            job_type: job.job_type,
+            source: job.source,
             queue_order: job.queue_order,
             original_size_mb: job.original_size_mb,
             original_codec: job.original_codec.clone(),
             preset_id: job.preset_id.clone(),
-            status: job.status.clone(),
+            status: job.status,
             progress: job.progress,
             start_time: job.start_time,
             end_time: job.end_time,

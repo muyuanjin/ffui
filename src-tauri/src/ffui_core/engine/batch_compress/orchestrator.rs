@@ -40,11 +40,6 @@ pub(crate) fn run_auto_compress(
     let (settings_snapshot, presets, batch_id, started_at_ms) = {
         let mut state = inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults = config.clone();
-        if let Err(err) = settings::save_settings(&state.settings) {
-            crate::debug_eprintln!(
-                "failed to persist Batch Compress defaults to settings.json: {err:#}"
-            );
-        }
         let settings_snapshot = state.settings.clone();
         let presets = state.presets.clone();
 
@@ -77,19 +72,23 @@ pub(crate) fn run_auto_compress(
         (settings_snapshot, presets, batch_id, started_at_ms)
     };
 
+    if let Err(err) = settings::save_settings(&settings_snapshot) {
+        crate::debug_eprintln!(
+            "failed to persist Batch Compress defaults to settings.json: {err:#}"
+        );
+    }
+
     // Emit an initial progress snapshot so the frontend can show that the
     // batch has started even before any files are discovered.
-    notify_batch_compress_listeners(
-        inner,
-        AutoCompressProgress {
-            root_path: root_path.clone(),
-            total_files_scanned: 0,
-            total_candidates: 0,
-            total_processed: 0,
-            batch_id: batch_id.clone(),
-            completed_at_ms: 0,
-        },
-    );
+    let initial_progress = AutoCompressProgress {
+        root_path: root_path.clone(),
+        total_files_scanned: 0,
+        total_candidates: 0,
+        total_processed: 0,
+        batch_id: batch_id.clone(),
+        completed_at_ms: 0,
+    };
+    notify_batch_compress_listeners(inner, &initial_progress);
 
     // Kick off the actual Batch Compress work on a background thread so the
     // Tauri command can return immediately with lightweight batch metadata.
@@ -100,7 +99,7 @@ pub(crate) fn run_auto_compress(
         .name(format!("batch-compress-{batch_id_for_thread}"))
         .spawn(move || {
             run_auto_compress_background(
-                inner_clone,
+                &inner_clone,
                 root,
                 config_clone,
                 settings_snapshot,
@@ -134,13 +133,19 @@ pub(crate) fn run_auto_compress(
 }
 
 fn run_auto_compress_background(
-    inner: Arc<Inner>,
+    inner: &Arc<Inner>,
     root: PathBuf,
     config: BatchCompressConfig,
     settings_snapshot: AppSettings,
     presets: Arc<Vec<FFmpegPreset>>,
     batch_id: String,
 ) {
+    #[derive(Clone, Copy)]
+    enum MediaTaskKind {
+        Image,
+        Audio,
+    }
+
     let mut queue_dirty = false;
     let mut waiting_jobs_enqueued = false;
 
@@ -176,14 +181,14 @@ fn run_auto_compress_background(
             // This caps the lock contention at a small constant while improving
             // perceived responsiveness for typical "few dozen files" use cases.
             if scanned_total < BATCH_COMPRESS_PROGRESS_EVERY {
-                update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
                     batch.total_files_scanned = batch.total_files_scanned.saturating_add(1);
                 });
             } else {
                 pending_scanned = pending_scanned.saturating_add(1);
                 if pending_scanned >= BATCH_COMPRESS_PROGRESS_EVERY {
                     let flush = pending_scanned - (pending_scanned % BATCH_COMPRESS_PROGRESS_EVERY);
-                    update_batch_compress_batch_with_inner(&inner, &batch_id, false, |batch| {
+                    update_batch_compress_batch_with_inner(inner, &batch_id, false, |batch| {
                         batch.total_files_scanned = batch.total_files_scanned.saturating_add(flush);
                     });
                     pending_scanned -= flush;
@@ -194,7 +199,7 @@ fn run_auto_compress_background(
                 // flush partial progress at a coarse time interval.
                 if pending_scanned > 0 && last_force_flush.elapsed() >= Duration::from_millis(200) {
                     let flush = pending_scanned;
-                    update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                    update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
                         batch.total_files_scanned = batch.total_files_scanned.saturating_add(flush);
                     });
                     pending_scanned = 0;
@@ -207,20 +212,14 @@ fn run_auto_compress_background(
     }
 
     if pending_scanned > 0 {
-        update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+        update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
             batch.total_files_scanned = batch.total_files_scanned.saturating_add(pending_scanned);
         });
     }
 
-    #[derive(Clone, Copy)]
-    enum MediaTaskKind {
-        Image,
-        Audio,
-    }
-
     let mut pending_media_tasks: Vec<(String, PathBuf, MediaTaskKind)> = Vec::new();
     let mut register_stub_job = |job_id: String, path: PathBuf, kind: MediaTaskKind| {
-        update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+        update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
             batch.total_candidates = batch.total_candidates.saturating_add(1);
             batch.child_job_ids.push(job_id.clone());
             if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
@@ -233,13 +232,13 @@ fn run_auto_compress_background(
 
     // 第二次遍历：基于快照建任务，快速推给 UI；重处理放到异步线程。
     for path in all_files {
-        if is_known_batch_compress_output_with_inner(&inner, &path) {
+        if is_known_batch_compress_output_with_inner(inner, &path) {
             continue;
         }
 
         if is_image_file(&path) {
-            let job_id = next_job_id(&inner);
-            insert_image_stub_job(&inner, &job_id, &path, &config, &batch_id);
+            let job_id = next_job_id(inner);
+            insert_image_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Image);
         } else if is_audio_file(&path) {
@@ -265,8 +264,8 @@ fn run_auto_compress_background(
                 continue;
             }
 
-            let job_id = next_job_id(&inner);
-            insert_audio_stub_job(&inner, &job_id, &path, &config, &batch_id);
+            let job_id = next_job_id(inner);
+            insert_audio_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Audio);
         } else if is_video_file(&path) {
@@ -277,7 +276,7 @@ fn run_auto_compress_background(
 
             if let Some(preset) = preset {
                 let job = enqueue_batch_compress_video_job(
-                    &inner,
+                    inner,
                     &path,
                     &config,
                     &settings_snapshot,
@@ -291,7 +290,7 @@ fn run_auto_compress_background(
                     waiting_jobs_enqueued = true;
                 }
 
-                update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
                     batch.total_candidates = batch.total_candidates.saturating_add(1);
                     batch.child_job_ids.push(job.id.clone());
 
@@ -313,7 +312,7 @@ fn run_auto_compress_background(
                 // we still count the file as a scanned candidate and immediately
                 // mark it as "processed" so overall Batch Compress statistics remain
                 // consistent. No queue job is enqueued for such entries.
-                update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+                update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
                     batch.total_candidates = batch.total_candidates.saturating_add(1);
                     batch.total_processed = batch.total_processed.saturating_add(1);
                 });
@@ -321,7 +320,7 @@ fn run_auto_compress_background(
         }
     }
 
-    update_batch_compress_batch_with_inner(&inner, &batch_id, true, |batch| {
+    update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
         if batch.total_candidates == 0 {
             // Pure "scan only" batch with no eligible candidates: treat as
             // completed once the directory walk finishes so the frontend can
@@ -364,7 +363,7 @@ fn run_auto_compress_background(
     });
 
     if queue_dirty {
-        notify_queue_listeners(&inner);
+        notify_queue_listeners(inner);
     }
 
     if waiting_jobs_enqueued {
@@ -372,7 +371,7 @@ fn run_auto_compress_background(
     }
 
     if !pending_media_tasks.is_empty() {
-        let inner_clone = Arc::clone(&inner);
+        let inner_clone = Arc::clone(inner);
         let config_clone = config;
         let settings_clone = settings_snapshot;
         let presets_clone = presets;
@@ -435,10 +434,10 @@ fn run_auto_compress_background(
         if let Err(err) = spawned {
             crate::debug_eprintln!("failed to spawn batch compress media worker thread: {err}");
             super::orchestrator_helpers::handle_media_worker_spawn_failure(
-                &inner,
+                inner,
                 &batch_id,
                 pending_job_ids,
-                err,
+                &err,
             );
         }
     }

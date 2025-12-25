@@ -33,6 +33,7 @@ impl TranscodingEngine {
             new_percent,
             proxy_snapshot,
             saved,
+            settings_to_persist,
         ) = {
             let mut state = self.inner.state.lock_unpoisoned();
 
@@ -50,7 +51,7 @@ impl TranscodingEngine {
             merge_backend_owned_tool_state(&mut normalized.tools, &old_tools);
 
             state.settings = normalized.clone();
-            settings::save_settings(&state.settings)?;
+            let settings_to_persist = state.settings.clone();
 
             let new_tools = &state.settings.tools;
             let tools_changed = old_tools.ffmpeg_path != new_tools.ffmpeg_path
@@ -78,8 +79,11 @@ impl TranscodingEngine {
                 new_percent,
                 proxy_snapshot,
                 normalized,
+                settings_to_persist,
             )
         };
+
+        settings::save_settings(&settings_to_persist)?;
 
         if tools_changed {
             clear_tool_runtime_error(ExternalToolKind::Ffmpeg);
@@ -99,7 +103,7 @@ impl TranscodingEngine {
                     engine_clone.refresh_video_previews_for_percent(
                         new_percent,
                         refresh_token,
-                        tools_snapshot,
+                        &tools_snapshot,
                     );
                 })
             {
@@ -108,7 +112,7 @@ impl TranscodingEngine {
         }
 
         state::notify_queue_listeners(&self.inner);
-        worker::spawn_worker(self.inner.clone());
+        worker::spawn_worker(&self.inner);
 
         Ok(saved)
     }

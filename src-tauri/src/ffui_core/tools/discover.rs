@@ -137,8 +137,6 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
         r"SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
     ];
 
-    let mut results: Vec<PathBuf> = Vec::new();
-
     fn read_string_value(hkey: HKEY, value: &str) -> Option<String> {
         let name: Vec<u16> = value.encode_utf16().chain(std::iter::once(0)).collect();
         let mut typ = REG_VALUE_TYPE(0);
@@ -203,6 +201,7 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
         }
     }
 
+    let mut results: Vec<PathBuf> = Vec::new();
     scan_uninstall(HKEY_LOCAL_MACHINE, program, &mut results);
     scan_uninstall(HKEY_CURRENT_USER, program, &mut results);
 

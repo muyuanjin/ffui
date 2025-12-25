@@ -99,7 +99,7 @@ pub(super) fn handle_media_worker_spawn_failure(
     inner: &Arc<Inner>,
     batch_id: &str,
     pending_job_ids: Vec<String>,
-    err: std::io::Error,
+    err: &std::io::Error,
 ) {
     update_batch_compress_batch_with_inner(inner, batch_id, true, |batch| {
         batch.status = BatchCompressBatchStatus::Failed;

@@ -13,5 +13,5 @@ pub fn preview_output_path(
     preset_id: Option<String>,
     output_policy: OutputPolicy,
 ) -> Option<String> {
-    engine.preview_output_path(input_path, preset_id, output_policy)
+    engine.preview_output_path(&input_path, preset_id.as_deref(), &output_policy)
 }

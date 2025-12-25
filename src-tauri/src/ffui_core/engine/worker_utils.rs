@@ -282,7 +282,7 @@ pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
     };
 
     if let Some(progress) = progress_opt {
-        notify_batch_compress_listeners(inner, progress);
+        notify_batch_compress_listeners(inner, &progress);
     }
 
     if batch_id_opt.is_some() {

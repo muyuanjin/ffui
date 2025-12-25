@@ -90,7 +90,7 @@ pub(super) fn record_processing_activity(inner: &Inner) {
     };
     let bit = 1u32 << u32::from(hour);
 
-    let payload_to_emit = {
+    let (payload_to_emit, settings_to_persist) = {
         let mut state = inner.state.lock_unpoisoned();
 
         let monitor = state
@@ -105,20 +105,23 @@ pub(super) fn record_processing_activity(inner: &Inner) {
             .map_or(0, |d| d.active_hours_mask);
         let new_mask = current_mask | bit;
         if new_mask == current_mask {
-            return;
+            (None, None)
+        } else {
+            upsert_activity_day(days, date_key.clone(), new_mask, now_ms);
+
+            let payload = TranscodeActivityToday {
+                date: date_key,
+                active_hours: active_hours_from_mask(new_mask),
+            };
+            (Some(payload), Some(state.settings.clone()))
         }
-
-        upsert_activity_day(days, date_key.clone(), new_mask, now_ms);
-
-        if let Err(err) = settings::save_settings(&state.settings) {
-            crate::debug_eprintln!("failed to persist transcode activity buckets: {err:#}");
-        }
-
-        Some(TranscodeActivityToday {
-            date: date_key,
-            active_hours: active_hours_from_mask(new_mask),
-        })
     };
+
+    if let Some(settings_to_persist) = settings_to_persist
+        && let Err(err) = settings::save_settings(&settings_to_persist)
+    {
+        crate::debug_eprintln!("failed to persist transcode activity buckets: {err:#}");
+    }
 
     if let Some(payload) = payload_to_emit {
         emit_transcode_activity_today_if_possible(payload);

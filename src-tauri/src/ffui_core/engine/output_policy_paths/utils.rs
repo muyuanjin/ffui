@@ -2,12 +2,12 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::atomic::Ordering;
 
+const HEX: &[u8; 16] = b"0123456789abcdef";
+
 pub(super) fn random_hex(len: usize) -> String {
     if len == 0 {
         return String::new();
     }
-
-    const HEX: &[u8; 16] = b"0123456789abcdef";
 
     let mut out = String::with_capacity(len);
     while out.len() < len {

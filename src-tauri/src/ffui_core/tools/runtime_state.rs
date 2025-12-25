@@ -140,11 +140,11 @@ fn emit_tool_status_event_if_possible() {
     if let Some(handle) = APP_HANDLE.get() {
         let snapshot = {
             let lock = LATEST_TOOL_STATUS.lock_unpoisoned();
+            if lock.is_empty() {
+                return;
+            }
             lock.clone()
         };
-        if snapshot.is_empty() {
-            return;
-        }
         if let Err(err) = handle.emit(TOOL_STATUS_EVENT_NAME, snapshot) {
             crate::debug_eprintln!("failed to emit external tool status event: {err}");
         }

@@ -20,11 +20,9 @@ fn ensure_fragmented_movflags_for_mp4_like_output(
         return;
     }
 
-    use crate::ffui_core::domain::ContainerConfig;
-
     let container = preset
         .container
-        .get_or_insert(ContainerConfig {
+        .get_or_insert(crate::ffui_core::domain::ContainerConfig {
             format: None,
             movflags: None,
         });
@@ -70,7 +68,7 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
             PathBuf::from(&job.filename),
             preset,
             state.settings.clone(),
-            job.job_type.clone(),
+            job.job_type,
             job.preset_id.clone(),
             cached_media_info,
             job.filename.clone(),

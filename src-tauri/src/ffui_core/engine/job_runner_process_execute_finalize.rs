@@ -1,3 +1,4 @@
+#[derive(Clone, Copy)]
 struct FinalizeResumedJobOutputArgs<'a> {
     inner: &'a Inner,
     job_id: &'a str,

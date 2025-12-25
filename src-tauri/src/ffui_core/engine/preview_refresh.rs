@@ -20,7 +20,7 @@ impl TranscodingEngine {
             let state = self.inner.state.lock_unpoisoned();
             let job = state.jobs.get(job_id)?;
             (
-                job.job_type.clone(),
+                job.job_type,
                 job.input_path.clone()?,
                 job.media_info
                     .as_ref()
@@ -63,7 +63,7 @@ impl TranscodingEngine {
         &self,
         capture_percent: u8,
         refresh_token: u64,
-        tools: ExternalToolSettings,
+        tools: &ExternalToolSettings,
     ) {
         use std::collections::HashSet;
         use std::fs;
@@ -100,7 +100,7 @@ impl TranscodingEngine {
         };
 
         let (ffmpeg_path, _source, _did_download) =
-            match ensure_tool_available(ExternalToolKind::Ffmpeg, &tools) {
+            match ensure_tool_available(ExternalToolKind::Ffmpeg, tools) {
                 Ok(v) => v,
                 Err(err) => {
                     crate::debug_eprintln!(

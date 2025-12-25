@@ -20,7 +20,7 @@ fn build_preview_output_path_is_stable_for_same_input() {
         .unwrap_or_default()
         .to_string();
     assert!(
-        filename.ends_with(".jpg"),
+        filename.to_ascii_lowercase().ends_with(".jpg"),
         "preview path should use a .jpg extension, got {filename}"
     );
 }
@@ -121,13 +121,13 @@ fn handle_image_file_uses_existing_avif_sibling_as_preview_path() {
 
     let preview = job.preview_path.as_deref().unwrap_or_default();
     assert!(
-        preview.ends_with(".avif"),
+        preview.to_ascii_lowercase().ends_with(".avif"),
         "preview_path should point to the existing AVIF sibling, got {preview}"
     );
 
     let output = job.output_path.as_deref().unwrap_or_default();
     assert!(
-        output.ends_with(".avif"),
+        output.to_ascii_lowercase().ends_with(".avif"),
         "output_path should point to the existing AVIF sibling so the UI can display the compressed image path, got {output}"
     );
 
@@ -335,7 +335,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
     }
 
     let tools = AppSettings::default().tools;
-    engine.refresh_video_previews_for_percent(new_percent, refresh_token, tools);
+    engine.refresh_video_previews_for_percent(new_percent, refresh_token, &tools);
 
     let expected_preview = build_preview_output_path(&input, new_percent);
     assert!(

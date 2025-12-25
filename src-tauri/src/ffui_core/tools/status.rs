@@ -95,11 +95,6 @@ pub(super) fn effective_remote_version_for(kind: ExternalToolKind) -> Option<Str
 }
 
 pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> ExternalToolStatus {
-    let runtime = snapshot_download_state(kind);
-    let mut resolved_path: Option<String> = None;
-    let mut source: Option<String> = None;
-    let mut version: Option<String> = None;
-
     fn push_candidate(
         seen: &mut HashSet<String>,
         candidates: &mut Vec<(String, String)>,
@@ -110,6 +105,11 @@ pub fn tool_status(kind: ExternalToolKind, settings: &ExternalToolSettings) -> E
             candidates.push((path, source.to_string()));
         }
     }
+
+    let runtime = snapshot_download_state(kind);
+    let mut resolved_path: Option<String> = None;
+    let mut source: Option<String> = None;
+    let mut version: Option<String> = None;
 
     let mut candidates: Vec<(String, String)> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();

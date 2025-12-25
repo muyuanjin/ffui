@@ -347,7 +347,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     }
 }
 
-pub(super) fn notify_batch_compress_listeners(inner: &Inner, progress: AutoCompressProgress) {
+pub(super) fn notify_batch_compress_listeners(inner: &Inner, progress: &AutoCompressProgress) {
     let listeners = inner.batch_compress_listeners.lock_unpoisoned().clone();
     for listener in &listeners {
         listener(progress.clone());
@@ -389,7 +389,7 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
     };
 
     if let Some(progress) = progress {
-        notify_batch_compress_listeners(inner, progress);
+        notify_batch_compress_listeners(inner, &progress);
     }
 }
 

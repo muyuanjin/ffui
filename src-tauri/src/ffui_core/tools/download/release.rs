@@ -279,14 +279,14 @@ fn fetch_github_latest_tag_checked(
 
 #[cfg(not(test))]
 fn fetch_github_latest_tag(client: &reqwest::blocking::Client, url: &str) -> Result<String> {
-    let resp = client.get(url).send().context("request failed")?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("request failed with status {}", resp.status()));
-    }
-
     #[derive(serde::Deserialize)]
     struct Release {
         tag_name: String,
+    }
+
+    let resp = client.get(url).send().context("request failed")?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("request failed with status {}", resp.status()));
     }
     let release: Release = resp.json().context("failed to parse JSON")?;
     Ok(release.tag_name)

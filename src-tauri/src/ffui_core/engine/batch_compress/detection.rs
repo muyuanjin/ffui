@@ -47,15 +47,21 @@ pub(crate) fn is_audio_file(path: &Path) -> bool {
 #[cfg(test)]
 pub(crate) fn is_batch_compress_style_output(path: &Path) -> bool {
     let file_name = match path.file_name().and_then(|n| n.to_str()) {
-        Some(name) => name.to_ascii_lowercase(),
+        Some(name) => name,
         None => return false,
     };
 
     // 所有 .avif 文件都视为潜在 Batch Compress 输出；在实际逻辑中我们已经避免对
     // 这些文件再次发起压缩任务。
-    if file_name.ends_with(".avif") {
+    if path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("avif"))
+    {
         return true;
     }
+
+    let file_name = file_name.to_ascii_lowercase();
 
     // 形如 foo.compressed.mp4 或 foo.compressed (1).mp4 等命名，统一视为
     // Batch Compress 风格输出。

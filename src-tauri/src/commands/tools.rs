@@ -172,7 +172,7 @@ pub fn ack_taskbar_progress(app: AppHandle, engine: State<'_, TranscodingEngine>
 /// Inspect a media file and return its metadata as JSON.
 #[tauri::command]
 pub fn inspect_media(engine: State<'_, TranscodingEngine>, path: String) -> Result<String, String> {
-    engine.inspect_media(path).map_err(|e| e.to_string())
+    engine.inspect_media(&path).map_err(|e| e.to_string())
 }
 
 /// Read a generated preview image from disk and return it as a data URL string

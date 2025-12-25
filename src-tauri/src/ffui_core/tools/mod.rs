@@ -37,10 +37,6 @@ pub use types::{ExternalToolCandidate, ExternalToolKind, ExternalToolStatus};
 pub(crate) fn hydrate_probe_cache_from_settings(
     settings: &crate::ffui_core::settings::ExternalToolSettings,
 ) {
-    let Some(cache) = settings.probe_cache.as_ref() else {
-        return;
-    };
-
     fn seed(
         kind: ExternalToolKind,
         entry: &crate::ffui_core::settings::types::ExternalToolProbeCacheEntry,
@@ -58,6 +54,10 @@ pub(crate) fn hydrate_probe_cache_from_settings(
             entry.fingerprint.modified_millis,
         );
     }
+
+    let Some(cache) = settings.probe_cache.as_ref() else {
+        return;
+    };
 
     if let Some(entry) = cache.ffmpeg.as_ref() {
         seed(ExternalToolKind::Ffmpeg, entry);

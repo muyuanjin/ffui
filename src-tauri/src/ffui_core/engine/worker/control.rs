@@ -38,13 +38,12 @@ fn cancel_waiting_like_job(
 /// If the job is processing, marks it for cooperative cancellation by the worker.
 /// Returns true if the job was successfully cancelled or marked for cancellation.
 pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str) -> bool {
-    let mut should_notify = false;
     let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
-    let result = {
+    let (result, should_notify) = {
         let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
-            Some(job) => job.status.clone(),
+            Some(job) => job.status,
             None => return false,
         };
 
@@ -56,8 +55,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     &mut cleanup_paths,
                     "Cancelled before start",
                 );
-                should_notify = true;
-                true
+                (true, true)
             }
             JobStatus::Paused => {
                 cancel_waiting_like_job(
@@ -66,8 +64,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     &mut cleanup_paths,
                     "Cancelled while paused",
                 );
-                should_notify = true;
-                true
+                (true, true)
             }
             JobStatus::Processing => {
                 // Mark for cooperative cancellation; the worker thread will
@@ -78,10 +75,9 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                 }
                 state.wait_requests.remove(job_id);
                 state.cancelled_jobs.insert(job_id.to_string());
-                should_notify = true;
-                true
+                (true, true)
             }
-            _ => false,
+            _ => (false, false),
         }
     };
 
@@ -101,22 +97,19 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 /// its worker slot while preserving progress. The actual state change is
 /// performed cooperatively inside the worker loop.
 pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -> bool {
-    let mut should_notify = false;
-
-    let result = {
+    let (result, should_notify) = {
         let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
-            Some(job) => job.status.clone(),
+            Some(job) => job.status,
             None => return false,
         };
 
         match status {
             JobStatus::Processing => {
                 state.wait_requests.insert(job_id.to_string());
-                should_notify = true;
-                true
+                (true, true)
             }
-            _ => false,
+            _ => (false, false),
         }
     };
 
@@ -131,12 +124,10 @@ pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -
 /// keeping its progress/wait metadata intact。Processing 状态下如仍有待处理暂停
 /// 请求，则直接取消，避免快速“暂停→继续”引发的竞态。
 pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
-    let mut should_notify = false;
-
-    let result = {
+    let (result, should_notify) = {
         let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
-            Some(job) => job.status.clone(),
+            Some(job) => job.status,
             None => return false,
         };
 
@@ -151,8 +142,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                 state.wait_requests.remove(job_id);
                 state.cancelled_jobs.remove(job_id);
                 state.restart_requests.remove(job_id);
-                should_notify = true;
-                true
+                (true, true)
             }
             JobStatus::Paused => {
                 if let Some(job) = state.jobs.get_mut(job_id) {
@@ -161,8 +151,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                 if !state.queue.iter().any(|id| id == job_id) {
                     state.queue.push_back(job_id.to_string());
                 }
-                should_notify = true;
-                true
+                (true, true)
             }
             JobStatus::Processing => {
                 // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
@@ -176,14 +165,13 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                                 .to_string(),
                         );
                     }
-                    should_notify = true;
-                    true
+                    (true, true)
                 } else {
                     // 没有待处理的暂停请求，任务正在正常处理中，无需操作
-                    false
+                    (false, false)
                 }
             }
-            _ => false,
+            _ => (false, false),
         }
     };
 

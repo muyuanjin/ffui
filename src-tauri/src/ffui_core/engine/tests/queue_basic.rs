@@ -21,8 +21,9 @@ fn inspect_media_produces_json_for_generated_clip() {
     }
 
     let engine = make_engine_with_preset();
+    let input_str = input.to_string_lossy();
     let json = engine
-        .inspect_media(input.to_string_lossy().into_owned())
+        .inspect_media(&input_str)
         .expect("inspect_media should succeed for generated test clip");
 
     let root: serde_json::Value =

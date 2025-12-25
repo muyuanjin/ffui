@@ -44,15 +44,15 @@ where
     }
 }
 
-fn record_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: String, checked_at_ms: u64) {
+fn record_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: &str, checked_at_ms: u64) {
     for kind in kinds.iter().copied() {
-        record_tool_remote_check_message(kind, note.clone(), checked_at_ms);
+        record_tool_remote_check_message(kind, note.to_string(), checked_at_ms);
     }
 }
 
 fn record_proxy_remote_check_error(
     kinds: &[ExternalToolKind],
-    err: anyhow::Error,
+    err: &anyhow::Error,
     checked_at_ms: u64,
 ) {
     let msg = format!("[proxy] remote version check failed: {err:#}");
@@ -268,7 +268,7 @@ impl TranscodingEngine {
 	                                        },
 	                                        |kind| vec![kind],
 	                                    );
-	                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
+	                                record_proxy_note_for_kinds(&report_kinds, &note, now_ms);
 	                            }
                         }
                         Ok((_v, _t, _note)) => {
@@ -276,14 +276,14 @@ impl TranscodingEngine {
                                 "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
                         }
-	                        Err(err) => {
-	                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-	                                .map_or_else(
-	                                    || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-	                                    |kind| vec![kind],
-	                                );
-	                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
-	                        }
+		                        Err(err) => {
+		                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+		                                .map_or_else(
+		                                    || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+		                                    |kind| vec![kind],
+		                                );
+		                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
+		                        }
                     }
                 }
 
@@ -313,7 +313,7 @@ impl TranscodingEngine {
 	                                    .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
 	                                        vec![kind]
 	                                    });
-	                                record_proxy_note_for_kinds(&report_kinds, note, now_ms);
+	                                record_proxy_note_for_kinds(&report_kinds, &note, now_ms);
 	                            }
                         }
                         Ok((_v, _t, _note)) => {
@@ -321,19 +321,22 @@ impl TranscodingEngine {
                                 "[tools_refresh] libavif remote version check failed (best-effort)"
                             );
                         }
-	                        Err(err) => {
-	                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-	                                .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
-	                                    vec![kind]
-	                                });
-	                            record_proxy_remote_check_error(&report_kinds, err, now_ms);
-	                        }
+		                        Err(err) => {
+		                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+		                                .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
+		                                    vec![kind]
+		                                });
+		                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
+		                        }
                     }
                 }
 
                 if should_persist_settings {
-                    let state = engine_clone.inner.state.lock_unpoisoned();
-                    if let Err(err) = settings::save_settings(&state.settings) {
+                    let settings_snapshot = {
+                        let state = engine_clone.inner.state.lock_unpoisoned();
+                        state.settings.clone()
+                    };
+                    if let Err(err) = settings::save_settings(&settings_snapshot) {
                         crate::debug_eprintln!(
                             "[tools_refresh] failed to persist remote TTL cache: {err:#}"
                         );

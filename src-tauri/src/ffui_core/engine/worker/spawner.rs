@@ -12,7 +12,7 @@ use crate::ffui_core::domain::JobStatus;
 use crate::sync_ext::{CondvarExt, MutexExt};
 
 /// Spawn (or extend) worker threads to satisfy current concurrency settings.
-pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
+pub(in crate::ffui_core::engine) fn spawn_worker(inner: &Arc<Inner>) {
     #[cfg(test)]
     {
         if std::env::var_os("FFUI_ENABLE_WORKERS_IN_TESTS").is_none() {
@@ -20,35 +20,43 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: Arc<Inner>) {
         }
     }
 
-    let mut state = inner.state.lock_unpoisoned();
-    let desired = match state.settings.parallelism_mode() {
-        crate::ffui_core::settings::TranscodeParallelismMode::Unified => {
-            state.settings.effective_max_parallel_jobs() as usize
+    let (start_index, desired) = {
+        let state = inner.state.lock_unpoisoned();
+        let desired = match state.settings.parallelism_mode() {
+            crate::ffui_core::settings::TranscodeParallelismMode::Unified => {
+                state.settings.effective_max_parallel_jobs() as usize
+            }
+            crate::ffui_core::settings::TranscodeParallelismMode::Split => {
+                (state.settings.effective_max_parallel_cpu_jobs() as usize)
+                    + (state.settings.effective_max_parallel_hw_jobs() as usize)
+            }
         }
-        crate::ffui_core::settings::TranscodeParallelismMode::Split => {
-            (state.settings.effective_max_parallel_cpu_jobs() as usize)
-                + (state.settings.effective_max_parallel_hw_jobs() as usize)
-        }
-    }
-    .max(1);
+        .max(1);
+        (state.spawned_workers, desired)
+    };
 
-    while state.spawned_workers < desired {
-        let index = state.spawned_workers;
+    let mut spawned = 0usize;
+    for index in start_index..desired {
         let inner_clone = inner.clone();
         let result = thread::Builder::new()
             .name(format!("ffui-transcode-worker-{index}"))
-            .spawn(move || worker_loop(inner_clone))
+            .spawn(move || worker_loop(&inner_clone))
             .map(|_| ());
         if let Err(err) = result {
             crate::debug_eprintln!("failed to spawn transcoding worker thread: {err}");
             break;
         }
-        state.spawned_workers += 1;
+        spawned += 1;
+    }
+
+    if spawned > 0 {
+        let mut state = inner.state.lock_unpoisoned();
+        state.spawned_workers = state.spawned_workers.max(start_index + spawned);
     }
 }
 
 /// Worker loop: wait for jobs, process, handle cancellation/errors.
-fn worker_loop(inner: Arc<Inner>) {
+fn worker_loop(inner: &Arc<Inner>) {
     loop {
         let job_id = {
             let mut state = inner.state.lock_unpoisoned();
@@ -70,13 +78,13 @@ fn worker_loop(inner: Arc<Inner>) {
 
         // Mark today's transcode activity buckets as soon as a job enters
         // processing state so sparse/no-progress jobs still show activity.
-        transcode_activity::record_processing_activity(&inner);
+        transcode_activity::record_processing_activity(inner);
 
         // Notify listeners that a job has moved into processing state.
-        notify_queue_listeners(&inner);
+        notify_queue_listeners(inner);
 
         // Call the job runner to process the transcode job
-        let result = guarded_job_runner(|| job_runner::process_transcode_job(&inner, &job_id));
+        let result = guarded_job_runner(|| job_runner::process_transcode_job(inner, &job_id));
         if let Err(reason) = result {
             {
                 let mut state = inner.state.lock_unpoisoned();
@@ -88,7 +96,7 @@ fn worker_loop(inner: Arc<Inner>) {
                     append_job_log_line(job, reason);
                 }
             }
-            mark_batch_compress_child_processed(&inner, &job_id);
+            mark_batch_compress_child_processed(inner, &job_id);
         }
 
         {
@@ -102,7 +110,7 @@ fn worker_loop(inner: Arc<Inner>) {
         }
 
         // Broadcast final state for the completed / failed / skipped job.
-        notify_queue_listeners(&inner);
+        notify_queue_listeners(inner);
         // Wake any worker threads waiting for a previously blocked input.
         inner.cv.notify_all();
     }
@@ -117,12 +125,12 @@ where
         Ok(Err(err)) => Err(format!("Transcode failed: {err:#}")),
         Err(payload) => Err(format!(
             "Transcode panicked: {}",
-            panic_payload_to_string(payload)
+            panic_payload_to_string(&*payload)
         )),
     }
 }
 
-fn panic_payload_to_string(payload: Box<dyn std::any::Any + Send>) -> String {
+fn panic_payload_to_string(payload: &(dyn std::any::Any + Send)) -> String {
     if let Some(s) = payload.downcast_ref::<&str>() {
         return (*s).to_string();
     }

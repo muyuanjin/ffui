@@ -8,9 +8,7 @@ use crate::sync_ext::MutexExt;
 /// Job ids not present in `ordered_ids` keep their relative order at the
 /// tail of the queue so the operation is resilient to partial payloads.
 pub(crate) fn reorder_waiting_jobs(inner: &Arc<Inner>, ordered_ids: Vec<String>) -> bool {
-    let mut should_notify = false;
-
-    {
+    let should_notify = {
         let mut state = inner.state.lock_unpoisoned();
         if state.queue.is_empty() || ordered_ids.is_empty() {
             return false;
@@ -45,11 +43,12 @@ pub(crate) fn reorder_waiting_jobs(inner: &Arc<Inner>, ordered_ids: Vec<String>)
             }
         }
 
-        if next_queue != state.queue {
+        let should_notify = next_queue != state.queue;
+        if should_notify {
             state.queue = next_queue;
-            should_notify = true;
         }
-    }
+        should_notify
+    };
 
     if should_notify {
         notify_queue_listeners(inner);

@@ -1,4 +1,4 @@
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::Result;
 use nvml_wrapper::Nvml;
@@ -30,16 +30,17 @@ pub fn sample_cpu_usage() -> CpuUsageSnapshot {
     // every IPC round-trip.
     static SYSTEM: OnceLock<Mutex<System>> = OnceLock::new();
 
-    let mut sys = SYSTEM
-        .get_or_init(|| {
-            let mut sys = System::new();
-            sys.refresh_cpu_usage();
-            Mutex::new(sys)
-        })
-        .lock_unpoisoned();
-    sys.refresh_cpu_usage();
-
-    let per_core: Vec<f32> = sys.cpus().iter().map(sysinfo::Cpu::cpu_usage).collect();
+    let per_core: Vec<f32> = {
+        let mut sys = SYSTEM
+            .get_or_init(|| {
+                let mut sys = System::new();
+                sys.refresh_cpu_usage();
+                Mutex::new(sys)
+            })
+            .lock_unpoisoned();
+        sys.refresh_cpu_usage();
+        sys.cpus().iter().map(sysinfo::Cpu::cpu_usage).collect()
+    };
     let overall = if per_core.is_empty() {
         0.0
     } else {
@@ -54,23 +55,15 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
     // and reuse it across samples. If initialization fails once (e.g. no NVIDIA
     // GPU or missing drivers), subsequent calls will fail fast without repeatedly
     // hitting the driver.
-    static NVML_INSTANCE: OnceLock<Mutex<Option<Nvml>>> = OnceLock::new();
+    static NVML_INSTANCE: OnceLock<Mutex<Option<Arc<Nvml>>>> = OnceLock::new();
 
-    let mutex = NVML_INSTANCE.get_or_init(|| Mutex::new(None));
-    let mut guard = mutex.lock_unpoisoned();
-    if guard.is_none() {
-        match Nvml::init() {
-            Ok(instance) => {
-                *guard = Some(instance);
-            }
-            Err(e) => {
-                return Err(e);
-            }
+    let nvml: Arc<Nvml> = {
+        let mutex = NVML_INSTANCE.get_or_init(|| Mutex::new(None));
+        let mut guard = mutex.lock_unpoisoned();
+        if guard.is_none() {
+            *guard = Some(Arc::new(Nvml::init()?));
         }
-    }
-
-    let Some(nvml) = guard.as_ref() else {
-        return Err(NvmlError::Unknown);
+        guard.as_ref().cloned().ok_or(NvmlError::Unknown)?
     };
     let device_count = nvml.device_count()?;
     if device_count == 0 {

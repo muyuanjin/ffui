@@ -12,14 +12,20 @@ use crate::ffui_core::domain::{
 };
 use crate::sync_ext::MutexExt;
 
-fn normalize_os_path_string(raw: &str) -> String {
+fn normalize_os_path_string(raw: String) -> String {
     #[cfg(windows)]
     {
-        raw.replace('/', "\\")
+        let mut bytes = raw.into_bytes();
+        for b in &mut bytes {
+            if *b == b'/' {
+                *b = b'\\';
+            }
+        }
+        String::from_utf8(bytes).unwrap_or_default()
     }
     #[cfg(not(windows))]
     {
-        raw.to_string()
+        raw
     }
 }
 
@@ -39,7 +45,7 @@ fn enqueue_transcode_job_no_notify(
 
     let now_ms = current_time_millis();
 
-    let normalized_filename = normalize_os_path_string(&filename);
+    let normalized_filename = normalize_os_path_string(filename);
     let input_path = normalized_filename.clone();
 
     // Prefer a backend-derived size based on the actual file on disk; fall back
@@ -192,8 +198,8 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_jobs(
         let job = enqueue_transcode_job_no_notify(
             inner,
             filename,
-            job_type.clone(),
-            source.clone(),
+            job_type,
+            source,
             original_size_mb,
             original_codec.clone(),
             preset_id.clone(),

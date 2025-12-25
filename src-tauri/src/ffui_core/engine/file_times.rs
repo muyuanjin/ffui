@@ -59,6 +59,9 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
     use std::os::windows::ffi::OsStrExt;
     use std::time::UNIX_EPOCH;
 
+    // Convert UNIX epoch to Windows FILETIME (100ns intervals since 1601-01-01).
+    const WINDOWS_EPOCH_DIFF_SECS: u64 = 11_644_473_600;
+
     use windows::Win32::Foundation::{CloseHandle, FILETIME, HANDLE};
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_BACKUP_SEMANTICS, FILE_SHARE_DELETE, FILE_SHARE_READ,
@@ -71,8 +74,6 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
         .chain(std::iter::once(0))
         .collect();
 
-    // Convert UNIX epoch to Windows FILETIME (100ns intervals since 1601-01-01).
-    const WINDOWS_EPOCH_DIFF_SECS: u64 = 11_644_473_600;
     let duration = created.duration_since(UNIX_EPOCH).unwrap_or_default();
     let intervals_100ns =
         duration.as_secs().saturating_mul(10_000_000) + (u64::from(duration.subsec_nanos()) / 100);
