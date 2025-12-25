@@ -11,18 +11,6 @@ use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
-    // Respect the configured queue persistence mode; when disabled we skip
-    // loading any previous queue snapshot and start from a clean state.
-    {
-        let state = inner.state.lock_unpoisoned();
-        if !matches!(
-            state.settings.queue_persistence_mode,
-            QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull
-        ) {
-            return;
-        }
-    }
-
     let (mode, retention) = {
         let state = inner.state.lock_unpoisoned();
         (
@@ -33,6 +21,31 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
 
     let Some(snapshot) = load_persisted_queue_state() else {
         return;
+    };
+
+    let mut snapshot = match mode {
+        QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull => {
+            snapshot
+        }
+        QueuePersistenceMode::None => {
+            // When crash recovery persistence is disabled we still allow restoring
+            // non-terminal jobs (paused/waiting) that were flushed during graceful
+            // shutdown so "pause on exit" remains meaningful.
+            let mut snapshot = snapshot;
+            snapshot.jobs.retain(|j| {
+                matches!(
+                    j.status,
+                    JobStatus::Waiting
+                        | JobStatus::Queued
+                        | JobStatus::Paused
+                        | JobStatus::Processing
+                )
+            });
+            if snapshot.jobs.is_empty() {
+                return;
+            }
+            snapshot
+        }
     };
 
     // In full crash recovery mode, load per-job logs from disk before inserting
@@ -59,7 +72,6 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
             Vec::new()
         };
 
-    let mut snapshot = snapshot;
     if !terminal_logs.is_empty() {
         use std::collections::HashMap;
         let map: HashMap<String, Vec<crate::ffui_core::domain::JobRun>> =

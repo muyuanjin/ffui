@@ -65,8 +65,6 @@ fn select_playable_media_path_prefers_first_existing_candidate() {
         existing_path.to_string_lossy(),
         "select_playable_media_path must skip missing files and return the first existing candidate"
     );
-
-    let _ = fs::remove_file(&existing_path);
 }
 
 #[test]
@@ -93,8 +91,6 @@ fn select_playable_media_path_trims_and_picks_existing_file() {
         existing_path.to_string_lossy(),
         "select_playable_media_path should return the trimmed existing path"
     );
-
-    let _ = fs::remove_file(&existing_path);
 }
 
 #[test]

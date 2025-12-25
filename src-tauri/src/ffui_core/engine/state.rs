@@ -317,24 +317,45 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
         )
     };
 
-    if matches!(
-        persistence_mode,
-        QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull
-    ) {
-        // In full mode, persist per-job terminal logs only when jobs newly
-        // transition into a terminal state. This avoids high-frequency I/O.
-        let prev_snapshot = peek_last_persisted_queue_state_lite();
-        persist_terminal_logs_if_needed(
-            persistence_mode,
-            retention,
-            prev_snapshot.as_ref(),
-            &lite_snapshot,
-            |job_id| {
-                let state = inner.state.lock_unpoisoned();
-                state.jobs.get(job_id).cloned()
-            },
-        );
-        persist_queue_state_lite(&lite_snapshot);
+    let persist_snapshot = match persistence_mode {
+        QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull => {
+            Some(lite_snapshot.clone())
+        }
+        QueuePersistenceMode::None => {
+            // Even when crash recovery is disabled, we still persist resumable jobs
+            // so that forced kills/crashes can restore unfinished work. Terminal
+            // jobs are excluded so the restart does not retain completed history.
+            let mut filtered = lite_snapshot.clone();
+            filtered.jobs.retain(|job| {
+                matches!(
+                    job.status,
+                    JobStatus::Waiting
+                        | JobStatus::Queued
+                        | JobStatus::Paused
+                        | JobStatus::Processing
+                )
+            });
+            Some(filtered)
+        }
+    };
+
+    if let Some(snapshot) = persist_snapshot {
+        if matches!(persistence_mode, QueuePersistenceMode::CrashRecoveryFull) {
+            // In full mode, persist per-job terminal logs only when jobs newly
+            // transition into a terminal state. This avoids high-frequency I/O.
+            let prev_snapshot = peek_last_persisted_queue_state_lite();
+            persist_terminal_logs_if_needed(
+                persistence_mode,
+                retention,
+                prev_snapshot.as_ref(),
+                &snapshot,
+                |job_id| {
+                    let state = inner.state.lock_unpoisoned();
+                    state.jobs.get(job_id).cloned()
+                },
+            );
+        }
+        persist_queue_state_lite(&snapshot);
     }
 
     for listener in &lite_listeners {

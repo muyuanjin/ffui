@@ -133,7 +133,7 @@ const app = {
     queueRecoveryTitle: "队列恢复",
     queueRecoveryDescription: "配置崩溃恢复与日志保留上限。",
     queuePersistenceLabel: "任务队列持久化",
-    queuePersistenceNoneOption: "关闭（不恢复队列）",
+    queuePersistenceNoneOption: "仅恢复未完成（不保留已完成）",
     queuePersistenceCrashRecoveryLiteOption: "恢复队列（仅保留精简日志，推荐）",
     queuePersistenceCrashRecoveryFullOption: "恢复队列 + 终态任务保留全量日志（更占磁盘）",
     queuePersistenceCrashRecoveryFullHint:
@@ -145,7 +145,7 @@ const app = {
       "退出/关机时，如果仍有转码任务在跑，会弹窗询问并可在退出前尽力暂停任务，便于重启后继续（精准拼接）。",
     exitAutoWaitTimeoutLabel: "等待超时（秒）",
     exitAutoWaitTimeoutHelp: "≤ 0 表示无限等待。",
-    exitAutoWaitRequiresCrashRecoveryHint: "提示：要在重启后继续任务，需要把“任务队列持久化”设为“恢复队列”。",
+    exitAutoWaitRequiresCrashRecoveryHint: "提示：此模式在重启后不会保留已完成任务列表。",
     savingSettings: "正在保存设置...",
     autoSaveHint: "修改会自动保存，无需手动点击按钮。",
     saveErrorGeneric: "保存设置失败，请稍后重试。",

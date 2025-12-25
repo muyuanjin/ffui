@@ -198,12 +198,7 @@ fn ffmpeg_pause_resume_does_not_drop_frames_after_multiple_cycles() {
 
     let status = {
         let state = engine.inner.state.lock_unpoisoned();
-        state
-            .jobs
-            .get(&job_id)
-            .expect("job must exist")
-            .status
-            .clone()
+        state.jobs.get(&job_id).expect("job must exist").status
     };
     assert_eq!(
         status,

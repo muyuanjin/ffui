@@ -130,6 +130,7 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::ffui_core::QueueStateLite;
     use crate::ffui_core::{JobSource, JobType, QueuePersistenceMode, TranscodeJob};
     use crate::sync_ext::MutexExt;
 
@@ -277,7 +278,63 @@ mod tests {
             "expected queue snapshot to be written"
         );
 
-        let _ = std::fs::remove_file(&sidecar_path);
+        let _ =
+            std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable");
+        // SAFETY: this test serializes env var writes with ENV_MUTEX.
+        unsafe {
+            std::env::remove_var("FFUI_QUEUE_STATE_SIDECAR_PATH");
+        }
+    }
+
+    #[test]
+    fn force_persist_queue_state_lite_now_filters_terminal_jobs_when_crash_recovery_disabled() {
+        let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+        let _guard = ENV_MUTEX.lock_unpoisoned();
+
+        let tmp_dir = std::env::temp_dir();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let sidecar_path = tmp_dir.join(format!("ffui_exit_persist_test_none_{stamp}.json"));
+        // SAFETY: this test serializes env var writes with ENV_MUTEX.
+        unsafe {
+            std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
+        }
+
+        let engine = TranscodingEngine::new_for_tests();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.settings.queue_persistence_mode = QueuePersistenceMode::None;
+            state.jobs.insert(
+                "job-paused".to_string(),
+                make_job("job-paused", JobStatus::Paused),
+            );
+            state.jobs.insert(
+                "job-completed".to_string(),
+                make_job("job-completed", JobStatus::Completed),
+            );
+        }
+
+        assert!(
+            engine.force_persist_queue_state_lite_now(),
+            "expected force_persist_queue_state_lite_now to return true when crash recovery is disabled"
+        );
+
+        let raw =
+            std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable");
+        let parsed: QueueStateLite =
+            serde_json::from_str(&raw).expect("expected persisted snapshot to be lite schema");
+        assert_eq!(
+            parsed.jobs.len(),
+            1,
+            "expected only resumable jobs to be persisted"
+        );
+        assert_eq!(
+            parsed.jobs[0].id, "job-paused",
+            "expected persisted resumable job to be the paused one"
+        );
+
         // SAFETY: this test serializes env var writes with ENV_MUTEX.
         unsafe {
             std::env::remove_var("FFUI_QUEUE_STATE_SIDECAR_PATH");

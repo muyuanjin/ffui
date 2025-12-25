@@ -141,7 +141,7 @@ const app = {
     queueRecoveryTitle: "Queue recovery",
     queueRecoveryDescription: "Configure crash recovery and log retention limits.",
     queuePersistenceLabel: "Queue crash-recovery persistence",
-    queuePersistenceNoneOption: "Off (do not restore queue)",
+    queuePersistenceNoneOption: "Unfinished only (no completed history)",
     queuePersistenceCrashRecoveryLiteOption: "Restore queue (slim logs only, recommended)",
     queuePersistenceCrashRecoveryFullOption: "Restore queue + keep full logs for terminal jobs (more disk usage)",
     queuePersistenceCrashRecoveryFullHint:
@@ -153,8 +153,7 @@ const app = {
       "When you exit/shut down while jobs are running, FFUI will prompt and can try to pause jobs before closing so precise resume remains usable after restart.",
     exitAutoWaitTimeoutLabel: "Timeout (seconds)",
     exitAutoWaitTimeoutHelp: "≤ 0 means wait indefinitely.",
-    exitAutoWaitRequiresCrashRecoveryHint:
-      "Tip: to resume after restart, set “Queue crash-recovery persistence” to a restore mode.",
+    exitAutoWaitRequiresCrashRecoveryHint: "Tip: this mode does not keep completed job history after restart.",
     savingSettings: "Saving settings…",
     autoSaveHint: "Changes are saved automatically; no extra button is required.",
     saveErrorGeneric: "Failed to save settings. Please try again later.",

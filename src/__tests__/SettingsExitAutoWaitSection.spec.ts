@@ -52,6 +52,18 @@ describe("SettingsExitAutoWaitSection", () => {
     wrapper.unmount();
   });
 
+  it("shows a hint when crash recovery persistence is off", () => {
+    const wrapper = mount(SettingsExitAutoWaitSection, {
+      global: { plugins: [i18n] },
+      props: {
+        appSettings: makeAppSettings({ queuePersistenceMode: "none", exitAutoWaitEnabled: true }),
+      },
+    });
+
+    expect(wrapper.text()).toContain("提示：此模式在重启后不会保留已完成任务列表。");
+    wrapper.unmount();
+  });
+
   it("emits updates when toggled or timeout changes", async () => {
     const wrapper = mount(SettingsExitAutoWaitSection, {
       global: { plugins: [i18n] },

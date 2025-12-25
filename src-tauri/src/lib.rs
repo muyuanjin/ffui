@@ -386,6 +386,11 @@ pub fn run() {
         let (enabled, timeout_seconds, processing_job_count) = exit_auto_wait_snapshot(&engine);
 
         if !enabled || processing_job_count == 0 {
+            if enabled {
+                // Persist resumable queue state on graceful exits so paused/waiting jobs
+                // remain recoverable after restart, even when crash-recovery is disabled.
+                let _ = engine.force_persist_queue_state_lite_now();
+            }
             return;
         }
 

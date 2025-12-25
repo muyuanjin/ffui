@@ -104,7 +104,8 @@ impl TranscodingEngine {
                 state.settings.queue_persistence_mode,
                 crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
                     | crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryFull
-            ) {
+            ) || state_persist::persisted_queue_state_exists_on_disk()
+            {
                 let baseline = u64::try_from(
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
@@ -179,15 +180,24 @@ impl TranscodingEngine {
             state.settings.queue_persistence_mode
         };
 
-        if !matches!(
+        let mut snapshot = self.queue_state_lite();
+
+        if matches!(
             mode,
-            crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryLite
-                | crate::ffui_core::settings::types::QueuePersistenceMode::CrashRecoveryFull
+            crate::ffui_core::settings::types::QueuePersistenceMode::None
         ) {
-            return false;
+            use crate::ffui_core::domain::JobStatus;
+            snapshot.jobs.retain(|job| {
+                matches!(
+                    job.status,
+                    JobStatus::Waiting
+                        | JobStatus::Queued
+                        | JobStatus::Paused
+                        | JobStatus::Processing
+                )
+            });
         }
 
-        let snapshot = self.queue_state_lite();
         state_persist::persist_queue_state_lite_immediate(&snapshot);
         true
     }

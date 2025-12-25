@@ -1,4 +1,134 @@
 use super::*;
+use crate::ffui_core::QueuePersistenceMode;
+
+#[test]
+fn crash_recovery_disabled_restores_only_resumable_jobs_from_persisted_snapshot() {
+    let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let sidecar_path = std::env::temp_dir().join(format!("ffui_queue_restore_none_{stamp}.json"));
+    let _sidecar_guard =
+        super::super::state_persist::override_queue_state_sidecar_path_for_tests(sidecar_path);
+
+    let writer = make_engine_with_preset();
+    let paused = writer.enqueue_transcode_job(
+        "C:/videos/resume-only-paused.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    let completed = writer.enqueue_transcode_job(
+        "C:/videos/resume-only-completed.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    {
+        let mut state = writer.inner.state.lock_unpoisoned();
+        state.settings.queue_persistence_mode = QueuePersistenceMode::CrashRecoveryLite;
+        state.jobs.get_mut(&paused.id).unwrap().status = JobStatus::Paused;
+        state.jobs.get_mut(&paused.id).unwrap().progress = 0.0;
+        state.jobs.get_mut(&completed.id).unwrap().status = JobStatus::Completed;
+    }
+    assert!(
+        writer.force_persist_queue_state_lite_now(),
+        "expected writer to persist full snapshot in crash recovery mode"
+    );
+
+    let restored = make_engine_with_preset();
+    {
+        let mut state = restored.inner.state.lock_unpoisoned();
+        state.settings.queue_persistence_mode = QueuePersistenceMode::None;
+    }
+    restore_jobs_from_persisted_queue(&restored.inner);
+
+    let state = restored.inner.state.lock_unpoisoned();
+    assert!(
+        state.jobs.contains_key(&paused.id),
+        "paused job should be restored when crash recovery is disabled"
+    );
+    assert!(
+        !state.jobs.contains_key(&completed.id),
+        "terminal job should not be restored when crash recovery is disabled"
+    );
+}
+
+#[test]
+fn crash_recovery_disabled_persists_resumable_jobs_for_forced_kill_recovery() {
+    let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+    super::super::state_persist::reset_queue_persist_state_for_tests();
+
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    let sidecar_path = std::env::temp_dir().join(format!("ffui_queue_persist_none_{stamp}.json"));
+    let _sidecar_guard = super::super::state_persist::override_queue_state_sidecar_path_for_tests(
+        sidecar_path.clone(),
+    );
+
+    let engine = make_engine_with_preset();
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings.queue_persistence_mode = QueuePersistenceMode::None;
+    }
+
+    let paused = engine.enqueue_transcode_job(
+        "C:/videos/persist-none-paused.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    let completed = engine.enqueue_transcode_job(
+        "C:/videos/persist-none-completed.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.get_mut(&paused.id).unwrap().status = JobStatus::Paused;
+        state.jobs.get_mut(&completed.id).unwrap().status = JobStatus::Completed;
+    }
+
+    // Trigger the same persistence path used by normal queue updates.
+    notify_queue_listeners(&engine.inner);
+
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    while std::time::Instant::now() < deadline {
+        if sidecar_path.exists() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(
+        sidecar_path.exists(),
+        "expected a persisted snapshot to be written in none mode"
+    );
+
+    let raw = std::fs::read_to_string(&sidecar_path).expect("read persisted snapshot");
+    let parsed: crate::ffui_core::QueueStateLite =
+        serde_json::from_str(&raw).expect("persisted snapshot should be lite schema");
+    let ids: Vec<String> = parsed.jobs.into_iter().map(|j| j.id).collect();
+    assert!(
+        ids.contains(&paused.id),
+        "paused job should be persisted in none mode"
+    );
+    assert!(
+        !ids.contains(&completed.id),
+        "terminal job should not be persisted in none mode"
+    );
+}
 
 #[test]
 fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {

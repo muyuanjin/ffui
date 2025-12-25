@@ -21,7 +21,7 @@ static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<Pat
     once_cell::sync::Lazy::new(|| Mutex::new(None));
 
 #[cfg(test)]
-struct QueueStateSidecarPathGuard;
+pub(in crate::ffui_core::engine) struct QueueStateSidecarPathGuard;
 
 #[cfg(test)]
 impl Drop for QueueStateSidecarPathGuard {
@@ -32,7 +32,9 @@ impl Drop for QueueStateSidecarPathGuard {
 }
 
 #[cfg(test)]
-fn override_queue_state_sidecar_path_for_tests(path: PathBuf) -> QueueStateSidecarPathGuard {
+pub(in crate::ffui_core::engine) fn override_queue_state_sidecar_path_for_tests(
+    path: PathBuf,
+) -> QueueStateSidecarPathGuard {
     let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE.lock_unpoisoned();
     *override_path = Some(path);
     QueueStateSidecarPathGuard
@@ -56,6 +58,10 @@ fn queue_state_sidecar_path() -> Option<PathBuf> {
     }
 
     crate::ffui_core::queue_state_path().ok()
+}
+
+pub(super) fn persisted_queue_state_exists_on_disk() -> bool {
+    queue_state_sidecar_path().is_some_and(|path| path.exists())
 }
 
 pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
