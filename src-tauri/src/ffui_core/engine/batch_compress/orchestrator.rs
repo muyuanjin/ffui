@@ -72,6 +72,7 @@ pub(crate) fn run_auto_compress(
         };
 
         state.batch_compress_batches.insert(batch_id.clone(), batch);
+        drop(state);
 
         (settings_snapshot, presets, batch_id, started_at_ms)
     };

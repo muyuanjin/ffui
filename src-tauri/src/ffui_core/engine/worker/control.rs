@@ -366,8 +366,6 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
             if !batch_is_deletable {
                 return false;
             }
-
-            state.batch_compress_batches.remove(batch_id);
         } else {
             // Ensure every child is terminal and not currently active.
             for job_id in &child_job_ids {
@@ -408,8 +406,9 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
 
             // Remove batch metadata if present so the frontend composite card
             // disappears after queue refresh.
-            state.batch_compress_batches.remove(batch_id);
         }
+
+        state.batch_compress_batches.remove(batch_id);
     }
 
     notify_queue_listeners(inner);

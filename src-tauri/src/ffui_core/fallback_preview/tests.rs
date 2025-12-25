@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use filetime::{FileTime, set_file_mtime};
@@ -10,7 +10,7 @@ use crate::ffui_core::preview_common::{
 
 #[test]
 fn clamp_seek_seconds_never_exceeds_duration() {
-    assert_eq!(clamp_seek_seconds(Some(10.0), -1.0), 0.0);
+    assert!((clamp_seek_seconds(Some(10.0), -1.0) - 0.0).abs() < f64::EPSILON);
     let clamped = clamp_seek_seconds(Some(10.0), 999.0);
     assert!(clamped <= 10.0);
     assert!(clamped >= 0.0);
@@ -128,7 +128,13 @@ fn ffmpeg_frame_extraction_args_force_full_range_mjpeg_and_even_dimensions() {
 
 #[test]
 fn ffmpeg_tmp_outputs_use_part_extension() {
-    assert!(frame_tmp_filename(1).ends_with(".part"));
+    let tmp = frame_tmp_filename(1);
+    assert!(
+        Path::new(&tmp)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("part")),
+        "tmp output should use .part extension: {tmp}"
+    );
 }
 
 #[test]

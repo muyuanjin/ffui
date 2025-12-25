@@ -43,6 +43,19 @@ pub(crate) fn handle_audio_file_with_id(
     batch_id: &str,
     job_id: Option<String>,
 ) -> Result<TranscodeJob> {
+    type AudioChainConfig = (
+        AudioCodecType,
+        Option<i32>,
+        Option<u32>,
+        Option<u32>,
+        Option<String>,
+        Option<String>,
+        Option<f64>,
+        Option<f64>,
+        Option<f64>,
+        Option<String>,
+    );
+
     let metadata = fs::metadata(path)
         .with_context(|| format!("failed to stat audio file {}", path.display()))?;
     let original_size_bytes = metadata.len();
@@ -117,19 +130,6 @@ pub(crate) fn handle_audio_file_with_id(
     args.push("0:a:0?".to_string());
 
     // 音频编码参数：优先使用预设中的 audio 配置，否则退回到默认 AAC 128k/48kHz/stereo。
-    type AudioChainConfig = (
-        AudioCodecType,
-        Option<i32>,
-        Option<u32>,
-        Option<u32>,
-        Option<String>,
-        Option<String>,
-        Option<f64>,
-        Option<f64>,
-        Option<f64>,
-        Option<String>,
-    );
-
     let (
         codec_type,
         bitrate,

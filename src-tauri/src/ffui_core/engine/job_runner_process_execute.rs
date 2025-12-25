@@ -222,7 +222,7 @@ fn execute_transcode_job(
 
         // Pause should complete quickly: defer segment remuxing to resume/finalize.
         if resume_plan.is_some() && finalize_with_source_audio {
-            let _ = mark_segment_noaudio_done(tmp_output.as_path());
+            mark_segment_noaudio_done(tmp_output.as_path());
         }
 
         pause_debug.mark_mark_waiting_start(current_time_millis());
@@ -284,7 +284,7 @@ fn execute_transcode_job(
         // expected to be video-only (we inject `-map -0:a`). Mark it so the
         // finalize step can skip a redundant remux pass.
         if resume_plan.is_some() && finalize_with_source_audio {
-            let _ = mark_segment_noaudio_done(tmp_output.as_path());
+            mark_segment_noaudio_done(tmp_output.as_path());
         }
         let mut all_segments = existing_segments;
         all_segments.push(tmp_output.clone());

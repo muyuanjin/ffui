@@ -191,13 +191,13 @@ pub(crate) fn build_ffmpeg_args(
                     args.push(preset.video.quality_value.to_string());
                 }
                 RateControlMode::Cq => {
-                    if matches!(enc, EncoderType::HevcQsv | EncoderType::Av1Qsv) {
-                        args.push("-global_quality".to_string());
-                        args.push(preset.video.quality_value.to_string());
+                    let arg = if matches!(enc, EncoderType::HevcQsv | EncoderType::Av1Qsv) {
+                        "-global_quality"
                     } else {
-                        args.push("-cq".to_string());
-                        args.push(preset.video.quality_value.to_string());
-                    }
+                        "-cq"
+                    };
+                    args.push(arg.to_string());
+                    args.push(preset.video.quality_value.to_string());
                 }
                 RateControlMode::Cbr | RateControlMode::Vbr => {
                     if let Some(bitrate) = preset.video.bitrate_kbps {

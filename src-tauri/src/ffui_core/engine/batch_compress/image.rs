@@ -99,7 +99,7 @@ pub(crate) fn handle_image_file_with_id(
     // Compute output path based on Batch Compress output policy (extension is driven by image target
     // format). Note: current Batch Compress image pipeline encodes AVIF; `imageTargetFormat` may be
     // extended later.
-    let (avif_target, tmp_output) = {
+    let avif_target = {
         let mut state = inner.state.lock_unpoisoned();
         let target = plan_output_path_with_extension(
             path,
@@ -114,19 +114,21 @@ pub(crate) fn handle_image_file_with_id(
         state
             .known_batch_compress_outputs
             .insert(target.to_string_lossy().into_owned());
-        let stem = target
+        target
+    };
+    let tmp_output = {
+        let stem = avif_target
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("output");
-        let ext = target
+        let ext = avif_target
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("avif");
-        let tmp = target
+        avif_target
             .parent()
             .unwrap_or_else(|| Path::new("."))
-            .join(format!("{stem}.tmp.{ext}"));
-        (target, tmp)
+            .join(format!("{stem}.tmp.{ext}"))
     };
     if avif_target.exists() {
         // Treat existing AVIF as a known Batch Compress output so future
@@ -144,20 +146,15 @@ pub(crate) fn handle_image_file_with_id(
         return Ok(job);
     }
 
-    encode_image_to_avif(
-        path,
-        super::image_encode_avif::AvifEncodeContext {
-            inner,
-            config,
-            settings,
-            original_size_bytes,
-            preserve_times_policy: &preserve_times_policy,
-            input_times: input_times.as_ref(),
-        },
-        &avif_target,
-        &tmp_output,
-        &mut job,
-    )?;
+    let ctx = super::image_encode_avif::AvifEncodeContext {
+        inner,
+        config,
+        settings,
+        original_size_bytes,
+        preserve_times_policy: &preserve_times_policy,
+        input_times: input_times.as_ref(),
+    };
+    encode_image_to_avif(path, &ctx, &avif_target, &tmp_output, &mut job)?;
 
     Ok(job)
 }

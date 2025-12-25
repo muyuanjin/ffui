@@ -86,6 +86,8 @@ pub(super) fn build_concat_demuxer_list_contents(
     segments: &[PathBuf],
     segment_durations: Option<&[f64]>,
 ) -> Result<String> {
+    use std::fmt::Write as _;
+
     if segments.is_empty() {
         return Err(anyhow::anyhow!(
             "build_concat_demuxer_list_contents requires at least one segment path"
@@ -98,10 +100,10 @@ pub(super) fn build_concat_demuxer_list_contents(
         let s = seg.to_string_lossy();
         // concat demuxer 使用单引号包裹路径，这里仅对单引号做转义。
         let escaped = s.replace('\'', "'\\''");
-        out.push_str(&format!("file '{escaped}'\n"));
+        let _ = writeln!(&mut out, "file '{escaped}'");
         if let Some(d) = durations.get(idx).copied().filter(|v| v.is_finite() && *v > 0.0) {
-            out.push_str(&format!("duration {d:.6}\n"));
-            out.push_str(&format!("outpoint {d:.6}\n"));
+            let _ = writeln!(&mut out, "duration {d:.6}");
+            let _ = writeln!(&mut out, "outpoint {d:.6}");
         }
     }
     Ok(out)
@@ -257,16 +259,15 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
 ///
 /// This is used as a cheap optimization when the current ffmpeg run is known
 /// to have produced a video-only segment (e.g. resume flow with `-map -0:a`).
-pub(super) fn mark_segment_noaudio_done(segment: &Path) -> Result<()> {
+pub(super) fn mark_segment_noaudio_done(segment: &Path) {
     if !segment.exists() {
-        return Ok(());
+        return;
     }
     let marker = noaudio_marker_path_for_segment(segment);
     if marker.exists() {
-        return Ok(());
+        return;
     }
     let _ = fs::write(&marker, b"");
-    Ok(())
 }
 
 pub(super) fn noaudio_marker_path_for_segment(segment: &Path) -> PathBuf {

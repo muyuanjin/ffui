@@ -10,7 +10,7 @@ pub(crate) fn split_template_args(template: &str) -> Vec<String> {
     let mut in_single = false;
     let mut in_double = false;
 
-    let mut chars = template.chars().peekable();
+    let mut chars = template.chars();
     while let Some(ch) = chars.next() {
         match ch {
             '\'' if !in_double => {

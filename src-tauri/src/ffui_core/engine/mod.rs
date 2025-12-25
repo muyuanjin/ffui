@@ -469,7 +469,7 @@ impl TranscodingEngine {
 
     /// Inspect media file metadata using ffprobe.
     pub fn inspect_media(&self, path: String) -> Result<String> {
-        job_runner::inspect_media(&self.inner, path)
+        job_runner::inspect_media(&self.inner, &path)
     }
 
     /// Return today's transcode activity buckets for the Monitor heatmap.

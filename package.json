@@ -16,7 +16,7 @@
     "test:unit": "vitest run",
     "dup:frontend": "jscpd -c .jscpd.frontend.json src",
     "dup:rust": "jscpd -c .jscpd.backend.json src-tauri/src",
-    "dup:all": "node scripts/dup-all.mjs",
+    "dup:all": "jscpd -c .jscpd.frontend.json src && jscpd -c .jscpd.backend.json src-tauri/src",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint --fix .",
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",

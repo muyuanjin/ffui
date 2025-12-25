@@ -130,6 +130,7 @@ fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct AvifEncodeContext<'a> {
     pub inner: &'a Inner,
     pub config: &'a BatchCompressConfig,
@@ -141,7 +142,7 @@ pub(super) struct AvifEncodeContext<'a> {
 
 pub(super) fn encode_image_to_avif(
     path: &Path,
-    ctx: AvifEncodeContext<'_>,
+    ctx: &AvifEncodeContext<'_>,
     avif_target: &Path,
     tmp_output: &Path,
     job: &mut TranscodeJob,
@@ -153,7 +154,7 @@ pub(super) fn encode_image_to_avif(
         original_size_bytes,
         preserve_times_policy,
         input_times,
-    } = ctx;
+    } = *ctx;
 
     // Prefer avifenc; if unavailable or encode fails, fall back to ffmpeg.
     let (tried_avifenc, last_error): (bool, Option<anyhow::Error>) = match ensure_tool_available(

@@ -64,12 +64,10 @@ impl TranscodingEngine {
             let proxy_snapshot = state.settings.network_proxy.clone();
             let proxy_changed = old_proxy != proxy_snapshot;
 
-            let refresh_token = if percent_changed {
+            if percent_changed {
                 state.preview_refresh_token = state.preview_refresh_token.saturating_add(1);
-                state.preview_refresh_token
-            } else {
-                state.preview_refresh_token
-            };
+            }
+            let refresh_token = state.preview_refresh_token;
 
             (
                 tools_changed,

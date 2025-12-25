@@ -26,8 +26,7 @@ pub(super) fn should_apply_crash_recovery_rollback(meta: &WaitMetadata) -> bool 
         && meta
             .segment_end_targets
             .as_ref()
-            .map(|v| v.is_empty())
-            .unwrap_or(true)
+            .is_none_or(Vec::is_empty)
 }
 
 pub(super) fn maybe_apply_crash_recovery_rollback(

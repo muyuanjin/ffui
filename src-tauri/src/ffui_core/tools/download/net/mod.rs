@@ -369,7 +369,7 @@ where
         });
 
     let mut downloaded: u64 = 0;
-    let mut buf = [0u8; 64 * 1024];
+    let mut buf = vec![0u8; 64 * 1024];
     loop {
         let n = resp
             .read(&mut buf)
@@ -387,6 +387,7 @@ where
 
 /// Best-effort: mark a downloaded file as executable on Unix platforms.
 /// On non-Unix platforms this is a no-op.
+#[allow(clippy::missing_const_for_fn)]
 fn mark_download_executable_if_unix(_dest: &Path) -> Result<()> {
     #[cfg(unix)]
     {

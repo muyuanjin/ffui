@@ -2,7 +2,7 @@
 // Media inspection
 // ============================================================================
 
-pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
+pub(super) fn inspect_media(inner: &Inner, path: &str) -> Result<String> {
     let settings_snapshot = {
         let state = inner.state.lock_unpoisoned();
         state.settings.clone()
@@ -29,7 +29,7 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
         .arg("-show_streams")
         .arg("-show_chapters")
         .arg("-show_programs")
-        .arg(&path)
+        .arg(path)
         .output()
         .with_context(|| format!("failed to run ffprobe on {path}"))?;
 
@@ -53,7 +53,7 @@ pub(super) fn inspect_media(inner: &Inner, path: String) -> Result<String> {
     let file_info = {
         use std::path::Path;
 
-        let path_ref = Path::new(&path);
+        let path_ref = Path::new(path);
         let metadata = fs::metadata(path_ref).ok();
 
         let (size_bytes, created_ms, modified_ms, accessed_ms) = metadata.as_ref().map_or(
