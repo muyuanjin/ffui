@@ -32,6 +32,7 @@ vi.mock("@/lib/ffmpegCommand", async () => {
 });
 
 import { cleanupFallbackPreviewFramesAsync, ensureJobPreview, loadPreviewDataUrl } from "@/lib/backend";
+import { resetJobPreviewWarmupForTests } from "@/lib/jobPreviewWarmup";
 import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 
 const i18n = createI18n({
@@ -62,6 +63,34 @@ describe("JobDetailDialog preview regeneration", () => {
   beforeEach(() => {
     (loadPreviewDataUrl as any).mockReset();
     (ensureJobPreview as any).mockReset();
+    resetJobPreviewWarmupForTests();
+  });
+
+  it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
+    const job = makeJob({ previewPath: undefined });
+
+    mount(JobDetailDialog, {
+      props: {
+        open: true,
+        job,
+        preset: null,
+        jobDetailLogText: "",
+        highlightedLogHtml: "",
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogScrollContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
   });
 
   it("regenerates preview when inline preview is missing in Tauri mode", async () => {

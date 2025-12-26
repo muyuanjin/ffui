@@ -43,7 +43,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
 
   if (!hasTauri()) {
     deps.jobs.value = deps.jobs.value.map((job) =>
-      job.id === jobId && job.status === "processing"
+      job.id === jobId && (job.status === "processing" || job.status === "waiting" || job.status === "queued")
         ? ({
             ...job,
             status: "paused" as JobStatus,
@@ -53,22 +53,41 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     return;
   }
 
+  const existingJob = deps.jobs.value.find((job) => job.id === jobId) ?? null;
+  const expectsCooperativePause = existingJob?.status === "processing";
+
   try {
-    deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, jobId]);
+    if (expectsCooperativePause) {
+      deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, jobId]);
+    }
     const ok = await waitTranscodeJob(jobId);
     if (!ok) {
-      const next = new Set(deps.pausingJobIds.value);
-      next.delete(jobId);
-      deps.pausingJobIds.value = next;
+      if (expectsCooperativePause) {
+        const next = new Set(deps.pausingJobIds.value);
+        next.delete(jobId);
+        deps.pausingJobIds.value = next;
+      }
       deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
       return;
+    }
+    if (!expectsCooperativePause) {
+      deps.jobs.value = deps.jobs.value.map((job) =>
+        job.id === jobId
+          ? ({
+              ...job,
+              status: "paused" as JobStatus,
+            } as TranscodeJob)
+          : job,
+      );
     }
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to wait job", error);
-    const next = new Set(deps.pausingJobIds.value);
-    next.delete(jobId);
-    deps.pausingJobIds.value = next;
+    if (expectsCooperativePause) {
+      const next = new Set(deps.pausingJobIds.value);
+      next.delete(jobId);
+      deps.pausingJobIds.value = next;
+    }
     deps.queueError.value = deps.t?.("queue.error.waitFailed") ?? "";
   }
 }

@@ -21,6 +21,7 @@ vi.mock("@/lib/backend", () => {
 });
 
 import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { resetJobPreviewWarmupForTests } from "@/lib/jobPreviewWarmup";
 import QueueIconItem from "@/components/QueueIconItem.vue";
 
 const i18n = createI18n({
@@ -51,6 +52,8 @@ describe("QueueIconItem", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
+    (ensureJobPreview as any).mockReset();
+    resetJobPreviewWarmupForTests();
   });
 
   it("toggles selection instead of opening details when card is clicked in selectable mode", async () => {
@@ -228,6 +231,25 @@ describe("QueueIconItem", () => {
     expect(card.element).toBeTruthy();
     const imgs = card.findAll("img");
     expect(imgs.length).toBe(0);
+  });
+
+  it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
+    const job = makeJob({ status: "waiting", progress: 0, previewPath: undefined });
+    (hasTauri as any).mockReturnValue(true);
+
+    mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "card-fill",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
   });
 
   it("regenerates preview when thumbnail is missing in Tauri mode", async () => {
