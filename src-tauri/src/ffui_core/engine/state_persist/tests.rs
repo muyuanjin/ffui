@@ -13,7 +13,7 @@ fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
 
 #[test]
 fn queue_state_lite_persists_first_real_command_for_restart() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -106,7 +106,7 @@ fn ignores_purely_non_terminal_changes() {
 
 #[test]
 fn debounced_persistence_flushes_after_burst_ends() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();
 
     let tmp =
@@ -142,7 +142,7 @@ fn debounced_persistence_flushes_after_burst_ends() {
 
 #[test]
 fn debounced_persistence_limits_write_frequency_under_bursts() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -175,7 +175,7 @@ fn debounced_persistence_limits_write_frequency_under_bursts() {
 
 #[test]
 fn load_persisted_queue_state_accepts_lite_schema() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
         "ffui-test-queue-state-load-lite-{}.json",
@@ -202,7 +202,7 @@ fn load_persisted_queue_state_accepts_lite_schema() {
 
 #[test]
 fn queue_state_json_contains_slim_logs_only() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();
 
     let tmp = std::env::temp_dir().join(format!(
@@ -252,14 +252,11 @@ fn queue_state_json_contains_slim_logs_only() {
 
 #[test]
 fn does_not_write_terminal_logs_without_terminal_transition() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
 
-    let dir = std::env::temp_dir().join(format!(
-        "ffui-test-queue-logs-non-terminal-{}",
-        std::process::id()
-    ));
+    let tmp = tempfile::tempdir().expect("temp logs root");
+    let dir = tmp.path().join("queue-logs");
     let _dir_guard = override_queue_logs_dir_for_tests(dir.clone());
-    let _ = fs::remove_dir_all(&dir);
 
     TERMINAL_LOG_WRITE_COUNT.store(0, Ordering::SeqCst);
 
@@ -292,14 +289,11 @@ fn does_not_write_terminal_logs_without_terminal_transition() {
 
 #[test]
 fn writes_terminal_log_exactly_once_on_terminal_transition() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
 
-    let dir = std::env::temp_dir().join(format!(
-        "ffui-test-queue-logs-terminal-write-{}",
-        std::process::id()
-    ));
+    let tmp = tempfile::tempdir().expect("temp logs root");
+    let dir = tmp.path().join("queue-logs");
     let _dir_guard = override_queue_logs_dir_for_tests(dir.clone());
-    let _ = fs::remove_dir_all(&dir);
 
     TERMINAL_LOG_WRITE_COUNT.store(0, Ordering::SeqCst);
 
@@ -347,20 +341,15 @@ fn writes_terminal_log_exactly_once_on_terminal_transition() {
 
 #[test]
 fn restore_merges_terminal_logs_into_memory_in_full_mode() {
-    let _guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    let _guard = lock_persist_test_mutex_for_tests();
 
-    let tmp = std::env::temp_dir().join(format!(
-        "ffui-test-queue-state-restore-full-{}.json",
-        std::process::id()
-    ));
+    let tmp_root = tempfile::tempdir().expect("temp queue state root");
+    let tmp = tmp_root.path().join("ffui.queue-state.json");
     let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
 
-    let dir = std::env::temp_dir().join(format!(
-        "ffui-test-queue-logs-restore-full-{}",
-        std::process::id()
-    ));
+    let logs_root = tempfile::tempdir().expect("temp logs root");
+    let dir = logs_root.path().join("queue-logs");
     let _dir_guard = override_queue_logs_dir_for_tests(dir.clone());
-    let _ = fs::remove_dir_all(&dir);
 
     let mut job = make_job("job-1", JobStatus::Completed);
     job.logs = vec!["head-1".into(), "head-2".into()];

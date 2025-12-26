@@ -139,10 +139,6 @@ mod tests {
             .unwrap()
             .as_millis();
         let sidecar_path = tmp_dir.join(format!("{prefix}_{stamp}.json"));
-        // SAFETY: callers serialize env var writes with `crate::test_support::env_lock()`.
-        unsafe {
-            std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
-        }
         sidecar_path
     }
 
@@ -259,6 +255,8 @@ mod tests {
         let _env_lock = crate::test_support::env_lock();
 
         let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test");
+        let _sidecar_guard =
+            crate::ffui_core::override_queue_state_sidecar_path_for_tests(sidecar_path.clone());
 
         let engine = TranscodingEngine::new_for_tests();
         {
@@ -280,10 +278,6 @@ mod tests {
 
         let _ =
             std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable");
-        // SAFETY: this test serializes env var writes with ENV_MUTEX.
-        unsafe {
-            std::env::remove_var("FFUI_QUEUE_STATE_SIDECAR_PATH");
-        }
     }
 
     #[test]
@@ -292,6 +286,8 @@ mod tests {
         let _env_lock = crate::test_support::env_lock();
 
         let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test_none");
+        let _sidecar_guard =
+            crate::ffui_core::override_queue_state_sidecar_path_for_tests(sidecar_path.clone());
 
         let engine = TranscodingEngine::new_for_tests();
         {
@@ -325,10 +321,5 @@ mod tests {
             parsed.jobs[0].id, "job-paused",
             "expected persisted resumable job to be the paused one"
         );
-
-        // SAFETY: this test serializes env var writes with ENV_MUTEX.
-        unsafe {
-            std::env::remove_var("FFUI_QUEUE_STATE_SIDECAR_PATH");
-        }
     }
 }

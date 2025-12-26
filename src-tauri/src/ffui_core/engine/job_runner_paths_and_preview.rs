@@ -177,6 +177,8 @@ pub(super) fn concat_video_segments(
         .arg("-c")
         .arg("copy")
         .arg(target.as_os_str())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .with_context(|| {
             let joined = segments
@@ -235,6 +237,8 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
         .arg("-c")
         .arg("copy")
         .arg(tmp.as_os_str())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .with_context(|| format!("failed to run ffmpeg remux to drop audio for {}", segment.display()))?;
 
@@ -364,6 +368,8 @@ pub(super) fn generate_preview_for_video(
         .arg("-q:v")
         .arg("2")
         .arg(preview_path.as_os_str())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .ok()?;
 

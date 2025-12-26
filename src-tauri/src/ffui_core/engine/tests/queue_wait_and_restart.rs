@@ -59,8 +59,8 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
             "wait should not reset overall progress"
         );
         assert!(
-            !state.queue.contains(&job.id),
-            "paused job should not be in the active scheduling queue until resumed"
+            state.queue.contains(&job.id),
+            "paused job should remain visible in queue ordering until resumed"
         );
         let meta = stored
             .wait_metadata

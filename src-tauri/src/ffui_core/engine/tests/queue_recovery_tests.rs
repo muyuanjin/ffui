@@ -190,6 +190,70 @@ fn crash_recovery_merges_persisted_queue_with_jobs_enqueued_before_restore() {
 }
 
 #[test]
+fn crash_recovery_restores_waiting_jobs_as_paused_and_preserves_queue_order() {
+    let engine = make_engine_with_preset();
+
+    let first = engine.enqueue_transcode_job(
+        "C:/videos/recover-paused-order-1.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    let second = engine.enqueue_transcode_job(
+        "C:/videos/recover-paused-order-2.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+    let third = engine.enqueue_transcode_job(
+        "C:/videos/recover-paused-order-3.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.get_mut(&second.id).unwrap().status = JobStatus::Queued;
+    }
+
+    let snapshot = engine.queue_state();
+
+    let restored = make_engine_with_preset();
+    restore_jobs_from_snapshot(&restored.inner, snapshot);
+
+    let mut state = restored.inner.state.lock_unpoisoned();
+
+    for id in [&first.id, &second.id, &third.id] {
+        let job = state.jobs.get(id).expect("restored job exists");
+        assert_eq!(
+            job.status,
+            JobStatus::Paused,
+            "waiting-like jobs should be restored as Paused"
+        );
+    }
+
+    let queue_vec: Vec<String> = state.queue.iter().cloned().collect();
+    assert_eq!(
+        queue_vec,
+        vec![first.id, second.id, third.id],
+        "restored paused jobs should preserve queue ordering"
+    );
+
+    let next = next_job_for_worker_locked(&mut state);
+    assert!(
+        next.is_none(),
+        "restored queue should not start jobs automatically"
+    );
+}
+
+#[test]
 fn crash_recovery_preserves_wait_target_seconds() {
     let engine = make_engine_with_preset();
 

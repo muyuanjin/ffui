@@ -54,17 +54,18 @@ struct ExitRequestPayload {
     timeout_seconds: f64,
 }
 
-fn exit_auto_wait_snapshot(engine: &TranscodingEngine) -> (bool, f64, usize) {
+fn exit_auto_wait_snapshot(engine: &TranscodingEngine) -> (bool, f64, Vec<String>) {
     let state = engine.inner.state.lock_unpoisoned();
-    let processing_job_count = state
+    let processing_job_ids: Vec<String> = state
         .jobs
         .values()
         .filter(|job| job.status == JobStatus::Processing)
-        .count();
+        .map(|job| job.id.clone())
+        .collect();
     (
         state.settings.exit_auto_wait_enabled,
         state.settings.exit_auto_wait_timeout_seconds,
-        processing_job_count,
+        processing_job_ids,
     )
 }
 
@@ -131,6 +132,8 @@ pub fn run() {
             commands::app_exit::exit_app_with_auto_wait,
             commands::queue::get_queue_state,
             commands::queue::get_queue_state_lite,
+            commands::queue::get_queue_startup_hint,
+            commands::queue::resume_startup_queue,
             commands::queue::enqueue_transcode_job,
             commands::queue::enqueue_transcode_jobs,
             commands::queue::expand_manual_job_inputs,
@@ -210,8 +213,9 @@ pub fn run() {
             }
 
             let engine = window.app_handle().state::<TranscodingEngine>();
-            let (enabled, timeout_seconds, processing_job_count) =
+            let (enabled, timeout_seconds, processing_job_ids) =
                 exit_auto_wait_snapshot(&engine);
+            let processing_job_count = processing_job_ids.len();
 
             if !enabled || processing_job_count == 0 {
                 return;
@@ -383,7 +387,8 @@ pub fn run() {
         }
 
         let engine = app.state::<TranscodingEngine>();
-        let (enabled, timeout_seconds, processing_job_count) = exit_auto_wait_snapshot(&engine);
+        let (enabled, timeout_seconds, processing_job_ids) = exit_auto_wait_snapshot(&engine);
+        let processing_job_count = processing_job_ids.len();
 
         if !enabled || processing_job_count == 0 {
             if enabled {
@@ -391,6 +396,7 @@ pub fn run() {
                 // remain recoverable after restart, even when crash-recovery is disabled.
                 let _ = engine.force_persist_queue_state_lite_now();
             }
+            crate::ffui_core::write_shutdown_marker(crate::ffui_core::ShutdownMarkerKind::Clean);
             return;
         }
 
@@ -402,6 +408,7 @@ pub fn run() {
         api.prevent_exit();
 
         let handle = app.clone();
+        let marker_job_ids = processing_job_ids;
         tauri::async_runtime::spawn(async move {
             let engine = handle.state::<TranscodingEngine>().inner().clone();
             let outcome = tauri::async_runtime::spawn_blocking(move || {
@@ -420,6 +427,10 @@ pub fn run() {
                 crate::debug_eprintln!("shutdown: auto-wait join failed: {err}");
             }
 
+            crate::ffui_core::write_shutdown_marker_with_auto_wait_job_ids(
+                crate::ffui_core::ShutdownMarkerKind::CleanAutoWait,
+                Some(marker_job_ids),
+            );
             let coordinator = handle.state::<app_exit::ExitCoordinator>();
             coordinator.allow_exit();
             handle.exit(0);

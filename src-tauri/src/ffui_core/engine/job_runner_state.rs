@@ -190,10 +190,11 @@ pub(super) fn mark_job_waiting(
                 job.output_path = Some(output_str);
             }
 
-            // Jobs in a paused/waiting-with-progress state are intentionally
-            // kept out of the scheduling queue until an explicit resume
-            // command re-enqueues them.
-            state.queue.retain(|id| id != job_id);
+            // Keep paused jobs in the waiting queue ordering so crash recovery
+            // and later resume preserve a stable execution sequence.
+            if !state.queue.iter().any(|id| id == job_id) {
+                state.queue.push_front(job_id.to_string());
+            }
 
             state.wait_requests.remove(job_id);
             state.cancelled_jobs.remove(job_id);

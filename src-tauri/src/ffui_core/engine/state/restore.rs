@@ -5,7 +5,11 @@ use std::path::{Path, PathBuf};
 use super::super::state_persist::{load_persisted_queue_state, load_persisted_terminal_job_logs};
 use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
-use crate::ffui_core::domain::{JobStatus, JobType, QueueState, TranscodeJob, WaitMetadata};
+use crate::ffui_core::ShutdownMarkerKind;
+use crate::ffui_core::domain::{
+    JobStatus, JobType, QueueStartupHint, QueueStartupHintKind, QueueState, TranscodeJob,
+    WaitMetadata,
+};
 use crate::ffui_core::engine::segment_discovery;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
@@ -105,6 +109,24 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
         }
     }
     restore_jobs_from_snapshot(inner, snapshot);
+
+    let auto_paused_count = inner.startup_auto_paused_job_ids.lock_unpoisoned().len();
+    if auto_paused_count == 0 {
+        return;
+    }
+
+    let previous_marker = inner.previous_shutdown_marker.lock_unpoisoned().clone();
+    let kind = match previous_marker.as_ref().map(|m| m.kind) {
+        Some(ShutdownMarkerKind::CleanAutoWait) => QueueStartupHintKind::PauseOnExit,
+        Some(ShutdownMarkerKind::Running) => QueueStartupHintKind::CrashOrKill,
+        _ => QueueStartupHintKind::NormalRestart,
+    };
+
+    let hint = QueueStartupHint {
+        kind,
+        auto_paused_job_count: auto_paused_count,
+    };
+    *inner.queue_startup_hint.lock_unpoisoned() = Some(hint);
 }
 
 pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
@@ -128,8 +150,23 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         );
     }
 
-    let mut waiting: Vec<(u64, String)> = Vec::new();
+    let mut recovered_processing: Vec<(u64, String)> = Vec::new();
+    let mut waiting_like: Vec<(u64, String)> = Vec::new();
     let mut segment_probes: Vec<SegmentProbe> = Vec::new();
+    let mut auto_paused_ids: Vec<String> = Vec::new();
+    let auto_wait_processing_ids: HashSet<String> = inner
+        .previous_shutdown_marker
+        .lock_unpoisoned()
+        .as_ref()
+        .and_then(|marker| {
+            if marker.kind == ShutdownMarkerKind::CleanAutoWait {
+                marker.auto_wait_processing_job_ids.as_ref()
+            } else {
+                None
+            }
+        })
+        .map(|ids| ids.iter().cloned().collect::<HashSet<_>>())
+        .unwrap_or_default();
 
     {
         let mut state = inner.state.lock_unpoisoned();
@@ -137,6 +174,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         for mut job in snapshot.jobs {
             job.ensure_run_history_from_legacy();
             let id = job.id.clone();
+            let processing_on_auto_wait_exit = auto_wait_processing_ids.contains(&id);
 
             // If a job with the same id was already enqueued in this run,
             // keep the in-memory version and skip the persisted one.
@@ -144,10 +182,14 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 continue;
             }
 
+            let was_processing = job.status == JobStatus::Processing;
+            let mut auto_paused = false;
+
             // Jobs that were previously in Processing are treated as Paused so
             // they do not auto-resume on startup but remain recoverable.
             if job.status == JobStatus::Processing {
                 job.status = JobStatus::Paused;
+                auto_paused = true;
                 append_job_log_line(
                     &mut job,
                     "Recovered after unexpected shutdown; job did not finish in previous run."
@@ -158,6 +200,20 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
             let persisted_order = job.queue_order;
             job.queue_order = None;
+
+            // Waiting/queued jobs should not auto-run on restart. Treat them as
+            // paused until the user explicitly resumes the queue.
+            if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
+                job.status = JobStatus::Paused;
+                auto_paused = true;
+            }
+
+            // If the previous run exited via "pause on exit", we also treat
+            // jobs that were processing at the moment the auto-wait started as
+            // auto-paused, even if they already reached Paused before shutdown.
+            if !auto_paused && processing_on_auto_wait_exit {
+                auto_paused = true;
+            }
 
             // Best-effort crash recovery metadata for video jobs that had
             // already made some progress. When a temp output exists but no
@@ -183,17 +239,32 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 });
             }
 
-            if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
-                let order = persisted_order.unwrap_or(u64::MAX);
-                waiting.push((order, id.clone()));
+            if job.status == JobStatus::Paused {
+                if was_processing || processing_on_auto_wait_exit {
+                    let key = persisted_order
+                        .or(job.processing_started_ms)
+                        .or(job.start_time)
+                        .unwrap_or(u64::MAX);
+                    recovered_processing.push((key, id.clone()));
+                } else {
+                    let order = persisted_order.unwrap_or(u64::MAX);
+                    waiting_like.push((order, id.clone()));
+                }
+            }
+
+            if auto_paused {
+                auto_paused_ids.push(id.clone());
             }
 
             state.jobs.insert(id, job);
         }
 
-        waiting.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
+        recovered_processing.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
+        waiting_like.sort_by(|(ao, aid), (bo, bid)| ao.cmp(bo).then(aid.cmp(bid)));
 
-        let recovered_ids: Vec<String> = waiting.into_iter().map(|(_, id)| id).collect();
+        let mut recovered_ids: Vec<String> = Vec::new();
+        recovered_ids.extend(recovered_processing.into_iter().map(|(_, id)| id));
+        recovered_ids.extend(waiting_like.into_iter().map(|(_, id)| id));
         let recovered_set: HashSet<String> = recovered_ids.iter().cloned().collect();
         let existing_ids: Vec<String> = state.queue.iter().cloned().collect();
 
@@ -212,6 +283,12 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         }
 
         state.queue = next_queue;
+    }
+
+    {
+        let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
+        guard.clear();
+        guard.extend(auto_paused_ids);
     }
 
     // Perform any filesystem probes (e.g. temp output existence checks)

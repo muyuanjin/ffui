@@ -62,7 +62,7 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
             .insert(paused_id.clone(), make_job(&paused_id, JobStatus::Paused));
 
         // Corrupt the queue:
-        // - paused job id should not be present
+        // - paused job id is allowed but must be unique
         // - duplicates should be removed
         // - missing id should be removed
         // - queued job id is intentionally missing and should be re-added
@@ -89,8 +89,8 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
         "queued job id should be re-added to queue",
     );
     assert!(
-        !queue_ids.contains(&paused_id),
-        "paused job id must be removed from waiting queue",
+        queue_ids.contains(&paused_id),
+        "paused job id should remain in queue ordering",
     );
     assert!(
         !queue_ids.contains(&"job-queue-repair-missing".to_string()),

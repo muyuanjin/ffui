@@ -363,10 +363,12 @@ fn finalize_resume_refuses_suspiciously_short_concat_output_and_keeps_segments()
     let _guard = crate::test_support::EnvVarGuard::capture([
         "FFUI_MOCK_FFPROBE_FORMAT_DURATION",
         "FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT",
+        "FFUI_MOCK_FFMPEG_EXIT_CODE",
     ]);
 
     let mock_exe = locate_mock_ffmpeg_exe();
     crate::test_support::set_env("FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT", "1");
+    crate::test_support::set_env("FFUI_MOCK_FFMPEG_EXIT_CODE", "0");
 
     let dir = tempfile::tempdir().expect("tempdir");
     let seg0 = dir.path().join("seg0.tmp.mkv");

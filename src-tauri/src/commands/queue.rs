@@ -8,9 +8,11 @@
 
 use tauri::State;
 
+use super::wait_for_queue_recovery;
 use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
 use crate::ffui_core::{
-    JobSource, JobType, QueueState, QueueStateLite, TranscodeJob, TranscodingEngine,
+    JobSource, JobType, QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
+    TranscodingEngine,
 };
 
 /// Get the current state of the transcoding queue.
@@ -25,6 +27,18 @@ pub fn get_queue_state(engine: State<'_, TranscodingEngine>) -> QueueState {
 #[tauri::command]
 pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateLite {
     engine.queue_state_lite()
+}
+
+#[tauri::command]
+pub fn get_queue_startup_hint(engine: State<'_, TranscodingEngine>) -> Option<QueueStartupHint> {
+    wait_for_queue_recovery(&engine);
+    engine.take_queue_startup_hint()
+}
+
+#[tauri::command]
+pub fn resume_startup_queue(engine: State<'_, TranscodingEngine>) -> usize {
+    wait_for_queue_recovery(&engine);
+    engine.resume_startup_auto_paused_jobs()
 }
 
 /// Enqueue a new transcoding job.
