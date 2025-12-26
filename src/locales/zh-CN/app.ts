@@ -102,7 +102,7 @@ const app = {
     networkProxyModeSystem: "系统代理",
     networkProxyModeCustom: "手动输入",
     networkProxyFallbackLabel: "代理失败后直连兜底",
-    networkProxyFallbackHint: "开启：代理不可用时自动改为直连并提示。",
+    networkProxyFallbackHint: "开启：代理不可用时自动改为直连。",
     networkProxyUrlLabel: "代理地址",
     networkProxyUrlPlaceholder: "例如：http://127.0.0.1:7890",
     networkProxyUrlInvalid: "代理地址格式不正确（需要 http(s)://host:port 或 socks5(h)://host:port）。",

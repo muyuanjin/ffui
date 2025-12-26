@@ -116,8 +116,72 @@ describe("SettingsPanel network proxy settings", () => {
     await nextTick();
     const emitted3 = wrapper.emitted("update:appSettings") ?? [];
     const last2 = emitted3[emitted3.length - 1]![0] as AppSettings;
-    expect(last2.networkProxy).toMatchObject({
+    expect(last2.networkProxy).toEqual({
       mode: "system",
+      proxyUrl: "http://127.0.0.1:7890",
+      fallbackToDirectOnError: true,
+    });
+    await wrapper.setProps({ appSettings: last2 });
+
+    await noneRadio.trigger("click");
+    await nextTick();
+    const emitted4 = wrapper.emitted("update:appSettings") ?? [];
+    const last3 = emitted4[emitted4.length - 1]![0] as AppSettings;
+    expect(last3.networkProxy).toEqual({
+      mode: "none",
+      proxyUrl: "http://127.0.0.1:7890",
+      fallbackToDirectOnError: true,
+    });
+    await wrapper.setProps({ appSettings: last3 });
+
+    await customRadio.trigger("click");
+    await nextTick();
+    const emitted5 = wrapper.emitted("update:appSettings") ?? [];
+    const last4 = emitted5[emitted5.length - 1]![0] as AppSettings;
+    await wrapper.setProps({ appSettings: last4 });
+    const proxyInput2 = wrapper
+      .find('[data-testid="settings-network-proxy"]')
+      .find("input[type='text'], input:not([type])");
+    expect((proxyInput2.element as HTMLInputElement).value).toBe("http://127.0.0.1:7890");
+
+    wrapper.unmount();
+  });
+
+  it("keeps custom proxy URL when switching modes without blurring", async () => {
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [] as ExternalToolStatus[],
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    const customRadio = wrapper.get('[data-testid="settings-network-proxy-mode-custom"]');
+    await customRadio.trigger("click");
+    await nextTick();
+    const emitted1 = wrapper.emitted("update:appSettings") ?? [];
+    const afterCustom = emitted1[emitted1.length - 1]![0] as AppSettings;
+    await wrapper.setProps({ appSettings: afterCustom });
+
+    const proxyInput = wrapper
+      .find('[data-testid="settings-network-proxy"]')
+      .find("input[type='text'], input:not([type])");
+    await proxyInput.setValue("http://127.0.0.1:7890");
+    await nextTick();
+
+    const systemRadio = wrapper.get('[data-testid="settings-network-proxy-mode-system"]');
+    await systemRadio.trigger("click");
+    await nextTick();
+    const emitted2 = wrapper.emitted("update:appSettings") ?? [];
+    const last = emitted2[emitted2.length - 1]![0] as AppSettings;
+    expect(last.networkProxy).toEqual({
+      mode: "system",
+      proxyUrl: "http://127.0.0.1:7890",
       fallbackToDirectOnError: true,
     });
 

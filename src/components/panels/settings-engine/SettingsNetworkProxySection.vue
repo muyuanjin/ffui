@@ -16,6 +16,8 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const networkProxyUrlDraft = ref<string | null>(null);
+
 const getCurrentNetworkProxy = (): NetworkProxySettings => {
   return props.appSettings.networkProxy ?? { mode: "system", fallbackToDirectOnError: true };
 };
@@ -28,12 +30,12 @@ const networkProxyMode = computed<NetworkProxyMode>({
   },
   set(mode) {
     const current = getCurrentNetworkProxy();
-    if (mode === "system") {
-      const next: NetworkProxySettings = { ...current, mode: "system", proxyUrl: undefined };
-      emit("update:appSettings", { ...props.appSettings, networkProxy: next });
-      return;
+    const trimmedDraft = networkProxyUrlDraft.value?.trim();
+    const proxyUrlFromDraft = trimmedDraft && trimmedDraft.length > 0 ? trimmedDraft : current.proxyUrl;
+    if (mode !== "custom") {
+      networkProxyUrlDraft.value = null;
     }
-    const base: NetworkProxySettings = mode === "none" ? { mode: "none" } : { ...current };
+    const base: NetworkProxySettings = { ...current, proxyUrl: proxyUrlFromDraft };
     emit("update:appSettings", {
       ...props.appSettings,
       networkProxy: { ...base, mode },
@@ -47,7 +49,6 @@ const updateNetworkProxyMode = (value: unknown) => {
   }
 };
 
-const networkProxyUrlDraft = ref<string | null>(null);
 const getNetworkProxyUrlInputValue = () => {
   return props.appSettings.networkProxy?.proxyUrl ?? "";
 };

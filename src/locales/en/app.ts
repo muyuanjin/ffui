@@ -107,8 +107,7 @@ const app = {
     networkProxyModeSystem: "System proxy",
     networkProxyModeCustom: "Custom",
     networkProxyFallbackLabel: "Fallback to direct on proxy failure",
-    networkProxyFallbackHint:
-      "When enabled, FFUI retries without proxy and shows a warning. When disabled, it fails fast (strict).",
+    networkProxyFallbackHint: "When enabled, FFUI retries without proxy. When disabled, it fails fast (strict).",
     networkProxyUrlLabel: "Proxy URL",
     networkProxyUrlPlaceholder: "e.g. http://127.0.0.1:7890",
     networkProxyUrlInvalid: "Invalid proxy URL (expected http(s)://host:port or socks5(h)://host:port).",
