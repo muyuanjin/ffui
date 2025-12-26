@@ -56,7 +56,7 @@ pub struct JobWarning {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
-    Waiting,
+    #[serde(alias = "waiting")]
     Queued,
     Processing,
     Paused,
@@ -219,7 +219,7 @@ impl TranscodeJob {
         // Jobs that have not started yet should not synthesize a placeholder
         // run entry from the planned command. Runs represent actual external
         // invocations.
-        if matches!(self.status, JobStatus::Waiting | JobStatus::Queued) {
+        if matches!(self.status, JobStatus::Queued) {
             return;
         }
 

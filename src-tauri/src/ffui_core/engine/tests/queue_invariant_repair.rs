@@ -50,10 +50,9 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
 
     {
         let mut state = engine.inner.state.lock_unpoisoned();
-        state.jobs.insert(
-            waiting_id.clone(),
-            make_job(&waiting_id, JobStatus::Waiting),
-        );
+        state
+            .jobs
+            .insert(waiting_id.clone(), make_job(&waiting_id, JobStatus::Queued));
         state
             .jobs
             .insert(queued_id.clone(), make_job(&queued_id, JobStatus::Queued));
@@ -81,7 +80,7 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
     assert_eq!(
         queue_ids.iter().filter(|id| *id == &waiting_id).count(),
         1,
-        "waiting job id should appear once in queue",
+        "queued job id should appear once in queue",
     );
     assert_eq!(
         queue_ids.iter().filter(|id| *id == &queued_id).count(),

@@ -296,7 +296,7 @@ mod tests {
     use crate::ffui_core::domain::JobStatus;
 
     fn make_job() -> crate::ffui_core::domain::TranscodeJob {
-        crate::test_support::make_transcode_job_for_tests("job-1", JobStatus::Waiting, 0.0, None)
+        crate::test_support::make_transcode_job_for_tests("job-1", JobStatus::Queued, 0.0, None)
     }
 
     #[test]

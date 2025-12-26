@@ -251,7 +251,7 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
             if restart_after_cancel {
                 // Reset the job back to Waiting with 0% progress and enqueue
                 // it for a fresh run from the beginning.
-                job.status = JobStatus::Waiting;
+                job.status = JobStatus::Queued;
                 job.progress = 0.0;
                 job.end_time = None;
                 job.failure_reason = None;

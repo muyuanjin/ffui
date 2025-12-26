@@ -9,15 +9,15 @@ fn make_queue_order_test_state() -> EngineState {
 
     state.jobs.insert(
         "c".to_string(),
-        make_transcode_job_for_tests("c", JobStatus::Waiting, 0.0, None),
+        make_transcode_job_for_tests("c", JobStatus::Queued, 0.0, None),
     );
     state.jobs.insert(
         "a".to_string(),
-        make_transcode_job_for_tests("a", JobStatus::Waiting, 0.0, None),
+        make_transcode_job_for_tests("a", JobStatus::Queued, 0.0, None),
     );
     state.jobs.insert(
         "b".to_string(),
-        make_transcode_job_for_tests("b", JobStatus::Waiting, 0.0, None),
+        make_transcode_job_for_tests("b", JobStatus::Queued, 0.0, None),
     );
     state
 }
@@ -65,4 +65,12 @@ fn snapshot_queue_state_lite_increments_snapshot_revision() {
     let s1 = snapshot_queue_state_lite_from_locked_state(&mut state);
     let s2 = snapshot_queue_state_lite_from_locked_state(&mut state);
     assert!(s2.snapshot_revision > s1.snapshot_revision);
+}
+
+#[test]
+fn snapshot_queue_state_lite_does_not_mutate_locked_job_queue_order() {
+    let mut state = make_queue_order_test_state();
+    assert_eq!(state.jobs.get("b").expect("job b exists").queue_order, None);
+    let _ = snapshot_queue_state_lite_from_locked_state(&mut state);
+    assert_eq!(state.jobs.get("b").expect("job b exists").queue_order, None);
 }

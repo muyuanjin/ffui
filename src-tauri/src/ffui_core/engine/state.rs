@@ -269,10 +269,10 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
     //
     // Invariants:
     // - `queue` contains unique job ids
-    // - `queue` only contains ids for jobs that exist and are Waiting/Queued/Paused
+    // - `queue` only contains ids for jobs that exist and are Queued/Paused
     // - `active_jobs` only contains Processing jobs
     // - `active_inputs` matches `active_jobs`
-    // - all Waiting/Queued/Paused jobs appear in `queue`
+    // - all Queued/Paused jobs appear in `queue`
     let stale_active: Vec<String> = state
         .active_jobs
         .iter()
@@ -298,19 +298,14 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
         if !seen.insert(id.clone()) {
             return false;
         }
-        state.jobs.get(id).is_some_and(|job| {
-            matches!(
-                job.status,
-                JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
-            )
-        })
+        state
+            .jobs
+            .get(id)
+            .is_some_and(|job| matches!(job.status, JobStatus::Queued | JobStatus::Paused))
     });
 
     for (id, job) in &state.jobs {
-        if !matches!(
-            job.status,
-            JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
-        ) {
+        if !matches!(job.status, JobStatus::Queued | JobStatus::Paused) {
             continue;
         }
         if seen.contains(id) {
@@ -361,10 +356,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
             filtered.jobs.retain(|job| {
                 matches!(
                     job.status,
-                    JobStatus::Waiting
-                        | JobStatus::Queued
-                        | JobStatus::Paused
-                        | JobStatus::Processing
+                    JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
                 )
             });
             Some(filtered)

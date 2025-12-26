@@ -35,10 +35,7 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
             snapshot.jobs.retain(|j| {
                 matches!(
                     j.status,
-                    JobStatus::Waiting
-                        | JobStatus::Queued
-                        | JobStatus::Paused
-                        | JobStatus::Processing
+                    JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
                 )
             });
             if snapshot.jobs.is_empty() {
@@ -226,9 +223,9 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             let persisted_order = job.queue_order;
             job.queue_order = None;
 
-            // Waiting/queued jobs should not auto-run on restart. Treat them as
-            // paused until the user explicitly resumes the queue.
-            if matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
+            // Queued jobs should not auto-run on restart. Treat them as paused
+            // until the user explicitly resumes the queue.
+            if matches!(job.status, JobStatus::Queued) {
                 job.status = JobStatus::Paused;
                 auto_paused = true;
             }
@@ -248,10 +245,7 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // 处理耗时基线属于运行期信息，恢复时清空，待重新进入 Processing 时再设置。
             job.processing_started_ms = None;
             if matches!(job.job_type, JobType::Video)
-                && matches!(
-                    job.status,
-                    JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
-                )
+                && matches!(job.status, JobStatus::Queued | JobStatus::Paused)
                 && should_probe_segments_for_crash_recovery(&job)
             {
                 segment_probes.push(SegmentProbe {

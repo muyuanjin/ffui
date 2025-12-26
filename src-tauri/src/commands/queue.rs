@@ -121,6 +121,15 @@ pub fn wait_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) 
     engine.wait_job(&job_id)
 }
 
+/// Pause multiple transcode jobs in one atomic operation.
+#[tauri::command]
+pub fn wait_transcode_jobs_bulk(
+    engine: State<'_, TranscodingEngine>,
+    job_ids: Vec<String>,
+) -> bool {
+    engine.wait_jobs_bulk(job_ids)
+}
+
 /// Resume a paused transcode job by ID.
 #[tauri::command]
 pub fn resume_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {

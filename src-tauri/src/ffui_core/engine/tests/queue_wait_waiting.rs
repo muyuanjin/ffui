@@ -26,14 +26,14 @@ fn wait_job_pauses_waiting_and_queued_jobs_without_reordering_queue() {
         state.jobs.get_mut(&second.id).unwrap().status = JobStatus::Queued;
     }
 
-    assert!(engine.wait_job(&first.id), "wait_job should accept a Waiting job");
+    assert!(engine.wait_job(&first.id), "wait_job should accept a Queued job");
     assert!(engine.wait_job(&second.id), "wait_job should accept a Queued job");
 
     let state = engine.inner.state.lock_unpoisoned();
     assert_eq!(
         state.jobs.get(&first.id).unwrap().status,
         JobStatus::Paused,
-        "waiting job should transition to Paused"
+        "queued job should transition to Paused"
     );
     assert_eq!(
         state.jobs.get(&second.id).unwrap().status,
@@ -47,4 +47,3 @@ fn wait_job_pauses_waiting_and_queued_jobs_without_reordering_queue() {
         "wait_job should not reorder the waiting queue"
     );
 }
-

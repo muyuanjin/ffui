@@ -58,7 +58,7 @@ fn restore_marks_auto_wait_processing_ids_as_startup_auto_paused() {
         QueueState {
             jobs: vec![
                 make_job("job-1", JobStatus::Paused),
-                make_job("job-2", JobStatus::Waiting),
+                make_job("job-2", JobStatus::Queued),
             ],
         },
     );
@@ -77,5 +77,5 @@ fn restore_marks_auto_wait_processing_ids_as_startup_auto_paused() {
     assert_eq!(state.queue.front().map(String::as_str), Some("job-1"));
     assert_eq!(state.queue.back().map(String::as_str), Some("job-2"));
     let status = state.jobs.get("job-1").expect("job should exist").status;
-    assert_eq!(status, JobStatus::Waiting);
+    assert_eq!(status, JobStatus::Queued);
 }

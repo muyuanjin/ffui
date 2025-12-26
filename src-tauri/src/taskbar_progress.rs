@@ -293,7 +293,7 @@ mod tests {
     fn pending_jobs_without_processing_show_zero_progress() {
         let state = QueueState {
             jobs: vec![
-                make_job("1", JobStatus::Waiting, 0.0),
+                make_job("1", JobStatus::Queued, 0.0),
                 make_job("2", JobStatus::Queued, 0.0),
             ],
         };
@@ -335,7 +335,7 @@ mod tests {
                 make_job_with_start("1", JobStatus::Completed, 100.0, Some(1)),
                 make_job_with_start("2", JobStatus::Failed, 100.0, Some(1)),
                 // New cohort (e.g. a fresh queue run) starts after the earlier jobs.
-                make_job_with_start("3", JobStatus::Waiting, 0.0, Some(10)),
+                make_job_with_start("3", JobStatus::Queued, 0.0, Some(10)),
             ],
         };
 
@@ -356,7 +356,7 @@ mod tests {
         let state = QueueState {
             jobs: vec![
                 make_job_with_start("1", JobStatus::Completed, 100.0, Some(10)),
-                make_job_with_start("2", JobStatus::Waiting, 0.0, Some(10)),
+                make_job_with_start("2", JobStatus::Queued, 0.0, Some(10)),
             ],
         };
 

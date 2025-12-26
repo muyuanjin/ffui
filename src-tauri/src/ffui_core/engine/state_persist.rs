@@ -5,11 +5,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite};
+use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite, TranscodeJobLite};
 use crate::sync_ext::{CondvarExt, MutexExt};
 
 mod terminal_logs;
-
 #[cfg(test)]
 pub(super) use terminal_logs::TERMINAL_LOG_WRITE_COUNT;
 pub(super) use terminal_logs::{load_persisted_terminal_job_logs, persist_terminal_logs_if_needed};
@@ -19,7 +18,6 @@ pub(super) use terminal_logs::{override_queue_logs_dir_for_tests, queue_job_log_
 #[cfg(test)]
 static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =
     once_cell::sync::Lazy::new(|| Mutex::new(None));
-
 #[cfg(test)]
 pub(crate) struct QueueStateSidecarPathGuard;
 
@@ -30,7 +28,6 @@ impl Drop for QueueStateSidecarPathGuard {
         *override_path = None;
     }
 }
-
 #[cfg(test)]
 pub(crate) fn override_queue_state_sidecar_path_for_tests(
     path: PathBuf,
@@ -39,7 +36,6 @@ pub(crate) fn override_queue_state_sidecar_path_for_tests(
     *override_path = Some(path);
     QueueStateSidecarPathGuard
 }
-
 #[cfg(test)]
 pub(super) fn queue_state_sidecar_path_overridden_for_tests() -> bool {
     if QUEUE_STATE_SIDECAR_PATH_OVERRIDE
@@ -54,7 +50,6 @@ pub(super) fn queue_state_sidecar_path_overridden_for_tests() -> bool {
         .map(|v| !v.trim().is_empty())
         .unwrap_or(false)
 }
-
 static QUEUE_PERSIST_WRITE_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
     once_cell::sync::Lazy::new(|| Mutex::new(()));
 
@@ -99,13 +94,33 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
         }
     };
 
+    let contains_legacy_waiting_status = {
+        const PATTERN_COMPACT: &[u8] = br#""status":"waiting""#;
+        const PATTERN_SPACED: &[u8] = br#""status": "waiting""#;
+        data.windows(PATTERN_COMPACT.len())
+            .any(|w| w == PATTERN_COMPACT)
+            || data
+                .windows(PATTERN_SPACED.len())
+                .any(|w| w == PATTERN_SPACED)
+    };
+
     // Backward-compatibility: older versions persisted the full QueueState
     // including logs. Newer versions may persist QueueStateLite to avoid
     // heavy log cloning on hot paths.
     if let Ok(full) = serde_json::from_slice::<QueueState>(&data) {
+        if contains_legacy_waiting_status {
+            let migrated = QueueStateLite {
+                snapshot_revision: 0,
+                jobs: full.jobs.iter().map(TranscodeJobLite::from).collect(),
+            };
+            persist_queue_state_lite_immediate(&migrated);
+        }
         return Some(full);
     }
     if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(&data) {
+        if contains_legacy_waiting_status {
+            persist_queue_state_lite_immediate(&lite);
+        }
         return Some(QueueState::from(lite));
     }
 

@@ -286,7 +286,7 @@ fn run_auto_compress_background(
                 );
 
                 queue_dirty = true;
-                if matches!(job.status, JobStatus::Waiting) {
+                if matches!(job.status, JobStatus::Queued) {
                     waiting_jobs_enqueued = true;
                 }
 

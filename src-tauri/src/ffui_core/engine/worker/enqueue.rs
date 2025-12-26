@@ -116,7 +116,7 @@ fn enqueue_transcode_job_no_notify(
             original_size_mb: computed_original_size_mb,
             original_codec: codec_for_job,
             preset_id,
-            status: JobStatus::Waiting,
+            status: JobStatus::Queued,
             progress: 0.0,
             start_time: Some(now_ms),
             end_time: None,

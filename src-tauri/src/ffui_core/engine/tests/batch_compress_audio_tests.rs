@@ -2,6 +2,11 @@ use super::*;
 
 #[test]
 fn batch_compress_enqueues_audio_candidates_when_enabled() {
+    let data_root = tempfile::tempdir().expect("temp data root");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
+
     let dir = env::temp_dir().join("ffui_batch_compress_audio_candidates");
     let _ = fs::create_dir_all(&dir);
 

@@ -139,6 +139,7 @@ pub fn run() {
             commands::queue::expand_manual_job_inputs,
             commands::queue::cancel_transcode_job,
             commands::queue::wait_transcode_job,
+            commands::queue::wait_transcode_jobs_bulk,
             commands::queue::resume_transcode_job,
             commands::queue::restart_transcode_job,
             commands::queue::delete_transcode_job,

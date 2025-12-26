@@ -10,7 +10,7 @@ mod worker_reorder;
 
 pub(super) use control::{
     cancel_job, delete_batch_compress_batch, delete_job, restart_job, resume_job,
-    resume_startup_auto_paused_jobs, wait_job,
+    resume_startup_auto_paused_jobs, wait_job, wait_jobs_bulk,
 };
 pub(super) use enqueue::{enqueue_transcode_job, enqueue_transcode_jobs};
 #[cfg(test)]

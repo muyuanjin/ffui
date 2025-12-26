@@ -197,10 +197,7 @@ impl TranscodingEngine {
             snapshot.jobs.retain(|job| {
                 matches!(
                     job.status,
-                    JobStatus::Waiting
-                        | JobStatus::Queued
-                        | JobStatus::Paused
-                        | JobStatus::Processing
+                    JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
                 )
             });
         }
@@ -364,6 +361,11 @@ impl TranscodingEngine {
         worker::wait_job(&self.inner, job_id)
     }
 
+    /// Request multiple jobs to pause in a single atomic operation.
+    pub fn wait_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
+        worker::wait_jobs_bulk(&self.inner, job_ids)
+    }
+
     /// Resume a paused job.
     pub fn resume_job(&self, job_id: &str) -> bool {
         worker::resume_job(&self.inner, job_id)
@@ -449,16 +451,13 @@ impl TranscodingEngine {
         {
             crate::debug_eprintln!("[tools_probe_cache] failed to persist probe cache: {err:#}");
         }
-
         statuses
     }
-
     /// Get the Batch Compress default configuration.
     pub fn batch_compress_defaults(&self) -> BatchCompressConfig {
         let state = self.inner.state.lock_unpoisoned();
         state.settings.batch_compress_defaults.clone()
     }
-
     /// Update the Batch Compress default configuration.
     pub fn update_batch_compress_defaults(
         &self,
@@ -472,7 +471,6 @@ impl TranscodingEngine {
         settings::save_settings(&settings_snapshot)?;
         Ok(config)
     }
-
     /// Run Batch Compress auto-compress on a directory.
     pub fn run_auto_compress(
         &self,

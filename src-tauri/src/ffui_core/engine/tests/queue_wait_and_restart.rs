@@ -99,8 +99,8 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
             .expect("job must remain present after resume");
         assert_eq!(
             stored.status,
-            JobStatus::Waiting,
-            "resume should transition job back to Waiting state"
+            JobStatus::Queued,
+            "resume should transition job back to Queued state"
         );
         assert!(
             (stored.progress - 40.0).abs() < f64::EPSILON,
@@ -132,8 +132,8 @@ fn wait_and_resume_preserve_progress_and_queue_membership() {
             .expect("job must remain present after restart");
         assert_eq!(
             stored.status,
-            JobStatus::Waiting,
-            "restart must reset job back to Waiting state"
+            JobStatus::Queued,
+            "restart must reset job back to Queued state"
         );
         assert!(
             (stored.progress - 0.0).abs() < f64::EPSILON,
@@ -200,8 +200,8 @@ fn restart_processing_job_schedules_cooperative_cancel_and_fresh_run() {
             .expect("job must remain present after cooperative restart");
         assert_eq!(
             stored.status,
-            JobStatus::Waiting,
-            "after cooperative restart the job must be back in Waiting state"
+            JobStatus::Queued,
+            "after cooperative restart the job must be back in Queued state"
         );
         assert!(
             (stored.progress - 0.0).abs() < f64::EPSILON,

@@ -88,7 +88,7 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         original_size_mb,
         original_codec,
         preset_id,
-        status: JobStatus::Waiting,
+        status: JobStatus::Queued,
         progress: 0.0,
         start_time,
         end_time: None,
@@ -235,7 +235,7 @@ mod tests {
         assert_eq!(job.id, "job-1");
         assert_eq!(job.filename, "file.mkv");
         assert!(matches!(job.source, JobSource::BatchCompress));
-        assert!(matches!(job.status, JobStatus::Waiting));
+        assert!(matches!(job.status, JobStatus::Queued));
         assert_eq!(job.preset_id, "preset-1");
         assert_eq!(job.batch_id.as_deref(), Some("batch-1"));
         assert_eq!(job.start_time, Some(123));

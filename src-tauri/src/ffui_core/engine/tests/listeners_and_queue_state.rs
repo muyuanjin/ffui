@@ -212,7 +212,7 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
     assert_eq!(j.id, job.id);
     assert_eq!(j.filename, job.filename);
     assert_eq!(j.preset_id, job.preset_id);
-    assert!(matches!(j.status, JobStatus::Waiting));
+    assert!(matches!(j.status, JobStatus::Queued));
     // Lite snapshot exposes metadata like queueOrder and media/output fields.
     assert_eq!(
         j.queue_order,

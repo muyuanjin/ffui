@@ -1,6 +1,6 @@
 use super::*;
 #[test]
-fn enqueue_transcode_job_uses_actual_file_size_and_waiting_status() {
+fn enqueue_transcode_job_uses_actual_file_size_and_queued_status() {
     let dir = env::temp_dir();
     let path = dir.join("ffui_test_video.mp4");
 
@@ -24,7 +24,7 @@ fn enqueue_transcode_job_uses_actual_file_size_and_waiting_status() {
 
     // original_size_mb should be derived from the real file size and be > 0.
     assert!(job.original_size_mb > 4.5 && job.original_size_mb < 5.5);
-    assert_eq!(job.status, JobStatus::Waiting);
+    assert_eq!(job.status, JobStatus::Queued);
 
     // Queue state should contain the same value.
     let state = engine.queue_state();
@@ -34,7 +34,7 @@ fn enqueue_transcode_job_uses_actual_file_size_and_waiting_status() {
         .find(|j| j.id == job.id)
         .expect("job present in queue_state");
     assert!((stored.original_size_mb - job.original_size_mb).abs() < 0.0001);
-    assert_eq!(stored.status, JobStatus::Waiting);
+    assert_eq!(stored.status, JobStatus::Queued);
 
     let _ = fs::remove_file(&path);
 }

@@ -170,7 +170,7 @@ fn restart_job_cleans_partial_segments_for_non_processing_job() {
 
     let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job exists");
-    assert_eq!(stored.status, JobStatus::Waiting);
+    assert_eq!(stored.status, JobStatus::Queued);
     assert!(
         stored.wait_metadata.is_none(),
         "wait_metadata should be cleared"
@@ -289,7 +289,7 @@ fn mark_job_cancelled_cleans_segments_when_restarting_processing_job() {
 
     let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job exists");
-    assert_eq!(stored.status, JobStatus::Waiting);
+    assert_eq!(stored.status, JobStatus::Queued);
     assert!(
         stored.wait_metadata.is_none(),
         "wait_metadata should be cleared"

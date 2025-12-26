@@ -201,6 +201,36 @@ fn load_persisted_queue_state_accepts_lite_schema() {
 }
 
 #[test]
+fn load_persisted_queue_state_migrates_legacy_waiting_status_to_queued() {
+    let _guard = lock_persist_test_mutex_for_tests();
+
+    let tmp = std::env::temp_dir().join(format!(
+        "ffui-test-queue-state-load-legacy-waiting-{}.json",
+        std::process::id()
+    ));
+    let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
+
+    let legacy = br#"{"snapshotRevision":0,"jobs":[{"id":"job-1","filename":"C:/videos/legacy.mp4","type":"video","source":"manual","originalSizeMB":1.0,"presetId":"preset-1","status":"waiting","progress":0}]}"#;
+    fs::write(&tmp, legacy).expect("write persisted legacy lite state");
+
+    let loaded = load_persisted_queue_state().expect("expected to load persisted legacy state");
+    assert_eq!(loaded.jobs.len(), 1);
+    assert_eq!(loaded.jobs[0].status, JobStatus::Queued);
+
+    let rewritten = fs::read_to_string(&tmp).expect("read migrated state");
+    assert!(
+        rewritten.contains(r#""status":"queued""#),
+        "expected migrated snapshot to write queued status"
+    );
+    assert!(
+        !rewritten.contains(r#""status":"waiting""#),
+        "expected migrated snapshot to remove waiting status"
+    );
+
+    let _ = fs::remove_file(tmp);
+}
+
+#[test]
 fn queue_state_json_contains_slim_logs_only() {
     let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();

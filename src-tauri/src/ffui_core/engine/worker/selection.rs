@@ -48,17 +48,15 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         let Some(job) = state.jobs.get(id) else {
             return false;
         };
-        matches!(job.status, JobStatus::Waiting | JobStatus::Queued)
-            && !state.active_inputs.contains(&job.filename)
-            && {
-                if mode != TranscodeParallelismMode::Split {
-                    return true;
-                }
-                match classify_job(state, job) {
-                    ParallelismClass::Cpu => active_cpu < cpu_cap,
-                    ParallelismClass::Hardware => active_hw < hw_cap,
-                }
+        matches!(job.status, JobStatus::Queued) && !state.active_inputs.contains(&job.filename) && {
+            if mode != TranscodeParallelismMode::Split {
+                return true;
             }
+            match classify_job(state, job) {
+                ParallelismClass::Cpu => active_cpu < cpu_cap,
+                ParallelismClass::Hardware => active_hw < hw_cap,
+            }
+        }
     })?;
 
     let job_id = if index == 0 {

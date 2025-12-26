@@ -59,7 +59,7 @@ fn resume_job_is_idempotent_for_waiting_jobs() {
         let mut state = engine.inner.state.lock_unpoisoned();
         let job = crate::test_support::make_transcode_job_for_tests(
             job_id,
-            JobStatus::Waiting,
+            JobStatus::Queued,
             0.0,
             Some(1),
         );

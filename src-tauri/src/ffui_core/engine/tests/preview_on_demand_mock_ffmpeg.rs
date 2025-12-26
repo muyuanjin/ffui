@@ -100,7 +100,7 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
 
         let mut job = crate::test_support::make_transcode_job_for_tests(
             "job-1",
-            JobStatus::Waiting,
+            JobStatus::Queued,
             0.0,
             Some(1),
         );

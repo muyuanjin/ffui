@@ -17,7 +17,7 @@ mod domain_contract_tests {
             original_size_mb: 123.0,
             original_codec: Some("h264".to_string()),
             preset_id: "preset-1".to_string(),
-            status: JobStatus::Waiting,
+            status: JobStatus::Queued,
             progress: 0.0,
             start_time: Some(1),
             end_time: Some(2),
