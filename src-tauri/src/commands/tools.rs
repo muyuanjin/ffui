@@ -12,7 +12,9 @@ use std::path::PathBuf;
 
 use tauri::{AppHandle, State, WebviewWindow};
 
-use crate::ffui_core::tools::{ExternalToolKind, force_download_tool_binary, verify_tool_binary};
+use crate::ffui_core::tools::{
+    ExternalToolKind, force_download_tool_binary, mark_tool_download_requested, verify_tool_binary,
+};
 use crate::ffui_core::{
     CpuUsageSnapshot, ExternalToolCandidate, ExternalToolStatus, GpuUsageSnapshot,
     TranscodeActivityToday, TranscodingEngine,
@@ -128,6 +130,13 @@ pub fn download_external_tool_now(
             drop(engine_clone.external_tool_statuses());
         })
         .map_err(|err| format!("failed to spawn tool download thread: {err}"))?;
+
+    let tool_name = match kind {
+        ExternalToolKind::Ffmpeg => "ffmpeg",
+        ExternalToolKind::Ffprobe => "ffprobe",
+        ExternalToolKind::Avifenc => "avifenc",
+    };
+    mark_tool_download_requested(kind, format!("starting auto-download for {tool_name}"));
 
     // 立即返回当前的状态快照，确保前端调用不会被下载流程阻塞。
     Ok(engine.external_tool_statuses())

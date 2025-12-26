@@ -20,6 +20,7 @@ mod tools_tests_runtime {
     use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
     use crate::ffui_core::tools::runtime_state::{
         LATEST_TOOL_STATUS, mark_download_finished, mark_download_progress, mark_download_started,
+        mark_tool_download_requested,
     };
     use crate::ffui_core::tools::types::TOOL_DOWNLOAD_STATE;
     use crate::ffui_core::tools::{
@@ -119,6 +120,56 @@ mod tools_tests_runtime {
         {
             let mut map = crate::ffui_core::tools::types::LAST_TOOL_DOWNLOAD.lock_unpoisoned();
             map.clear();
+        }
+    }
+
+    #[test]
+    fn tool_download_requested_marks_in_progress_once_without_resetting_progress() {
+        let _guard = TEST_MUTEX.lock().unwrap();
+
+        {
+            let mut map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
+            map.clear();
+        }
+
+        mark_tool_download_requested(
+            ExternalToolKind::Ffmpeg,
+            "starting auto-download for ffmpeg".to_string(),
+        );
+
+        {
+            let map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
+            let state = map
+                .get(&ExternalToolKind::Ffmpeg)
+                .expect("download state should be created");
+            assert!(state.in_progress);
+            assert!(state.progress.is_none());
+            assert_eq!(
+                state.last_message.as_deref(),
+                Some("starting auto-download for ffmpeg")
+            );
+        }
+
+        mark_download_progress(ExternalToolKind::Ffmpeg, 10, Some(100));
+
+        // Calling again should not reset the progress snapshot.
+        mark_tool_download_requested(ExternalToolKind::Ffmpeg, "some other message".to_string());
+
+        {
+            let map = TOOL_DOWNLOAD_STATE.lock_unpoisoned();
+            let state = map
+                .get(&ExternalToolKind::Ffmpeg)
+                .expect("download state should still exist");
+            assert!(state.in_progress);
+            assert!(
+                state.progress.is_some(),
+                "idempotent call must not reset progress back to None"
+            );
+            assert_eq!(
+                state.last_message.as_deref(),
+                Some("starting auto-download for ffmpeg"),
+                "idempotent call must not overwrite the message"
+            );
         }
     }
 

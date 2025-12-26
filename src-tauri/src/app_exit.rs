@@ -127,15 +127,10 @@ pub fn pause_processing_jobs_for_exit(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
     use super::*;
     use crate::ffui_core::QueueStateLite;
     use crate::ffui_core::{JobSource, JobType, QueuePersistenceMode, TranscodeJob};
     use crate::sync_ext::MutexExt;
-
-    static ENV_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
-        once_cell::sync::Lazy::new(|| Mutex::new(()));
 
     fn install_queue_state_sidecar_path(prefix: &str) -> std::path::PathBuf {
         let tmp_dir = std::env::temp_dir();
@@ -144,7 +139,7 @@ mod tests {
             .unwrap()
             .as_millis();
         let sidecar_path = tmp_dir.join(format!("{prefix}_{stamp}.json"));
-        // SAFETY: this test serializes env var writes with ENV_MUTEX.
+        // SAFETY: callers serialize env var writes with `crate::test_support::env_lock()`.
         unsafe {
             std::env::set_var("FFUI_QUEUE_STATE_SIDECAR_PATH", &sidecar_path);
         }
@@ -261,7 +256,7 @@ mod tests {
     #[test]
     fn force_persist_queue_state_lite_now_writes_snapshot_when_crash_recovery_enabled() {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
-        let _guard = ENV_MUTEX.lock_unpoisoned();
+        let _env_lock = crate::test_support::env_lock();
 
         let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test");
 
@@ -294,7 +289,7 @@ mod tests {
     #[test]
     fn force_persist_queue_state_lite_now_filters_terminal_jobs_when_crash_recovery_disabled() {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
-        let _guard = ENV_MUTEX.lock_unpoisoned();
+        let _env_lock = crate::test_support::env_lock();
 
         let sidecar_path = install_queue_state_sidecar_path("ffui_exit_persist_test_none");
 

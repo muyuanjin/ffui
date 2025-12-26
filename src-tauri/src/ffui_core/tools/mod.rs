@@ -27,9 +27,9 @@ pub(crate) use runtime_state::{
     cached_ffmpeg_release_version, cached_libavif_release_version, cached_tool_status_snapshot,
     clear_tool_remote_check_state, clear_tool_runtime_error, finish_tool_status_refresh,
     hydrate_last_tool_download_from_settings, hydrate_remote_version_cache_from_settings,
-    last_tool_download_metadata, record_tool_remote_check_error, record_tool_remote_check_message,
-    set_app_handle as set_tool_event_app_handle, try_begin_tool_status_refresh, ttl_hit,
-    update_latest_status_snapshot,
+    last_tool_download_metadata, mark_tool_download_requested, record_tool_remote_check_error,
+    record_tool_remote_check_message, set_app_handle as set_tool_event_app_handle,
+    try_begin_tool_status_refresh, ttl_hit, update_latest_status_snapshot,
 };
 pub(crate) use status::tool_status;
 pub use types::{

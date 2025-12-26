@@ -374,7 +374,12 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const downloadToolNow = async (kind: ExternalToolKind) => {
     if (!hasTauri()) return;
     try {
-      toolStatuses.value = await downloadExternalToolNow(kind);
+      // `download_external_tool_now` returns an immediate (pre-download) snapshot.
+      // The real download/progress/completion states are delivered via the
+      // `ffui://external-tool-status` event stream. Do not overwrite the latest
+      // event-driven snapshot here, otherwise the UI may flicker (progress bar
+      // shows then disappears) or appear to "revert" to an old version.
+      await downloadExternalToolNow(kind);
     } catch (error) {
       console.error("Failed to download external tool", error);
       // 具体错误信息已经从后端事件/日志中可见，这里不额外冒泡给用户。

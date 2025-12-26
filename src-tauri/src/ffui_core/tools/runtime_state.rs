@@ -188,6 +188,19 @@ pub(super) fn mark_download_started(kind: ExternalToolKind, message: String) {
     emit_tool_status_event_if_possible();
 }
 
+/// Mark a download as requested (best-effort) so callers can immediately
+/// reflect an in-progress state in the next status snapshot.
+///
+/// This is intentionally idempotent: if a download is already in progress for
+/// the tool, this call is a no-op to avoid resetting progress counters.
+pub(crate) fn mark_tool_download_requested(kind: ExternalToolKind, message: String) {
+    let already_in_progress = with_download_state(kind, |state| state.in_progress);
+    if already_in_progress {
+        return;
+    }
+    mark_download_started(kind, message);
+}
+
 pub(super) fn mark_download_progress(kind: ExternalToolKind, downloaded: u64, total: Option<u64>) {
     with_download_state(kind, |state| {
         state.in_progress = true;
