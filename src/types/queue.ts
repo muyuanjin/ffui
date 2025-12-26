@@ -208,7 +208,7 @@ export interface QueueStateLite {
   jobs: TranscodeJobLite[];
 }
 
-export type QueueStartupHintKind = "crashOrKill" | "pauseOnExit" | "normalRestart";
+export type QueueStartupHintKind = "crashOrKill" | "pauseOnExit" | "pausedQueue" | "normalRestart";
 
 export interface QueueStartupHint {
   kind: QueueStartupHintKind;

@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum QueueStartupHintKind {
     CrashOrKill,
     PauseOnExit,
+    PausedQueue,
     NormalRestart,
 }
 

@@ -110,4 +110,38 @@ describe("useQueueStartupToast", () => {
     expect(getQueueStartupHintMock).not.toHaveBeenCalled();
     expect(toastMessageMock).not.toHaveBeenCalled();
   });
+
+  it("maps pausedQueue hint kind to the paused description key", async () => {
+    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pausedQueue", autoPausedJobCount: 3 });
+    resumeStartupQueueMock.mockResolvedValueOnce(3);
+
+    const jobs = ref<any[]>([]);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const refreshQueueFromBackend = vi.fn(async () => {});
+    const t = (key: string) => key;
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueStartupToast({
+          enabled: true,
+          t,
+          jobs,
+          lastQueueSnapshotRevision,
+          refreshQueueFromBackend,
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    mount(TestHarness);
+    lastQueueSnapshotRevision.value = 1;
+    await nextTick();
+    await flushPromises();
+
+    const [, options] = toastMessageMock.mock.calls[0];
+    expect(options).toMatchObject({
+      description: "queue.startupHint.descriptionPausedQueue",
+    });
+  });
 });

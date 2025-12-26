@@ -206,7 +206,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
 /// to Waiting so the normal worker selection logic (and concurrency limits)
 /// can schedule them again.
 pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<Inner>) -> usize {
-    let auto_paused_ids: Vec<String> = {
+    let auto_paused_set: std::collections::HashSet<String> = {
         let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
         if guard.is_empty() {
             return 0;
@@ -218,24 +218,43 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
         let mut state = inner.state.lock_unpoisoned();
         let mut resumed = 0usize;
 
-        for job_id in &auto_paused_ids {
-            let Some(job) = state.jobs.get_mut(job_id) else {
+        let queue_job_ids: Vec<String> = state.queue.iter().cloned().collect();
+        for job_id in queue_job_ids {
+            if !auto_paused_set.contains(&job_id) {
+                continue;
+            }
+            let Some(job) = state.jobs.get_mut(&job_id) else {
                 continue;
             };
             if job.status != JobStatus::Paused {
                 continue;
             }
-
             job.status = JobStatus::Waiting;
             resumed = resumed.saturating_add(1);
 
-            if !state.queue.iter().any(|id| id == job_id) {
-                state.queue.push_front(job_id.clone());
-            }
+            state.wait_requests.remove(&job_id);
+            state.cancelled_jobs.remove(&job_id);
+            state.restart_requests.remove(&job_id);
+        }
 
-            state.wait_requests.remove(job_id);
-            state.cancelled_jobs.remove(job_id);
-            state.restart_requests.remove(job_id);
+        let queue_set: std::collections::HashSet<String> = state.queue.iter().cloned().collect();
+        for job_id in auto_paused_set {
+            if queue_set.contains(&job_id) {
+                continue;
+            }
+            let Some(job) = state.jobs.get_mut(&job_id) else {
+                continue;
+            };
+            if job.status != JobStatus::Paused {
+                continue;
+            }
+            job.status = JobStatus::Waiting;
+            resumed = resumed.saturating_add(1);
+            state.queue.push_back(job_id.clone());
+
+            state.wait_requests.remove(&job_id);
+            state.cancelled_jobs.remove(&job_id);
+            state.restart_requests.remove(&job_id);
         }
 
         (resumed, resumed > 0)

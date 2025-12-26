@@ -165,6 +165,7 @@ const queue = {
     title: "检测到未完成队列",
     descriptionCrashOrKill: "上次异常退出或被强制结束，已自动暂停 {count} 项任务。",
     descriptionPauseOnExit: "上次退出前已暂停并保存队列，已自动暂停 {count} 项任务。",
+    descriptionPausedQueue: "上次退出时队列处于暂停状态，共 {count} 项任务。",
     descriptionNormalRestart: "已恢复上次队列并为安全起见暂停 {count} 项任务。",
     action: "恢复队列",
     dismiss: "暂不恢复",

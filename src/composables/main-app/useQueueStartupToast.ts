@@ -15,6 +15,7 @@ export interface UseQueueStartupToastOptions {
 const descriptionKeyForKind = (kind: QueueStartupHintKind) => {
   if (kind === "pauseOnExit") return "queue.startupHint.descriptionPauseOnExit";
   if (kind === "crashOrKill") return "queue.startupHint.descriptionCrashOrKill";
+  if (kind === "pausedQueue") return "queue.startupHint.descriptionPausedQueue";
   return "queue.startupHint.descriptionNormalRestart";
 };
 

@@ -1,7 +1,3 @@
-use std::collections::BTreeMap;
-use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
-
 use super::super::state_persist::{load_persisted_queue_state, load_persisted_terminal_job_logs};
 use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
@@ -13,7 +9,9 @@ use crate::ffui_core::domain::{
 use crate::ffui_core::engine::segment_discovery;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
-
+use std::collections::BTreeMap;
+use std::collections::{HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
     let (mode, retention) = {
         let state = inner.state.lock_unpoisoned();
@@ -22,11 +20,9 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
             state.settings.crash_recovery_log_retention,
         )
     };
-
     let Some(snapshot) = load_persisted_queue_state() else {
         return;
     };
-
     let mut snapshot = match mode {
         QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull => {
             snapshot
@@ -51,7 +47,6 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
             snapshot
         }
     };
-
     // In full crash recovery mode, load per-job logs from disk before inserting
     // restored jobs into the engine state so get_job_detail remains in-memory.
     let terminal_job_ids: Vec<String> = snapshot
@@ -112,6 +107,36 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
 
     let auto_paused_count = inner.startup_auto_paused_job_ids.lock_unpoisoned().len();
     if auto_paused_count == 0 {
+        let paused_queue_ids: Vec<String> = {
+            let state = inner.state.lock_unpoisoned();
+            state
+                .queue
+                .iter()
+                .filter(|id| {
+                    state
+                        .jobs
+                        .get(*id)
+                        .is_some_and(|job| job.status == JobStatus::Paused)
+                })
+                .cloned()
+                .collect()
+        };
+
+        if paused_queue_ids.is_empty() {
+            return;
+        }
+
+        {
+            let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
+            guard.clear();
+            guard.extend(paused_queue_ids.iter().cloned());
+        }
+
+        let hint = QueueStartupHint {
+            kind: QueueStartupHintKind::PausedQueue,
+            auto_paused_job_count: paused_queue_ids.len(),
+        };
+        *inner.queue_startup_hint.lock_unpoisoned() = Some(hint);
         return;
     }
 

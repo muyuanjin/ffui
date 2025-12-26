@@ -404,6 +404,9 @@ fn ensure_worker_thread_started() {
 /// This is used by graceful shutdown paths that need to ensure crash-recovery
 /// metadata (such as wait segments) is durable before the process exits.
 pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
+    #[cfg(test)]
+    let _test_guard = lock_persist_test_mutex_for_tests();
+
     ensure_worker_thread_started();
 
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
@@ -423,6 +426,9 @@ pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
 /// window are coalesced so that at most one write occurs per window while
 /// still keeping the latest snapshot durable.
 pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
+    #[cfg(test)]
+    let _test_guard = lock_persist_test_mutex_for_tests();
+
     ensure_worker_thread_started();
 
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();

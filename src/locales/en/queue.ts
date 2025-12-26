@@ -162,6 +162,7 @@ const queue = {
     title: "Unfinished queue detected",
     descriptionCrashOrKill: "The last run ended unexpectedly. {count} job(s) were paused automatically.",
     descriptionPauseOnExit: "The queue was paused and saved before exit. {count} job(s) were paused automatically.",
+    descriptionPausedQueue: "The queue was paused before exit. {count} job(s) are currently paused.",
     descriptionNormalRestart: "The previous queue was restored and {count} job(s) were paused for safety.",
     action: "Resume queue",
     dismiss: "Not now",
