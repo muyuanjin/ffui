@@ -16,6 +16,8 @@ mod tests_runtime;
 #[cfg(test)]
 mod tests_runtime_clear_error;
 #[cfg(test)]
+mod tests_runtime_progress;
+#[cfg(test)]
 mod tests_versioning;
 mod types;
 

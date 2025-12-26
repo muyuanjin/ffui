@@ -1,5 +1,5 @@
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::sync::MutexGuard;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -25,7 +25,58 @@ fn prepare_proxy_env_for_test() -> (MutexGuard<'static, ()>, EnvVarGuard) {
     (lock, guard)
 }
 
+#[derive(Clone, Copy, Debug)]
+enum HeadBehavior {
+    OkNoBody,
+    Reject405,
+}
+
+fn configure_test_http_stream(stream: &TcpStream) {
+    // Best effort: these calls can fail on some platforms/configurations, but the tests can still
+    // proceed with OS defaults.
+    drop(stream.set_nonblocking(false));
+    drop(stream.set_read_timeout(Some(Duration::from_millis(500))));
+    drop(stream.set_write_timeout(Some(Duration::from_millis(500))));
+}
+
+fn read_http_method(stream: &mut TcpStream) -> String {
+    let mut buf = [0u8; 16 * 1024];
+    let mut total: usize = 0;
+    let read_deadline = Instant::now() + Duration::from_millis(250);
+    while total < buf.len() && Instant::now() < read_deadline {
+        match stream.read(&mut buf[total..]) {
+            Ok(0) => break,
+            Ok(n) => {
+                total += n;
+                if total >= 4 && buf[..total].windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) => {}
+            Err(_) => break,
+        }
+    }
+
+    let req = String::from_utf8_lossy(&buf[..total]);
+    req.split_whitespace().next().unwrap_or("").to_string()
+}
+
 fn spawn_local_http_server(body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
+    spawn_local_http_server_with_head_behavior(body, HeadBehavior::OkNoBody)
+}
+
+fn spawn_local_http_server_head_rejected(body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
+    spawn_local_http_server_with_head_behavior(body, HeadBehavior::Reject405)
+}
+
+fn spawn_local_http_server_with_head_behavior(
+    body: Vec<u8>,
+    head_behavior: HeadBehavior,
+) -> (String, thread::JoinHandle<()>) {
     let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind test server");
     let addr = listener.local_addr().expect("server addr");
     let url = format!("http://127.0.0.1:{}/", addr.port());
@@ -43,42 +94,34 @@ fn spawn_local_http_server(body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
                     // `TcpListener::set_nonblocking(true)` can make accepted streams nonblocking
                     // on some platforms. Ensure the connection behaves like a normal blocking
                     // socket so we don't end up writing partial HTTP headers.
-                    let _ = stream.set_nonblocking(false);
-                    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-                    let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+                    configure_test_http_stream(&stream);
 
-                    let mut buf = [0u8; 16 * 1024];
-                    let mut total: usize = 0;
-                    let read_deadline = Instant::now() + Duration::from_millis(250);
-                    while total < buf.len() && Instant::now() < read_deadline {
-                        match stream.read(&mut buf[total..]) {
-                            Ok(0) => break,
-                            Ok(n) => {
-                                total += n;
-                                if total >= 4 && buf[..total].windows(4).any(|w| w == b"\r\n\r\n") {
-                                    break;
-                                }
+                    let method = read_http_method(&mut stream);
+
+                    if method == "HEAD" {
+                        match head_behavior {
+                            HeadBehavior::OkNoBody => {
+                                let headers = format!(
+                                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                                    body.len()
+                                );
+                                drop(stream.write_all(headers.as_bytes()));
                             }
-                            Err(err)
-                                if matches!(
-                                    err.kind(),
-                                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
-                                ) => {}
-                            Err(_) => break,
+                            HeadBehavior::Reject405 => {
+                                let headers =
+                                    "HTTP/1.1 405 Method Not Allowed\r\nConnection: close\r\n\r\n";
+                                drop(stream.write_all(headers.as_bytes()));
+                            }
                         }
+                        continue;
                     }
-
-                    let req = String::from_utf8_lossy(&buf[..total]);
-                    let method = req.split_whitespace().next().unwrap_or("");
 
                     let headers = format!(
                         "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                         body.len()
                     );
-                    let _ = stream.write_all(headers.as_bytes());
-                    if method != "HEAD" {
-                        let _ = stream.write_all(&body);
-                    }
+                    drop(stream.write_all(headers.as_bytes()));
+                    drop(stream.write_all(&body));
                 }
                 Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
                     thread::sleep(Duration::from_millis(10));
@@ -141,6 +184,22 @@ fn reqwest_helpers_can_download_from_local_server() {
     let (bytes, _info) = download_bytes_with_reqwest(&url, |_downloaded, _total| {})
         .expect("download_bytes_with_reqwest");
     assert_eq!(bytes, body);
+
+    server_handle.join().expect("server thread");
+}
+
+#[test]
+fn content_length_head_falls_back_when_head_rejected() {
+    let (_env_lock, _env_guard) = prepare_proxy_env_for_test();
+
+    let body = b"hello from ffui".to_vec();
+    let (url, server_handle) = spawn_local_http_server_head_rejected(body.clone());
+
+    assert_eq!(
+        content_length_head(&url),
+        Some(body.len() as u64),
+        "should fall back to a ranged GET when HEAD is rejected"
+    );
 
     server_handle.join().expect("server thread");
 }

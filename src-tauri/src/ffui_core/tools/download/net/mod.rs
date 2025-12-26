@@ -128,6 +128,9 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<Networ
         let status = cmd
             .arg("--allow-overwrite=true")
             .arg("--auto-file-renaming=false")
+            .arg("--file-allocation=none")
+            .arg("--split=1")
+            .arg("--max-connection-per-server=1")
             .arg("--dir")
             .arg(dir)
             .arg("--out")
@@ -419,10 +422,46 @@ pub(crate) fn content_length_head(url: &str) -> Option<u64> {
     let client = builder.build().ok()?;
 
     let resp = client.head(url).send().ok()?;
-    resp.headers()
-        .get(reqwest::header::CONTENT_LENGTH)
-        .and_then(|h| h.to_str().ok())
-        .and_then(|s| s.parse::<u64>().ok())
+    if resp.status().is_success() {
+        return resp
+            .headers()
+            .get(reqwest::header::CONTENT_LENGTH)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|s| s.parse::<u64>().ok())
+            .or_else(|| resp.content_length());
+    }
+
+    // Some servers reject HEAD (405) or return redirects that do not surface
+    // a useful Content-Length. Best-effort: try a tiny ranged GET to learn the
+    // total size without downloading the whole file.
+    let resp = client
+        .get(url)
+        .header(reqwest::header::RANGE, "bytes=0-0")
+        .send()
+        .ok()?;
+    if resp.status().is_success() || resp.status() == reqwest::StatusCode::PARTIAL_CONTENT {
+        if let Some(total) = resp
+            .headers()
+            .get(reqwest::header::CONTENT_RANGE)
+            .and_then(|h| h.to_str().ok())
+            .and_then(parse_content_range_total)
+        {
+            return Some(total);
+        }
+        return resp.content_length();
+    }
+    None
+}
+
+fn parse_content_range_total(value: &str) -> Option<u64> {
+    // Examples:
+    // - "bytes 0-0/12345"
+    // - "bytes */12345"
+    let total = value.rsplit('/').next()?.trim();
+    if total == "*" {
+        return None;
+    }
+    total.parse().ok()
 }
 
 #[cfg(test)]

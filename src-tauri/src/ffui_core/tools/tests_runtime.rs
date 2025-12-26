@@ -64,6 +64,7 @@ mod tools_tests_runtime {
         assert!(status.last_download_error.is_none());
         assert!(status.last_download_message.is_none());
     }
+
     #[test]
     fn effective_remote_version_prefers_latest_release_over_stale_cached_metadata() {
         let _guard = TEST_MUTEX.lock().unwrap();

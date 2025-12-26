@@ -160,6 +160,52 @@ describe("SettingsPanel external tool download status", () => {
     wrapper.unmount();
   });
 
+  it("keeps the progress bar indeterminate when total size is unknown but bytes/s updates", () => {
+    const toolStatus: ExternalToolStatus = {
+      kind: "ffmpeg",
+      resolvedPath: "C:/tools/ffmpeg.exe",
+      source: "download",
+      version: "ffmpeg version 6.0",
+      updateCheckResult: "upToDate",
+      updateAvailable: false,
+      autoDownloadEnabled: true,
+      autoUpdateEnabled: true,
+      downloadInProgress: true,
+      downloadProgress: undefined,
+      downloadedBytes: 5 * 1024 * 1024,
+      totalBytes: undefined,
+      bytesPerSecond: 2.5 * 1024 * 1024,
+      lastDownloadError: undefined,
+      lastDownloadMessage: "downloading via aria2c",
+    };
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses: [toolStatus],
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    const text = wrapper.text();
+    expect(text).toContain("5.0 MB");
+    expect(text).toContain("MB/s");
+    expect(text).not.toContain("0.0%");
+    expect(text).not.toContain("100.0%");
+
+    const bar = wrapper.get(".h-1.bg-muted\\/50 .h-full");
+    const barClasses = bar.attributes("class") ?? "";
+    expect(barClasses).toContain("animate-pulse");
+    expect(barClasses).toContain("w-full");
+
+    wrapper.unmount();
+  });
+
   it("surfaces last download error instead of an update hint when the downloaded binary is not usable", () => {
     const toolStatus: ExternalToolStatus = {
       kind: "ffmpeg",

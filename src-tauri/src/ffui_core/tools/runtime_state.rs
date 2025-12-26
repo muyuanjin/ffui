@@ -213,16 +213,18 @@ pub(super) fn mark_download_progress(kind: ExternalToolKind, downloaded: u64, to
         state.downloaded_bytes = Some(downloaded);
         state.total_bytes = total;
 
-        // Compute a 0–100 percentage when the total size is known.
-        let pct = match total {
-            Some(total) if total > 0 => (downloaded as f32 / total as f32) * 100.0,
-            _ => 0.0,
-        };
-
-        // Clamp into [0, 100] and ignore NaN / infinities.
-        let p = pct.clamp(0.0, 100.0);
-        if p.is_finite() {
-            state.progress = Some(p);
+        // Compute a 0–100 percentage only when the total size is known.
+        // When unknown, keep `progress=None` so the UI shows an indeterminate bar
+        // instead of a misleading 0% that appears "stuck" even while speed changes.
+        match total {
+            Some(total) if total > 0 => {
+                let pct = (downloaded as f32 / total as f32) * 100.0;
+                let p = pct.clamp(0.0, 100.0);
+                state.progress = p.is_finite().then_some(p);
+            }
+            _ => {
+                state.progress = None;
+            }
         }
 
         // Compute a simple average download speed since the first byte was
