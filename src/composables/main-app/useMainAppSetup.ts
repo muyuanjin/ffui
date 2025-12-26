@@ -26,6 +26,7 @@ export function useMainAppSetup() {
   const jobs = ref<TranscodeJob[]>([]);
   const queueError = ref<string | null>(null);
   const lastQueueSnapshotAtMs = ref<number | null>(null);
+  const lastQueueSnapshotRevision = ref<number | null>(null);
   const lastDroppedRoot = ref<string | null>(null);
   const presets = ref<FFmpegPreset[]>([]);
   const presetsLoadedFromBackend = ref(false);
@@ -88,6 +89,7 @@ export function useMainAppSetup() {
     jobs,
     queueError,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     presets,
     manualJobPresetId,
     compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,

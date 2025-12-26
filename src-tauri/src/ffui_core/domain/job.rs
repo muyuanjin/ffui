@@ -328,6 +328,13 @@ pub struct TranscodeJobLite {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueStateLite {
+    /// Monotonic revision of this snapshot for ordering / de-duping on the frontend.
+    ///
+    /// This is not persisted as a stable identifier across restarts; it only needs
+    /// to be monotonic within a single app session so the UI can ignore stale,
+    /// out-of-order IPC deliveries.
+    #[serde(default)]
+    pub snapshot_revision: u64,
     pub jobs: Vec<TranscodeJobLite>,
 }
 
@@ -384,7 +391,10 @@ impl From<&TranscodeJob> for TranscodeJobLite {
 impl From<&QueueState> for QueueStateLite {
     fn from(snapshot: &QueueState) -> Self {
         let jobs = snapshot.jobs.iter().map(TranscodeJobLite::from).collect();
-        Self { jobs }
+        Self {
+            snapshot_revision: 0,
+            jobs,
+        }
     }
 }
 

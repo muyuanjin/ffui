@@ -45,6 +45,8 @@ export interface UseQueueOperationsOptions {
   selectedJobs: ComputedRef<TranscodeJob[]>;
   /** Last queue snapshot timestamp. */
   lastQueueSnapshotAtMs: Ref<number | null>;
+  /** Last applied monotonic snapshot revision (for ordering / de-dupe). */
+  lastQueueSnapshotRevision: Ref<number | null>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Callback when a job completes (for preset stats update). */
@@ -92,6 +94,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     selectedJobIds,
     selectedJobs,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     t,
     onJobCompleted,
   } = options;
@@ -102,6 +105,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     jobs,
     queueError,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     t,
     onJobCompleted,
   };

@@ -17,11 +17,13 @@ function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { job
   const jobs = overrides.jobs ?? ref<TranscodeJob[]>([]);
   const queueError = overrides.queueError ?? ref<string | null>(null);
   const lastQueueSnapshotAtMs = overrides.lastQueueSnapshotAtMs ?? ref<number | null>(null);
+  const lastQueueSnapshotRevision = overrides.lastQueueSnapshotRevision ?? ref<number | null>(null);
 
   return {
     jobs,
     queueError,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     t: overrides.t,
     onJobCompleted: overrides.onJobCompleted,
   };
@@ -69,6 +71,31 @@ describe("queue operations state sync", () => {
     // 现在后端快照是唯一事实来源，应直接覆盖本地 Batch Compress 队列，防止“后端已删但前端仍残留”。
     expect(deps.jobs.value.map((j) => j.id)).toEqual([backendJob.id]);
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(before);
+  });
+
+  it("applyQueueStateFromBackend ignores stale snapshotRevision updates to avoid progress regressions", () => {
+    const previousJob: TranscodeJob = {
+      id: "job-1",
+      filename: "C:/videos/progress.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: [],
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([previousJob]),
+    });
+
+    applyQueueStateFromBackend({ snapshotRevision: 10, jobs: [{ ...previousJob, progress: 50 }] } as any, deps);
+    applyQueueStateFromBackend({ snapshotRevision: 9, jobs: [{ ...previousJob, progress: 20 }] } as any, deps);
+
+    expect(deps.lastQueueSnapshotRevision.value).toBe(10);
+    expect(deps.jobs.value[0].progress).toBe(50);
   });
 
   it("applyQueueStateFromBackend preserves job object identity for unchanged rows to keep scrolling smooth", () => {
@@ -239,6 +266,7 @@ describe("queue operations state sync", () => {
 
     loadQueueStateMock.mockResolvedValueOnce({ jobs: [completedJob] });
 
+    const beforeSnapshotAt = deps.lastQueueSnapshotAtMs.value;
     await refreshQueueFromBackend(deps);
 
     expect(loadQueueStateMock).toHaveBeenCalledTimes(1);
@@ -248,6 +276,7 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value).toHaveLength(1);
     expect(deps.jobs.value[0].status).toBe("completed");
     expect(deps.queueError.value).toBeNull();
+    expect(deps.lastQueueSnapshotAtMs.value).not.toBe(beforeSnapshotAt);
   });
 
   it("refreshQueueFromBackend dedupes concurrent refresh calls for the same jobs ref", async () => {

@@ -16,6 +16,50 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
         }
     }
 
+    if let Ok(current_exe) = std::env::current_exe()
+        && let Some(deps_dir) = current_exe.parent()
+        && deps_dir.exists()
+    {
+        let prefixes = ["ffui-mock-ffmpeg", "ffui_mock_ffmpeg"];
+        let matches: Vec<std::path::PathBuf> = std::fs::read_dir(deps_dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
+            })
+            .filter(|p| {
+                if !p.is_file() {
+                    return false;
+                }
+                if cfg!(windows) {
+                    return p
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
+                }
+                !p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("exe"))
+            })
+            .collect();
+
+        let mut exe_candidates: Vec<(std::path::PathBuf, Option<std::time::SystemTime>)> = matches
+            .into_iter()
+            .map(|p| {
+                let modified = std::fs::metadata(&p).ok().and_then(|m| m.modified().ok());
+                (p, modified)
+            })
+            .collect();
+        exe_candidates.sort_by_key(|(p, modified)| (*modified, p.clone()));
+        if let Some((p, _)) = exe_candidates.pop() {
+            return p;
+        }
+    }
+
     let crate_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let target_debug = crate_root.join("target").join("debug");
     let direct_candidates = if cfg!(windows) {
@@ -56,7 +100,9 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
                         .and_then(|e| e.to_str())
                         .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
                 }
-                true
+                !p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case("exe"))
             })
             .map(|p| {
                 let modified = std::fs::metadata(&p).ok().and_then(|m| m.modified().ok());

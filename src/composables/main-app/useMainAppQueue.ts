@@ -27,6 +27,7 @@ export interface UseMainAppQueueOptions {
   jobs: Ref<TranscodeJob[]>;
   queueError: Ref<string | null>;
   lastQueueSnapshotAtMs: Ref<number | null>;
+  lastQueueSnapshotRevision: Ref<number | null>;
   presets: Ref<FFmpegPreset[]>;
   manualJobPresetId: Ref<string | null>;
   compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
@@ -117,6 +118,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     jobs,
     queueError,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     presets,
     manualJobPresetId,
     compositeBatchCompressTasks,
@@ -279,6 +281,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     selectedJobIds,
     selectedJobs,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     t: (key: string) => t(key),
     onJobCompleted,
   });
@@ -399,6 +402,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   useQueueEventListeners({
     jobs,
     lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     startupIdleReady,
     refreshQueueFromBackend,
     applyQueueStateFromBackend,

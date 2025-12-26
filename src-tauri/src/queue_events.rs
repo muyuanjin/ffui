@@ -1,3 +1,7 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::ffui_core::{QueueStateLite, TranscodingEngine};
@@ -31,38 +35,77 @@ pub fn register_queue_stream(handle: &AppHandle) {
     let taskbar_handle = handle.clone();
     let engine = handle.state::<TranscodingEngine>();
     let emit_full_events = full_queue_state_events_enabled();
+    let pending_lite: Arc<Mutex<Option<QueueStateLite>>> = Arc::new(Mutex::new(None));
+    let worker_running = Arc::new(AtomicBool::new(false));
+
+    const EMIT_MIN_INTERVAL_MS: u64 = 50;
 
     engine.register_queue_lite_listener(move |state: QueueStateLite| {
-        // Legacy full snapshot event for compatibility. In production builds
-        // this is opt-in to reduce IPC pressure and queue hot-path cloning.
-        if emit_full_events {
-            let engine = taskbar_handle.state::<TranscodingEngine>();
-            let full = engine.queue_state();
-            if let Err(err) = event_handle.emit("ffui://queue-state", full) {
-                crate::debug_eprintln!("failed to emit queue-state event: {err}");
-            }
-        }
-
-        // Lightweight snapshot event used by the queue UI. This is the steady-state
-        // path and MUST NOT require building a full QueueState clone of logs.
-        if let Err(err) = event_handle.emit("ffui://queue-state-lite", state.clone()) {
-            crate::debug_eprintln!("failed to emit queue-state-lite event: {err}");
-        }
-
-        // Update the Windows taskbar progress bar (no-op on non-Windows
-        // platforms) based on the aggregated queue progress for this
-        // snapshot.
-        #[cfg(windows)]
         {
-            let engine = taskbar_handle.state::<TranscodingEngine>();
-            let settings = engine.settings();
-            update_taskbar_progress_lite(
-                &taskbar_handle,
-                &state,
-                settings.taskbar_progress_mode,
-                settings.taskbar_progress_scope,
-            );
+            let mut pending = pending_lite.lock().unwrap_or_else(|e| e.into_inner());
+            *pending = Some(state);
         }
+
+        if worker_running.swap(true, Ordering::AcqRel) {
+            return;
+        }
+
+        let pending_lite = pending_lite.clone();
+        let worker_running = worker_running.clone();
+        let event_handle = event_handle.clone();
+        let taskbar_handle = taskbar_handle.clone();
+
+        tauri::async_runtime::spawn_blocking(move || {
+            loop {
+                let next = {
+                    let mut pending = pending_lite.lock().unwrap_or_else(|e| e.into_inner());
+                    pending.take()
+                };
+
+                let Some(lite) = next else {
+                    worker_running.store(false, Ordering::Release);
+                    let has_pending = {
+                        let pending = pending_lite.lock().unwrap_or_else(|e| e.into_inner());
+                        pending.is_some()
+                    };
+                    if has_pending && !worker_running.swap(true, Ordering::AcqRel) {
+                        continue;
+                    }
+                    break;
+                };
+
+                // Legacy full snapshot event for compatibility. In production builds
+                // this is opt-in to reduce IPC pressure and queue hot-path cloning.
+                if emit_full_events {
+                    let engine = taskbar_handle.state::<TranscodingEngine>();
+                    let full = engine.queue_state();
+                    if let Err(err) = event_handle.emit("ffui://queue-state", full) {
+                        crate::debug_eprintln!("failed to emit queue-state event: {err}");
+                    }
+                }
+
+                // Lightweight snapshot event used by the queue UI.
+                if let Err(err) = event_handle.emit("ffui://queue-state-lite", &lite) {
+                    crate::debug_eprintln!("failed to emit queue-state-lite event: {err}");
+                }
+
+                // Update the Windows taskbar progress bar (no-op on non-Windows
+                // platforms) based on the aggregated queue progress for this snapshot.
+                #[cfg(windows)]
+                {
+                    let engine = taskbar_handle.state::<TranscodingEngine>();
+                    let settings = engine.settings();
+                    update_taskbar_progress_lite(
+                        &taskbar_handle,
+                        &lite,
+                        settings.taskbar_progress_mode,
+                        settings.taskbar_progress_scope,
+                    );
+                }
+
+                std::thread::sleep(Duration::from_millis(EMIT_MIN_INTERVAL_MS));
+            }
+        });
     });
 }
 

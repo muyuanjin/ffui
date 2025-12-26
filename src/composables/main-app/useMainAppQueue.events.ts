@@ -6,6 +6,7 @@ import type { QueueStateLite, TranscodeJob } from "@/types";
 interface QueueEventDeps {
   jobs: Ref<TranscodeJob[]>;
   lastQueueSnapshotAtMs: Ref<number | null>;
+  lastQueueSnapshotRevision: Ref<number | null>;
   startupIdleReady?: Ref<boolean>;
   refreshQueueFromBackend: () => Promise<void>;
   applyQueueStateFromBackend: (state: QueueStateLite) => void;
@@ -19,6 +20,7 @@ interface QueueEventDeps {
 export function useQueueEventListeners({
   jobs,
   lastQueueSnapshotAtMs,
+  lastQueueSnapshotRevision,
   startupIdleReady,
   refreshQueueFromBackend,
   applyQueueStateFromBackend,
@@ -27,6 +29,8 @@ export function useQueueEventListeners({
   let queueTimer: number | undefined;
   let initialQueuePollScheduled = false;
   let initialQueuePollCancelled = false;
+  let pendingQueueState: QueueStateLite | null = null;
+  let pendingApplyHandle: number | null = null;
 
   const scheduleInitialQueuePoll = () => {
     if (initialQueuePollScheduled) return;
@@ -68,7 +72,54 @@ export function useQueueEventListeners({
     }
 
     void listen<QueueStateLite>("ffui://queue-state-lite", (event) => {
-      applyQueueStateFromBackend(event.payload);
+      const payload = event.payload;
+      const revision = payload?.snapshotRevision;
+      const currentRevision = lastQueueSnapshotRevision.value;
+      if (
+        typeof revision === "number" &&
+        Number.isFinite(revision) &&
+        typeof currentRevision === "number" &&
+        Number.isFinite(currentRevision) &&
+        revision < currentRevision
+      ) {
+        return;
+      }
+
+      if (pendingQueueState) {
+        const prev = pendingQueueState.snapshotRevision;
+        if (
+          typeof revision === "number" &&
+          Number.isFinite(revision) &&
+          typeof prev === "number" &&
+          Number.isFinite(prev)
+        ) {
+          if (revision >= prev) {
+            pendingQueueState = payload;
+          }
+        } else {
+          pendingQueueState = payload;
+        }
+      } else {
+        pendingQueueState = payload;
+      }
+
+      if (typeof window === "undefined") {
+        const next = pendingQueueState;
+        pendingQueueState = null;
+        if (next) applyQueueStateFromBackend(next);
+      } else if (pendingApplyHandle == null) {
+        const flush = () => {
+          pendingApplyHandle = null;
+          const next = pendingQueueState;
+          pendingQueueState = null;
+          if (next) applyQueueStateFromBackend(next);
+        };
+        if (typeof window.requestAnimationFrame === "function") {
+          pendingApplyHandle = window.requestAnimationFrame(flush);
+        } else {
+          pendingApplyHandle = window.setTimeout(flush, 0);
+        }
+      }
       // Any push-style queue event cancels the deferred initial poll so we
       // avoid issuing a redundant full snapshot request on startup.
       initialQueuePollCancelled = true;
@@ -116,6 +167,19 @@ export function useQueueEventListeners({
         queueUnlisten = null;
       }
     }
+
+    if (pendingApplyHandle != null && typeof window !== "undefined") {
+      if (typeof window.cancelAnimationFrame === "function") {
+        try {
+          window.cancelAnimationFrame(pendingApplyHandle);
+        } catch {
+          // ignore
+        }
+      }
+      window.clearTimeout(pendingApplyHandle);
+      pendingApplyHandle = null;
+    }
+    pendingQueueState = null;
 
     if (queueTimer !== undefined) {
       clearInterval(queueTimer);

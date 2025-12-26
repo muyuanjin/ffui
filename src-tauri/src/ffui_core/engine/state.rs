@@ -63,6 +63,17 @@ pub(crate) struct EngineState {
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
     pub(crate) active_jobs: HashSet<String>,
+    /// Monotonic revision incremented whenever the engine constructs a queue-lite snapshot.
+    ///
+    /// The frontend uses this to ignore stale, out-of-order IPC deliveries that can
+    /// otherwise cause progress to visually regress under heavy load.
+    pub(crate) queue_snapshot_revision: u64,
+    /// Rate limiter timestamp (ms) for emitting queue snapshots on log-only updates.
+    ///
+    /// When ffmpeg emits very chatty stderr, emitting a full queue snapshot on every
+    /// log line can overwhelm IPC and the UI thread. Progress updates remain immediate,
+    /// while log-only notifications are capped by this timer.
+    pub(crate) last_queue_log_notify_at_ms: u64,
     /// Number of transcoding worker threads spawned so far.
     pub(crate) spawned_workers: usize,
     /// Input paths (filenames) currently being processed by active workers.
@@ -99,6 +110,8 @@ impl EngineState {
             jobs: HashMap::new(),
             queue: VecDeque::new(),
             active_jobs: HashSet::new(),
+            queue_snapshot_revision: 0,
+            last_queue_log_notify_at_ms: 0,
             spawned_workers: 0,
             active_inputs: HashSet::new(),
             cancelled_jobs: HashSet::new(),
@@ -221,7 +234,9 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
     snapshot_queue_state_from_locked_state(&state)
 }
 
-fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStateLite {
+fn snapshot_queue_state_lite_from_locked_state(state: &mut EngineState) -> QueueStateLite {
+    state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
+    let snapshot_revision = state.queue_snapshot_revision;
     let order_by_id = build_queue_order_map(state);
 
     let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
@@ -233,7 +248,10 @@ fn snapshot_queue_state_lite_from_locked_state(state: &EngineState) -> QueueStat
 
     sort_jobs_by_queue_order_and_id(&mut jobs);
 
-    QueueStateLite { jobs }
+    QueueStateLite {
+        snapshot_revision,
+        jobs,
+    }
 }
 
 fn repair_queue_invariants_locked(state: &mut EngineState) {
@@ -290,8 +308,8 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
 }
 
 pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
-    let state = inner.state.lock_unpoisoned();
-    snapshot_queue_state_lite_from_locked_state(&state)
+    let mut state = inner.state.lock_unpoisoned();
+    snapshot_queue_state_lite_from_locked_state(&mut state)
 }
 
 pub(super) fn notify_queue_listeners(inner: &Inner) {
@@ -301,7 +319,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     let (lite_snapshot, full_snapshot, persistence_mode, retention) = {
         let mut state = inner.state.lock_unpoisoned();
         repair_queue_invariants_locked(&mut state);
-        let lite = snapshot_queue_state_lite_from_locked_state(&state);
+        let lite = snapshot_queue_state_lite_from_locked_state(&mut state);
         let full = if full_listeners.is_empty() {
             None
         } else {
@@ -427,64 +445,4 @@ pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Pa
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ffui_core::JobStatus;
-    use crate::test_support::make_transcode_job_for_tests;
-
-    fn make_queue_order_test_state() -> EngineState {
-        let mut state = EngineState::new(Vec::new(), AppSettings::default());
-        state.queue.push_back("b".to_string());
-        state.queue.push_back("a".to_string());
-
-        state.jobs.insert(
-            "c".to_string(),
-            make_transcode_job_for_tests("c", JobStatus::Waiting, 0.0, None),
-        );
-        state.jobs.insert(
-            "a".to_string(),
-            make_transcode_job_for_tests("a", JobStatus::Waiting, 0.0, None),
-        );
-        state.jobs.insert(
-            "b".to_string(),
-            make_transcode_job_for_tests("b", JobStatus::Waiting, 0.0, None),
-        );
-        state
-    }
-
-    fn assert_queue_order_snapshot<J: QueueOrderSortable>(jobs: &[J]) {
-        let ids: Vec<&str> = jobs.iter().map(super::QueueOrderSortable::id_str).collect();
-        assert_eq!(ids, vec!["b", "a", "c"]);
-
-        assert_eq!(jobs[0].queue_order(), Some(0));
-        assert_eq!(jobs[1].queue_order(), Some(1));
-        assert_eq!(jobs[2].queue_order(), None);
-    }
-
-    #[test]
-    fn snapshot_queue_state_sorts_jobs_by_queue_order_then_id() {
-        let state = make_queue_order_test_state();
-        let snapshot = snapshot_queue_state_from_locked_state(&state);
-        assert_queue_order_snapshot(&snapshot.jobs);
-
-        let json = serde_json::to_value(&snapshot).expect("QueueState serializes");
-        let jobs = json
-            .get("jobs")
-            .and_then(|v| v.as_array())
-            .expect("jobs array present");
-        assert_eq!(jobs[0].get("id").and_then(|v| v.as_str()), Some("b"));
-        assert_eq!(
-            jobs[0]
-                .get("queueOrder")
-                .and_then(serde_json::Value::as_u64),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn snapshot_queue_state_lite_sorts_jobs_by_queue_order_then_id() {
-        let state = make_queue_order_test_state();
-        let snapshot = snapshot_queue_state_lite_from_locked_state(&state);
-        assert_queue_order_snapshot(&snapshot.jobs);
-    }
-}
+mod tests;

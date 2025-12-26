@@ -58,6 +58,8 @@ describe("MainApp queue event handling", () => {
     ]);
     emitQueueState(getQueueJobs());
     await nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
 
     const jobsAfter = Array.isArray(vm.jobs) ? vm.jobs : (vm.jobs?.value ?? []);
     expect(jobsAfter.length).toBe(1);
