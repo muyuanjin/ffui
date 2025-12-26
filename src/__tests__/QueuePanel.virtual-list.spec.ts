@@ -16,13 +16,19 @@ vi.mock("virtua/vue", async () => {
   const VList = defineComponent({
     props: {
       data: { type: Array, required: true },
+      bufferSize: { type: Number, required: false, default: undefined },
+      itemSize: { type: Number, required: false, default: undefined },
     },
     setup(props, { slots }) {
       return () => {
         const items = (props.data as unknown[]).slice(0, MAX_RENDERED_ROWS_FOR_TEST);
         return h(
           "div",
-          { "data-testid": "virtua-vlist-stub" },
+          {
+            "data-testid": "virtua-vlist-stub",
+            "data-buffer-size": String(props.bufferSize ?? ""),
+            "data-item-size": String(props.itemSize ?? ""),
+          },
           items.flatMap((item, index) => slots.default?.({ item, index }) ?? []),
         );
       };
@@ -121,8 +127,30 @@ function mountQueuePanel(overrides: Partial<any>) {
 }
 
 describe("QueuePanel virtual list wiring", () => {
+  it("passes bufferSize in pixels (virtua) instead of item-based overscan", async () => {
+    const jobs = Array.from({ length: 10 }, (_, idx) => buildJob(`job-${idx}`, "queued"));
+    const items = buildListItems(jobs);
+
+    const wrapper = mountQueuePanel({
+      queueMode: "display",
+      queueJobsForDisplay: jobs,
+      visibleQueueItems: items,
+      queueRowVariant: "detail",
+    });
+
+    const vlist = wrapper.find("[data-testid='virtua-vlist-stub']");
+    expect(vlist.exists()).toBe(true);
+    expect(vlist.attributes("data-item-size")).toBe("180");
+    expect(vlist.attributes("data-buffer-size")).toBe(String(180 * 24));
+
+    await wrapper.setProps({ queueRowVariant: "compact" });
+    const vlistAfterCompact = wrapper.find("[data-testid='virtua-vlist-stub']");
+    expect(vlistAfterCompact.attributes("data-item-size")).toBe("120");
+    expect(vlistAfterCompact.attributes("data-buffer-size")).toBe(String(120 * 24));
+  });
+
   it("does not render the full list in display mode", async () => {
-    const jobs = Array.from({ length: 1000 }, (_, idx) => buildJob(`job-${idx}`, "waiting"));
+    const jobs = Array.from({ length: 1000 }, (_, idx) => buildJob(`job-${idx}`, "queued"));
     const items = buildListItems(jobs);
 
     const wrapper = mountQueuePanel({
@@ -136,7 +164,7 @@ describe("QueuePanel virtual list wiring", () => {
   });
 
   it("uses flex sizing for VList container (avoid 0-height blanks)", async () => {
-    const jobs = Array.from({ length: 10 }, (_, idx) => buildJob(`job-${idx}`, "waiting"));
+    const jobs = Array.from({ length: 10 }, (_, idx) => buildJob(`job-${idx}`, "queued"));
     const items = buildListItems(jobs);
 
     const wrapper = mountQueuePanel({
@@ -157,7 +185,7 @@ describe("QueuePanel virtual list wiring", () => {
 
   it("keeps queue-mode group headers inside the virtual list", async () => {
     const processingJobs = [buildJob("processing-1", "processing"), buildJob("processing-2", "processing")];
-    const waitingJobs = Array.from({ length: 200 }, (_, idx) => buildJob(`waiting-${idx}`, "waiting"));
+    const waitingJobs = Array.from({ length: 200 }, (_, idx) => buildJob(`waiting-${idx}`, "queued"));
     const waitingItems = buildListItems(waitingJobs);
 
     const wrapper = mountQueuePanel({

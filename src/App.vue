@@ -8,6 +8,6 @@ import { Toaster } from "@/components/ui/sonner";
 <template>
   <div class="ffui-ui-scale-root">
     <MainApp />
-    <Toaster position="bottom-right" :rich-colors="true" />
   </div>
+  <Toaster position="bottom-right" :rich-colors="true" />
 </template>

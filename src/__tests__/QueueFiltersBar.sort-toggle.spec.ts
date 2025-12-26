@@ -24,10 +24,12 @@ function createWrapper(options?: {
   sortPrimaryDirection?: QueueSortDirection;
   sortSecondaryDirection?: QueueSortDirection;
   hasPrimarySortTies?: boolean;
+  queueMode?: QueueMode;
 }) {
   const sortPrimaryDirection: QueueSortDirection = options?.sortPrimaryDirection ?? "asc";
   const sortSecondaryDirection: QueueSortDirection = options?.sortSecondaryDirection ?? "asc";
   const hasPrimarySortTies = options?.hasPrimarySortTies ?? false;
+  const queueMode = options?.queueMode ?? ("display" as QueueMode);
 
   const statusSet = new Set<QueueFilterStatus>();
   const typeSet = new Set<QueueFilterKind>();
@@ -47,7 +49,7 @@ function createWrapper(options?: {
       hasSelection: false,
       selectedCount: 0,
       hasPrimarySortTies,
-      queueMode: "display" as QueueMode,
+      queueMode,
       visibleCount: 0,
       totalCount: 0,
     },
@@ -113,6 +115,28 @@ describe("QueueFiltersBar sort direction toggles", () => {
     await toggle.trigger("click");
     const secondEmit = wrapper.emitted("update:sortSecondaryDirection");
     expect(secondEmit?.[1]).toEqual(["desc"]);
+
+    wrapper.unmount();
+  });
+
+  it("disables sort controls in execution queue mode", async () => {
+    const wrapper = createWrapper({
+      queueMode: "queue",
+      hasPrimarySortTies: true,
+    });
+
+    const primaryTrigger = wrapper.get("[data-testid='queue-sort-primary-trigger']");
+    expect(primaryTrigger.attributes("disabled")).toBeDefined();
+
+    const primaryToggle = wrapper.get("[data-testid='queue-sort-primary-direction-toggle']");
+    expect(primaryToggle.attributes("disabled")).toBeDefined();
+    await primaryToggle.trigger("click");
+    expect(wrapper.emitted("update:sortPrimaryDirection")).toBeUndefined();
+
+    const secondaryExpand = wrapper.get("[data-testid='queue-secondary-sort-expand']");
+    expect(secondaryExpand.attributes("disabled")).toBeDefined();
+
+    expect(wrapper.find("[data-testid='queue-secondary-sort-row']").exists()).toBe(false);
 
     wrapper.unmount();
   });

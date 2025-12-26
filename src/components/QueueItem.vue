@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
+import { ensureJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
+import { preloadImage } from "@/lib/previewPreload";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
@@ -90,7 +91,7 @@ const statusTextClass = computed(() => {
       return "text-muted-foreground";
     case "skipped":
       return "text-muted-foreground";
-    case "waiting":
+    case "queued":
       return "text-amber-500";
     case "failed":
       return "text-red-500";
@@ -100,10 +101,7 @@ const statusTextClass = computed(() => {
 });
 
 const { t } = useI18n();
-// 将内部 queued 统一映射为 waiting，避免在文案中暴露裸 key。
-const displayStatusKey = computed(() => (effectiveStatus.value === "queued" ? "waiting" : effectiveStatus.value));
-
-const localizedStatus = computed(() => t(`queue.status.${displayStatusKey.value}`));
+const localizedStatus = computed(() => t(`queue.status.${effectiveStatus.value}`));
 
 const typeLabel = computed(() => {
   if (props.job.type === "image") {
@@ -125,10 +123,7 @@ const sourceLabel = computed(() => {
 const isCancellable = computed(
   () =>
     props.canCancel &&
-    (props.job.status === "waiting" ||
-      props.job.status === "queued" ||
-      props.job.status === "processing" ||
-      props.job.status === "paused"),
+    (props.job.status === "queued" || props.job.status === "processing" || props.job.status === "paused"),
 );
 
 const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !props.isPausing);
@@ -210,7 +205,6 @@ const progressVariant = computed<ProgressVariant>(() => {
       return "error";
     case "paused":
     case "pausing":
-    case "waiting":
     case "queued":
       return "warning";
     case "cancelled":
@@ -247,6 +241,7 @@ const handleCopyCommand = async () => {
 const previewUrl = ref<string | null>(null);
 const previewFallbackLoaded = ref(false);
 const previewRescreenshotAttempted = ref(false);
+const previewErrorHandlingInFlight = ref(false);
 const lastPreviewPath = ref<string | null>(null);
 
 /**
@@ -283,13 +278,22 @@ watch(
 
     if (!path) {
       if (type === "video") {
-        requestJobPreviewWarmup(id);
+        void ensureJobPreviewWarmup(id).then((ensured) => {
+          if (!ensured) return;
+          if (props.job.id !== id) return;
+          if (props.job.previewPath) return;
+          if (previewUrl.value) return;
+
+          previewUrl.value = buildJobPreviewUrl(ensured, props.job.previewRevision);
+          preloadImage(previewUrl.value);
+        });
       }
       previewUrl.value = null;
       return;
     }
 
     previewUrl.value = buildJobPreviewUrl(path, previewRevision);
+    preloadImage(previewUrl.value);
   },
   { immediate: true },
 );
@@ -299,33 +303,41 @@ const handlePreviewError = async () => {
   if (!path) return;
   if (!hasTauri()) return;
   if (previewFallbackLoaded.value) return;
+  if (previewErrorHandlingInFlight.value) return;
+
+  previewErrorHandlingInFlight.value = true;
 
   try {
-    const url = await loadPreviewDataUrl(path);
-    previewUrl.value = url;
-    previewFallbackLoaded.value = true;
-    await nextTick();
-  } catch (error) {
-    if (previewRescreenshotAttempted.value) {
-      console.error("QueueItem: failed to load preview via data URL fallback", error);
-      return;
-    }
-
-    previewRescreenshotAttempted.value = true;
-    if (!isTestEnv) {
-      console.warn("QueueItem: preview missing or unreadable, attempting regeneration", error);
-    }
-
     try {
-      const regenerated = await ensureJobPreview(props.job.id);
-      if (regenerated) {
-        previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
-        previewFallbackLoaded.value = false;
-        await nextTick();
+      const url = await loadPreviewDataUrl(path);
+      previewUrl.value = url;
+      previewFallbackLoaded.value = true;
+      await nextTick();
+      return;
+    } catch (error) {
+      if (previewRescreenshotAttempted.value) {
+        console.error("QueueItem: failed to load preview via data URL fallback", error);
+        return;
       }
-    } catch (regenError) {
-      console.error("QueueItem: failed to regenerate preview", regenError);
+
+      previewRescreenshotAttempted.value = true;
+      if (!isTestEnv) {
+        console.warn("QueueItem: preview missing or unreadable, attempting regeneration", error);
+      }
+
+      try {
+        const regenerated = await ensureJobPreview(props.job.id);
+        if (regenerated) {
+          previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
+          previewFallbackLoaded.value = false;
+          await nextTick();
+        }
+      } catch (regenError) {
+        console.error("QueueItem: failed to regenerate preview", regenError);
+      }
     }
+  } finally {
+    previewErrorHandlingInFlight.value = false;
   }
 };
 

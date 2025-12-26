@@ -70,7 +70,7 @@ describe("MainApp Tauri presets", () => {
           originalSizeMB: (payload?.originalSizeMb as number) ?? 0,
           originalCodec: (payload?.originalCodec as string) ?? "h264",
           presetId,
-          status: "waiting",
+          status: "queued",
           progress: 0,
           logs: [],
         };

@@ -199,7 +199,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
 
   const queueModeWaitingJobs = computed<TranscodeJob[]>(() =>
     manualQueueJobs.value
-      .filter((job) => job.status === "waiting" || job.status === "queued" || job.status === "paused")
+      .filter((job) => job.status === "queued" || job.status === "paused")
       .slice()
       .sort((a, b) => compareJobsInWaitingGroup(a, b)),
   );

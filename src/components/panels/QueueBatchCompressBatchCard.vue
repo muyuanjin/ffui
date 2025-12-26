@@ -117,7 +117,7 @@ const toggleBatchSelection = () => {
 const getBatchProgressVariant = (batch: CompositeBatchCompressTask): ProgressVariant => {
   const { completedCount, failedCount, cancelledCount, totalCount, jobs } = batch;
   const hasProcessing = jobs.some((j) => j.status === "processing");
-  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "queued");
 
   if (completedCount === totalCount && totalCount > 0) return "success";
   if (failedCount > 0) return "error";

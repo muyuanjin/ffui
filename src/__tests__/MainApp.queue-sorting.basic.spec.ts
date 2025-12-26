@@ -73,7 +73,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -85,7 +85,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -97,7 +97,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -136,7 +136,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,
@@ -149,7 +149,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,
@@ -162,7 +162,7 @@ describe("MainApp queue sorting basics", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,
@@ -173,7 +173,7 @@ describe("MainApp queue sorting basics", () => {
     if ("sortPrimaryDirection" in vm) vm.sortPrimaryDirection = "asc";
     await nextTick();
 
-    const waitingGroup = getFilteredJobs(vm).filter((job) => job.status === "waiting");
+    const waitingGroup = getFilteredJobs(vm).filter((job) => job.status === "queued");
     expect(waitingGroup.map((j) => j.id)).toEqual(["job-2", "job-1", "job-3"]);
   });
 

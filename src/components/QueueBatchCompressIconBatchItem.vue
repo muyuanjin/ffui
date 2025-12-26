@@ -46,7 +46,7 @@ const showRippleCardProgress = computed(
 const progressColorClass = computed(() => {
   const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
   const hasProcessing = jobs.some((j) => j.status === "processing");
-  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "queued");
 
   // 全部完成 - 使用与普通任务一致的绿色
   if (completedCount === totalCount && totalCount > 0) {
@@ -72,7 +72,7 @@ const progressColorClass = computed(() => {
 const rippleProgressColorClass = computed(() => {
   const { completedCount, failedCount, cancelledCount, totalCount, jobs } = props.batch;
   const hasProcessing = jobs.some((j) => j.status === "processing");
-  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "waiting" || j.status === "queued");
+  const hasPaused = jobs.some((j) => j.status === "paused" || j.status === "queued");
 
   if (completedCount === totalCount && totalCount > 0) {
     return "bg-gradient-to-r from-emerald-500/30 via-emerald-500/60 to-emerald-500/30";

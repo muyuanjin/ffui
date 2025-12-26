@@ -21,7 +21,6 @@ const rippleProgressColorClass = computed(() => {
     case "failed":
       return "bg-gradient-to-r from-red-500/30 via-red-500/60 to-red-500/30";
     case "paused":
-    case "waiting":
     case "queued":
       return "bg-gradient-to-r from-amber-500/30 via-amber-500/60 to-amber-500/30";
     case "cancelled":
@@ -41,7 +40,6 @@ const staticProgressColorClass = computed(() => {
     case "failed":
       return "bg-red-500/60";
     case "paused":
-    case "waiting":
     case "queued":
       return "bg-amber-500/60";
     case "cancelled":
@@ -70,6 +68,8 @@ const staticProgressColorClass = computed(() => {
         v-if="previewUrl"
         :src="previewUrl"
         alt=""
+        decoding="async"
+        loading="eager"
         class="h-full w-full object-cover opacity-95"
         @error="emit('preview-error')"
       />

@@ -275,7 +275,7 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
       let filename = "";
       let size = 0;
       let codec = "";
-      let status: JobStatus = "waiting";
+      let status: JobStatus = "queued";
       let skipReason = "";
 
       if (kind === "video") {

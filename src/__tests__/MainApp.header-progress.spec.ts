@@ -91,7 +91,7 @@ describe("MainApp header progress bar", () => {
     wrapper.unmount();
   });
 
-  it("does not show header progress when only queued or waiting jobs exist", async () => {
+  it("does not show header progress when only queued jobs exist", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -100,7 +100,7 @@ describe("MainApp header progress bar", () => {
 
     const vm: any = wrapper.vm;
 
-    const waitingJob: TranscodeJob = {
+    const queuedJob: TranscodeJob = {
       id: "job-waiting",
       filename: "C:/videos/waiting.mp4",
       type: "video",
@@ -108,12 +108,12 @@ describe("MainApp header progress bar", () => {
       originalSizeMB: 5,
       originalCodec: "h264",
       presetId: "p1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     } as any;
 
-    setJobs(vm, [waitingJob]);
+    setJobs(vm, [queuedJob]);
     await nextTick();
 
     // Queue contributes to aggregated progress but should not keep the header bar visible.

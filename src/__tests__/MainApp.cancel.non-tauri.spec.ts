@@ -45,7 +45,7 @@ describe("MainApp non-Tauri cancel flow (web preview)", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "preset-1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [] as string[],
       },
@@ -67,7 +67,7 @@ describe("MainApp non-Tauri cancel flow (web preview)", () => {
     expect(jobAfter).toBeTruthy();
     // In pure web mode the cancel handler is expected to be a no-op; the
     // queue is only driven by the backend in real Tauri builds.
-    expect(jobAfter.status).toBe("waiting");
+    expect(jobAfter.status).toBe("queued");
     expect(jobAfter.logs).toEqual([]);
 
     wrapper.unmount();

@@ -1,4 +1,4 @@
-import { watch, type Ref } from "vue";
+import { nextTick, watch, type Ref } from "vue";
 import { toast } from "vue-sonner";
 import type { QueueStartupHintKind, TranscodeJob } from "@/types";
 import { getQueueStartupHint, resumeStartupQueue } from "@/lib/backend.queue-startup";
@@ -26,18 +26,27 @@ export function useQueueStartupToast(options: UseQueueStartupToastOptions) {
 
   watch(
     [lastQueueSnapshotRevision, () => jobs.value.length],
-    async ([revision]) => {
+    async () => {
       if (!enabled || checked) return;
       if (!hasTauri()) {
         checked = true;
         return;
       }
-      if (typeof revision !== "number" || !Number.isFinite(revision)) return;
       checked = true;
 
-      const hint = await getQueueStartupHint();
+      let hint: Awaited<ReturnType<typeof getQueueStartupHint>> = null;
+      try {
+        hint = await getQueueStartupHint();
+      } catch (err) {
+        checked = false;
+        console.error("Failed to load queue startup hint:", err);
+        return;
+      }
       if (!hint) return;
       if (!Number.isFinite(hint.autoPausedJobCount) || hint.autoPausedJobCount <= 0) return;
+
+      // Ensure the toast host is mounted (App.vue renders it after MainApp).
+      await nextTick();
 
       toast.message(t("queue.startupHint.title"), {
         description: t(descriptionKeyForKind(hint.kind), { count: hint.autoPausedJobCount }),
@@ -58,6 +67,6 @@ export function useQueueStartupToast(options: UseQueueStartupToastOptions) {
         },
       });
     },
-    { flush: "post" },
+    { flush: "post", immediate: true },
   );
 }

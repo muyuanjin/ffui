@@ -10,7 +10,7 @@ import {
 type CommandViewDefaultMode = "status" | "template" | "full";
 
 const isPreExecutionStatus = (status: TranscodeJob["status"] | undefined) => {
-  return status === "waiting" || status === "queued" || status === "paused";
+  return status === "queued" || status === "paused";
 };
 
 type CommandViewTranslator = (key: string) => string;

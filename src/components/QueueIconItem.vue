@@ -67,17 +67,16 @@ const clampedProgress = computed(() => {
 });
 
 const showBarProgress = computed(
-  () => props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "bar",
+  () => props.job.status !== "queued" && props.job.status !== "skipped" && effectiveProgressStyle.value === "bar",
 );
 
 const showCardFillProgress = computed(
-  () =>
-    props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "card-fill",
+  () => props.job.status !== "queued" && props.job.status !== "skipped" && effectiveProgressStyle.value === "card-fill",
 );
 
 const showRippleCardProgress = computed(
   () =>
-    props.job.status !== "waiting" && props.job.status !== "skipped" && effectiveProgressStyle.value === "ripple-card",
+    props.job.status !== "queued" && props.job.status !== "skipped" && effectiveProgressStyle.value === "ripple-card",
 );
 
 // 根据任务状态计算进度条颜色类
@@ -88,7 +87,6 @@ const progressColorClass = computed(() => {
     case "failed":
       return "bg-red-500";
     case "paused":
-    case "waiting":
     case "queued":
       return "bg-amber-500";
     case "cancelled":
@@ -108,7 +106,6 @@ const rippleProgressColorClass = computed(() => {
     case "failed":
       return "bg-gradient-to-r from-red-500/60 via-red-500 to-red-500/60";
     case "paused":
-    case "waiting":
     case "queued":
       return "bg-gradient-to-r from-amber-500/60 via-amber-500 to-amber-500/60";
     case "cancelled":
@@ -120,10 +117,7 @@ const rippleProgressColorClass = computed(() => {
   }
 });
 
-// 与列表视图保持一致：内部 queued 状态在文案层统一视为 waiting。
-const displayStatusKey = computed(() =>
-  props.isPausing ? "pausing" : props.job.status === "queued" ? "waiting" : props.job.status,
-);
+const displayStatusKey = computed(() => (props.isPausing ? "pausing" : props.job.status));
 
 const statusLabel = computed(() => t(`queue.status.${displayStatusKey.value}`) as string);
 
@@ -133,7 +127,6 @@ const statusBadgeClass = computed(() => {
       return "border-emerald-500/60 text-emerald-200 bg-emerald-500/20";
     case "processing":
       return "border-blue-500/60 text-blue-200 bg-blue-500/20";
-    case "waiting":
     case "queued":
     case "paused":
       return "border-amber-500/60 text-amber-200 bg-amber-500/20";

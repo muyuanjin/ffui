@@ -210,7 +210,7 @@ describe("MainApp Tauri preview fallback", () => {
     wrapper.unmount();
   });
 
-  it("prefers the input path for waiting jobs so preview works before output is produced", async () => {
+  it("prefers the input path for queued jobs so preview works before output is produced", async () => {
     const wrapper = mount(MainApp, {
       global: {
         plugins: [i18n],
@@ -230,7 +230,7 @@ describe("MainApp Tauri preview fallback", () => {
       originalSizeMB: 10,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
       outputPath: "C:/videos/source.compressed.mp4",
@@ -246,7 +246,7 @@ describe("MainApp Tauri preview fallback", () => {
 
     await nextTick();
 
-    // Simulate the backend existence check: waiting jobs generally don't have the final output yet,
+    // Simulate the backend existence check: queued jobs generally don't have the final output yet,
     // so the backend should skip outputPath and fall back to inputPath.
     selectPlayableMediaPathMock.mockImplementationOnce(
       async (candidates: string[]) => candidates[1] ?? candidates[0] ?? null,

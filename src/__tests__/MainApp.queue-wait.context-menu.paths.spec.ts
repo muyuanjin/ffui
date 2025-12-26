@@ -124,7 +124,7 @@ describe("MainApp queue context menu copy/reveal in Tauri mode", () => {
       source: "batch_compress",
       originalSizeMB: 12,
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     } as TranscodeJob;
@@ -138,7 +138,7 @@ describe("MainApp queue context menu copy/reveal in Tauri mode", () => {
       source: "batch_compress",
       originalSizeMB: 12,
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     } as TranscodeJob;

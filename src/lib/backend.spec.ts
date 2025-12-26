@@ -15,6 +15,7 @@ import {
   enqueueTranscodeJobs,
   cancelTranscodeJob,
   waitTranscodeJob,
+  waitTranscodeJobsBulk,
   resumeTranscodeJob,
   restartTranscodeJob,
   deleteTranscodeJob,
@@ -46,7 +47,7 @@ describe("backend contract", () => {
       originalSizeMB: 0,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
       inputPath: "C:/videos/sample.mp4",
@@ -109,7 +110,7 @@ describe("backend contract", () => {
       originalSizeMB: 0,
       originalCodec: "h264",
       presetId,
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     }));
@@ -381,6 +382,22 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       jobId,
       job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("waitTranscodeJobsBulk sends wait_transcode_jobs_bulk with both ids name variants", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobIds = ["job-1", "job-2", "job-3"];
+
+    const result = await waitTranscodeJobsBulk(jobIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("wait_transcode_jobs_bulk");
+    expect(payload).toMatchObject({
+      jobIds,
+      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });

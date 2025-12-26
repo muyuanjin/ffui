@@ -147,7 +147,7 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     if (status === "processing") return "bg-blue-500/20 text-blue-400 border-blue-500/40";
     if (status === "failed") return "bg-destructive/20 text-destructive border-destructive/40";
     if (status === "cancelled") return "bg-orange-500/20 text-orange-400 border-orange-500/40";
-    if (status === "waiting" || status === "queued") return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
+    if (status === "queued") return "bg-yellow-500/20 text-yellow-400 border-yellow-500/40";
     if (status === "paused") return "bg-purple-500/20 text-purple-400 border-purple-500/40";
     if (status === "skipped") return "bg-gray-500/20 text-gray-400 border-gray-500/40";
     return "bg-muted text-muted-foreground border-border";

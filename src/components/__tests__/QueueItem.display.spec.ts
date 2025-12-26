@@ -242,23 +242,22 @@ describe("QueueItem display basics", () => {
   });
 
   it("renders localized status text and visual style for common job statuses", () => {
-    const statuses = ["processing", "completed", "paused", "waiting", "failed", "skipped", "cancelled"] as const;
+    const statuses = ["processing", "completed", "paused", "queued", "failed", "skipped", "cancelled"] as const;
 
     const expectedClassByStatus = {
       completed: "text-emerald-500",
       processing: "text-blue-500",
       paused: "text-amber-500",
-      waiting: "text-amber-500",
       failed: "text-red-500",
       skipped: "text-muted-foreground",
       cancelled: "text-muted-foreground",
-      queued: "text-muted-foreground",
+      queued: "text-amber-500",
     } as const;
 
     for (const status of statuses) {
       const job = makeJob({
         status,
-        progress: status === "waiting" || status === "skipped" ? 0 : 42,
+        progress: status === "queued" || status === "skipped" ? 0 : 42,
       });
 
       const wrapper = mount(QueueItem, {

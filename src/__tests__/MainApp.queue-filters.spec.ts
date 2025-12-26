@@ -54,7 +54,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -85,7 +85,7 @@ describe("MainApp queue filters", () => {
     ];
 
     setJobs(vm, jobs);
-    if ("activeStatusFilters" in vm) vm.activeStatusFilters = new Set<JobStatus>(["waiting"]);
+    if ("activeStatusFilters" in vm) vm.activeStatusFilters = new Set<JobStatus>(["queued"]);
     if ("activeTypeFilters" in vm) vm.activeTypeFilters = new Set(["manual"]);
     await nextTick();
 
@@ -111,7 +111,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -123,7 +123,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -162,7 +162,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 5,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -174,7 +174,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 500,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },
@@ -206,7 +206,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,
@@ -218,7 +218,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 500,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,
@@ -230,7 +230,7 @@ describe("MainApp queue filters", () => {
         originalSizeMB: 500,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       } as any,

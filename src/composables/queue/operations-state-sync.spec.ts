@@ -43,7 +43,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 50,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -56,7 +56,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 100,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -146,7 +146,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 100,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -159,7 +159,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 100,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -192,7 +192,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 100,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -205,7 +205,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 100,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };
@@ -235,7 +235,7 @@ describe("queue operations state sync", () => {
       originalSizeMB: 50,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };

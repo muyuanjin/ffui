@@ -9,7 +9,7 @@ const baseJob: TranscodeJob = {
   source: "manual",
   originalSizeMB: 0,
   presetId: "preset-1",
-  status: "waiting",
+  status: "queued",
   progress: 0,
   logs: [],
 };
@@ -20,7 +20,6 @@ describe("jobCompare eligibility", () => {
     expect(isJobCompareEligible({ ...baseJob, status: "paused" })).toBe(true);
     expect(isJobCompareEligible({ ...baseJob, status: "completed" })).toBe(true);
 
-    expect(isJobCompareEligible({ ...baseJob, status: "waiting" })).toBe(false);
     expect(isJobCompareEligible({ ...baseJob, status: "queued" })).toBe(false);
     expect(isJobCompareEligible({ ...baseJob, status: "failed" })).toBe(false);
     expect(isJobCompareEligible({ ...baseJob, status: "cancelled" })).toBe(false);
@@ -30,7 +29,7 @@ describe("jobCompare eligibility", () => {
 
   it("surfaces disabled reasons for missing output sources", () => {
     expect(getJobCompareDisabledReason({ ...baseJob, type: "image" })).toBe("not-video");
-    expect(getJobCompareDisabledReason({ ...baseJob, status: "waiting" })).toBe("status");
+    expect(getJobCompareDisabledReason({ ...baseJob, status: "queued" })).toBe("status");
     expect(getJobCompareDisabledReason({ ...baseJob, status: "completed", outputPath: undefined })).toBe("no-output");
     expect(
       getJobCompareDisabledReason({

@@ -11,7 +11,7 @@ describe("createQueueSortingState", () => {
       reactive({
         id: "a",
         inputPath: "/b.mp4",
-        status: "waiting",
+        status: "queued",
         type: "video",
         source: "manual",
         presetId: "preset",
@@ -20,7 +20,7 @@ describe("createQueueSortingState", () => {
       reactive({
         id: "b",
         inputPath: "/a.mp4",
-        status: "waiting",
+        status: "queued",
         type: "video",
         source: "manual",
         presetId: "preset",

@@ -12,7 +12,7 @@ const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS = 250;
  * Calculate normalized progress (0-1) for a job for aggregate calculations.
  * Terminal states (completed, failed, skipped, cancelled) count as 1.
  * Processing/paused jobs use their actual progress.
- * Waiting/queued jobs count as 0.
+ * Queued jobs count as 0.
  */
 export const normalizedJobProgressForAggregate = (job: TranscodeJob): number => {
   if (isTerminalStatus(job.status)) {
@@ -23,7 +23,7 @@ export const normalizedJobProgressForAggregate = (job: TranscodeJob): number => 
     const clamped = Math.min(Math.max(raw, 0), 100);
     return clamped / 100;
   }
-  // waiting / queued
+  // queued
   return 0;
 };
 
@@ -186,7 +186,7 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     const list = jobs.value;
     if (!list || list.length === 0) return false;
     // 仅把 processing / paused 视为“活跃任务”，避免队列中残留的
-    // waiting / queued 任务让标题栏进度条长期保持亮起状态。
+    // queued 任务让标题栏进度条长期保持亮起状态。
     return list.some((job) => job.status === "processing" || job.status === "paused");
   });
 

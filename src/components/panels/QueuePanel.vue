@@ -42,7 +42,7 @@ const emptyQueueBadgeLines = computed(() => {
 const isBatchExpanded = (batchId: string) => props.expandedBatchIds.has(batchId);
 
 const canCancelJob = (job: TranscodeJob): boolean => {
-  return hasTauri() && ["waiting", "queued", "processing", "paused"].includes(job.status);
+  return hasTauri() && ["queued", "processing", "paused"].includes(job.status);
 };
 
 const getBatchCardProps = (batch: CompositeBatchCompressTask) => {
@@ -159,6 +159,10 @@ const getQueueListItemKey = (item: QueueListItem): string =>
 const getQueueVirtualRowKey = (row: QueueVirtualRow): string => row.key;
 
 const virtualListItemSizeHint = computed(() => (props.queueRowVariant === "compact" ? 120 : 180));
+const VIRTUAL_LIST_OVERSCAN_ITEMS = 24;
+const virtualListBufferSizePx = computed(() =>
+  Math.max(200, virtualListItemSizeHint.value * VIRTUAL_LIST_OVERSCAN_ITEMS),
+);
 
 const virtualListRows = computed<QueueVirtualRow[]>(() => {
   if (props.queueMode !== "queue") {
@@ -335,7 +339,7 @@ const virtualListRows = computed<QueueVirtualRow[]>(() => {
         <VList
           v-slot="{ item: row, index }"
           :data="virtualListRows"
-          :overscan="24"
+          :buffer-size="virtualListBufferSizePx"
           :item-size="virtualListItemSizeHint"
           class="flex-1 min-h-0"
         >

@@ -125,9 +125,9 @@ describe("timeUtils", () => {
       expect(computeJobElapsedMs(job, nowMs)).toBe(20000);
     });
 
-    it("returns null for waiting jobs", () => {
+    it("returns null for queued jobs", () => {
       const job = {
-        status: "waiting",
+        status: "queued",
         startTime: nowMs - 10000,
       };
       expect(computeJobElapsedMs(job, nowMs)).toBeNull();

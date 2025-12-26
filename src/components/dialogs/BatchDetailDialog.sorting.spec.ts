@@ -16,9 +16,9 @@ describe("BatchDetailDialog 子任务排序", () => {
 
   it("不传入 sortCompareFn 时，子任务按原始顺序显示", async () => {
     const jobs = [
-      { ...createMockJob("job-c", "waiting"), filename: "C:/videos/charlie.mp4" },
-      { ...createMockJob("job-a", "waiting"), filename: "C:/videos/alpha.mp4" },
-      { ...createMockJob("job-b", "waiting"), filename: "C:/videos/beta.mp4" },
+      { ...createMockJob("job-c", "queued"), filename: "C:/videos/charlie.mp4" },
+      { ...createMockJob("job-a", "queued"), filename: "C:/videos/alpha.mp4" },
+      { ...createMockJob("job-b", "queued"), filename: "C:/videos/beta.mp4" },
     ];
     const batch = createMockBatch(jobs);
 
@@ -34,9 +34,9 @@ describe("BatchDetailDialog 子任务排序", () => {
 
   it("传入 sortCompareFn 时，子任务按排序函数排序（按文件名升序）", async () => {
     const jobs = [
-      { ...createMockJob("job-c", "waiting"), filename: "C:/videos/charlie.mp4" },
-      { ...createMockJob("job-a", "waiting"), filename: "C:/videos/alpha.mp4" },
-      { ...createMockJob("job-b", "waiting"), filename: "C:/videos/beta.mp4" },
+      { ...createMockJob("job-c", "queued"), filename: "C:/videos/charlie.mp4" },
+      { ...createMockJob("job-a", "queued"), filename: "C:/videos/alpha.mp4" },
+      { ...createMockJob("job-b", "queued"), filename: "C:/videos/beta.mp4" },
     ];
     const batch = createMockBatch(jobs);
 
@@ -60,9 +60,9 @@ describe("BatchDetailDialog 子任务排序", () => {
 
   it("传入 sortCompareFn 时，子任务按排序函数排序（按文件名降序）", async () => {
     const jobs = [
-      { ...createMockJob("job-a", "waiting"), filename: "C:/videos/alpha.mp4" },
-      { ...createMockJob("job-b", "waiting"), filename: "C:/videos/beta.mp4" },
-      { ...createMockJob("job-c", "waiting"), filename: "C:/videos/charlie.mp4" },
+      { ...createMockJob("job-a", "queued"), filename: "C:/videos/alpha.mp4" },
+      { ...createMockJob("job-b", "queued"), filename: "C:/videos/beta.mp4" },
+      { ...createMockJob("job-c", "queued"), filename: "C:/videos/charlie.mp4" },
     ];
     const batch = createMockBatch(jobs);
 
@@ -86,9 +86,9 @@ describe("BatchDetailDialog 子任务排序", () => {
 
   it("排序不影响 skipped 状态的任务（它们被过滤掉）", async () => {
     const jobs = [
-      { ...createMockJob("job-c", "waiting"), filename: "C:/videos/charlie.mp4" },
+      { ...createMockJob("job-c", "queued"), filename: "C:/videos/charlie.mp4" },
       { ...createMockJob("job-skipped", "skipped"), filename: "C:/videos/skipped.mp4" },
-      { ...createMockJob("job-a", "waiting"), filename: "C:/videos/alpha.mp4" },
+      { ...createMockJob("job-a", "queued"), filename: "C:/videos/alpha.mp4" },
     ];
     const batch = createMockBatch(jobs);
 

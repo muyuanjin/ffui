@@ -64,7 +64,6 @@ describe("useQueueStartupToast", () => {
     });
 
     mount(TestHarness);
-    lastQueueSnapshotRevision.value = 1;
     await nextTick();
     await flushPromises();
 
@@ -103,7 +102,6 @@ describe("useQueueStartupToast", () => {
     });
 
     mount(TestHarness);
-    lastQueueSnapshotRevision.value = 1;
     await nextTick();
     await flushPromises();
 
@@ -135,7 +133,6 @@ describe("useQueueStartupToast", () => {
     });
 
     mount(TestHarness);
-    lastQueueSnapshotRevision.value = 1;
     await nextTick();
     await flushPromises();
 

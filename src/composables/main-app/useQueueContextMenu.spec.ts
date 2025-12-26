@@ -155,7 +155,7 @@ describe("useQueueContextMenu bulk vs single operations", () => {
       source: "manual",
       originalSizeMB: 20,
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
     };

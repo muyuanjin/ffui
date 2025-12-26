@@ -54,7 +54,7 @@ function makeJob(): TranscodeJob {
     originalSizeMB: 10,
     originalCodec: "h264",
     presetId: "preset-1",
-    status: "waiting",
+    status: "queued",
     progress: 0,
     logs: [],
   } as TranscodeJob;

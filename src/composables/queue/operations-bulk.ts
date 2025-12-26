@@ -1,6 +1,6 @@
 import { type Ref, type ComputedRef } from "vue";
 import type { TranscodeJob, Translate } from "@/types";
-import { hasTauri, reorderQueue } from "@/lib/backend";
+import { hasTauri, reorderQueue, waitTranscodeJobsBulk } from "@/lib/backend";
 
 /**
  * Bulk operation dependencies.
@@ -12,6 +12,8 @@ export interface BulkOpsDeps {
   selectedJobIds: Ref<Set<string>>;
   /** Selected jobs computed ref. */
   selectedJobs: ComputedRef<TranscodeJob[]>;
+  /** UI-only: jobs with a pending "wait" request while still processing. */
+  pausingJobIds: Ref<Set<string>>;
   /** Queue error message ref. */
   queueError: Ref<string | null>;
   /** Optional i18n translation function. */
@@ -40,14 +42,67 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
 
 /**
  * Wait all selected processing jobs.
- * Affects jobs with status === "processing" | "waiting" | "queued".
+ * Affects jobs with status === "processing" | "queued".
  */
 export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
   const ids = deps.selectedJobs.value
-    .filter((job) => job.status === "processing" || job.status === "waiting" || job.status === "queued")
+    .filter((job) => job.status === "processing" || job.status === "queued")
     .map((job) => job.id);
-  for (const id of ids) {
-    await deps.handleWaitJob(id);
+  if (ids.length === 0) return;
+
+  if (!hasTauri()) {
+    for (const id of ids) {
+      await deps.handleWaitJob(id);
+    }
+    return;
+  }
+
+  const selected = deps.selectedJobs.value.filter((job) => ids.includes(job.id));
+  const waitingLikeIds = selected.filter((job) => job.status === "queued").map((job) => job.id);
+  const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
+
+  const waitingLikeSet = new Set(waitingLikeIds);
+  const originalStatusById = new Map<string, TranscodeJob["status"]>(selected.map((job) => [job.id, job.status]));
+  const originalPausingSnapshot = new Set(deps.pausingJobIds.value);
+
+  if (processingIds.length > 0) {
+    deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, ...processingIds]);
+  }
+
+  if (waitingLikeSet.size > 0) {
+    deps.jobs.value = deps.jobs.value.map((job) =>
+      waitingLikeSet.has(job.id) && job.status === "queued"
+        ? ({
+            ...job,
+            status: "paused",
+          } as TranscodeJob)
+        : job,
+    );
+  }
+
+  const rollbackOptimisticUpdates = () => {
+    deps.pausingJobIds.value = new Set(originalPausingSnapshot);
+    if (waitingLikeSet.size === 0) return;
+    deps.jobs.value = deps.jobs.value.map((job) => {
+      if (!waitingLikeSet.has(job.id)) return job;
+      const status = originalStatusById.get(job.id);
+      if (!status) return job;
+      return { ...job, status } as TranscodeJob;
+    });
+  };
+
+  try {
+    const ok = await waitTranscodeJobsBulk(ids);
+    if (!ok) {
+      rollbackOptimisticUpdates();
+      deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
+      return;
+    }
+    deps.queueError.value = null;
+  } catch (error) {
+    console.error("Failed to bulk wait jobs", error);
+    rollbackOptimisticUpdates();
+    deps.queueError.value = deps.t?.("queue.error.waitFailed") ?? "";
   }
 }
 
@@ -82,8 +137,7 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
 
 // ----- Queue Reordering -----
 
-const isWaitingStatus = (status: TranscodeJob["status"]) =>
-  status === "waiting" || status === "queued" || status === "paused";
+const isWaitingStatus = (status: TranscodeJob["status"]) => status === "queued" || status === "paused";
 
 function compareJobsByQueueOrderThenStartTimeThenId(a: TranscodeJob, b: TranscodeJob) {
   const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
@@ -105,7 +159,7 @@ function sortWaitingJobs(jobs: TranscodeJob[]): TranscodeJob[] {
 }
 
 /**
- * Build ordered IDs of waiting jobs (waiting/queued/paused).
+ * Build ordered IDs of waiting jobs (queued/paused).
  * Sorts by queueOrder, then startTime, then id.
  */
 export function buildWaitingQueueIds(deps: Pick<BulkOpsDeps, "jobs">): string[] {

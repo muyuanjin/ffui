@@ -38,7 +38,7 @@ const queue = {
     displayHint:
       "仅改显示顺序：只改变界面上任务的展示顺序，不会影响后台实际执行顺序。拖拽、移到队首或队尾等调整优先级的操作在该模式下会被禁用。",
     queueHint:
-      "按执行队列：Waiting 区域中任务的顺序就是后台实际执行顺序。拖拽、移到队首或队尾等操作会直接改变任务的执行优先级。",
+      "按执行队列：Waiting 区域中任务的顺序就是后台实际执行顺序。拖拽、移到队首或队尾等操作会直接改变任务的执行优先级。排序功能在该模式下会被禁用。",
   },
   progressStyleLabel: "进度样式",
   progressStyles: {
@@ -86,8 +86,13 @@ const queue = {
     typeManual: "普通转码",
     typeBatchCompress: "压缩任务",
     statusLabel: "任务状态",
-    textLabel: "条件",
+    textLabel: "条件筛选",
     textPlaceholder: "按路径、名称、状态、体积等组合筛选（支持 regex: 和 size>20mb）",
+    textPlaceholderTokens: "按路径、名称、体积等组合筛选（示例：movie 1080p size>20mb regex:.*movie.*）",
+    textPlaceholderRegex: "正则筛选（示例：^.*\\.mp4$ 或 building.*）",
+    textExamplesTitle: "条件筛选示例",
+    textExamplesHintTokens: "空格分词为“并且”；支持 size> / size<，也可用 regex: 叠加正则条件。",
+    textExamplesHintRegex: "整段作为正则表达式（不区分大小写）。",
     regexTooltip: "使用正则表达式",
     reset: "重置筛选",
     summary: "显示 {visible} / {total} 个任务",

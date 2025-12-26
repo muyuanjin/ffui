@@ -321,7 +321,7 @@ describe("QueueBatchCompressIconBatchItem", () => {
 
   describe("9宫格预览", () => {
     it("应该渲染9个预览槽位", async () => {
-      const jobs = Array.from({ length: 5 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
+      const jobs = Array.from({ length: 5 }, (_, i) => createMockJob(`job-${i}`, "queued"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(QueueBatchCompressIconBatchItem, {
@@ -347,7 +347,7 @@ describe("QueueBatchCompressIconBatchItem", () => {
     });
 
     it("在可选中模式下点击9宫格预览应该弹出详情而不是选中", async () => {
-      const jobs = Array.from({ length: 3 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
+      const jobs = Array.from({ length: 3 }, (_, i) => createMockJob(`job-${i}`, "queued"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(QueueBatchCompressIconBatchItem, {
@@ -383,12 +383,12 @@ describe("QueueBatchCompressIconBatchItem", () => {
       // 之前的实现会因为同时使用 withPreview[index] 和 jobs[index] 导致同一个
       // job 出现在多个槽位中，从而九宫格内出现重复缩略图。
       const jobs: TranscodeJob[] = [
-        createMockJob("job-1", "waiting"), // 有预览
-        { ...createMockJob("job-2", "waiting"), previewPath: undefined },
-        { ...createMockJob("job-3", "waiting"), previewPath: undefined },
-        createMockJob("job-4", "waiting"), // 有预览
-        { ...createMockJob("job-5", "waiting"), previewPath: undefined },
-        createMockJob("job-6", "waiting"), // 有预览
+        createMockJob("job-1", "queued"), // 有预览
+        { ...createMockJob("job-2", "queued"), previewPath: undefined },
+        { ...createMockJob("job-3", "queued"), previewPath: undefined },
+        createMockJob("job-4", "queued"), // 有预览
+        { ...createMockJob("job-5", "queued"), previewPath: undefined },
+        createMockJob("job-6", "queued"), // 有预览
       ];
       const batch = createMockBatch(jobs);
 

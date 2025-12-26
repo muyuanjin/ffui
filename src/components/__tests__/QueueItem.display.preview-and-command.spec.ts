@@ -259,7 +259,7 @@ describe("QueueItem display preview & command view", () => {
   });
 
   it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
-    const job = makeJob({ status: "waiting", progress: 0, previewPath: undefined });
+    const job = makeJob({ status: "queued", progress: 0, previewPath: undefined });
     (hasTauri as any).mockReturnValue(true);
 
     mount(QueueItem, {

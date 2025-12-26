@@ -37,7 +37,7 @@ const makeJob = (id: string): TranscodeJob =>
     source: "manual",
     originalSizeMB: 1,
     presetId: "p1",
-    status: "waiting",
+    status: "queued",
     progress: 0,
     logs: [],
   }) as TranscodeJob;

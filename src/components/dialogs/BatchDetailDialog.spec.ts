@@ -16,7 +16,7 @@ describe("BatchDetailDialog", () => {
 
   describe("滚动功能", () => {
     it("对话框主体使用单一垂直布局容器承载批次详情内容", async () => {
-      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
+      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "queued"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -32,7 +32,7 @@ describe("BatchDetailDialog", () => {
     });
 
     it("批次详情不再嵌套内部 ScrollArea，避免只有子任务列表可以滚动", async () => {
-      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "waiting"));
+      const jobs = Array.from({ length: 20 }, (_, i) => createMockJob(`job-${i}`, "queued"));
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -75,8 +75,8 @@ describe("BatchDetailDialog", () => {
       expect(queueItem.attributes("data-can-resume")).toBe("true");
     });
 
-    it("waiting 状态的任务应该显示取消和重启按钮", async () => {
-      const jobs = [createMockJob("job-1", "waiting")];
+    it("queued 状态的任务应该显示取消和重启按钮", async () => {
+      const jobs = [createMockJob("job-1", "queued")];
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -127,7 +127,7 @@ describe("BatchDetailDialog", () => {
     });
 
     it("点击重启按钮应该触发 restartJob 事件", async () => {
-      const jobs = [createMockJob("job-1", "waiting")];
+      const jobs = [createMockJob("job-1", "queued")];
       const batch = createMockBatch(jobs);
 
       const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
@@ -244,7 +244,7 @@ describe("BatchDetailDialog", () => {
   describe("9宫格预览图", () => {
     it("应该渲染9个预览槽位", async () => {
       const jobs = Array.from({ length: 5 }, (_, i) => ({
-        ...createMockJob(`job-${i}`, "waiting"),
+        ...createMockJob(`job-${i}`, "queued"),
         previewPath: `/preview/job-${i}.jpg`,
       }));
       const batch = createMockBatch(jobs);

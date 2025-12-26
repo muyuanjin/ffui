@@ -61,7 +61,7 @@ describe("MainApp repeated wait/resume cycles", () => {
         calls.push("resume");
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
         const current = getQueueJobs();
-        setQueueJobs(current.map((job) => (job.id === jobId ? { ...job, status: "waiting" } : job)));
+        setQueueJobs(current.map((job) => (job.id === jobId ? { ...job, status: "queued" } : job)));
         return true;
       },
     });

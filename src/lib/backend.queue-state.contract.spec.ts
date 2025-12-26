@@ -16,6 +16,44 @@ describe("backend queue state contract", () => {
     invokeMock.mockReset();
   });
 
+  it("loadQueueStateLite preserves queueOrder field values", async () => {
+    const fake = {
+      jobs: [
+        {
+          id: "job-queue-1",
+          filename: "C:/videos/in-1.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 10,
+          presetId: "preset-1",
+          status: "waiting",
+          queueOrder: 3,
+          progress: 0,
+          logs: [],
+        },
+        {
+          id: "job-queue-2",
+          filename: "C:/videos/in-2.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 10,
+          presetId: "preset-1",
+          status: "processing",
+          queueOrder: null,
+          progress: 10,
+          logs: [],
+        },
+      ],
+    };
+    invokeMock.mockResolvedValueOnce(fake);
+
+    const result = await loadQueueStateLite();
+
+    expect(result.jobs[0]?.status).toBe("queued");
+    expect(result.jobs[0]?.queueOrder).toBe(3);
+    expect(result.jobs[1]?.queueOrder).toBeNull();
+  });
+
   it("loadQueueStateLite preserves waitMetadata field names and values", async () => {
     const fake = {
       jobs: [

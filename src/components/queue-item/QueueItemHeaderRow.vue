@@ -149,6 +149,8 @@ const emit = defineEmits<{
           v-if="previewUrl"
           :src="previewUrl"
           alt=""
+          decoding="async"
+          loading="eager"
           class="h-full w-full object-cover"
           @error="emit('preview-error')"
         />
@@ -158,7 +160,7 @@ const emit = defineEmits<{
         :class="{
           'border-emerald-500/60 text-emerald-400 bg-emerald-500/10': job.status === 'completed',
           'border-blue-500/60 text-blue-400 bg-blue-500/10': job.status === 'processing',
-          'border-amber-500/60 text-amber-400 bg-amber-500/10': job.status === 'waiting' || job.status === 'paused',
+          'border-amber-500/60 text-amber-400 bg-amber-500/10': job.status === 'queued' || job.status === 'paused',
           'border-red-500/60 text-red-400 bg-red-500/10': job.status === 'failed',
           'border-muted-foreground/40 text-muted-foreground bg-muted/40': job.status === 'skipped',
         }"
@@ -166,7 +168,7 @@ const emit = defineEmits<{
         <span v-if="job.status === 'completed'">✓</span>
         <span v-else-if="job.status === 'failed'">!</span>
         <span v-else-if="job.status === 'processing'">●</span>
-        <span v-else-if="job.status === 'waiting'">…</span>
+        <span v-else-if="job.status === 'queued'">…</span>
         <span v-else-if="job.status === 'paused'">Ⅱ</span>
         <span v-else-if="job.status === 'skipped'">×</span>
         <span v-else>•</span>

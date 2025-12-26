@@ -15,10 +15,10 @@ const makeJob = (id: string, status: TranscodeJob["status"]): TranscodeJob => ({
 });
 
 describe("bulkWaitSelectedJobs", () => {
-  it("pauses selected processing/waiting/queued jobs", async () => {
+  it("pauses selected processing/queued jobs", async () => {
     const jobs = ref<TranscodeJob[]>([
       makeJob("job-processing", "processing"),
-      makeJob("job-waiting", "waiting"),
+      makeJob("job-waiting", "queued"),
       makeJob("job-queued", "queued"),
       makeJob("job-paused", "paused"),
       makeJob("job-completed", "completed"),
@@ -33,6 +33,7 @@ describe("bulkWaitSelectedJobs", () => {
       jobs,
       selectedJobIds,
       selectedJobs,
+      pausingJobIds: ref(new Set()),
       queueError: ref(null),
       refreshQueueFromBackend: async () => {},
       handleCancelJob: async () => {},
@@ -63,6 +64,7 @@ describe("bulkResumeSelectedJobs", () => {
       jobs,
       selectedJobIds,
       selectedJobs,
+      pausingJobIds: ref(new Set()),
       queueError: ref(null),
       refreshQueueFromBackend: async () => {},
       handleCancelJob: async () => {},

@@ -125,7 +125,7 @@ describe("MainApp queue selection toolbar pin", () => {
         originalSizeMB: 10,
         originalCodec: "h264",
         presetId: "p1",
-        status: "waiting",
+        status: "queued",
         progress: 0,
         logs: [],
       },

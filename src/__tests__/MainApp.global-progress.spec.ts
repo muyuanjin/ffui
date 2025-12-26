@@ -150,7 +150,7 @@ describe("MainApp global aggregated progress", () => {
       startTime: 1000,
     };
 
-    const waitingJob: TranscodeJob = {
+    const queuedJob: TranscodeJob = {
       id: "2",
       filename: "new.mp4",
       type: "video",
@@ -158,14 +158,14 @@ describe("MainApp global aggregated progress", () => {
       originalSizeMB: 10,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
       estimatedSeconds: 10,
       startTime: 1000,
     };
 
-    setJobs(vm, [completedJob, waitingJob]);
+    setJobs(vm, [completedJob, queuedJob]);
     await nextTick();
 
     // Terminal jobs from the same enqueue cohort should be counted so serial
@@ -218,7 +218,7 @@ describe("MainApp global aggregated progress", () => {
       startTime: 1000,
     };
 
-    const waitingNew: TranscodeJob = {
+    const queuedNew: TranscodeJob = {
       id: "new",
       filename: "new.mp4",
       type: "video",
@@ -226,14 +226,14 @@ describe("MainApp global aggregated progress", () => {
       originalSizeMB: 10,
       originalCodec: "h264",
       presetId: "preset-1",
-      status: "waiting",
+      status: "queued",
       progress: 0,
       logs: [],
       estimatedSeconds: 10,
       startTime: 2000,
     };
 
-    setJobs(vm, [completedOld, waitingNew]);
+    setJobs(vm, [completedOld, queuedNew]);
     await nextTick();
 
     expect(vm.globalTaskbarProgressPercent).toBe(0);

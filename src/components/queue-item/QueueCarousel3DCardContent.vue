@@ -35,7 +35,7 @@ const job = computed<TranscodeJob | null>(() => {
 const statusKey = computed(() => {
   if (props.item.kind !== "job") return null;
   const raw = props.item.job.status;
-  return `queue.status.${raw === "queued" ? "waiting" : raw}`;
+  return `queue.status.${raw}`;
 });
 </script>
 
@@ -88,7 +88,7 @@ const statusKey = computed(() => {
     <!-- 进度条与百分比 -->
     <div v-if="item.kind === 'job'" class="flex items-center gap-2">
       <Progress
-        v-if="item.job.status !== 'waiting' && item.job.status !== 'skipped'"
+        v-if="item.job.status !== 'queued' && item.job.status !== 'skipped'"
         :model-value="item.job.progress"
         :variant="getProgressVariant(item.job.status)"
         class="h-1 flex-1"

@@ -43,7 +43,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
 
   if (!hasTauri()) {
     deps.jobs.value = deps.jobs.value.map((job) =>
-      job.id === jobId && (job.status === "processing" || job.status === "waiting" || job.status === "queued")
+      job.id === jobId && (job.status === "processing" || job.status === "queued")
         ? ({
             ...job,
             status: "paused" as JobStatus,
@@ -105,7 +105,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
       job.id === jobId && job.status === "paused"
         ? ({
             ...job,
-            status: "waiting" as JobStatus,
+            status: "queued" as JobStatus,
           } as TranscodeJob)
         : job,
     );
@@ -131,7 +131,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
       if (job.status === "paused") {
         return {
           ...job,
-          status: "waiting" as JobStatus,
+          status: "queued" as JobStatus,
         };
       }
       return job;
@@ -155,7 +155,7 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
 
 /**
  * Restart a job.
- * Resets job status to waiting and clears progress/error fields.
+ * Resets job status to queued and clears progress/error fields.
  * Applies to any non-completed job (including failed/cancelled), so the next
  * run starts from 0% while keeping the original job id for history.
  */
@@ -167,7 +167,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
       job.id === jobId && job.status !== "completed" && job.status !== "skipped"
         ? ({
             ...job,
-            status: "waiting" as JobStatus,
+            status: "queued" as JobStatus,
             progress: 0,
             failureReason: undefined,
             skipReason: undefined,
@@ -189,7 +189,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
       if (job.status !== "completed" && job.status !== "skipped") {
         return {
           ...job,
-          status: "waiting" as JobStatus,
+          status: "queued" as JobStatus,
           progress: 0,
           failureReason: undefined,
           skipReason: undefined,
@@ -206,7 +206,7 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
 
 /**
  * Cancel a job.
- * Immediately sets status to cancelled for waiting/queued/paused jobs.
+ * Immediately sets status to cancelled for queued/paused jobs.
  * For processing jobs, updates status immediately after backend accepts the request.
  */
 export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
@@ -225,7 +225,7 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
 
     deps.jobs.value = deps.jobs.value.map((job) => {
       if (job.id !== jobId) return job;
-      if (job.status === "waiting" || job.status === "queued" || job.status === "paused") {
+      if (job.status === "queued" || job.status === "paused") {
         return { ...job, status: "cancelled" as JobStatus };
       }
       if (job.status === "processing") {
@@ -263,7 +263,7 @@ export function addManualJobMock(deps: Pick<SingleJobOpsDeps, "jobs" | "manualJo
     originalSizeMB: size,
     originalCodec: "h264",
     presetId: presetForJob.id,
-    status: "waiting",
+    status: "queued",
     progress: 0,
     logs: [],
   };

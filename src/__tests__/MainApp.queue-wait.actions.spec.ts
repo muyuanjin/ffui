@@ -55,7 +55,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.any(Object));
   });
 
-  it("sends resume_transcode_job and moves a paused job back to waiting", async () => {
+  it("sends resume_transcode_job and moves a paused job back to queued", async () => {
     const jobId = "job-resume-1";
     setQueueJobs([
       {
@@ -84,7 +84,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
             originalSizeMB: 10,
             originalCodec: "h264",
             presetId: "preset-1",
-            status: "waiting",
+            status: "queued",
             progress: 30,
             logs: [],
           } as TranscodeJob,
@@ -101,7 +101,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.status).toBe("queued");
     expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
   });
 
@@ -209,11 +209,11 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.status).toBe("queued");
     expect(updatedJob?.progress).toBe(0);
   });
 
-  it("sends restart_transcode_job for processing jobs and immediately resets UI state to waiting", async () => {
+  it("sends restart_transcode_job for processing jobs and immediately resets UI state to queued", async () => {
     const jobId = "job-restart-processing-1";
     setQueueJobs([
       {
@@ -245,7 +245,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.status).toBe("queued");
     expect(updatedJob?.progress).toBe(0);
     expect(invokeMock).toHaveBeenCalledWith("restart_transcode_job", expect.any(Object));
   });
@@ -282,7 +282,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.status).toBe("queued");
     expect(updatedJob?.progress).toBe(0);
   });
 
@@ -363,7 +363,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
             originalSizeMB: 10,
             originalCodec: "h264",
             presetId: "preset-1",
-            status: "waiting",
+            status: "queued",
             progress: 60,
             logs: [],
           } as TranscodeJob,
@@ -388,7 +388,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updatedJob?.status).toBe("waiting");
+    expect(updatedJob?.status).toBe("queued");
     expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", expect.objectContaining({ jobId }));
     expect(invokeMock).toHaveBeenCalledWith("get_queue_state_lite", undefined);
   });

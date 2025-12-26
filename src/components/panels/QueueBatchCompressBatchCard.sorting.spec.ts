@@ -59,7 +59,7 @@ const createChildJob = (id: string, filename: string, startTime?: number): Trans
     originalSizeMB: 10,
     originalCodec: "h264",
     presetId: basePreset.id,
-    status: "waiting",
+    status: "queued",
     progress: 0,
     logs: [],
     batchId: "batch-1",

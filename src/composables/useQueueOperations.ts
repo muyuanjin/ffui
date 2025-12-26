@@ -151,6 +151,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     jobs,
     selectedJobIds,
     selectedJobs,
+    pausingJobIds,
     queueError,
     t,
     refreshQueueFromBackend,

@@ -114,7 +114,7 @@ const handleContextMenuCompare = () => {
 const canWaitJob = (job: TranscodeJob) => job.status === "processing";
 const canResumeJob = (job: TranscodeJob) => job.status === "paused";
 const canRestartJob = (job: TranscodeJob) => job.status !== "completed" && job.status !== "skipped";
-const canCancelJob = (job: TranscodeJob) => ["waiting", "queued", "processing", "paused"].includes(job.status);
+const canCancelJob = (job: TranscodeJob) => ["queued", "processing", "paused"].includes(job.status);
 
 const formatBytes = (mb: number | null | undefined): string => {
   if (mb == null || mb <= 0) return "-";
@@ -149,7 +149,7 @@ const batchCounts = computed(() => {
 
   for (const job of jobs) {
     if (job.status === "processing") processingCount += 1;
-    if (job.status === "waiting" || job.status === "queued") waitingCount += 1;
+    if (job.status === "queued") waitingCount += 1;
     if (job.status !== "skipped") notSkippedCount += 1;
 
     if (job.type === "video") videoCount += 1;
@@ -306,8 +306,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
                 :class="{
                   'bg-emerald-500': slot.job.status === 'completed',
                   'bg-blue-500 animate-pulse': slot.job.status === 'processing',
-                  'bg-amber-500':
-                    slot.job.status === 'waiting' || slot.job.status === 'queued' || slot.job.status === 'paused',
+                  'bg-amber-500': slot.job.status === 'queued' || slot.job.status === 'paused',
                   'bg-red-500': slot.job.status === 'failed',
                   'bg-muted-foreground': slot.job.status === 'skipped' || slot.job.status === 'cancelled',
                 }"
@@ -336,7 +335,7 @@ const onPreviewClick = (job: TranscodeJob | null) => {
             <span class="text-lg font-semibold text-blue-400">{{ batchCounts.processingCount }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">
-            <span class="block text-muted-foreground mb-1">{{ t("queue.status.waiting") }}</span>
+            <span class="block text-muted-foreground mb-1">{{ t("queue.status.queued") }}</span>
             <span class="text-lg font-semibold text-yellow-400">{{ batchCounts.waitingCount }}</span>
           </div>
           <div class="rounded-md border border-border/60 bg-muted/30 p-2">

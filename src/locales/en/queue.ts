@@ -38,7 +38,7 @@ const queue = {
     displayHint:
       "View-only sort: changes only the on-screen order and never affects the actual execution order. Drag-and-drop and priority-changing actions are disabled in this mode.",
     queueHint:
-      "Execution order queue: the order of jobs in the Waiting group reflects the real execution priority. Drag-and-drop and 'move to top/bottom' control which jobs run first.",
+      "Execution order queue: the order of jobs in the Waiting group reflects the real execution priority. Drag-and-drop and 'move to top/bottom' control which jobs run first. Sorting controls are disabled in this mode.",
   },
   progressStyleLabel: "Progress style",
   progressStyles: {
@@ -88,6 +88,11 @@ const queue = {
     statusLabel: "Status",
     textLabel: "Conditions",
     textPlaceholder: "Filter by path, name, status, size or other fields (supports regex: and size>20mb)",
+    textPlaceholderTokens: "Filter by tokens (e.g. movie 1080p size>20mb regex:.*movie.*)",
+    textPlaceholderRegex: "Filter by regex (e.g. ^.*\\.mp4$ or building.*)",
+    textExamplesTitle: "Condition filter examples",
+    textExamplesHintTokens: "Space-separated tokens are AND; supports size> / size< and an optional regex: token.",
+    textExamplesHintRegex: "Treat the whole input as a regex (case-insensitive).",
     regexTooltip: "Use regular expression",
     reset: "Reset filters",
     summary: "Showing {visible} / {total} jobs",

@@ -28,7 +28,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       return Math.max(0, Math.min(100, raw));
     }
 
-    return 0; // waiting / queued
+    return 0; // queued
   });
 
   const displayedProgress = ref(clampedProgress.value);
@@ -153,15 +153,15 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   );
 
   const showBarProgress = computed(
-    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "bar",
+    () => !isSkipped.value && options.job.value.status !== "queued" && effectiveProgressStyle.value === "bar",
   );
 
   const showCardFillProgress = computed(
-    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "card-fill",
+    () => !isSkipped.value && options.job.value.status !== "queued" && effectiveProgressStyle.value === "card-fill",
   );
 
   const showRippleCardProgress = computed(
-    () => !isSkipped.value && options.job.value.status !== "waiting" && effectiveProgressStyle.value === "ripple-card",
+    () => !isSkipped.value && options.job.value.status !== "queued" && effectiveProgressStyle.value === "ripple-card",
   );
 
   onUnmounted(() => {

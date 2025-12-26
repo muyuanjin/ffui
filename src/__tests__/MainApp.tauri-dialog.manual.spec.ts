@@ -61,7 +61,7 @@ describe("MainApp Tauri manual job flow", () => {
           originalSizeMB: (payload?.originalSizeMb as number) ?? 0,
           originalCodec: (payload?.originalCodec as string) ?? "h264",
           presetId: (payload?.presetId as string) ?? "preset-1",
-          status: "waiting",
+          status: "queued",
           progress: 0,
           logs: [],
         };
@@ -219,7 +219,7 @@ describe("MainApp Tauri manual job flow", () => {
             originalSizeMB: 0,
             originalCodec: "h264",
             presetId,
-            status: "waiting",
+            status: "queued",
             progress: 0,
             logs: [],
           } as any);

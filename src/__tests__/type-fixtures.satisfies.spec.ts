@@ -15,13 +15,13 @@ const transcodeJobFixture = {
   source: "manual",
   originalSizeMB: 10,
   presetId: "preset-1",
-  status: "waiting",
+  status: "queued",
   progress: 0,
 } satisfies TranscodeJob;
 
 describe("type-level fixtures", () => {
   it("keeps AppSettings and TranscodeJob shapes aligned", () => {
     expect(appSettingsFixture.tools.autoDownload).toBe(true);
-    expect(transcodeJobFixture.status).toBe("waiting");
+    expect(transcodeJobFixture.status).toBe("queued");
   });
 });

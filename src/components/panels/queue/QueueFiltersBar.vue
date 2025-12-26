@@ -90,6 +90,7 @@ const secondarySortFieldOptions: QueueSortField[] = [
 const filterPanelOpen = ref(false);
 // Local UI state: whether the secondary sort controls are expanded.
 const secondarySortExpanded = ref(false);
+const savedSecondarySortExpanded = ref<boolean | null>(null);
 
 // 固定选择操作栏的状态（从 prop 读取，通过 emit 更新以持久化）
 const selectionBarPinned = computed(() => props.selectionBarPinned ?? false);
@@ -101,9 +102,12 @@ const modeHint = computed(() =>
   props.queueMode === "queue" ? t("queue.modes.queueHint") : t("queue.modes.displayHint"),
 );
 
+const sortControlsDisabled = computed(() => props.queueMode === "queue");
+
 watch(
   () => props.hasPrimarySortTies,
   (hasTies) => {
+    if (sortControlsDisabled.value) return;
     if (hasTies) {
       secondarySortExpanded.value = true;
     }
@@ -111,11 +115,35 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => props.queueMode,
+  (mode, prev) => {
+    if (mode === "queue") {
+      if (prev !== "queue") {
+        savedSecondarySortExpanded.value = secondarySortExpanded.value;
+      }
+      secondarySortExpanded.value = false;
+      return;
+    }
+    if (prev === "queue") {
+      if (savedSecondarySortExpanded.value !== null) {
+        secondarySortExpanded.value = savedSecondarySortExpanded.value;
+        savedSecondarySortExpanded.value = null;
+      } else if (props.hasPrimarySortTies) {
+        secondarySortExpanded.value = true;
+      }
+    }
+  },
+  { immediate: true },
+);
+
 const togglePrimarySortDirection = () => {
+  if (sortControlsDisabled.value) return;
   emit("update:sortPrimaryDirection", props.sortPrimaryDirection === "asc" ? "desc" : "asc");
 };
 
 const toggleSecondarySortDirection = () => {
+  if (sortControlsDisabled.value) return;
   emit("update:sortSecondaryDirection", props.sortSecondaryDirection === "asc" ? "desc" : "asc");
 };
 </script>
@@ -158,6 +186,7 @@ const toggleSecondarySortDirection = () => {
             </span>
             <Select
               :model-value="props.sortPrimary"
+              :disabled="sortControlsDisabled"
               @update:model-value="(v) => emit('update:sortPrimary', v as QueueSortField)"
             >
               <SelectTrigger
@@ -180,6 +209,7 @@ const toggleSecondarySortDirection = () => {
               class="h-6 px-2 gap-1 text-xs"
               data-testid="queue-sort-primary-direction-toggle"
               :title="props.sortPrimaryDirection === 'asc' ? t('queue.sort.asc') : t('queue.sort.desc')"
+              :disabled="sortControlsDisabled"
               @click="togglePrimarySortDirection"
             >
               <ArrowUpDown v-if="props.sortPrimaryDirection === 'asc'" class="h-3 w-3" />
@@ -196,6 +226,7 @@ const toggleSecondarySortDirection = () => {
               size="sm"
               class="h-6 px-2 gap-1 text-xs"
               data-testid="queue-secondary-sort-expand"
+              :disabled="sortControlsDisabled"
               @click="secondarySortExpanded = true"
             >
               <ListOrdered class="h-3 w-3" />
@@ -212,6 +243,7 @@ const toggleSecondarySortDirection = () => {
               </span>
               <Select
                 :model-value="props.sortSecondary"
+                :disabled="sortControlsDisabled"
                 @update:model-value="(v) => emit('update:sortSecondary', v as QueueSortField)"
               >
                 <SelectTrigger
@@ -234,6 +266,7 @@ const toggleSecondarySortDirection = () => {
                 class="h-6 px-2 gap-1 text-xs"
                 data-testid="queue-sort-secondary-direction-toggle"
                 :title="props.sortSecondaryDirection === 'asc' ? t('queue.sort.asc') : t('queue.sort.desc')"
+                :disabled="sortControlsDisabled"
                 @click="toggleSecondarySortDirection"
               >
                 <ArrowUpDown v-if="props.sortSecondaryDirection === 'asc'" class="h-3 w-3" />

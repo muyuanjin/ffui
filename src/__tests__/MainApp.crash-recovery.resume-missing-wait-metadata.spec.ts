@@ -46,7 +46,7 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
 
     useBackendMock({
       resume_transcode_job: () => {
-        setQueueJobs([{ ...pausedJob, status: "waiting" }]);
+        setQueueJobs([{ ...pausedJob, status: "queued" }]);
         return true;
       },
     });
@@ -62,13 +62,13 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
 
     await vm.handleResumeJob(jobId);
     await nextTick();
-    expect(getJobsFromVm(vm).find((j) => j.id === jobId)?.status).toBe("waiting");
+    expect(getJobsFromVm(vm).find((j) => j.id === jobId)?.status).toBe("queued");
 
     // Backend later sends a snapshot with recovered waitMetadata.segments.
     emitQueueState([
       {
         ...pausedJob,
-        status: "waiting",
+        status: "queued",
         waitMetadata: {
           segments: ["F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv"],
           tmpOutputPath: "F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv",

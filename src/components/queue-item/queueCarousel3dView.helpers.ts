@@ -26,7 +26,6 @@ export const getStatusClass = (status: JobStatus) => {
       return "border-emerald-500/60 text-emerald-200 bg-emerald-500/20";
     case "processing":
       return "border-blue-500/60 text-blue-200 bg-blue-500/20";
-    case "waiting":
     case "queued":
     case "paused":
       return "border-amber-500/60 text-amber-200 bg-amber-500/20";
@@ -47,7 +46,6 @@ export const getProgressVariant = (status: JobStatus): ProgressVariant => {
     case "failed":
       return "error";
     case "paused":
-    case "waiting":
     case "queued":
       return "warning";
     case "cancelled":

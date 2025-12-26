@@ -5,6 +5,7 @@ const isTestEnv =
 
 const pendingJobIds = new Set<string>();
 const lastAttemptAtMsByJobId = new Map<string, number>();
+const waitersByJobId = new Map<string, Array<(result: string | null) => void>>();
 
 let workerRunning = false;
 
@@ -26,10 +27,20 @@ async function runWorker() {
       }
       pendingJobIds.delete(next);
 
+      const waiters = waitersByJobId.get(next) ?? [];
+      waitersByJobId.delete(next);
+
+      let ensured: string | null = null;
       try {
-        await ensureJobPreview(next);
+        ensured = await ensureJobPreview(next);
       } catch {
         // Best-effort: backend errors are already logged there and UI will keep placeholder.
+      }
+
+      if (waiters.length > 0) {
+        for (const resolve of waiters) {
+          resolve(ensured);
+        }
       }
 
       if (YIELD_BETWEEN_JOBS_MS > 0) {
@@ -64,9 +75,44 @@ export function requestJobPreviewWarmup(jobId: string | null | undefined) {
   }
 }
 
+export function ensureJobPreviewWarmup(jobId: string | null | undefined): Promise<string | null> {
+  if (!hasTauri()) return Promise.resolve(null);
+  const normalized = (jobId ?? "").trim();
+  if (!normalized) return Promise.resolve(null);
+
+  return new Promise<string | null>((resolve) => {
+    const existing = waitersByJobId.get(normalized);
+    if (existing) {
+      existing.push(resolve);
+      pendingJobIds.add(normalized);
+      if (!workerRunning) {
+        workerRunning = true;
+        void runWorker();
+      }
+      return;
+    }
+
+    const now = Date.now();
+    const last = lastAttemptAtMsByJobId.get(normalized);
+    if (typeof last === "number" && now - last < MIN_RETRY_MS) {
+      resolve(null);
+      return;
+    }
+
+    lastAttemptAtMsByJobId.set(normalized, now);
+    waitersByJobId.set(normalized, [resolve]);
+    pendingJobIds.add(normalized);
+    if (!workerRunning) {
+      workerRunning = true;
+      void runWorker();
+    }
+  });
+}
+
 export function resetJobPreviewWarmupForTests() {
   if (!isTestEnv) return;
   pendingJobIds.clear();
   lastAttemptAtMsByJobId.clear();
+  waitersByJobId.clear();
   workerRunning = false;
 }

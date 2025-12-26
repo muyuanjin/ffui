@@ -1,7 +1,7 @@
 import type { TranscodeJob } from "@/types";
 
 export function isWaitingStatus(status: TranscodeJob["status"]) {
-  return status === "waiting" || status === "queued" || status === "paused";
+  return status === "queued" || status === "paused";
 }
 
 export function isTerminalStatus(status: TranscodeJob["status"]) {

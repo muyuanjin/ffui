@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "vue-i18n";
@@ -23,10 +24,30 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
+const examplesOpen = ref(false);
+
+const textPlaceholder = computed(() =>
+  props.filterUseRegex ? t("queue.filters.textPlaceholderRegex") : t("queue.filters.textPlaceholderTokens"),
+);
+
+const exampleLines = computed<string[]>(() => {
+  if (props.filterUseRegex) {
+    return ["^.*\\.mp4$", "movie|demo", "building.*"];
+  }
+  return ["movie", "movie 1080p", "size>20mb", "regex:.*movie.*"];
+});
+
+const examplesHint = computed(() =>
+  props.filterUseRegex ? t("queue.filters.textExamplesHintRegex") : t("queue.filters.textExamplesHintTokens"),
+);
+
+const closeExamples = () => {
+  examplesOpen.value = false;
+};
+
 // 状态筛选选项
 const statusOptions: QueueFilterStatus[] = [
   "processing",
-  "waiting",
   "queued",
   "paused",
   "completed",
@@ -106,12 +127,42 @@ const statusOptions: QueueFilterStatus[] = [
         {{ t("queue.filters.textLabel") }}
       </span>
       <div class="flex items-center gap-1 flex-1">
-        <Input
-          :model-value="props.filterText"
-          class="h-6 max-w-xs text-xs px-2"
-          :placeholder="t('queue.filters.textPlaceholder')"
-          @update:model-value="(v) => emit('update:filterText', String(v))"
-        />
+        <div class="relative max-w-xs flex-1">
+          <Input
+            :model-value="props.filterText"
+            class="h-6 w-full text-xs px-2"
+            :placeholder="textPlaceholder"
+            data-testid="queue-filter-text-input"
+            @focus="examplesOpen = true"
+            @click="examplesOpen = true"
+            @blur="closeExamples"
+            @keydown.esc="closeExamples"
+            @update:model-value="(v) => emit('update:filterText', String(v))"
+          />
+          <Transition name="fade">
+            <div
+              v-if="examplesOpen"
+              class="absolute left-0 bottom-full mb-2 z-50 w-80 max-w-[min(20rem,100%)] rounded-md border bg-popover p-3 text-popover-foreground shadow-md pointer-events-none"
+              data-testid="queue-filter-text-examples"
+            >
+              <div class="space-y-2">
+                <div class="text-xs font-medium">{{ t("queue.filters.textExamplesTitle") }}</div>
+                <div class="space-y-1">
+                  <div
+                    v-for="line in exampleLines"
+                    :key="line"
+                    class="text-xs font-mono rounded bg-muted/60 px-2 py-1 text-foreground"
+                  >
+                    {{ line }}
+                  </div>
+                </div>
+                <p class="text-xs text-muted-foreground leading-snug">
+                  {{ examplesHint }}
+                </p>
+              </div>
+            </div>
+          </Transition>
+        </div>
 
         <Button
           type="button"

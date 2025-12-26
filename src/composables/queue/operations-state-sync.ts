@@ -24,6 +24,15 @@ const asMutableRecord = (job: TranscodeJob): MutableRecord => {
   return job as unknown as MutableRecord;
 };
 
+const normalizeLegacyJobStatuses = (jobs: TranscodeJob[]) => {
+  for (const job of jobs) {
+    const status = (job as unknown as { status?: unknown }).status;
+    if (status === "waiting") {
+      (job as unknown as { status: unknown }).status = "queued";
+    }
+  }
+};
+
 const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
 
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
@@ -172,6 +181,7 @@ export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, d
   }
 
   const backendJobs = state.jobs ?? [];
+  normalizeLegacyJobStatuses(backendJobs);
 
   if (!firstQueueStateLiteApplied) {
     firstQueueStateLiteApplied = true;

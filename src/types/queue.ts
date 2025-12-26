@@ -1,14 +1,6 @@
 import type { OutputPolicy } from "./output-policy";
 
-export type JobStatus =
-  | "waiting"
-  | "queued"
-  | "processing"
-  | "paused"
-  | "completed"
-  | "failed"
-  | "skipped"
-  | "cancelled";
+export type JobStatus = "queued" | "processing" | "paused" | "completed" | "failed" | "skipped" | "cancelled";
 export type JobType = "video" | "image" | "audio";
 export type JobSource = "manual" | "batch_compress";
 

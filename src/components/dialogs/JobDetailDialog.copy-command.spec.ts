@@ -43,7 +43,7 @@ function makeJob(overrides: Partial<TranscodeJob> = {}): TranscodeJob {
     source: "manual",
     originalSizeMB: 10,
     presetId: "preset-1",
-    status: "waiting",
+    status: "queued",
     progress: 0,
     logs: [],
     ffmpegCommand: "ffmpeg -i input.mp4 output.mp4",

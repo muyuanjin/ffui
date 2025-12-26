@@ -334,6 +334,13 @@ export const waitTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
+export const waitTranscodeJobsBulk = async (jobIds: string[]): Promise<boolean> => {
+  return invoke<boolean>("wait_transcode_jobs_bulk", {
+    jobIds,
+    job_ids: jobIds,
+  });
+};
+
 export const resumeTranscodeJob = async (jobId: string): Promise<boolean> => {
   return invoke<boolean>("resume_transcode_job", {
     jobId,
@@ -425,18 +432,15 @@ export const inspectMedia = async (path: string): Promise<string> => {
 export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise<string | null> => {
   const filtered = candidatePaths.filter((p) => !!p);
   if (!filtered.length) return null;
-
   if (!hasTauri()) {
     return filtered[0] ?? null;
   }
-
   try {
     const selected = await invoke<string | null>("select_playable_media_path", {
       // Accept both camelCase and snake_case to stay resilient to Rust-side renames.
       candidatePaths: filtered,
       candidate_paths: filtered,
     });
-
     // 后端可能因为路径过长/权限问题返回 null，这里回退到首个候选，避免上层拿到空值后出现“无可播放视频”。
     return selected ?? filtered[0] ?? null;
   } catch (error) {
@@ -444,7 +448,6 @@ export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise
     return filtered[0] ?? null;
   }
 };
-
 /**
  * Build a safe local preview URL for images or videos backed by a filesystem
  * path. In Tauri we prefer `convertFileSrc` so the webview can load the file
@@ -453,17 +456,14 @@ export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise
  */
 export const buildPreviewUrl = (path: string | null | undefined): string | null => {
   if (!path) return null;
-
   if (typeof window === "undefined") {
     // SSR / tests without a DOM: just return the raw path so callers can still
     // render something or assert against the value.
     return path;
   }
-
   if (!hasTauri() || typeof convertFileSrc !== "function") {
     return path;
   }
-
   try {
     return convertFileSrc(path);
   } catch (error) {

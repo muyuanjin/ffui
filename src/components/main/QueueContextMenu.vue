@@ -460,10 +460,7 @@ const canCancel = computed(
   () =>
     props.mode === "single" &&
     status.value !== undefined &&
-    (status.value === "waiting" ||
-      status.value === "queued" ||
-      status.value === "processing" ||
-      status.value === "paused"),
+    (status.value === "queued" || status.value === "processing" || status.value === "paused"),
 );
 
 const canMove = computed(() => props.mode === "single" && isQueueMode.value);
