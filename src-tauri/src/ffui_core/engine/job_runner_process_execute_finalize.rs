@@ -71,8 +71,8 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
             .status()
             .with_context(|| "failed to run ffmpeg mux for resumed output")?;
         if !status.success() {
-            let _ = fs::remove_file(&mux_tmp);
-            let _ = fs::remove_file(&joined_video_tmp);
+            drop(fs::remove_file(&mux_tmp));
+            drop(fs::remove_file(&joined_video_tmp));
             return Err(anyhow::anyhow!(
                 "ffmpeg mux failed when finalizing resumed output (status {status})"
             ));
@@ -94,10 +94,10 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         })?;
     }
 
-    let _ = fs::remove_file(&joined_video_tmp);
+    drop(fs::remove_file(&joined_video_tmp));
     for seg in all_segments {
-        let _ = fs::remove_file(seg);
-        let _ = fs::remove_file(noaudio_marker_path_for_segment(seg.as_path()));
+        drop(fs::remove_file(seg));
+        drop(fs::remove_file(noaudio_marker_path_for_segment(seg.as_path())));
     }
 
     Ok(fs::metadata(output_path).map(|m| m.len()).unwrap_or(0))

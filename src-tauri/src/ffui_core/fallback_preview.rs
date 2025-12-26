@@ -216,7 +216,7 @@ pub fn extract_fallback_frame(
                 FallbackFramePosition::Seconds(s) => s,
             };
 
-            let _ = fs::remove_file(final_path);
+            drop(fs::remove_file(final_path));
 
             let seek_seconds = clamp_seek_seconds(total_duration, requested_seconds);
             let _seek_used = extract_frame_with_seek_backoffs(
@@ -246,7 +246,7 @@ pub fn extract_fallback_frame(
                     })?;
 
                     if !output.status.success() {
-                        let _ = fs::remove_file(tmp_path);
+                        drop(fs::remove_file(tmp_path));
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         return Err(anyhow::anyhow!(
                             "ffmpeg exited with status {}: {}",

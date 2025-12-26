@@ -91,7 +91,7 @@ pub fn collect_system_font_families() -> Result<Vec<SystemFontFamily>, String> {
         }
 
         // Ensure COM is initialized (DirectWrite depends on it). Ignore mode mismatch.
-        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        drop(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok());
 
         let factory: IDWriteFactory = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }
             .map_err(|e| format!("failed to create DirectWrite factory: {e:?}"))?;

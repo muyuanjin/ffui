@@ -87,7 +87,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 
     // Perform filesystem cleanup outside of the engine lock.
     for path in cleanup_paths {
-        let _ = std::fs::remove_file(path);
+        drop(std::fs::remove_file(path));
     }
 
     result
@@ -239,7 +239,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
     }
 
     for path in cleanup_paths {
-        let _ = std::fs::remove_file(path);
+        drop(std::fs::remove_file(path));
     }
 
     result
@@ -292,7 +292,7 @@ pub(in crate::ffui_core::engine) fn delete_job(inner: &Arc<Inner>, job_id: &str)
     notify_queue_listeners(inner);
 
     for path in cleanup_paths {
-        let _ = std::fs::remove_file(path);
+        drop(std::fs::remove_file(path));
     }
     true
 }
@@ -402,7 +402,7 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
     notify_queue_listeners(inner);
 
     for path in cleanup_paths {
-        let _ = std::fs::remove_file(path);
+        drop(std::fs::remove_file(path));
     }
     true
 }

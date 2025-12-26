@@ -53,7 +53,11 @@ fn log_single_instance(instance_key: &str, message: &str) {
         .unwrap_or(0);
 
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = writeln!(file, "[{now_ms}] pid={} {message}", std::process::id());
+        drop(writeln!(
+            file,
+            "[{now_ms}] pid={} {message}",
+            std::process::id()
+        ));
     }
 }
 
@@ -70,7 +74,7 @@ impl Drop for SingleInstanceGuard {
     fn drop(&mut self) {
         unsafe {
             use windows::Win32::Foundation::CloseHandle;
-            let _ = CloseHandle(self.mutex);
+            drop(CloseHandle(self.mutex));
         }
     }
 }
@@ -78,7 +82,7 @@ impl Drop for SingleInstanceGuard {
 #[cfg(not(windows))]
 impl Drop for SingleInstanceGuard {
     fn drop(&mut self) {
-        let _ = self.lock_file.unlock();
+        drop(self.lock_file.unlock());
     }
 }
 
@@ -260,7 +264,7 @@ fn ensure_single_instance_windows(exe_path: &Path, instance_key: &str) -> Result
         );
         unsafe {
             use windows::Win32::Foundation::CloseHandle;
-            let _ = CloseHandle(mutex);
+            drop(CloseHandle(mutex));
         }
         return Ok(EnsureOutcome::Secondary);
     }
@@ -337,7 +341,9 @@ fn focus_main_window_best_effort(app: &AppHandle) {
         if app
             .run_on_main_thread(move || {
                 let focused = try_focus_main_window_once(&app_handle);
-                let _ = tx.send(focused);
+                match tx.send(focused) {
+                    Ok(()) | Err(_) => {}
+                }
             })
             .is_ok()
             && matches!(rx.recv_timeout(Duration::from_millis(250)), Ok(true))
@@ -351,11 +357,11 @@ fn focus_main_window_best_effort(app: &AppHandle) {
 #[cfg(not(windows))]
 fn try_focus_main_window_once(app: &AppHandle) -> bool {
     if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+        drop(window.show());
+        drop(window.unminimize());
+        drop(window.set_focus());
         if !window.is_focused().unwrap_or(false) {
-            let _ = window.request_user_attention(Some(UserAttentionType::Critical));
+            drop(window.request_user_attention(Some(UserAttentionType::Critical)));
         }
         return true;
     }

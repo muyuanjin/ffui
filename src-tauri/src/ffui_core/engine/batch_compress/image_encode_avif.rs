@@ -52,7 +52,7 @@ fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
     let ratio = new_size_bytes as f64 / original_size_bytes as f64;
 
     if ratio > config.min_saving_ratio {
-        let _ = fs::remove_file(tmp_output);
+        drop(fs::remove_file(tmp_output));
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
         job.end_time = Some(current_time_millis());
@@ -229,14 +229,14 @@ pub(super) fn encode_image_to_avif(
                 }
                 Ok(output) => {
                     append_job_log_line(job, String::from_utf8_lossy(&output.stderr).to_string());
-                    let _ = fs::remove_file(tmp_output);
+                    drop(fs::remove_file(tmp_output));
                     Some(anyhow::anyhow!(
                         "avifenc exited with non-zero status: {}",
                         output.status
                     ))
                 }
                 Err(err) => {
-                    let _ = fs::remove_file(tmp_output);
+                    drop(fs::remove_file(tmp_output));
                     Some(err)
                 }
             };
@@ -321,7 +321,7 @@ pub(super) fn encode_image_to_avif(
         job.progress = 100.0;
         job.end_time = Some(current_time_millis());
         append_job_log_line(job, String::from_utf8_lossy(&output.stderr).to_string());
-        let _ = fs::remove_file(tmp_output);
+        drop(fs::remove_file(tmp_output));
         return Ok(());
     }
     finalize_avif_encode(FinalizeAvifEncodeSpec {

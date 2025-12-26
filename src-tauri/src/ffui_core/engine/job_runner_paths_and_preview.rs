@@ -100,10 +100,14 @@ pub(super) fn build_concat_demuxer_list_contents(
         let s = seg.to_string_lossy();
         // concat demuxer 使用单引号包裹路径，这里仅对单引号做转义。
         let escaped = s.replace('\'', "'\\''");
-        let _ = writeln!(&mut out, "file '{escaped}'");
+        drop(writeln!(&mut out, "file '{escaped}'").map_err(anyhow::Error::new));
         if let Some(d) = durations.get(idx).copied().filter(|v| v.is_finite() && *v > 0.0) {
-            let _ = writeln!(&mut out, "duration {d:.6}");
-            let _ = writeln!(&mut out, "outpoint {d:.6}");
+            drop(
+                writeln!(&mut out, "duration {d:.6}").map_err(anyhow::Error::new),
+            );
+            drop(
+                writeln!(&mut out, "outpoint {d:.6}").map_err(anyhow::Error::new),
+            );
         }
     }
     Ok(out)
@@ -183,7 +187,7 @@ pub(super) fn concat_video_segments(
             format!("failed to run ffmpeg concat for segments: {joined}")
         })?;
 
-    let _ = fs::remove_file(&list_path);
+    drop(fs::remove_file(&list_path));
 
     if !status.success() {
         let joined = segments
@@ -242,7 +246,7 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
     }
 
     // Best-effort replace on Windows: rename does not overwrite.
-    let _ = fs::remove_file(segment);
+    drop(fs::remove_file(segment));
     fs::rename(&tmp, segment).with_context(|| {
         format!(
             "failed to replace remuxed segment {} -> {}",
@@ -251,7 +255,7 @@ pub(super) fn remux_segment_drop_audio(ffmpeg_path: &str, segment: &Path) -> Res
         )
     })?;
 
-    let _ = fs::write(&marker, b"");
+    drop(fs::write(&marker, b""));
     Ok(())
 }
 
@@ -267,7 +271,7 @@ pub(super) fn mark_segment_noaudio_done(segment: &Path) {
     if marker.exists() {
         return;
     }
-    let _ = fs::write(&marker, b"");
+    drop(fs::write(&marker, b""));
 }
 
 pub(super) fn noaudio_marker_path_for_segment(segment: &Path) -> PathBuf {
@@ -341,7 +345,7 @@ pub(super) fn generate_preview_for_video(
     }
 
     if let Some(parent) = preview_path.parent() {
-        let _ = fs::create_dir_all(parent);
+        drop(fs::create_dir_all(parent));
     }
 
     let seek_seconds = compute_preview_seek_seconds(total_duration, capture_percent);
@@ -366,7 +370,7 @@ pub(super) fn generate_preview_for_video(
     if status.success() {
         Some(preview_path)
     } else {
-        let _ = fs::remove_file(&preview_path);
+        drop(fs::remove_file(&preview_path));
         None
     }
 }

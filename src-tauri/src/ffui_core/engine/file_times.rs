@@ -101,7 +101,7 @@ fn set_creation_time_windows(path: &Path, created: SystemTime) -> Result<(), Str
     let res =
         unsafe { SetFileTime(handle, Some(&raw const ft), None, None) }.map_err(|e| e.to_string());
     unsafe {
-        let _ = CloseHandle(handle);
+        drop(CloseHandle(handle));
     }
     res
 }

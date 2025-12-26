@@ -189,7 +189,7 @@ impl TranscodingEngine {
                 .is_some_and(|(candidate, root)| candidate.starts_with(&root));
 
             if safe_to_delete {
-                let _ = fs::remove_file(&old);
+                drop(fs::remove_file(&old));
             }
         }
 

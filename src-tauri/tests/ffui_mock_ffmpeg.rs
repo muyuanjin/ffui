@@ -183,16 +183,16 @@ fn main() {
         loop {
             if quit.load(Ordering::SeqCst) {
                 out_time_ms = out_time_ms.saturating_add(1_000_000);
-                let _ = writeln!(stderr, "out_time_ms={out_time_ms}");
-                let _ = writeln!(stderr, "progress=end");
-                let _ = stderr.flush();
+                drop(writeln!(stderr, "out_time_ms={out_time_ms}"));
+                drop(writeln!(stderr, "progress=end"));
+                drop(stderr.flush());
                 break;
             }
 
             out_time_ms = out_time_ms.saturating_add(200_000);
-            let _ = writeln!(stderr, "out_time_ms={out_time_ms}");
-            let _ = writeln!(stderr, "progress=continue");
-            let _ = stderr.flush();
+            drop(writeln!(stderr, "out_time_ms={out_time_ms}"));
+            drop(writeln!(stderr, "progress=continue"));
+            drop(stderr.flush());
             thread::sleep(Duration::from_millis(10));
         }
     }

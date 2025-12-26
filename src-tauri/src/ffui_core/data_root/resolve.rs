@@ -65,7 +65,7 @@ pub(super) fn is_dir_writable(path: &Path) -> bool {
             Ok(mut file) => {
                 let result = file.write_all(b"ffui").is_ok() && file.flush().is_ok();
                 drop(file);
-                let _ = std::fs::remove_file(&probe);
+                drop(std::fs::remove_file(&probe));
                 return result;
             }
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}

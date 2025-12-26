@@ -12,7 +12,7 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
             // Avoid deleting `previews/*.jpg` before the queue has been restored,
             // otherwise valid preview thumbnails may be removed and the UI will
             // temporarily show broken preview cards until regeneration happens.
-            let _ = crate::ffui_core::clear_fallback_frame_cache();
+            drop(crate::ffui_core::clear_fallback_frame_cache());
 
             if !engine.inner.queue_recovery_done.load(Ordering::Acquire) {
                 let guard = engine.inner.state.lock_unpoisoned();
@@ -35,8 +35,10 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
             if let Ok(previews_root) = crate::ffui_core::previews_root_dir_best_effort() {
                 // If the queue is empty after recovery, the referenced set is
                 // empty and all task previews can be safely deleted.
-                let _ =
-                    crate::ffui_core::cleanup_unreferenced_previews(&previews_root, &referenced);
+                drop(crate::ffui_core::cleanup_unreferenced_previews(
+                    &previews_root,
+                    &referenced,
+                ));
             }
         })
         .map(|_| ());

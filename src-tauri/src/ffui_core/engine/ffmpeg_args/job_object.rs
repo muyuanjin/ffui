@@ -76,7 +76,7 @@ pub fn init_child_process_job() -> bool {
 
         if let Err(e) = set_result {
             crate::debug_eprintln!("设置 Job Object 信息失败: {e}");
-            let _ = CloseHandle(job_handle);
+            drop(CloseHandle(job_handle));
             return false;
         }
 
@@ -88,7 +88,7 @@ pub fn init_child_process_job() -> bool {
             drop(job_owned);
             return true;
         }
-        let _prev = guard.replace(job_owned);
+        drop(guard.replace(job_owned));
 
         true
     }
@@ -130,7 +130,7 @@ pub fn assign_child_to_job(child_pid: u32) -> bool {
 
         // 将子进程添加到 Job Object
         let assign_result = AssignProcessToJobObject(job_handle, process_handle);
-        let _ = CloseHandle(process_handle);
+        drop(CloseHandle(process_handle));
 
         if let Err(e) = assign_result {
             // HRESULT_FROM_WIN32(ERROR_ACCESS_DENIED) (0x8007_0005) 通常表示进程已经属于另一个 Job Object

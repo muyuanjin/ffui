@@ -59,11 +59,11 @@ pub fn is_process_elevated() -> bool {
         )
         .is_err()
         {
-            let _ = CloseHandle(token);
+            drop(CloseHandle(token));
             return false;
         }
 
-        let _ = CloseHandle(token);
+        drop(CloseHandle(token));
         elevation.TokenIsElevated != 0
     }
 }
@@ -126,12 +126,12 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
 
         // 2) 准备 PROC_THREAD_ATTRIBUTE_LIST，把 Explorer 进程句柄塞进去。
         let mut attr_list_size: usize = 0;
-        let _ = InitializeProcThreadAttributeList(
+        drop(InitializeProcThreadAttributeList(
             LPPROC_THREAD_ATTRIBUTE_LIST::default(),
             1,
             0,
             &raw mut attr_list_size,
-        );
+        ));
 
         let mut attr_buf: Vec<u8> = vec![0u8; attr_list_size];
         let attr_list = LPPROC_THREAD_ATTRIBUTE_LIST(attr_buf.as_mut_ptr().cast::<c_void>());
@@ -202,9 +202,9 @@ fn spawn_unelevated_self() -> Result<(), ShimSpawnError> {
         }
 
         DeleteProcThreadAttributeList(attr_list);
-        let _ = CloseHandle(shell_process);
-        let _ = CloseHandle(pi.hProcess);
-        let _ = CloseHandle(pi.hThread);
+        drop(CloseHandle(shell_process));
+        drop(CloseHandle(pi.hProcess));
+        drop(CloseHandle(pi.hThread));
     }
 
     Ok(())

@@ -140,7 +140,7 @@ where
     let mut last_error: Option<anyhow::Error> = None;
     for offset in seek_backoffs_seconds {
         let attempt_seconds = (base_seek_seconds - offset).max(0.0);
-        let _ = fs::remove_file(tmp_path);
+        drop(fs::remove_file(tmp_path));
 
         match run_ffmpeg(attempt_seconds, tmp_path) {
             Ok(()) => {}
@@ -161,7 +161,7 @@ where
         return Ok(attempt_seconds);
     }
 
-    let _ = fs::remove_file(tmp_path);
+    drop(fs::remove_file(tmp_path));
     Err(last_error.unwrap_or_else(|| anyhow::anyhow!("{final_error_message}")))
 }
 
@@ -314,7 +314,7 @@ pub(crate) fn cleanup_frames_cache(
     if let Some(ttl) = ttl {
         for (path, _, modified) in &entries {
             if now.duration_since(*modified).unwrap_or_default() > ttl {
-                let _ = fs::remove_file(path);
+                drop(fs::remove_file(path));
             }
         }
         entries.retain(|(path, _, _)| is_regular_file(path));

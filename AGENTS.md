@@ -51,6 +51,13 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Name Vue components in `PascalCase` (e.g. `TranscodingPanel.vue`), variables and functions in `camelCase`.
 - In Rust, follow `rustfmt` conventions via `cargo fmt`; use `snake_case` for functions and `SCREAMING_SNAKE_CASE` for constants.
 
+## Rust：未使用变量/返回值处理（避免“下划线消音”）
+
+- 优先删除无用变量/调用；不要把历史遗留的 unused 通过改名或前导 `_`“消音”长期保留。
+- 对 `Result<T, E>` / `#[must_use]` 返回值：优先 `?` / `match` / `if let Err(err) = ... { ... }`；若明确要忽略，用 `drop(expr)`（必要时配一句 “best-effort” 的原因），不要写 `let _ = expr` / `let _unused = expr` / `let _removed = expr`。
+- 对 `windows`/Win32 的 `BOOL` 等 `Copy` 且 `#[must_use]` 返回值：用 `.as_bool()` 消费结果（例如 `ShowWindow(hwnd, SW_SHOW).as_bool();`）；不要对它 `drop(...)`（会触发 `clippy::drop_copy`）。
+- 仅在需要延长生命周期/作用域时才保留 `_guard` 这类绑定；否则用更小作用域 `{ ... }` 或显式 `drop(guard)`。
+
 ## i18n 运行时切换（高频踩坑）
 
 - 任何“下拉/选择器触发器”里的**已选项文本**，不要依赖组件内部缓存；必须在触发器里显式渲染 `t(...)`（例如给 `SelectValue` 提供插槽文本）。

@@ -120,8 +120,8 @@ fn maybe_inject_stats_period_for_download(
 fn send_ffmpeg_quit(stdin: &mut Option<std::process::ChildStdin>) {
     if let Some(mut stdin) = stdin.take() {
         use std::io::Write as IoWrite;
-        let _ = stdin.write_all(b"q\n");
-        let _ = stdin.flush();
+        drop(stdin.write_all(b"q\n"));
+        drop(stdin.flush());
     }
 }
 
@@ -270,7 +270,7 @@ impl FfmpegStderrPump {
 
     fn join(&mut self) {
         if let Some(join) = self.join.take() {
-            let _ = join.join();
+            drop(join.join());
         }
     }
 }

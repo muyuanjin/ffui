@@ -115,7 +115,9 @@ fn finalize_successful_transcode_job(
     }
 
     if let Some(presets_to_persist) = presets_to_persist {
-        let _ = crate::ffui_core::settings::save_presets(presets_to_persist.as_ref());
+        drop(crate::ffui_core::settings::save_presets(
+            presets_to_persist.as_ref(),
+        ));
     }
 
     if let Some(times) = input_times.as_ref()

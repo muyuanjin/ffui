@@ -99,8 +99,8 @@ pub fn import_config_bundle(
             app_version,
         }),
         Err(err) => {
-            let _ = engine.replace_presets(previous_presets);
-            let _ = engine.save_settings(previous_settings);
+            drop(engine.replace_presets(previous_presets));
+            drop(engine.save_settings(previous_settings));
             Err(err.to_string())
         }
     }
@@ -115,6 +115,6 @@ pub fn clear_all_app_data(engine: State<'_, TranscodingEngine>) -> Result<AppSet
         .save_settings(default_settings)
         .map_err(|e| e.to_string())?;
     let presets = load_presets().map_err(|e| e.to_string())?;
-    let _ = engine.replace_presets(presets).map_err(|e| e.to_string())?;
+    drop(engine.replace_presets(presets).map_err(|e| e.to_string())?);
     Ok(saved_settings)
 }

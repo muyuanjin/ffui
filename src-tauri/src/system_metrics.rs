@@ -182,17 +182,19 @@ impl MetricsState {
     }
 
     pub fn unsubscribe(&self) {
-        let _ =
-            self.inner
-                .subscribers
-                .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
-                    Some(current.saturating_sub(1))
-                });
+        match self
+            .inner
+            .subscribers
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                Some(current.saturating_sub(1))
+            }) {
+            Ok(_) | Err(_) => {}
+        }
     }
 
     pub(crate) fn wait_for_wakeup_or_timeout(&self, timeout: Duration) {
         let guard = self.inner.wake_lock.lock_unpoisoned();
-        let _ = self.inner.wake_cv.wait_timeout_unpoisoned(guard, timeout);
+        drop(self.inner.wake_cv.wait_timeout_unpoisoned(guard, timeout));
     }
 
     #[allow(dead_code)]
@@ -257,61 +259,67 @@ fn seed_sysinfo_if_needed(
 pub fn spawn_metrics_sampler(app_handle: AppHandle, metrics_state: MetricsState) {
     // This sampler is a long-lived loop; run it on a dedicated OS thread so it
     // does not permanently occupy Tokio's blocking thread pool.
-    let _ = thread::Builder::new()
-        .name("ffui-metrics-sampler".to_string())
-        .spawn(move || {
-            let mut sys: Option<System> = None;
-            let mut networks: Option<Networks> = None;
-            let mut last_instant: Option<Instant> = None;
+    drop(
+        thread::Builder::new()
+            .name("ffui-metrics-sampler".to_string())
+            .spawn(move || {
+                let mut sys: Option<System> = None;
+                let mut networks: Option<Networks> = None;
+                let mut last_instant: Option<Instant> = None;
 
-            loop {
-                // Prefer user-configured interval from AppSettings when available.
-                let mut config = metrics_state.config();
-                if let Some(engine_state) = app_handle.try_state::<TranscodingEngine>() {
-                    let settings_snapshot = engine_state.settings();
-                    apply_settings_overrides(&mut config, &settings_snapshot);
-                }
-
-                let subscribers = metrics_state.subscriber_count();
-                match sampling_mode(subscribers, &config) {
-                    SamplingMode::Idle(idle_interval) => {
-                        metrics_state.wait_for_wakeup_or_timeout(idle_interval);
+                loop {
+                    // Prefer user-configured interval from AppSettings when available.
+                    let mut config = metrics_state.config();
+                    if let Some(engine_state) = app_handle.try_state::<TranscodingEngine>() {
+                        let settings_snapshot = engine_state.settings();
+                        apply_settings_overrides(&mut config, &settings_snapshot);
                     }
-                    SamplingMode::Active(sampling_interval) => {
-                        let _ = seed_sysinfo_if_needed(
-                            subscribers,
-                            &mut sys,
-                            &mut networks,
-                            &mut last_instant,
-                        );
 
-                        let (Some(sys), Some(networks)) = (sys.as_mut(), networks.as_mut()) else {
-                            continue;
-                        };
-
-                        let now = Instant::now();
-                        let elapsed = last_instant.replace(now).map_or(sampling_interval, |prev| {
-                            now.saturating_duration_since(prev)
-                        });
-
-                        let dt = if elapsed.is_zero() {
-                            sampling_interval
-                        } else {
-                            elapsed
-                        };
-
-                        let snapshot = sample_metrics(sys, networks, dt, &config);
-                        metrics_state.push_snapshot(snapshot.clone());
-
-                        if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
-                            crate::debug_eprintln!("failed to emit system metrics event: {err}");
+                    let subscribers = metrics_state.subscriber_count();
+                    match sampling_mode(subscribers, &config) {
+                        SamplingMode::Idle(idle_interval) => {
+                            metrics_state.wait_for_wakeup_or_timeout(idle_interval);
                         }
+                        SamplingMode::Active(sampling_interval) => {
+                            seed_sysinfo_if_needed(
+                                subscribers,
+                                &mut sys,
+                                &mut networks,
+                                &mut last_instant,
+                            );
 
-                        metrics_state.wait_for_wakeup_or_timeout(sampling_interval);
+                            let (Some(sys), Some(networks)) = (sys.as_mut(), networks.as_mut())
+                            else {
+                                continue;
+                            };
+
+                            let now = Instant::now();
+                            let elapsed =
+                                last_instant.replace(now).map_or(sampling_interval, |prev| {
+                                    now.saturating_duration_since(prev)
+                                });
+
+                            let dt = if elapsed.is_zero() {
+                                sampling_interval
+                            } else {
+                                elapsed
+                            };
+
+                            let snapshot = sample_metrics(sys, networks, dt, &config);
+                            metrics_state.push_snapshot(snapshot.clone());
+
+                            if let Err(err) = app_handle.emit(METRICS_EVENT_NAME, snapshot) {
+                                crate::debug_eprintln!(
+                                    "failed to emit system metrics event: {err}"
+                                );
+                            }
+
+                            metrics_state.wait_for_wakeup_or_timeout(sampling_interval);
+                        }
                     }
                 }
-            }
-        });
+            }),
+    );
 }
 
 fn sample_metrics(

@@ -40,7 +40,7 @@ pub fn import_ui_font_file(
 
     let dest = dest_dir.join(format!("{IMPORTED_FONT_ID}.{ext}"));
     if dest.exists() {
-        let _ = std::fs::remove_file(&dest);
+        drop(std::fs::remove_file(&dest));
     }
     std::fs::copy(&src, &dest).map_err(|e| format!("failed to copy font file: {e}"))?;
 

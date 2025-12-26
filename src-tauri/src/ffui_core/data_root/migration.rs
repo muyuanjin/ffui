@@ -65,9 +65,9 @@ fn copy_file_if_missing(source: &Path, dest: &Path) {
         return;
     }
     if let Some(parent) = dest.parent() {
-        let _ = fs::create_dir_all(parent);
+        drop(fs::create_dir_all(parent));
     }
-    let _ = fs::copy(source, dest);
+    drop(fs::copy(source, dest));
 }
 
 fn copy_dir_files_if_missing(source: &Path, dest: &Path) {
@@ -87,7 +87,7 @@ fn copy_dir_files_if_missing(source: &Path, dest: &Path) {
             continue;
         }
         if let Some(name) = path.file_name() {
-            let _ = fs::copy(&path, dest.join(name));
+            drop(fs::copy(&path, dest.join(name)));
         }
     }
 }

@@ -181,7 +181,7 @@ pub(crate) fn extract_concat_preview_frame(
                         .with_context(|| "failed to run ffmpeg concat frame extraction")?;
 
                     if !output.status.success() {
-                        let _ = fs::remove_file(tmp_path);
+                        drop(fs::remove_file(tmp_path));
                         let stderr = String::from_utf8_lossy(&output.stderr);
                         return Err(anyhow::anyhow!(
                             "ffmpeg concat frame extraction failed with status {}: {}",
@@ -194,7 +194,7 @@ pub(crate) fn extract_concat_preview_frame(
                 },
             );
 
-            let _ = fs::remove_file(&list_path);
+            drop(fs::remove_file(&list_path));
             result.map(|_| ())
         },
     )

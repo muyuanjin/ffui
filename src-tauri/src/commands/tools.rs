@@ -125,7 +125,7 @@ pub fn download_external_tool_now(
 
             // 下载结束后重新拉取一份状态快照，以便通过
             // TranscodingEngine::external_tool_statuses 更新缓存并向前端推送事件。
-            let _ = engine_clone.external_tool_statuses();
+            drop(engine_clone.external_tool_statuses());
         })
         .map_err(|err| format!("failed to spawn tool download thread: {err}"))?;
 
@@ -165,7 +165,7 @@ pub fn ack_taskbar_progress(app: AppHandle, engine: State<'_, TranscodingEngine>
 
     #[cfg(not(windows))]
     {
-        let _ = (app, state);
+        drop((app, state));
     }
 }
 
@@ -271,7 +271,7 @@ mod tests {
             .as_millis();
         let data_root = tmp_dir.join(format!("ffui_test_data_root_{timestamp}"));
         let preview_root = data_root.join("previews");
-        let _ = fs::create_dir_all(&preview_root);
+        drop(fs::create_dir_all(&preview_root));
         let data_root_guard = crate::ffui_core::override_data_root_dir_for_tests(data_root);
         let path = tmp_dir.join(format!("ffui_test_outside_{timestamp}.jpg"));
 

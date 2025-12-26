@@ -192,7 +192,9 @@ fn windows_registry_locations(program: &str) -> Option<Vec<PathBuf>> {
         if let Some(hk) = open_subkey(root, SUBKEYS[0]) {
             let location = read_string_value(hk, "InstallLocation");
             unsafe {
-                let _ = RegCloseKey(hk);
+                if RegCloseKey(hk) != windows::Win32::Foundation::WIN32_ERROR(0) {
+                    // best-effort: ignore close errors
+                }
             }
             if let Some(location) = location {
                 let candidate = PathBuf::from(location).join(program);

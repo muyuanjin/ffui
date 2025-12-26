@@ -24,7 +24,7 @@ fn cleanup_preview_caches_worker(
     previews_root_override: Option<std::path::PathBuf>,
 ) {
     // This cache is not keyed to queue recovery and is safe to clear eagerly.
-    let _ = clear_fallback_frame_cache();
+    drop(clear_fallback_frame_cache());
 
     // Only delete unreferenced previews once crash recovery has finished,
     // otherwise a partial/empty job list can cause valid previews to be purged.
@@ -41,7 +41,7 @@ fn cleanup_preview_caches_worker(
 
     match previews_root {
         Ok(previews_root) => {
-            let _ = cleanup_unreferenced_previews(&previews_root, &referenced);
+            drop(cleanup_unreferenced_previews(&previews_root, &referenced));
         }
         Err(err) => {
             crate::debug_eprintln!(

@@ -67,7 +67,7 @@ pub fn cleanup_fallback_preview_frames_async() -> bool {
     std::thread::Builder::new()
         .name("ffui-fallback-preview-frames-cleanup".to_string())
         .spawn(move || {
-            let _ = clear_fallback_frame_cache();
+            drop(clear_fallback_frame_cache());
         })
         .is_ok()
 }

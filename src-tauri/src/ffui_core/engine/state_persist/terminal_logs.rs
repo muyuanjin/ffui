@@ -114,7 +114,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
                     "failed to write terminal job run history {}: {err:#}",
                     tmp_path.display()
                 );
-                let _ = fs::remove_file(&tmp_path);
+                drop(fs::remove_file(&tmp_path));
                 return;
             }
             if let Err(err) = fs::rename(&tmp_path, &path) {
@@ -123,7 +123,7 @@ fn persist_terminal_job_run_history(job_id: &str, runs: &[JobRun]) {
                     tmp_path.display(),
                     path.display()
                 );
-                let _ = fs::remove_file(&tmp_path);
+                drop(fs::remove_file(&tmp_path));
             } else {
                 #[cfg(test)]
                 TERMINAL_LOG_WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -202,7 +202,7 @@ fn enforce_terminal_log_retention(retention: CrashRecoveryLogRetention) {
 
     if deleted_any {
         // Best-effort cleanup: remove the directory if it is now empty.
-        let _ = fs::remove_dir(&dir);
+        drop(fs::remove_dir(&dir));
     }
 }
 

@@ -14,11 +14,11 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 fn focus_hwnd_raw_best_effort(hwnd: HWND) -> bool {
     unsafe {
-        let _ = ShowWindow(hwnd, SW_SHOW);
+        ShowWindow(hwnd, SW_SHOW).as_bool();
         if IsIconic(hwnd).as_bool() {
-            let _ = ShowWindow(hwnd, SW_RESTORE);
+            ShowWindow(hwnd, SW_RESTORE).as_bool();
         }
-        let _ = BringWindowToTop(hwnd);
+        drop(BringWindowToTop(hwnd));
         if SetForegroundWindow(hwnd).as_bool() {
             return true;
         }
@@ -28,17 +28,17 @@ fn focus_hwnd_raw_best_effort(hwnd: HWND) -> bool {
             let fg_thread = GetWindowThreadProcessId(fg_hwnd, None);
             let target_thread = GetWindowThreadProcessId(hwnd, None);
             if fg_thread != 0 && target_thread != 0 && fg_thread != target_thread {
-                let _ = AttachThreadInput(fg_thread, target_thread, true);
-                let _ = SetForegroundWindow(hwnd);
-                let _ = AttachThreadInput(fg_thread, target_thread, false);
+                AttachThreadInput(fg_thread, target_thread, true).as_bool();
+                SetForegroundWindow(hwnd).as_bool();
+                AttachThreadInput(fg_thread, target_thread, false).as_bool();
             }
         }
 
         let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW;
-        let _ = SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags);
-        let _ = SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags);
-        let _ = BringWindowToTop(hwnd);
-        let _ = SetForegroundWindow(hwnd);
+        drop(SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, flags));
+        drop(SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags));
+        drop(BringWindowToTop(hwnd));
+        SetForegroundWindow(hwnd).as_bool();
         SwitchToThisWindow(hwnd, true);
         GetForegroundWindow() == hwnd
     }
@@ -54,7 +54,7 @@ pub(super) fn focus_primary_window_by_exe_path_best_effort(exe_path: &Path) -> b
             hwnd_title_match: HWND(std::ptr::null_mut()),
         };
         let lparam = LPARAM((&raw mut state) as isize);
-        let _ = EnumWindows(Some(enum_windows_find_by_exe_path), lparam);
+        drop(EnumWindows(Some(enum_windows_find_by_exe_path), lparam));
         let hwnd = if state.hwnd_title_match == HWND(std::ptr::null_mut()) {
             state.hwnd
         } else {
@@ -83,7 +83,7 @@ unsafe extern "system" fn enum_windows_find_by_exe_path(hwnd: HWND, lparam: LPAR
         }
 
         let mut wpid: u32 = 0;
-        let _thread = GetWindowThreadProcessId(hwnd, Some(&raw mut wpid));
+        GetWindowThreadProcessId(hwnd, Some(&raw mut wpid));
         if wpid == 0 || wpid == state.current_pid {
             return BOOL(1);
         }
@@ -153,7 +153,7 @@ fn query_process_image_path(pid: u32) -> Option<String> {
             if ok {
                 buffer.truncate(size as usize);
                 let path = String::from_utf16_lossy(&buffer);
-                let _ = CloseHandle(process);
+                drop(CloseHandle(process));
                 return Some(path);
             }
 
@@ -162,7 +162,7 @@ fn query_process_image_path(pid: u32) -> Option<String> {
                 continue;
             }
 
-            let _ = CloseHandle(process);
+            drop(CloseHandle(process));
             return None;
         }
     }

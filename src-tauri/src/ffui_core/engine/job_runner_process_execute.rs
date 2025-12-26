@@ -211,11 +211,11 @@ fn execute_transcode_job(
 
     let status = loop {
         if is_job_cancelled(inner, job_id) {
-            let _ = child.kill();
-            let _ = child.wait();
+            drop(child.kill());
+            drop(child.wait());
             stderr_pump.join();
             mark_job_cancelled(inner, job_id)?;
-            let _ = fs::remove_file(&tmp_output);
+            drop(fs::remove_file(&tmp_output));
             return Ok(());
         }
 
@@ -239,7 +239,7 @@ fn execute_transcode_job(
 
     if is_job_cancelled(inner, job_id) {
         mark_job_cancelled(inner, job_id)?;
-        let _ = fs::remove_file(&tmp_output);
+        drop(fs::remove_file(&tmp_output));
         return Ok(());
     }
 
@@ -286,7 +286,7 @@ fn execute_transcode_job(
 	                super::worker_utils::append_job_log_line(job, reason);
 	            }
 	        }
-	        let _ = fs::remove_file(&tmp_output);
+	        drop(fs::remove_file(&tmp_output));
         mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
@@ -353,7 +353,7 @@ fn execute_transcode_job(
                         super::worker_utils::append_job_log_line(job, reason);
                     }
                 }
-                let _ = fs::remove_file(&tmp_output);
+                drop(fs::remove_file(&tmp_output));
                 mark_batch_compress_child_processed(inner, job_id);
                 return Ok(());
             }

@@ -277,7 +277,7 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
     }
 
     for path in cleanup_paths {
-        let _ = fs::remove_file(path);
+        drop(fs::remove_file(path));
     }
 
     // Notify listeners that the job has transitioned to Cancelled or has been

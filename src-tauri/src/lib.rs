@@ -293,14 +293,14 @@ pub fn run() {
                         let hwnd = HWND(hwnd.0);
                         let messages: [u32; 3] = [WM_DROPFILES, WM_COPYDATA, 0x0049];
 
-                        for msg in messages {
-	                            filter.cbSize = u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
-	                                .expect("CHANGEFILTERSTRUCT size fits in u32");
-	                            filter.ExtStatus = MSGFLTINFO_STATUS::default();
-	                            let _ = ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&raw mut filter));
-	                        }
-                    }
-                }
+	                        for msg in messages {
+		                            filter.cbSize = u32::try_from(std::mem::size_of::<CHANGEFILTERSTRUCT>())
+		                                .expect("CHANGEFILTERSTRUCT size fits in u32");
+		                            filter.ExtStatus = MSGFLTINFO_STATUS::default();
+		                            drop(ChangeWindowMessageFilterEx(hwnd, msg, WINDOW_MESSAGE_FILTER_ACTION(MSGFLT_ALLOW.0), Some(&raw mut filter)));
+		                        }
+	                    }
+	                }
             }
 
             let handle = app.handle().clone();
@@ -354,14 +354,14 @@ pub fn run() {
 
             // Fallback: ensure the window becomes visible even if the frontend
             // never calls `window.show()` (for example when boot crashes).
-            thread::spawn(move || {
-                thread::park_timeout(Duration::from_secs(10));
-                if let Some(window) = handle.get_webview_window("main") {
-                    let _ = window.show();
-                }
-            });
-            Ok(())
-        })
+	            thread::spawn(move || {
+	                thread::park_timeout(Duration::from_secs(10));
+	                if let Some(window) = handle.get_webview_window("main") {
+	                    drop(window.show());
+	                }
+	            });
+	            Ok(())
+	        })
         .build(tauri::generate_context!());
 
     let app = match app {

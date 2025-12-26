@@ -139,7 +139,7 @@ async fn download_font_to_path(
     {
         if cancel_requested() {
             drop(file);
-            let _ = tokio::fs::remove_file(tmp_path).await;
+            drop(tokio::fs::remove_file(tmp_path).await);
             return Err("canceled".to_string());
         }
 
@@ -158,7 +158,7 @@ async fn download_font_to_path(
         tokio::fs::copy(tmp_path, dest_path)
             .await
             .map_err(|e| format!("failed to finalize font file: {e}"))?;
-        let _ = tokio::fs::remove_file(tmp_path).await;
+        drop(tokio::fs::remove_file(tmp_path).await);
     }
 
     Ok((dest_path.to_string_lossy().into_owned(), received, total))
@@ -309,7 +309,7 @@ pub fn start_open_source_font_download(
                 s.status = UiFontDownloadStatus::Error;
                 s.error = Some(format!("failed to create ui-fonts dir: {err}"));
             });
-            let _ = app_for_task.emit("ui_font_download", snapshot);
+            drop(app_for_task.emit("ui_font_download", snapshot));
             return;
         }
 
@@ -318,14 +318,14 @@ pub fn start_open_source_font_download(
 
         let emit_snapshot = |job: &Arc<UiFontDownloadJob>| {
             let snapshot = job.snapshot();
-            let _ = app_for_task.emit("ui_font_download", snapshot);
+            drop(app_for_task.emit("ui_font_download", snapshot));
         };
 
         let snapshot = job.update_snapshot(|s| {
             s.status = UiFontDownloadStatus::Downloading;
             s.error = None;
         });
-        let _ = app_for_task.emit("ui_font_download", snapshot);
+        drop(app_for_task.emit("ui_font_download", snapshot));
 
         let outcome = download_font_to_path(
             &url,
@@ -360,21 +360,21 @@ pub fn start_open_source_font_download(
                     s.total_bytes = total;
                     s.error = None;
                 });
-                let _ = app_for_task.emit("ui_font_download", snapshot);
+                drop(app_for_task.emit("ui_font_download", snapshot));
             }
             Err(err) if err == "canceled" => {
                 let snapshot = job.update_snapshot(|s| {
                     s.status = UiFontDownloadStatus::Canceled;
                     s.error = None;
                 });
-                let _ = app_for_task.emit("ui_font_download", snapshot);
+                drop(app_for_task.emit("ui_font_download", snapshot));
             }
             Err(err) => {
                 let snapshot = job.update_snapshot(|s| {
                     s.status = UiFontDownloadStatus::Error;
                     s.error = Some(err);
                 });
-                let _ = app_for_task.emit("ui_font_download", snapshot);
+                drop(app_for_task.emit("ui_font_download", snapshot));
             }
         }
     });
@@ -411,7 +411,7 @@ pub async fn ensure_open_source_font_downloaded(
     }
 
     let tmp = dest.with_extension(format!("{format}.tmp"));
-    let _ = download_font_to_path(&url, &tmp, &dest, |_received, _total| {}, || false).await?;
+    drop(download_font_to_path(&url, &tmp, &dest, |_received, _total| {}, || false).await?);
 
     Ok(DownloadedFontInfo {
         id,
@@ -446,11 +446,13 @@ mod tests {
         });
 
         let poison_job = job.clone();
-        let _ = std::thread::spawn(move || {
-            let _guard = poison_job.snapshot.lock().unwrap();
-            panic!("poison download snapshot mutex");
-        })
-        .join();
+        drop(
+            std::thread::spawn(move || {
+                let _guard = poison_job.snapshot.lock().unwrap();
+                panic!("poison download snapshot mutex");
+            })
+            .join(),
+        );
 
         let snap = job.snapshot();
         assert_eq!(snap.session_id, 7);

@@ -33,12 +33,12 @@ fn backup_existing_tool_binary(dest_path: &PathBuf) -> Option<PathBuf> {
     }
 
     let candidate = dest_path.with_extension("bak");
-    let _ = std::fs::remove_file(&candidate);
+    drop(std::fs::remove_file(&candidate));
     if std::fs::rename(dest_path, &candidate).is_ok() {
         Some(candidate)
     } else {
         // Fallback: remove existing file so the new download can be placed.
-        let _ = std::fs::remove_file(dest_path);
+        drop(std::fs::remove_file(dest_path));
         None
     }
 }
@@ -129,7 +129,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             if let Some((stop, handle)) = probe {
                 stop.store(true, Ordering::Relaxed);
                 if let Some(handle) = handle {
-                    let _ = handle.join();
+                    drop(handle.join());
                 }
             }
 
@@ -150,9 +150,9 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 
             let dest_str = dest_path.to_string_lossy().into_owned();
             if !verify_tool_binary(&dest_str, kind, "download") {
-                let _ = std::fs::remove_file(&dest_path);
+                drop(std::fs::remove_file(&dest_path));
                 if let Some(backup) = &backup_path {
-                    let _ = std::fs::rename(backup, &dest_path);
+                    drop(std::fs::rename(backup, &dest_path));
                 }
                 return Err(anyhow!(
                     "downloaded {tool} binary failed verification after install; refusing to keep it",
@@ -162,7 +162,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 
             // Verified successfully; clean up any backup.
             if let Some(backup) = &backup_path {
-                let _ = std::fs::remove_file(backup);
+                drop(std::fs::remove_file(backup));
             }
 
             // Ensure progress reaches 100% with concrete byte counts even when
@@ -201,9 +201,9 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 
             let dest_str = dest_path.to_string_lossy().into_owned();
             if !verify_tool_binary(&dest_str, kind, "download") {
-                let _ = std::fs::remove_file(&dest_path);
+                drop(std::fs::remove_file(&dest_path));
                 if let Some(backup) = &backup_path {
-                    let _ = std::fs::rename(backup, &dest_path);
+                    drop(std::fs::rename(backup, &dest_path));
                 }
                 return Err(anyhow!(
                     "extracted avifenc failed verification after install; refusing to keep it"
@@ -211,7 +211,7 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             }
 
             if let Some(backup) = &backup_path {
-                let _ = std::fs::remove_file(backup);
+                drop(std::fs::remove_file(backup));
             }
             record_last_tool_download(
                 kind,

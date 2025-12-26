@@ -128,7 +128,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
                     "failed to write queue state to {}: {err:#}",
                     tmp_path.display()
                 );
-                let _ = fs::remove_file(&tmp_path);
+                drop(fs::remove_file(&tmp_path));
                 return;
             }
             // Ensure the file handle is closed before attempting an atomic rename.
@@ -141,7 +141,7 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
                     tmp_path.display(),
                     path.display()
                 );
-                let _ = fs::remove_file(&tmp_path);
+                drop(fs::remove_file(&tmp_path));
             }
         }
         Err(err) => {

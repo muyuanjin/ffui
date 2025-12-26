@@ -348,7 +348,7 @@ impl TranscodingEngine {
 
                 // Always refresh local tool probing in the background, and push an event when
                 // a full snapshot becomes available.
-                let _ = engine_clone.external_tool_statuses();
+                engine_clone.external_tool_statuses();
 
                 let elapsed_ms = started_at.elapsed().as_millis();
                 crate::debug_eprintln!(

@@ -19,7 +19,7 @@ pub struct TranscodeActivityToday {
 }
 
 pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
-    let _ = APP_HANDLE.set(Arc::new(handle));
+    drop(APP_HANDLE.set(Arc::new(handle)));
 }
 
 pub(crate) fn emit_transcode_activity_today_if_possible(payload: TranscodeActivityToday) {

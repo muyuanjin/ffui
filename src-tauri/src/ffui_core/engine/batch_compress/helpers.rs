@@ -146,11 +146,11 @@ pub(crate) fn mark_job_failed_from_ffmpeg_output(
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());
     append_job_log_line(job, format!("{context}{}", String::from_utf8_lossy(stderr)));
-    let _ = fs::remove_file(tmp_output);
+    drop(fs::remove_file(tmp_output));
 }
 
 pub(crate) fn mark_job_skipped_low_savings(job: &mut TranscodeJob, tmp_output: &Path, ratio: f64) {
-    let _ = fs::remove_file(tmp_output);
+    drop(fs::remove_file(tmp_output));
     job.status = JobStatus::Skipped;
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());

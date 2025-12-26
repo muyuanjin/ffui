@@ -151,7 +151,7 @@ pub(crate) fn download_file_with_aria2c(url: &str, dest: &Path) -> Result<Networ
                 info.message = Some(format!(
                     "[proxy] aria2c failed; falling back to direct: {err:#}"
                 ));
-                let _ = fs::remove_file(dest);
+                drop(fs::remove_file(dest));
                 run(false)?;
             } else {
                 return Err(err);

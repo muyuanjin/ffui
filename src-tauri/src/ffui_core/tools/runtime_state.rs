@@ -32,7 +32,7 @@ pub(super) static LATEST_TOOL_STATUS: once_cell::sync::Lazy<
 static TOOL_STATUS_REFRESH_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 pub(crate) fn set_app_handle(handle: tauri::AppHandle) {
-    let _ = APP_HANDLE.set(Arc::new(handle));
+    drop(APP_HANDLE.set(Arc::new(handle)));
 }
 
 pub(crate) fn cached_tool_status_snapshot() -> Vec<super::types::ExternalToolStatus> {

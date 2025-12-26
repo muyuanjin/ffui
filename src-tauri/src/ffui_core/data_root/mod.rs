@@ -174,7 +174,7 @@ pub fn clear_app_data_root() -> Result<()> {
     for name in files {
         let path = root.join(name);
         if path.is_file() {
-            let _ = fs::remove_file(&path);
+            drop(fs::remove_file(&path));
         }
     }
 
@@ -187,7 +187,7 @@ pub fn clear_app_data_root() -> Result<()> {
     for name in dirs {
         let path = root.join(name);
         if path.is_dir() {
-            let _ = fs::remove_dir_all(&path);
+            drop(fs::remove_dir_all(&path));
         }
     }
 
