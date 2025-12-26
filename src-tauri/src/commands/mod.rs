@@ -26,3 +26,18 @@ pub mod tools;
 pub mod ui_fonts;
 #[allow(clippy::needless_pass_by_value)]
 pub mod updater;
+
+pub(crate) fn wait_for_queue_recovery(engine: &crate::ffui_core::TranscodingEngine) {
+    use std::sync::atomic::Ordering;
+
+    use crate::sync_ext::{CondvarExt, MutexExt};
+
+    if engine.inner.queue_recovery_done.load(Ordering::Acquire) {
+        return;
+    }
+
+    let guard = engine.inner.state.lock_unpoisoned();
+    let _guard = engine.inner.cv.wait_while_unpoisoned(guard, |_| {
+        !engine.inner.queue_recovery_done.load(Ordering::Acquire)
+    });
+}

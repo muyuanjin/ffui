@@ -10,6 +10,9 @@ pub use preset::*;
 mod job;
 pub use job::*;
 
+mod queue_startup_hint;
+pub use queue_startup_hint::*;
+
 // Batch Compress types
 mod batch_compress;
 pub use batch_compress::*;

@@ -15,6 +15,7 @@ mod preset_bundle;
 mod preview_cache;
 mod preview_common;
 mod settings;
+mod shutdown_marker;
 pub mod tools;
 
 pub(crate) use compare_preview::extract_concat_preview_frame;
@@ -36,6 +37,8 @@ pub(crate) use data_root::{override_data_root_dir_for_tests, presets_path};
 pub use domain::*;
 #[cfg(test)]
 pub(crate) use engine::lock_persist_test_mutex_for_tests;
+#[cfg(test)]
+pub(crate) use engine::override_queue_state_sidecar_path_for_tests;
 pub use engine::{TranscodingEngine, init_child_process_job};
 pub(crate) use fallback_preview::{
     FallbackFramePosition, FallbackFrameQuality, clear_fallback_frame_cache, extract_fallback_frame,
@@ -60,5 +63,9 @@ pub(crate) use settings::load_presets;
 pub use settings::{
     AppSettings, DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS, DEFAULT_METRICS_INTERVAL_MS,
     TaskbarProgressMode, TaskbarProgressScope, hardware_smart_default_presets,
+};
+pub(crate) use shutdown_marker::{
+    ShutdownMarkerKind, read_shutdown_marker, write_shutdown_marker,
+    write_shutdown_marker_with_auto_wait_job_ids,
 };
 pub use tools::{ExternalToolCandidate, ExternalToolStatus};

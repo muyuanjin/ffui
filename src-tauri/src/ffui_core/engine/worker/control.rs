@@ -109,6 +109,19 @@ pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -
                 state.wait_requests.insert(job_id.to_string());
                 (true, true)
             }
+            JobStatus::Waiting | JobStatus::Queued => {
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Paused;
+                    append_job_log_line(job, "Paused while waiting".to_string());
+                    job.log_head = None;
+                }
+                // Any stale flags become irrelevant.
+                state.wait_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.restart_requests.remove(job_id);
+                (true, true)
+            }
+            JobStatus::Paused => (true, false),
             _ => (false, false),
         }
     };
@@ -185,6 +198,55 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
     }
 
     result
+}
+
+/// Resume any jobs that were automatically paused during startup recovery.
+///
+/// This preserves the existing queue ordering and simply marks the jobs back
+/// to Waiting so the normal worker selection logic (and concurrency limits)
+/// can schedule them again.
+pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<Inner>) -> usize {
+    let auto_paused_ids: Vec<String> = {
+        let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
+        if guard.is_empty() {
+            return 0;
+        }
+        guard.drain().collect()
+    };
+
+    let (resumed, should_notify) = {
+        let mut state = inner.state.lock_unpoisoned();
+        let mut resumed = 0usize;
+
+        for job_id in &auto_paused_ids {
+            let Some(job) = state.jobs.get_mut(job_id) else {
+                continue;
+            };
+            if job.status != JobStatus::Paused {
+                continue;
+            }
+
+            job.status = JobStatus::Waiting;
+            resumed = resumed.saturating_add(1);
+
+            if !state.queue.iter().any(|id| id == job_id) {
+                state.queue.push_front(job_id.clone());
+            }
+
+            state.wait_requests.remove(job_id);
+            state.cancelled_jobs.remove(job_id);
+            state.restart_requests.remove(job_id);
+        }
+
+        (resumed, resumed > 0)
+    };
+
+    if should_notify {
+        inner.cv.notify_all();
+        notify_queue_listeners(inner);
+    }
+
+    resumed
 }
 
 /// Restart a job from 0% progress. For jobs that are currently processing

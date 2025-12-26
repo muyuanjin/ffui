@@ -21,7 +21,7 @@ static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<Pat
     once_cell::sync::Lazy::new(|| Mutex::new(None));
 
 #[cfg(test)]
-pub(in crate::ffui_core::engine) struct QueueStateSidecarPathGuard;
+pub(crate) struct QueueStateSidecarPathGuard;
 
 #[cfg(test)]
 impl Drop for QueueStateSidecarPathGuard {
@@ -32,13 +32,31 @@ impl Drop for QueueStateSidecarPathGuard {
 }
 
 #[cfg(test)]
-pub(in crate::ffui_core::engine) fn override_queue_state_sidecar_path_for_tests(
+pub(crate) fn override_queue_state_sidecar_path_for_tests(
     path: PathBuf,
 ) -> QueueStateSidecarPathGuard {
     let mut override_path = QUEUE_STATE_SIDECAR_PATH_OVERRIDE.lock_unpoisoned();
     *override_path = Some(path);
     QueueStateSidecarPathGuard
 }
+
+#[cfg(test)]
+pub(super) fn queue_state_sidecar_path_overridden_for_tests() -> bool {
+    if QUEUE_STATE_SIDECAR_PATH_OVERRIDE
+        .lock_unpoisoned()
+        .as_ref()
+        .is_some()
+    {
+        return true;
+    }
+
+    std::env::var("FFUI_QUEUE_STATE_SIDECAR_PATH")
+        .map(|v| !v.trim().is_empty())
+        .unwrap_or(false)
+}
+
+static QUEUE_PERSIST_WRITE_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(()));
 
 /// Path to the sidecar JSON file used for crash-recovery queue snapshots.
 fn queue_state_sidecar_path() -> Option<PathBuf> {
@@ -110,6 +128,8 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
         return;
     };
 
+    let _write_guard = QUEUE_PERSIST_WRITE_MUTEX.lock_unpoisoned();
+
     if let Some(parent) = path.parent()
         && let Err(err) = fs::create_dir_all(parent)
     {
@@ -169,8 +189,43 @@ static PERSIST_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 
 #[cfg(test)]
-pub(crate) fn lock_persist_test_mutex_for_tests() -> std::sync::MutexGuard<'static, ()> {
-    PERSIST_TEST_MUTEX.lock_unpoisoned()
+pub(crate) struct PersistTestMutexGuard {
+    _guard: Option<std::sync::MutexGuard<'static, ()>>,
+    _reset: Option<PersistTestMutexReset>,
+}
+
+#[cfg(test)]
+struct PersistTestMutexReset;
+
+#[cfg(test)]
+impl Drop for PersistTestMutexReset {
+    fn drop(&mut self) {
+        PERSIST_TEST_MUTEX_HELD.with(|flag| flag.set(false));
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    static PERSIST_TEST_MUTEX_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(crate) fn lock_persist_test_mutex_for_tests() -> PersistTestMutexGuard {
+    use std::cell::Cell;
+
+    if PERSIST_TEST_MUTEX_HELD.with(Cell::get) {
+        return PersistTestMutexGuard {
+            _guard: None,
+            _reset: None,
+        };
+    }
+
+    let guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
+    PERSIST_TEST_MUTEX_HELD.with(|flag| flag.set(true));
+    PersistTestMutexGuard {
+        _guard: Some(guard),
+        _reset: Some(PersistTestMutexReset),
+    }
 }
 
 #[cfg(test)]

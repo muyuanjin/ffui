@@ -247,12 +247,12 @@ fn multi_worker_wait_resume_respects_queue_order() {
     {
         let state = engine.inner.state.lock_unpoisoned();
         assert!(
-            !state.queue.contains(&job_ids[0]),
-            "paused job should not remain in the active scheduling queue"
+            state.queue.contains(&job_ids[0]),
+            "paused job should remain visible in queue ordering"
         );
     }
 
-    // Resume the paused job; it should re-enter the waiting queue at the tail.
+    // Resume the paused job; it should keep its position in the waiting queue ordering.
     let resumed = engine.resume_job(&job_ids[0]);
     assert!(resumed, "resume_job must accept a Paused job");
 
@@ -261,8 +261,8 @@ fn multi_worker_wait_resume_respects_queue_order() {
         let queue_ids: Vec<String> = state.queue.iter().cloned().collect();
         assert_eq!(
             queue_ids,
-            vec![job_ids[2].clone(), job_ids[0].clone()],
-            "after resume, queue should contain the original third job followed by the resumed job"
+            vec![job_ids[0].clone(), job_ids[2].clone()],
+            "after resume, queue should preserve the original execution ordering"
         );
     }
 }
@@ -378,7 +378,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     let restored = make_engine_with_preset();
     restore_jobs_from_snapshot(&restored.inner, snapshot);
 
-    let state = restored.inner.state.lock_unpoisoned();
+    let mut state = restored.inner.state.lock_unpoisoned();
     let restored_job = state
         .jobs
         .get(&job_id)
@@ -404,11 +404,15 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
         "wait_metadata.tmp_output_path should reference the existing temp output"
     );
 
-    // The restored queue should not automatically re-enqueue the paused job;
-    // it must wait for an explicit resume from the user.
+    // The restored queue must not start paused jobs automatically.
     assert!(
-        !state.queue.contains(&job_id),
-        "paused job should not be scheduled automatically after crash recovery"
+        state.queue.contains(&job_id),
+        "paused job should remain visible in queue ordering after crash recovery"
+    );
+    let next = next_job_for_worker_locked(&mut state);
+    assert!(
+        next.is_none(),
+        "paused job should not be selected automatically after crash recovery"
     );
 }
 

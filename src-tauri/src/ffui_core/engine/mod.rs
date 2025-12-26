@@ -1,6 +1,5 @@
 //! Transcoding engine split into modular components (`state`, `ffmpeg_args`, `worker`,
 //! `job_runner`, `batch_compress`).
-
 mod batch_compress;
 mod enqueue_bulk;
 mod ffmpeg_args;
@@ -24,26 +23,17 @@ mod tests;
 pub(crate) use batch_compress::is_video_file;
 #[cfg(test)]
 pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
+#[cfg(test)]
+pub(crate) use state_persist::override_queue_state_sidecar_path_for_tests;
 
-// 测试环境下为 TranscodingEngine::new
-// 加一层全局互斥锁，避免多个单元测试并发初始化引擎时在共享全局状态（例如队列和设置）上产生竞争条件。
-//
+// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免并发初始化带来的共享状态竞争。
 #[cfg(test)]
 static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 // 导出 Job Object 初始化函数，供应用启动时调用
-use std::path::Path;
-use std::sync::Arc;
-
-use anyhow::Result;
-pub use ffmpeg_args::init_child_process_job;
-use state::{
-    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
-};
-
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource,
-    JobType, OutputPolicy, QueueState, QueueStateLite, TranscodeJob,
+    JobType, OutputPolicy, QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
 };
 use crate::ffui_core::monitor::{
     CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
@@ -54,7 +44,15 @@ use crate::ffui_core::tools::{
     hydrate_last_tool_download_from_settings, hydrate_probe_cache_from_settings,
     hydrate_remote_version_cache_from_settings, tool_status, update_probe_cache_from_statuses,
 };
+use crate::ffui_core::{ShutdownMarkerKind, read_shutdown_marker, write_shutdown_marker};
 use crate::sync_ext::MutexExt;
+use anyhow::Result;
+pub use ffmpeg_args::init_child_process_job;
+use state::{
+    Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,
+};
+use std::path::Path;
+use std::sync::Arc;
 
 fn normalize_os_path_string(raw: &str) -> String {
     #[cfg(windows)]
@@ -68,9 +66,6 @@ fn normalize_os_path_string(raw: &str) -> String {
 }
 
 /// The main transcoding engine facade.
-///
-/// This struct provides the public API for transcoding operations while
-/// delegating implementation details to specialized sub-modules.
 #[derive(Clone)]
 pub struct TranscodingEngine {
     pub(crate) inner: Arc<Inner>,
@@ -92,6 +87,14 @@ impl TranscodingEngine {
         hydrate_remote_version_cache_from_settings(&settings.tools);
         hydrate_probe_cache_from_settings(&settings.tools);
         let inner = Arc::new(Inner::new(presets, settings));
+        {
+            let previous = read_shutdown_marker();
+            {
+                let mut guard = inner.previous_shutdown_marker.lock_unpoisoned();
+                *guard = previous;
+            }
+            write_shutdown_marker(ShutdownMarkerKind::Running);
+        }
         {
             use std::sync::atomic::Ordering;
             use std::time::{SystemTime, UNIX_EPOCH};
@@ -144,13 +147,10 @@ impl TranscodingEngine {
             }
         }
         worker::spawn_worker(&inner);
-
         let engine = Self { inner };
         preview_cache_gc::spawn_preview_cache_gc(engine.clone());
-
         Ok(engine)
     }
-
     #[cfg(test)]
     pub(crate) fn new_for_tests() -> Self {
         let presets = Vec::new();
@@ -163,11 +163,18 @@ impl TranscodingEngine {
     pub fn queue_state(&self) -> QueueState {
         snapshot_queue_state(&self.inner)
     }
-
     /// Get a lightweight snapshot of the current queue state for high-
     /// frequency updates and startup payloads.
     pub fn queue_state_lite(&self) -> QueueStateLite {
         snapshot_queue_state_lite(&self.inner)
+    }
+    pub fn take_queue_startup_hint(&self) -> Option<QueueStartupHint> {
+        let mut guard = self.inner.queue_startup_hint.lock_unpoisoned();
+        guard.take()
+    }
+
+    pub fn resume_startup_auto_paused_jobs(&self) -> usize {
+        worker::resume_startup_auto_paused_jobs(&self.inner)
     }
 
     /// Force an immediate crash-recovery snapshot write (bypassing debounce).

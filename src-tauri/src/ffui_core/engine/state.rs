@@ -9,14 +9,17 @@ use super::state_persist::{
     peek_last_persisted_queue_state_lite, persist_queue_state_lite, persist_terminal_logs_if_needed,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress, FFmpegPreset, JobStatus, MediaInfo, QueueState, QueueStateLite,
-    TranscodeJob, TranscodeJobLite,
+    AutoCompressProgress, FFmpegPreset, JobStatus, MediaInfo, QueueStartupHint, QueueState,
+    QueueStateLite, TranscodeJob, TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
+use crate::ffui_core::shutdown_marker::ShutdownMarker;
 use crate::sync_ext::MutexExt;
 
 mod restore;
+#[cfg(test)]
+mod restore_tests;
 
 pub(super) use restore::restore_jobs_from_persisted_queue;
 
@@ -130,6 +133,9 @@ pub(crate) struct Inner {
     pub(crate) cv: Condvar,
     pub(crate) next_job_id: AtomicU64,
     pub(crate) queue_recovery_done: AtomicBool,
+    pub(crate) previous_shutdown_marker: Mutex<Option<ShutdownMarker>>,
+    pub(crate) queue_startup_hint: Mutex<Option<QueueStartupHint>>,
+    pub(crate) startup_auto_paused_job_ids: Mutex<HashSet<String>>,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
     pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
     pub(crate) batch_compress_listeners: Mutex<Vec<BatchCompressProgressListener>>,
@@ -142,6 +148,9 @@ impl Inner {
             cv: Condvar::new(),
             next_job_id: AtomicU64::new(1),
             queue_recovery_done: AtomicBool::new(false),
+            previous_shutdown_marker: Mutex::new(None),
+            queue_startup_hint: Mutex::new(None),
+            startup_auto_paused_job_ids: Mutex::new(HashSet::new()),
             queue_listeners: Mutex::new(Vec::new()),
             queue_lite_listeners: Mutex::new(Vec::new()),
             batch_compress_listeners: Mutex::new(Vec::new()),
@@ -260,10 +269,10 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
     //
     // Invariants:
     // - `queue` contains unique job ids
-    // - `queue` only contains ids for jobs that exist and are Waiting/Queued
+    // - `queue` only contains ids for jobs that exist and are Waiting/Queued/Paused
     // - `active_jobs` only contains Processing jobs
     // - `active_inputs` matches `active_jobs`
-    // - all Waiting/Queued jobs appear in `queue`
+    // - all Waiting/Queued/Paused jobs appear in `queue`
     let stale_active: Vec<String> = state
         .active_jobs
         .iter()
@@ -289,14 +298,19 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
         if !seen.insert(id.clone()) {
             return false;
         }
-        state
-            .jobs
-            .get(id)
-            .is_some_and(|job| matches!(job.status, JobStatus::Waiting | JobStatus::Queued))
+        state.jobs.get(id).is_some_and(|job| {
+            matches!(
+                job.status,
+                JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
+            )
+        })
     });
 
     for (id, job) in &state.jobs {
-        if !matches!(job.status, JobStatus::Waiting | JobStatus::Queued) {
+        if !matches!(
+            job.status,
+            JobStatus::Waiting | JobStatus::Queued | JobStatus::Paused
+        ) {
             continue;
         }
         if seen.contains(id) {
@@ -358,6 +372,9 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     };
 
     if let Some(snapshot) = persist_snapshot {
+        #[cfg(test)]
+        let _persist_guard = super::state_persist::queue_state_sidecar_path_overridden_for_tests()
+            .then(crate::ffui_core::lock_persist_test_mutex_for_tests);
         if matches!(persistence_mode, QueuePersistenceMode::CrashRecoveryFull) {
             // In full mode, persist per-job terminal logs only when jobs newly
             // transition into a terminal state. This avoids high-frequency I/O.

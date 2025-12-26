@@ -6,10 +6,10 @@ use crate::ffui_core::settings::presets::default_presets;
 
 #[test]
 fn load_presets_provides_defaults_when_file_missing_or_empty() {
+    let dir = tempfile::tempdir().expect("temp data root");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
     presets::with_presets_sidecar_lock(|| {
-        let dir = tempfile::tempdir().expect("temp data root");
-        let _guard =
-            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
         let path = crate::ffui_core::presets_path().expect("resolve presets path for test");
         // Ensure we start from a clean state with no presets.json.
         let _ = fs::remove_file(&path);
@@ -39,10 +39,10 @@ fn load_presets_provides_defaults_when_file_missing_or_empty() {
 
 #[test]
 fn load_presets_does_not_reinject_builtins_after_user_deletes_them() {
+    let dir = tempfile::tempdir().expect("temp data root");
+    let _guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
     presets::with_presets_sidecar_lock(|| {
-        let dir = tempfile::tempdir().expect("temp data root");
-        let _guard =
-            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
         let path = crate::ffui_core::presets_path().expect("resolve presets path for test");
         // Start from a clean state.
         let _ = fs::remove_file(&path);

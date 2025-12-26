@@ -31,7 +31,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         .unwrap_or("mp4");
     let joined_video_tmp = output_path.with_extension(format!("video.concat.tmp.{ext}"));
     let mux_tmp = output_path.with_extension(format!("concat.tmp.{ext}"));
-    let mut can_cleanup_segments = true;
+    let can_cleanup_segments = true;
 
     if finalize_with_source_audio
         && let Err(err) = remux_segment_drop_audio(ffmpeg_path, tmp_output)
@@ -107,7 +107,6 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
                 }
             }
             Err(err) => {
-                can_cleanup_segments = false;
                 let mut state = inner.state.lock_unpoisoned();
                 if let Some(job) = state.jobs.get_mut(job_id) {
                     super::worker_utils::append_job_log_line(
@@ -118,6 +117,10 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
                         ),
                     );
                 }
+                return Err(anyhow::anyhow!(
+                    "failed to probe resumed concat output duration ({}): {err:#}",
+                    joined_video_tmp.display()
+                ));
             }
         }
     }
@@ -130,6 +133,8 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         configure_background_command(&mut mux_cmd);
         let status = mux_cmd
             .args(&mux_args)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()
             .with_context(|| "failed to run ffmpeg mux for resumed output")?;
         if !status.success() {

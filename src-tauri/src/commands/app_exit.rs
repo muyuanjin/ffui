@@ -1,7 +1,9 @@
 use tauri::{AppHandle, State};
 
 use crate::app_exit::{ExitAutoWaitOutcome, ExitCoordinator, pause_processing_jobs_for_exit};
-use crate::ffui_core::TranscodingEngine;
+use crate::ffui_core::{
+    ShutdownMarkerKind, TranscodingEngine, write_shutdown_marker_with_auto_wait_job_ids,
+};
 use crate::sync_ext::MutexExt;
 
 #[tauri::command]
@@ -33,6 +35,15 @@ pub async fn exit_app_with_auto_wait(
         let state = engine.inner.state.lock_unpoisoned();
         state.settings.exit_auto_wait_timeout_seconds
     };
+    let processing_job_ids: Vec<String> = {
+        let state = engine.inner.state.lock_unpoisoned();
+        state
+            .jobs
+            .values()
+            .filter(|job| job.status == crate::ffui_core::JobStatus::Processing)
+            .map(|job| job.id.clone())
+            .collect()
+    };
 
     let outcome = tauri::async_runtime::spawn_blocking(move || {
         pause_processing_jobs_for_exit(&engine, timeout_seconds)
@@ -40,6 +51,10 @@ pub async fn exit_app_with_auto_wait(
     .await
     .map_err(|e| format!("failed to join exit_app_with_auto_wait task: {e}"))?;
 
+    write_shutdown_marker_with_auto_wait_job_ids(
+        ShutdownMarkerKind::CleanAutoWait,
+        Some(processing_job_ids),
+    );
     coordinator.allow_exit();
     app.exit(0);
     Ok(outcome)

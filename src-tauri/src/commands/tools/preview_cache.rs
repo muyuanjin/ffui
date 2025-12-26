@@ -1,23 +1,10 @@
 use tauri::State;
 
+use crate::commands::wait_for_queue_recovery;
 use crate::ffui_core::{
     TranscodingEngine, cleanup_unreferenced_previews, clear_fallback_frame_cache,
     previews_root_dir_best_effort, referenced_preview_filenames,
 };
-use crate::sync_ext::{CondvarExt, MutexExt};
-
-fn wait_for_queue_recovery(engine: &TranscodingEngine) {
-    use std::sync::atomic::Ordering;
-
-    if engine.inner.queue_recovery_done.load(Ordering::Acquire) {
-        return;
-    }
-
-    let guard = engine.inner.state.lock_unpoisoned();
-    let _guard = engine.inner.cv.wait_while_unpoisoned(guard, |_| {
-        !engine.inner.queue_recovery_done.load(Ordering::Acquire)
-    });
-}
 
 fn cleanup_preview_caches_worker(
     engine: TranscodingEngine,
