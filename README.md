@@ -174,6 +174,18 @@ cd src-tauri
 cargo test
 ```
 
+## Security audit
+
+Some registry mirrors may cause redirect loops for `pnpm audit`. Use the built-in script which pins the official npm registry:
+
+```bash
+pnpm run audit:json
+```
+
+## Dependency updates
+
+Use `pnpm outdated` to review upgrades. Prefer patch/minor updates first; for major updates (e.g. Vite 7) open a dedicated change proposal and run full regression (at least `pnpm run check:all`, and Tauri smoke via `pnpm run tauri:dev`).
+
 ## Duplicate code detection
 
 The repository includes basic duplicate-code checks for both frontend and backend (jscpd):
@@ -420,6 +432,18 @@ pnpm run test:watch
 cd src-tauri
 cargo test
 ```
+
+## 安全审计
+
+部分镜像源可能导致 `pnpm audit` 出现重定向死循环。请使用内置脚本（固定 npm 官方 registry）：
+
+```bash
+pnpm run audit:json
+```
+
+## 依赖更新
+
+使用 `pnpm outdated` 查看更新建议。优先合并 patch/minor；大版本升级（例如 Vite 7）建议单独走变更提案，并跑全套回归（至少 `pnpm run check:all`，以及 `pnpm run tauri:dev` 做 Tauri 侧冒烟）。
 
 ## 代码重复检测
 

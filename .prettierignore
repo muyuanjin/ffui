@@ -1,7 +1,11 @@
 dist
+dist-perf-audit-*
 node_modules
 target
+target-perf-audit-*
 src-tauri/target
 src-tauri/target-codex-test
 src-tauri/gen
 perf-traces.local
+pnpm-lock.yaml
+docs/perf-audit-*.md
