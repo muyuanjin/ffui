@@ -321,11 +321,6 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                         // Record the temp output path for the current run so crash
                         // recovery can pick it up even if ffmpeg is interrupted.
                         meta.tmp_output_path = Some(tmp_str.clone());
-                        let mut segs = meta.segments.clone().unwrap_or_default();
-                        if segs.last() != Some(&tmp_str) {
-                            segs.push(tmp_str);
-                        }
-                        meta.segments = Some(segs);
                     }
                     None => {
                         job.wait_metadata = Some(WaitMetadata {
@@ -336,7 +331,11 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             last_progress_out_time_seconds: None,
                             last_progress_frame: None,
                             tmp_output_path: Some(tmp_str.clone()),
-                            segments: Some(vec![tmp_str]),
+                            // `segments` represents completed partial outputs that should be
+                            // concatenated on resume. Do not pre-populate it with the current
+                            // in-flight temp path; pause completion will append the segment
+                            // once it is known to be usable.
+                            segments: None,
                             segment_end_targets: None,
                         });
                     }

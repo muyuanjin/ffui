@@ -31,6 +31,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         .unwrap_or("mp4");
     let joined_video_tmp = output_path.with_extension(format!("video.concat.tmp.{ext}"));
     let mux_tmp = output_path.with_extension(format!("concat.tmp.{ext}"));
+    let mut can_cleanup_segments = true;
 
     if finalize_with_source_audio
         && let Err(err) = remux_segment_drop_audio(ffmpeg_path, tmp_output)
@@ -60,6 +61,67 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
     concat_video_segments(ffmpeg_path, all_segments, segment_durations, &joined_video_tmp)
         .with_context(|| "ffmpeg concat failed when resuming from partial output")?;
 
+    // Data-loss guard: if concat output is suspiciously shorter than the intended
+    // resume boundary, refuse to finalize and keep all partial segments for
+    // recovery. This is especially important when users rapidly toggle
+    // pause/resume and segment metadata can momentarily desync.
+    let (settings_snapshot, expected_from_job) = {
+        let state = inner.state.lock_unpoisoned();
+        let expected = state
+            .jobs
+            .get(job_id)
+            .and_then(|job| job.wait_metadata.as_ref())
+            .and_then(|meta| {
+                meta.segment_end_targets
+                    .as_ref()
+                    .and_then(|v| v.last().copied())
+                    .or(meta.target_seconds)
+                    .or(meta.processed_seconds)
+                    .or(meta.last_progress_out_time_seconds)
+            })
+            .filter(|v| v.is_finite() && *v > 0.0);
+        (state.settings.clone(), expected)
+    };
+    let expected_from_durations = segment_durations
+        .map(|d| d.iter().copied().filter(|v| v.is_finite() && *v > 0.0).sum::<f64>())
+        .filter(|v| v.is_finite() && *v > 0.0);
+    let expected_seconds = expected_from_durations.or(expected_from_job);
+
+    if let Some(expected) = expected_seconds {
+        match detect_duration_seconds(&joined_video_tmp, &settings_snapshot) {
+            Ok(actual) => {
+                let tolerance = (expected * 0.001).max(0.5);
+                if actual.is_finite() && actual + tolerance < expected {
+                    let mut state = inner.state.lock_unpoisoned();
+                    if let Some(job) = state.jobs.get_mut(job_id) {
+                        super::worker_utils::append_job_log_line(
+                            job,
+                            format!(
+                                "resume: refusing to finalize: joined video duration {actual:.3}s is shorter than expected {expected:.3}s (tolerance {tolerance:.3}s); keeping temp segments for recovery"
+                            ),
+                        );
+                    }
+                    return Err(anyhow::anyhow!(
+                        "resumed concat output duration ({actual:.3}s) shorter than expected ({expected:.3}s)"
+                    ));
+                }
+            }
+            Err(err) => {
+                can_cleanup_segments = false;
+                let mut state = inner.state.lock_unpoisoned();
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        format!(
+                            "resume: warning: failed to probe joined output duration ({}): {err:#}; keeping temp segments for recovery",
+                            joined_video_tmp.display()
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
     if finalize_with_source_audio {
         let mux_args =
             build_mux_args_for_resumed_output(&joined_video_tmp, input_path, &mux_tmp, finalize_preset);
@@ -72,7 +134,6 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
             .with_context(|| "failed to run ffmpeg mux for resumed output")?;
         if !status.success() {
             drop(fs::remove_file(&mux_tmp));
-            drop(fs::remove_file(&joined_video_tmp));
             return Err(anyhow::anyhow!(
                 "ffmpeg mux failed when finalizing resumed output (status {status})"
             ));
@@ -94,10 +155,12 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         })?;
     }
 
-    drop(fs::remove_file(&joined_video_tmp));
-    for seg in all_segments {
-        drop(fs::remove_file(seg));
-        drop(fs::remove_file(noaudio_marker_path_for_segment(seg.as_path())));
+    if can_cleanup_segments {
+        drop(fs::remove_file(&joined_video_tmp));
+        for seg in all_segments {
+            drop(fs::remove_file(seg));
+            drop(fs::remove_file(noaudio_marker_path_for_segment(seg.as_path())));
+        }
     }
 
     Ok(fs::metadata(output_path).map(|m| m.len()).unwrap_or(0))

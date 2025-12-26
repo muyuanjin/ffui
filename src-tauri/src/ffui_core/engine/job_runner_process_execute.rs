@@ -286,7 +286,12 @@ fn execute_transcode_job(
 	                super::worker_utils::append_job_log_line(job, reason);
 	            }
 	        }
-	        drop(fs::remove_file(&tmp_output));
+            // Keep partial segments on disk for recovery when this is a resumed
+            // job (existing segments present). Removing the latest segment here
+            // can turn a recoverable failure into irreversible content loss.
+            if existing_segments.is_empty() {
+	            drop(fs::remove_file(&tmp_output));
+            }
         mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
@@ -353,7 +358,7 @@ fn execute_transcode_job(
                         super::worker_utils::append_job_log_line(job, reason);
                     }
                 }
-                drop(fs::remove_file(&tmp_output));
+                // Keep partial segments for recovery on finalize errors.
                 mark_batch_compress_child_processed(inner, job_id);
                 return Ok(());
             }

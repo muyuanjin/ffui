@@ -33,7 +33,7 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
     let deps_dir = target_debug.join("deps");
     if deps_dir.exists() {
         let prefixes = ["ffui-mock-ffmpeg", "ffui_mock_ffmpeg"];
-        let mut matches: Vec<std::path::PathBuf> = std::fs::read_dir(&deps_dir)
+        let matches: Vec<std::path::PathBuf> = std::fs::read_dir(&deps_dir)
             .into_iter()
             .flatten()
             .flatten()
@@ -44,19 +44,27 @@ fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
                     .is_some_and(|n| prefixes.iter().any(|prefix| n.starts_with(prefix)))
             })
             .collect();
-        matches.sort();
-        if let Some(p) = matches.into_iter().find(|p| {
-            if !p.is_file() {
-                return false;
-            }
-            if cfg!(windows) {
-                return p
-                    .extension()
-                    .and_then(|e| e.to_str())
-                    .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
-            }
-            true
-        }) {
+        let mut exe_candidates: Vec<(std::path::PathBuf, Option<std::time::SystemTime>)> = matches
+            .into_iter()
+            .filter(|p| {
+                if !p.is_file() {
+                    return false;
+                }
+                if cfg!(windows) {
+                    return p
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .is_some_and(|e| e.eq_ignore_ascii_case("exe"));
+                }
+                true
+            })
+            .map(|p| {
+                let modified = std::fs::metadata(&p).ok().and_then(|m| m.modified().ok());
+                (p, modified)
+            })
+            .collect();
+        exe_candidates.sort_by_key(|(p, modified)| (*modified, p.clone()));
+        if let Some((p, _)) = exe_candidates.pop() {
             return p;
         }
     }
@@ -301,6 +309,77 @@ fn finalize_resume_cleanup_removes_noaudio_marker_files() {
         !marker0.exists(),
         "noaudio marker should be deleted after finalize"
     );
+}
+
+#[test]
+fn finalize_resume_refuses_suspiciously_short_concat_output_and_keeps_segments() {
+    let _env_lock = lock_mock_ffmpeg_env();
+    let _guard = crate::test_support::EnvVarGuard::capture([
+        "FFUI_MOCK_FFPROBE_FORMAT_DURATION",
+        "FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT",
+    ]);
+
+    let mock_exe = locate_mock_ffmpeg_exe();
+    crate::test_support::set_env("FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT", "1");
+
+    let dir = tempfile::tempdir().expect("tempdir");
+    let seg0 = dir.path().join("seg0.tmp.mkv");
+    let seg1 = dir.path().join("seg1.tmp.mkv");
+    std::fs::write(&seg0, b"seg0").expect("write seg0");
+    std::fs::write(&seg1, b"seg1").expect("write seg1");
+
+    // Mock ffprobe returns a short duration for the joined output so the
+    // finalize guard will refuse to produce a truncated final file.
+    crate::test_support::set_env("FFUI_MOCK_FFPROBE_FORMAT_DURATION", "2.0\n");
+
+    let mut settings = AppSettings::default();
+    settings.tools.auto_download = false;
+    settings.tools.ffprobe_path = Some(mock_exe.to_string_lossy().into_owned());
+    let inner = TestArc::new(Inner::new(vec![make_test_preset()], settings));
+    let engine = TranscodingEngine { inner };
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/finalize-short-guard.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let preset = make_test_preset();
+    let input_path = std::path::PathBuf::from("C:/videos/input.mp4");
+    let output_path = dir.path().join("out.mkv");
+    let joined_video_tmp = output_path.with_extension("video.concat.tmp.mkv");
+
+    let segments = vec![seg0.clone(), seg1.clone()];
+    let segment_durations = vec![10.0_f64, 10.0_f64];
+    let result = finalize_resumed_job_output_for_tests(
+        &engine.inner,
+        &job.id,
+        mock_exe.to_string_lossy().as_ref(),
+        &input_path,
+        &output_path,
+        &preset,
+        &segments,
+        Some(&segment_durations),
+        &seg1,
+        false,
+    );
+
+    assert!(
+        result.is_err(),
+        "finalize should fail when probed output duration is shorter than expected"
+    );
+    assert!(
+        !output_path.exists(),
+        "final output should not be created on failure"
+    );
+    assert!(
+        joined_video_tmp.exists(),
+        "joined video temp should remain for recovery/debugging"
+    );
+    assert!(seg0.exists(), "segments should be kept for recovery");
+    assert!(seg1.exists(), "segments should be kept for recovery");
 }
 
 #[test]

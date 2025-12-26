@@ -151,6 +151,10 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                 if !state.queue.iter().any(|id| id == job_id) {
                     state.queue.push_back(job_id.to_string());
                 }
+                // Any stale flags become irrelevant.
+                state.wait_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.restart_requests.remove(job_id);
                 (true, true)
             }
             JobStatus::Processing => {
