@@ -40,10 +40,12 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
 
 /**
  * Wait all selected processing jobs.
- * Only affects jobs with status === "processing".
+ * Affects jobs with status === "processing" | "waiting" | "queued".
  */
 export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value.filter((job) => job.status === "processing").map((job) => job.id);
+  const ids = deps.selectedJobs.value
+    .filter((job) => job.status === "processing" || job.status === "waiting" || job.status === "queued")
+    .map((job) => job.id);
   for (const id of ids) {
     await deps.handleWaitJob(id);
   }

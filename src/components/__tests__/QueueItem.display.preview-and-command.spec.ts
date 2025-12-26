@@ -35,6 +35,7 @@ vi.mock("@/lib/ffmpegCommand", async () => {
 });
 
 import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { resetJobPreviewWarmupForTests } from "@/lib/jobPreviewWarmup";
 import QueueItem from "@/components/QueueItem.vue";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 
@@ -98,6 +99,8 @@ describe("QueueItem display preview & command view", () => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
+    (ensureJobPreview as any).mockReset();
+    resetJobPreviewWarmupForTests();
     i18n.global.locale.value = "en";
   });
 
@@ -253,6 +256,25 @@ describe("QueueItem display preview & command view", () => {
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const imgs = thumb.findAll("img");
     expect(imgs.length).toBe(0);
+  });
+
+  it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
+    const job = makeJob({ status: "waiting", progress: 0, previewPath: undefined });
+    (hasTauri as any).mockReturnValue(true);
+
+    mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
   });
 
   it("falls back to input/output path for image jobs when previewPath is missing", async () => {

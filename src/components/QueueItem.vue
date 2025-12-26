@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
 import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
@@ -257,13 +258,14 @@ const lastPreviewPath = ref<string | null>(null);
  */
 watch(
   () => ({
+    id: props.job.id,
     previewPath: props.job.previewPath,
     previewRevision: props.job.previewRevision,
     type: props.job.type,
     inputPath: props.job.inputPath,
     outputPath: props.job.outputPath,
   }),
-  ({ previewPath, previewRevision, type, inputPath, outputPath }) => {
+  ({ id, previewPath, previewRevision, type, inputPath, outputPath }) => {
     previewFallbackLoaded.value = false;
     if ((previewPath ?? null) !== lastPreviewPath.value) {
       previewRescreenshotAttempted.value = false;
@@ -280,6 +282,9 @@ watch(
     }
 
     if (!path) {
+      if (type === "video") {
+        requestJobPreviewWarmup(id);
+      }
       previewUrl.value = null;
       return;
     }

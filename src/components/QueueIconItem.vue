@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
@@ -230,11 +231,19 @@ const previewFallbackLoaded = ref(false);
 const previewRescreenshotAttempted = ref(false);
 
 watch(
-  () => ({ previewPath: props.job.previewPath, previewRevision: props.job.previewRevision }),
-  ({ previewPath, previewRevision }) => {
+  () => ({
+    id: props.job.id,
+    type: props.job.type,
+    previewPath: props.job.previewPath,
+    previewRevision: props.job.previewRevision,
+  }),
+  ({ id, type, previewPath, previewRevision }) => {
     previewFallbackLoaded.value = false;
     previewRescreenshotAttempted.value = false;
     if (!previewPath) {
+      if (type === "video") {
+        requestJobPreviewWarmup(id);
+      }
       previewUrl.value = null;
       return;
     }

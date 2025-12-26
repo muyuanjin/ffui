@@ -12,6 +12,7 @@ import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandVi
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import { parseAndHighlightLog, parseAndHighlightLogTokens } from "@/composables/useJobLog";
 import type { HighlightToken } from "@/lib/highlightTokens";
+import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
 
 export type JobDetailDialogProps = {
   open: boolean;
@@ -95,6 +96,9 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
       inlinePreviewFallbackLoaded.value = false;
       inlinePreviewRescreenshotAttempted.value = false;
       if (!previewPath) {
+        if (props.job?.type === "video" && props.job?.id) {
+          requestJobPreviewWarmup(props.job.id);
+        }
         inlinePreviewUrl.value = null;
         return;
       }
