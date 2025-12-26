@@ -161,6 +161,14 @@ const queue = {
     bulkDelete: "从列表中删除",
     bulkDeleteShort: "移除",
   },
+  startupHint: {
+    title: "检测到未完成队列",
+    descriptionCrashOrKill: "上次异常退出或被强制结束，已自动暂停 {count} 项任务。",
+    descriptionPauseOnExit: "上次退出前已暂停并保存队列，已自动暂停 {count} 项任务。",
+    descriptionNormalRestart: "已恢复上次队列并为安全起见暂停 {count} 项任务。",
+    action: "恢复队列",
+    dismiss: "暂不恢复",
+  },
   error: {
     loadFailed: "队列状态刷新失败，请检查后端是否运行以及外部工具配置。",
     enqueueFailed: "无法将任务加入队列，请检查外部工具是否可用或自动下载设置。",
