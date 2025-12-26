@@ -2,10 +2,12 @@
 // 直接挂载完整控制台，避免“加载壳 → 再切到主界面”的二段式闪烁。
 // 首屏空白由 index.html 里的静态 boot-shell 负责兜底。
 import MainApp from "./MainApp.vue";
+import { Toaster } from "@/components/ui/sonner";
 </script>
 
 <template>
   <div class="ffui-ui-scale-root">
     <MainApp />
+    <Toaster position="bottom-right" :rich-colors="true" />
   </div>
 </template>

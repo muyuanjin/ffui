@@ -21,6 +21,7 @@ import { hasTauri } from "@/lib/backend";
 import { scheduleStartupIdle } from "./startupIdle";
 import { useUiAppearanceSync } from "./useUiAppearanceSync";
 import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
+import { useQueueStartupToast } from "./useQueueStartupToast";
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -96,6 +97,14 @@ export function useMainAppSetup() {
     compositeTasksById: batchCompress.compositeTasksById,
     onJobCompleted: presetsModule.handleCompletedJobFromBackend,
     startupIdleReady,
+  });
+
+  useQueueStartupToast({
+    enabled: !isTestEnv,
+    t,
+    jobs,
+    lastQueueSnapshotRevision,
+    refreshQueueFromBackend: queue.refreshQueueFromBackend,
   });
 
   useBatchCompressQueueRefresh({

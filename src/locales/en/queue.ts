@@ -158,6 +158,14 @@ const queue = {
     bulkDelete: "Remove",
     bulkDeleteShort: "Remove",
   },
+  startupHint: {
+    title: "Unfinished queue detected",
+    descriptionCrashOrKill: "The last run ended unexpectedly. {count} job(s) were paused automatically.",
+    descriptionPauseOnExit: "The queue was paused and saved before exit. {count} job(s) were paused automatically.",
+    descriptionNormalRestart: "The previous queue was restored and {count} job(s) were paused for safety.",
+    action: "Resume queue",
+    dismiss: "Not now",
+  },
   error: {
     loadFailed: "Failed to refresh queue state. Make sure the backend is running and external tools are configured.",
     enqueueFailed: "Failed to enqueue job. Please check external tool availability or auto-download settings.",

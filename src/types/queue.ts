@@ -207,3 +207,10 @@ export interface QueueStateLite {
   snapshotRevision?: number;
   jobs: TranscodeJobLite[];
 }
+
+export type QueueStartupHintKind = "crashOrKill" | "pauseOnExit" | "normalRestart";
+
+export interface QueueStartupHint {
+  kind: QueueStartupHintKind;
+  autoPausedJobCount: number;
+}
