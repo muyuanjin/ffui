@@ -20,6 +20,18 @@ function getJobsFromVm(vm: any): TranscodeJob[] {
   return [];
 }
 
+async function flushQueuedQueueStateApply() {
+  await nextTick();
+  await new Promise((r) => {
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => r(null));
+    } else {
+      setTimeout(r, 0);
+    }
+  });
+  await nextTick();
+}
+
 describe("MainApp repeated wait/resume cycles", () => {
   it("handles multiple wait/resume cycles and keeps waitMetadata from backend snapshots", async () => {
     const jobId = "job-multi-wait-1";
@@ -82,7 +94,7 @@ describe("MainApp repeated wait/resume cycles", () => {
         },
       } as TranscodeJob,
     ]);
-    await nextTick();
+    await flushQueuedQueueStateApply();
 
     const pausedJob0 = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(pausedJob0?.status).toBe("paused");
@@ -112,7 +124,7 @@ describe("MainApp repeated wait/resume cycles", () => {
         },
       } as TranscodeJob,
     ]);
-    await nextTick();
+    await flushQueuedQueueStateApply();
 
     await vm.handleWaitJob(jobId);
     await nextTick();
@@ -137,7 +149,7 @@ describe("MainApp repeated wait/resume cycles", () => {
         },
       } as TranscodeJob,
     ]);
-    await nextTick();
+    await flushQueuedQueueStateApply();
 
     const pausedJob1 = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(pausedJob1?.status).toBe("paused");

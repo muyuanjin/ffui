@@ -77,6 +77,8 @@ export interface StateSyncDeps {
   queueError: Ref<string | null>;
   /** Last queue snapshot timestamp. */
   lastQueueSnapshotAtMs: Ref<number | null>;
+  /** Last applied monotonic snapshot revision (for ordering / de-dupe). */
+  lastQueueSnapshotRevision: Ref<number | null>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Callback when a job completes (for preset stats update). */
@@ -138,6 +140,15 @@ function detectNewlyCompletedJobs(
  * for jobs that have newly transitioned into the `completed` state.
  */
 export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, deps: StateSyncDeps) {
+  const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
+  if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
+    const prev = deps.lastQueueSnapshotRevision.value;
+    if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
+      return;
+    }
+    deps.lastQueueSnapshotRevision.value = snapshotRevision;
+  }
+
   const backendJobs = state.jobs ?? [];
 
   if (!firstQueueStateLiteApplied) {
@@ -179,6 +190,15 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
       const state = await loadQueueStateLite();
       const elapsedMs = startupNowMs() - startedAt;
       const backendJobs = (state as QueueStateLite).jobs ?? [];
+      const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
+
+      if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
+        const prev = deps.lastQueueSnapshotRevision.value;
+        if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
+          return;
+        }
+        deps.lastQueueSnapshotRevision.value = snapshotRevision;
+      }
 
       if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {
         loggedQueueRefresh = true;
@@ -188,6 +208,7 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
 
       detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
       recomputeJobsFromBackend(backendJobs, deps);
+      deps.lastQueueSnapshotAtMs.value = Date.now();
       deps.queueError.value = null;
     } catch (error) {
       console.error("Failed to refresh queue state", error);

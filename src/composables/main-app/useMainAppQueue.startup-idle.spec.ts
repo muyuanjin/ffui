@@ -49,6 +49,7 @@ describe("useMainAppQueue startup idle defers", () => {
     const jobs = ref<TranscodeJob[]>(makeEmptyJobs());
     const queueError = ref<string | null>(null);
     const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
     const presets = ref<FFmpegPreset[]>([]);
     const manualJobPresetId = ref<string | null>(null);
     const compositeBatchCompressTasks = computed<CompositeBatchCompressTask[]>(() => []);
@@ -61,6 +62,7 @@ describe("useMainAppQueue startup idle defers", () => {
           jobs,
           queueError,
           lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
           presets,
           manualJobPresetId,
           compositeBatchCompressTasks,
@@ -102,6 +104,7 @@ describe("useMainAppQueue startup idle defers", () => {
     const jobs = ref<TranscodeJob[]>(makeEmptyJobs());
     const queueError = ref<string | null>(null);
     const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
     const presets = ref<FFmpegPreset[]>([]);
     const manualJobPresetId = ref<string | null>(null);
     const compositeBatchCompressTasks = computed<CompositeBatchCompressTask[]>(() => []);
@@ -114,6 +117,7 @@ describe("useMainAppQueue startup idle defers", () => {
           jobs,
           queueError,
           lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
           presets,
           manualJobPresetId,
           compositeBatchCompressTasks,

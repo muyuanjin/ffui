@@ -13,6 +13,18 @@ function getJobsFromVm(vm: any): TranscodeJob[] {
   return [];
 }
 
+async function flushQueuedQueueStateApply() {
+  await nextTick();
+  await new Promise((r) => {
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(() => r(null));
+    } else {
+      setTimeout(r, 0);
+    }
+  });
+  await nextTick();
+}
+
 describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
   it("allows resuming a paused job even when waitMetadata is absent, then accepts recovered segments from backend snapshot", async () => {
     const jobId = "job-1766587734267";
@@ -45,7 +57,7 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
     await nextTick();
 
     emitQueueState([pausedJob]);
-    await nextTick();
+    await flushQueuedQueueStateApply();
     expect(getJobsFromVm(vm).find((j) => j.id === jobId)?.status).toBe("paused");
 
     await vm.handleResumeJob(jobId);
@@ -64,7 +76,7 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
         },
       } satisfies TranscodeJob,
     ]);
-    await nextTick();
+    await flushQueuedQueueStateApply();
 
     const updated = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updated?.waitMetadata?.segments).toEqual([

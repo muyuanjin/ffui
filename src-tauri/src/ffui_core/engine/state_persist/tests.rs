@@ -54,6 +54,7 @@ fn queue_state_lite_persists_first_real_command_for_restart() {
 
 fn make_state_lite(jobs: Vec<TranscodeJob>) -> QueueStateLite {
     QueueStateLite {
+        snapshot_revision: 0,
         jobs: jobs
             .into_iter()
             .map(|job| TranscodeJobLite::from(&job))

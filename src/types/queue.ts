@@ -203,5 +203,7 @@ export interface QueueState {
  * code does not accidentally treat lite events as a source of full log history.
  */
 export interface QueueStateLite {
+  /** Monotonic snapshot revision for ordering / de-duping. */
+  snapshotRevision?: number;
   jobs: TranscodeJobLite[];
 }

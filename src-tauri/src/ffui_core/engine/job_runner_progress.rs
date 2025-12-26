@@ -5,6 +5,8 @@
 use super::transcode_activity;
 use super::worker_utils::append_job_log_line;
 
+const LOG_ONLY_QUEUE_NOTIFY_MIN_INTERVAL_MS: u64 = 200;
+
 pub(super) fn update_job_progress(
     inner: &Inner,
     job_id: &str,
@@ -79,7 +81,12 @@ pub(super) fn update_job_progress(
                     // while the job is actively processing. This trades a modest
                     // increase in event frequency for correct, real-time feedback.
                     if job.status == JobStatus::Processing {
-                        should_notify = true;
+                        let last = state.last_queue_log_notify_at_ms;
+                        let elapsed = now_ms.saturating_sub(last);
+                        if last == 0 || elapsed >= LOG_ONLY_QUEUE_NOTIFY_MIN_INTERVAL_MS {
+                            state.last_queue_log_notify_at_ms = now_ms;
+                            should_notify = true;
+                        }
                     }
                 }
             }

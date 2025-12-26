@@ -66,11 +66,11 @@ describe("useAppSettings external tool downloads", () => {
   it("does not clobber event-driven download progress with the immediate command snapshot", async () => {
     const download = vi.mocked(backend.downloadExternalToolNow);
 
-    let resolveDownload: ((value: ExternalToolStatus[]) => void) | null = null;
+    let resolveDownload: ((value: ExternalToolStatus[]) => void) | undefined;
     download.mockImplementationOnce(
       () =>
         new Promise<ExternalToolStatus[]>((resolve) => {
-          resolveDownload = resolve;
+          resolveDownload = (value) => resolve(value);
         }),
     );
 
