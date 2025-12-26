@@ -30,8 +30,10 @@ export default [
     ignores: [
       "**/.jscpd/**",
       "**/dist/**",
+      "**/dist-perf-audit-*/**",
       "**/node_modules/**",
       "target/**",
+      "target-perf-audit-*/**",
       "src-tauri/target/**",
       "src-tauri/gen/**",
     ],

@@ -39,3 +39,4 @@ dist-ssr
 
 # Duplicate-code reports (local)
 /.jscpd/
+/recovery/
