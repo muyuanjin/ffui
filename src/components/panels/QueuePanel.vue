@@ -2,9 +2,11 @@
 import { computed, defineAsyncComponent } from "vue";
 import QueueBatchCompressBatchCard from "./QueueBatchCompressBatchCard.vue";
 import { useI18n } from "vue-i18n";
+import { VList } from "virtua/vue";
 import { hasTauri } from "@/lib/backend";
 import { Button } from "@/components/ui/button";
 import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
+import type { QueueListItem } from "@/composables";
 import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
 import { usePresetLookup } from "@/composables/presets/usePresetLookup";
 
@@ -136,6 +138,78 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
 
   emit("openBulkContextMenu", event);
 };
+
+const TERMINAL_STATUSES_FOR_QUEUE_MODE = new Set<TranscodeJob["status"]>([
+  "completed",
+  "failed",
+  "cancelled",
+  "skipped",
+]);
+
+type QueueVirtualRow =
+  | { type: "header"; key: string; label: string; count: number }
+  | { type: "processingJob"; key: string; job: TranscodeJob }
+  | { type: "waitingItem"; key: string; item: QueueListItem }
+  | { type: "restItem"; key: string; item: QueueListItem }
+  | { type: "displayItem"; key: string; item: QueueListItem };
+
+const getQueueListItemKey = (item: QueueListItem): string =>
+  item.kind === "batch" ? `batch:${item.batch.batchId}` : `job:${item.job.id}`;
+
+const getQueueVirtualRowKey = (row: QueueVirtualRow): string => row.key;
+
+const virtualListItemSizeHint = computed(() => (props.queueRowVariant === "compact" ? 120 : 180));
+
+const virtualListRows = computed<QueueVirtualRow[]>(() => {
+  if (props.queueMode !== "queue") {
+    return props.visibleQueueItems.map((item) => ({
+      type: "displayItem",
+      key: getQueueListItemKey(item),
+      item,
+    }));
+  }
+
+  const rows: QueueVirtualRow[] = [];
+
+  if (props.queueModeProcessingJobs.length > 0) {
+    rows.push({
+      type: "header",
+      key: "group:processing",
+      label: t("queue.groups.processing"),
+      count: props.queueModeProcessingJobs.length,
+    });
+    for (const job of props.queueModeProcessingJobs) {
+      rows.push({ type: "processingJob", key: `job:${job.id}`, job });
+    }
+  }
+
+  if (props.queueModeWaitingItems.length > 0) {
+    rows.push({
+      type: "header",
+      key: "group:waiting",
+      label: t("queue.groups.waiting"),
+      count: props.queueModeWaitingItems.length,
+    });
+    for (const item of props.queueModeWaitingItems) {
+      rows.push({ type: "waitingItem", key: getQueueListItemKey(item), item });
+    }
+  }
+
+  for (const item of props.visibleQueueItems) {
+    if (item.kind === "batch") {
+      if (!props.queueModeWaitingBatchIds.has(item.batch.batchId)) {
+        rows.push({ type: "restItem", key: getQueueListItemKey(item), item });
+      }
+      continue;
+    }
+
+    if (TERMINAL_STATUSES_FOR_QUEUE_MODE.has(item.job.status)) {
+      rows.push({ type: "restItem", key: getQueueListItemKey(item), item });
+    }
+  }
+
+  return rows;
+});
 </script>
 
 <template>
@@ -201,7 +275,11 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
     <!-- Queue content -->
     <div v-else class="flex flex-1 min-h-0 flex-col">
       <!-- 3D Carousel view mode -->
-      <div v-if="isCarousel3dViewMode" class="flex flex-1 min-h-0" data-testid="ffui-queue-carousel-3d-wrapper">
+      <div
+        v-if="isCarousel3dViewMode"
+        class="flex flex-1 min-h-0 overflow-y-auto"
+        data-testid="ffui-queue-carousel-3d-wrapper"
+      >
         <QueueCarousel3DView
           class="flex-1 min-h-0 h-full"
           :items="visibleQueueItems"
@@ -220,7 +298,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
       </div>
 
       <!-- Icon view mode -->
-      <div v-else-if="isIconViewMode" class="flex-1 min-h-0">
+      <div v-else-if="isIconViewMode" class="flex-1 min-h-0 overflow-y-auto">
         <div data-testid="queue-icon-grid" :class="iconGridClass">
           <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
             <QueueIconItem
@@ -253,32 +331,90 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
       </div>
 
       <!-- List view mode -->
-      <div v-else class="flex-1 min-h-0">
-        <!-- Queue mode: Processing / Waiting groups -->
-        <div v-if="queueMode === 'queue'" class="space-y-4">
-          <div v-if="queueModeProcessingJobs.length > 0" class="space-y-2">
-            <div class="flex items-center justify-between px-1">
+      <div v-else class="flex flex-1 min-h-0 flex-col">
+        <VList
+          v-slot="{ item: row, index }"
+          :data="virtualListRows"
+          :overscan="24"
+          :item-size="virtualListItemSizeHint"
+          class="flex-1 min-h-0"
+        >
+          <div :key="getQueueVirtualRowKey(row)">
+            <div
+              v-if="row.type === 'header'"
+              :class="[index === 0 ? '' : 'mt-4', 'flex items-center justify-between px-1']"
+            >
               <span class="text-xs font-semibold text-muted-foreground uppercase">
-                {{ t("queue.groups.processing") }}
+                {{ row.label }}
               </span>
               <span class="text-[11px] text-muted-foreground">
-                {{ queueModeProcessingJobs.length }}
+                {{ row.count }}
               </span>
             </div>
-            <div>
+
+            <QueueItem
+              v-else-if="row.type === 'processingJob'"
+              :job="row.job"
+              :is-pausing="pausingJobIds.has(row.job.id)"
+              :preset="getPresetForJob(row.job)"
+              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+              :can-cancel="canCancelJob(row.job)"
+              :can-wait="hasTauri()"
+              :can-resume="hasTauri()"
+              :can-restart="hasTauri()"
+              :can-select="true"
+              :selected="selectedJobIds.has(row.job.id)"
+              :view-mode="queueRowVariant"
+              :progress-style="queueProgressStyle"
+              :progress-update-interval-ms="progressUpdateIntervalMs"
+              @cancel="emit('cancelJob', $event)"
+              @wait="emit('waitJob', $event)"
+              @resume="emit('resumeJob', $event)"
+              @restart="emit('restartJob', $event)"
+              @toggle-select="emit('toggleJobSelected', $event)"
+              @inspect="emit('inspectJob', $event)"
+              @preview="emit('previewJob', $event)"
+              @compare="emit('compareJob', $event)"
+              @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
+            />
+
+            <div v-else :class="row.item.kind === 'batch' ? 'mb-3' : ''">
+              <QueueBatchCompressBatchCard
+                v-if="row.item.kind === 'batch'"
+                v-bind="getBatchCardProps(row.item.batch)"
+                v-on="getBatchCardListeners(row.item.batch)"
+              />
               <QueueItem
-                v-for="job in queueModeProcessingJobs"
-                :key="job.id"
-                :job="job"
-                :is-pausing="pausingJobIds.has(job.id)"
-                :preset="getPresetForJob(job)"
+                v-else-if="row.type === 'restItem'"
+                :job="row.item.job"
+                :is-pausing="pausingJobIds.has(row.item.job.id)"
+                :preset="getPresetForJob(row.item.job)"
                 :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                :can-cancel="canCancelJob(job)"
+                :can-cancel="false"
+                :can-restart="hasTauri() && queueMode === 'queue'"
+                :can-select="true"
+                :selected="selectedJobIds.has(row.item.job.id)"
+                :view-mode="queueRowVariant"
+                :progress-style="queueProgressStyle"
+                :progress-update-interval-ms="progressUpdateIntervalMs"
+                @cancel="emit('cancelJob', $event)"
+                @restart="emit('restartJob', $event)"
+                @inspect="emit('inspectJob', $event)"
+                @preview="emit('previewJob', $event)"
+                @compare="emit('compareJob', $event)"
+              />
+              <QueueItem
+                v-else
+                :job="row.item.job"
+                :is-pausing="pausingJobIds.has(row.item.job.id)"
+                :preset="getPresetForJob(row.item.job)"
+                :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+                :can-cancel="canCancelJob(row.item.job)"
                 :can-wait="hasTauri()"
                 :can-resume="hasTauri()"
                 :can-restart="hasTauri()"
                 :can-select="true"
-                :selected="selectedJobIds.has(job.id)"
+                :selected="selectedJobIds.has(row.item.job.id)"
                 :view-mode="queueRowVariant"
                 :progress-style="queueProgressStyle"
                 :progress-update-interval-ms="progressUpdateIntervalMs"
@@ -294,148 +430,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
               />
             </div>
           </div>
-
-          <div v-if="queueModeWaitingItems.length > 0" class="space-y-2">
-            <div class="flex items-center justify-between px-1">
-              <span class="text-xs font-semibold text-muted-foreground uppercase">
-                {{ t("queue.groups.waiting") }}
-              </span>
-              <span class="text-[11px] text-muted-foreground">
-                {{ queueModeWaitingItems.length }}
-              </span>
-            </div>
-            <div>
-              <template
-                v-for="item in queueModeWaitingItems"
-                :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
-              >
-                <QueueBatchCompressBatchCard
-                  v-if="item.kind === 'batch'"
-                  :batch="item.batch"
-                  :presets="presets"
-                  :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                  :queue-row-variant="queueRowVariant"
-                  :queue-progress-style="queueProgressStyle"
-                  :progress-update-interval-ms="progressUpdateIntervalMs"
-                  :selected-job-ids="selectedJobIds"
-                  :is-expanded="isBatchExpanded(item.batch.batchId)"
-                  :can-cancel-job="canCancelJob"
-                  :sort-compare-fn="sortCompareFn"
-                  @toggle-batch-expanded="emit('toggleBatchExpanded', $event)"
-                  @cancel-job="emit('cancelJob', $event)"
-                  @wait-job="emit('waitJob', $event)"
-                  @resume-job="emit('resumeJob', $event)"
-                  @restart-job="emit('restartJob', $event)"
-                  @toggle-job-selected="emit('toggleJobSelected', $event)"
-                  @inspect-job="emit('inspectJob', $event)"
-                  @preview-job="emit('previewJob', $event)"
-                  @compare-job="emit('compareJob', $event)"
-                  @open-job-context-menu="emit('openJobContextMenu', $event)"
-                  @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
-                />
-                <QueueItem
-                  v-else
-                  :job="item.job"
-                  :is-pausing="pausingJobIds.has(item.job.id)"
-                  :preset="getPresetForJob(item.job)"
-                  :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                  :can-cancel="canCancelJob(item.job)"
-                  :can-wait="hasTauri()"
-                  :can-resume="hasTauri()"
-                  :can-restart="hasTauri()"
-                  :can-select="true"
-                  :selected="selectedJobIds.has(item.job.id)"
-                  :view-mode="queueRowVariant"
-                  :progress-style="queueProgressStyle"
-                  :progress-update-interval-ms="progressUpdateIntervalMs"
-                  @cancel="emit('cancelJob', $event)"
-                  @wait="emit('waitJob', $event)"
-                  @resume="emit('resumeJob', $event)"
-                  @restart="emit('restartJob', $event)"
-                  @toggle-select="emit('toggleJobSelected', $event)"
-                  @inspect="emit('inspectJob', $event)"
-                  @preview="emit('previewJob', $event)"
-                  @compare="emit('compareJob', $event)"
-                  @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
-                />
-              </template>
-            </div>
-          </div>
-
-          <!-- Batch Compress batches in queue mode -->
-          <div
-            v-for="item in visibleQueueItems"
-            :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
-            class="mb-3"
-          >
-            <QueueBatchCompressBatchCard
-              v-if="item.kind === 'batch' && !queueModeWaitingBatchIds.has(item.batch.batchId)"
-              v-bind="getBatchCardProps(item.batch)"
-              v-on="getBatchCardListeners(item.batch)"
-            />
-            <QueueItem
-              v-else-if="
-                item.kind === 'job' && ['completed', 'failed', 'cancelled', 'skipped'].includes(item.job.status)
-              "
-              :job="item.job"
-              :is-pausing="pausingJobIds.has(item.job.id)"
-              :preset="getPresetForJob(item.job)"
-              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-              :can-cancel="false"
-              :can-restart="hasTauri() && queueMode === 'queue'"
-              :can-select="true"
-              :selected="selectedJobIds.has(item.job.id)"
-              :view-mode="queueRowVariant"
-              :progress-style="queueProgressStyle"
-              :progress-update-interval-ms="progressUpdateIntervalMs"
-              @cancel="emit('cancelJob', $event)"
-              @restart="emit('restartJob', $event)"
-              @inspect="emit('inspectJob', $event)"
-              @preview="emit('previewJob', $event)"
-              @compare="emit('compareJob', $event)"
-            />
-          </div>
-        </div>
-
-        <!-- Display mode: flat list -->
-        <div v-else>
-          <div
-            v-for="item in visibleQueueItems"
-            :key="item.kind === 'batch' ? item.batch.batchId : item.job.id"
-            class="mb-3"
-          >
-            <QueueBatchCompressBatchCard
-              v-if="item.kind === 'batch'"
-              v-bind="getBatchCardProps(item.batch)"
-              v-on="getBatchCardListeners(item.batch)"
-            />
-            <QueueItem
-              v-else
-              :job="item.job"
-              :is-pausing="pausingJobIds.has(item.job.id)"
-              :preset="getPresetForJob(item.job)"
-              :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-              :can-cancel="canCancelJob(item.job)"
-              :can-wait="hasTauri()"
-              :can-resume="hasTauri()"
-              :can-restart="hasTauri()"
-              :can-select="true"
-              :selected="selectedJobIds.has(item.job.id)"
-              :view-mode="queueRowVariant"
-              :progress-style="queueProgressStyle"
-              :progress-update-interval-ms="progressUpdateIntervalMs"
-              @cancel="emit('cancelJob', $event)"
-              @wait="emit('waitJob', $event)"
-              @resume="emit('resumeJob', $event)"
-              @restart="emit('restartJob', $event)"
-              @toggle-select="emit('toggleJobSelected', $event)"
-              @inspect="emit('inspectJob', $event)"
-              @preview="emit('previewJob', $event)"
-              @compare="emit('compareJob', $event)"
-              @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
-            />
-          </div>
-        </div>
+        </VList>
       </div>
     </div>
   </section>

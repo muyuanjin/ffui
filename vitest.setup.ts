@@ -1,7 +1,7 @@
 // Shared Vitest setup for both node and jsdom environments.
 // Keep this file side-effect-only and lightweight.
 
-import { afterEach, vi } from "vitest";
+import { afterAll, afterEach, vi } from "vitest";
 
 // Vue Test Utils mounts into a detached element by default. Some UI primitives
 // (reka-ui Dialog/DropdownMenu) detect accessibility contracts by querying the
@@ -32,6 +32,31 @@ vi.mock("@vue/test-utils", async () => {
   };
 });
 
+// virtua's VList depends on ResizeObserver and renders large lists. For unit
+// tests we stub it to keep rendering deterministic and avoid JS DOM gaps.
+const MAX_VLIST_ITEMS_FOR_TEST = 30;
+vi.mock("virtua/vue", async () => {
+  const { defineComponent, h } = await import("vue");
+
+  const VList = defineComponent({
+    props: {
+      data: { type: Array, required: true },
+    },
+    setup(props, { slots }) {
+      return () => {
+        const items = (props.data as unknown[]).slice(0, MAX_VLIST_ITEMS_FOR_TEST);
+        return h(
+          "div",
+          { "data-testid": "virtua-vlist-stub" },
+          items.flatMap((item, index) => slots.default?.({ item, index }) ?? []),
+        );
+      };
+    },
+  });
+
+  return { VList };
+});
+
 afterEach(() => {
   for (const wrapper of autoUnmountWrappers) {
     try {
@@ -41,6 +66,13 @@ afterEach(() => {
     }
   }
   autoUnmountWrappers.clear();
+});
+
+afterAll(async () => {
+  // Ensure defineAsyncComponent()/dynamic imports have fully settled before the
+  // worker is torn down. Without this, Vitest can close the RPC channel while a
+  // module fetch is still in-flight, resulting in an unhandled rejection.
+  await vi.dynamicImportSettled();
 });
 
 // JSDOM does not implement Element.scrollIntoView. Some UI primitives (reka-ui)
@@ -93,4 +125,22 @@ if (typeof HTMLMediaElement !== "undefined") {
   const proto = HTMLMediaElement.prototype as any;
   proto.pause = () => {};
   proto.play = () => Promise.resolve();
+}
+
+// JSDOM does not implement ResizeObserver; some UI libs assume it exists.
+if (
+  typeof (globalThis as any).ResizeObserver === "undefined" ||
+  typeof (globalThis as any).ResizeObserver !== "function"
+) {
+  const ResizeObserverPolyfill = class ResizeObserver {
+    constructor(_cb?: unknown) {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+
+  (globalThis as any).ResizeObserver = ResizeObserverPolyfill;
+  if (typeof window !== "undefined") {
+    (window as any).ResizeObserver = ResizeObserverPolyfill;
+  }
 }

@@ -202,25 +202,6 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
-            :title="t('queue.actions.bulkWait')"
-            :aria-label="t('queue.actions.bulkWait')"
-            @click="emit('bulk-wait')"
-          >
-            <Hourglass class="h-3 w-3" />
-            <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
-              {{ t("queue.actions.bulkWait") }}
-            </span>
-            <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
-              {{ t("queue.actions.bulkWaitShort") }}
-            </span>
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            class="queue-selection-bar__button"
-            :class="buttonLayoutClass()"
             :title="t('queue.actions.bulkResume')"
             :aria-label="t('queue.actions.bulkResume')"
             @click="emit('bulk-resume')"
@@ -231,6 +212,25 @@ watch(
             </span>
             <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkResumeShort") }}
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="queue-selection-bar__button"
+            :class="buttonLayoutClass()"
+            :title="t('queue.actions.bulkWait')"
+            :aria-label="t('queue.actions.bulkWait')"
+            @click="emit('bulk-wait')"
+          >
+            <Hourglass class="h-3 w-3" />
+            <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
+              {{ t("queue.actions.bulkWait") }}
+            </span>
+            <span v-else-if="density === 'short'" class="queue-selection-bar__label whitespace-nowrap">
+              {{ t("queue.actions.bulkWaitShort") }}
             </span>
           </Button>
 

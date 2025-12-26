@@ -91,6 +91,24 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     return compareJobsInWaitingGroupBase(a, b, compareJobsByConfiguredFields);
   };
 
+  const orderingFingerprint = computed(() => {
+    const list = filteredJobs.value;
+    if (!list || list.length === 0) return "";
+
+    const primary = sortPrimary.value;
+    const secondary = sortSecondary.value;
+
+    return list
+      .map((job) => {
+        const pv = getJobSortValue(job, primary);
+        const sv = getJobSortValue(job, secondary);
+        const qo = job.queueOrder ?? "";
+        const st = job.startTime ?? "";
+        return `${job.id}\u0000${String(pv ?? "")}\u0000${String(sv ?? "")}\u0000${qo}\u0000${st}`;
+      })
+      .join("\n");
+  });
+
   // For large queues, compute a first sorted chunk quickly and defer the
   // full ordering via incremental slices, yielding to the main thread so the
   // UI can keep processing input and drag events.
@@ -115,9 +133,24 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     sortRunId += 1;
   };
 
+  const sortTriggerKey = computed(() => {
+    const primary = sortPrimary.value;
+    const primaryDirection = sortPrimaryDirection.value;
+    const secondary = sortSecondary.value;
+    const secondaryDirection = sortSecondaryDirection.value;
+    const fingerprint = orderingFingerprint.value;
+
+    if (!fingerprint) {
+      return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|empty`;
+    }
+
+    return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}\n${fingerprint}`;
+  });
+
   watch(
-    [filteredJobs, sortPrimary, sortPrimaryDirection, sortSecondary, sortSecondaryDirection],
-    ([jobs]) => {
+    sortTriggerKey,
+    () => {
+      const jobs = filteredJobs.value;
       if (!jobs || jobs.length === 0) {
         displayModeSortedJobsInternal.value = [];
         cancelLargeQueueSort();

@@ -97,6 +97,28 @@ export function recomputeJobsFromBackend(backendJobs: TranscodeJob[], deps: Pick
   // fields in place so unchanged rows don't re-render on every lite snapshot.
 
   const previousJobs = deps.jobs.value;
+
+  // Fast path: when backend provides the exact same ordering, patch in place
+  // without replacing the jobs array reference. This reduces downstream
+  // filter/sort recomputations for "log-only" updates while keeping the
+  // reactive updates for changed fields themselves.
+  if (previousJobs.length === backendJobs.length) {
+    let sameOrder = true;
+    for (let idx = 0; idx < backendJobs.length; idx += 1) {
+      if (previousJobs[idx]?.id !== backendJobs[idx]?.id) {
+        sameOrder = false;
+        break;
+      }
+    }
+
+    if (sameOrder) {
+      for (let idx = 0; idx < backendJobs.length; idx += 1) {
+        syncJobObject(previousJobs[idx] as TranscodeJob, backendJobs[idx] as TranscodeJob);
+      }
+      return;
+    }
+  }
+
   const previousById = new Map(previousJobs.map((job) => [job.id, job]));
 
   const nextJobs: TranscodeJob[] = [];

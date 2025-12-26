@@ -55,13 +55,13 @@ const { t } = useI18n();
 
       <div class="inline-flex items-center gap-1">
         <div class="h-6 px-2 gap-1 text-xs inline-flex items-center justify-center">
-          <Hourglass class="h-3 w-3" />
-          <span class="whitespace-nowrap">{{ t("queue.actions.bulkWait") }}</span>
+          <Play class="h-3 w-3" />
+          <span class="whitespace-nowrap">{{ t("queue.actions.bulkResume") }}</span>
         </div>
 
         <div class="h-6 px-2 gap-1 text-xs inline-flex items-center justify-center">
-          <Play class="h-3 w-3" />
-          <span class="whitespace-nowrap">{{ t("queue.actions.bulkResume") }}</span>
+          <Hourglass class="h-3 w-3" />
+          <span class="whitespace-nowrap">{{ t("queue.actions.bulkWait") }}</span>
         </div>
 
         <div class="h-6 px-2 gap-1 text-xs inline-flex items-center justify-center">

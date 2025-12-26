@@ -80,16 +80,6 @@
             <DropdownMenuSeparator class="my-1 bg-border/40" />
 
             <DropdownMenuItem
-              :disabled="!canWait"
-              class="px-3 py-1.5 text-xs gap-2"
-              data-testid="queue-context-menu-wait"
-              @select="onWait"
-            >
-              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
-              {{ t("queue.actions.wait") }}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
               :disabled="!canResume"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-resume"
@@ -97,6 +87,16 @@
             >
               <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
               {{ t("queue.actions.resume") }}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              :disabled="!canWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.wait") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem
@@ -176,16 +176,6 @@
             <DropdownMenuSeparator class="my-1 bg-border/40" />
 
             <DropdownMenuItem
-              :disabled="!canBulkWait"
-              class="px-3 py-1.5 text-xs gap-2"
-              data-testid="queue-context-menu-bulk-wait"
-              @select="onWait"
-            >
-              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
-              {{ t("queue.actions.bulkWait") }}
-            </DropdownMenuItem>
-
-            <DropdownMenuItem
               :disabled="!canBulkResume"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-resume"
@@ -193,6 +183,16 @@
             >
               <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
               {{ t("queue.actions.bulkResume") }}
+            </DropdownMenuItem>
+
+            <DropdownMenuItem
+              :disabled="!canBulkWait"
+              class="px-3 py-1.5 text-xs gap-2"
+              data-testid="queue-context-menu-bulk-wait"
+              @select="onWait"
+            >
+              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              {{ t("queue.actions.bulkWait") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem

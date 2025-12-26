@@ -56,7 +56,11 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
  * Only affects jobs with status === "paused".
  */
 export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value.filter((job) => job.status === "paused").map((job) => job.id);
+  const ids = deps.selectedJobs.value
+    .filter((job) => job.status === "paused")
+    .slice()
+    .sort(compareJobsByQueueOrderThenStartTimeThenId)
+    .map((job) => job.id);
   for (const id of ids) {
     await deps.handleResumeJob(id);
   }
@@ -81,19 +85,23 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
 const isWaitingStatus = (status: TranscodeJob["status"]) =>
   status === "waiting" || status === "queued" || status === "paused";
 
+function compareJobsByQueueOrderThenStartTimeThenId(a: TranscodeJob, b: TranscodeJob) {
+  const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
+  const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
+  if (ao !== bo) return ao - bo;
+
+  const as = a.startTime ?? 0;
+  const bs = b.startTime ?? 0;
+  if (as !== bs) return as - bs;
+
+  return a.id.localeCompare(b.id);
+}
+
 function sortWaitingJobs(jobs: TranscodeJob[]): TranscodeJob[] {
   return jobs
     .filter((job) => isWaitingStatus(job.status))
     .slice()
-    .sort((a, b) => {
-      const ao = a.queueOrder ?? Number.MAX_SAFE_INTEGER;
-      const bo = b.queueOrder ?? Number.MAX_SAFE_INTEGER;
-      if (ao !== bo) return ao - bo;
-      const as = a.startTime ?? 0;
-      const bs = b.startTime ?? 0;
-      if (as !== bs) return as - bs;
-      return a.id.localeCompare(b.id);
-    });
+    .sort(compareJobsByQueueOrderThenStartTimeThenId);
 }
 
 /**

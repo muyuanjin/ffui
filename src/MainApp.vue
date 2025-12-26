@@ -323,7 +323,7 @@ defineExpose({
           @clearSettingsSaveError="settingsSaveError = null"
         />
 
-        <div v-if="activeTab === 'queue'" class="flex-1 min-h-0 overflow-y-auto">
+        <div v-if="activeTab === 'queue'" class="flex-1 min-h-0">
           <div class="p-4 min-h-full flex flex-col">
             <QueuePanel
               v-bind="queuePanelProps"

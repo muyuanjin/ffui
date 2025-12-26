@@ -137,6 +137,52 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value[0].outputPath).toBeUndefined();
   });
 
+  it("applyQueueStateFromBackend keeps the jobs array reference when backend ordering is unchanged", () => {
+    const jobA: TranscodeJob = {
+      id: "job-a",
+      filename: "C:/videos/a.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    };
+
+    const jobB: TranscodeJob = {
+      id: "job-b",
+      filename: "C:/videos/b.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "waiting",
+      progress: 0,
+      logs: [],
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([jobA, jobB]),
+    });
+
+    const prevArray = deps.jobs.value;
+    const prevA = deps.jobs.value[0];
+
+    applyQueueStateFromBackend(
+      {
+        jobs: [{ ...jobA, logLines: ["hello"] } as any, { ...jobB } as any],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value).toBe(prevArray);
+    expect(deps.jobs.value[0]).toBe(prevA);
+    expect((deps.jobs.value[0] as any).logLines).toEqual(["hello"]);
+  });
+
   it("applyQueueStateFromBackend preserves job object identities even when backend ordering changes", () => {
     const jobA: TranscodeJob = {
       id: "job-a",

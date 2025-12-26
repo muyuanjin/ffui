@@ -2,10 +2,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
-import { nextTick } from "vue";
 
 import en from "@/locales/en";
-import MainApp from "@/MainApp.vue";
+import SettingsPanel from "@/components/panels/SettingsPanel.vue";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 
 const openDevtoolsMock = vi.fn();
@@ -118,35 +117,33 @@ describe("MainApp devtools quick action", () => {
   });
 
   it("calls backend openDevtools when the button is clicked (tauri)", async () => {
-    const wrapper = mount(MainApp, {
+    const wrapper = mount(SettingsPanel, {
+      props: {
+        appSettings: {
+          tools: {
+            ffmpegPath: undefined,
+            ffprobePath: undefined,
+            avifencPath: undefined,
+            autoDownload: false,
+            autoUpdate: false,
+          },
+          batchCompressDefaults: buildBatchCompressDefaults(),
+          previewCapturePercent: 25,
+          defaultQueuePresetId: undefined,
+          maxParallelJobs: undefined,
+          progressUpdateIntervalMs: undefined,
+          taskbarProgressMode: "byEstimatedTime",
+        } as any,
+        toolStatuses: [],
+        toolStatusesFresh: true,
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
       global: {
         plugins: [i18n],
       },
     });
-
-    const vm: any = wrapper.vm;
-
-    // Navigate to the settings tab where the devtools button lives.
-    vm.activeTab = "settings";
-    await nextTick();
-
-    // Seed AppSettings so the settings card renders immediately.
-    vm.appSettings = {
-      tools: {
-        ffmpegPath: undefined,
-        ffprobePath: undefined,
-        avifencPath: undefined,
-        autoDownload: false,
-        autoUpdate: false,
-      },
-      batchCompressDefaults: buildBatchCompressDefaults(),
-      previewCapturePercent: 25,
-      defaultQueuePresetId: undefined,
-      maxParallelJobs: undefined,
-      progressUpdateIntervalMs: undefined,
-      taskbarProgressMode: "byEstimatedTime",
-    };
-    await nextTick();
 
     const button = wrapper.get('[data-testid="settings-open-devtools"]');
     await button.trigger("click");
