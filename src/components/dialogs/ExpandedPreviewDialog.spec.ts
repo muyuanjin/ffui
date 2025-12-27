@@ -48,6 +48,112 @@ describe("ExpandedPreviewDialog", () => {
     expect(content.classes()).toContain("max-h-[calc(100vh-2rem)]");
   });
 
+  it("uses an aspect-ratio surface in normal video mode", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-normal-layout-1",
+          filename: "C:/videos/sample.mp4",
+          inputPath: "C:/videos/sample.mp4",
+          outputPath: "C:/videos/out.mp4",
+        } as any,
+        previewSourceMode: "output",
+        previewUrl: "file:///C:/videos/out.mp4",
+        previewPath: "C:/videos/out.mp4",
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const surface = wrapper.get('[data-testid="expanded-preview-surface"]');
+    expect(surface.classes()).toContain("max-h-[70vh]");
+    expect(surface.classes()).toContain("aspect-video");
+    expect(surface.classes()).toContain("overflow-y-hidden");
+    expect(surface.classes()).not.toContain("h-[70vh]");
+    expect(surface.classes()).not.toContain("overflow-y-auto");
+  });
+
+  it("does not clip fallback preview controls when native playback fails", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-fallback-layout-1",
+          filename: "C:/videos/sample.mp4",
+          inputPath: "C:/videos/sample.mp4",
+          outputPath: "C:/videos/out.mp4",
+        } as any,
+        previewSourceMode: "output",
+        previewUrl: "file:///C:/videos/out.mp4",
+        previewPath: "C:/videos/out.mp4",
+        isImage: false,
+        error: "Native playback failed",
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const surface = wrapper.get('[data-testid="expanded-preview-surface"]');
+    expect(surface.classes()).toContain("h-[70vh]");
+    expect(surface.classes()).toContain("overflow-y-auto");
+    expect(surface.classes()).not.toContain("aspect-video");
+    expect(surface.classes()).not.toContain("overflow-y-hidden");
+  });
+
+  it("keeps the aspect-ratio surface when the preview is an image (even if the image errors)", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-image-layout-1",
+          filename: "C:/images/sample.png",
+          inputPath: "C:/images/sample.png",
+          outputPath: "C:/images/out.png",
+          type: "image",
+        } as any,
+        previewSourceMode: "output",
+        previewUrl: "file:///C:/images/out.png",
+        previewPath: "C:/images/out.png",
+        isImage: true,
+        error: "Image decode failed",
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const surface = wrapper.get('[data-testid="expanded-preview-surface"]');
+    expect(surface.classes()).toContain("aspect-video");
+    expect(surface.classes()).toContain("overflow-y-hidden");
+    expect(surface.classes()).not.toContain("overflow-y-auto");
+  });
+
   it("uses the resolved previewPath as the title when available", () => {
     const wrapper = mount(ExpandedPreviewDialog, {
       props: {

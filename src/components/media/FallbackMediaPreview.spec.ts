@@ -39,6 +39,29 @@ describe("FallbackMediaPreview", () => {
     extractFallbackPreviewFrameMock.mockReset();
   });
 
+  it("keeps fallback controls scrollable (no clipping) inside constrained containers", async () => {
+    extractFallbackPreviewFrameMock.mockResolvedValue("/tmp/frame.jpg");
+
+    const wrapper = mount(FallbackMediaPreview, {
+      global: {
+        plugins: [i18n],
+      },
+      props: {
+        nativeUrl: "file:///C:/videos/sample.mp4",
+        sourcePath: "C:/videos/sample.mp4",
+        durationSeconds: 10,
+      },
+    });
+
+    await wrapper.get("video").trigger("error");
+    await nextTick();
+
+    const fallback = wrapper.get('[data-testid="fallback-media-preview"]');
+    expect(fallback.classes()).toContain("overflow-y-auto");
+
+    wrapper.unmount();
+  });
+
   it("hides the scrubbing hint by default, but can opt-in via showHint", async () => {
     extractFallbackPreviewFrameMock.mockResolvedValue("/tmp/frame.jpg");
 

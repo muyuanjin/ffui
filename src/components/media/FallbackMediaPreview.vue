@@ -253,7 +253,7 @@ onBeforeUnmount(() => {
     </template>
 
     <template v-else>
-      <div class="w-full h-full flex flex-col gap-2 p-2 sm:p-3" data-testid="fallback-media-preview">
+      <div class="w-full h-full flex flex-col gap-2 p-2 sm:p-3 overflow-y-auto" data-testid="fallback-media-preview">
         <div class="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-500/30 rounded-md px-2 py-1.5">
           <div class="font-medium">
             {{ t("previewFallback.title") }}

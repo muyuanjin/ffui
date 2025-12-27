@@ -46,6 +46,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const previewSourceMode = ref<PreviewSourceMode>("output");
   const previewSourceSelection = ref<"auto" | "manual">("auto");
   const nativeErrorFailedPaths = ref<string[]>([]);
+  const previewSelectionInFlight = ref(false);
+  let previewSelectionToken = 0;
   // Keep an ordered list of candidate paths for the current preview so we can
   // fall back when one of them fails to load or becomes unavailable.
   const previewCandidatePaths = ref<string[]>([]);
@@ -182,6 +184,10 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     mode: PreviewSourceMode,
     options?: { preserveMedia?: boolean; initialSelectedPath?: string | null },
   ) => {
+    const token = (previewSelectionToken += 1);
+    previewSelectionInFlight.value = true;
+    const isCurrent = () => token === previewSelectionToken;
+
     const preserveMedia = options?.preserveMedia ?? false;
     const preservedPath = preserveMedia ? currentPreviewPath.value : null;
 
@@ -203,6 +209,9 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
       if (!preserveMedia) {
         previewUrl.value = null;
       }
+      if (isCurrent()) {
+        previewSelectionInFlight.value = false;
+      }
       return;
     }
 
@@ -217,12 +226,17 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
         selectedPath = await selectPlayableMediaPath(candidates);
       }
 
+      if (!isCurrent()) return;
+
       if (!selectedPath) {
         selectedPath = candidates[0] ?? null;
       }
 
       if (!selectedPath) {
         previewUrl.value = null;
+        if (isCurrent()) {
+          previewSelectionInFlight.value = false;
+        }
         return;
       }
 
@@ -238,9 +252,14 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
       const url = buildPreviewUrl(selectedPath);
       previewUrl.value = url;
     } catch (e) {
+      if (!isCurrent()) return;
       console.error("Failed to build preview URL for job:", e);
       const key = job.type === "image" ? "jobDetail.previewImageError" : "jobDetail.previewVideoError";
       previewError.value = t?.(key) ?? "";
+    } finally {
+      if (isCurrent()) {
+        previewSelectionInFlight.value = false;
+      }
     }
   };
 
@@ -263,6 +282,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   };
 
   const closeExpandedPreview = () => {
+    previewSelectionToken += 1;
+    previewSelectionInFlight.value = false;
     dialogManager.closePreview();
     previewUrl.value = null;
     previewError.value = null;
@@ -277,6 +298,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const handleExpandedPreviewError = async () => {
     const job = dialogManager.selectedJob.value;
     if (!job) return;
+    if (previewSelectionInFlight.value) return;
+    if (previewError.value) return;
 
     const currentPath = (currentPreviewPath.value ?? "").trim();
     if (currentPath) {
@@ -314,14 +337,14 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     ) {
       previewError.value = null;
       previewSourceMode.value = "input";
-      await applyPreviewSelection(job, "input");
+      await applyPreviewSelection(job, "input", { preserveMedia: true });
       return;
     }
 
     // If native playback still fails, prefer output for frame fallback (when available).
     if (outputPreferred) {
       previewSourceMode.value = "output";
-      await applyPreviewSelection(job, "output");
+      await applyPreviewSelection(job, "output", { preserveMedia: true });
     }
 
     const key = "jobDetail.previewVideoError";

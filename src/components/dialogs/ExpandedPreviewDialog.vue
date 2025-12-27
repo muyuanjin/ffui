@@ -134,6 +134,14 @@ const videoSourcePath = computed(() => {
 
 const forceFallback = computed(() => !isImage.value && !!error.value);
 
+const previewSurfaceClass = computed(() => {
+  const base = "mt-2 relative w-full rounded-md bg-black flex items-center justify-center overflow-x-hidden";
+  if (forceFallback.value) {
+    return `${base} h-[70vh] overflow-y-auto`;
+  }
+  return `${base} max-h-[70vh] aspect-video overflow-y-hidden`;
+});
+
 watch(
   () => props.open,
   (open, prev) => {
@@ -192,10 +200,7 @@ watch(
           {{ descriptionText }}
         </DialogDescription>
       </DialogHeader>
-      <div
-        class="mt-2 relative w-full max-h-[70vh] aspect-video rounded-md bg-black flex items-center justify-center overflow-hidden"
-        data-testid="expanded-preview-surface"
-      >
+      <div :class="previewSurfaceClass" data-testid="expanded-preview-surface">
         <template v-if="previewUrl">
           <img
             v-if="isImage"

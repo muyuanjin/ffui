@@ -91,4 +91,63 @@ describe("useMainAppPreview source switching does not flicker", () => {
 
     wrapper.unmount();
   });
+
+  it("does not oscillate source mode when native errors fire repeatedly during an async switch", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-no-flicker-2",
+      filename: "C:/videos/noflicker2.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/videos/noflicker2.mp4",
+      outputPath: "C:/videos/noflicker2.out.mp4",
+    } as any;
+
+    const { selectPlayableMediaPath } = await import("@/lib/backend");
+    const selectMock = selectPlayableMediaPath as unknown as ReturnType<typeof vi.fn>;
+
+    selectMock.mockResolvedValueOnce(job.outputPath);
+    await vm.openJobPreviewFromQueue(job);
+    await nextTick();
+
+    expect(vm.previewSourceMode).toBe("output");
+    expect(vm.previewUrl).toBe(job.outputPath);
+
+    let resolveSwitch: (value: string | null) => void = () => {
+      throw new Error("resolveSwitch was not initialized");
+    };
+    const switchPick = new Promise<string | null>((resolve) => {
+      resolveSwitch = resolve;
+    });
+    selectMock.mockImplementationOnce(() => switchPick);
+
+    const first = vm.handleExpandedPreviewError();
+    await nextTick();
+
+    // Re-entrant native errors should be ignored while the preview selection is in-flight.
+    const second = vm.handleExpandedPreviewError();
+    await nextTick();
+
+    expect(vm.previewSourceMode).toBe("input");
+    expect(vm.previewError).toBeNull();
+
+    resolveSwitch(job.inputPath ?? null);
+    await first;
+    await second;
+    await nextTick();
+
+    expect(vm.previewSourceMode).toBe("input");
+    expect(vm.previewUrl).toBe(job.inputPath);
+    expect(vm.previewError).toBeNull();
+
+    wrapper.unmount();
+  });
 });
