@@ -197,11 +197,7 @@ const {
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp;
-const { handleGlobalBlankClick, handleGlobalBlankPointerDown } = useQueueBlankClickClearSelection({
-  activeTab,
-  hasSelection,
-  clearSelection,
-});
+useQueueBlankClickClearSelection({ activeTab, hasSelection, clearSelection });
 const { handleLocaleChange } = useLocalePersistence({ appSettings, handleUpdateAppSettings });
 const addManualJobsFromFiles = () => addManualJob("files");
 const addManualJobsFromFolder = () => addManualJob("folder");
@@ -227,8 +223,6 @@ defineExpose({
   <div
     class="h-full w-full flex flex-col overflow-hidden bg-background text-foreground m-0 p-0"
     data-testid="ffui-app-root"
-    @click.capture="handleGlobalBlankClick"
-    @pointerdown.capture="handleGlobalBlankPointerDown"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
     @drop="handleDrop"

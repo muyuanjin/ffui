@@ -8,7 +8,7 @@ import { setSelectedJobIds } from "./helpers/queueSelection";
 import type { TranscodeJob } from "@/types";
 
 describe("MainApp clears queue selection on blank click", () => {
-  it("clears selectedJobIds when clicking a non-interactive blank area", async () => {
+  const mountQueueWithOneSelectedJob = async () => {
     const { default: MainApp } = await import("@/MainApp.vue");
 
     const jobs: TranscodeJob[] = [
@@ -52,7 +52,37 @@ describe("MainApp clears queue selection on blank click", () => {
     const selectedBefore = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
     expect(selectedBefore?.size ?? 0).toBe(1);
 
+    return { wrapper, vm };
+  };
+
+  it("clears selectedJobIds when clicking a non-interactive blank area", async () => {
+    const { wrapper, vm } = await mountQueueWithOneSelectedJob();
+
     await wrapper.get("[data-testid='ffui-app-root']").trigger("pointerdown");
+    await nextTick();
+
+    const selectedAfter = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
+    expect(selectedAfter?.size ?? 0).toBe(0);
+
+    wrapper.unmount();
+  }, 15_000);
+
+  it("clears selection when clicking titlebar blank area", async () => {
+    const { wrapper, vm } = await mountQueueWithOneSelectedJob();
+
+    await wrapper.get("[data-testid='ffui-titlebar']").trigger("pointerdown");
+    await nextTick();
+
+    const selectedAfter = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
+    expect(selectedAfter?.size ?? 0).toBe(0);
+
+    wrapper.unmount();
+  }, 15_000);
+
+  it("clears selection when clicking sidebar blank area", async () => {
+    const { wrapper, vm } = await mountQueueWithOneSelectedJob();
+
+    await wrapper.get("[data-testid='ffui-sidebar']").trigger("pointerdown");
     await nextTick();
 
     const selectedAfter = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;

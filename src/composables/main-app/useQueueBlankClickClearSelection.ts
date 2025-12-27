@@ -1,4 +1,4 @@
-import type { ComputedRef, Ref } from "vue";
+import { onBeforeUnmount, onMounted, type ComputedRef, type Ref } from "vue";
 
 const shouldIgnoreClearSelectionFromTarget = (target: Element): boolean => {
   return Boolean(
@@ -46,6 +46,16 @@ export function useQueueBlankClickClearSelection(options: {
 
   const handleGlobalBlankClick = (event: MouseEvent) => handleEvent(event);
   const handleGlobalBlankPointerDown = (event: PointerEvent) => handleEvent(event);
+
+  onMounted(() => {
+    document.addEventListener("pointerdown", handleGlobalBlankPointerDown, true);
+    document.addEventListener("click", handleGlobalBlankClick, true);
+  });
+
+  onBeforeUnmount(() => {
+    document.removeEventListener("pointerdown", handleGlobalBlankPointerDown, true);
+    document.removeEventListener("click", handleGlobalBlankClick, true);
+  });
 
   return { handleGlobalBlankClick, handleGlobalBlankPointerDown };
 }
