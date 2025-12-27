@@ -146,7 +146,10 @@ watch(
 
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-4xl" data-testid="expanded-preview-dialog">
+    <DialogContent
+      class="sm:max-w-4xl max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto"
+      data-testid="expanded-preview-dialog"
+    >
       <DialogHeader>
         <DialogTitle class="text-base">
           <div class="flex items-center justify-between gap-3">

@@ -61,4 +61,32 @@ describe("FallbackMediaPreview fallback controls", () => {
 
     wrapper.unmount();
   });
+
+  it("emits nativeError only once per video URL", async () => {
+    const wrapper = mount(FallbackMediaPreview, {
+      props: {
+        nativeUrl: "asset://a.mp4",
+        sourcePath: "C:/videos/a.mp4",
+        autoFallbackOnNativeError: false,
+        videoTestId: "test-video",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const video = wrapper.get('[data-testid="test-video"]');
+    await video.trigger("error");
+    await video.trigger("error");
+
+    expect(wrapper.emitted("nativeError")?.length).toBe(1);
+
+    await wrapper.setProps({ nativeUrl: "asset://b.mp4" });
+    await nextTick();
+
+    await wrapper.get('[data-testid="test-video"]').trigger("error");
+    expect(wrapper.emitted("nativeError")?.length).toBe(2);
+
+    wrapper.unmount();
+  });
 });

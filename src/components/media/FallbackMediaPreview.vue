@@ -49,6 +49,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const activeVideoUrl = ref<string | null>(props.nativeUrl);
+const nativeErrorEmittedForUrl = ref<string | null>(null);
 
 const fallbackMode = ref(false);
 const frameError = ref<string | null>(null);
@@ -124,10 +125,19 @@ const enterFallbackMode = () => {
   scheduler.requestHighNow(key);
 };
 
+const emitNativeErrorOnce = () => {
+  const url = activeVideoUrl.value;
+  if (!url) return;
+  if (nativeErrorEmittedForUrl.value === url) return;
+  nativeErrorEmittedForUrl.value = url;
+  emit("nativeError");
+};
+
 watch(
   () => [props.nativeUrl, props.sourcePath] as const,
   ([nativeUrl]) => {
     activeVideoUrl.value = nativeUrl;
+    nativeErrorEmittedForUrl.value = null;
     fallbackMode.value = false;
     frameError.value = null;
     framePath.value = null;
@@ -188,7 +198,7 @@ const handleVideoInteraction = () => {
 };
 
 const handleNativeVideoError = () => {
-  emit("nativeError");
+  emitNativeErrorOnce();
 
   if (props.autoFallbackOnNativeError) {
     enterFallbackMode();

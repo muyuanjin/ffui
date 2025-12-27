@@ -14,6 +14,40 @@ const i18n = createI18n({
 });
 
 describe("ExpandedPreviewDialog", () => {
+  it("constrains dialog height and clips overflow", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-layout-1",
+          filename: "C:/videos/sample.mp4",
+          inputPath: "C:/videos/sample.mp4",
+          outputPath: "C:/videos/out.mp4",
+        } as any,
+        previewSourceMode: "output",
+        previewUrl: "file:///C:/videos/out.mp4",
+        previewPath: "C:/videos/out.mp4",
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const content = wrapper.get('[data-testid="expanded-preview-dialog"]');
+    expect(content.classes()).toContain("overflow-y-auto");
+    expect(content.classes()).toContain("overflow-x-hidden");
+    expect(content.classes()).toContain("max-h-[calc(100vh-2rem)]");
+  });
+
   it("uses the resolved previewPath as the title when available", () => {
     const wrapper = mount(ExpandedPreviewDialog, {
       props: {
