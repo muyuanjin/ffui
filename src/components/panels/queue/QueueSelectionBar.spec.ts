@@ -50,6 +50,7 @@ describe("QueueSelectionBar responsive affordances", () => {
 
     const count = wrapper.get("[data-testid='queue-selection-count']");
     expect(count.text()).toContain("Selected 3");
+    expect(count.classes()).toContain("text-primary");
 
     const selection = (en as any).queue.selection as Record<string, string>;
     const actions = (en as any).queue.actions as Record<string, string>;
@@ -69,14 +70,20 @@ describe("QueueSelectionBar responsive affordances", () => {
     const bulkWait = wrapper.get(`button[aria-label="${actions.bulkWait}"]`);
     expect(bulkWait.attributes("title")).toBe(actions.bulkWait);
     expect(bulkWait.text()).toBe(actions.bulkWait);
+    expect(bulkWait.get("svg").classes()).toContain("text-amber-500");
 
     const bulkResume = wrapper.get(`button[aria-label="${actions.bulkResume}"]`);
     expect(bulkResume.attributes("title")).toBe(actions.bulkResume);
     expect(bulkResume.text()).toBe(actions.bulkResume);
+    expect(bulkResume.get("svg").classes()).toContain("text-emerald-500");
 
     const bulkCancel = wrapper.get(`button[aria-label="${actions.bulkCancel}"]`);
     expect(bulkCancel.attributes("title")).toBe(actions.bulkCancel);
     expect(bulkCancel.text()).toBe(actions.bulkCancel);
+    expect(bulkCancel.get("svg").classes()).toContain("text-destructive");
+
+    const bulkRestart = wrapper.get(`button[aria-label="${actions.bulkRestart}"]`);
+    expect(bulkRestart.get("svg").classes()).toContain("text-blue-500");
 
     const fullSizerRow = wrapper.get(".queue-selection-bar__sizer-row--full");
     const shortSizerRow = wrapper.get(".queue-selection-bar__sizer-row--short");

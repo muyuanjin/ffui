@@ -1,6 +1,13 @@
 <template>
   <Teleport to="body" :disabled="!teleportToBody">
-    <div v-if="visible" ref="rootRef" :class="rootClass" data-testid="queue-context-menu-root" @contextmenu.prevent>
+    <div
+      v-if="visible"
+      ref="rootRef"
+      :class="rootClass"
+      data-testid="queue-context-menu-root"
+      data-stop-clear-selection="true"
+      @contextmenu.prevent
+    >
       <DropdownMenu :open="visible" @update:open="onOpenChange">
         <DropdownMenuTrigger as-child>
           <Button
@@ -25,7 +32,7 @@
         >
           <template v-if="mode === 'single'">
             <DropdownMenuItem class="px-3 py-1.5 text-xs gap-2" @select="onInspect">
-              <Eye class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Eye class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("jobDetail.title") }}
             </DropdownMenuItem>
 
@@ -35,7 +42,7 @@
               data-testid="queue-context-menu-compare"
               @select="onCompare"
             >
-              <GitCompare class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <GitCompare class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("jobCompare.open") }}
             </DropdownMenuItem>
 
@@ -44,7 +51,7 @@
               data-testid="queue-context-menu-copy-input"
               @select="onCopyInputPath"
             >
-              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyInputPath") }}
             </DropdownMenuItem>
 
@@ -54,7 +61,7 @@
               data-testid="queue-context-menu-open-input"
               @select="onOpenInputFolder"
             >
-              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <FolderOpen class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.openInputFolder") }}
             </DropdownMenuItem>
 
@@ -63,7 +70,7 @@
               data-testid="queue-context-menu-copy-output"
               @select="onCopyOutputPath"
             >
-              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyOutputPath") }}
             </DropdownMenuItem>
 
@@ -73,7 +80,7 @@
               data-testid="queue-context-menu-open-output"
               @select="onOpenOutputFolder"
             >
-              <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <FolderOpen class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.openOutputFolder") }}
             </DropdownMenuItem>
 
@@ -85,7 +92,7 @@
               data-testid="queue-context-menu-resume"
               @select="onResume"
             >
-              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Play class="h-4 w-4 opacity-80 text-emerald-500" aria-hidden="true" />
               {{ t("queue.actions.resume") }}
             </DropdownMenuItem>
 
@@ -95,7 +102,7 @@
               data-testid="queue-context-menu-wait"
               @select="onWait"
             >
-              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Hourglass class="h-4 w-4 opacity-80 text-amber-500" aria-hidden="true" />
               {{ t("queue.actions.wait") }}
             </DropdownMenuItem>
 
@@ -105,7 +112,7 @@
               data-testid="queue-context-menu-restart"
               @select="onRestart"
             >
-              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <RefreshCw class="h-4 w-4 opacity-80 text-blue-500" aria-hidden="true" />
               {{ t("queue.actions.restart") }}
             </DropdownMenuItem>
 
@@ -115,7 +122,7 @@
               data-testid="queue-context-menu-cancel"
               @select="onCancel"
             >
-              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <XCircle class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("app.actions.cancel") }}
             </DropdownMenuItem>
 
@@ -127,7 +134,7 @@
               data-testid="queue-context-menu-move-top"
               @select="onMoveToTop"
             >
-              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <ArrowUpToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToTop") }}
             </DropdownMenuItem>
 
@@ -137,7 +144,7 @@
               data-testid="queue-context-menu-move-bottom"
               @select="onMoveToBottom"
             >
-              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <ArrowDownToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToBottom") }}
             </DropdownMenuItem>
 
@@ -147,7 +154,7 @@
               data-testid="queue-context-menu-remove"
               @select="onRemove"
             >
-              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Trash2 class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("queue.actions.bulkDelete") }}
             </DropdownMenuItem>
           </template>
@@ -159,7 +166,7 @@
               data-testid="queue-context-menu-copy-all-input"
               @select="onCopyInputPath"
             >
-              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyAllInputPaths") }}
             </DropdownMenuItem>
 
@@ -169,7 +176,7 @@
               data-testid="queue-context-menu-copy-all-output"
               @select="onCopyOutputPath"
             >
-              <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyAllOutputPaths") }}
             </DropdownMenuItem>
 
@@ -181,7 +188,7 @@
               data-testid="queue-context-menu-bulk-resume"
               @select="onResume"
             >
-              <Play class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Play class="h-4 w-4 opacity-80 text-emerald-500" aria-hidden="true" />
               {{ t("queue.actions.bulkResume") }}
             </DropdownMenuItem>
 
@@ -191,7 +198,7 @@
               data-testid="queue-context-menu-bulk-wait"
               @select="onWait"
             >
-              <Hourglass class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Hourglass class="h-4 w-4 opacity-80 text-amber-500" aria-hidden="true" />
               {{ t("queue.actions.bulkWait") }}
             </DropdownMenuItem>
 
@@ -201,7 +208,7 @@
               data-testid="queue-context-menu-bulk-cancel"
               @select="onCancel"
             >
-              <XCircle class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <XCircle class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("queue.actions.bulkCancel") }}
             </DropdownMenuItem>
 
@@ -211,7 +218,7 @@
               data-testid="queue-context-menu-bulk-restart"
               @select="onRestart"
             >
-              <RefreshCw class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <RefreshCw class="h-4 w-4 opacity-80 text-blue-500" aria-hidden="true" />
               {{ t("queue.actions.bulkRestart") }}
             </DropdownMenuItem>
 
@@ -223,7 +230,7 @@
               data-testid="queue-context-menu-bulk-move-top"
               @select="onMoveToTop"
             >
-              <ArrowUpToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <ArrowUpToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToTop") }}
             </DropdownMenuItem>
 
@@ -233,7 +240,7 @@
               data-testid="queue-context-menu-bulk-move-bottom"
               @select="onMoveToBottom"
             >
-              <ArrowDownToLine class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <ArrowDownToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToBottom") }}
             </DropdownMenuItem>
 
@@ -243,7 +250,7 @@
               data-testid="queue-context-menu-bulk-remove"
               @select="onRemove"
             >
-              <Trash2 class="h-4 w-4 opacity-80" aria-hidden="true" />
+              <Trash2 class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("queue.actions.bulkDelete") }}
             </DropdownMenuItem>
           </template>

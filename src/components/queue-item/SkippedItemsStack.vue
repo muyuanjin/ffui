@@ -441,9 +441,10 @@ onUnmounted(() => {
           class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
           :side-offset="4"
           :portal-disabled="true"
+          data-stop-clear-selection="true"
         >
           <DropdownMenuItem class="px-3 py-1.5 text-xs gap-2" @select="onCopyInputPath">
-            <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+            <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
             {{ t("queue.actions.copyInputPath") }}
           </DropdownMenuItem>
           <DropdownMenuItem
@@ -451,7 +452,7 @@ onUnmounted(() => {
             class="px-3 py-1.5 text-xs gap-2"
             @select="onOpenInputFolder"
           >
-            <FolderOpen class="h-4 w-4 opacity-80" aria-hidden="true" />
+            <FolderOpen class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
             {{ t("queue.actions.openInputFolder") }}
           </DropdownMenuItem>
         </DropdownMenuContent>

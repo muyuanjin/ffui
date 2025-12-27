@@ -241,9 +241,11 @@ describe("QueueContextMenu", () => {
 
     const waitButton = wrapper.get("[data-testid='queue-context-menu-wait']");
     expect(waitButton.find("svg").exists()).toBe(true);
+    expect(waitButton.find("svg").classes()).toContain("text-amber-500");
 
     const openInput = wrapper.get("[data-testid='queue-context-menu-open-input']");
     expect(openInput.find("svg").exists()).toBe(true);
+    expect(openInput.find("svg").classes()).toContain("text-primary");
   });
 
   it("teleports the fixed overlay container to body when requested", async () => {

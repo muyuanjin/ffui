@@ -15,8 +15,8 @@ import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 import { useLocalePersistence } from "@/composables/main-app/useLocalePersistence";
+import { useQueueBlankClickClearSelection } from "@/composables/main-app/useQueueBlankClickClearSelection";
 const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
-// 仅解构模板中直接使用到的绑定，其余字段通过 defineExpose 暴露给测试。
 const {
   // Shell / 标题栏与侧边栏
   activeTab,
@@ -197,10 +197,12 @@ const {
   // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp;
-const { handleLocaleChange } = useLocalePersistence({
-  appSettings,
-  handleUpdateAppSettings,
+const { handleGlobalBlankClick, handleGlobalBlankPointerDown } = useQueueBlankClickClearSelection({
+  activeTab,
+  hasSelection,
+  clearSelection,
 });
+const { handleLocaleChange } = useLocalePersistence({ appSettings, handleUpdateAppSettings });
 const addManualJobsFromFiles = () => addManualJob("files");
 const addManualJobsFromFolder = () => addManualJob("folder");
 const manualJobPresetId = computed<string | null>({
@@ -224,6 +226,9 @@ defineExpose({
 <template>
   <div
     class="h-full w-full flex flex-col overflow-hidden bg-background text-foreground m-0 p-0"
+    data-testid="ffui-app-root"
+    @click.capture="handleGlobalBlankClick"
+    @pointerdown.capture="handleGlobalBlankPointerDown"
     @dragover="handleDragOver"
     @dragleave="handleDragLeave"
     @drop="handleDrop"
@@ -311,7 +316,6 @@ defineExpose({
           @bulk-delete="bulkDelete"
           @update:selectionBarPinned="setSelectionBarPinned"
         />
-
         <MainGlobalAlerts
           :queue-error="queueError"
           :media-inspect-error="mediaInspectError"
@@ -320,7 +324,6 @@ defineExpose({
           @clearMediaInspectError="mediaInspectError = null"
           @clearSettingsSaveError="settingsSaveError = null"
         />
-
         <div v-if="activeTab === 'queue'" class="flex-1 min-h-0 flex flex-col">
           <div class="p-4 flex-1 min-h-0 flex flex-col">
             <QueuePanel

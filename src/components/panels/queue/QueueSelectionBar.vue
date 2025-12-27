@@ -106,7 +106,11 @@ watch(
 </script>
 
 <template>
-  <div class="queue-selection-bar border-t border-border/60 px-3 py-1.5 bg-accent/5" :data-density="density">
+  <div
+    class="queue-selection-bar border-t border-border/60 px-3 py-1.5 bg-accent/5"
+    :data-density="density"
+    data-stop-clear-selection="true"
+  >
     <div
       ref="viewportEl"
       class="queue-selection-bar__viewport"
@@ -120,14 +124,23 @@ watch(
       >
         <div class="flex items-center gap-2 shrink-0">
           <span
-            class="text-xs font-medium text-foreground whitespace-nowrap"
+            class="text-xs font-medium whitespace-nowrap"
+            :class="props.selectedCount > 0 ? 'text-primary' : 'text-foreground'"
             :title="t('queue.selection.selectedCount', { count: props.selectedCount })"
             data-testid="queue-selection-count"
           >
-            <span v-if="density === 'full'" class="queue-selection-bar__count-full">
+            <span
+              v-if="density === 'full'"
+              class="queue-selection-bar__count-full"
+              :class="props.selectedCount > 0 ? 'text-primary' : undefined"
+            >
               {{ t("queue.selection.selectedCount", { count: props.selectedCount }) }}
             </span>
-            <span v-else-if="density === 'short'" class="queue-selection-bar__count-short">
+            <span
+              v-else-if="density === 'short'"
+              class="queue-selection-bar__count-short"
+              :class="props.selectedCount > 0 ? 'text-primary' : undefined"
+            >
               {{ t("queue.selection.selectedCountShort", { count: props.selectedCount }) }}
             </span>
             <span v-else class="queue-selection-bar__count-icon" aria-hidden="true">
@@ -146,7 +159,7 @@ watch(
               :aria-label="t('queue.selection.selectAll')"
               @click="emit('select-all-visible-jobs')"
             >
-              <CheckSquare class="h-3 w-3" />
+              <CheckSquare class="h-3 w-3 text-primary" />
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.selectAll") }}
               </span>
@@ -165,7 +178,7 @@ watch(
               :aria-label="t('queue.selection.invert')"
               @click="emit('invert-selection')"
             >
-              <Square class="h-3 w-3" />
+              <Square class="h-3 w-3 text-primary" />
               <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
                 {{ t("queue.selection.invert") }}
               </span>
@@ -206,7 +219,7 @@ watch(
             :aria-label="t('queue.actions.bulkResume')"
             @click="emit('bulk-resume')"
           >
-            <Play class="h-3 w-3" />
+            <Play class="h-3 w-3 text-emerald-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkResume") }}
             </span>
@@ -225,7 +238,7 @@ watch(
             :aria-label="t('queue.actions.bulkWait')"
             @click="emit('bulk-wait')"
           >
-            <Hourglass class="h-3 w-3" />
+            <Hourglass class="h-3 w-3 text-amber-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkWait") }}
             </span>
@@ -244,7 +257,7 @@ watch(
             :aria-label="t('queue.actions.bulkCancel')"
             @click="emit('bulk-cancel')"
           >
-            <XCircle class="h-3 w-3" />
+            <XCircle class="h-3 w-3 text-destructive" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkCancel") }}
             </span>
@@ -264,7 +277,7 @@ watch(
             :aria-label="t('queue.actions.bulkRestart')"
             @click="emit('bulk-restart')"
           >
-            <RefreshCw class="h-3 w-3" />
+            <RefreshCw class="h-3 w-3 text-blue-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkRestart") }}
             </span>
@@ -319,7 +332,7 @@ watch(
             :aria-label="t('queue.actions.bulkDelete')"
             @click="emit('bulk-delete')"
           >
-            <Trash2 class="h-3 w-3" />
+            <Trash2 class="h-3 w-3 text-destructive" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkDelete") }}
             </span>
@@ -335,8 +348,8 @@ watch(
             :aria-label="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
             @click="emitTogglePin"
           >
-            <PinOff v-if="props.selectionBarPinned" class="h-3 w-3" />
-            <Pin v-else class="h-3 w-3" />
+            <PinOff v-if="props.selectionBarPinned" class="h-3 w-3 text-primary" />
+            <Pin v-else class="h-3 w-3 text-muted-foreground" />
           </Button>
         </div>
       </div>
