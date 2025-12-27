@@ -201,6 +201,16 @@ pnpm run dup:rust
 pnpm run dup:all
 ```
 
+## Queue performance regression gates
+
+The queue is performance-sensitive. The repo includes CI-friendly performance checks:
+
+```bash
+pnpm run bench:queue
+```
+
+See `docs/queue-performance.md` for the production queue performance design and tuning knobs.
+
 ## Directory layout
 
 - `src/` – Vue 3 frontend.

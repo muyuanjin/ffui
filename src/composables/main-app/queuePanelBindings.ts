@@ -27,7 +27,7 @@ interface QueuePanelBindingsInput {
   carouselAutoRotationSpeed: Ref<number>;
   iconViewSize: Ref<"small" | "medium" | "large">;
   iconGridClass: Ref<string>;
-  queueRowVariant: Ref<"detail" | "compact">;
+  queueRowVariant: Ref<"detail" | "compact" | "mini">;
   progressUpdateIntervalMs: Ref<number>;
   hasBatchCompressBatches: Ref<boolean>;
   activeStatusFilters: Ref<Set<QueueFilterStatus>>;

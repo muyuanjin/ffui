@@ -1,8 +1,9 @@
 import { type Ref } from "vue";
-import type { TranscodeJob, QueueState, QueueStateLite, Translate } from "@/types";
+import type { QueueState, QueueStateLite, QueueStateLiteDelta, TranscodeJob, Translate } from "@/types";
 import { hasTauri, loadQueueStateLite } from "@/lib/backend";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
+import { measureQueueApply } from "@/lib/queuePerf";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -12,6 +13,33 @@ let loggedQueueRefresh = false;
 
 let firstQueueStateLiteApplied = false;
 const FIRST_QUEUE_STATE_LITE_MARK = "first_queue_state_lite_applied";
+
+type StateSyncPerfCounters = {
+  syncJobObjectCalls: number;
+  recomputeFastPathJobsScanned: number;
+  recomputeRebuildJobsScanned: number;
+  deltaIndexBuilds: number;
+  deltaIndexJobsScanned: number;
+};
+
+const stateSyncPerfCounters: StateSyncPerfCounters = {
+  syncJobObjectCalls: 0,
+  recomputeFastPathJobsScanned: 0,
+  recomputeRebuildJobsScanned: 0,
+  deltaIndexBuilds: 0,
+  deltaIndexJobsScanned: 0,
+};
+
+export const __test = {
+  resetPerfCounters: () => {
+    stateSyncPerfCounters.syncJobObjectCalls = 0;
+    stateSyncPerfCounters.recomputeFastPathJobsScanned = 0;
+    stateSyncPerfCounters.recomputeRebuildJobsScanned = 0;
+    stateSyncPerfCounters.deltaIndexBuilds = 0;
+    stateSyncPerfCounters.deltaIndexJobsScanned = 0;
+  },
+  getPerfCounters: (): StateSyncPerfCounters => ({ ...stateSyncPerfCounters }),
+};
 
 const isObject = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
@@ -34,8 +62,57 @@ const normalizeLegacyJobStatuses = (jobs: TranscodeJob[]) => {
 };
 
 const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
+const jobIndexCacheByJobsRef = new WeakMap<object, { array: TranscodeJob[]; byId: Map<string, TranscodeJob> }>();
+const deltaOrderCacheByJobsRef = new WeakMap<object, { baseSnapshotRevision: number; deltaRevision: number }>();
+
+const getJobIndexForDelta = (jobsRef: Ref<TranscodeJob[]>): Map<string, TranscodeJob> => {
+  const key = jobsRef as unknown as object;
+  const currentArray = jobsRef.value;
+  const cached = jobIndexCacheByJobsRef.get(key);
+  if (cached && cached.array === currentArray) {
+    return cached.byId;
+  }
+  if (isTestEnv) {
+    stateSyncPerfCounters.deltaIndexBuilds += 1;
+    stateSyncPerfCounters.deltaIndexJobsScanned += currentArray.length;
+  }
+  const byId = new Map(currentArray.map((job) => [job.id, job]));
+  jobIndexCacheByJobsRef.set(key, { array: currentArray, byId });
+  return byId;
+};
+
+const shouldApplyDelta = (delta: QueueStateLiteDelta, deps: StateSyncDeps): boolean => {
+  const baseSnapshotRevision = delta?.baseSnapshotRevision;
+  const deltaRevision = delta?.deltaRevision;
+
+  if (typeof baseSnapshotRevision !== "number" || !Number.isFinite(baseSnapshotRevision)) return false;
+  if (typeof deltaRevision !== "number" || !Number.isFinite(deltaRevision) || deltaRevision < 0) return false;
+
+  const lastSnapshotRevision = deps.lastQueueSnapshotRevision.value;
+  if (typeof lastSnapshotRevision !== "number" || !Number.isFinite(lastSnapshotRevision)) return false;
+  if (baseSnapshotRevision !== lastSnapshotRevision) return false;
+
+  const key = deps.jobs as unknown as object;
+  const cached = deltaOrderCacheByJobsRef.get(key);
+  if (!cached || cached.baseSnapshotRevision !== baseSnapshotRevision) {
+    deltaOrderCacheByJobsRef.set(key, { baseSnapshotRevision, deltaRevision });
+    return true;
+  }
+
+  if (deltaRevision <= cached.deltaRevision) return false;
+  cached.deltaRevision = deltaRevision;
+  return true;
+};
+
+const resetDeltaOrderCache = (deps: Pick<StateSyncDeps, "jobs">) => {
+  const key = deps.jobs as unknown as object;
+  deltaOrderCacheByJobsRef.delete(key);
+};
 
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
+  if (isTestEnv) {
+    stateSyncPerfCounters.syncJobObjectCalls += 1;
+  }
   const prevAny = asMutableRecord(previous);
   const nextAny = asMutableRecord(next);
 
@@ -88,6 +165,8 @@ export interface StateSyncDeps {
   lastQueueSnapshotAtMs: Ref<number | null>;
   /** Last applied monotonic snapshot revision (for ordering / de-dupe). */
   lastQueueSnapshotRevision: Ref<number | null>;
+  /** Optional monotonic progress revision (bumps on progress deltas). */
+  queueProgressRevision?: Ref<number>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Callback when a job completes (for preset stats update). */
@@ -122,6 +201,9 @@ export function recomputeJobsFromBackend(backendJobs: TranscodeJob[], deps: Pick
 
     if (sameOrder) {
       for (let idx = 0; idx < backendJobs.length; idx += 1) {
+        if (isTestEnv) {
+          stateSyncPerfCounters.recomputeFastPathJobsScanned += 1;
+        }
         syncJobObject(previousJobs[idx] as TranscodeJob, backendJobs[idx] as TranscodeJob);
       }
       return;
@@ -132,6 +214,9 @@ export function recomputeJobsFromBackend(backendJobs: TranscodeJob[], deps: Pick
 
   const nextJobs: TranscodeJob[] = [];
   for (const backendJob of backendJobs) {
+    if (isTestEnv) {
+      stateSyncPerfCounters.recomputeRebuildJobsScanned += 1;
+    }
     const prev = previousById.get(backendJob.id);
     if (prev) {
       syncJobObject(prev, backendJob);
@@ -171,35 +256,102 @@ function detectNewlyCompletedJobs(
  * for jobs that have newly transitioned into the `completed` state.
  */
 export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, deps: StateSyncDeps) {
-  const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
-  if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
-    const prev = deps.lastQueueSnapshotRevision.value;
-    if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
-      return;
+  measureQueueApply("snapshot", () => {
+    const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
+    if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
+      const prev = deps.lastQueueSnapshotRevision.value;
+      if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
+        return;
+      }
+      deps.lastQueueSnapshotRevision.value = snapshotRevision;
+      resetDeltaOrderCache(deps);
     }
-    deps.lastQueueSnapshotRevision.value = snapshotRevision;
-  }
 
-  const backendJobs = state.jobs ?? [];
-  normalizeLegacyJobStatuses(backendJobs);
+    const backendJobs = state.jobs ?? [];
+    normalizeLegacyJobStatuses(backendJobs);
 
-  if (!firstQueueStateLiteApplied) {
-    firstQueueStateLiteApplied = true;
-    if (typeof performance !== "undefined" && "mark" in performance) {
-      performance.mark(FIRST_QUEUE_STATE_LITE_MARK);
+    if (!firstQueueStateLiteApplied) {
+      firstQueueStateLiteApplied = true;
+      if (typeof performance !== "undefined" && "mark" in performance) {
+        performance.mark(FIRST_QUEUE_STATE_LITE_MARK);
+      }
+      if (!isTestEnv && !loggedQueueStateLiteApplied) {
+        loggedQueueStateLiteApplied = true;
+        updateStartupMetrics({ firstQueueStateLiteJobs: backendJobs.length });
+        perfLog(`[perf] first QueueStateLite applied: jobs=${backendJobs.length}`);
+      }
     }
-    if (!isTestEnv && !loggedQueueStateLiteApplied) {
-      loggedQueueStateLiteApplied = true;
-      updateStartupMetrics({ firstQueueStateLiteJobs: backendJobs.length });
-      perfLog(`[perf] first QueueStateLite applied: jobs=${backendJobs.length}`);
+
+    const previousJobs = deps.jobs.value;
+
+    detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
+    recomputeJobsFromBackend(backendJobs, deps);
+    deps.lastQueueSnapshotAtMs.value = Date.now();
+  });
+}
+
+export function applyQueueStateLiteDeltaFromBackend(delta: QueueStateLiteDelta, deps: StateSyncDeps) {
+  measureQueueApply("delta", () => {
+    if (!shouldApplyDelta(delta, deps)) return;
+    const patches = delta?.patches ?? [];
+    if (!Array.isArray(patches) || patches.length === 0) return;
+
+    let patchedAny = false;
+    let progressUpdated = false;
+    const byId = getJobIndexForDelta(deps.jobs);
+
+    for (const patch of patches) {
+      const id = patch?.id;
+      if (!id) continue;
+      const job = byId.get(id);
+      if (!job) continue;
+      patchedAny = true;
+
+      if (typeof patch.status === "string" && patch.status !== job.status) {
+        (job as unknown as { status: string }).status = patch.status;
+      }
+
+      if (typeof patch.progress === "number" && Number.isFinite(patch.progress)) {
+        const nextProgress = Math.min(100, Math.max(0, patch.progress));
+        if (nextProgress !== job.progress) {
+          (job as unknown as { progress: number }).progress = nextProgress;
+          progressUpdated = true;
+        }
+      }
+
+      if (typeof patch.elapsedMs === "number" && Number.isFinite(patch.elapsedMs) && patch.elapsedMs >= 0) {
+        const current = (job as unknown as { elapsedMs?: number }).elapsedMs;
+        if (current !== patch.elapsedMs) {
+          (job as unknown as { elapsedMs?: number }).elapsedMs = patch.elapsedMs;
+        }
+      }
+
+      if (typeof patch.previewPath === "string") {
+        const current = (job as unknown as { previewPath?: string }).previewPath;
+        if (current !== patch.previewPath) {
+          (job as unknown as { previewPath?: string }).previewPath = patch.previewPath;
+        }
+      }
+
+      if (
+        typeof patch.previewRevision === "number" &&
+        Number.isFinite(patch.previewRevision) &&
+        patch.previewRevision >= 0
+      ) {
+        const current = (job as unknown as { previewRevision?: number }).previewRevision;
+        if (current !== patch.previewRevision) {
+          (job as unknown as { previewRevision?: number }).previewRevision = patch.previewRevision;
+        }
+      }
     }
-  }
 
-  const previousJobs = deps.jobs.value;
-
-  detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
-  recomputeJobsFromBackend(backendJobs, deps);
-  deps.lastQueueSnapshotAtMs.value = Date.now();
+    if (patchedAny) {
+      deps.lastQueueSnapshotAtMs.value = Date.now();
+    }
+    if (progressUpdated && deps.queueProgressRevision) {
+      deps.queueProgressRevision.value += 1;
+    }
+  });
 }
 
 /**
@@ -230,6 +382,7 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
           return;
         }
         deps.lastQueueSnapshotRevision.value = snapshotRevision;
+        resetDeltaOrderCache(deps);
       }
 
       if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {

@@ -1,8 +1,9 @@
-use super::state::notify_queue_listeners;
+use super::state::notify_queue_lite_delta_listeners;
 use super::{TranscodingEngine, job_runner};
 use crate::ffui_core::domain::JobType;
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
+use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
@@ -47,15 +48,39 @@ impl TranscodingEngine {
 
         let preview_str = preview_path.to_string_lossy().into_owned();
 
-        {
+        let delta_to_emit = {
             let mut state = self.inner.state.lock_unpoisoned();
-            if let Some(job) = state.jobs.get_mut(job_id) {
+            let base_snapshot_revision = state.queue_snapshot_revision;
+            let patch = if let Some(job) = state.jobs.get_mut(job_id) {
                 job.preview_path = Some(preview_str.clone());
                 job.preview_revision = job.preview_revision.saturating_add(1);
-            }
-        }
+                Some(TranscodeJobLiteDeltaPatch {
+                    id: job.id.clone(),
+                    progress: None,
+                    elapsed_ms: None,
+                    preview_path: Some(preview_str.clone()),
+                    preview_revision: Some(job.preview_revision),
+                })
+            } else {
+                None
+            };
 
-        notify_queue_listeners(&self.inner);
+            if let Some(patch) = patch {
+                state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
+                let delta_revision = state.queue_delta_revision;
+                Some(QueueStateLiteDelta {
+                    base_snapshot_revision,
+                    delta_revision,
+                    patches: vec![patch],
+                })
+            } else {
+                None
+            }
+        };
+
+        if let Some(delta) = delta_to_emit {
+            notify_queue_lite_delta_listeners(&self.inner, delta);
+        }
         Some(preview_str)
     }
 
@@ -111,6 +136,7 @@ impl TranscodingEngine {
             };
 
         let mut old_paths: Vec<String> = Vec::new();
+        let mut preview_patches: Vec<TranscodeJobLiteDeltaPatch> = Vec::new();
 
         for (job_id, input_path, duration_seconds) in jobs_snapshot {
             {
@@ -133,7 +159,7 @@ impl TranscodingEngine {
 
             let preview_str = preview_path.to_string_lossy().into_owned();
 
-            let previous_preview: Option<String> = {
+            let (previous_preview, next_preview_revision): (Option<String>, Option<u64>) = {
                 let mut state = self.inner.state.lock_unpoisoned();
                 if state.preview_refresh_token != refresh_token {
                     return;
@@ -143,11 +169,21 @@ impl TranscodingEngine {
                         let previous = job.preview_path.clone();
                         job.preview_path = Some(preview_str.clone());
                         job.preview_revision = job.preview_revision.saturating_add(1);
-                        previous
+                        (previous, Some(job.preview_revision))
                     }
-                    _ => None,
+                    _ => (None, None),
                 }
             };
+
+            if let Some(preview_revision) = next_preview_revision {
+                preview_patches.push(TranscodeJobLiteDeltaPatch {
+                    id: job_id.clone(),
+                    progress: None,
+                    elapsed_ms: None,
+                    preview_path: Some(preview_str.clone()),
+                    preview_revision: Some(preview_revision),
+                });
+            }
 
             if let Some(old_path) = previous_preview
                 && old_path != preview_str
@@ -193,6 +229,33 @@ impl TranscodingEngine {
             }
         }
 
-        notify_queue_listeners(&self.inner);
+        if preview_patches.is_empty() {
+            return;
+        }
+
+        const MAX_PATCHES_PER_DELTA: usize = 256;
+        let deltas: Vec<QueueStateLiteDelta> = {
+            let mut state = self.inner.state.lock_unpoisoned();
+            if state.preview_refresh_token != refresh_token {
+                return;
+            }
+
+            let base_snapshot_revision = state.queue_snapshot_revision;
+            let mut out = Vec::new();
+            for chunk in preview_patches.chunks(MAX_PATCHES_PER_DELTA) {
+                state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
+                let delta_revision = state.queue_delta_revision;
+                out.push(QueueStateLiteDelta {
+                    base_snapshot_revision,
+                    delta_revision,
+                    patches: chunk.to_vec(),
+                });
+            }
+            out
+        };
+
+        for delta in deltas {
+            notify_queue_lite_delta_listeners(&self.inner, delta);
+        }
     }
 }

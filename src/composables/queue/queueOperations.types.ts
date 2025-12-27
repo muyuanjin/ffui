@@ -4,7 +4,6 @@ export interface QueueOperationMethods {
   handleResumeJob: (jobId: string) => Promise<void>;
   handleRestartJob: (jobId: string) => Promise<void>;
   handleCancelJob: (jobId: string) => Promise<void>;
-  addManualJobMock: () => void;
   enqueueManualJobFromPath: (path: string) => Promise<void>;
   enqueueManualJobsFromPaths: (paths: string[]) => Promise<void>;
 }

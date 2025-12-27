@@ -1,32 +1,82 @@
-import { computed, ref, onMounted, onUnmounted, type Ref } from "vue";
+import { computed, onMounted, onUnmounted, watch, ref, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { formatElapsedTime, estimateTotalTime, estimateRemainingTime, computeJobElapsedMs } from "@/lib/timeUtils";
+
+const sharedNowMs = ref(Date.now());
+let sharedIntervalId: ReturnType<typeof setInterval> | null = null;
+let sharedSubscribers = 0;
+
+const startSharedTicker = () => {
+  if (sharedIntervalId != null) return;
+  sharedNowMs.value = Date.now();
+  sharedIntervalId = setInterval(() => {
+    sharedNowMs.value = Date.now();
+  }, 1000);
+};
+
+const stopSharedTickerIfIdle = () => {
+  if (sharedSubscribers > 0) return;
+  if (sharedIntervalId == null) return;
+  clearInterval(sharedIntervalId);
+  sharedIntervalId = null;
+};
 
 /**
  * 用于显示任务时间信息的组合式函数
  * 提供实时更新的已用时间、预估总时间和预估剩余时间
  */
 export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
-  const nowMs = ref(Date.now());
-  let intervalId: ReturnType<typeof setInterval> | null = null;
-
-  // 每秒更新当前时间，用于实时计算正在处理的任务的已用时间
-  onMounted(() => {
-    intervalId = setInterval(() => {
-      nowMs.value = Date.now();
-    }, 1000);
+  const needsTick = computed(() => {
+    const value = job.value as unknown as {
+      status?: string;
+      elapsedMs?: number;
+      startTime?: number;
+      processingStartedMs?: number;
+    };
+    if (value?.status !== "processing") return false;
+    if (typeof value.elapsedMs === "number" && Number.isFinite(value.elapsedMs) && value.elapsedMs > 0) return false;
+    return typeof (value.processingStartedMs ?? value.startTime) === "number";
   });
 
+  let subscribed = false;
+  const syncSubscription = (next: boolean) => {
+    if (next && !subscribed) {
+      subscribed = true;
+      sharedSubscribers += 1;
+      startSharedTicker();
+      return;
+    }
+    if (!next && subscribed) {
+      subscribed = false;
+      sharedSubscribers = Math.max(0, sharedSubscribers - 1);
+      stopSharedTickerIfIdle();
+    }
+  };
+
+  onMounted(() => {
+    syncSubscription(needsTick.value);
+  });
+
+  watch(
+    needsTick,
+    (next) => {
+      syncSubscription(next);
+    },
+    { flush: "sync" },
+  );
+
   onUnmounted(() => {
-    if (intervalId != null) {
-      clearInterval(intervalId);
-      intervalId = null;
+    if (subscribed) {
+      subscribed = false;
+      sharedSubscribers = Math.max(0, sharedSubscribers - 1);
+      stopSharedTickerIfIdle();
     }
   });
 
   // 计算已用时间（毫秒）
   const elapsedMs = computed(() => {
-    return computeJobElapsedMs(job.value, nowMs.value);
+    const now = needsTick.value ? sharedNowMs.value : 0;
+    return computeJobElapsedMs(job.value, now);
   });
 
   // 格式化的已用时间

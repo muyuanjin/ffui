@@ -35,6 +35,10 @@ export type QueueListItem = { kind: "batch"; batch: CompositeBatchCompressTask }
 export interface UseQueueFilteringOptions {
   /** The full list of jobs from backend. */
   jobs: Ref<TranscodeJob[]>;
+  /** Optional structural revision for the queue (changes only on non-progress updates). */
+  queueStructureRevision?: Ref<number | null>;
+  /** Optional progress revision for progress-based sorting. */
+  queueProgressRevision?: Ref<number>;
   /** Composite batch compress tasks for batch display. */
   compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
   /** Map of batch ID to composite task. */

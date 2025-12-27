@@ -212,6 +212,31 @@ describe("QueueIconItem", () => {
     expect(inspectEvents).toBeFalsy();
   });
 
+  it("does not auto-generate previews on mount when previewPath is missing (Tauri mode)", async () => {
+    vi.useFakeTimers();
+    try {
+      const job = makeJob({ previewPath: undefined, status: "processing" });
+      (hasTauri as any).mockReturnValue(true);
+
+      mount(QueueIconItem, {
+        props: {
+          job,
+          size: "medium",
+          progressStyle: "bar",
+        },
+        global: {
+          plugins: [i18n],
+        },
+      });
+
+      await vi.runAllTimersAsync();
+
+      expect(ensureJobPreview).toHaveBeenCalledTimes(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders a stable placeholder when previewPath is missing", () => {
     const job = makeJob({ previewPath: undefined });
 
@@ -233,8 +258,8 @@ describe("QueueIconItem", () => {
     expect(imgs.length).toBe(0);
   });
 
-  it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
-    const job = makeJob({ status: "queued", progress: 0, previewPath: undefined });
+  it("does not request backend preview generation when previewPath is missing for processing jobs in Tauri mode", () => {
+    const job = makeJob({ status: "processing", progress: 0, previewPath: undefined });
     (hasTauri as any).mockReturnValue(true);
 
     mount(QueueIconItem, {
@@ -248,8 +273,7 @@ describe("QueueIconItem", () => {
       },
     });
 
-    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
-    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
+    expect(ensureJobPreview).toHaveBeenCalledTimes(0);
   });
 
   it("regenerates preview when thumbnail is missing in Tauri mode", async () => {
@@ -304,7 +328,7 @@ describe("QueueIconItem", () => {
 
     const bar = wrapper.get("[data-testid='queue-icon-item-progress-bar']");
     const barEl = bar.element as HTMLDivElement;
-    expect(barEl.style.width).toBe("42%");
+    expect(barEl.style.transform).toBe("translateX(-58%)");
   });
 
   it("maps card-fill and ripple-card progress styles to horizontal fill width and clamps to [0, 100]", () => {
@@ -327,7 +351,7 @@ describe("QueueIconItem", () => {
 
     const cardFillContainer = cardFillWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const cardFillEl = cardFillContainer.element as HTMLDivElement;
-    expect(cardFillEl.style.width).toBe("42%");
+    expect(cardFillEl.style.transform).toBe("translateX(-58%)");
 
     const rippleWrapper = mount(QueueIconItem, {
       props: {
@@ -342,7 +366,7 @@ describe("QueueIconItem", () => {
 
     const rippleContainer = rippleWrapper.get("[data-testid='queue-icon-item-progress-ripple-card']");
     const rippleEl = rippleContainer.element as HTMLDivElement;
-    expect(rippleEl.style.width).toBe("42%");
+    expect(rippleEl.style.transform).toBe("translateX(-58%)");
 
     const belowZero = makeJob({
       status: "processing",
@@ -363,7 +387,7 @@ describe("QueueIconItem", () => {
 
     const belowContainer = belowWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const belowEl = belowContainer.element as HTMLDivElement;
-    expect(belowEl.style.width).toBe("0%");
+    expect(belowEl.style.transform).toBe("translateX(-100%)");
 
     const aboveHundred = makeJob({
       status: "processing",
@@ -384,7 +408,7 @@ describe("QueueIconItem", () => {
 
     const aboveContainer = aboveWrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const aboveEl = aboveContainer.element as HTMLDivElement;
-    expect(aboveEl.style.width).toBe("100%");
+    expect(aboveEl.style.transform).toBe("translateX(-0%)");
   });
 
   it("keeps the progress bar in normal flow to avoid overlapping caption text", () => {
@@ -432,6 +456,6 @@ describe("QueueIconItem", () => {
 
     const container = wrapper.get("[data-testid='queue-icon-item-progress-card-fill']");
     const el = container.element as HTMLDivElement;
-    expect(el.style.width).toBe("100%");
+    expect(el.style.transform).toBe("translateX(-0%)");
   });
 });

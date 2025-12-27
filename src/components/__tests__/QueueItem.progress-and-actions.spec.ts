@@ -129,8 +129,8 @@ describe("QueueItem progress and actions", () => {
     const cardFill = cardFillWrapper.get("[data-testid='queue-item-progress-fill']");
     const rippleFill = rippleWrapper.get("[data-testid='queue-item-progress-fill']");
 
-    expect((cardFill.element as HTMLElement).style.width).toContain("42%");
-    expect((rippleFill.element as HTMLElement).style.width).toContain("42%");
+    expect((cardFill.element as HTMLElement).style.clipPath).toContain("inset(0 58% 0 0)");
+    expect((rippleFill.element as HTMLElement).style.transform).toContain("translateX(-58%)");
   });
 
   it("clamps progress to the [0, 100] range before mapping to visual fill", () => {
@@ -142,7 +142,7 @@ describe("QueueItem progress and actions", () => {
     });
 
     const fill = wrapper.get("[data-testid='queue-item-progress-fill']");
-    expect((fill.element as HTMLElement).style.width).toContain("100%");
+    expect((fill.element as HTMLElement).style.clipPath).toContain("inset(0 0% 0 0)");
   });
 
   it("treats cancelled jobs as fully progressed for visual card fill (aligns with header aggregate progress)", async () => {
@@ -158,7 +158,7 @@ describe("QueueItem progress and actions", () => {
     await nextTick();
 
     const fill = wrapper.get("[data-testid='queue-item-progress-fill']");
-    expect((fill.element as HTMLElement).style.width).toContain("100%");
+    expect((fill.element as HTMLElement).style.clipPath).toContain("inset(0 0% 0 0)");
 
     vm.handlePreviewError = vi.fn();
     await vm.handlePreviewError();

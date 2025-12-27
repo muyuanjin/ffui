@@ -15,6 +15,7 @@ const DEFAULT_QUEUE_MODE: QueueMode = "display";
 const DEFAULT_CAROUSEL_AUTO_ROTATION_SPEED = 0;
 
 const ALL_VIEW_MODES: QueueViewMode[] = [
+  "mini",
   "compact",
   "detail",
   "icon-small",

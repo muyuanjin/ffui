@@ -285,7 +285,7 @@ pub(super) fn mark_job_cancelled(inner: &Inner, job_id: &str) -> Result<()> {
     // reset for a fresh restart.
     notify_queue_listeners(inner);
     // Wake at least one worker in case a restart enqueued a new job.
-    inner.cv.notify_one();
+    inner.cv.notify_all();
     mark_batch_compress_child_processed(inner, job_id);
     Ok(())
 }

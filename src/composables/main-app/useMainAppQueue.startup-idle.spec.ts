@@ -19,8 +19,10 @@ vi.mock("@/lib/backend", async () => {
 });
 
 vi.mock("@tauri-apps/api/event", () => ({
-  listen: (_event: string, handler: (event: any) => void) => {
-    capturedQueueEventHandler = handler;
+  listen: (event: string, handler: (event: any) => void) => {
+    if (event === "ffui://queue-state-lite") {
+      capturedQueueEventHandler = handler;
+    }
     return Promise.resolve(() => {});
   },
 }));

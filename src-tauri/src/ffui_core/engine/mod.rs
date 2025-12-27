@@ -5,6 +5,7 @@ mod enqueue_bulk;
 mod ffmpeg_args;
 mod file_times;
 mod job_runner;
+mod os_paths;
 mod output_policy_paths;
 mod preview_cache_gc;
 mod preview_refresh;
@@ -19,6 +20,8 @@ mod worker;
 mod worker_utils;
 
 #[cfg(test)]
+mod test_mutex;
+#[cfg(test)]
 mod tests;
 pub(crate) use batch_compress::is_video_file;
 #[cfg(test)]
@@ -26,10 +29,6 @@ pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
 #[cfg(test)]
 pub(crate) use state_persist::override_queue_state_sidecar_path_for_tests;
 
-// 测试环境下为 TranscodingEngine::new 加一层全局互斥锁，避免并发初始化带来的共享状态竞争。
-#[cfg(test)]
-static ENGINE_TEST_MUTEX: once_cell::sync::Lazy<std::sync::Mutex<()>> =
-    once_cell::sync::Lazy::new(|| std::sync::Mutex::new(()));
 // 导出 Job Object 初始化函数，供应用启动时调用
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource,
@@ -54,17 +53,6 @@ use state::{
 use std::path::Path;
 use std::sync::Arc;
 
-fn normalize_os_path_string(raw: &str) -> String {
-    #[cfg(windows)]
-    {
-        raw.replace('/', "\\")
-    }
-    #[cfg(not(windows))]
-    {
-        raw.to_string()
-    }
-}
-
 /// The main transcoding engine facade.
 #[derive(Clone)]
 pub struct TranscodingEngine {
@@ -78,7 +66,7 @@ impl TranscodingEngine {
     /// state in the background, and spawns worker threads to process jobs.
     pub fn new() -> Result<Self> {
         #[cfg(test)]
-        let _guard = ENGINE_TEST_MUTEX.lock_unpoisoned();
+        let _guard = test_mutex::ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
         let settings = settings::load_settings().unwrap_or_default();
@@ -168,9 +156,19 @@ impl TranscodingEngine {
     pub fn queue_state_lite(&self) -> QueueStateLite {
         snapshot_queue_state_lite(&self.inner)
     }
-    pub fn take_queue_startup_hint(&self) -> Option<QueueStartupHint> {
+
+    /// Peek the startup hint without consuming it.
+    ///
+    /// The hint is cleared explicitly when the user resumes or dismisses the
+    /// startup recovery prompt.
+    pub fn queue_startup_hint(&self) -> Option<QueueStartupHint> {
+        let guard = self.inner.queue_startup_hint.lock_unpoisoned();
+        guard.clone()
+    }
+
+    pub fn clear_queue_startup_hint(&self) {
         let mut guard = self.inner.queue_startup_hint.lock_unpoisoned();
-        guard.take()
+        *guard = None;
     }
 
     pub fn resume_startup_auto_paused_jobs(&self) -> usize {
@@ -212,8 +210,7 @@ impl TranscodingEngine {
         state.jobs.get(job_id).cloned()
     }
 
-    /// Register a listener for queue state changes (test-only; the production
-    /// hot path uses lightweight snapshots).
+    /// Register a listener for queue state changes (test-only; production uses lightweight snapshots).
     #[cfg(test)]
     pub fn register_queue_listener<F>(&self, listener: F)
     where
@@ -222,7 +219,6 @@ impl TranscodingEngine {
         let mut listeners = self.inner.queue_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
-
     /// Register a listener for lightweight queue state changes.
     pub fn register_queue_lite_listener<F>(&self, listener: F)
     where
@@ -231,7 +227,14 @@ impl TranscodingEngine {
         let mut listeners = self.inner.queue_lite_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
-
+    /// Register a listener for lightweight queue delta updates.
+    pub fn register_queue_lite_delta_listener<F>(&self, listener: F)
+    where
+        F: Fn(crate::ffui_core::QueueStateLiteDelta) + Send + Sync + 'static,
+    {
+        let mut listeners = self.inner.queue_lite_delta_listeners.lock_unpoisoned();
+        listeners.push(Arc::new(listener));
+    }
     /// Register a listener for Batch Compress progress updates.
     pub fn register_batch_compress_listener<F>(&self, listener: F)
     where
@@ -342,7 +345,7 @@ impl TranscodingEngine {
         if trimmed.is_empty() {
             return None;
         }
-        let normalized = normalize_os_path_string(trimmed);
+        let normalized = os_paths::normalize_os_path_string(trimmed);
         let input = Path::new(&normalized);
 
         let state = self.inner.state.lock_unpoisoned();
@@ -437,7 +440,6 @@ impl TranscodingEngine {
         // emit ffui://external-tool-status without re-probing the filesystem
         // on every download tick.
         crate::ffui_core::tools::update_latest_status_snapshot(statuses.clone());
-
         let settings_to_persist = {
             let mut state = self.inner.state.lock_unpoisoned();
             if update_probe_cache_from_statuses(&mut state.settings.tools, &statuses) {
@@ -479,13 +481,11 @@ impl TranscodingEngine {
     ) -> Result<AutoCompressResult> {
         batch_compress::run_auto_compress(&self.inner, root_path, config)
     }
-
     /// Get the summary of a Batch Compress batch.
     #[cfg(test)]
     pub fn batch_compress_batch_summary(&self, batch_id: &str) -> Option<AutoCompressResult> {
         batch_compress::batch_compress_batch_summary(&self.inner, batch_id)
     }
-
     /// Inspect media file metadata using ffprobe.
     pub fn inspect_media(&self, path: &str) -> Result<String> {
         job_runner::inspect_media(&self.inner, path)

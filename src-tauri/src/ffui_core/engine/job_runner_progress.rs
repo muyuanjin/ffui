@@ -3,9 +3,11 @@
 // ============================================================================
 
 use super::transcode_activity;
+use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
 use super::worker_utils::append_job_log_line;
+use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
 
-const LOG_ONLY_QUEUE_NOTIFY_MIN_INTERVAL_MS: u64 = 200;
+const PROGRESS_PERSIST_MIN_INTERVAL_MS: u64 = 1000;
 
 pub(super) fn update_job_progress(
     inner: &Inner,
@@ -15,11 +17,19 @@ pub(super) fn update_job_progress(
     _speed: Option<f64>,
 ) {
     let mut should_notify = false;
+    let mut progress_changed = false;
     let mut should_record_activity = false;
     let now_ms = current_time_millis();
+    let mut delta_to_emit: Option<QueueStateLiteDelta> = None;
+    let mut should_persist_snapshot = false;
 
     {
         let mut state = inner.state.lock_unpoisoned();
+        let base_snapshot_revision = state.queue_snapshot_revision;
+        let last_persist_snapshot_at_ms = state.last_queue_persist_snapshot_at_ms;
+        let mut next_persist_snapshot_at_ms: Option<u64> = None;
+        let mut pending_patch: Option<TranscodeJobLiteDeltaPatch> = None;
+
         if let Some(job) = state.jobs.get_mut(job_id) {
             // 更新累计已用时间：基于 processing_started_ms 计算当前段的时间，加上之前暂停时累积的时间
             if job.status == JobStatus::Processing {
@@ -29,8 +39,6 @@ pub(super) fn update_job_progress(
                     .or(job.start_time)
                     .unwrap_or(now_ms);
                 let current_segment_ms = now_ms.saturating_sub(baseline);
-                // 使用暂停时记录的“墙钟累计耗时”作为基线，确保 elapsed_ms 始终表示真实跑 ffmpeg
-                // 的时间，而不是媒体进度（duration * progress）。
                 let previous_wall_ms = job
                     .wait_metadata
                     .as_ref()
@@ -40,11 +48,10 @@ pub(super) fn update_job_progress(
             }
 
             if let Some(p) = percent {
-                // Clamp progress into [0, 100] and ensure it never regresses so
-                // the UI sees a monotonic percentage.
                 let clamped = p.clamp(0.0, 100.0);
                 if clamped > job.progress {
                     job.progress = clamped;
+                    progress_changed = true;
                     if job.status == JobStatus::Processing
                         && let Some(meta) = job.wait_metadata.as_mut()
                     {
@@ -62,34 +69,44 @@ pub(super) fn update_job_progress(
                     should_notify = true;
                 }
             }
-            if let Some(line) = log_line {
-                // Ignore empty/whitespace-only lines that come from ffmpeg's
-                // structured `-progress` output separators. These previously
-                // polluted the job logs with大量空白行, making the task detail
-                // view hard to read without improving diagnostics, while also
-                // generating noisy queue snapshots with no useful content.
-                if !line.trim().is_empty() {
-                    append_job_log_line(job, line.to_string());
 
-                    // Even when ffmpeg does not emit the traditional "time=... speed=..."
-                    // progress lines (for example due to loglevel changes or custom
-                    // builds), the UI still needs to see streaming log output, the
-                    // resolved ffmpeg command, and any media metadata / preview paths.
-                    //
-                    // To avoid the "no progress / no logs until cancel or completion"
-                    // regression, emit a queue snapshot whenever we append a log line
-                    // while the job is actively processing. This trades a modest
-                    // increase in event frequency for correct, real-time feedback.
-                    if job.status == JobStatus::Processing {
-                        let last = state.last_queue_log_notify_at_ms;
-                        let elapsed = now_ms.saturating_sub(last);
-                        if last == 0 || elapsed >= LOG_ONLY_QUEUE_NOTIFY_MIN_INTERVAL_MS {
-                            state.last_queue_log_notify_at_ms = now_ms;
-                            should_notify = true;
-                        }
-                    }
+            if let Some(line) = log_line && !line.trim().is_empty() {
+                append_job_log_line(job, line.to_string());
+            }
+
+            if job.status == JobStatus::Processing {
+                let elapsed = now_ms.saturating_sub(last_persist_snapshot_at_ms);
+                if last_persist_snapshot_at_ms == 0
+                    || elapsed >= PROGRESS_PERSIST_MIN_INTERVAL_MS
+                {
+                    next_persist_snapshot_at_ms = Some(now_ms);
+                    should_persist_snapshot = true;
                 }
             }
+
+            if should_notify {
+                pending_patch = Some(TranscodeJobLiteDeltaPatch {
+                    id: job.id.clone(),
+                    progress: progress_changed.then_some(job.progress),
+                    elapsed_ms: progress_changed.then_some(job.elapsed_ms).flatten(),
+                    preview_path: None,
+                    preview_revision: None,
+                });
+            }
+        }
+
+        if let Some(next) = next_persist_snapshot_at_ms {
+            state.last_queue_persist_snapshot_at_ms = next;
+        }
+
+        if let Some(patch) = pending_patch {
+            state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
+            let delta_revision = state.queue_delta_revision;
+            delta_to_emit = Some(QueueStateLiteDelta {
+                base_snapshot_revision,
+                delta_revision,
+                patches: vec![patch],
+            });
         }
     }
 
@@ -97,12 +114,11 @@ pub(super) fn update_job_progress(
         transcode_activity::record_processing_activity(inner);
     }
 
-    // Emit queue snapshots only when progress actually moves forward so the
-    // event stream stays efficient while remaining responsive. Log-only
-    // updates for processing jobs are also allowed to trigger snapshots so
-    // the frontend can show live ffmpeg output even if no percentage can be
-    // derived from the current stderr line.
-    if should_notify {
-        notify_queue_listeners(inner);
+    if let Some(delta) = delta_to_emit {
+        notify_queue_lite_delta_listeners(inner, delta);
+    }
+
+    if should_persist_snapshot {
+        persist_queue_state_lite_best_effort(inner);
     }
 }

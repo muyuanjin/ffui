@@ -67,7 +67,7 @@ pub(crate) fn write_shutdown_marker_with_auto_wait_job_ids(
     let tmp_path = path.with_extension("tmp");
     match fs::File::create(&tmp_path) {
         Ok(file) => {
-            if serde_json::to_writer(&file, &marker).is_err() {
+            if serde_json::to_writer_pretty(&file, &marker).is_err() {
                 drop(fs::remove_file(&tmp_path));
                 return false;
             }

@@ -115,6 +115,7 @@ export function useMainAppSetup() {
 
   const settings = useMainAppSettings({
     jobs,
+    queueStructureRevision: lastQueueSnapshotRevision,
     manualJobPresetId,
     smartConfig: batchCompress.smartConfig,
     startupIdleReady,

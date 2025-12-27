@@ -10,7 +10,7 @@ use super::state_persist::{
 };
 use crate::ffui_core::domain::{
     AutoCompressProgress, FFmpegPreset, JobStatus, MediaInfo, QueueStartupHint, QueueState,
-    QueueStateLite, TranscodeJob, TranscodeJobLite,
+    QueueStateLite, QueueStateLiteDelta, TranscodeJob, TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
@@ -32,6 +32,7 @@ pub(super) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
 
 pub(super) type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
 pub(super) type QueueLiteListener = Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;
+pub(super) type QueueLiteDeltaListener = Arc<dyn Fn(QueueStateLiteDelta) + Send + Sync + 'static>;
 pub(super) type BatchCompressProgressListener =
     Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
 
@@ -66,17 +67,12 @@ pub(crate) struct EngineState {
     pub(crate) jobs: HashMap<String, TranscodeJob>,
     pub(crate) queue: VecDeque<String>,
     pub(crate) active_jobs: HashSet<String>,
-    /// Monotonic revision incremented whenever the engine constructs a queue-lite snapshot.
-    ///
-    /// The frontend uses this to ignore stale, out-of-order IPC deliveries that can
-    /// otherwise cause progress to visually regress under heavy load.
+    /// Structural revision for queue-lite snapshots (add/remove/reorder/status transitions).
     pub(crate) queue_snapshot_revision: u64,
-    /// Rate limiter timestamp (ms) for emitting queue snapshots on log-only updates.
-    ///
-    /// When ffmpeg emits very chatty stderr, emitting a full queue snapshot on every
-    /// log line can overwhelm IPC and the UI thread. Progress updates remain immediate,
-    /// while log-only notifications are capped by this timer.
-    pub(crate) last_queue_log_notify_at_ms: u64,
+    /// Monotonic revision for queue-lite delta events.
+    pub(crate) queue_delta_revision: u64,
+    /// Rate limiter timestamp (ms) for persistence snapshot builds during processing.
+    pub(crate) last_queue_persist_snapshot_at_ms: u64,
     /// Number of transcoding worker threads spawned so far.
     pub(crate) spawned_workers: usize,
     /// Input paths (filenames) currently being processed by active workers.
@@ -114,7 +110,8 @@ impl EngineState {
             queue: VecDeque::new(),
             active_jobs: HashSet::new(),
             queue_snapshot_revision: 0,
-            last_queue_log_notify_at_ms: 0,
+            queue_delta_revision: 0,
+            last_queue_persist_snapshot_at_ms: 0,
             spawned_workers: 0,
             active_inputs: HashSet::new(),
             cancelled_jobs: HashSet::new(),
@@ -138,6 +135,7 @@ pub(crate) struct Inner {
     pub(crate) startup_auto_paused_job_ids: Mutex<HashSet<String>>,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
     pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
+    pub(crate) queue_lite_delta_listeners: Mutex<Vec<QueueLiteDeltaListener>>,
     pub(crate) batch_compress_listeners: Mutex<Vec<BatchCompressProgressListener>>,
 }
 
@@ -153,6 +151,7 @@ impl Inner {
             startup_auto_paused_job_ids: Mutex::new(HashSet::new()),
             queue_listeners: Mutex::new(Vec::new()),
             queue_lite_listeners: Mutex::new(Vec::new()),
+            queue_lite_delta_listeners: Mutex::new(Vec::new()),
             batch_compress_listeners: Mutex::new(Vec::new()),
         }
     }
@@ -244,7 +243,6 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
 }
 
 fn snapshot_queue_state_lite_from_locked_state(state: &mut EngineState) -> QueueStateLite {
-    state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
     let snapshot_revision = state.queue_snapshot_revision;
     let order_by_id = build_queue_order_map(state);
 
@@ -321,12 +319,56 @@ pub(super) fn snapshot_queue_state_lite(inner: &Inner) -> QueueStateLite {
     snapshot_queue_state_lite_from_locked_state(&mut state)
 }
 
+pub(super) fn notify_queue_lite_delta_listeners(inner: &Inner, delta: QueueStateLiteDelta) {
+    let delta_listeners = inner.queue_lite_delta_listeners.lock_unpoisoned().clone();
+    for listener in &delta_listeners {
+        listener(delta.clone());
+    }
+}
+
+pub(super) fn persist_queue_state_lite_best_effort(inner: &Inner) {
+    let (lite_snapshot, persistence_mode) = {
+        let mut state = inner.state.lock_unpoisoned();
+        (
+            snapshot_queue_state_lite_from_locked_state(&mut state),
+            state.settings.queue_persistence_mode,
+        )
+    };
+
+    let persist_snapshot = match persistence_mode {
+        QueuePersistenceMode::CrashRecoveryLite | QueuePersistenceMode::CrashRecoveryFull => {
+            Some(lite_snapshot)
+        }
+        QueuePersistenceMode::None => {
+            // Even when crash recovery is disabled, we still persist resumable jobs
+            // so that forced kills/crashes can restore unfinished work. Terminal
+            // jobs are excluded so the restart does not retain completed history.
+            let mut filtered = lite_snapshot;
+            filtered.jobs.retain(|job| {
+                matches!(
+                    job.status,
+                    JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
+                )
+            });
+            Some(filtered)
+        }
+    };
+
+    if let Some(snapshot) = persist_snapshot {
+        #[cfg(test)]
+        let _persist_guard = super::state_persist::queue_state_sidecar_path_overridden_for_tests()
+            .then(crate::ffui_core::lock_persist_test_mutex_for_tests);
+        persist_queue_state_lite(&snapshot);
+    }
+}
+
 pub(super) fn notify_queue_listeners(inner: &Inner) {
     let full_listeners = inner.queue_listeners.lock_unpoisoned().clone();
     let lite_listeners = inner.queue_lite_listeners.lock_unpoisoned().clone();
 
     let (lite_snapshot, full_snapshot, persistence_mode, retention) = {
         let mut state = inner.state.lock_unpoisoned();
+        state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
         repair_queue_invariants_locked(&mut state);
         let lite = snapshot_queue_state_lite_from_locked_state(&mut state);
         let full = if full_listeners.is_empty() {
@@ -435,7 +477,6 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
             None
         }
     };
-
     if let Some(progress) = progress {
         notify_batch_compress_listeners(inner, &progress);
     }
@@ -452,6 +493,5 @@ pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Pa
     let state = inner.state.lock_unpoisoned();
     state.known_batch_compress_outputs.contains(&key)
 }
-
 #[cfg(test)]
 mod tests;

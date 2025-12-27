@@ -304,7 +304,9 @@ pub(crate) fn enqueue_batch_compress_video_job(
     drop(state);
 
     if notify_queue {
-        inner.cv.notify_one();
+        // Batch Compress can enqueue many child jobs; wake all workers so
+        // parallelism is reached immediately.
+        inner.cv.notify_all();
         super::helpers::notify_queue_listeners(inner);
     }
 

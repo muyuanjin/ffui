@@ -10,3 +10,4 @@ src-tauri/gen
 perf-traces.local
 pnpm-lock.yaml
 docs/perf-audit-*.md
+tools/agent-screenshots/

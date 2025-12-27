@@ -241,6 +241,31 @@ describe("QueueItem display basics", () => {
     expect(wrapper.find("pre").exists()).toBe(false);
   });
 
+  it("forces a 2-line mini layout with a progress bar even when progressStyle is not bar", () => {
+    const job = makeJob({
+      status: "processing",
+      progress: 33,
+      previewPath: "C:/app-data/previews/mini.jpg",
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: true,
+        viewMode: "mini",
+        progressStyle: "ripple-card",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.find("[data-testid='queue-item-progress-bar']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='queue-item-progress-ripple-card']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='queue-item-progress-card-fill']").exists()).toBe(false);
+  });
+
   it("renders localized status text and visual style for common job statuses", () => {
     const statuses = ["processing", "completed", "paused", "queued", "failed", "skipped", "cancelled"] as const;
 

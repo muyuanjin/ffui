@@ -1,7 +1,7 @@
 import { nextTick, watch, type Ref } from "vue";
 import { toast } from "vue-sonner";
 import type { QueueStartupHintKind, TranscodeJob } from "@/types";
-import { getQueueStartupHint, resumeStartupQueue } from "@/lib/backend.queue-startup";
+import { dismissQueueStartupHint, getQueueStartupHint, resumeStartupQueue } from "@/lib/backend.queue-startup";
 import { hasTauri } from "@/lib/backend";
 
 export interface UseQueueStartupToastOptions {
@@ -63,7 +63,11 @@ export function useQueueStartupToast(options: UseQueueStartupToastOptions) {
         },
         cancel: {
           label: t("queue.startupHint.dismiss"),
-          onClick: () => {},
+          onClick: () => {
+            void dismissQueueStartupHint().catch(() => {
+              // Best-effort only.
+            });
+          },
         },
       });
     },

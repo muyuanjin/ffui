@@ -141,12 +141,12 @@ describe("QueuePanel virtual list wiring", () => {
     const vlist = wrapper.find("[data-testid='virtua-vlist-stub']");
     expect(vlist.exists()).toBe(true);
     expect(vlist.attributes("data-item-size")).toBe("180");
-    expect(vlist.attributes("data-buffer-size")).toBe(String(180 * 24));
+    expect(vlist.attributes("data-buffer-size")).toBe("360");
 
     await wrapper.setProps({ queueRowVariant: "compact" });
     const vlistAfterCompact = wrapper.find("[data-testid='virtua-vlist-stub']");
     expect(vlistAfterCompact.attributes("data-item-size")).toBe("120");
-    expect(vlistAfterCompact.attributes("data-buffer-size")).toBe(String(120 * 24));
+    expect(vlistAfterCompact.attributes("data-buffer-size")).toBe("240");
   });
 
   it("does not render the full list in display mode", async () => {

@@ -17,7 +17,7 @@ const props = defineProps<{
   batch: CompositeBatchCompressTask;
   presets: FFmpegPreset[];
   ffmpegResolvedPath?: string | null;
-  queueRowVariant: "detail" | "compact";
+  queueRowVariant: "detail" | "compact" | "mini";
   queueProgressStyle: QueueProgressStyle;
   progressUpdateIntervalMs: number;
   selectedJobIds: Set<string>;
@@ -58,6 +58,8 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const { resolvePresetForJob: getPresetForJob } = usePresetLookup(() => props.presets);
+
+const isMiniVariant = computed(() => props.queueRowVariant === "mini");
 
 const jobTypeCounts = computed(() => {
   const counts = { video: 0, image: 0, audio: 0 };
@@ -131,48 +133,82 @@ const getBatchProgressVariant = (batch: CompositeBatchCompressTask): ProgressVar
   <Card
     data-testid="batch-compress-batch-card"
     class="border-border/70 bg-card/90 shadow-sm hover:border-primary/40 transition-colors"
+    :class="isMiniVariant ? 'border-0 border-b rounded-none shadow-none bg-transparent hover:bg-muted/20' : undefined"
     @contextmenu.prevent.stop="emit('contextmenuBatch', { batch, event: $event })"
   >
     <CardHeader
       class="pb-2 flex flex-row items-start justify-between gap-3 cursor-pointer"
+      :class="isMiniVariant ? 'p-2 pb-1' : undefined"
       @click="emit('toggleBatchExpanded', batch.batchId)"
     >
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
+      <template v-if="isMiniVariant">
+        <div class="flex items-center gap-2 min-w-0 w-full">
           <Checkbox :checked="batchSelectionState" class="h-4 w-4" @click.stop @update:checked="toggleBatchSelection" />
-          <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
-            {{ t("queue.source.batchCompress") }}
-          </Badge>
-          <span class="text-xs text-muted-foreground"> {{ batch.totalProcessed }} / {{ batch.totalCandidates }} </span>
+          <CardTitle class="min-w-0 flex-1 truncate text-[11px] font-semibold">
+            {{ batch.rootPath || t("batchCompress.title") }}
+          </CardTitle>
+          <span class="text-[10px] leading-4 text-muted-foreground tabular-nums">
+            {{ batch.totalProcessed }}/{{ batch.totalCandidates }}
+          </span>
+          <span class="text-[10px] leading-4 font-mono text-muted-foreground tabular-nums w-10 text-right">
+            {{ Math.round(batch.overallProgress) }}%
+          </span>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="h-6 w-6 p-0 rounded-full border-border/60 bg-muted/40 text-xs"
+            @click.stop="emit('toggleBatchExpanded', batch.batchId)"
+          >
+            <span v-if="isExpanded">−</span>
+            <span v-else>＋</span>
+          </Button>
         </div>
-        <CardTitle class="text-sm font-semibold truncate max-w-lg">
-          {{ batch.rootPath || t("batchCompress.title") }}
-        </CardTitle>
-        <CardDescription class="text-xs text-muted-foreground">
-          <span v-if="batch.currentJob">{{ batch.currentJob.filename }}</span>
-          <span v-else>{{ t("batchCompress.subtitle") }}</span>
-        </CardDescription>
-      </div>
-      <div class="flex flex-col items-end gap-1">
-        <span class="text-xs font-mono text-muted-foreground">{{ Math.round(batch.overallProgress) }}%</span>
-        <Button
-          variant="outline"
-          size="icon-sm"
-          class="h-6 w-6 rounded-full border-border/60 bg-muted/40 text-xs"
-          @click.stop="emit('toggleBatchExpanded', batch.batchId)"
-        >
-          <span v-if="isExpanded">−</span>
-          <span v-else>＋</span>
-        </Button>
-      </div>
+      </template>
+      <template v-else>
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <Checkbox
+              :checked="batchSelectionState"
+              class="h-4 w-4"
+              @click.stop
+              @update:checked="toggleBatchSelection"
+            />
+            <Badge variant="outline" class="px-1.5 py-0.5 text-[10px] font-medium border-blue-500/50 text-blue-300">
+              {{ t("queue.source.batchCompress") }}
+            </Badge>
+            <span class="text-xs text-muted-foreground">
+              {{ batch.totalProcessed }} / {{ batch.totalCandidates }}
+            </span>
+          </div>
+          <CardTitle class="text-sm font-semibold truncate max-w-lg">
+            {{ batch.rootPath || t("batchCompress.title") }}
+          </CardTitle>
+          <CardDescription class="text-xs text-muted-foreground">
+            <span v-if="batch.currentJob">{{ batch.currentJob.filename }}</span>
+            <span v-else>{{ t("batchCompress.subtitle") }}</span>
+          </CardDescription>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="text-xs font-mono text-muted-foreground">{{ Math.round(batch.overallProgress) }}%</span>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="h-6 w-6 rounded-full border-border/60 bg-muted/40 text-xs"
+            @click.stop="emit('toggleBatchExpanded', batch.batchId)"
+          >
+            <span v-if="isExpanded">−</span>
+            <span v-else>＋</span>
+          </Button>
+        </div>
+      </template>
     </CardHeader>
-    <CardContent class="pt-0 pb-3 space-y-2">
-      <Progress :model-value="batch.overallProgress" :variant="getBatchProgressVariant(batch)" />
-      <div class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
-        <span
-          >{{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }} / {{ t("queue.typeAudio") }}:
-          {{ jobTypeCounts.video }} / {{ jobTypeCounts.image }} / {{ jobTypeCounts.audio }}</span
-        >
+    <CardContent class="pt-0 pb-3 space-y-2" :class="isMiniVariant ? 'p-2 pt-0 pb-2' : undefined">
+      <Progress class="h-1.5" :model-value="batch.overallProgress" :variant="getBatchProgressVariant(batch)" />
+      <div v-if="!isMiniVariant" class="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+        <span>
+          {{ t("queue.typeVideo") }} / {{ t("queue.typeImage") }} / {{ t("queue.typeAudio") }}:
+          {{ jobTypeCounts.video }} / {{ jobTypeCounts.image }} / {{ jobTypeCounts.audio }}
+        </span>
         <span>{{ t("queue.status.completed") }}: {{ batch.completedCount }}</span>
         <span v-if="batch.skippedCount > 0">{{ t("queue.status.skipped") }}: {{ batch.skippedCount }}</span>
         <span v-if="batch.failedCount > 0">{{ t("queue.status.failed") }}: {{ batch.failedCount }}</span>

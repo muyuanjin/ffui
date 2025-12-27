@@ -129,7 +129,7 @@ describe("Locale refresh for select trigger labels", () => {
     });
 
     const trigger = wrapper.get('[data-testid="queue-mode-trigger"]');
-    expect(trigger.text()).toContain("视图排序");
+    expect(trigger.text()).toContain("默认视图");
 
     i18n.global.locale.value = "en";
     await nextTick();

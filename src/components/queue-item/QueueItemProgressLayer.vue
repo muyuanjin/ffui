@@ -13,6 +13,21 @@ const emit = defineEmits<{
   (e: "preview-error"): void;
 }>();
 
+const clampedProgress = computed(() => {
+  const raw = typeof props.displayedClampedProgress === "number" ? props.displayedClampedProgress : 0;
+  return Math.max(0, Math.min(100, raw));
+});
+
+const rippleFillStyle = computed(() => {
+  const pct = clampedProgress.value;
+  return { transform: `translateX(-${100 - pct}%)` };
+});
+
+const cardFillStyle = computed(() => {
+  const pct = clampedProgress.value;
+  return { clipPath: `inset(0 ${100 - pct}% 0 0)` };
+});
+
 // 根据任务状态计算波纹进度的颜色类
 const rippleProgressColorClass = computed(() => {
   switch (props.status) {
@@ -60,16 +75,16 @@ const staticProgressColorClass = computed(() => {
   >
     <div class="absolute inset-0 bg-card/40" />
     <div
-      class="absolute inset-y-0 left-0 overflow-hidden"
+      class="absolute inset-0 overflow-hidden will-change-[clip-path]"
       data-testid="queue-item-progress-fill"
-      :style="{ width: `${displayedClampedProgress}%` }"
+      :style="cardFillStyle"
     >
       <img
         v-if="previewUrl"
         :src="previewUrl"
         alt=""
         decoding="async"
-        loading="eager"
+        loading="lazy"
         class="h-full w-full object-cover opacity-95"
         @error="emit('preview-error')"
       />
@@ -78,14 +93,10 @@ const staticProgressColorClass = computed(() => {
   </div>
   <div
     v-else-if="showRippleCardProgress"
-    class="absolute inset-0 pointer-events-none"
+    class="absolute inset-0 pointer-events-none overflow-hidden"
     data-testid="queue-item-progress-ripple-card"
   >
-    <div
-      class="absolute inset-y-0 left-0"
-      data-testid="queue-item-progress-fill"
-      :style="{ width: `${props.displayedClampedProgress}%` }"
-    >
+    <div class="absolute inset-0 will-change-transform" data-testid="queue-item-progress-fill" :style="rippleFillStyle">
       <div
         v-if="props.status === 'processing'"
         class="h-full w-full opacity-80 animate-pulse"

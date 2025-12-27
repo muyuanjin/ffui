@@ -25,11 +25,13 @@ vi.mock("@/lib/backend", () => {
 
 const getQueueStartupHintMock = vi.fn<() => Promise<QueueStartupHint | null>>();
 const resumeStartupQueueMock = vi.fn<() => Promise<number>>();
+const dismissQueueStartupHintMock = vi.fn<() => Promise<void>>();
 
 vi.mock("@/lib/backend.queue-startup", () => {
   return {
     getQueueStartupHint: () => getQueueStartupHintMock(),
     resumeStartupQueue: () => resumeStartupQueueMock(),
+    dismissQueueStartupHint: () => dismissQueueStartupHintMock(),
   };
 });
 
@@ -38,6 +40,7 @@ describe("useQueueStartupToast", () => {
     toastMessageMock.mockReset();
     getQueueStartupHintMock.mockReset();
     resumeStartupQueueMock.mockReset();
+    dismissQueueStartupHintMock.mockReset();
   });
 
   it("shows a toast and resumes the startup queue via action button", async () => {
@@ -80,6 +83,40 @@ describe("useQueueStartupToast", () => {
 
     expect(resumeStartupQueueMock).toHaveBeenCalledTimes(1);
     expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
+  });
+
+  it("dismisses the startup hint when the cancel button is clicked", async () => {
+    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pausedQueue", autoPausedJobCount: 3 });
+    dismissQueueStartupHintMock.mockResolvedValueOnce();
+
+    const jobs = ref<any[]>([]);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const refreshQueueFromBackend = vi.fn(async () => {});
+    const t = (key: string) => key;
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueStartupToast({
+          enabled: true,
+          t,
+          jobs,
+          lastQueueSnapshotRevision,
+          refreshQueueFromBackend,
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    mount(TestHarness);
+    await nextTick();
+    await flushPromises();
+
+    const [, options] = toastMessageMock.mock.calls[0];
+    options.cancel.onClick();
+    await flushPromises();
+
+    expect(dismissQueueStartupHintMock).toHaveBeenCalledTimes(1);
   });
 
   it("no-ops when disabled", async () => {

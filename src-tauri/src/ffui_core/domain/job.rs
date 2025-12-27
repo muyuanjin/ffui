@@ -333,9 +333,42 @@ pub struct QueueStateLite {
     /// This is not persisted as a stable identifier across restarts; it only needs
     /// to be monotonic within a single app session so the UI can ignore stale,
     /// out-of-order IPC deliveries.
+    ///
+    /// Note: This revision is intended to represent the *structural* version of
+    /// the queue (add/remove/reorder/status transitions). High-frequency progress
+    /// updates SHOULD use a delta stream instead of emitting new full snapshots.
     #[serde(default)]
     pub snapshot_revision: u64,
     pub jobs: Vec<TranscodeJobLite>,
+}
+
+/// Delta updates for the queue-lite stream.
+///
+/// Designed so high-frequency progress/preview updates can be delivered without
+/// sending a full `QueueStateLite` snapshot each tick.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueStateLiteDelta {
+    /// The `QueueStateLite.snapshotRevision` this delta is based on.
+    pub base_snapshot_revision: u64,
+    /// Monotonic revision for deltas within the same `baseSnapshotRevision`.
+    pub delta_revision: u64,
+    /// Per-job field patches.
+    pub patches: Vec<TranscodeJobLiteDeltaPatch>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeJobLiteDeltaPatch {
+    pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub elapsed_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_revision: Option<u64>,
 }
 
 impl From<&TranscodeJob> for TranscodeJobLite {

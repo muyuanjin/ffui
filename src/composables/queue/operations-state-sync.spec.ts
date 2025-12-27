@@ -11,7 +11,13 @@ vi.mock("@/lib/backend", () => ({
   loadQueueStateLite: () => loadQueueStateMock(),
 }));
 
-import { applyQueueStateFromBackend, refreshQueueFromBackend, type StateSyncDeps } from "./operations-state-sync";
+import {
+  applyQueueStateFromBackend,
+  applyQueueStateLiteDeltaFromBackend,
+  refreshQueueFromBackend,
+  type StateSyncDeps,
+} from "./operations-state-sync";
+import { __test as stateSyncTest } from "./operations-state-sync";
 
 function makeDeps(overrides: Partial<StateSyncDeps> = {}): StateSyncDeps & { jobs: Ref<TranscodeJob[]> } {
   const jobs = overrides.jobs ?? ref<TranscodeJob[]>([]);
@@ -345,5 +351,269 @@ describe("queue operations state sync", () => {
 
     resolvePromise({ jobs: [] });
     await Promise.all([p1, p2]);
+  });
+
+  it("baseline: applying a progress-only full snapshot scans all jobs on the fast path", () => {
+    const JOBS = 10_000;
+    const jobs: TranscodeJob[] = Array.from({ length: JOBS }, (_, idx) => ({
+      id: `job-${idx}`,
+      filename: `C:/videos/${idx}.mp4`,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      presetId: "preset-1",
+      status: "queued",
+      progress: 0,
+      logs: [],
+    }));
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>(jobs),
+    });
+
+    stateSyncTest.resetPerfCounters();
+
+    const backendJobs: TranscodeJob[] = jobs.map((j) => ({ ...j }));
+    backendJobs[1234] = { ...backendJobs[1234], status: "processing", progress: 0.5 };
+
+    applyQueueStateFromBackend({ jobs: backendJobs }, deps);
+
+    const counters = stateSyncTest.getPerfCounters();
+    expect(counters.recomputeFastPathJobsScanned).toBe(JOBS);
+    expect(counters.syncJobObjectCalls).toBe(JOBS);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend updates only patched jobs and reuses the cached id index", () => {
+    const JOBS = 10_000;
+    const jobs: TranscodeJob[] = Array.from({ length: JOBS }, (_, idx) => ({
+      id: `job-${idx}`,
+      filename: `C:/videos/${idx}.mp4`,
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      presetId: "preset-1",
+      status: "queued",
+      progress: 0,
+      logs: [],
+    }));
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>(jobs),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    stateSyncTest.resetPerfCounters();
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [{ id: "job-1234", status: "processing", progress: 0.5, elapsedMs: 1234 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[1234].status).toBe("processing");
+    expect(deps.jobs.value[1234].progress).toBe(0.5);
+    expect(deps.jobs.value[1234].elapsedMs).toBe(1234);
+
+    const afterFirst = stateSyncTest.getPerfCounters();
+    expect(afterFirst.deltaIndexBuilds).toBe(1);
+    expect(afterFirst.deltaIndexJobsScanned).toBe(JOBS);
+    expect(afterFirst.syncJobObjectCalls).toBe(0);
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 2,
+        patches: [{ id: "job-9999", status: "processing", progress: 1 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[9999].progress).toBe(1);
+
+    const afterSecond = stateSyncTest.getPerfCounters();
+    expect(afterSecond.deltaIndexBuilds).toBe(1);
+    expect(afterSecond.deltaIndexJobsScanned).toBe(JOBS);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend preserves logTail and waitMetadata when omitted from delta patches", () => {
+    const waitMetadata = {
+      processedWallMillis: 1234,
+      tmpOutputPath: "C:/tmp/seg0.mkv",
+      segments: ["C:/tmp/seg0.mkv"],
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/live-log.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 1,
+          logs: [],
+          logTail: "keep-this-tail",
+          waitMetadata: waitMetadata as any,
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [{ id: "job-1", progress: 2 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(2);
+    expect(deps.jobs.value[0].logTail).toBe("keep-this-tail");
+    expect(deps.jobs.value[0].waitMetadata).toEqual(waitMetadata);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend keeps job and array identities to avoid full list re-renders", () => {
+    const jobA: TranscodeJob = {
+      id: "job-a",
+      filename: "C:/videos/a.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: [],
+      elapsedMs: 123,
+      previewPath: "C:/previews/a.jpg",
+      previewRevision: 1,
+    };
+
+    const jobB: TranscodeJob = {
+      id: "job-b",
+      filename: "C:/videos/b.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      presetId: "preset-1",
+      status: "queued",
+      progress: 0,
+      logs: [],
+    };
+
+    const queueProgressRevision = ref(0);
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([jobA, jobB]),
+    });
+    (deps as any).queueProgressRevision = queueProgressRevision;
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    const beforeArray = deps.jobs.value;
+    const beforeA = deps.jobs.value[0];
+    const beforeB = deps.jobs.value[1];
+    const beforeAt = deps.lastQueueSnapshotAtMs.value;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [{ id: "job-a", progress: 12, elapsedMs: 234, previewPath: "C:/previews/a2.jpg", previewRevision: 2 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value).toBe(beforeArray);
+    expect(deps.jobs.value[0]).toBe(beforeA);
+    expect(deps.jobs.value[1]).toBe(beforeB);
+    expect(deps.jobs.value[0].progress).toBe(12);
+    expect(deps.jobs.value[0].elapsedMs).toBe(234);
+    expect(deps.jobs.value[0].previewPath).toBe("C:/previews/a2.jpg");
+    expect(deps.jobs.value[0].previewRevision).toBe(2);
+    expect(deps.lastQueueSnapshotAtMs.value).not.toBe(beforeAt);
+    expect(queueProgressRevision.value).toBe(1);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend applies progress decreases (restart/resume semantics)", () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/restart.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 80,
+          logs: [],
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 10,
+        patches: [{ id: "job-1", status: "queued", progress: 0 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].status).toBe("queued");
+    expect(deps.jobs.value[0].progress).toBe(0);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend ignores stale or mismatched delta updates", () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/progress.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 10,
+          logs: [],
+        },
+      ]),
+    });
+
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      { baseSnapshotRevision: 1, deltaRevision: 2, patches: [{ id: "job-1", progress: 50 }] },
+      deps,
+    );
+    expect(deps.jobs.value[0].progress).toBe(50);
+
+    // Stale deltaRevision should be ignored.
+    applyQueueStateLiteDeltaFromBackend(
+      { baseSnapshotRevision: 1, deltaRevision: 2, patches: [{ id: "job-1", progress: 20 }] },
+      deps,
+    );
+    expect(deps.jobs.value[0].progress).toBe(50);
+
+    // Mismatched baseSnapshotRevision should be ignored.
+    applyQueueStateLiteDeltaFromBackend(
+      { baseSnapshotRevision: 999, deltaRevision: 3, patches: [{ id: "job-1", progress: 90 }] },
+      deps,
+    );
+    expect(deps.jobs.value[0].progress).toBe(50);
+
+    // New snapshot revision resets delta ordering and accepts deltas for the new base.
+    applyQueueStateFromBackend({ snapshotRevision: 2, jobs: deps.jobs.value.map((j) => ({ ...j })) } as any, deps);
+    applyQueueStateLiteDeltaFromBackend(
+      { baseSnapshotRevision: 2, deltaRevision: 1, patches: [{ id: "job-1", progress: 60 }] },
+      deps,
+    );
+    expect(deps.jobs.value[0].progress).toBe(60);
   });
 });

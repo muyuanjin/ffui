@@ -18,6 +18,7 @@ const queue = {
   dropSubtitle: "Release to create manual jobs in the transcode queue",
   viewModeLabel: "Queue view",
   viewModes: {
+    mini: "Mini list",
     compact: "Compact list",
     detail: "Detailed list",
     // The following modes will be progressively enabled in follow-up changes.

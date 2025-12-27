@@ -174,7 +174,10 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_job(
         original_codec,
         preset_id,
     );
-    inner.cv.notify_one();
+    // Wake all waiting workers: enqueueing can add many jobs at once and we want
+    // the concurrency limit to be reached immediately (not only after the first
+    // job completes and calls notify_all()).
+    inner.cv.notify_all();
     notify_queue_listeners(inner);
     job
 }
@@ -207,7 +210,8 @@ pub(in crate::ffui_core::engine) fn enqueue_transcode_jobs(
         jobs.push(job);
     }
 
-    inner.cv.notify_one();
+    // See enqueue_transcode_job(): reach concurrency immediately after bulk enqueue.
+    inner.cv.notify_all();
     notify_queue_listeners(inner);
     jobs
 }

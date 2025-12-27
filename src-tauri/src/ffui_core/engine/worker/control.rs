@@ -390,7 +390,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
     };
 
     if should_notify {
-        inner.cv.notify_one();
+        inner.cv.notify_all();
         notify_queue_listeners(inner);
     }
 

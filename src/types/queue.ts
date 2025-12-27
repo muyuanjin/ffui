@@ -10,6 +10,7 @@ export type JobSource = "manual" | "batch_compress";
  * enum stable for persisted preferences.
  */
 export type QueueViewMode =
+  | "mini"
   | "compact"
   | "detail"
   | "icon-small"
@@ -198,6 +199,21 @@ export interface QueueStateLite {
   /** Monotonic snapshot revision for ordering / de-duping. */
   snapshotRevision?: number;
   jobs: TranscodeJobLite[];
+}
+
+export interface TranscodeJobLiteDeltaPatch {
+  id: string;
+  status?: JobStatus;
+  progress?: number;
+  elapsedMs?: number;
+  previewPath?: string;
+  previewRevision?: number;
+}
+
+export interface QueueStateLiteDelta {
+  baseSnapshotRevision: number;
+  deltaRevision: number;
+  patches: TranscodeJobLiteDeltaPatch[];
 }
 
 export type QueueStartupHintKind = "crashOrKill" | "pauseOnExit" | "pausedQueue" | "normalRestart";

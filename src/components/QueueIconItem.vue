@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRef } from "vue";
+import { computed, ref, watch, toRef, onUpdated } from "vue";
 import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
+import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -64,6 +64,11 @@ const clampedProgress = computed(() => {
 
   // waiting / queued
   return 0;
+});
+
+const progressTransformStyle = computed(() => {
+  const pct = clampedProgress.value;
+  return { transform: `translateX(-${100 - pct}%)` };
 });
 
 const showBarProgress = computed(
@@ -225,18 +230,13 @@ const previewRescreenshotAttempted = ref(false);
 
 watch(
   () => ({
-    id: props.job.id,
-    type: props.job.type,
     previewPath: props.job.previewPath,
     previewRevision: props.job.previewRevision,
   }),
-  ({ id, type, previewPath, previewRevision }) => {
+  ({ previewPath, previewRevision }) => {
     previewFallbackLoaded.value = false;
     previewRescreenshotAttempted.value = false;
     if (!previewPath) {
-      if (type === "video") {
-        requestJobPreviewWarmup(id);
-      }
       previewUrl.value = null;
       return;
     }
@@ -303,6 +303,12 @@ const onCardClick = () => {
 const onCardContextMenu = (event: MouseEvent) => {
   emit("contextmenu-job", { job: props.job, event });
 };
+
+if (isQueuePerfEnabled) {
+  onUpdated(() => {
+    recordQueueIconItemUpdate();
+  });
+}
 </script>
 
 <template>
@@ -407,23 +413,23 @@ const onCardContextMenu = (event: MouseEvent) => {
       >
         <div
           v-if="showBarProgress"
-          class="h-full rounded-full transition-all duration-300"
+          class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear will-change-transform"
           :class="progressColorClass"
-          :style="{ width: `${clampedProgress}%` }"
+          :style="progressTransformStyle"
           data-testid="queue-icon-item-progress-bar"
         />
         <div
           v-else-if="showCardFillProgress"
-          class="h-full rounded-full transition-all duration-300"
+          class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear will-change-transform"
           :class="progressColorClass"
-          :style="{ width: `${clampedProgress}%` }"
+          :style="progressTransformStyle"
           data-testid="queue-icon-item-progress-card-fill"
         />
         <div
           v-else
-          class="h-full rounded-full transition-all duration-300 animate-pulse"
+          class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear animate-pulse will-change-transform"
           :class="rippleProgressColorClass"
-          :style="{ width: `${clampedProgress}%` }"
+          :style="progressTransformStyle"
           data-testid="queue-icon-item-progress-ripple-card"
         />
       </div>

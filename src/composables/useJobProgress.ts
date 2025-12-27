@@ -6,6 +6,33 @@ import type { TranscodeJob, AppSettings, TaskbarProgressMode, TaskbarProgressSco
 
 const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS = 250;
 
+const isTestEnv =
+  typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
+
+type JobProgressPerfCounters = {
+  rebuildCalls: number;
+  rebuildJobsScanned: number;
+  progressWatches: number;
+  progressWatchUpdates: number;
+};
+
+const jobProgressPerfCounters: JobProgressPerfCounters = {
+  rebuildCalls: 0,
+  rebuildJobsScanned: 0,
+  progressWatches: 0,
+  progressWatchUpdates: 0,
+};
+
+export const __test = {
+  resetPerfCounters: () => {
+    jobProgressPerfCounters.rebuildCalls = 0;
+    jobProgressPerfCounters.rebuildJobsScanned = 0;
+    jobProgressPerfCounters.progressWatches = 0;
+    jobProgressPerfCounters.progressWatchUpdates = 0;
+  },
+  getPerfCounters: (): JobProgressPerfCounters => ({ ...jobProgressPerfCounters }),
+};
+
 // ----- Helper Functions -----
 
 /**
@@ -75,6 +102,8 @@ const isTerminalStatus = (status: TranscodeJob["status"]) =>
 export interface UseJobProgressOptions {
   /** The list of jobs. */
   jobs: Ref<TranscodeJob[]>;
+  /** Optional structural revision for the queue (changes only on non-progress updates). */
+  queueStructureRevision?: Ref<number | null>;
   /** App settings (for taskbar progress mode and progress update interval). */
   appSettings: Ref<AppSettings | null>;
 }
@@ -100,7 +129,7 @@ export interface UseJobProgressReturn {
  * Composable for job progress calculations and header progress bar state.
  */
 export function useJobProgress(options: UseJobProgressOptions): UseJobProgressReturn {
-  const { jobs, appSettings } = options;
+  const { jobs, queueStructureRevision, appSettings } = options;
 
   // ----- State -----
   const headerProgressPercent = ref(0);
@@ -125,10 +154,29 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
 
   /**
    * Calculate global taskbar progress as a weighted average.
+   *
+   * Hot path requirement: progress ticks MUST NOT scan the full queue.
    */
-  const globalTaskbarProgressPercent = computed<number | null>(() => {
+  const aggregateTotalWeight = ref(0);
+  const aggregateWeighted = ref(0);
+  const aggregateById = new Map<string, { weight: number; normalized: number }>();
+  let stopActiveJobWatches: Array<() => void> = [];
+
+  const rebuildAggregate = () => {
+    if (isTestEnv) {
+      jobProgressPerfCounters.rebuildCalls += 1;
+    }
+    for (const stop of stopActiveJobWatches) stop();
+    stopActiveJobWatches = [];
+    aggregateById.clear();
+    aggregateTotalWeight.value = 0;
+    aggregateWeighted.value = 0;
+
     const list = jobs.value;
-    if (!list || list.length === 0) return null;
+    if (!list || list.length === 0) return;
+    if (isTestEnv) {
+      jobProgressPerfCounters.rebuildJobsScanned += list.length;
+    }
 
     const mode: TaskbarProgressMode = appSettings.value?.taskbarProgressMode ?? "byEstimatedTime";
     const scope: TaskbarProgressScope = appSettings.value?.taskbarProgressScope ?? "allJobs";
@@ -136,13 +184,6 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     const hasNonTerminal = list.some((job) => !isTerminalStatus(job.status));
     let eligibleJobs = list;
     if (scope === "activeAndQueued" && hasNonTerminal) {
-      // When the user opts to ignore completed jobs, we still want a serial
-      // queue (or composite batch) to report steady progress instead of
-      // resetting to 0% between tasks. To achieve this, include terminal jobs
-      // that belong to the same "enqueue cohort" as the currently non-terminal
-      // jobs. This also preserves the original intent: when a new round of
-      // work starts after the previous queue is finished, older completed jobs
-      // should not cause a high starting percentage.
       const cohortStart = Math.min(
         ...list
           .filter((job) => !isTerminalStatus(job.status))
@@ -155,12 +196,10 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
           return typeof job.startTime === "number" && job.startTime >= cohortStart;
         });
       } else {
-        // Fallback: if no enqueue timestamps are available, preserve the
-        // previous behaviour (non-terminal only).
         eligibleJobs = list.filter((job) => !isTerminalStatus(job.status));
       }
     }
-    if (eligibleJobs.length === 0) return null;
+    if (eligibleJobs.length === 0) return;
 
     let totalWeight = 0;
     let weighted = 0;
@@ -170,14 +209,57 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
       const p = normalizedJobProgressForAggregate(job);
       totalWeight += w;
       weighted += w * p;
+      aggregateById.set(job.id, { weight: w, normalized: p });
+
+      if (job.status === "processing" || job.status === "paused") {
+        if (isTestEnv) {
+          jobProgressPerfCounters.progressWatches += 1;
+        }
+        const stop = watch(
+          () => job.progress,
+          (next) => {
+            if (isTestEnv) {
+              jobProgressPerfCounters.progressWatchUpdates += 1;
+            }
+            const entry = aggregateById.get(job.id);
+            if (!entry) return;
+            const prevP = entry.normalized;
+            const raw = typeof next === "number" ? next : 0;
+            const clamped = Math.min(Math.max(raw, 0), 100) / 100;
+            const nextP = Math.max(prevP, clamped);
+            if (nextP === prevP) return;
+            entry.normalized = nextP;
+            aggregateWeighted.value += entry.weight * (nextP - prevP);
+          },
+          { flush: "sync" },
+        );
+        stopActiveJobWatches.push(stop);
+      }
     }
 
-    if (totalWeight <= 0) return null;
-    const value = (weighted / totalWeight) * 100;
-    const clamped = Math.max(0, Math.min(100, value));
-    // Preserve decimals for smoother visual display; format as needed when rendering.
-    return clamped;
+    aggregateTotalWeight.value = totalWeight;
+    aggregateWeighted.value = weighted;
+  };
+
+  const globalTaskbarProgressPercent = computed<number | null>(() => {
+    if (aggregateTotalWeight.value <= 0) return null;
+    const value = (aggregateWeighted.value / aggregateTotalWeight.value) * 100;
+    return Math.max(0, Math.min(100, value));
   });
+
+  watch(
+    [
+      () => jobs.value,
+      () => jobs.value.length,
+      () => queueStructureRevision?.value ?? null,
+      () => appSettings.value?.taskbarProgressMode,
+      () => appSettings.value?.taskbarProgressScope,
+    ],
+    () => {
+      rebuildAggregate();
+    },
+    { immediate: true, flush: "sync" },
+  );
 
   /**
    * Check if there are any active (non-terminal) jobs.
@@ -271,6 +353,8 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
       headerProgressTween.kill();
       headerProgressTween = null;
     }
+    for (const stop of stopActiveJobWatches) stop();
+    stopActiveJobWatches = [];
   };
 
   return {

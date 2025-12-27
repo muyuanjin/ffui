@@ -1,8 +1,9 @@
 import { type Ref, type ComputedRef } from "vue";
-import type { TranscodeJob, FFmpegPreset, QueueState, Translate } from "@/types";
+import type { QueueStateLiteDelta, TranscodeJob, FFmpegPreset, QueueState, Translate } from "@/types";
 import {
   refreshQueueFromBackend as refreshQueueFromBackendImpl,
   applyQueueStateFromBackend as applyQueueStateFromBackendImpl,
+  applyQueueStateLiteDeltaFromBackend as applyQueueStateLiteDeltaFromBackendImpl,
   recomputeJobsFromBackend as recomputeJobsFromBackendImpl,
 } from "./queue/operations-state-sync";
 import {
@@ -10,7 +11,6 @@ import {
   handleResumeJob as handleResumeJobImpl,
   handleRestartJob as handleRestartJobImpl,
   handleCancelJob as handleCancelJobImpl,
-  addManualJobMock as addManualJobMockImpl,
   enqueueManualJobsFromPaths as enqueueManualJobsFromPathsImpl,
   enqueueManualJobFromPath as enqueueManualJobFromPathImpl,
 } from "./queue/operations-single";
@@ -47,6 +47,8 @@ export interface UseQueueOperationsOptions {
   lastQueueSnapshotAtMs: Ref<number | null>;
   /** Last applied monotonic snapshot revision (for ordering / de-dupe). */
   lastQueueSnapshotRevision: Ref<number | null>;
+  /** Monotonic progress revision (bumps on progress deltas). */
+  queueProgressRevision: Ref<number>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Callback when a job completes (for preset stats update). */
@@ -57,6 +59,8 @@ export interface UseQueueOperationsReturn extends QueueOperationMethods {
   // ----- Queue State Methods -----
   /** Apply queue state from backend. */
   applyQueueStateFromBackend: (state: QueueState) => void;
+  /** Apply queue state delta from backend. */
+  applyQueueStateLiteDeltaFromBackend: (delta: QueueStateLiteDelta) => void;
   /** Recompute jobs from backend data. */
   recomputeJobsFromBackend: (backendJobs: TranscodeJob[]) => void;
 
@@ -95,6 +99,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     selectedJobs,
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
+    queueProgressRevision,
     t,
     onJobCompleted,
   } = options;
@@ -106,6 +111,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     queueError,
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
+    queueProgressRevision,
     t,
     onJobCompleted,
   };
@@ -114,6 +120,9 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     recomputeJobsFromBackendImpl(backendJobs, stateSyncDeps);
 
   const applyQueueStateFromBackend = (state: QueueState) => applyQueueStateFromBackendImpl(state, stateSyncDeps);
+
+  const applyQueueStateLiteDeltaFromBackend = (delta: QueueStateLiteDelta) =>
+    applyQueueStateLiteDeltaFromBackendImpl(delta, stateSyncDeps);
 
   const refreshQueueFromBackend = async () => refreshQueueFromBackendImpl(stateSyncDeps);
 
@@ -138,8 +147,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
   const handleCancelJob = async (jobId: string) => handleCancelJobImpl(jobId, singleJobOpsDeps);
 
   // ----- Enqueue Methods -----
-
-  const addManualJobMock = () => addManualJobMockImpl(singleJobOpsDeps);
 
   const enqueueManualJobFromPath = async (path: string) => enqueueManualJobFromPathImpl(path, singleJobOpsDeps);
 
@@ -183,6 +190,7 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     // Queue State Methods
     refreshQueueFromBackend,
     applyQueueStateFromBackend,
+    applyQueueStateLiteDeltaFromBackend,
     recomputeJobsFromBackend,
 
     // Single Job Operations
@@ -191,8 +199,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     handleRestartJob,
     handleCancelJob,
 
-    // Enqueue Methods
-    addManualJobMock,
     enqueueManualJobFromPath,
     enqueueManualJobsFromPaths,
 

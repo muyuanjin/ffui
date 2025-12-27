@@ -60,11 +60,13 @@ fn snapshot_queue_state_lite_sorts_jobs_by_queue_order_then_id() {
 }
 
 #[test]
-fn snapshot_queue_state_lite_increments_snapshot_revision() {
+fn snapshot_queue_state_lite_preserves_snapshot_revision() {
     let mut state = make_queue_order_test_state();
+    state.queue_snapshot_revision = 42;
     let s1 = snapshot_queue_state_lite_from_locked_state(&mut state);
     let s2 = snapshot_queue_state_lite_from_locked_state(&mut state);
-    assert!(s2.snapshot_revision > s1.snapshot_revision);
+    assert_eq!(s1.snapshot_revision, 42);
+    assert_eq!(s2.snapshot_revision, 42);
 }
 
 #[test]

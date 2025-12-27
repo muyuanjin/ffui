@@ -28,10 +28,24 @@ const queueItemStub = {
   </div>`,
 };
 
+const queueIconItemStub = {
+  props: ["job"],
+  template: `<div data-testid="queue-icon-item-stub">{{ job.filename }}</div>`,
+};
+
 function getArray(possibleRef: any): any[] {
   if (Array.isArray(possibleRef)) return possibleRef;
   if (possibleRef && Array.isArray(possibleRef.value)) return possibleRef.value;
   return [];
+}
+
+function setMaybeRef(target: any, key: string, value: any) {
+  const current = target[key];
+  if (current && typeof current === "object" && "value" in current) {
+    current.value = value;
+  } else {
+    target[key] = value;
+  }
 }
 
 describe("MainApp queue view modes and empty state", () => {
@@ -136,6 +150,16 @@ describe("MainApp queue view modes and empty state", () => {
     expect(first.attributes("data-view-mode")).toBe("compact");
     expect(first.attributes("data-progress-style")).toBe("ripple-card");
 
+    if ("queueViewModeModel" in vm) {
+      vm.queueViewModeModel = "mini";
+      await nextTick();
+
+      items = wrapper.findAll("[data-testid='queue-item-stub']");
+      expect(items.length).toBe(1);
+      first = items[0];
+      expect(first.attributes("data-view-mode")).toBe("mini");
+    }
+
     wrapper.unmount();
   });
 
@@ -193,6 +217,84 @@ describe("MainApp queue view modes and empty state", () => {
     const texts = items.map((el) => el.text());
     expect(texts.join(" ")).toContain("visible.mp4");
     expect(texts.join(" ")).toContain("skipped.mp4");
+
+    wrapper.unmount();
+  });
+
+  it("shows processing jobs in queue mode icon view even when status filters hide them", async () => {
+    const wrapper = mount(MainApp, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          QueueItem: queueItemStub,
+          QueueIconItem: queueIconItemStub,
+        },
+      },
+    });
+
+    const vm: any = wrapper.vm;
+    vm.activeTab = "queue";
+
+    const previousQueueMode = "queueModeModel" in vm ? vm.queueModeModel : null;
+    const previousViewMode = "queueViewModeModel" in vm ? vm.queueViewModeModel : null;
+
+    if ("queueModeModel" in vm) {
+      vm.queueModeModel = "queue";
+    }
+    if ("queueViewModeModel" in vm) {
+      vm.queueViewModeModel = "icon-small";
+    }
+
+    const jobs: TranscodeJob[] = [
+      {
+        id: "job-processing",
+        filename: "C:/videos/processing.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "processing",
+        progress: 10,
+        logs: [],
+      },
+      {
+        id: "job-queued",
+        filename: "C:/videos/queued.mp4",
+        type: "video",
+        source: "manual",
+        originalSizeMB: 10,
+        originalCodec: "h264",
+        presetId: "p1",
+        status: "queued",
+        progress: 0,
+        logs: [],
+      },
+    ];
+
+    setMaybeRef(vm, "jobs", jobs);
+    // Hide processing via status filters; queue mode must still surface processing group/items.
+    if (typeof vm.toggleStatusFilter === "function") {
+      vm.toggleStatusFilter("queued");
+    } else {
+      setMaybeRef(vm, "activeStatusFilters", new Set(["queued"]));
+    }
+
+    await nextTick();
+
+    const items = wrapper.findAll("[data-testid='queue-icon-item-stub']");
+    const text = items.map((el) => el.text()).join(" ");
+    expect(text).toContain("processing.mp4");
+    expect(text).toContain("queued.mp4");
+
+    // Restore persisted preferences so other tests remain isolated.
+    if (previousQueueMode && "queueModeModel" in vm) {
+      vm.queueModeModel = previousQueueMode;
+    }
+    if (previousViewMode && "queueViewModeModel" in vm) {
+      vm.queueViewModeModel = previousViewMode;
+    }
+    await nextTick();
 
     wrapper.unmount();
   });

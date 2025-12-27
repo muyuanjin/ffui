@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
               role="combobox"
               type="button"
             >
-              <span>视图排序</span>
+              <span>默认视图</span>
               <svg class="w-3 h-3 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="m6 9 6 6 6-6" />
               </svg>

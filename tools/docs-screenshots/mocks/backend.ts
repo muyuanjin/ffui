@@ -9,10 +9,13 @@ import type {
   ExternalToolCandidate,
   ExternalToolKind,
   ExternalToolStatus,
+  ExitAutoWaitOutcome,
   FFmpegPreset,
   GpuUsageSnapshot,
   JobCompareSources,
   OutputPolicy,
+  PresetBundle,
+  PresetBundleExportResult,
   QueueStateLite,
   QueueState,
   BatchCompressConfig,
@@ -464,6 +467,14 @@ const readQueryParam = (key: string): string | undefined => {
   }
 };
 
+const readQueryParamNumber = (key: string): number | undefined => {
+  const raw = readQueryParam(key);
+  if (!raw) return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return undefined;
+  return parsed;
+};
+
 const buildQueueJobs = (): TranscodeJob[] => {
   const now = 1_700_000_000_000;
 
@@ -483,6 +494,45 @@ const buildQueueJobs = (): TranscodeJob[] => {
   if (queueScenario === "empty") {
     return [];
   }
+
+  const queueJobs = readQueryParamNumber("ffuiQueueJobs");
+  if (typeof queueJobs === "number" && queueJobs > 0) {
+    const processingCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueueProcessingJobs") ?? 2));
+    const pausedCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueuePausedJobs") ?? 0));
+
+    const total = Math.max(1, Math.floor(queueJobs));
+    const jobs: TranscodeJob[] = new Array(total);
+
+    for (let i = 0; i < total; i += 1) {
+      const id = `docs-perf-${String(i).padStart(6, "0")}`;
+      const filename = `C:/videos/big-queue/${id}-example.mp4`;
+      const outputPath = `C:/videos/out/${id}.compressed.mp4`;
+
+      const status: TranscodeJob["status"] =
+        i < processingCount ? "processing" : i < processingCount + pausedCount ? "paused" : "waiting";
+      const progress = status === "processing" ? 10 + (i % 80) : status === "paused" ? 66 : 0;
+
+      jobs[i] = {
+        id,
+        filename,
+        type: "video",
+        source: "manual",
+        originalSizeMB: 120 + (i % 900),
+        originalCodec: i % 3 === 0 ? "hevc" : "h264",
+        presetId: "p1",
+        status,
+        progress,
+        inputPath: filename,
+        outputPath,
+        previewPath: poster1,
+        logs: [],
+        estimatedSeconds: 300,
+      } satisfies TranscodeJob;
+    }
+
+    return jobs;
+  }
+
   if (queueScenario === "carousel-3d-many-items") {
     return Array.from({ length: 21 }, (_, idx) => {
       const index = idx + 1;
@@ -799,6 +849,7 @@ export const enqueueTranscodeJobs = async (params: {
 export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const cancelTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const waitTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const waitTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const resumeTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 
@@ -823,6 +874,45 @@ export const revealPathInFolder = async (_path: string): Promise<boolean> => tru
 export const openDevtools = async (): Promise<boolean> => true;
 
 export const acknowledgeTaskbarProgress = async (): Promise<boolean> => true;
+
+export const exportPresetsBundle = async (
+  targetPath: string,
+  presetIds: string[],
+): Promise<PresetBundleExportResult> => {
+  const presets = await loadPresets();
+  const selected = new Set(presetIds.map((id) => String(id).trim()).filter(Boolean));
+  const includedPresets = selected.size > 0 ? presets.filter((p) => selected.has(p.id)) : presets;
+
+  const exportedAtMs = Date.now();
+  return {
+    path: String(targetPath ?? "").trim(),
+    schemaVersion: 1,
+    appVersion: "docs-screenshot",
+    exportedAtMs,
+    presetCount: includedPresets.length,
+  };
+};
+
+export const readPresetsBundle = async (_sourcePath: string): Promise<PresetBundle> => {
+  const exportedAtMs = Date.now();
+  return {
+    schemaVersion: 1,
+    appVersion: "docs-screenshot",
+    exportedAtMs,
+    presets: await loadPresets(),
+  };
+};
+
+export const resetExitPrompt = async (): Promise<void> => {};
+export const exitAppNow = async (): Promise<void> => {};
+export const exitAppWithAutoWait = async (): Promise<ExitAutoWaitOutcome> => {
+  return {
+    requestedJobCount: 0,
+    completedJobCount: 0,
+    timedOutJobCount: 0,
+    timeoutSeconds: 0,
+  };
+};
 
 export const fetchCpuUsage = async (): Promise<CpuUsageSnapshot> => {
   return { overall: 35, perCore: [22, 40, 33, 28, 45, 19, 37, 41] };

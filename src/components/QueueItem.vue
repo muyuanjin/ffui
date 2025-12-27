@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from "vue";
+import { computed, onUpdated } from "vue";
 import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
 import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
-import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { ensureJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
-import { preloadImage } from "@/lib/previewPreload";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
+import QueueItemMiniRow from "@/components/queue-item/QueueItemMiniRow.vue";
 import QueueItemCommandPreview from "@/components/queue-item/QueueItemCommandPreview.vue";
 import { useSmoothProgress } from "@/components/queue-item/useSmoothProgress";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { isQueuePerfEnabled, recordQueueItemUpdate } from "@/lib/queuePerf";
+import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -48,7 +48,7 @@ const props = defineProps<{
    * Visual density for this row. "detail" matches the existing layout,
    * while "compact" uses reduced spacing and hides secondary text.
    */
-  viewMode?: "detail" | "compact";
+  viewMode?: "detail" | "compact" | "mini";
   /**
    * Per-row progress style. The queue chooses this based on the
    * global queueProgressStyle preference.
@@ -74,8 +74,9 @@ const emit = defineEmits<{
   (e: "contextmenu-job", payload: { job: TranscodeJob; event: MouseEvent }): void;
 }>();
 
-const rowVariant = computed<"detail" | "compact">(() => props.viewMode ?? "detail");
+const rowVariant = computed<"detail" | "compact" | "mini">(() => props.viewMode ?? "detail");
 const isCompact = computed(() => rowVariant.value === "compact");
+const isMini = computed(() => rowVariant.value === "mini");
 const effectiveStatus = computed<UiJobStatus>(() => (props.isPausing ? "pausing" : props.job.status));
 
 const statusTextClass = computed(() => {
@@ -238,108 +239,22 @@ const handleCopyCommand = async () => {
   await copyToClipboard(effectiveCommand.value);
 };
 
-const previewUrl = ref<string | null>(null);
-const previewFallbackLoaded = ref(false);
-const previewRescreenshotAttempted = ref(false);
-const previewErrorHandlingInFlight = ref(false);
-const lastPreviewPath = ref<string | null>(null);
+const { previewUrl, handlePreviewError } = useQueueItemPreview({
+  job: computed(() => props.job),
+  isTestEnv,
+});
 
-/**
- * 为队列项计算缩略图路径：
- * - 首选后端提供的 previewPath（通常是预生成的 jpg 预览图或 AVIF 输出）；
- * - 对于图片任务，当 previewPath 为空时，回退到 outputPath 或 inputPath，保证
- *   Batch Compress 图片子任务在“替换原文件”后仍然可以预览最终压缩结果；
- * - 视频任务仍然只依赖 previewPath，避免直接用视频文件作为 <img> 源。
- */
-watch(
-  () => ({
-    id: props.job.id,
-    previewPath: props.job.previewPath,
-    previewRevision: props.job.previewRevision,
-    type: props.job.type,
-    inputPath: props.job.inputPath,
-    outputPath: props.job.outputPath,
-  }),
-  ({ id, previewPath, previewRevision, type, inputPath, outputPath }) => {
-    previewFallbackLoaded.value = false;
-    if ((previewPath ?? null) !== lastPreviewPath.value) {
-      previewRescreenshotAttempted.value = false;
-      lastPreviewPath.value = previewPath ?? null;
-    }
-
-    let path: string | null = null;
-
-    if (previewPath) {
-      path = previewPath;
-    } else if (type === "image") {
-      // 图片任务在缺少专用预览图时，使用最终输出或原始输入路径兜底。
-      path = outputPath || inputPath || null;
-    }
-
-    if (!path) {
-      if (type === "video") {
-        void ensureJobPreviewWarmup(id).then((ensured) => {
-          if (!ensured) return;
-          if (props.job.id !== id) return;
-          if (props.job.previewPath) return;
-          if (previewUrl.value) return;
-
-          previewUrl.value = buildJobPreviewUrl(ensured, props.job.previewRevision);
-          preloadImage(previewUrl.value);
-        });
-      }
-      previewUrl.value = null;
-      return;
-    }
-
-    previewUrl.value = buildJobPreviewUrl(path, previewRevision);
-    preloadImage(previewUrl.value);
-  },
-  { immediate: true },
-);
-
-const handlePreviewError = async () => {
-  const path = props.job.previewPath;
-  if (!path) return;
-  if (!hasTauri()) return;
-  if (previewFallbackLoaded.value) return;
-  if (previewErrorHandlingInFlight.value) return;
-
-  previewErrorHandlingInFlight.value = true;
-
-  try {
-    try {
-      const url = await loadPreviewDataUrl(path);
-      previewUrl.value = url;
-      previewFallbackLoaded.value = true;
-      await nextTick();
-      return;
-    } catch (error) {
-      if (previewRescreenshotAttempted.value) {
-        console.error("QueueItem: failed to load preview via data URL fallback", error);
-        return;
-      }
-
-      previewRescreenshotAttempted.value = true;
-      if (!isTestEnv) {
-        console.warn("QueueItem: preview missing or unreadable, attempting regeneration", error);
-      }
-
-      try {
-        const regenerated = await ensureJobPreview(props.job.id);
-        if (regenerated) {
-          previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
-          previewFallbackLoaded.value = false;
-          await nextTick();
-        }
-      } catch (regenError) {
-        console.error("QueueItem: failed to regenerate preview", regenError);
-      }
-    }
-  } finally {
-    previewErrorHandlingInFlight.value = false;
-  }
-};
+const rowListeners = {
+  "toggle-select": (id: string) => emit("toggle-select", id),
+  inspect: (targetJob: TranscodeJob) => emit("inspect", targetJob),
+  compare: (targetJob: TranscodeJob) => emit("compare", targetJob),
+  wait: (id: string) => emit("wait", id),
+  resume: (id: string) => emit("resume", id),
+  restart: (id: string) => emit("restart", id),
+  cancel: (id: string) => emit("cancel", id),
+  preview: (targetJob: TranscodeJob) => emit("preview", targetJob),
+  "preview-error": handlePreviewError,
+} as const;
 
 const mediaSummary = computed(() => {
   const info = props.job.mediaInfo;
@@ -383,21 +298,39 @@ const onCardClick = () => {
 const onCardContextMenu = (event: MouseEvent) => {
   emit("contextmenu-job", { job: props.job, event });
 };
+
+if (isQueuePerfEnabled) {
+  onUpdated(() => {
+    recordQueueItemUpdate();
+  });
+}
 </script>
 
 <template>
   <Card
-    class="relative mb-3 border-border/60 bg-card/80 transition-colors cursor-pointer overflow-hidden ring-0"
+    class="relative border-border/60 bg-card/80 transition-colors cursor-pointer overflow-hidden ring-0"
     :class="[
-      isSkipped ? 'opacity-60 bg-muted/60' : 'hover:border-primary/40',
-      isSelectable && isSelected ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5' : '',
-      isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
+      isMini
+        ? 'border-0 border-b rounded-none shadow-none bg-transparent'
+        : isSkipped
+          ? 'opacity-60 bg-muted/60'
+          : 'hover:border-primary/40',
+      isMini && !isSkipped ? 'hover:bg-muted/20' : '',
+      isMini
+        ? isSelectable && isSelected
+          ? '!ring-1 ring-primary/60 bg-primary/10'
+          : ''
+        : isSelectable && isSelected
+          ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5'
+          : '',
+      isMini ? 'px-2 py-1.5 md:px-2 md:py-1.5' : isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
     data-testid="queue-item-card"
     @click="onCardClick"
     @contextmenu.prevent.stop="onCardContextMenu"
   >
     <QueueItemProgressLayer
+      v-if="!isMini"
       :show-card-fill-progress="showCardFillProgress"
       :show-ripple-card-progress="showRippleCardProgress"
       :preview-url="previewUrl"
@@ -406,7 +339,31 @@ const onCardContextMenu = (event: MouseEvent) => {
       @preview-error="handlePreviewError"
     />
 
+    <QueueItemMiniRow
+      v-if="isMini"
+      :job="job"
+      :preset="preset"
+      :is-selectable="isSelectable"
+      :is-selected="isSelected"
+      :is-skipped="isSkipped"
+      :type-label="typeLabel"
+      :display-filename="displayFilename"
+      :display-original-size="displayOriginalSize"
+      :status-text-class="statusTextClass"
+      :localized-status="localizedStatus"
+      :is-waitable="isWaitable"
+      :is-resumable="isResumable"
+      :is-restartable="isRestartable"
+      :is-cancellable="isCancellable"
+      :preview-url="previewUrl"
+      :progress-value="displayedClampedProgress"
+      :progress-variant="progressVariant"
+      :t="t"
+      v-on="rowListeners"
+    />
+
     <QueueItemHeaderRow
+      v-else
       :job="job"
       :preset="preset"
       :is-pausing="props.isPausing === true"
@@ -428,25 +385,17 @@ const onCardContextMenu = (event: MouseEvent) => {
       :is-cancellable="isCancellable"
       :preview-url="previewUrl"
       :t="t"
-      @toggle-select="(id) => emit('toggle-select', id)"
-      @inspect="(targetJob) => emit('inspect', targetJob)"
-      @compare="(targetJob) => emit('compare', targetJob)"
-      @wait="(id) => emit('wait', id)"
-      @resume="(id) => emit('resume', id)"
-      @restart="(id) => emit('restart', id)"
-      @cancel="(id) => emit('cancel', id)"
-      @preview="(targetJob) => emit('preview', targetJob)"
-      @preview-error="handlePreviewError"
+      v-on="rowListeners"
     />
 
     <Progress
-      v-if="showBarProgress"
+      v-if="!isMini && showBarProgress"
       :model-value="displayedClampedProgress"
       :variant="progressVariant"
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />
-    <div v-if="!isCompact && (rawCommand || mediaSummary)">
+    <div v-if="!isCompact && !isMini && (rawCommand || mediaSummary)">
       <QueueItemCommandPreview
         :raw-command="rawCommand"
         :media-summary="mediaSummary"

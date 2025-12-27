@@ -78,7 +78,7 @@ export interface UseMainAppQueueReturn
   queueViewModeModel: Ref<QueueViewMode>;
   queueModeModel: Ref<QueueMode>;
   queueProgressStyleModel: Ref<QueueProgressStyle>;
-  queueRowVariant: ComputedRef<"detail" | "compact">;
+  queueRowVariant: ComputedRef<"detail" | "compact" | "mini">;
   isIconViewMode: ComputedRef<boolean>;
   isCarousel3dViewMode: ComputedRef<boolean>;
   iconViewSize: ComputedRef<"small" | "medium" | "large">;
@@ -154,8 +154,10 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     set: (value) => setQueueProgressStyle(value),
   });
 
-  const queueRowVariant = computed<"detail" | "compact">(() => {
-    return queueViewMode.value === "compact" ? "compact" : "detail";
+  const queueRowVariant = computed<"detail" | "compact" | "mini">(() => {
+    if (queueViewMode.value === "mini") return "mini";
+    if (queueViewMode.value === "compact") return "compact";
+    return "detail";
   });
 
   const isIconViewMode = computed(
@@ -204,6 +206,10 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     },
     { deep: false },
   );
+
+  // Monotonic progress revision used to trigger progress-based sorting without
+  // reintroducing full-list ordering fingerprints on every delta tick.
+  const queueProgressRevision = ref(0);
   const {
     selectedJobIds,
     activeStatusFilters,
@@ -240,6 +246,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     compareJobsForDisplay,
   } = useQueueFiltering({
     jobs,
+    queueStructureRevision: lastQueueSnapshotRevision,
+    queueProgressRevision,
     compositeBatchCompressTasks,
     compositeTasksById,
     t: (key: string) => t(key),
@@ -259,11 +267,11 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   const {
     refreshQueueFromBackend,
     applyQueueStateFromBackend,
+    applyQueueStateLiteDeltaFromBackend,
     handleWaitJob,
     handleResumeJob,
     handleRestartJob,
     handleCancelJob,
-    addManualJobMock,
     enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
     bulkCancelSelectedJobs,
@@ -282,10 +290,10 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     selectedJobs,
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
+    queueProgressRevision,
     t: (key: string) => t(key),
     onJobCompleted,
   });
-  void addManualJobMock;
 
   const queueModeWaitingItems = computed<QueueListItem[]>(() => {
     if (queueMode.value !== "queue") return [];
@@ -327,6 +335,10 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     const items: QueueListItem[] = [];
 
     if (queueMode.value === "queue") {
+      // Queue mode: always include processing items for icon/carousel views.
+      for (const job of queueModeProcessingJobs.value) {
+        items.push({ kind: "job", job });
+      }
       const waitingItems = queueModeWaitingItems.value;
       const waitingBatchIds = queueModeWaitingBatchIds.value;
       items.push(...waitingItems);
@@ -406,6 +418,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     startupIdleReady,
     refreshQueueFromBackend,
     applyQueueStateFromBackend,
+    applyQueueStateLiteDeltaFromBackend,
   });
 
   return {
@@ -463,7 +476,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     handleResumeJob,
     handleRestartJob,
     handleCancelJob,
-    addManualJobMock,
     enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
 

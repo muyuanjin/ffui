@@ -28,6 +28,13 @@ mod system_metrics;
 #[cfg(test)]
 pub mod test_support;
 
+// Expose queue-lite types for tooling/bench binaries without making the entire
+// `ffui_core` module part of the public API surface.
+pub use crate::ffui_core::{
+    JobSource, JobStatus, JobType, QueueStateLite, QueueStateLiteDelta, TranscodeJobLite,
+    TranscodeJobLiteDeltaPatch,
+};
+
 // Taskbar progress APIs are Windows-only; on other platforms we keep the module
 // present but empty so `-D warnings` does not fail due to unused helpers.
 #[cfg(windows)]
@@ -41,9 +48,7 @@ use std::time::Duration;
 use serde::Serialize;
 use tauri::{Emitter, Manager};
 
-use crate::ffui_core::{
-    AutoCompressProgress, JobStatus, TranscodingEngine, init_child_process_job,
-};
+use crate::ffui_core::{AutoCompressProgress, TranscodingEngine, init_child_process_job};
 use crate::sync_ext::MutexExt;
 use crate::system_metrics::{MetricsState, spawn_metrics_sampler};
 
@@ -134,6 +139,7 @@ pub fn run() {
             commands::queue::get_queue_state_lite,
             commands::queue::get_queue_startup_hint,
             commands::queue::resume_startup_queue,
+            commands::queue::dismiss_queue_startup_hint,
             commands::queue::enqueue_transcode_job,
             commands::queue::enqueue_transcode_jobs,
             commands::queue::expand_manual_job_inputs,

@@ -152,6 +152,27 @@ describe("QueueItem display preview & command view", () => {
     expect(img.attributes("src")).toBe(job.previewPath);
   });
 
+  it("does not auto-generate previews on mount when previewPath is missing (Tauri mode)", async () => {
+    const job = makeJob({ status: "processing", previewPath: undefined, previewRevision: 0 });
+
+    (hasTauri as any).mockReturnValue(true);
+
+    mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canCancel: false,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await nextTick();
+
+    expect(ensureJobPreview).toHaveBeenCalledTimes(0);
+  });
+
   it("cache-busts the thumbnail src when previewRevision changes but previewPath stays stable (Tauri mode)", async () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg", previewRevision: 1 });
 
@@ -258,8 +279,8 @@ describe("QueueItem display preview & command view", () => {
     expect(imgs.length).toBe(0);
   });
 
-  it("requests backend preview generation when previewPath is missing in Tauri mode", () => {
-    const job = makeJob({ status: "queued", progress: 0, previewPath: undefined });
+  it("does not request backend preview generation when previewPath is missing for processing jobs in Tauri mode", () => {
+    const job = makeJob({ status: "processing", progress: 0, previewPath: undefined });
     (hasTauri as any).mockReturnValue(true);
 
     mount(QueueItem, {
@@ -273,8 +294,7 @@ describe("QueueItem display preview & command view", () => {
       },
     });
 
-    expect(ensureJobPreview).toHaveBeenCalledTimes(1);
-    expect(ensureJobPreview).toHaveBeenCalledWith(job.id);
+    expect(ensureJobPreview).toHaveBeenCalledTimes(0);
   });
 
   it("falls back to input/output path for image jobs when previewPath is missing", async () => {

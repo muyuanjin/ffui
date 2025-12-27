@@ -38,6 +38,7 @@ mod crash_recovery_conservative_rollback;
 mod crash_recovery_merge_tests;
 mod crash_recovery_segment_discovery;
 mod enqueue_and_logging;
+mod enqueue_notifies_all_waiters;
 mod ffmpeg_args_contract_tests;
 mod ffmpeg_args_filters_tests;
 mod ffmpeg_args_template_tokenizer_tests;

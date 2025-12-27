@@ -66,6 +66,14 @@ afterEach(() => {
     }
   }
   autoUnmountWrappers.clear();
+
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage?.clear?.();
+    } catch {
+      // ignore
+    }
+  }
 });
 
 afterAll(async () => {

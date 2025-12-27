@@ -322,7 +322,7 @@ defineExpose({
         />
 
         <div v-if="activeTab === 'queue'" class="flex-1 min-h-0">
-          <div class="p-4 min-h-full flex flex-col">
+          <div class="p-4 flex-1 min-h-0 flex flex-col">
             <QueuePanel
               v-bind="queuePanelProps"
               @update:queue-view-mode="setQueueViewMode"

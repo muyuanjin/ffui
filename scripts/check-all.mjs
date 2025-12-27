@@ -12,6 +12,7 @@ function parseArgs(argv) {
     rustPlatform: "auto", // auto | windows | linux | both
     rustTargetDir: "auto", // auto | workspace | cache
     rustTestThreads: "auto", // auto | <positive int>
+    includePlaywright: false,
   };
 
   for (const arg of argv) {
@@ -22,6 +23,7 @@ function parseArgs(argv) {
           "                               [--rust-platform auto|windows|linux|both]",
           "                               [--rust-target-dir auto|workspace|cache]",
           "                               [--rust-test-threads auto|N]",
+          "                               [--include-playwright=0|1]",
           "",
           "Notes:",
           "- Frontend build/tests run once (host platform).",
@@ -29,6 +31,7 @@ function parseArgs(argv) {
           "- rust-platform=both requires both platforms to be runnable on this host.",
           "- rust-target-dir=cache stores Linux Rust artifacts under XDG_CACHE_HOME (useful on WSL when the repo lives on /mnt/<drive>).",
           "- rust-test-threads controls Rust libtest thread count (auto uses 1).",
+          "- include-playwright=1 enables optional Playwright smoke checks (may generate screenshot artifacts).",
           "",
         ].join("\n"),
       );
@@ -46,6 +49,9 @@ function parseArgs(argv) {
 
     const tt = arg.match(/^--rust-test-threads=(.+)$/);
     if (tt) out.rustTestThreads = tt[1];
+
+    const pw = arg.match(/^--include-playwright=(.+)$/);
+    if (pw) out.includePlaywright = pw[1] === "1" || pw[1] === "true";
   }
 
   if (!["auto", "windows", "linux", "both"].includes(out.rustPlatform)) {
@@ -168,9 +174,10 @@ async function runFrontendPnpmStep(label, pnpmArgs, opts, options = {}) {
       );
     }
 
-    await runStep(label, windowsPnpmCmd, pnpmArgs, {
+    const cwdLinux = path.resolve(options.cwd ?? process.cwd());
+    await runStep(label, "cmd.exe", ["/d", "/s", "/c", "pnpm", ...pnpmArgs], {
       ...options,
-      cwd: path.resolve(options.cwd ?? process.cwd()),
+      cwd: cwdLinux,
     });
     return;
   }
@@ -652,7 +659,15 @@ await runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "for
 await runFrontendPnpmStep("Frontend lint (eslint)", ["run", "lint"], opts);
 await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
 await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
+await runFrontendPnpmStep("Queue perf benches (vitest perf suite)", ["run", "bench:queue"], opts);
 await runFrontendPnpmStep("i18n key check", ["run", "check:i18n"], opts);
+if (opts.includePlaywright) {
+  await runFrontendPnpmStep(
+    "Queue large list screenshot smoke (Playwright)",
+    ["run", "docs:screenshots:queue-large"],
+    opts,
+  );
+}
 await runFrontendPnpmStep("Duplicate check (frontend, jscpd)", ["run", "dup:frontend"], opts);
 await runFrontendPnpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts);
 

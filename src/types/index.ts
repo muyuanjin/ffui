@@ -43,6 +43,8 @@ export type {
   // Kept as a separate alias so existing imports remain valid while sharing the
   // same underlying structure as QueueState.
   QueueStateLite,
+  QueueStateLiteDelta,
+  TranscodeJobLiteDeltaPatch,
   QueueStartupHintKind,
   QueueStartupHint,
 } from "./queue";

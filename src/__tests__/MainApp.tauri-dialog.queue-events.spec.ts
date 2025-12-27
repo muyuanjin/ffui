@@ -74,7 +74,7 @@ describe("MainApp queue event handling", () => {
     wrapper.unmount();
   });
 
-  it("performs a safety refresh when processing jobs stay at 0% for a while", async () => {
+  it("performs a safety refresh when queue events go stale for a while", async () => {
     vi.useFakeTimers();
 
     const jobId = "job-stuck-0";
@@ -119,7 +119,9 @@ describe("MainApp queue event handling", () => {
     const initialCalls = getQueueStateCalls;
     expect(initialCalls).toBeGreaterThan(0);
 
-    await vi.advanceTimersByTimeAsync(9000);
+    // Safety refresh runs on a low-frequency timer and triggers only when
+    // the last applied queue update is considered stale.
+    await vi.advanceTimersByTimeAsync(61_000);
 
     expect(getQueueStateCalls).toBeGreaterThan(initialCalls);
 

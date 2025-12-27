@@ -246,31 +246,6 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
 // ----- Enqueue Methods -----
 
 /**
- * Add a mock manual job for non-Tauri environments.
- * Uses current manual preset or first available preset.
- */
-export function addManualJobMock(deps: Pick<SingleJobOpsDeps, "jobs" | "manualJobPreset" | "presets">) {
-  const presetForJob = deps.manualJobPreset.value ?? deps.presets.value[0];
-  if (!presetForJob) {
-    return;
-  }
-  const size = Math.floor(Math.random() * 500) + 50;
-  const newJob: TranscodeJob = {
-    id: Date.now().toString(),
-    filename: `manual_job_${Math.floor(Math.random() * 1000)}.mp4`,
-    type: "video",
-    source: "manual",
-    originalSizeMB: size,
-    originalCodec: "h264",
-    presetId: presetForJob.id,
-    status: "queued",
-    progress: 0,
-    logs: [],
-  };
-  deps.jobs.value = [newJob, ...deps.jobs.value];
-}
-
-/**
  * Enqueue manual jobs from a list of input paths (files and/or directories).
  *
  * This expands all inputs in a single backend call and batches the enqueue

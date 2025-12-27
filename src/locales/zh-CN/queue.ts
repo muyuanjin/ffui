@@ -19,6 +19,7 @@ const queue = {
   viewModeLabel: "队列视图",
   viewModes: {
     // 所有视图名称统一保持四个字，便于在下拉和按钮中对齐。
+    mini: "迷你列表",
     compact: "紧凑列表",
     detail: "详情列表",
     iconSmall: "小图网格",
@@ -31,9 +32,9 @@ const queue = {
   carouselSpeedHint: "0 表示不自动轮播，仅响应鼠标滚轮和方向键",
   modeLabel: "队列模式",
   modes: {
-    display: "视图排序",
+    display: "默认视图",
     queue: "执行队列",
-    displayLabelShort: "视图排序",
+    displayLabelShort: "默认视图",
     queueLabelShort: "执行队列",
     displayHint:
       "仅改显示顺序：只改变界面上任务的展示顺序，不会影响后台实际执行顺序。拖拽、移到队首或队尾等调整优先级的操作在该模式下会被禁用。",

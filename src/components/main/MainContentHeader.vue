@@ -348,6 +348,7 @@ const hoverPreviewExample = computed(() => {
           <SelectItem value="compact" data-testid="ffui-queue-view-mode-compact">{{
             t("queue.viewModes.compact")
           }}</SelectItem>
+          <SelectItem value="mini" data-testid="ffui-queue-view-mode-mini">{{ t("queue.viewModes.mini") }}</SelectItem>
           <SelectItem value="icon-small" data-testid="ffui-queue-view-mode-icon-small">{{
             t("queue.viewModes.iconSmall")
           }}</SelectItem>

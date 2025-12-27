@@ -16,10 +16,16 @@ const LARGE_QUEUE_SORT_YIELD_EVERY_ITEMS = 200;
 
 export interface QueueSortingDeps {
   filteredJobs: ComputedRef<TranscodeJob[]>;
+  /** Filtered jobs ignoring status filters (used to always surface processing jobs in queue mode). */
+  filteredJobsIgnoringStatus?: ComputedRef<TranscodeJob[]>;
   sortPrimary: Ref<QueueSortField>;
   sortPrimaryDirection: Ref<QueueSortDirection>;
   sortSecondary: Ref<QueueSortField>;
   sortSecondaryDirection: Ref<QueueSortDirection>;
+  /** Optional structural revision for the queue (changes only on non-progress updates). */
+  queueStructureRevision?: Ref<number | null>;
+  /** Optional progress revision used for progress-based sorting. */
+  queueProgressRevision?: Ref<number>;
 }
 
 export interface QueueSortingState {
@@ -91,17 +97,25 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     return compareJobsInWaitingGroupBase(a, b, compareJobsByConfiguredFields);
   };
 
+  const progressSortRevision = computed(() => {
+    const primary = sortPrimary.value;
+    const secondary = sortSecondary.value;
+    if (primary !== "progress" && secondary !== "progress") return 0;
+    return deps.queueProgressRevision?.value ?? 0;
+  });
+
   const orderingFingerprint = computed(() => {
     const list = filteredJobs.value;
     if (!list || list.length === 0) return "";
 
     const primary = sortPrimary.value;
     const secondary = sortSecondary.value;
+    const canUseProgressRevision = deps.queueProgressRevision != null;
 
     return list
       .map((job) => {
-        const pv = getJobSortValue(job, primary);
-        const sv = getJobSortValue(job, secondary);
+        const pv = canUseProgressRevision && primary === "progress" ? "" : getJobSortValue(job, primary);
+        const sv = canUseProgressRevision && secondary === "progress" ? "" : getJobSortValue(job, secondary);
         const qo = job.queueOrder ?? "";
         const st = job.startTime ?? "";
         return `${job.id}\u0000${String(pv ?? "")}\u0000${String(sv ?? "")}\u0000${qo}\u0000${st}`;
@@ -138,13 +152,15 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     const primaryDirection = sortPrimaryDirection.value;
     const secondary = sortSecondary.value;
     const secondaryDirection = sortSecondaryDirection.value;
+    const structureRevision = deps.queueStructureRevision?.value ?? null;
+    const progressRevision = progressSortRevision.value;
     const fingerprint = orderingFingerprint.value;
 
     if (!fingerprint) {
-      return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|empty`;
+      return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|struct=${structureRevision ?? "none"}|progress=${progressRevision}|empty`;
     }
 
-    return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}\n${fingerprint}`;
+    return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|struct=${structureRevision ?? "none"}|progress=${progressRevision}\n${fingerprint}`;
   });
 
   watch(
@@ -189,9 +205,14 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
   });
 
   const manualQueueJobs = computed<TranscodeJob[]>(() => filteredJobs.value.filter((job) => !job.batchId));
+  const manualQueueJobsIgnoringStatus = computed<TranscodeJob[]>(() => {
+    const source = deps.filteredJobsIgnoringStatus?.value;
+    if (!source) return manualQueueJobs.value;
+    return source.filter((job) => !job.batchId);
+  });
 
   const queueModeProcessingJobs = computed<TranscodeJob[]>(() =>
-    manualQueueJobs.value
+    manualQueueJobsIgnoringStatus.value
       .filter((job) => job.status === "processing")
       .slice()
       .sort((a, b) => (a.startTime ?? 0) - (b.startTime ?? 0)),

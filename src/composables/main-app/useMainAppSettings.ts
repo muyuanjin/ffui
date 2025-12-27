@@ -6,6 +6,8 @@ import { useAppSettings, useJobProgress } from "@/composables";
 
 export interface UseMainAppSettingsOptions {
   jobs: Ref<TranscodeJob[]>;
+  /** Monotonic queue structure revision (ignores progress-only updates). */
+  queueStructureRevision?: Ref<number | null>;
   manualJobPresetId: Ref<string | null>;
   smartConfig: Ref<BatchCompressConfig>;
   /** Optional startup idle gate so initial calls can be deferred until after first paint. */
@@ -44,7 +46,7 @@ export interface UseMainAppSettingsReturn {
  * - Keeps AppSettings.defaultQueuePresetId in sync with manualJobPresetId.
  */
 export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainAppSettingsReturn {
-  const { jobs, manualJobPresetId, smartConfig, startupIdleReady } = options;
+  const { jobs, queueStructureRevision, manualJobPresetId, smartConfig, startupIdleReady } = options;
 
   const { t } = useI18n();
 
@@ -75,8 +77,7 @@ export function useMainAppSettings(options: UseMainAppSettingsOptions): UseMainA
     headerProgressVisible,
     headerProgressFading,
     cleanup: cleanupJobProgress,
-  } = useJobProgress({ jobs, appSettings });
-
+  } = useJobProgress({ jobs, queueStructureRevision, appSettings });
   // Keep AppSettings.defaultQueuePresetId in sync when the user changes the
   // queue header preset selector. This ensures the next launch restores the
   // same default preset.

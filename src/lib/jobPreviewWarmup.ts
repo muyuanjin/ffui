@@ -110,7 +110,6 @@ export function ensureJobPreviewWarmup(jobId: string | null | undefined): Promis
 }
 
 export function resetJobPreviewWarmupForTests() {
-  if (!isTestEnv) return;
   pendingJobIds.clear();
   lastAttemptAtMsByJobId.clear();
   waitersByJobId.clear();

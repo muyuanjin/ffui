@@ -37,7 +37,7 @@ export interface QueuePanelProps {
   carouselAutoRotationSpeed: number;
   iconViewSize: "small" | "medium" | "large";
   iconGridClass: string;
-  queueRowVariant: "detail" | "compact";
+  queueRowVariant: "detail" | "compact" | "mini";
   progressUpdateIntervalMs: number;
   hasBatchCompressBatches: boolean;
 

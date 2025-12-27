@@ -7,6 +7,7 @@ import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { hasTauri } from "@/lib/backend";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
+import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
 
 const props = withDefaults(
   defineProps<{
@@ -113,17 +114,7 @@ const compareDisabledText = computed(() => {
   return props.t("jobCompare.disabled.unavailable");
 });
 
-const emit = defineEmits<{
-  (e: "toggle-select", id: string): void;
-  (e: "wait", id: string): void;
-  (e: "resume", id: string): void;
-  (e: "restart", id: string): void;
-  (e: "cancel", id: string): void;
-  (e: "preview", job: TranscodeJob): void;
-  (e: "preview-error"): void;
-  (e: "inspect", job: TranscodeJob): void;
-  (e: "compare", job: TranscodeJob): void;
-}>();
+const emit = defineEmits<QueueItemRowEmits>();
 </script>
 
 <template>
@@ -150,7 +141,7 @@ const emit = defineEmits<{
           :src="previewUrl"
           alt=""
           decoding="async"
-          loading="eager"
+          loading="lazy"
           class="h-full w-full object-cover"
           @error="emit('preview-error')"
         />

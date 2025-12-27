@@ -3,8 +3,6 @@ import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import { matchesSizeFilter, parseSizeFilterToken, type SizeFilter } from "./queue/sizeFilter";
 import { createSelectionHelpers } from "./queue/selection";
 import {
-  ALL_QUEUE_SORT_DIRECTIONS,
-  ALL_QUEUE_SORT_FIELDS,
   type QueueFilterKind,
   type QueueFilterStatus,
   type QueueSortDirection,
@@ -13,54 +11,13 @@ import {
   type UseQueueFilteringReturn,
 } from "./queue/useQueueFiltering.types";
 import { createQueueSortingState, type QueueSortingState } from "./queue/queueSorting";
+import { installQueueFilterSortStorage } from "./queue/queueFilterSortStorage";
 
 /**
  * Composable for queue filtering, sorting, and selection.
  */
 export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFilteringReturn {
-  const { jobs, t } = options;
-
-  const QUEUE_SORT_PRIMARY_STORAGE_KEY = "ffui.queueSortPrimary";
-  const QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY = "ffui.queueSortPrimaryDirection";
-  const QUEUE_SORT_SECONDARY_STORAGE_KEY = "ffui.queueSortSecondary";
-  const QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY = "ffui.queueSortSecondaryDirection";
-
-  const canUseStorage = () => {
-    if (typeof window === "undefined") return false;
-    try {
-      return typeof window.localStorage !== "undefined";
-    } catch {
-      return false;
-    }
-  };
-
-  const readFromStorage = (key: string): string | null => {
-    if (!canUseStorage()) return null;
-    try {
-      const raw = window.localStorage.getItem(key);
-      if (!raw) return null;
-      return raw;
-    } catch {
-      return null;
-    }
-  };
-
-  const writeToStorage = (key: string, value: string) => {
-    if (!canUseStorage()) return;
-    try {
-      window.localStorage.setItem(key, value);
-    } catch {
-      // Swallow storage errors; preferences are a UX enhancement, not critical.
-    }
-  };
-
-  const queueSortFields = new Set<string>(ALL_QUEUE_SORT_FIELDS);
-  const isQueueSortField = (value: unknown): value is QueueSortField =>
-    typeof value === "string" && queueSortFields.has(value);
-
-  const queueSortDirections = new Set<string>(ALL_QUEUE_SORT_DIRECTIONS);
-  const isQueueSortDirection = (value: unknown): value is QueueSortDirection =>
-    typeof value === "string" && queueSortDirections.has(value);
+  const { jobs, queueStructureRevision, queueProgressRevision, t } = options;
 
   // ----- State -----
   const selectedJobIds = ref<Set<string>>(new Set());
@@ -77,57 +34,16 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
   const sortSecondary = ref<QueueSortField>("filename");
   const sortSecondaryDirection = ref<QueueSortDirection>("asc");
 
-  const storedSortPrimary = readFromStorage(QUEUE_SORT_PRIMARY_STORAGE_KEY);
-  if (isQueueSortField(storedSortPrimary)) {
-    sortPrimary.value = storedSortPrimary;
-  }
-
-  const storedSortPrimaryDirection = readFromStorage(QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY);
-  if (isQueueSortDirection(storedSortPrimaryDirection)) {
-    sortPrimaryDirection.value = storedSortPrimaryDirection;
-  }
-
-  const storedSortSecondary = readFromStorage(QUEUE_SORT_SECONDARY_STORAGE_KEY);
-  if (isQueueSortField(storedSortSecondary)) {
-    sortSecondary.value = storedSortSecondary;
-  }
-
-  const storedSortSecondaryDirection = readFromStorage(QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY);
-  if (isQueueSortDirection(storedSortSecondaryDirection)) {
-    sortSecondaryDirection.value = storedSortSecondaryDirection;
-  }
-
-  watch(
+  installQueueFilterSortStorage({
     sortPrimary,
-    (value) => {
-      writeToStorage(QUEUE_SORT_PRIMARY_STORAGE_KEY, value);
-    },
-    { flush: "sync" },
-  );
-
-  watch(
     sortPrimaryDirection,
-    (value) => {
-      writeToStorage(QUEUE_SORT_PRIMARY_DIRECTION_STORAGE_KEY, value);
-    },
-    { flush: "sync" },
-  );
-
-  watch(
     sortSecondary,
-    (value) => {
-      writeToStorage(QUEUE_SORT_SECONDARY_STORAGE_KEY, value);
-    },
-    { flush: "sync" },
-  );
-
-  watch(
     sortSecondaryDirection,
-    (value) => {
-      writeToStorage(QUEUE_SORT_SECONDARY_DIRECTION_STORAGE_KEY, value);
-    },
-    { flush: "sync" },
-  );
+    filterText,
+    filterUseRegex,
+    activeStatusFilters,
+    activeTypeFilters,
+  });
 
   // ----- Regex Validation Watch -----
   // Supports two modes:
@@ -276,8 +192,8 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
   });
 
   // ----- Filter Methods -----
-  const jobMatchesFilters = (job: TranscodeJob): boolean => {
-    if (activeStatusFilters.value.size > 0) {
+  const jobMatchesFiltersInternal = (job: TranscodeJob, options?: { ignoreStatusFilters?: boolean }): boolean => {
+    if (!options?.ignoreStatusFilters && activeStatusFilters.value.size > 0) {
       if (!activeStatusFilters.value.has(job.status as QueueFilterStatus)) {
         return false;
       }
@@ -337,6 +253,8 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return matchesSizeFilter(job, criteria.sizeFilter);
   };
 
+  const jobMatchesFilters = (job: TranscodeJob): boolean => jobMatchesFiltersInternal(job);
+
   const batchMatchesFilters = (batch: CompositeBatchCompressTask): boolean => {
     // When no filters are active, include batches that still have visible jobs.
     if (!hasActiveFilters.value) {
@@ -368,6 +286,14 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     return jobs.value.filter((job) => jobMatchesFilters(job));
   });
 
+  // Queue mode should always surface actively processing jobs so users can
+  // monitor what's running, even if status filters are set to focus on waiting
+  // items. We still respect type/text filters so the list can be narrowed
+  // intentionally.
+  const filteredJobsIgnoringStatus = computed<TranscodeJob[]>(() => {
+    return jobs.value.filter((job) => jobMatchesFiltersInternal(job, { ignoreStatusFilters: true }));
+  });
+
   // ----- Sorting & grouping -----
   const {
     hasPrimarySortTies,
@@ -380,10 +306,13 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     compareJobsInWaitingGroup,
   }: QueueSortingState = createQueueSortingState({
     filteredJobs,
+    filteredJobsIgnoringStatus,
     sortPrimary,
     sortPrimaryDirection,
     sortSecondary,
     sortSecondaryDirection,
+    queueStructureRevision,
+    queueProgressRevision,
   });
 
   const { isJobSelected, toggleJobSelected, clearSelection, selectAllVisibleJobs, invertSelection } =

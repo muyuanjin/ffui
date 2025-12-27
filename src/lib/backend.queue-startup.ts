@@ -11,3 +11,8 @@ export const resumeStartupQueue = async (): Promise<number> => {
   if (!hasTauri()) return 0;
   return invoke<number>("resume_startup_queue");
 };
+
+export const dismissQueueStartupHint = async (): Promise<void> => {
+  if (!hasTauri()) return;
+  await invoke<void>("dismiss_queue_startup_hint");
+};

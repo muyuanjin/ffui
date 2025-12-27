@@ -1,6 +1,8 @@
 use tempfile::tempdir;
 
 use super::*;
+use crate::ffui_core::{QueueStateLite, QueueStateLiteDelta};
+use std::sync::{Arc, Mutex};
 
 fn locate_mock_ffmpeg_exe() -> std::path::PathBuf {
     for key in [
@@ -93,6 +95,21 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
     let engine = make_engine_with_preset();
     let mock_exe = locate_mock_ffmpeg_exe();
 
+    let snapshots: Arc<Mutex<Vec<QueueStateLite>>> = Arc::new(Mutex::new(Vec::new()));
+    let deltas: Arc<Mutex<Vec<QueueStateLiteDelta>>> = Arc::new(Mutex::new(Vec::new()));
+    {
+        let snapshots = snapshots.clone();
+        engine.register_queue_lite_listener(move |snapshot: QueueStateLite| {
+            snapshots.lock().unwrap().push(snapshot);
+        });
+    }
+    {
+        let deltas = deltas.clone();
+        engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+            deltas.lock().unwrap().push(delta);
+        });
+    }
+
     let input = data_root.path().join("input.mp4");
     {
         let mut state = engine.inner.state.lock_unpoisoned();
@@ -127,5 +144,39 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
     assert!(
         job.preview_revision > 0,
         "job.preview_revision should bump when preview is generated"
+    );
+
+    let snapshot_events = snapshots.lock().unwrap().len();
+    assert_eq!(
+        snapshot_events, 0,
+        "ensure_job_preview should not emit a full queue snapshot"
+    );
+
+    let delta_events = deltas.lock().unwrap();
+    assert_eq!(
+        delta_events.len(),
+        1,
+        "ensure_job_preview should emit one delta"
+    );
+    let delta = &delta_events[0];
+    assert_eq!(
+        delta.patches.len(),
+        1,
+        "ensure_job_preview should emit a single per-job delta patch"
+    );
+    let patch = &delta.patches[0];
+    assert_eq!(
+        patch.id.as_str(),
+        "job-1",
+        "ensure_job_preview delta should target the preview job id"
+    );
+    assert_eq!(
+        patch.preview_path.as_deref(),
+        Some(preview_path_str.as_str()),
+        "ensure_job_preview delta should include previewPath"
+    );
+    assert!(
+        patch.preview_revision.is_some(),
+        "ensure_job_preview delta should include previewRevision"
     );
 }
