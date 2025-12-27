@@ -232,7 +232,8 @@ describe("QueueItem progress and actions", () => {
     });
 
     const root = wrapper.element as HTMLElement;
-    expect(root.className).toContain("border-primary/70");
-    expect(root.className).toContain("ring-1");
+    expect(root.className).toContain("border-primary/80");
+    expect(root.className).toContain("ring-inset");
+    expect(root.className).toMatch(/\b(!ring-2|ring-2)\b/);
   });
 });

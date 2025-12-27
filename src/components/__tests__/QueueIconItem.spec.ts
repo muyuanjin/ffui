@@ -87,6 +87,31 @@ describe("QueueIconItem", () => {
     expect(inspectEvents).toBeFalsy();
   });
 
+  it("renders a stronger visual highlight when the item is selected", () => {
+    const job = makeJob({
+      previewPath: "C:/app-data/previews/icon.jpg",
+      status: "processing",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+        canSelect: true,
+        selected: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const card = wrapper.get("[data-testid='queue-icon-item']");
+    const classes = card.classes();
+    expect(classes).toContain("ring-inset");
+    expect(classes.some((value) => value === "ring-2" || value === "!ring-2")).toBe(true);
+  });
+
   it("uses the dedicated detail button to emit inspect without toggling selection", async () => {
     const job = makeJob({
       previewPath: "C:/app-data/previews/icon.jpg",

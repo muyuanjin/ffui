@@ -133,6 +133,49 @@ describe("QueueItem display basics", () => {
     expect(inspectEvents).toBeFalsy();
   });
 
+  it("renders a stronger visual highlight when the item is selected", () => {
+    const job = makeJob();
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canSelect: true,
+        selected: true,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const card = wrapper.get("[data-testid='queue-item-card']");
+    const classes = card.classes();
+    expect(classes).toContain("ring-inset");
+    expect(classes.some((value) => value === "ring-2" || value === "!ring-2")).toBe(true);
+  });
+
+  it("keeps the stronger selected highlight in mini view mode", () => {
+    const job = makeJob();
+
+    const wrapper = mount(QueueItem, {
+      props: {
+        job,
+        preset: basePreset,
+        canSelect: true,
+        selected: true,
+        viewMode: "mini",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const card = wrapper.get("[data-testid='queue-item-card']");
+    const classes = card.classes();
+    expect(classes).toContain("ring-inset");
+    expect(classes.some((value) => value === "ring-2" || value === "!ring-2")).toBe(true);
+  });
+
   it("emits inspect when card is clicked in non-selectable contexts (e.g. compact job lists)", async () => {
     const job = makeJob();
 

@@ -120,7 +120,9 @@ describe("QueueBatchCompressIconBatchItem", () => {
 
       // 根元素应该有选中样式
       const root = wrapper.find('[data-testid="queue-icon-batch-item"]');
-      expect(root.classes()).toContain("border-amber-500/70");
+      expect(root.classes()).toContain("border-amber-500/80");
+      expect(root.classes()).toContain("ring-inset");
+      expect(root.classes().some((value) => value === "ring-2" || value === "!ring-2")).toBe(true);
 
       // 选中指示器应该有勾选图标
       const checkIcon = wrapper.find("svg");

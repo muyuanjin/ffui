@@ -318,10 +318,10 @@ if (isQueuePerfEnabled) {
       isMini && !isSkipped ? 'hover:bg-muted/20' : '',
       isMini
         ? isSelectable && isSelected
-          ? '!ring-1 ring-primary/60 bg-primary/10'
+          ? '!ring-2 ring-inset ring-primary/80 bg-primary/20'
           : ''
         : isSelectable && isSelected
-          ? 'border-primary/70 !ring-1 ring-primary/60 bg-primary/5'
+          ? 'border-primary/80 !ring-2 ring-inset ring-primary/80 bg-primary/10'
           : '',
       isMini ? 'px-2 py-1.5 md:px-2 md:py-1.5' : isCompact ? 'p-2 md:p-2' : 'p-3 md:p-4',
     ]"
