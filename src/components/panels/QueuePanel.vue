@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref } from "vue";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
+import { useElementSize } from "@vueuse/core";
 import QueueBatchCompressBatchCard from "./QueueBatchCompressBatchCard.vue";
 import { useI18n } from "vue-i18n";
 import { VList } from "virtua/vue";
@@ -9,6 +10,7 @@ import type { TranscodeJob, CompositeBatchCompressTask } from "@/types";
 import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
 import { usePresetLookup } from "@/composables/presets/usePresetLookup";
 import { useVirtuaViewportBump } from "@/components/panels/queue/useVirtuaViewportBump";
+import { useFlipReorderAnimation } from "@/components/panels/queue/useFlipReorderAnimation";
 import { useQueuePanelVirtualRows } from "./useQueuePanelVirtualRows";
 
 // Lazy load queue item components
@@ -155,6 +157,31 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
 // Startup safety net: force a one-time VList remount once the viewport is measurable.
 const listViewportEl = ref<HTMLElement | null>(null);
 const listViewportBump = useVirtuaViewportBump(listViewportEl);
+const { height: listViewportHeight } = useElementSize(listViewportEl);
+const listViewportHeightPx = computed(() => Math.max(1, Math.floor(listViewportHeight.value)));
+const listDataBump = ref(0);
+let listDataBumped = false;
+const bumpListDataOnce = () => {
+  if (listDataBumped) return;
+  if (!listViewportEl.value) return;
+  if (virtualListRows.value.length < 2) return;
+  // Only bump once the viewport is measurable; a 1px height is a safe placeholder.
+  if (listViewportHeightPx.value <= 1) return;
+
+  listDataBumped = true;
+  if (typeof window === "undefined") {
+    listDataBump.value = 1;
+    return;
+  }
+  const bump = () => {
+    listDataBump.value = 1;
+  };
+  if (typeof window.requestAnimationFrame === "function") {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(bump));
+  } else {
+    window.setTimeout(bump, 0);
+  }
+};
 
 const {
   getQueueVirtualRowKey,
@@ -176,8 +203,29 @@ const {
 );
 
 const virtualListKey = computed(() => {
-  return `${virtualListKeyBase.value}|layout=${listViewportBump.value}`;
+  return `${virtualListKeyBase.value}|layout=${listViewportBump.value}|data=${listDataBump.value}`;
 });
+
+const virtualRowKeys = computed(() => virtualListRows.value.map((row) => getQueueVirtualRowKey(row)));
+useFlipReorderAnimation(listViewportEl, virtualRowKeys);
+
+watch(
+  listViewportEl,
+  (el) => {
+    if (el) return;
+    listDataBump.value = 0;
+    listDataBumped = false;
+  },
+  { flush: "sync" },
+);
+
+watch(
+  () => virtualListRows.value.length,
+  () => bumpListDataOnce(),
+  { flush: "post" },
+);
+
+watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
 </script>
 
 <template>
@@ -299,17 +347,17 @@ const virtualListKey = computed(() => {
       </div>
 
       <!-- List view mode -->
-      <div v-else ref="listViewportEl" class="flex flex-1 min-h-0 flex-col">
+      <div v-else ref="listViewportEl" class="flex flex-1 min-h-0 flex-col overflow-hidden">
         <VList
           :key="virtualListKey"
           v-slot="{ item: row, index }"
           :data="virtualListRows"
           :buffer-size="virtualListBufferSizePx"
           :item-size="virtualListItemSizePx"
-          class="flex-1 min-h-0 h-full"
-          style="height: 100%"
+          class="flex-1 min-h-0"
+          :style="{ height: `${listViewportHeightPx}px` }"
         >
-          <div :key="getQueueVirtualRowKey(row)">
+          <div :key="getQueueVirtualRowKey(row)" :data-queue-flip-key="getQueueVirtualRowKey(row)">
             <template v-if="row.type === 'header'">
               <div :class="[index === 0 ? '' : 'pt-4', 'flex items-center justify-between px-1']">
                 <span class="text-xs font-semibold text-muted-foreground uppercase">

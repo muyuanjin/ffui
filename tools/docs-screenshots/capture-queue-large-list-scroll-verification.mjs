@@ -301,6 +301,46 @@ const main = async () => {
           }
         });
 
+        const statusTransitionCounts = await page.evaluate(async () => {
+          const w = window;
+          const emit = w.__FFUI_TAURI_EVENT_EMIT__;
+          if (typeof emit !== "function") {
+            throw new Error("Missing __FFUI_TAURI_EVENT_EMIT__ in docs screenshot mode.");
+          }
+
+          const raf = () =>
+            new Promise((resolve) => {
+              w.requestAnimationFrame(() => resolve(undefined));
+            });
+
+          const jobA = "docs-perf-000000";
+          const jobB = "docs-perf-000001";
+
+          // Simulate "A completes, B becomes processing" to surface list re-order flashes.
+          emit("ffui://queue-state-lite-delta", {
+            baseSnapshotRevision: 1,
+            deltaRevision: 121,
+            patches: [
+              { id: jobA, status: "completed", progress: 100, elapsedMs: 12_345 },
+              { id: jobB, status: "processing", progress: 0, elapsedMs: 0 },
+            ],
+          });
+
+          const counts = [];
+          for (let i = 0; i < 20; i += 1) {
+            counts.push(document.querySelectorAll("[data-testid='queue-item-card']").length);
+            // eslint-disable-next-line no-await-in-loop
+            await raf();
+          }
+          return counts;
+        });
+        const minCount = Math.min(...statusTransitionCounts);
+        if (!Number.isFinite(minCount) || minCount < 1) {
+          throw new Error(
+            `Queue scroll verification expected queue rows to stay visible during status transitions; minCount=${minCount}`,
+          );
+        }
+
         const perf = await page.evaluate(() => {
           const snapshot = window.__FFUI_QUEUE_PERF__;
           return snapshot ? JSON.parse(JSON.stringify(snapshot)) : null;
@@ -323,6 +363,38 @@ const main = async () => {
         }
 
         await page.screenshot({ path: path.join(args.outDir, "queue-after-scroll.png"), fullPage: false });
+
+        // Startup/regression guard: simulate a delayed initial queue snapshot so the list
+        // mounts after the "empty queue" state (matches real Tauri startup timings).
+        const delayedUrl = new URL(ensureTrailingSlash(baseUrl));
+        delayedUrl.searchParams.set("ffuiLocale", args.locale);
+        delayedUrl.searchParams.set("ffuiQueueJobs", String(args.jobs));
+        delayedUrl.searchParams.set("ffuiQueueProcessingJobs", String(args.processingJobs));
+        delayedUrl.searchParams.set("ffuiQueuePausedJobs", String(args.pausedJobs));
+        delayedUrl.searchParams.set("ffuiQueueJobsDelayMs", "1200");
+
+        await page.goto(delayedUrl.toString(), { waitUntil: "domcontentloaded", timeout: 90_000 });
+        await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 90_000 });
+        await page.getByTestId("ffui-tab-queue").click();
+
+        await viewport.waitFor({ state: "visible", timeout: 90_000 });
+
+        const delayedCardCount = await waitForStableCount(page, queueCards, {
+          minCount: 1,
+          stableMs: 300,
+          timeoutMs: 90_000,
+        });
+        if (args.jobs >= 50 && delayedCardCount < 2) {
+          throw new Error(
+            `Queue scroll verification (delayed load) expected more than 1 initial card to be visible for large queues; saw ${delayedCardCount}.`,
+          );
+        }
+        if (delayedCardCount > 250) {
+          throw new Error(
+            `Queue scroll verification (delayed load) expected virtualization to cap DOM rows; saw ${delayedCardCount} queue item cards.`,
+          );
+        }
+        await page.screenshot({ path: path.join(args.outDir, "queue-top-delayed.png"), fullPage: false });
 
         if (errors.length > 0) {
           throw new Error(`Queue scroll verification saw console/page errors:\n${errors.join("\n")}`);

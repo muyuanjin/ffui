@@ -479,6 +479,12 @@ const readQueryParamNumber = (key: string): number | undefined => {
   return parsed;
 };
 
+const sleep = async (ms: number): Promise<void> => {
+  const safeMs = Math.max(0, Math.floor(ms));
+  if (safeMs === 0) return;
+  await new Promise<void>((resolve) => setTimeout(resolve, safeMs));
+};
+
 const buildQueueJobs = (): TranscodeJob[] => {
   const now = 1_700_000_000_000;
 
@@ -725,7 +731,19 @@ const buildQueueJobs = (): TranscodeJob[] => {
   return baseJobs;
 };
 
+let queueJobsDelayStartedAtMs: number | null = null;
+
 export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
+  const delayMs = readQueryParamNumber("ffuiQueueJobsDelayMs");
+  if (typeof delayMs === "number" && Number.isFinite(delayMs) && delayMs > 0) {
+    if (queueJobsDelayStartedAtMs == null) queueJobsDelayStartedAtMs = Date.now();
+    const elapsed = Date.now() - queueJobsDelayStartedAtMs;
+    const remaining = delayMs - elapsed;
+    if (remaining > 0) {
+      await sleep(remaining);
+    }
+  }
+
   const jobs = buildQueueJobs();
   if (docsHasTauri()) {
     return { snapshotRevision: 1, jobs };
