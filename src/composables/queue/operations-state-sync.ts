@@ -52,6 +52,29 @@ const asMutableRecord = (job: TranscodeJob): MutableRecord => {
   return job as unknown as MutableRecord;
 };
 
+const hasOwnProperty = Object.prototype.hasOwnProperty;
+
+const shallowEqualRecord = (a: Record<string, unknown>, b: Record<string, unknown>): boolean => {
+  let aKeys = 0;
+  let bKeys = 0;
+
+  for (const key in a) {
+    if (!hasOwnProperty.call(a, key)) continue;
+    aKeys += 1;
+    if (!hasOwnProperty.call(b, key)) return false;
+    if (a[key] !== b[key]) return false;
+  }
+
+  for (const key in b) {
+    if (!hasOwnProperty.call(b, key)) continue;
+    bKeys += 1;
+  }
+
+  return aKeys === bKeys;
+};
+
+const JOB_KEYS_OPTIONALLY_OMITTED_BY_BACKEND = ["outputPolicy", "runs", "warnings", "previewRevision"] as const;
+
 const normalizeLegacyJobStatuses = (jobs: TranscodeJob[]) => {
   for (const job of jobs) {
     const status = (job as unknown as { status?: unknown }).status;
@@ -116,39 +139,54 @@ function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
   const prevAny = asMutableRecord(previous);
   const nextAny = asMutableRecord(next);
 
-  // Remove properties that are missing from the backend snapshot (treat missing as undefined),
-  // ensuring the in-memory job list stays aligned with the backend source of truth.
-  for (const key of Object.keys(prevAny)) {
-    if (!(key in nextAny)) {
-      delete prevAny[key];
-    }
-  }
+  const shouldSweepMissingKeys =
+    ("logs" in prevAny && !("logs" in nextAny)) || ("runs" in prevAny && !("runs" in nextAny));
 
-  for (const [key, value] of Object.entries(nextAny)) {
+  for (const key in nextAny) {
+    const value = nextAny[key];
     const prevValue = prevAny[key];
+
+    if (prevValue === value) continue;
 
     // Preserve array/object references when they are structurally equal to avoid
     // triggering needless component updates.
     if (Array.isArray(prevValue) && Array.isArray(value)) {
-      if (prevValue.length === value.length && prevValue.every((v: unknown, idx: number) => v === value[idx])) {
-        continue;
+      if (prevValue.length === value.length) {
+        let allEqual = true;
+        for (let idx = 0; idx < prevValue.length; idx += 1) {
+          if (prevValue[idx] !== value[idx]) {
+            allEqual = false;
+            break;
+          }
+        }
+        if (allEqual) {
+          continue;
+        }
       }
     } else if (isObject(prevValue) && isObject(value)) {
       // Common fast-path: if both are plain objects with the same JSON-ish shape,
       // keep the previous reference. This is intentionally shallow to stay cheap.
-      const prevKeys = Object.keys(prevValue);
-      const nextKeys = Object.keys(value);
-      if (
-        prevKeys.length === nextKeys.length &&
-        prevKeys.every((k) => k in value) &&
-        prevKeys.every((k) => prevValue[k] === value[k])
-      ) {
+      if (shallowEqualRecord(prevValue, value)) {
         continue;
       }
     }
 
-    if (prevValue !== value) {
-      prevAny[key] = value;
+    prevAny[key] = value;
+  }
+
+  // Some fields are intentionally omitted from backend snapshots when empty/zero.
+  // Clear these if a prior snapshot had a value but the current one omits them.
+  for (const key of JOB_KEYS_OPTIONALLY_OMITTED_BY_BACKEND) {
+    if (key in prevAny && !(key in nextAny)) {
+      delete prevAny[key];
+    }
+  }
+
+  if (shouldSweepMissingKeys) {
+    for (const key in prevAny) {
+      if (!(key in nextAny)) {
+        delete prevAny[key];
+      }
     }
   }
 }
