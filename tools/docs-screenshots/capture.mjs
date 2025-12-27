@@ -762,6 +762,9 @@ const prepareLocalMedia = async (args) => {
 
   return {
     envPatch: {
+      // Many UI surfaces are gated behind hasTauri(); force a Tauri-like
+      // environment for docs screenshot builds unless the caller overrides it.
+      VITE_DOCS_SCREENSHOT_HAS_TAURI: process.env.VITE_DOCS_SCREENSHOT_HAS_TAURI ?? "1",
       VITE_DOCS_SCREENSHOT_UI_SCALE_PERCENT: String(resolveUiScalePercent(args)),
       VITE_DOCS_SCREENSHOT_UI_FONT_SIZE_PERCENT: String(resolveUiFontSizePercent(args)),
       VITE_DOCS_SCREENSHOT_UI_FONT_SIZE_PX: args.uiFontSizePx != null ? String(args.uiFontSizePx) : "",
