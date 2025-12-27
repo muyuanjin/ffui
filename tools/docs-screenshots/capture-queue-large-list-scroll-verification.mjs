@@ -192,6 +192,19 @@ const main = async () => {
           );
         }
 
+        await queueCards.first().click();
+        const firstCardSelected = await queueCards.first().evaluate((el) => {
+          const className = String(el?.className ?? "");
+          return className.includes("ring-primary");
+        });
+        if (!firstCardSelected) {
+          throw new Error("Queue scroll verification expected the first queue card to become selected after click.");
+        }
+
+        await queueCards.first().click({ button: "right" });
+        await page.getByTestId("queue-context-menu").waitFor({ state: "visible", timeout: 90_000 });
+        await page.keyboard.press("Escape");
+
         await page.waitForTimeout(250);
         await page.screenshot({ path: path.join(args.outDir, "queue-top.png"), fullPage: false });
 
