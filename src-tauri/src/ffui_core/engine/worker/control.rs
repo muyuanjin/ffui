@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -18,6 +19,24 @@ pub(in crate::ffui_core::engine) use bulk_ops::{
 };
 mod delete_ops;
 pub(in crate::ffui_core::engine) use delete_ops::delete_jobs_bulk;
+
+fn unique_nonempty_job_ids(job_ids: Vec<String>) -> Option<HashSet<String>> {
+    let unique: HashSet<String> = job_ids
+        .into_iter()
+        .filter(|job_id| !job_id.trim().is_empty())
+        .collect();
+    if unique.is_empty() {
+        None
+    } else {
+        Some(unique)
+    }
+}
+
+fn cleanup_temp_files_best_effort(paths: Vec<PathBuf>) {
+    for path in paths {
+        drop(std::fs::remove_file(path));
+    }
+}
 
 fn cancel_waiting_like_job(
     state: &mut super::super::state::EngineState,

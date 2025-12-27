@@ -14,20 +14,11 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
     inner: &Arc<Inner>,
     job_ids: Vec<String>,
 ) -> bool {
-    if job_ids.is_empty() {
+    let Some(unique_job_ids) = super::unique_nonempty_job_ids(job_ids) else {
         return true;
-    }
-
-    let unique_job_ids: HashSet<String> = job_ids
-        .into_iter()
-        .filter(|job_id| !job_id.trim().is_empty())
-        .collect();
-    if unique_job_ids.is_empty() {
-        return true;
-    }
+    };
 
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
-    let mut should_notify = false;
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -71,16 +62,10 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
             state.restart_requests.remove(job_id.as_str());
             state.jobs.remove(job_id.as_str());
         }
-
-        should_notify = true;
     }
 
-    if should_notify {
-        notify_queue_listeners(inner);
-    }
+    notify_queue_listeners(inner);
 
-    for path in cleanup_paths {
-        drop(std::fs::remove_file(path));
-    }
+    super::cleanup_temp_files_best_effort(cleanup_paths);
     true
 }
