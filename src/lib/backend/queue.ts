@@ -9,6 +9,13 @@ export const cancelTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
+export const cancelTranscodeJobsBulk = async (jobIds: string[]): Promise<boolean> => {
+  return invoke<boolean>("cancel_transcode_jobs_bulk", {
+    jobIds,
+    job_ids: jobIds,
+  });
+};
+
 export const waitTranscodeJob = async (jobId: string): Promise<boolean> => {
   return invoke<boolean>("wait_transcode_job", {
     jobId,
@@ -30,10 +37,24 @@ export const resumeTranscodeJob = async (jobId: string): Promise<boolean> => {
   });
 };
 
+export const resumeTranscodeJobsBulk = async (jobIds: string[]): Promise<boolean> => {
+  return invoke<boolean>("resume_transcode_jobs_bulk", {
+    jobIds,
+    job_ids: jobIds,
+  });
+};
+
 export const restartTranscodeJob = async (jobId: string): Promise<boolean> => {
   return invoke<boolean>("restart_transcode_job", {
     jobId,
     job_id: jobId,
+  });
+};
+
+export const restartTranscodeJobsBulk = async (jobIds: string[]): Promise<boolean> => {
+  return invoke<boolean>("restart_transcode_jobs_bulk", {
+    jobIds,
+    job_ids: jobIds,
   });
 };
 

@@ -14,21 +14,46 @@ const makeJob = (id: string, status: TranscodeJob["status"]): TranscodeJob => ({
 });
 
 async function withTauriBackendMock<T>(
-  fn: (deps: { bulkWaitSelectedJobs: typeof import("./operations-bulk").bulkWaitSelectedJobs; waitMock: any }) => T,
+  fn: (deps: {
+    bulkWaitSelectedJobs: typeof import("./operations-bulk").bulkWaitSelectedJobs;
+    bulkCancelSelectedJobs: typeof import("./operations-bulk").bulkCancelSelectedJobs;
+    bulkResumeSelectedJobs: typeof import("./operations-bulk").bulkResumeSelectedJobs;
+    bulkRestartSelectedJobs: typeof import("./operations-bulk").bulkRestartSelectedJobs;
+    waitMock: any;
+    cancelMock: any;
+    resumeMock: any;
+    restartMock: any;
+  }) => T,
 ): Promise<T> {
   await vi.resetModules();
 
   const waitMock = vi.fn();
+  const cancelMock = vi.fn();
+  const resumeMock = vi.fn();
+  const restartMock = vi.fn();
   vi.doMock("@/lib/backend", () => ({
     hasTauri: () => true,
     reorderQueue: async () => true,
     waitTranscodeJobsBulk: (...args: any[]) => waitMock(...args),
+    cancelTranscodeJobsBulk: (...args: any[]) => cancelMock(...args),
+    resumeTranscodeJobsBulk: (...args: any[]) => resumeMock(...args),
+    restartTranscodeJobsBulk: (...args: any[]) => restartMock(...args),
   }));
 
-  const { bulkWaitSelectedJobs } = await import("./operations-bulk");
+  const { bulkWaitSelectedJobs, bulkCancelSelectedJobs, bulkResumeSelectedJobs, bulkRestartSelectedJobs } =
+    await import("./operations-bulk");
 
   try {
-    return fn({ bulkWaitSelectedJobs, waitMock });
+    return fn({
+      bulkWaitSelectedJobs,
+      bulkCancelSelectedJobs,
+      bulkResumeSelectedJobs,
+      bulkRestartSelectedJobs,
+      waitMock,
+      cancelMock,
+      resumeMock,
+      restartMock,
+    });
   } finally {
     vi.doUnmock("@/lib/backend");
     await vi.resetModules();
@@ -111,6 +136,136 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
       expect(statusById.get("job-waiting")).toBe("queued");
       expect(statusById.get("job-queued")).toBe("queued");
       expect(pausingJobIds.value).toEqual(new Set(["some-other-job"]));
+    });
+  });
+});
+
+describe("bulkCancelSelectedJobs (tauri)", () => {
+  it("uses a single backend bulk cancel call", async () => {
+    await withTauriBackendMock(async ({ bulkCancelSelectedJobs, cancelMock }) => {
+      cancelMock.mockResolvedValueOnce(true);
+
+      const jobs = ref<TranscodeJob[]>([
+        makeJob("job-processing", "processing"),
+        makeJob("job-queued", "queued"),
+        makeJob("job-paused", "paused"),
+        makeJob("job-completed", "completed"),
+      ]);
+
+      const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
+      const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
+
+      const handleCancelJob = vi.fn(async (_jobId: string) => {});
+
+      await bulkCancelSelectedJobs({
+        jobs,
+        selectedJobIds,
+        selectedJobs,
+        pausingJobIds: ref(new Set()),
+        queueError: ref(null),
+        refreshQueueFromBackend: async () => {},
+        handleCancelJob,
+        handleWaitJob: async () => {},
+        handleResumeJob: async () => {},
+        handleRestartJob: async () => {},
+      });
+
+      expect(handleCancelJob).not.toHaveBeenCalled();
+      expect(cancelMock).toHaveBeenCalledTimes(1);
+      expect(cancelMock).toHaveBeenCalledWith(["job-processing", "job-queued", "job-paused"]);
+
+      const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
+      expect(statusById.get("job-processing")).toBe("cancelled");
+      expect(statusById.get("job-queued")).toBe("cancelled");
+      expect(statusById.get("job-paused")).toBe("cancelled");
+      expect(statusById.get("job-completed")).toBe("completed");
+    });
+  });
+});
+
+describe("bulkResumeSelectedJobs (tauri)", () => {
+  it("uses a single backend bulk resume call with stable ordering", async () => {
+    await withTauriBackendMock(async ({ bulkResumeSelectedJobs, resumeMock }) => {
+      resumeMock.mockResolvedValueOnce(true);
+
+      const jobs = ref<TranscodeJob[]>([
+        { ...makeJob("job-paused-2", "paused"), queueOrder: 2 },
+        { ...makeJob("job-paused-1", "paused"), queueOrder: 1 },
+        { ...makeJob("job-paused-no-order", "paused"), queueOrder: undefined },
+        makeJob("job-processing", "processing"),
+      ]);
+
+      const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
+      const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
+
+      const handleResumeJob = vi.fn(async (_jobId: string) => {});
+
+      await bulkResumeSelectedJobs({
+        jobs,
+        selectedJobIds,
+        selectedJobs,
+        pausingJobIds: ref(new Set()),
+        queueError: ref(null),
+        refreshQueueFromBackend: async () => {},
+        handleCancelJob: async () => {},
+        handleWaitJob: async () => {},
+        handleResumeJob,
+        handleRestartJob: async () => {},
+      });
+
+      expect(handleResumeJob).not.toHaveBeenCalled();
+      expect(resumeMock).toHaveBeenCalledTimes(1);
+      expect(resumeMock).toHaveBeenCalledWith(["job-paused-1", "job-paused-2", "job-paused-no-order"]);
+
+      const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
+      expect(statusById.get("job-paused-1")).toBe("queued");
+      expect(statusById.get("job-paused-2")).toBe("queued");
+      expect(statusById.get("job-paused-no-order")).toBe("queued");
+    });
+  });
+});
+
+describe("bulkRestartSelectedJobs (tauri)", () => {
+  it("uses a single backend bulk restart call and updates UI state", async () => {
+    await withTauriBackendMock(async ({ bulkRestartSelectedJobs, restartMock }) => {
+      restartMock.mockResolvedValueOnce(true);
+
+      const jobs = ref<TranscodeJob[]>([
+        makeJob("job-processing", "processing"),
+        makeJob("job-failed", "failed"),
+        makeJob("job-cancelled", "cancelled"),
+        makeJob("job-completed", "completed"),
+        makeJob("job-skipped", "skipped"),
+      ]);
+
+      const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
+      const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
+
+      const handleRestartJob = vi.fn(async (_jobId: string) => {});
+
+      await bulkRestartSelectedJobs({
+        jobs,
+        selectedJobIds,
+        selectedJobs,
+        pausingJobIds: ref(new Set()),
+        queueError: ref(null),
+        refreshQueueFromBackend: async () => {},
+        handleCancelJob: async () => {},
+        handleWaitJob: async () => {},
+        handleResumeJob: async () => {},
+        handleRestartJob,
+      });
+
+      expect(handleRestartJob).not.toHaveBeenCalled();
+      expect(restartMock).toHaveBeenCalledTimes(1);
+      expect(restartMock).toHaveBeenCalledWith(["job-processing", "job-failed", "job-cancelled"]);
+
+      const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
+      expect(statusById.get("job-processing")).toBe("queued");
+      expect(statusById.get("job-failed")).toBe("queued");
+      expect(statusById.get("job-cancelled")).toBe("queued");
+      expect(statusById.get("job-completed")).toBe("completed");
+      expect(statusById.get("job-skipped")).toBe("skipped");
     });
   });
 });

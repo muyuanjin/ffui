@@ -203,13 +203,11 @@ impl TranscodingEngine {
         state_persist::persist_queue_state_lite_immediate(&snapshot);
         true
     }
-
     /// Fetch full details for a single job from the in-memory engine state.
     pub fn job_detail(&self, job_id: &str) -> Option<TranscodeJob> {
         let state = self.inner.state.lock_unpoisoned();
         state.jobs.get(job_id).cloned()
     }
-
     /// Register a listener for queue state changes (test-only; production uses lightweight snapshots).
     #[cfg(test)]
     pub fn register_queue_listener<F>(&self, listener: F)
@@ -243,13 +241,11 @@ impl TranscodingEngine {
         let mut listeners = self.inner.batch_compress_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
-
     /// Get the list of available presets.
     pub fn presets(&self) -> Arc<Vec<FFmpegPreset>> {
         let state = self.inner.state.lock_unpoisoned();
         state.presets.clone()
     }
-
     /// Save or update a preset.
     pub fn save_preset(&self, preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
         let mut state = self.inner.state.lock_unpoisoned();
@@ -358,25 +354,33 @@ impl TranscodingEngine {
     pub fn cancel_job(&self, job_id: &str) -> bool {
         worker::cancel_job(&self.inner, job_id)
     }
-
+    /// Cancel multiple jobs in a single atomic operation.
+    pub fn cancel_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
+        worker::cancel_jobs_bulk(&self.inner, job_ids)
+    }
     /// Request a job to pause (enter wait state).
     pub fn wait_job(&self, job_id: &str) -> bool {
         worker::wait_job(&self.inner, job_id)
     }
-
     /// Request multiple jobs to pause in a single atomic operation.
     pub fn wait_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
         worker::wait_jobs_bulk(&self.inner, job_ids)
     }
-
     /// Resume a paused job.
     pub fn resume_job(&self, job_id: &str) -> bool {
         worker::resume_job(&self.inner, job_id)
     }
-
+    /// Resume multiple jobs in a single atomic operation.
+    pub fn resume_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
+        worker::resume_jobs_bulk(&self.inner, job_ids)
+    }
     /// Restart a job from the beginning.
     pub fn restart_job(&self, job_id: &str) -> bool {
         worker::restart_job(&self.inner, job_id)
+    }
+    /// Restart multiple jobs in a single atomic operation.
+    pub fn restart_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
+        worker::restart_jobs_bulk(&self.inner, job_ids)
     }
 
     /// Permanently delete a job from the in-memory queue state (terminal only).
@@ -415,10 +419,6 @@ impl TranscodingEngine {
     }
 
     /// Persist metadata for a manually triggered external tool download.
-    ///
-    /// This is used by the Settings panel “下载 / 更新”按钮 so that once a
-    /// user-initiated download completes, the freshly downloaded binary
-    /// becomes the preferred path in settings.json and the Settings UI.
     pub fn record_manual_tool_download(&self, kind: ExternalToolKind, binary_path: &str) {
         job_runner::record_tool_download_with_inner(&self.inner, kind, binary_path);
     }

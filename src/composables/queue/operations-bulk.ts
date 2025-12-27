@@ -1,6 +1,13 @@
 import { type Ref, type ComputedRef } from "vue";
 import type { TranscodeJob, Translate } from "@/types";
-import { hasTauri, reorderQueue, waitTranscodeJobsBulk } from "@/lib/backend";
+import {
+  cancelTranscodeJobsBulk,
+  hasTauri,
+  reorderQueue,
+  restartTranscodeJobsBulk,
+  resumeTranscodeJobsBulk,
+  waitTranscodeJobsBulk,
+} from "@/lib/backend";
 
 /**
  * Bulk operation dependencies.
@@ -34,9 +41,37 @@ export interface BulkOpsDeps {
  * Delegates to single job cancel handler for each job.
  */
 export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
-  const ids = Array.from(deps.selectedJobIds.value);
-  for (const id of ids) {
-    await deps.handleCancelJob(id);
+  const ids = deps.selectedJobs.value
+    .filter((job) => job.status === "queued" || job.status === "paused" || job.status === "processing")
+    .map((job) => job.id);
+  if (ids.length === 0) return;
+
+  if (!hasTauri()) {
+    for (const id of ids) {
+      await deps.handleCancelJob(id);
+    }
+    return;
+  }
+
+  try {
+    const ok = await cancelTranscodeJobsBulk(ids);
+    if (!ok) {
+      deps.queueError.value = deps.t?.("queue.error.cancelRejected") ?? "";
+      return;
+    }
+
+    const idSet = new Set(ids);
+    deps.jobs.value = deps.jobs.value.map((job) => {
+      if (!idSet.has(job.id)) return job;
+      if (job.status === "queued" || job.status === "paused" || job.status === "processing") {
+        return { ...job, status: "cancelled" as const };
+      }
+      return job;
+    });
+    deps.queueError.value = null;
+  } catch (error) {
+    console.error("Failed to bulk cancel jobs", error);
+    deps.queueError.value = deps.t?.("queue.error.cancelFailed") ?? "";
   }
 }
 
@@ -116,8 +151,49 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
     .slice()
     .sort(compareJobsByQueueOrderThenStartTimeThenId)
     .map((job) => job.id);
-  for (const id of ids) {
-    await deps.handleResumeJob(id);
+  if (ids.length === 0) return;
+
+  if (!hasTauri()) {
+    for (const id of ids) {
+      await deps.handleResumeJob(id);
+    }
+    return;
+  }
+
+  try {
+    const ok = await resumeTranscodeJobsBulk(ids);
+    if (!ok) {
+      deps.queueError.value = deps.t?.("queue.error.resumeRejected") ?? "";
+      const errorText = deps.queueError.value;
+      try {
+        await deps.refreshQueueFromBackend();
+      } catch {
+        // Keep original error text; refresh failures are handled inside refreshQueueFromBackend.
+      }
+      deps.queueError.value = errorText;
+      return;
+    }
+
+    const idSet = new Set(ids);
+    deps.jobs.value = deps.jobs.value.map((job) => {
+      if (!idSet.has(job.id)) return job;
+      if (job.status === "paused") {
+        return { ...job, status: "queued" as const };
+      }
+      return job;
+    });
+
+    deps.queueError.value = null;
+  } catch (error) {
+    console.error("Failed to bulk resume jobs", error);
+    deps.queueError.value = deps.t?.("queue.error.resumeFailed") ?? "";
+    const errorText = deps.queueError.value;
+    try {
+      await deps.refreshQueueFromBackend();
+    } catch {
+      // Keep original error text; refresh failures are handled inside refreshQueueFromBackend.
+    }
+    deps.queueError.value = errorText;
   }
 }
 
@@ -130,8 +206,40 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
   const ids = deps.selectedJobs.value
     .filter((job) => job.status !== "completed" && job.status !== "skipped")
     .map((job) => job.id);
-  for (const id of ids) {
-    await deps.handleRestartJob(id);
+  if (ids.length === 0) return;
+
+  if (!hasTauri()) {
+    for (const id of ids) {
+      await deps.handleRestartJob(id);
+    }
+    return;
+  }
+
+  try {
+    const ok = await restartTranscodeJobsBulk(ids);
+    if (!ok) {
+      deps.queueError.value = deps.t?.("queue.error.restartRejected") ?? "";
+      return;
+    }
+
+    const idSet = new Set(ids);
+    deps.jobs.value = deps.jobs.value.map((job) => {
+      if (!idSet.has(job.id)) return job;
+      if (job.status !== "completed" && job.status !== "skipped") {
+        return {
+          ...job,
+          status: "queued" as const,
+          progress: 0,
+          failureReason: undefined,
+          skipReason: undefined,
+        };
+      }
+      return job;
+    });
+    deps.queueError.value = null;
+  } catch (error) {
+    console.error("Failed to bulk restart jobs", error);
+    deps.queueError.value = deps.t?.("queue.error.restartFailed") ?? "";
   }
 }
 

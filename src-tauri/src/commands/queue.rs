@@ -262,6 +262,15 @@ pub fn cancel_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
     engine.cancel_job(&job_id)
 }
 
+/// Cancel multiple transcode jobs in one atomic operation.
+#[tauri::command]
+pub fn cancel_transcode_jobs_bulk(
+    engine: State<'_, TranscodingEngine>,
+    job_ids: Vec<String>,
+) -> bool {
+    engine.cancel_jobs_bulk(job_ids)
+}
+
 /// Pause a transcode job by ID.
 #[tauri::command]
 pub fn wait_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
@@ -283,10 +292,28 @@ pub fn resume_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
     engine.resume_job(&job_id)
 }
 
+/// Resume multiple paused jobs in one atomic operation.
+#[tauri::command]
+pub fn resume_transcode_jobs_bulk(
+    engine: State<'_, TranscodingEngine>,
+    job_ids: Vec<String>,
+) -> bool {
+    engine.resume_jobs_bulk(job_ids)
+}
+
 /// Restart a transcode job by ID.
 #[tauri::command]
 pub fn restart_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String) -> bool {
     engine.restart_job(&job_id)
+}
+
+/// Restart multiple jobs in one atomic operation.
+#[tauri::command]
+pub fn restart_transcode_jobs_bulk(
+    engine: State<'_, TranscodingEngine>,
+    job_ids: Vec<String>,
+) -> bool {
+    engine.restart_jobs_bulk(job_ids)
 }
 
 /// Permanently delete a transcode job by ID.

@@ -24,7 +24,6 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.ts", "tools/docs-screenshots/__tests__/**/*.{test,spec}.ts"],
     // 允许有限并行（2-4 个 worker），在多数机器上可显著缩短整体耗时。
     maxWorkers: parallelWorkers,
-    minWorkers: 1,
     // Use separate Node processes instead of threads so memory can be fully
     // reclaimed between runs of heavy test files.
     pool: "forks",

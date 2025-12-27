@@ -14,10 +14,13 @@ import {
   enqueueTranscodeJob,
   enqueueTranscodeJobs,
   cancelTranscodeJob,
+  cancelTranscodeJobsBulk,
   waitTranscodeJob,
   waitTranscodeJobsBulk,
   resumeTranscodeJob,
+  resumeTranscodeJobsBulk,
   restartTranscodeJob,
+  restartTranscodeJobsBulk,
   deleteTranscodeJob,
   deleteTranscodeJobsBulk,
   deleteBatchCompressBatchOnBackend,
@@ -372,6 +375,22 @@ describe("backend contract", () => {
     expect(result).toBe(true);
   });
 
+  it("cancelTranscodeJobsBulk sends cancel_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobIds = ["job-a", "job-b"];
+
+    const result = await cancelTranscodeJobsBulk(jobIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("cancel_transcode_jobs_bulk");
+    expect(payload).toMatchObject({
+      jobIds,
+      job_ids: jobIds,
+    });
+    expect(result).toBe(true);
+  });
+
   it("waitTranscodeJob sends wait_transcode_job with both id name variants", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-wait";
@@ -420,6 +439,22 @@ describe("backend contract", () => {
     expect(result).toBe(true);
   });
 
+  it("resumeTranscodeJobsBulk sends resume_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobIds = ["job-a", "job-b"];
+
+    const result = await resumeTranscodeJobsBulk(jobIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("resume_transcode_jobs_bulk");
+    expect(payload).toMatchObject({
+      jobIds,
+      job_ids: jobIds,
+    });
+    expect(result).toBe(true);
+  });
+
   it("restartTranscodeJob sends restart_transcode_job with both id name variants", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-restart";
@@ -432,6 +467,22 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       jobId,
       job_id: jobId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("restartTranscodeJobsBulk sends restart_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobIds = ["job-a", "job-b"];
+
+    const result = await restartTranscodeJobsBulk(jobIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("restart_transcode_jobs_bulk");
+    expect(payload).toMatchObject({
+      jobIds,
+      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });

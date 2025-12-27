@@ -45,10 +45,13 @@ export { exportPresetsBundle, readPresetsBundle } from "./backend.presets-bundle
 export { exitAppNow, exitAppWithAutoWait, resetExitPrompt } from "./backend.app-exit";
 export {
   cancelTranscodeJob,
+  cancelTranscodeJobsBulk,
   waitTranscodeJob,
   waitTranscodeJobsBulk,
   resumeTranscodeJob,
+  resumeTranscodeJobsBulk,
   restartTranscodeJob,
+  restartTranscodeJobsBulk,
   deleteTranscodeJob,
   deleteTranscodeJobsBulk,
   deleteBatchCompressBatchOnBackend,

@@ -7,6 +7,7 @@ use super::super::worker_utils::{
     append_job_log_line, current_time_millis, mark_batch_compress_child_processed,
 };
 use super::super::{job_runner, transcode_activity};
+use super::handoff::finish_job_and_try_start_next_locked;
 use super::selection::next_job_for_worker_locked;
 use crate::ffui_core::domain::JobStatus;
 use crate::sync_ext::{CondvarExt, MutexExt};
@@ -57,23 +58,29 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: &Arc<Inner>) {
 
 /// Worker loop: wait for jobs, process, handle cancellation/errors.
 fn worker_loop(inner: &Arc<Inner>) {
+    let mut handoff_job_id: Option<String> = None;
     loop {
-        let job_id = {
-            let mut state = inner.state.lock_unpoisoned();
-            loop {
-                while state.queue.is_empty() {
+        let (job_id, should_notify_processing_start) = if let Some(id) = handoff_job_id.take() {
+            (id, false)
+        } else {
+            let id = {
+                let mut state = inner.state.lock_unpoisoned();
+                loop {
+                    while state.queue.is_empty() {
+                        state = inner.cv.wait_unpoisoned(state);
+                    }
+
+                    if let Some(id) = next_job_for_worker_locked(&mut state) {
+                        break id;
+                    }
+
+                    // Queue is non-empty but no job is currently eligible (e.g. all
+                    // jobs are blocked behind an active input). Wait until either a
+                    // worker finishes or a queue mutation makes progress possible.
                     state = inner.cv.wait_unpoisoned(state);
                 }
-
-                if let Some(id) = next_job_for_worker_locked(&mut state) {
-                    break id;
-                }
-
-                // Queue is non-empty but no job is currently eligible (e.g. all
-                // jobs are blocked behind an active input). Wait until either a
-                // worker finishes or a queue mutation makes progress possible.
-                state = inner.cv.wait_unpoisoned(state);
-            }
+            };
+            (id, true)
         };
 
         // Mark today's transcode activity buckets as soon as a job enters
@@ -81,7 +88,9 @@ fn worker_loop(inner: &Arc<Inner>) {
         transcode_activity::record_processing_activity(inner);
 
         // Notify listeners that a job has moved into processing state.
-        notify_queue_listeners(inner);
+        if should_notify_processing_start {
+            notify_queue_listeners(inner);
+        }
 
         // Call the job runner to process the transcode job
         let result = guarded_job_runner(|| job_runner::process_transcode_job(inner, &job_id));
@@ -99,20 +108,18 @@ fn worker_loop(inner: &Arc<Inner>) {
             mark_batch_compress_child_processed(inner, &job_id);
         }
 
-        {
+        let next_job = {
             let mut state = inner.state.lock_unpoisoned();
-            let input = state.jobs.get(&job_id).map(|j| j.filename.clone());
-            state.active_jobs.remove(&job_id);
-            if let Some(input) = input {
-                state.active_inputs.remove(&input);
-            }
-            state.cancelled_jobs.remove(&job_id);
-        }
+            finish_job_and_try_start_next_locked(&mut state, &job_id)
+        };
 
-        // Broadcast final state for the completed / failed / skipped job.
+        // Broadcast final state for the completed / failed / skipped job, and
+        // include the next processing job when we can handoff immediately.
         notify_queue_listeners(inner);
         // Wake any worker threads waiting for a previously blocked input.
         inner.cv.notify_all();
+
+        handoff_job_id = next_job;
     }
 }
 

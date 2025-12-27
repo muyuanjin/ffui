@@ -857,10 +857,13 @@ export const enqueueTranscodeJobs = async (params: {
 export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const deleteTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const cancelTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const cancelTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const waitTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const waitTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const resumeTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const resumeTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const restartTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 
 export const reorderQueue = async (_orderedJobIds: string[]): Promise<boolean> => true;
 

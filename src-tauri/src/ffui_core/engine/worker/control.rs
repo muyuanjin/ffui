@@ -12,6 +12,10 @@ mod batch_ops;
 pub(in crate::ffui_core::engine) use batch_ops::{
     delete_batch_compress_batch, delete_batch_compress_batches_bulk,
 };
+mod bulk_ops;
+pub(in crate::ffui_core::engine) use bulk_ops::{
+    cancel_jobs_bulk, restart_jobs_bulk, resume_jobs_bulk,
+};
 mod delete_ops;
 pub(in crate::ffui_core::engine) use delete_ops::delete_jobs_bulk;
 

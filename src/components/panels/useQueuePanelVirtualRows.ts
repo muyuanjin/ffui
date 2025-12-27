@@ -113,19 +113,12 @@ export function useQueuePanelVirtualRows(deps: () => QueuePanelVirtualRowsSnapsh
 
   // Virtua's VList measures its viewport height. Under some mount timings the
   // measured height can be temporarily too small, leaving only one row rendered
-  // until a remount (e.g. tab switch) occurs. Keying by structural counts forces
-  // a safe remount when the queue contents materially change, without remounting
-  // on progress-only ticks.
+  // until a remount (e.g. tab switch) occurs. We keep this key stable across
+  // normal queue state changes to avoid scroll/DOM flicker; initial measurement
+  // recovery is handled by `useVirtuaViewportBump` in QueuePanel.
   const virtualListKey = computed(() => {
     const snapshot = deps();
-    return [
-      snapshot.queueMode,
-      snapshot.queueRowVariant,
-      snapshot.queueViewMode,
-      `processing=${snapshot.queueModeProcessingJobs.length}`,
-      `waiting=${snapshot.queueModeWaitingItems.length}`,
-      `visible=${snapshot.visibleQueueItems.length}`,
-    ].join("|");
+    return [snapshot.queueMode, snapshot.queueRowVariant, snapshot.queueViewMode].join("|");
   });
 
   return {

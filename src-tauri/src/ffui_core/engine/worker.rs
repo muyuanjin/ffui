@@ -4,16 +4,19 @@
 mod cleanup;
 mod control;
 mod enqueue;
+mod handoff;
 mod selection;
 mod spawner;
 mod worker_reorder;
 
 pub(super) use control::{
-    cancel_job, delete_batch_compress_batch, delete_batch_compress_batches_bulk, delete_job,
-    delete_jobs_bulk, restart_job, resume_job, resume_startup_auto_paused_jobs, wait_job,
-    wait_jobs_bulk,
+    cancel_job, cancel_jobs_bulk, delete_batch_compress_batch, delete_batch_compress_batches_bulk,
+    delete_job, delete_jobs_bulk, restart_job, restart_jobs_bulk, resume_job, resume_jobs_bulk,
+    resume_startup_auto_paused_jobs, wait_job, wait_jobs_bulk,
 };
 pub(super) use enqueue::{enqueue_transcode_job, enqueue_transcode_jobs};
+#[cfg(test)]
+pub(super) use handoff::finish_job_and_try_start_next_locked;
 #[cfg(test)]
 pub(super) use selection::next_job_for_worker_locked;
 pub(super) use spawner::spawn_worker;
