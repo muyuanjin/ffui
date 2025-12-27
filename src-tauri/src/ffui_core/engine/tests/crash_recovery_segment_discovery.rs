@@ -1,7 +1,9 @@
 use super::*;
+use crate::ffui_core::engine::segment_discovery;
+use crate::ffui_core::engine::state::restore_segment_probe::SegmentDirCache;
 
 #[test]
-fn crash_recovery_recovers_wait_metadata_segments_from_output_directory() {
+fn crash_recovery_recovers_wait_metadata_segments_from_output_directory_on_job_start() {
     let engine = make_engine_with_preset();
     let dir = tempfile::tempdir().expect("temp dir");
 
@@ -29,6 +31,27 @@ fn crash_recovery_recovers_wait_metadata_segments_from_output_directory() {
     job.wait_metadata = None;
 
     restore_jobs_from_snapshot(&engine.inner, QueueState { jobs: vec![job] });
+
+    assert!(engine.resume_job(job_id), "resume should succeed");
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let picked = next_job_for_worker_locked(&mut state).expect("job must be selectable");
+        assert_eq!(picked, job_id, "expected the resumed job to be selected");
+    }
+
+    segment_discovery::reset_list_segment_candidates_calls_for_tests();
+    let mut cache = SegmentDirCache::default();
+    probe_crash_recovery_wait_metadata_for_processing_job_best_effort(
+        &engine.inner,
+        job_id,
+        &mut cache,
+    );
+    assert_eq!(
+        segment_discovery::list_segment_candidates_calls_for_tests(),
+        1,
+        "expected exactly one directory scan to recover segments from output dir"
+    );
 
     let state = engine.inner.state.lock_unpoisoned();
     let restored = state.jobs.get(job_id).expect("restored job exists");

@@ -17,7 +17,10 @@ use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::ffui_core::shutdown_marker::ShutdownMarker;
 use crate::sync_ext::MutexExt;
 
+#[cfg(feature = "bench")]
+pub mod bench;
 mod restore;
+pub(in crate::ffui_core::engine) mod restore_segment_probe;
 #[cfg(test)]
 mod restore_tests;
 

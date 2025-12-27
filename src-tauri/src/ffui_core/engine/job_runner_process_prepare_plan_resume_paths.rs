@@ -33,6 +33,13 @@ pub(super) fn plan_resume_paths(
             if target.is_finite() && target > 0.0 {
                 resume_target_seconds = Some(target);
             }
+        } else if let Some(out_time) = meta.last_progress_out_time_seconds
+            && out_time.is_finite()
+            && out_time > 0.0
+        {
+            // Crash recovery: prefer ffmpeg progress out_time (absolute, already
+            // includes any prior resume offsets) when pause metadata is missing.
+            resume_target_seconds = Some(out_time);
         } else if let (Some(pct), Some(total)) = (meta.last_progress_percent, media_duration)
             && pct.is_finite()
             && pct > 0.0

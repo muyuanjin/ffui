@@ -14,78 +14,11 @@ use crate::ffui_core::{
     JobSource, JobType, QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
     TranscodingEngine,
 };
-use crate::sync_ext::MutexExt;
 
-fn infer_startup_hint_from_engine_state(engine: &TranscodingEngine) -> Option<QueueStartupHint> {
-    // If a hint is already present, keep it.
-    if let Some(existing) = engine.queue_startup_hint() {
-        return Some(existing);
-    }
-
-    let paused_queue_ids: Vec<String> = {
-        let state = engine.inner.state.lock_unpoisoned();
-        state
-            .queue
-            .iter()
-            .filter(|id| {
-                state
-                    .jobs
-                    .get(*id)
-                    .is_some_and(|job| job.status == crate::ffui_core::JobStatus::Paused)
-            })
-            .cloned()
-            .collect()
-    };
-
-    let mut paused_ids = paused_queue_ids;
-    if paused_ids.is_empty() {
-        let state = engine.inner.state.lock_unpoisoned();
-        let mut extra: Vec<String> = state
-            .jobs
-            .values()
-            .filter(|job| job.status == crate::ffui_core::JobStatus::Paused)
-            .map(|job| job.id.clone())
-            .collect();
-        extra.sort();
-        paused_ids = extra;
-    }
-
-    if paused_ids.is_empty() {
-        return None;
-    }
-
-    let previous_marker_kind = engine
-        .inner
-        .previous_shutdown_marker
-        .lock_unpoisoned()
-        .as_ref()
-        .map(|m| m.kind);
-
-    let kind = match previous_marker_kind {
-        Some(crate::ffui_core::ShutdownMarkerKind::CleanAutoWait) => {
-            crate::ffui_core::QueueStartupHintKind::PauseOnExit
-        }
-        Some(crate::ffui_core::ShutdownMarkerKind::Running) => {
-            crate::ffui_core::QueueStartupHintKind::CrashOrKill
-        }
-        _ => crate::ffui_core::QueueStartupHintKind::PausedQueue,
-    };
-
-    let hint = QueueStartupHint {
-        kind,
-        auto_paused_job_count: paused_ids.len(),
-    };
-
-    {
-        let mut guard = engine.inner.queue_startup_hint.lock_unpoisoned();
-        *guard = Some(hint.clone());
-    }
-    {
-        let mut guard = engine.inner.startup_auto_paused_job_ids.lock_unpoisoned();
-        guard.extend(paused_ids);
-    }
-
-    Some(hint)
+fn startup_hint_for_ui(engine: &TranscodingEngine) -> Option<QueueStartupHint> {
+    engine
+        .queue_startup_hint()
+        .filter(|hint| hint.auto_paused_job_count > 0)
 }
 
 /// Get the current state of the transcoding queue.
@@ -105,7 +38,7 @@ pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateL
 #[tauri::command]
 pub fn get_queue_startup_hint(engine: State<'_, TranscodingEngine>) -> Option<QueueStartupHint> {
     wait_for_queue_recovery(&engine);
-    infer_startup_hint_from_engine_state(&engine)
+    startup_hint_for_ui(&engine)
 }
 
 #[tauri::command]
@@ -129,7 +62,7 @@ mod tests {
     use std::sync::atomic::Ordering;
 
     #[test]
-    fn get_queue_startup_hint_infers_from_paused_queue_when_missing() {
+    fn get_queue_startup_hint_does_not_infer_from_paused_jobs() {
         let engine = TranscodingEngine::new_for_tests();
         engine
             .inner
@@ -179,12 +112,33 @@ mod tests {
             );
         }
 
-        let hint = infer_startup_hint_from_engine_state(&engine).expect("expected a hint");
+        let hint = startup_hint_for_ui(&engine);
+        assert!(hint.is_none());
+    }
+
+    #[test]
+    fn get_queue_startup_hint_returns_engine_hint_when_present() {
+        let engine = TranscodingEngine::new_for_tests();
+        engine
+            .inner
+            .queue_recovery_done
+            .store(true, Ordering::Release);
+        engine.inner.cv.notify_all();
+
+        {
+            let mut guard = engine.inner.queue_startup_hint.lock_unpoisoned();
+            *guard = Some(QueueStartupHint {
+                kind: crate::ffui_core::QueueStartupHintKind::PauseOnExit,
+                auto_paused_job_count: 2,
+            });
+        }
+
+        let hint = startup_hint_for_ui(&engine).expect("expected a hint");
         assert_eq!(
             hint.kind,
-            crate::ffui_core::QueueStartupHintKind::PausedQueue
+            crate::ffui_core::QueueStartupHintKind::PauseOnExit
         );
-        assert_eq!(hint.auto_paused_job_count, 1);
+        assert_eq!(hint.auto_paused_job_count, 2);
     }
 }
 

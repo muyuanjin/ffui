@@ -24,6 +24,7 @@ mod queue_events;
 mod single_instance;
 mod sync_ext;
 mod system_metrics;
+mod window_offscreen;
 
 #[cfg(test)]
 pub mod test_support;
@@ -34,6 +35,9 @@ pub use crate::ffui_core::{
     JobSource, JobStatus, JobType, QueueStateLite, QueueStateLiteDelta, TranscodeJobLite,
     TranscodeJobLiteDeltaPatch,
 };
+
+#[cfg(feature = "bench")]
+pub use crate::ffui_core::bench;
 
 // Taskbar progress APIs are Windows-only; on other platforms we keep the module
 // present but empty so `-D warnings` does not fail due to unused helpers.
@@ -320,6 +324,8 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
+            window_offscreen::recover_main_window_if_offscreen(&handle);
+            window_offscreen::spawn_main_window_offscreen_recovery(handle.clone());
 
             // Wire the tools runtime_state module with the global AppHandle so
             // it can emit ffui://external-tool-status events whenever a tool

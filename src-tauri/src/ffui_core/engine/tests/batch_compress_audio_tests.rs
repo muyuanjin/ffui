@@ -7,8 +7,8 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
         data_root.path().to_path_buf(),
     );
 
-    let dir = env::temp_dir().join("ffui_batch_compress_audio_candidates");
-    let _ = fs::create_dir_all(&dir);
+    let dir = tempfile::tempdir().expect("temp batch compress audio root");
+    let dir = dir.path();
 
     let audio = dir.join("sample-audio.mp3");
     {
@@ -117,6 +117,4 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
         reason.contains("Size <"),
         "skipReason for audio job should describe minimum size check, got: {reason}"
     );
-
-    let _ = fs::remove_dir_all(&dir);
 }

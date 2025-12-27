@@ -7,12 +7,12 @@ use std::sync::atomic::Ordering;
 
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-use super::AtomicU64;
 use crate::ffui_core::domain::{JobRun, JobStatus, QueueStateLite, TranscodeJob};
 use crate::ffui_core::settings::types::{CrashRecoveryLogRetention, QueuePersistenceMode};
 #[cfg(test)]
 use crate::sync_ext::MutexExt;
+#[cfg(test)]
+use std::sync::atomic::AtomicU64;
 
 #[cfg(test)]
 static QUEUE_LOGS_DIR_OVERRIDE: once_cell::sync::Lazy<Mutex<Option<PathBuf>>> =

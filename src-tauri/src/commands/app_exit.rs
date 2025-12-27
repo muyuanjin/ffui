@@ -16,8 +16,27 @@ pub fn reset_exit_prompt(coordinator: State<'_, ExitCoordinator>) {
 #[allow(clippy::needless_pass_by_value)]
 pub async fn exit_app_now(
     app: AppHandle,
+    engine: State<'_, TranscodingEngine>,
     coordinator: State<'_, ExitCoordinator>,
 ) -> Result<(), String> {
+    let processing_job_ids: Vec<String> = {
+        let state = engine.inner.state.lock_unpoisoned();
+        state
+            .jobs
+            .values()
+            .filter(|job| job.status == crate::ffui_core::JobStatus::Processing)
+            .map(|job| job.id.clone())
+            .collect()
+    };
+
+    // Best-effort: persist the current queue snapshot so the next startup can
+    // recover and offer a one-click resume prompt even after an immediate exit.
+    let _ = engine.force_persist_queue_state_lite_now();
+    write_shutdown_marker_with_auto_wait_job_ids(
+        ShutdownMarkerKind::Running,
+        Some(processing_job_ids),
+    );
+
     coordinator.allow_exit();
     app.exit(0);
     Ok(())

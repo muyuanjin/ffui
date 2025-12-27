@@ -3,6 +3,7 @@
 
 mod cleanup;
 mod control;
+mod crash_recovery_probe;
 mod enqueue;
 mod handoff;
 mod selection;
@@ -21,3 +22,6 @@ pub(super) use handoff::finish_job_and_try_start_next_locked;
 pub(super) use selection::next_job_for_worker_locked;
 pub(super) use spawner::spawn_worker;
 pub(super) use worker_reorder::reorder_waiting_jobs;
+
+#[cfg(test)]
+pub(super) use crash_recovery_probe::probe_crash_recovery_wait_metadata_for_processing_job_best_effort;

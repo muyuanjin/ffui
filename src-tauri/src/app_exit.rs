@@ -68,9 +68,7 @@ pub fn pause_processing_jobs_for_exit(
             .collect()
     };
 
-    for job_id in &job_ids {
-        let _ = engine.wait_job(job_id);
-    }
+    engine.wait_jobs_bulk(job_ids.clone());
 
     let deadline = if timeout_seconds > 0.0 {
         Some(Instant::now() + Duration::from_secs_f64(timeout_seconds))
@@ -131,6 +129,8 @@ mod tests {
     use crate::ffui_core::QueueStateLite;
     use crate::ffui_core::{JobSource, JobType, QueuePersistenceMode, TranscodeJob};
     use crate::sync_ext::MutexExt;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
 
     fn install_queue_state_sidecar_path(prefix: &str) -> std::path::PathBuf {
         let tmp_dir = std::env::temp_dir();
@@ -196,6 +196,30 @@ mod tests {
                 job.status = JobStatus::Paused;
             }
         });
+    }
+
+    #[test]
+    fn pause_processing_jobs_for_exit_emits_single_queue_notification_for_bulk_wait() {
+        let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+        let engine = TranscodingEngine::new_for_tests();
+
+        let notify_count = Arc::new(AtomicUsize::new(0));
+        let notify_count_for_listener = notify_count.clone();
+        engine.register_queue_listener(move |_| {
+            notify_count_for_listener.fetch_add(1, Ordering::SeqCst);
+        });
+
+        for idx in 0..32 {
+            insert_processing_job(&engine, &format!("job-bulk-{idx}"));
+        }
+
+        let _ = pause_processing_jobs_for_exit(&engine, 0.01);
+
+        assert_eq!(
+            notify_count.load(Ordering::SeqCst),
+            1,
+            "bulk exit pause should notify queue listeners once, not per job"
+        );
     }
 
     #[test]

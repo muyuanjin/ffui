@@ -182,6 +182,166 @@ fn update_job_progress_emits_queue_lite_delta_for_log_only_updates() {
 }
 
 #[test]
+fn worker_selection_does_not_preserve_stale_progress_without_resumable_metadata() {
+    let engine = make_engine_with_preset();
+    let job_id = "job-stale-progress".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.queue.push_back(job_id.clone());
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: "C:/videos/stale_progress.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::Manual,
+                queue_order: None,
+                original_size_mb: 100.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Queued,
+                progress: 42.0,
+                start_time: None,
+                end_time: None,
+                processing_started_ms: None,
+                elapsed_ms: Some(1234),
+                output_size_mb: None,
+                logs: Vec::new(),
+                log_head: None,
+                skip_reason: None,
+                input_path: None,
+                output_path: None,
+                output_policy: None,
+                ffmpeg_command: None,
+                runs: Vec::new(),
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                preview_revision: 0,
+                log_tail: None,
+                failure_reason: None,
+                warnings: Vec::new(),
+                batch_id: None,
+                wait_metadata: None,
+            },
+        );
+    }
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let picked = next_job_for_worker_locked(&mut state).expect("job must be selectable");
+        assert_eq!(picked, job_id, "expected the queued job to be picked");
+        let job = state.jobs.get(&job_id).expect("job must exist");
+        assert_eq!(job.status, JobStatus::Processing);
+        assert_eq!(
+            job.progress, 0.0,
+            "stale persisted progress must not suppress early progress updates for a fresh run"
+        );
+        assert!(
+            job.wait_metadata
+                .as_ref()
+                .and_then(|m| m.last_progress_percent)
+                .is_some_and(|p| (p - 42.0).abs() < 0.000_001),
+            "expected last_progress_percent to retain resume evidence"
+        );
+    }
+}
+
+#[test]
+fn worker_crash_recovery_probe_clears_stale_resume_paths_when_missing_on_disk() {
+    use crate::ffui_core::engine::state::restore_segment_probe::SegmentDirCache;
+    use tempfile::tempdir;
+
+    let engine = make_engine_with_preset();
+    let job_id = "job-stale-wait-metadata".to_string();
+    let dir = tempdir().expect("tempdir");
+    let input = dir.path().join("input.mp4");
+    let stale_seg0 = dir.path().join("seg0.tmp.mkv");
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: input.to_string_lossy().into_owned(),
+                job_type: JobType::Video,
+                source: JobSource::Manual,
+                queue_order: None,
+                original_size_mb: 100.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Processing,
+                progress: 55.0,
+                start_time: Some(0),
+                end_time: None,
+                processing_started_ms: Some(0),
+                elapsed_ms: Some(1234),
+                output_size_mb: None,
+                logs: Vec::new(),
+                log_head: None,
+                skip_reason: None,
+                input_path: None,
+                output_path: None,
+                output_policy: None,
+                ffmpeg_command: None,
+                runs: Vec::new(),
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                preview_revision: 0,
+                log_tail: None,
+                failure_reason: None,
+                warnings: Vec::new(),
+                batch_id: None,
+                wait_metadata: Some(WaitMetadata {
+                    last_progress_percent: Some(55.0),
+                    processed_wall_millis: Some(1234),
+                    processed_seconds: Some(10.0),
+                    target_seconds: Some(10.0),
+                    last_progress_out_time_seconds: Some(10.0),
+                    last_progress_frame: Some(42),
+                    tmp_output_path: Some(stale_seg0.to_string_lossy().into_owned()),
+                    segments: Some(vec![stale_seg0.to_string_lossy().into_owned()]),
+                    segment_end_targets: Some(vec![10.0]),
+                }),
+            },
+        );
+    }
+
+    let mut cache = SegmentDirCache::default();
+    let changed = probe_crash_recovery_wait_metadata_for_processing_job_best_effort(
+        &engine.inner,
+        &job_id,
+        &mut cache,
+    );
+    assert!(
+        changed,
+        "expected stale wait metadata to be sanitized for a fresh run"
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let job = state.jobs.get(&job_id).expect("job");
+    assert!(
+        (job.progress - 0.0).abs() < 0.000_001,
+        "stale progress must be reset so early ffmpeg progress updates are not suppressed"
+    );
+    let meta = job
+        .wait_metadata
+        .as_ref()
+        .expect("wait metadata should remain present");
+    assert!(meta.segments.is_none());
+    assert!(meta.tmp_output_path.is_none());
+    assert!(meta.segment_end_targets.is_none());
+    assert!(meta.last_progress_percent.is_none());
+    assert!(
+        meta.processed_wall_millis.is_some(),
+        "elapsed evidence should remain available"
+    );
+}
+
+#[test]
 fn update_job_progress_ignores_whitespace_only_log_lines() {
     let settings = AppSettings::default();
     let inner = Inner::new(Vec::new(), settings);

@@ -19,6 +19,10 @@ pub(in crate::ffui_core::engine) use bulk_ops::{
 };
 mod delete_ops;
 pub(in crate::ffui_core::engine) use delete_ops::delete_jobs_bulk;
+mod resume_ops;
+pub(in crate::ffui_core::engine) use resume_ops::resume_job;
+mod startup_resume;
+pub(in crate::ffui_core::engine) use startup_resume::resume_startup_auto_paused_jobs;
 
 fn unique_nonempty_job_ids(job_ids: Vec<String>) -> Option<HashSet<String>> {
     let unique: HashSet<String> = job_ids
@@ -221,141 +225,6 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
     }
 
     true
-}
-
-/// Resume a paused/waited job by putting it back into the waiting queue while
-/// keeping its progress/wait metadata intact。Processing 状态下如仍有待处理暂停
-/// 请求，则直接取消，避免快速“暂停→继续”引发的竞态。
-pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str) -> bool {
-    let (result, should_notify) = {
-        let mut state = inner.state.lock_unpoisoned();
-        let status = match state.jobs.get(job_id) {
-            Some(job) => job.status,
-            None => return false,
-        };
-
-        match status {
-            JobStatus::Queued => {
-                // Idempotent: ensure the job is enqueued so users can safely
-                // click "resume" even if the frontend snapshot is stale.
-                if !state.queue.iter().any(|id| id == job_id) {
-                    state.queue.push_back(job_id.to_string());
-                }
-                // Any stale flags become irrelevant.
-                state.wait_requests.remove(job_id);
-                state.cancelled_jobs.remove(job_id);
-                state.restart_requests.remove(job_id);
-                (true, true)
-            }
-            JobStatus::Paused => {
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    job.status = JobStatus::Queued;
-                }
-                if !state.queue.iter().any(|id| id == job_id) {
-                    state.queue.push_back(job_id.to_string());
-                }
-                // Any stale flags become irrelevant.
-                state.wait_requests.remove(job_id);
-                state.cancelled_jobs.remove(job_id);
-                state.restart_requests.remove(job_id);
-                (true, true)
-            }
-            JobStatus::Processing => {
-                // 任务仍在处理中且存在待处理暂停时，直接取消暂停请求。
-                let wait_request_cancelled = state.wait_requests.remove(job_id);
-
-                if wait_request_cancelled {
-                    if let Some(job) = state.jobs.get_mut(job_id) {
-                        append_job_log_line(
-                            job,
-                            "Resume requested while wait was pending; cancelling wait request"
-                                .to_string(),
-                        );
-                    }
-                    (true, true)
-                } else {
-                    // 没有待处理的暂停请求，任务正在正常处理中，无需操作
-                    (false, false)
-                }
-            }
-            _ => (false, false),
-        }
-    };
-
-    if should_notify {
-        inner.cv.notify_one();
-        notify_queue_listeners(inner);
-    }
-
-    result
-}
-
-/// Resume any jobs that were automatically paused during startup recovery.
-///
-/// This preserves the existing queue ordering and simply marks the jobs back
-/// to Queued so the normal worker selection logic (and concurrency limits)
-/// can schedule them again.
-pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<Inner>) -> usize {
-    let auto_paused_set: std::collections::HashSet<String> = {
-        let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
-        if guard.is_empty() {
-            return 0;
-        }
-        guard.drain().collect()
-    };
-
-    let (resumed, should_notify) = {
-        let mut state = inner.state.lock_unpoisoned();
-        let mut resumed = 0usize;
-
-        let queue_job_ids: Vec<String> = state.queue.iter().cloned().collect();
-        for job_id in queue_job_ids {
-            if !auto_paused_set.contains(&job_id) {
-                continue;
-            }
-            let Some(job) = state.jobs.get_mut(&job_id) else {
-                continue;
-            };
-            if job.status != JobStatus::Paused {
-                continue;
-            }
-            job.status = JobStatus::Queued;
-            resumed = resumed.saturating_add(1);
-
-            state.wait_requests.remove(&job_id);
-            state.cancelled_jobs.remove(&job_id);
-            state.restart_requests.remove(&job_id);
-        }
-
-        let queue_set: std::collections::HashSet<String> = state.queue.iter().cloned().collect();
-        for job_id in auto_paused_set {
-            if queue_set.contains(&job_id) {
-                continue;
-            }
-            let Some(job) = state.jobs.get_mut(&job_id) else {
-                continue;
-            };
-            if job.status != JobStatus::Paused {
-                continue;
-            }
-            job.status = JobStatus::Queued;
-            resumed = resumed.saturating_add(1);
-            state.queue.push_back(job_id.clone());
-
-            state.wait_requests.remove(&job_id);
-            state.cancelled_jobs.remove(&job_id);
-            state.restart_requests.remove(&job_id);
-        }
-
-        (resumed, resumed > 0)
-    };
-
-    if should_notify {
-        inner.cv.notify_all();
-        notify_queue_listeners(inner);
-    }
-
-    resumed
 }
 
 /// Restart a job from 0% progress. For jobs that are currently processing

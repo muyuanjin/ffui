@@ -1,9 +1,10 @@
 #[cfg(test)]
 mod tools_tests_probe {
-    use std::env;
     use std::fs::{self, File};
     use std::io::Write;
     use std::path::{Path, PathBuf};
+
+    use tempfile::TempDir;
 
     #[cfg(unix)]
     fn make_executable(path: &Path, label: &str) {
@@ -76,7 +77,8 @@ mod tools_tests_probe {
         use crate::ffui_core::tools::ExternalToolKind;
         use crate::ffui_core::tools::probe::verify_tool_binary;
 
-        let dir = env::temp_dir();
+        let tmp = TempDir::new().expect("temp dir");
+        let dir = tmp.path();
 
         #[cfg(windows)]
         {
@@ -93,7 +95,6 @@ mod tools_tests_probe {
                 ExternalToolKind::Ffmpeg,
                 "path"
             ));
-            let _ = fs::remove_file(&path);
         }
 
         #[cfg(not(windows))]
@@ -116,7 +117,6 @@ mod tools_tests_probe {
                 ExternalToolKind::Ffmpeg,
                 "path"
             ));
-            let _ = fs::remove_file(&path);
         }
     }
 
@@ -125,7 +125,8 @@ mod tools_tests_probe {
         use crate::ffui_core::tools::ExternalToolKind;
         use crate::ffui_core::tools::probe::verify_tool_binary;
 
-        let dir = env::temp_dir();
+        let tmp = TempDir::new().expect("temp dir");
+        let dir = tmp.path();
 
         #[cfg(windows)]
         {
@@ -145,7 +146,6 @@ mod tools_tests_probe {
                 ),
                 "avifenc verifier must treat a successfully spawned binary as available even when it exits non-zero"
             );
-            let _ = fs::remove_file(&path);
         }
 
         #[cfg(not(windows))]
@@ -169,7 +169,6 @@ mod tools_tests_probe {
                 ),
                 "avifenc verifier must treat a successfully spawned binary as available even when it exits non-zero"
             );
-            let _ = fs::remove_file(&path);
         }
     }
 

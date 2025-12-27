@@ -1,6 +1,6 @@
 use super::super::state::EngineState;
 use super::super::worker_utils::current_time_millis;
-use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob};
+use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob, WaitMetadata};
 use crate::ffui_core::settings::TranscodeParallelismMode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -78,6 +78,29 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         // have meaningful progress and wait metadata we keep the existing
         // percentage so the UI does not jump backwards when continuing from
         // a partial output segment.
+        let had_crash_recovery_evidence =
+            job.progress > 0.0 || job.elapsed_ms.is_some_and(|ms| ms > 0);
+        if job.wait_metadata.is_none() && had_crash_recovery_evidence {
+            let previous_progress = job.progress;
+            // Preserve resume evidence for best-effort crash recovery probing
+            // without implying resumable segment paths (segments/tmp_output_path).
+            job.wait_metadata = Some(WaitMetadata {
+                last_progress_percent: Some(previous_progress),
+                processed_wall_millis: job.elapsed_ms,
+                processed_seconds: None,
+                target_seconds: None,
+                last_progress_out_time_seconds: None,
+                last_progress_frame: None,
+                tmp_output_path: None,
+                segments: None,
+                segment_end_targets: None,
+            });
+            // Treat the current run as fresh until a probe recovers actual
+            // resumable segment paths; otherwise early progress updates would
+            // be suppressed by the monotonic progress guard.
+            job.progress = 0.0;
+        }
+
         if job.progress <= 0.0 || job.wait_metadata.is_none() || !job.progress.is_finite() {
             job.progress = 0.0;
         }

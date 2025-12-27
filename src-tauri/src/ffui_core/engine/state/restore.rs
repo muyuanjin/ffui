@@ -2,16 +2,10 @@ use super::super::state_persist::{load_persisted_queue_state, load_persisted_ter
 use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
 use crate::ffui_core::ShutdownMarkerKind;
-use crate::ffui_core::domain::{
-    JobStatus, JobType, QueueStartupHint, QueueStartupHintKind, QueueState, TranscodeJob,
-    WaitMetadata,
-};
-use crate::ffui_core::engine::segment_discovery;
+use crate::ffui_core::domain::{JobStatus, QueueStartupHint, QueueStartupHintKind, QueueState};
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
-use std::collections::BTreeMap;
 use std::collections::{HashSet, VecDeque};
-use std::path::{Path, PathBuf};
 pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &Inner) {
     let (mode, retention) = {
         let state = inner.state.lock_unpoisoned();
@@ -104,36 +98,9 @@ pub(in crate::ffui_core::engine) fn restore_jobs_from_persisted_queue(inner: &In
 
     let auto_paused_count = inner.startup_auto_paused_job_ids.lock_unpoisoned().len();
     if auto_paused_count == 0 {
-        let paused_queue_ids: Vec<String> = {
-            let state = inner.state.lock_unpoisoned();
-            state
-                .queue
-                .iter()
-                .filter(|id| {
-                    state
-                        .jobs
-                        .get(*id)
-                        .is_some_and(|job| job.status == JobStatus::Paused)
-                })
-                .cloned()
-                .collect()
-        };
-
-        if paused_queue_ids.is_empty() {
-            return;
-        }
-
-        {
-            let mut guard = inner.startup_auto_paused_job_ids.lock_unpoisoned();
-            guard.clear();
-            guard.extend(paused_queue_ids.iter().cloned());
-        }
-
-        let hint = QueueStartupHint {
-            kind: QueueStartupHintKind::PausedQueue,
-            auto_paused_job_count: paused_queue_ids.len(),
-        };
-        *inner.queue_startup_hint.lock_unpoisoned() = Some(hint);
+        // Do not infer startup auto-paused jobs from any "Paused" status:
+        // users can pause jobs manually, and that must not trigger (or be resumed by)
+        // the startup recovery prompt.
         return;
     }
 
@@ -174,7 +141,6 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
 
     let mut recovered_processing: Vec<(u64, String)> = Vec::new();
     let mut waiting_like: Vec<(u64, String)> = Vec::new();
-    let mut segment_probes: Vec<SegmentProbe> = Vec::new();
     let mut auto_paused_ids: Vec<String> = Vec::new();
     let auto_wait_processing_ids: HashSet<String> = inner
         .previous_shutdown_marker
@@ -237,26 +203,8 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
                 auto_paused = true;
             }
 
-            // Best-effort crash recovery metadata for video jobs that had
-            // already made some progress. When a temp output exists but no
-            // WaitMetadata was recorded (for example due to a power loss),
-            // attach the path so a later resume can attempt concat-based
-            // continuation instead of always restarting from 0%.
             // 处理耗时基线属于运行期信息，恢复时清空，待重新进入 Processing 时再设置。
             job.processing_started_ms = None;
-            if matches!(job.job_type, JobType::Video)
-                && matches!(job.status, JobStatus::Queued | JobStatus::Paused)
-                && should_probe_segments_for_crash_recovery(&job)
-            {
-                segment_probes.push(SegmentProbe {
-                    id: id.clone(),
-                    input_path: PathBuf::from(job.filename.trim()),
-                    output_path: job.output_path.as_deref().map(|s| PathBuf::from(s.trim())),
-                    progress: job.progress,
-                    elapsed_ms: job.elapsed_ms,
-                    existing_wait_metadata: job.wait_metadata.clone(),
-                });
-            }
 
             if job.status == JobStatus::Paused {
                 if was_processing || processing_on_auto_wait_exit {
@@ -310,38 +258,6 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         guard.extend(auto_paused_ids);
     }
 
-    // Perform any filesystem probes (e.g. temp output existence checks)
-    // outside the engine lock to avoid blocking concurrent queue snapshots.
-    if !segment_probes.is_empty() {
-        let mut recovered: Vec<(String, WaitMetadata)> = Vec::new();
-
-        for probe in segment_probes {
-            let meta = recover_wait_metadata_from_filesystem(&probe);
-            if let Some(meta) = meta {
-                recovered.push((probe.id, meta));
-            }
-        }
-
-        if !recovered.is_empty() {
-            let mut state = inner.state.lock_unpoisoned();
-            for (id, meta) in recovered {
-                let Some(job) = state.jobs.get_mut(&id) else {
-                    continue;
-                };
-                // Only apply if we actually improve crash-recovery ability:
-                // - missing wait metadata
-                // - or existing metadata has no usable segment paths.
-                let should_apply = job
-                    .wait_metadata
-                    .as_ref()
-                    .is_none_or(wait_metadata_has_no_usable_paths);
-                if should_apply {
-                    job.wait_metadata = Some(meta);
-                }
-            }
-        }
-    }
-
     // Emit a snapshot so the frontend sees the recovered queue without having
     // to poll immediately after startup.
     super::notify_queue_listeners(inner);
@@ -351,144 +267,3 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     // on the condition variable until a brand-new job is enqueued.
     inner.cv.notify_all();
 }
-
-#[derive(Debug, Clone)]
-struct SegmentProbe {
-    id: String,
-    input_path: PathBuf,
-    output_path: Option<PathBuf>,
-    progress: f64,
-    elapsed_ms: Option<u64>,
-    existing_wait_metadata: Option<WaitMetadata>,
-}
-
-fn should_probe_segments_for_crash_recovery(job: &TranscodeJob) -> bool {
-    // We probe when crash recovery might have missed `wait_metadata` due to
-    // debounce/force-kill timing, or when metadata exists but contains no
-    // usable segment paths (e.g. output policy changed across refactors).
-    job.wait_metadata.as_ref().is_none_or(|meta| {
-        let has_any_paths = meta
-            .segments
-            .as_ref()
-            .is_some_and(|v| v.iter().any(|s| !s.trim().is_empty()))
-            || meta
-                .tmp_output_path
-                .as_ref()
-                .is_some_and(|s| !s.trim().is_empty());
-        !has_any_paths
-    })
-}
-
-fn wait_metadata_has_no_usable_paths(meta: &WaitMetadata) -> bool {
-    if let Some(segs) = meta.segments.as_ref()
-        && segs.iter().any(|s| {
-            let trimmed = s.trim();
-            !trimmed.is_empty() && Path::new(trimmed).exists()
-        })
-    {
-        return false;
-    }
-    if let Some(tmp) = meta.tmp_output_path.as_ref() {
-        let trimmed = tmp.trim();
-        if !trimmed.is_empty() && Path::new(trimmed).exists() {
-            return false;
-        }
-    }
-    true
-}
-
-fn recover_wait_metadata_from_filesystem(probe: &SegmentProbe) -> Option<WaitMetadata> {
-    let mut found: BTreeMap<u64, PathBuf> = BTreeMap::new();
-
-    // 1) Prefer output-path-derived segments (supports fixed output directories
-    // and the post-refactor "{stem}.{jobId}.segN.tmp.{ext}" naming).
-    if let Some(output_path) = probe.output_path.as_ref() {
-        segment_discovery::discover_segments_for_output_path(output_path, &probe.id, &mut found);
-    }
-
-    // 2) Also scan for per-job ".compressed.{jobId}.segN.tmp.*" segments placed
-    // next to the input (legacy, or same-as-input output policy).
-    segment_discovery::discover_segments_for_input_path(&probe.input_path, &probe.id, &mut found);
-
-    // 3) Fall back to a single legacy temp output file when segment naming is unknown.
-    if found.is_empty()
-        && let Some(legacy_tmp) =
-            segment_discovery::build_legacy_video_tmp_output_path(&probe.input_path)
-        && legacy_tmp.exists()
-    {
-        found.insert(0, legacy_tmp);
-    }
-
-    // 4) Merge in any existing wait metadata paths that still exist on disk.
-    if let Some(existing) = probe.existing_wait_metadata.as_ref() {
-        for (idx, path) in wait_metadata_existing_paths(existing)
-            .into_iter()
-            .enumerate()
-        {
-            if path.exists() {
-                // Use a stable, monotonic key when we cannot parse the true segment index.
-                let key = u64::try_from(10_000_000usize.saturating_add(idx)).unwrap_or(u64::MAX);
-                found.entry(key).or_insert(path);
-            }
-        }
-    }
-
-    let mut segments: Vec<String> = Vec::new();
-    for (_idx, path) in found {
-        segments.push(path.to_string_lossy().into_owned());
-    }
-    if segments.is_empty() {
-        return None;
-    }
-
-    let last = segments.last().cloned();
-    let mut meta = probe
-        .existing_wait_metadata
-        .clone()
-        .unwrap_or(WaitMetadata {
-            last_progress_percent: Some(probe.progress),
-            processed_wall_millis: probe.elapsed_ms,
-            processed_seconds: None,
-            target_seconds: None,
-            last_progress_out_time_seconds: None,
-            last_progress_frame: None,
-            tmp_output_path: None,
-            segments: None,
-            segment_end_targets: None,
-        });
-    meta.last_progress_percent = meta.last_progress_percent.or(Some(probe.progress));
-    meta.processed_wall_millis = meta.processed_wall_millis.or(probe.elapsed_ms);
-    meta.segments = Some(segments);
-    meta.tmp_output_path = last;
-
-    // If we reconstructed/merged segment paths, any per-segment join targets
-    // are no longer guaranteed to align. Let the resume pipeline probe or
-    // rebuild targets conservatively.
-    meta.segment_end_targets = None;
-
-    Some(meta)
-}
-
-fn wait_metadata_existing_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
-    let mut out: Vec<PathBuf> = Vec::new();
-    if let Some(segs) = meta.segments.as_ref() {
-        for s in segs {
-            let trimmed = s.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            out.push(PathBuf::from(trimmed));
-        }
-    }
-    if out.is_empty()
-        && let Some(tmp) = meta.tmp_output_path.as_ref()
-    {
-        let trimmed = tmp.trim();
-        if !trimmed.is_empty() {
-            out.push(PathBuf::from(trimmed));
-        }
-    }
-    out
-}
-
-// Legacy ".compressed.tmp.{ext}" file is handled by the filesystem recovery probe.

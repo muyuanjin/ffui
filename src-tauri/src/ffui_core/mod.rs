@@ -18,6 +18,9 @@ mod settings;
 mod shutdown_marker;
 pub mod tools;
 
+#[cfg(feature = "bench")]
+pub mod bench;
+
 pub(crate) use compare_preview::extract_concat_preview_frame;
 #[cfg(test)]
 pub(crate) use compare_preview::{

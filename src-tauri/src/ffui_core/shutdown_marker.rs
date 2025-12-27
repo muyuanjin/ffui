@@ -104,5 +104,16 @@ mod tests {
             marker.auto_wait_processing_job_ids,
             Some(vec!["job-1".to_string(), "job-2".to_string()])
         );
+
+        assert!(write_shutdown_marker_with_auto_wait_job_ids(
+            ShutdownMarkerKind::Running,
+            Some(vec!["job-3".to_string()]),
+        ));
+        let marker = read_shutdown_marker().expect("marker should exist");
+        assert_eq!(marker.kind, ShutdownMarkerKind::Running);
+        assert_eq!(
+            marker.auto_wait_processing_job_ids,
+            Some(vec!["job-3".to_string()])
+        );
     }
 }

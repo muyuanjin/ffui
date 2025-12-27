@@ -1,6 +1,8 @@
 //! Transcoding engine split into modular components (`state`, `ffmpeg_args`, `worker`,
 //! `job_runner`, `batch_compress`).
 mod batch_compress;
+#[cfg(feature = "bench")]
+pub(super) mod bench;
 mod enqueue_bulk;
 mod ffmpeg_args;
 mod file_times;
@@ -14,21 +16,19 @@ mod settings_save;
 mod state;
 mod state_persist;
 mod template_args;
-mod tools_refresh;
-mod transcode_activity;
-mod worker;
-mod worker_utils;
-
 #[cfg(test)]
 mod test_mutex;
 #[cfg(test)]
 mod tests;
+mod tools_refresh;
+mod transcode_activity;
+mod worker;
+mod worker_utils;
 pub(crate) use batch_compress::is_video_file;
 #[cfg(test)]
 pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
 #[cfg(test)]
 pub(crate) use state_persist::override_queue_state_sidecar_path_for_tests;
-
 // 导出 Job Object 初始化函数，供应用启动时调用
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource,
@@ -139,7 +139,7 @@ impl TranscodingEngine {
         preview_cache_gc::spawn_preview_cache_gc(engine.clone());
         Ok(engine)
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn new_for_tests() -> Self {
         let presets = Vec::new();
         let settings = AppSettings::default();

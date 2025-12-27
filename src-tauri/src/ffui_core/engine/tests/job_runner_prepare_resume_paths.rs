@@ -6,6 +6,60 @@ use super::*;
 use crate::ffui_core::domain::WaitMetadata;
 
 #[test]
+fn plan_resume_paths_uses_last_progress_out_time_when_pause_metadata_missing() {
+    let dir = env::temp_dir();
+    let input = dir.join("ffui_resume_plan_out_time.mp4");
+    let output = dir.join("ffui_resume_plan_out_time.output.mp4");
+    let job_id = "job-test-resume-out-time";
+    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
+
+    if let Some(parent) = seg0.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    {
+        let mut file = File::create(&seg0).expect("create seg0");
+        let _ = file.write_all(b"segment0");
+    }
+
+    let meta = WaitMetadata {
+        last_progress_percent: Some(55.0),
+        processed_wall_millis: None,
+        processed_seconds: None,
+        target_seconds: None,
+        last_progress_out_time_seconds: Some(12.5),
+        last_progress_frame: Some(42),
+        tmp_output_path: Some(seg0.to_string_lossy().into_owned()),
+        segments: Some(vec![seg0.to_string_lossy().into_owned()]),
+        segment_end_targets: None,
+    };
+
+    let (resume_target, existing, _existing_end_targets, tmp_output, resume_plan) =
+        plan_resume_paths(job_id, &input, &output, None, Some(&meta), None, 2.0);
+
+    assert!(
+        (resume_target.unwrap_or(0.0) - 12.5).abs() < f64::EPSILON,
+        "resume_target should prefer last_progress_out_time_seconds"
+    );
+    assert!(
+        resume_plan.is_some(),
+        "resume_plan should exist when out_time is available"
+    );
+    assert_eq!(
+        existing,
+        vec![seg0.clone()],
+        "existing_segments should contain seg0"
+    );
+    assert_eq!(
+        tmp_output, seg1,
+        "tmp_output should advance to the next segment"
+    );
+
+    let _ = fs::remove_file(&seg0);
+    let _ = fs::remove_file(&seg1);
+}
+
+#[test]
 fn plan_resume_paths_uses_next_segment_for_initial_resume() {
     let dir = env::temp_dir();
     let input = dir.join("ffui_resume_plan_first.mp4");

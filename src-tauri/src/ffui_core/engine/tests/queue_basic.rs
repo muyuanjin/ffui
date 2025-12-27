@@ -1,5 +1,6 @@
 use super::*;
 use crate::ffui_core::engine::job_runner::current_time_millis;
+use crate::ffui_core::engine::state::restore_segment_probe::SegmentDirCache;
 #[test]
 fn inspect_media_produces_json_for_generated_clip() {
     if !ffmpeg_available() {
@@ -394,14 +395,9 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
         "restored job should keep at least its previous progress, got {}",
         restored_job.progress
     );
-    let meta = restored_job
-        .wait_metadata
-        .as_ref()
-        .expect("restored job should carry wait_metadata");
-    assert_eq!(
-        meta.tmp_output_path.as_deref(),
-        Some(tmp_output.to_string_lossy().as_ref()),
-        "wait_metadata.tmp_output_path should reference the existing temp output"
+    assert!(
+        restored_job.wait_metadata.is_none(),
+        "startup restore should not probe the filesystem for crash recovery metadata"
     );
 
     // The restored queue must not start paused jobs automatically.
@@ -413,6 +409,41 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
     assert!(
         next.is_none(),
         "paused job should not be selected automatically after crash recovery"
+    );
+    drop(state);
+
+    assert_eq!(
+        restored.resume_startup_auto_paused_jobs(),
+        1,
+        "startup resume should transition the job back to Queued"
+    );
+
+    {
+        let mut state = restored.inner.state.lock_unpoisoned();
+        let picked = next_job_for_worker_locked(&mut state).expect("job must be selectable");
+        assert_eq!(picked, job_id, "expected resumed job to be selected");
+    }
+
+    let mut cache = SegmentDirCache::default();
+    probe_crash_recovery_wait_metadata_for_processing_job_best_effort(
+        &restored.inner,
+        &job_id,
+        &mut cache,
+    );
+
+    let state = restored.inner.state.lock_unpoisoned();
+    let restored_job = state
+        .jobs
+        .get(&job_id)
+        .expect("restored job must still exist");
+    let meta = restored_job
+        .wait_metadata
+        .as_ref()
+        .expect("wait_metadata should be recovered before processing");
+    assert_eq!(
+        meta.tmp_output_path.as_deref(),
+        Some(tmp_output.to_string_lossy().as_ref()),
+        "wait_metadata.tmp_output_path should reference the existing temp output"
     );
 }
 

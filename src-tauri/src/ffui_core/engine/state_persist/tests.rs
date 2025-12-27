@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use super::*;
@@ -431,4 +432,84 @@ fn restore_merges_terminal_logs_into_memory_in_full_mode() {
 
     let _ = fs::remove_file(tmp);
     let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn restore_does_not_emit_startup_hint_for_user_paused_jobs() {
+    let _guard = lock_persist_test_mutex_for_tests();
+
+    let inner = restore_from_persisted_lite_snapshot(
+        "ffui-test-queue-startup-hint-paused",
+        vec![make_job("job-1", JobStatus::Paused)],
+    );
+
+    assert!(
+        inner.queue_startup_hint.lock_unpoisoned().is_none(),
+        "manual paused jobs must not trigger a startup recovery hint"
+    );
+    assert!(
+        inner
+            .startup_auto_paused_job_ids
+            .lock_unpoisoned()
+            .is_empty(),
+        "manual paused jobs must not be treated as startup auto-paused"
+    );
+
+    let state = inner.state.lock_unpoisoned();
+    assert!(
+        state.jobs.contains_key("job-1"),
+        "expected job to be restored"
+    );
+}
+
+fn restore_from_persisted_lite_snapshot(
+    file_prefix: &str,
+    jobs: Vec<TranscodeJob>,
+) -> super::super::state::Inner {
+    let tmp_root = tempfile::tempdir().expect("temp queue state root");
+    let tmp = tmp_root
+        .path()
+        .join(format!("{file_prefix}-{}.json", std::process::id()));
+    let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
+
+    let lite = make_state_lite(jobs);
+    fs::write(
+        &tmp,
+        serde_json::to_vec(&lite).expect("serialize lite snapshot"),
+    )
+    .expect("write persisted lite queue state");
+
+    let settings = crate::ffui_core::settings::AppSettings {
+        queue_persistence_mode: QueuePersistenceMode::CrashRecoveryLite,
+        crash_recovery_log_retention: None,
+        ..Default::default()
+    };
+    let inner = super::super::state::Inner::new(Vec::new(), settings);
+    super::super::state::restore_jobs_from_persisted_queue(&inner);
+    inner
+}
+
+#[test]
+fn restore_emits_startup_hint_for_auto_paused_jobs() {
+    let _guard = lock_persist_test_mutex_for_tests();
+
+    let inner = restore_from_persisted_lite_snapshot(
+        "ffui-test-queue-startup-hint-auto-paused",
+        vec![make_job("job-1", JobStatus::Queued)],
+    );
+
+    let hint = inner
+        .queue_startup_hint
+        .lock_unpoisoned()
+        .clone()
+        .expect("expected hint");
+    assert_eq!(hint.auto_paused_job_count, 1);
+    assert_eq!(
+        hint.kind,
+        crate::ffui_core::domain::QueueStartupHintKind::NormalRestart
+    );
+
+    let auto_paused = inner.startup_auto_paused_job_ids.lock_unpoisoned();
+    assert_eq!(auto_paused.len(), 1);
+    assert!(auto_paused.contains("job-1"));
 }

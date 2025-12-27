@@ -7,9 +7,11 @@ use super::super::worker_utils::{
     append_job_log_line, current_time_millis, mark_batch_compress_child_processed,
 };
 use super::super::{job_runner, transcode_activity};
+use super::crash_recovery_probe::probe_crash_recovery_wait_metadata_for_processing_job_best_effort;
 use super::handoff::finish_job_and_try_start_next_locked;
 use super::selection::next_job_for_worker_locked;
 use crate::ffui_core::domain::JobStatus;
+use crate::ffui_core::engine::state::restore_segment_probe::SegmentDirCache;
 use crate::sync_ext::{CondvarExt, MutexExt};
 
 /// Spawn (or extend) worker threads to satisfy current concurrency settings.
@@ -59,6 +61,7 @@ pub(in crate::ffui_core::engine) fn spawn_worker(inner: &Arc<Inner>) {
 /// Worker loop: wait for jobs, process, handle cancellation/errors.
 fn worker_loop(inner: &Arc<Inner>) {
     let mut handoff_job_id: Option<String> = None;
+    let mut crash_recovery_cache = SegmentDirCache::default();
     loop {
         let (job_id, should_notify_processing_start) = if let Some(id) = handoff_job_id.take() {
             (id, false)
@@ -89,6 +92,18 @@ fn worker_loop(inner: &Arc<Inner>) {
 
         // Notify listeners that a job has moved into processing state.
         if should_notify_processing_start {
+            notify_queue_listeners(inner);
+        }
+
+        // Best-effort crash recovery probe: performed per-job on the worker
+        // thread so UI operations like bulk resume remain O(n) without IO.
+        let did_probe_mutate_state =
+            probe_crash_recovery_wait_metadata_for_processing_job_best_effort(
+                inner,
+                &job_id,
+                &mut crash_recovery_cache,
+            );
+        if did_probe_mutate_state {
             notify_queue_listeners(inner);
         }
 
