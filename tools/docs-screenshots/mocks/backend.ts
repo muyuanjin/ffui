@@ -479,6 +479,13 @@ const readQueryParamNumber = (key: string): number | undefined => {
   return parsed;
 };
 
+const readQueryParamFlag = (key: string): boolean => {
+  const raw = readQueryParam(key);
+  if (!raw) return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+};
+
 const sleep = async (ms: number): Promise<void> => {
   const safeMs = Math.max(0, Math.floor(ms));
   if (safeMs === 0) return;
@@ -509,6 +516,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
   if (typeof queueJobs === "number" && queueJobs > 0) {
     const processingCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueueProcessingJobs") ?? 2));
     const pausedCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueuePausedJobs") ?? 0));
+    const includeCommand = readQueryParamFlag("ffuiQueueIncludeCommand");
 
     const total = Math.max(1, Math.floor(queueJobs));
     const jobs: TranscodeJob[] = new Array(total);
@@ -521,6 +529,9 @@ const buildQueueJobs = (): TranscodeJob[] => {
       const status: TranscodeJob["status"] =
         i < processingCount ? "processing" : i < processingCount + pausedCount ? "paused" : "waiting";
       const progress = status === "processing" ? 10 + (i % 80) : status === "paused" ? 66 : 0;
+      const ffmpegCommand = includeCommand
+        ? `ffmpeg -hide_banner -nostdin -y -progress pipe:2 -i \"${filename}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${outputPath}\"`
+        : undefined;
 
       jobs[i] = {
         id,
@@ -535,6 +546,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
         inputPath: filename,
         outputPath,
         previewPath: poster1,
+        ffmpegCommand,
         logs: [],
         estimatedSeconds: 300,
       } satisfies TranscodeJob;

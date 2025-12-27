@@ -3,6 +3,40 @@ import { tokenizeFfmpegCommand } from "./tokenizer";
 import { assignCommandTokenGroups } from "./grouping";
 import type { HighlightToken } from "@/lib/highlightTokens";
 
+const HIGHLIGHT_CACHE_MAX_ENTRIES = 300;
+
+const tokenCache = new Map<string, HighlightToken[]>();
+const htmlCache = new Map<string, string>();
+
+const makeHighlightCacheKey = (command: string | undefined | null, options?: HighlightOptions): string => {
+  const raw = command ?? "";
+  if (!raw) return "";
+  const overrides = options?.programOverrides;
+  if (!overrides) return raw;
+  const ffmpeg = overrides.ffmpeg ?? "";
+  const ffprobe = overrides.ffprobe ?? "";
+  return `ffmpeg=${ffmpeg}\u0000ffprobe=${ffprobe}\u0000${raw}`;
+};
+
+const cacheGet = <T>(cache: Map<string, T>, key: string): T | undefined => {
+  const hit = cache.get(key);
+  if (hit === undefined) return undefined;
+  // LRU bump
+  cache.delete(key);
+  cache.set(key, hit);
+  return hit;
+};
+
+const cacheSet = <T>(cache: Map<string, T>, key: string, value: T) => {
+  if (!key) return value;
+  cache.set(key, value);
+  if (cache.size > HIGHLIGHT_CACHE_MAX_ENTRIES) {
+    const oldest = cache.keys().next().value;
+    if (typeof oldest === "string") cache.delete(oldest);
+  }
+  return value;
+};
+
 /**
  * Escape HTML special characters
  */
@@ -169,10 +203,16 @@ export const applyProgramOverridesToCommand = (
  * Highlight FFmpeg command with HTML syntax highlighting
  */
 export const highlightFfmpegCommand = (command: string | undefined | null, options?: HighlightOptions): string => {
+  const cacheKey = makeHighlightCacheKey(command, options);
+  if (cacheKey) {
+    const cached = cacheGet(htmlCache, cacheKey);
+    if (typeof cached === "string") return cached;
+  }
+
   const tokens = assignCommandTokenGroups(tokenizeFfmpegCommand(command));
   if (!tokens.length) return "";
 
-  return tokens
+  const html = tokens
     .map((token) => {
       const cls = commandTokenClass(token.kind);
       const programOverride =
@@ -191,16 +231,27 @@ export const highlightFfmpegCommand = (command: string | undefined | null, optio
       return `<span class="${cls}"${titleAttr}${groupAttr}${fieldAttr}>${escaped}</span>`;
     })
     .join("");
+
+  if (cacheKey) {
+    return cacheSet(htmlCache, cacheKey, html);
+  }
+  return html;
 };
 
 export const highlightFfmpegCommandTokens = (
   command: string | undefined | null,
   options?: HighlightOptions,
 ): HighlightToken[] => {
+  const cacheKey = makeHighlightCacheKey(command, options);
+  if (cacheKey) {
+    const cached = cacheGet(tokenCache, cacheKey);
+    if (cached) return cached;
+  }
+
   const tokens = assignCommandTokenGroups(tokenizeFfmpegCommand(command));
   if (!tokens.length) return [];
 
-  return tokens.map((token) => {
+  const highlighted = tokens.map((token) => {
     const cls = commandTokenClass(token.kind);
     const programOverride =
       options?.programOverrides && applyProgramOverride(token.kind, token.text, options.programOverrides);
@@ -220,4 +271,16 @@ export const highlightFfmpegCommandTokens = (
       field: token.field,
     };
   });
+
+  if (cacheKey) {
+    return cacheSet(tokenCache, cacheKey, highlighted);
+  }
+  return highlighted;
+};
+
+export const __test = {
+  resetHighlightCache: () => {
+    tokenCache.clear();
+    htmlCache.clear();
+  },
 };
