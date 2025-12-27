@@ -7,6 +7,8 @@ import type { FFmpegPreset, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 
+const ensureJobPreviewAutoMock = vi.fn(async (_jobId: string) => "C:/app-data/previews/autogen.jpg");
+
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
   const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
@@ -20,6 +22,13 @@ vi.mock("@/lib/backend", () => {
     loadPreviewDataUrl,
     ensureJobPreview,
     selectPlayableMediaPath: vi.fn(async (candidates: string[]) => candidates[0] ?? null),
+  };
+});
+
+vi.mock("@/components/queue-item/previewAutoEnsure", () => {
+  return {
+    ensureJobPreviewAuto: (jobId: string) => ensureJobPreviewAutoMock(jobId),
+    resetPreviewAutoEnsureForTests: vi.fn(() => {}),
   };
 });
 
@@ -150,14 +159,17 @@ describe("QueueItem display preview & command view", () => {
     const img = thumb.find("img");
     expect(img.element).toBeTruthy();
     expect(img.attributes("src")).toBe(job.previewPath);
+    expect(img.attributes("loading")).toBe("eager");
   });
 
-  it("does not auto-generate previews on mount when previewPath is missing (Tauri mode)", async () => {
-    const job = makeJob({ status: "processing", previewPath: undefined, previewRevision: 0 });
-
+  it("auto-generates previews on mount when previewPath is missing (Tauri mode)", async () => {
+    const job = makeJob({ status: "completed", previewPath: undefined, previewRevision: 0 });
     (hasTauri as any).mockReturnValue(true);
 
-    mount(QueueItem, {
+    ensureJobPreviewAutoMock.mockClear();
+    ensureJobPreviewAutoMock.mockResolvedValueOnce("C:/app-data/previews/autogen.jpg");
+
+    const wrapper = mount(QueueItem, {
       props: {
         job,
         preset: basePreset,
@@ -168,9 +180,19 @@ describe("QueueItem display preview & command view", () => {
       },
     });
 
+    const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
+    expect(thumb.findAll("img").length).toBe(0);
+
+    // Flush the async auto-ensure promise + Vue re-render.
+    await Promise.resolve();
     await nextTick();
 
-    expect(ensureJobPreview).toHaveBeenCalledTimes(0);
+    expect(ensureJobPreviewAutoMock).toHaveBeenCalledTimes(1);
+    expect(ensureJobPreviewAutoMock).toHaveBeenCalledWith(job.id);
+
+    const img = wrapper.get("[data-testid='queue-item-thumbnail']").find("img");
+    expect(img.exists()).toBe(true);
+    expect(img.attributes("src")).toBe("C:/app-data/previews/autogen.jpg");
   });
 
   it("cache-busts the thumbnail src when previewRevision changes but previewPath stays stable (Tauri mode)", async () => {
@@ -277,24 +299,6 @@ describe("QueueItem display preview & command view", () => {
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const imgs = thumb.findAll("img");
     expect(imgs.length).toBe(0);
-  });
-
-  it("does not request backend preview generation when previewPath is missing for processing jobs in Tauri mode", () => {
-    const job = makeJob({ status: "processing", progress: 0, previewPath: undefined });
-    (hasTauri as any).mockReturnValue(true);
-
-    mount(QueueItem, {
-      props: {
-        job,
-        preset: basePreset,
-        canCancel: false,
-      },
-      global: {
-        plugins: [i18n],
-      },
-    });
-
-    expect(ensureJobPreview).toHaveBeenCalledTimes(0);
   });
 
   it("falls back to input/output path for image jobs when previewPath is missing", async () => {

@@ -1,6 +1,7 @@
-import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, nextTick, onScopeDispose, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { ensureJobPreviewAuto } from "@/components/queue-item/previewAutoEnsure";
 
 export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; isTestEnv: boolean }): {
   previewUrl: Ref<string | null>;
@@ -11,6 +12,11 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
   const previewRescreenshotAttempted = ref(false);
   const previewErrorHandlingInFlight = ref(false);
   const lastPreviewPath = ref<string | null>(null);
+  const ensuredPreviewPath = ref<string | null>(null);
+  const autoEnsureAttempted = ref(false);
+  const lastJobId = ref<string | null>(null);
+  const autoEnsureRetryTick = ref(0);
+  let autoEnsureRetryTimer: number | null = null;
 
   const job = computed(() => options.job.value);
 
@@ -23,25 +29,65 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
    */
   watch(
     () => ({
+      id: job.value.id,
       previewPath: job.value.previewPath,
       previewRevision: job.value.previewRevision,
       type: job.value.type,
+      status: job.value.status,
       inputPath: job.value.inputPath,
       outputPath: job.value.outputPath,
+      ensuredPreviewPath: ensuredPreviewPath.value,
+      autoEnsureRetryTick: autoEnsureRetryTick.value,
     }),
-    ({ previewPath, previewRevision, type, inputPath, outputPath }) => {
+    ({ id, previewPath, previewRevision, type, inputPath, outputPath, ensuredPreviewPath: ensured }) => {
+      if (id !== lastJobId.value) {
+        lastJobId.value = id;
+        ensuredPreviewPath.value = null;
+        autoEnsureAttempted.value = false;
+      }
+
       previewFallbackLoaded.value = false;
       if ((previewPath ?? null) !== lastPreviewPath.value) {
         previewRescreenshotAttempted.value = false;
         lastPreviewPath.value = previewPath ?? null;
       }
 
+      if (type === "video") {
+        if (!previewPath && !ensuredPreviewPath.value && !autoEnsureAttempted.value && hasTauri()) {
+          autoEnsureAttempted.value = true;
+          void ensureJobPreviewAuto(id).then((resolved) => {
+            if (resolved) {
+              ensuredPreviewPath.value = resolved;
+              return;
+            }
+            // Best-effort: allow a small number of retries in case the request was dropped
+            // under load (e.g. fast scrolling) or the backend was momentarily busy.
+            if (autoEnsureRetryTick.value >= 2) return;
+            autoEnsureAttempted.value = false;
+            if (typeof window === "undefined") {
+              autoEnsureRetryTick.value += 1;
+              return;
+            }
+            if (autoEnsureRetryTimer != null) {
+              window.clearTimeout(autoEnsureRetryTimer);
+            }
+            autoEnsureRetryTimer = window.setTimeout(() => {
+              autoEnsureRetryTimer = null;
+              autoEnsureRetryTick.value += 1;
+            }, 500);
+          });
+        }
+      }
+
       let path: string | null = null;
 
       if (previewPath) {
         path = previewPath;
+        ensuredPreviewPath.value = null;
       } else if (type === "image") {
         path = outputPath || inputPath || null;
+      } else if (type === "video") {
+        path = ensured || null;
       }
 
       if (!path) {
@@ -54,8 +100,16 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
     { immediate: true },
   );
 
+  onScopeDispose(() => {
+    if (typeof window === "undefined") return;
+    if (autoEnsureRetryTimer != null) {
+      window.clearTimeout(autoEnsureRetryTimer);
+      autoEnsureRetryTimer = null;
+    }
+  });
+
   const handlePreviewError = async () => {
-    const path = job.value.previewPath;
+    const path = job.value.previewPath || ensuredPreviewPath.value;
     if (!path) return;
     if (!hasTauri()) return;
     if (previewFallbackLoaded.value) return;

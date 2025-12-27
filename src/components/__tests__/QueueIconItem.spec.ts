@@ -22,6 +22,7 @@ vi.mock("@/lib/backend", () => {
 
 import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { resetJobPreviewWarmupForTests } from "@/lib/jobPreviewWarmup";
+import { resetPreviewAutoEnsureForTests } from "@/components/queue-item/previewAutoEnsure";
 import QueueIconItem from "@/components/QueueIconItem.vue";
 
 const i18n = createI18n({
@@ -54,6 +55,7 @@ describe("QueueIconItem", () => {
     (loadPreviewDataUrl as any).mockReset();
     (ensureJobPreview as any).mockReset();
     resetJobPreviewWarmupForTests();
+    resetPreviewAutoEnsureForTests();
   });
 
   it("toggles selection instead of opening details when card is clicked in selectable mode", async () => {
@@ -212,11 +214,12 @@ describe("QueueIconItem", () => {
     expect(inspectEvents).toBeFalsy();
   });
 
-  it("does not auto-generate previews on mount when previewPath is missing (Tauri mode)", async () => {
+  it("auto-generates previews on mount when previewPath is missing (Tauri mode)", async () => {
     vi.useFakeTimers();
     try {
       const job = makeJob({ previewPath: undefined, status: "processing" });
       (hasTauri as any).mockReturnValue(true);
+      (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/autogen.jpg");
 
       mount(QueueIconItem, {
         props: {
@@ -231,7 +234,7 @@ describe("QueueIconItem", () => {
 
       await vi.runAllTimersAsync();
 
-      expect(ensureJobPreview).toHaveBeenCalledTimes(0);
+      expect(ensureJobPreview).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }
@@ -258,8 +261,8 @@ describe("QueueIconItem", () => {
     expect(imgs.length).toBe(0);
   });
 
-  it("does not request backend preview generation when previewPath is missing for processing jobs in Tauri mode", () => {
-    const job = makeJob({ status: "processing", progress: 0, previewPath: undefined });
+  it("does not request backend preview generation when previewPath is missing for non-video jobs in Tauri mode", () => {
+    const job = makeJob({ type: "image", status: "processing", progress: 0, previewPath: undefined });
     (hasTauri as any).mockReturnValue(true);
 
     mount(QueueIconItem, {

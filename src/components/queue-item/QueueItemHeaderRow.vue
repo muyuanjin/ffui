@@ -141,7 +141,8 @@ const emit = defineEmits<QueueItemRowEmits>();
           :src="previewUrl"
           alt=""
           decoding="async"
-          loading="lazy"
+          loading="eager"
+          fetchpriority="low"
           class="h-full w-full object-cover"
           @error="emit('preview-error')"
         />
