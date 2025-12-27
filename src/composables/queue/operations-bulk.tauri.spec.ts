@@ -103,6 +103,65 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
     });
   });
 
+  it("syncs queue snapshot revision and does not surface refresh errors as bulk failure", async () => {
+    await vi.resetModules();
+
+    const waitMock = vi.fn().mockResolvedValueOnce(true);
+    const waitForRevisionMock = vi.fn().mockResolvedValueOnce(false);
+
+    vi.doMock("@/lib/backend", () => ({
+      hasTauri: () => true,
+      reorderQueue: async () => true,
+      waitTranscodeJobsBulk: (...args: any[]) => waitMock(...args),
+      cancelTranscodeJobsBulk: async () => true,
+      resumeTranscodeJobsBulk: async () => true,
+      restartTranscodeJobsBulk: async () => true,
+    }));
+
+    vi.doMock("./waitForQueueUpdate", () => ({
+      waitForQueueSnapshotRevision: (...args: any[]) => waitForRevisionMock(...args),
+    }));
+
+    const { bulkWaitSelectedJobs } = await import("./operations-bulk");
+
+    try {
+      const jobs = ref<TranscodeJob[]>([makeJob("job-processing", "processing"), makeJob("job-queued", "queued")]);
+
+      const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
+      const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
+      const pausingJobIds = ref(new Set<string>());
+      const lastQueueSnapshotRevision = ref<number | null>(123);
+      const queueError = ref<string | null>(null);
+
+      const refreshQueueFromBackend = vi.fn(async () => {
+        throw new Error("refresh failed");
+      });
+
+      await bulkWaitSelectedJobs({
+        jobs,
+        selectedJobIds,
+        selectedJobs,
+        pausingJobIds,
+        queueError,
+        lastQueueSnapshotRevision,
+        refreshQueueFromBackend,
+        handleCancelJob: async () => {},
+        handleWaitJob: async () => {},
+        handleResumeJob: async () => {},
+        handleRestartJob: async () => {},
+        t: (key: string) => key,
+      });
+
+      expect(waitForRevisionMock).toHaveBeenCalledTimes(1);
+      expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
+      expect(queueError.value).toBeNull();
+    } finally {
+      vi.doUnmock("@/lib/backend");
+      vi.doUnmock("./waitForQueueUpdate");
+      await vi.resetModules();
+    }
+  });
+
   it("rolls back optimistic state when backend rejects", async () => {
     await withTauriBackendMock(async ({ bulkWaitSelectedJobs, waitMock }) => {
       waitMock.mockResolvedValueOnce(false);

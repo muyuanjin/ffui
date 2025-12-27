@@ -86,7 +86,7 @@ fn bulk_delete_jobs_removes_all_and_notifies_once() {
 }
 
 #[test]
-fn bulk_delete_jobs_rejects_when_any_job_is_non_terminal() {
+fn bulk_delete_jobs_ignores_non_terminal_jobs() {
     let engine = make_engine_with_preset();
 
     let completed_id = "job-bulk-delete-reject-completed".to_string();
@@ -140,17 +140,18 @@ fn bulk_delete_jobs_rejects_when_any_job_is_non_terminal() {
     }
 
     assert!(
-        !engine.delete_jobs_bulk(vec![completed_id.clone(), queued_id.clone()]),
-        "bulk delete must reject when any job is non-terminal",
+        engine.delete_jobs_bulk(vec![completed_id.clone(), queued_id.clone()]),
+        "bulk delete should succeed even if some jobs are non-terminal",
     );
 
     let snapshot = engine.queue_state();
     assert!(
-        snapshot
-            .jobs
-            .iter()
-            .any(|job| job.id == completed_id || job.id == queued_id),
-        "bulk delete must not partially apply when it rejects",
+        !snapshot.jobs.iter().any(|job| job.id == completed_id),
+        "bulk delete should remove eligible terminal jobs",
+    );
+    assert!(
+        snapshot.jobs.iter().any(|job| job.id == queued_id),
+        "bulk delete should ignore non-terminal jobs",
     );
 }
 

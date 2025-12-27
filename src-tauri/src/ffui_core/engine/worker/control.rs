@@ -156,23 +156,11 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
     let should_notify = {
         let mut state = inner.state.lock_unpoisoned();
 
-        // Validate first: if any job id is missing or not eligible, do not
-        // partially apply the bulk pause request.
-        for job_id in &job_ids {
-            let status = match state.jobs.get(job_id.as_str()) {
-                Some(job) => job.status,
-                None => return false,
-            };
-            if !matches!(
-                status,
-                JobStatus::Processing | JobStatus::Queued | JobStatus::Paused
-            ) {
-                return false;
-            }
-        }
-
         let mut should_notify = false;
         for job_id in &job_ids {
+            if job_id.trim().is_empty() {
+                continue;
+            }
             let status = match state.jobs.get(job_id.as_str()) {
                 Some(job) => job.status,
                 None => continue,
@@ -198,7 +186,11 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
                 JobStatus::Paused => {
                     // Idempotent: nothing to do.
                 }
-                _ => {}
+                _ => {
+                    // Best-effort: ignore terminal / ineligible jobs so transient
+                    // status changes (e.g. "processing -> completed") won't make
+                    // the whole bulk pause fail.
+                }
             }
         }
 

@@ -207,3 +207,111 @@ fn bulk_restart_notifies_once_and_resets_non_processing_jobs() {
     assert_eq!(failed.progress, 0.0);
     assert!(failed.failure_reason.is_none());
 }
+
+#[test]
+fn bulk_cancel_ignores_terminal_jobs_and_cancels_processing() {
+    let engine = make_engine_with_preset();
+
+    let processing_id = "job-bulk-cancel-ignores-terminal-processing".to_string();
+    let completed_id = "job-bulk-cancel-ignores-terminal-completed".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            processing_id.clone(),
+            make_manual_job(&processing_id, JobStatus::Processing),
+        );
+        state.active_jobs.insert(processing_id.clone());
+        state
+            .active_inputs
+            .insert(format!("C:/videos/{processing_id}.mp4"));
+
+        state.jobs.insert(
+            completed_id.clone(),
+            make_manual_job(&completed_id, JobStatus::Completed),
+        );
+    }
+
+    assert!(
+        engine.cancel_jobs_bulk(vec![processing_id.clone(), completed_id.clone()]),
+        "cancel_jobs_bulk should succeed even if some jobs are already terminal",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    assert!(
+        state.cancelled_jobs.contains(&processing_id),
+        "processing job should be marked for cooperative cancel",
+    );
+    let completed = state.jobs.get(&completed_id).expect("job exists");
+    assert_eq!(completed.status, JobStatus::Completed);
+}
+
+#[test]
+fn bulk_resume_ignores_non_paused_jobs_and_resumes_paused() {
+    let engine = make_engine_with_preset();
+
+    let paused_id = "job-bulk-resume-ignores-processing-paused".to_string();
+    let processing_id = "job-bulk-resume-ignores-processing-processing".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            paused_id.clone(),
+            make_manual_job(&paused_id, JobStatus::Paused),
+        );
+        state.jobs.insert(
+            processing_id.clone(),
+            make_manual_job(&processing_id, JobStatus::Processing),
+        );
+        state.active_jobs.insert(processing_id.clone());
+        state
+            .active_inputs
+            .insert(format!("C:/videos/{processing_id}.mp4"));
+    }
+
+    assert!(
+        engine.resume_jobs_bulk(vec![paused_id.clone(), processing_id.clone()]),
+        "resume_jobs_bulk should succeed even if some jobs are not paused",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let paused = state.jobs.get(&paused_id).expect("job exists");
+    assert_eq!(paused.status, JobStatus::Queued);
+    let processing = state.jobs.get(&processing_id).expect("job exists");
+    assert_eq!(processing.status, JobStatus::Processing);
+}
+
+#[test]
+fn bulk_restart_ignores_completed_jobs_and_restarts_failed() {
+    let engine = make_engine_with_preset();
+
+    let failed_id = "job-bulk-restart-ignores-completed-failed".to_string();
+    let completed_id = "job-bulk-restart-ignores-completed-completed".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let mut failed = make_manual_job(&failed_id, JobStatus::Failed);
+        failed.progress = 100.0;
+        failed.failure_reason = Some("boom".to_string());
+        state.jobs.insert(failed_id.clone(), failed);
+
+        state.jobs.insert(
+            completed_id.clone(),
+            make_manual_job(&completed_id, JobStatus::Completed),
+        );
+    }
+
+    assert!(
+        engine.restart_jobs_bulk(vec![failed_id.clone(), completed_id.clone()]),
+        "restart_jobs_bulk should succeed even if some jobs are ineligible",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let failed = state.jobs.get(&failed_id).expect("job exists");
+    assert_eq!(failed.status, JobStatus::Queued);
+    assert_eq!(failed.progress, 0.0);
+    assert!(failed.failure_reason.is_none());
+
+    let completed = state.jobs.get(&completed_id).expect("job exists");
+    assert_eq!(completed.status, JobStatus::Completed);
+}

@@ -17,7 +17,10 @@ pub(in crate::ffui_core::engine) fn cancel_jobs_bulk(
         return true;
     }
 
-    let unique_job_ids: HashSet<String> = job_ids.iter().cloned().collect();
+    let unique_job_ids: HashSet<String> = job_ids
+        .into_iter()
+        .filter(|job_id| !job_id.trim().is_empty())
+        .collect();
     if unique_job_ids.is_empty() {
         return true;
     }
@@ -27,23 +30,6 @@ pub(in crate::ffui_core::engine) fn cancel_jobs_bulk(
 
     {
         let mut state = inner.state.lock_unpoisoned();
-
-        // Validate first: reject partial bulk cancels.
-        for job_id in &unique_job_ids {
-            if job_id.trim().is_empty() {
-                return false;
-            }
-            let status = match state.jobs.get(job_id.as_str()) {
-                Some(job) => job.status,
-                None => return false,
-            };
-            if !matches!(
-                status,
-                JobStatus::Queued | JobStatus::Paused | JobStatus::Processing
-            ) {
-                return false;
-            }
-        }
 
         for job_id in &unique_job_ids {
             let status = match state.jobs.get(job_id.as_str()) {
@@ -79,7 +65,10 @@ pub(in crate::ffui_core::engine) fn cancel_jobs_bulk(
                         should_notify = true;
                     }
                 }
-                _ => {}
+                _ => {
+                    // Best-effort: ignore terminal / ineligible jobs so transient
+                    // state changes won't make the whole bulk cancel fail.
+                }
             }
         }
     }
@@ -102,8 +91,11 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
         return true;
     }
 
-    let unique_job_ids: HashSet<String> = job_ids.iter().cloned().collect();
-    if unique_job_ids.is_empty() {
+    let filtered_job_ids: Vec<String> = job_ids
+        .into_iter()
+        .filter(|job_id| !job_id.trim().is_empty())
+        .collect();
+    if filtered_job_ids.is_empty() {
         return true;
     }
 
@@ -111,21 +103,7 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
     {
         let mut state = inner.state.lock_unpoisoned();
 
-        // Validate first: reject partial bulk resumes.
-        for job_id in &unique_job_ids {
-            if job_id.trim().is_empty() {
-                return false;
-            }
-            let status = match state.jobs.get(job_id.as_str()) {
-                Some(job) => job.status,
-                None => return false,
-            };
-            if !matches!(status, JobStatus::Queued | JobStatus::Paused) {
-                return false;
-            }
-        }
-
-        for job_id in &job_ids {
+        for job_id in &filtered_job_ids {
             let status = match state.jobs.get(job_id.as_str()) {
                 Some(job) => job.status,
                 None => continue,
@@ -153,7 +131,10 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
                     state.cancelled_jobs.remove(job_id.as_str());
                     state.restart_requests.remove(job_id.as_str());
                 }
-                _ => {}
+                _ => {
+                    // Best-effort: ignore terminal / ineligible jobs so transient
+                    // state changes won't make the whole bulk resume fail.
+                }
             }
         }
     }
@@ -174,7 +155,10 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
         return true;
     }
 
-    let unique_job_ids: HashSet<String> = job_ids.into_iter().collect();
+    let unique_job_ids: HashSet<String> = job_ids
+        .into_iter()
+        .filter(|job_id| !job_id.trim().is_empty())
+        .collect();
     if unique_job_ids.is_empty() {
         return true;
     }
@@ -184,20 +168,6 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
 
     {
         let mut state = inner.state.lock_unpoisoned();
-
-        // Validate first: reject partial bulk restarts.
-        for job_id in &unique_job_ids {
-            if job_id.trim().is_empty() {
-                return false;
-            }
-            let status = match state.jobs.get(job_id.as_str()) {
-                Some(job) => job.status,
-                None => return false,
-            };
-            if matches!(status, JobStatus::Completed | JobStatus::Skipped) {
-                return false;
-            }
-        }
 
         for job_id in &unique_job_ids {
             let Some(job) = state.jobs.get_mut(job_id.as_str()) else {
@@ -210,7 +180,9 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
                     state.cancelled_jobs.insert(job_id.to_string());
                     should_notify = true;
                 }
-                JobStatus::Completed | JobStatus::Skipped => {}
+                JobStatus::Completed | JobStatus::Skipped => {
+                    // Best-effort: ignore ineligible jobs.
+                }
                 _ => {
                     cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
                     job.status = JobStatus::Queued;

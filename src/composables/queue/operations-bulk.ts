@@ -10,6 +10,21 @@ import {
 } from "@/lib/backend";
 import { waitForQueueSnapshotRevision } from "./waitForQueueUpdate";
 
+async function syncQueueSnapshotAfterBulkOp(deps: BulkOpsDeps, sinceRevision: number | null) {
+  const preferRevision = typeof sinceRevision === "number" && Number.isFinite(sinceRevision);
+  if (!preferRevision || !deps.lastQueueSnapshotRevision) return;
+
+  const synced = await waitForQueueSnapshotRevision(deps.lastQueueSnapshotRevision, { sinceRevision });
+  if (synced) return;
+
+  const previousError = deps.queueError.value;
+  try {
+    await deps.refreshQueueFromBackend();
+  } catch {
+    deps.queueError.value = previousError;
+  }
+}
+
 /**
  * Bulk operation dependencies.
  */
@@ -58,6 +73,7 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
     return;
   }
 
+  const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
   try {
     const ok = await cancelTranscodeJobsBulk(ids);
     if (!ok) {
@@ -74,6 +90,7 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
       return job;
     });
     deps.queueError.value = null;
+    await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk cancel jobs", error);
     deps.queueError.value = deps.t?.("queue.error.cancelFailed") ?? "";
@@ -96,6 +113,7 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
     return;
   }
 
+  const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
   const waitingLikeIds = selected.filter((job) => job.status === "queued").map((job) => job.id);
   const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
 
@@ -137,6 +155,7 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
       return;
     }
     deps.queueError.value = null;
+    await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk wait jobs", error);
     rollbackOptimisticUpdates();
@@ -163,6 +182,7 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
     return;
   }
 
+  const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
   try {
     const ok = await resumeTranscodeJobsBulk(ids);
     if (!ok) {
@@ -187,6 +207,7 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
     });
 
     deps.queueError.value = null;
+    await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk resume jobs", error);
     deps.queueError.value = deps.t?.("queue.error.resumeFailed") ?? "";
@@ -218,6 +239,7 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
     return;
   }
 
+  const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
   try {
     const ok = await restartTranscodeJobsBulk(ids);
     if (!ok) {
@@ -240,6 +262,7 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
       return job;
     });
     deps.queueError.value = null;
+    await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk restart jobs", error);
     deps.queueError.value = deps.t?.("queue.error.restartFailed") ?? "";
