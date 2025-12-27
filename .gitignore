@@ -40,3 +40,7 @@ dist-ssr
 # Duplicate-code reports (local)
 /.jscpd/
 /recovery/
+
+# Local backup scripts (developer-specific)
+backup_windows.cmd
+scripts/backup-project.ps1
