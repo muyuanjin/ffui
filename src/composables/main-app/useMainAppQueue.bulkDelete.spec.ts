@@ -26,6 +26,15 @@ describe("createBulkDelete", () => {
   it("uses backend bulk delete commands for terminal jobs and full Batch Compress batches", async () => {
     hasTauriMock.mockReturnValue(true);
 
+    const lastQueueSnapshotRevision = ref<number | null>(1);
+
+    deleteTranscodeJobsBulkMock.mockImplementationOnce(async () => {
+      setTimeout(() => {
+        lastQueueSnapshotRevision.value = (lastQueueSnapshotRevision.value ?? 0) + 1;
+      }, 0);
+      return true;
+    });
+
     const jobA = { id: "job-a", status: "completed", batchId: null } as unknown as TranscodeJob;
     const jobB = { id: "job-b", status: "failed", batchId: "batch-1" } as unknown as TranscodeJob;
     const jobC = { id: "job-c", status: "skipped", batchId: "batch-1" } as unknown as TranscodeJob;
@@ -42,6 +51,7 @@ describe("createBulkDelete", () => {
       selectedJobIds,
       selectedJobs: selectedJobs as any,
       queueError,
+      lastQueueSnapshotRevision,
       refreshQueueFromBackend,
       t,
     });
@@ -54,8 +64,9 @@ describe("createBulkDelete", () => {
     expect(deleteTranscodeJobsBulkMock).toHaveBeenCalledTimes(1);
     expect(deleteTranscodeJobsBulkMock).toHaveBeenCalledWith(["job-a"]);
 
-    expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
+    expect(refreshQueueFromBackend).not.toHaveBeenCalled();
     expect(queueError.value).toBeNull();
+    expect(jobs.value.map((job) => job.id)).toEqual([]);
     expect(Array.from(selectedJobIds.value)).toEqual([]);
   });
 });

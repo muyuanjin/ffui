@@ -1,5 +1,6 @@
 import type { Ref } from "vue";
 import { deleteBatchCompressBatchesBulk, deleteTranscodeJobsBulk, hasTauri } from "@/lib/backend";
+import { waitForQueueSnapshotRevision } from "@/composables/queue/waitForQueueUpdate";
 import type { TranscodeJob } from "@/types";
 
 interface CreateBulkDeleteOptions {
@@ -7,6 +8,7 @@ interface CreateBulkDeleteOptions {
   selectedJobIds: Ref<Set<string>>;
   selectedJobs: Ref<TranscodeJob[]>;
   queueError: Ref<string | null>;
+  lastQueueSnapshotRevision: Ref<number | null>;
   refreshQueueFromBackend: () => Promise<void>;
   t: (key: string) => string;
 }
@@ -15,7 +17,8 @@ const isTerminalStatus = (status: TranscodeJob["status"]) =>
   status === "completed" || status === "failed" || status === "skipped" || status === "cancelled";
 
 export function createBulkDelete(options: CreateBulkDeleteOptions) {
-  const { jobs, selectedJobIds, selectedJobs, queueError, refreshQueueFromBackend, t } = options;
+  const { jobs, selectedJobIds, selectedJobs, queueError, lastQueueSnapshotRevision, refreshQueueFromBackend, t } =
+    options;
 
   return async () => {
     const selected = Array.from(selectedJobIds.value);
@@ -89,7 +92,10 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
     }
 
     // Tauri 模式下使用后端批量命令，避免逐条 IPC 往返与逐条 notify 导致的卡顿。
+    const sinceRevision = lastQueueSnapshotRevision.value;
     const failedJobIds: string[] = [];
+    let hadBackendFailure = false;
+    const optimisticDeletedJobIds = new Set<string>();
 
     // 1) 批次级删除（Batch Compress 复合任务）。
     const batchIdsToDelete = Array.from(fullBatchIdsToDelete);
@@ -97,14 +103,23 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       try {
         const ok = await deleteBatchCompressBatchesBulk(batchIdsToDelete);
         if (!ok) {
+          hadBackendFailure = true;
           for (const batchId of batchIdsToDelete) {
             const batchJobs = jobsByBatchId.get(batchId) ?? [];
             for (const job of batchJobs) {
               failedJobIds.push(job.id);
             }
           }
+        } else {
+          for (const batchId of batchIdsToDelete) {
+            const batchJobs = jobsByBatchId.get(batchId) ?? [];
+            for (const job of batchJobs) {
+              optimisticDeletedJobIds.add(job.id);
+            }
+          }
         }
       } catch {
+        hadBackendFailure = true;
         for (const batchId of batchIdsToDelete) {
           const batchJobs = jobsByBatchId.get(batchId) ?? [];
           for (const job of batchJobs) {
@@ -124,16 +139,40 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       try {
         const ok = await deleteTranscodeJobsBulk(jobIdsToDelete);
         if (!ok) {
+          hadBackendFailure = true;
           failedJobIds.push(...jobIdsToDelete);
+        } else {
+          for (const jobId of jobIdsToDelete) {
+            optimisticDeletedJobIds.add(jobId);
+          }
         }
       } catch {
+        hadBackendFailure = true;
         failedJobIds.push(...jobIdsToDelete);
       }
     }
 
-    // 不论删除是否全部成功，都刷新一次队列快照，让前端 UI 与后端状态保持一致。
+    // UI-first: remove successfully deleted items immediately so "bulk delete" feels instant,
+    // then rely on the next backend snapshot to confirm consistency.
+    if (!hadBackendFailure && optimisticDeletedJobIds.size > 0) {
+      jobs.value = jobs.value.filter((job) => !optimisticDeletedJobIds.has(job.id));
+      selectedJobIds.value = new Set();
+    }
+
+    // 删除成功时优先等待后端推送的快照事件，避免额外的全量 refresh（大队列下会明显变慢）。
+    // 如果后端未推送（或 IPC 丢失），再回退到 refreshQueueFromBackend 做一致性恢复。
     try {
-      await refreshQueueFromBackend();
+      const preferRevision = typeof sinceRevision === "number" && Number.isFinite(sinceRevision);
+      if (!hadBackendFailure && preferRevision) {
+        const synced = await waitForQueueSnapshotRevision(lastQueueSnapshotRevision, { sinceRevision });
+        if (synced) {
+          // queue snapshot applied; continue with error/selection handling below
+        } else {
+          await refreshQueueFromBackend();
+        }
+      } else {
+        await refreshQueueFromBackend();
+      }
     } catch {
       queueError.value = (t("queue.error.deleteFailed") as string) ?? "Failed to delete some jobs from queue.";
       selectedJobIds.value = new Set();

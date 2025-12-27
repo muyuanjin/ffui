@@ -8,6 +8,7 @@ import {
   resumeTranscodeJobsBulk,
   waitTranscodeJobsBulk,
 } from "@/lib/backend";
+import { waitForQueueSnapshotRevision } from "./waitForQueueUpdate";
 
 /**
  * Bulk operation dependencies.
@@ -23,6 +24,10 @@ export interface BulkOpsDeps {
   pausingJobIds: Ref<Set<string>>;
   /** Queue error message ref. */
   queueError: Ref<string | null>;
+  /** Last queue snapshot timestamp (used to avoid redundant refreshes). */
+  lastQueueSnapshotAtMs?: Ref<number | null>;
+  /** Last monotonic queue snapshot revision (used to avoid redundant refreshes). */
+  lastQueueSnapshotRevision?: Ref<number | null>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Refresh queue state from backend. */
@@ -80,9 +85,8 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
  * Affects jobs with status === "processing" | "queued".
  */
 export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
-  const ids = deps.selectedJobs.value
-    .filter((job) => job.status === "processing" || job.status === "queued")
-    .map((job) => job.id);
+  const selected = deps.selectedJobs.value.filter((job) => job.status === "processing" || job.status === "queued");
+  const ids = selected.map((job) => job.id);
   if (ids.length === 0) return;
 
   if (!hasTauri()) {
@@ -92,7 +96,6 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
     return;
   }
 
-  const selected = deps.selectedJobs.value.filter((job) => ids.includes(job.id));
   const waitingLikeIds = selected.filter((job) => job.status === "queued").map((job) => job.id);
   const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
 
@@ -431,12 +434,18 @@ export async function reorderWaitingQueue(orderedIds: string[], deps: BulkOpsDep
   }
 
   try {
+    const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
     const ok = await reorderQueue(orderedIds);
     if (!ok) {
       deps.queueError.value = deps.t?.("queue.error.reorderRejected") ?? "";
       return;
     }
     deps.queueError.value = null;
+    const preferRevision = typeof sinceRevision === "number" && Number.isFinite(sinceRevision);
+    if (preferRevision && deps.lastQueueSnapshotRevision) {
+      const synced = await waitForQueueSnapshotRevision(deps.lastQueueSnapshotRevision, { sinceRevision });
+      if (synced) return;
+    }
     await deps.refreshQueueFromBackend();
   } catch (error) {
     console.error("Failed to reorder waiting queue", error);

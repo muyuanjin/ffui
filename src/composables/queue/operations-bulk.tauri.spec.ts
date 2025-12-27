@@ -269,3 +269,62 @@ describe("bulkRestartSelectedJobs (tauri)", () => {
     });
   });
 });
+
+describe("reorderWaitingQueue (tauri)", () => {
+  it("waits for the next snapshot revision and skips redundant refresh", async () => {
+    await vi.resetModules();
+
+    const jobs = ref<TranscodeJob[]>([makeJob("waiting-a", "queued"), makeJob("waiting-b", "queued")]);
+    const selectedJobIds = ref(new Set<string>());
+    const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
+    const pausingJobIds = ref(new Set<string>());
+    const queueError = ref<string | null>(null);
+    const lastQueueSnapshotAtMs = ref<number | null>(1000);
+    const lastQueueSnapshotRevision = ref<number | null>(1);
+
+    const refreshQueueFromBackend = vi.fn(async () => {});
+
+    const reorderMock = vi.fn(async (_orderedIds: string[]) => {
+      setTimeout(() => {
+        lastQueueSnapshotRevision.value = (lastQueueSnapshotRevision.value ?? 0) + 1;
+        lastQueueSnapshotAtMs.value = Date.now();
+      }, 0);
+      return true;
+    });
+
+    vi.doMock("@/lib/backend", () => ({
+      hasTauri: () => true,
+      reorderQueue: reorderMock,
+      waitTranscodeJobsBulk: async () => true,
+      cancelTranscodeJobsBulk: async () => true,
+      resumeTranscodeJobsBulk: async () => true,
+      restartTranscodeJobsBulk: async () => true,
+    }));
+
+    try {
+      const { reorderWaitingQueue } = await import("./operations-bulk");
+
+      await reorderWaitingQueue(["waiting-b", "waiting-a"], {
+        jobs,
+        selectedJobIds,
+        selectedJobs,
+        pausingJobIds,
+        queueError,
+        lastQueueSnapshotAtMs,
+        lastQueueSnapshotRevision,
+        refreshQueueFromBackend,
+        handleCancelJob: async () => {},
+        handleWaitJob: async () => {},
+        handleResumeJob: async () => {},
+        handleRestartJob: async () => {},
+      });
+
+      expect(reorderMock).toHaveBeenCalledTimes(1);
+      expect(refreshQueueFromBackend).not.toHaveBeenCalled();
+      expect(queueError.value).toBeNull();
+    } finally {
+      vi.doUnmock("@/lib/backend");
+      await vi.resetModules();
+    }
+  });
+});

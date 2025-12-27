@@ -160,6 +160,8 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     selectedJobs,
     pausingJobIds,
     queueError,
+    lastQueueSnapshotAtMs,
+    lastQueueSnapshotRevision,
     t,
     refreshQueueFromBackend,
     handleCancelJob,

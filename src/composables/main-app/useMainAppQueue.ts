@@ -406,6 +406,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     selectedJobIds,
     selectedJobs,
     queueError,
+    lastQueueSnapshotRevision,
     refreshQueueFromBackend,
     t: (key: string) => t(key),
   });
