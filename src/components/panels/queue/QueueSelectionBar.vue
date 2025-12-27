@@ -11,8 +11,8 @@ import {
   Hourglass,
   Play,
   RefreshCw,
-  ArrowUp,
-  ArrowDown,
+  ArrowUpToLine,
+  ArrowDownToLine,
   XCircle,
   Trash2,
   Pin,
@@ -283,7 +283,7 @@ watch(
             :aria-label="t('queue.actions.bulkMoveToTop')"
             @click="emit('bulk-move-to-top')"
           >
-            <ArrowUp class="h-3 w-3" />
+            <ArrowUpToLine class="h-3 w-3 opacity-80 text-primary" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkMoveToTop") }}
             </span>
@@ -300,7 +300,7 @@ watch(
             :aria-label="t('queue.actions.bulkMoveToBottom')"
             @click="emit('bulk-move-to-bottom')"
           >
-            <ArrowDown class="h-3 w-3" />
+            <ArrowDownToLine class="h-3 w-3 opacity-80 text-primary" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkMoveToBottom") }}
             </span>
@@ -353,6 +353,14 @@ watch(
 <style scoped>
 .queue-selection-bar {
   position: relative;
+}
+
+.queue-selection-bar__button {
+  transition: transform 90ms ease;
+}
+
+.queue-selection-bar__button:active {
+  transform: scale(0.98);
 }
 
 .queue-selection-bar__viewport {
