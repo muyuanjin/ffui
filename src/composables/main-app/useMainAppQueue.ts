@@ -6,13 +6,12 @@ import type {
   QueueProgressStyle,
   QueueViewMode,
   TranscodeJob,
-  Translate,
 } from "@/types";
 import type { QueueOperationMethods } from "../queue/queueOperations.types";
 import { useQueuePreferences } from "@/lib/queuePreferences";
 import { type QueueListItem, useQueueFiltering, useQueueOperations, type UseQueueFilteringReturn } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
-import { createQueueBulkActionsWithFeedback } from "./useMainAppQueue.bulkActions";
+import { createBulkDelete } from "./useMainAppQueue.bulkDelete";
 import {
   ensureManualPresetId,
   getQueueIconGridClass,
@@ -24,7 +23,7 @@ import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./
 export { getQueueIconGridClass } from "./useMainAppQueue.ui";
 
 export interface UseMainAppQueueOptions {
-  t: Translate;
+  t: (key: string) => string;
   jobs: Ref<TranscodeJob[]>;
   queueError: Ref<string | null>;
   lastQueueSnapshotAtMs: Ref<number | null>;
@@ -292,7 +291,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
     queueProgressRevision,
-    t: (key: string, params?: Record<string, unknown>) => t(key, params),
+    t: (key: string) => t(key),
     onJobCompleted,
   });
 
@@ -385,31 +384,31 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     return displayModeSortedJobs.value;
   });
 
-  const {
-    bulkWait,
-    bulkResume,
-    bulkRestart,
-    bulkMoveToTop,
-    bulkMoveToBottom,
-    bulkDelete,
-    bulkMoveSelectedJobsToTop,
-    bulkMoveSelectedJobsToBottom,
-    moveJobToTop,
-    bulkCancelWithFeedback,
-  } = createQueueBulkActionsWithFeedback({
-    t,
+  const bulkCancel = async () => bulkCancelSelectedJobs();
+  const bulkWait = async () => bulkWaitSelectedJobs();
+  const bulkResume = async () => bulkResumeSelectedJobs();
+  const bulkRestart = async () => bulkRestartSelectedJobs();
+  const bulkMoveToTop = async () => bulkMoveSelectedJobsToTopInner();
+  const bulkMoveToBottom = async () => bulkMoveSelectedJobsToBottomInner();
+
+  const moveJobToTop = async (jobId: string) => {
+    if (!jobId) return;
+    selectedJobIds.value = new Set([jobId]);
+    await bulkMoveSelectedJobsToTopInner();
+  };
+
+  // Public helpers used directly in tests.
+  const bulkMoveSelectedJobsToTop = async () => bulkMoveSelectedJobsToTopInner();
+  const bulkMoveSelectedJobsToBottom = async () => bulkMoveSelectedJobsToBottomInner();
+
+  const bulkDelete = createBulkDelete({
     jobs,
-    selectedJobs,
     selectedJobIds,
+    selectedJobs,
     queueError,
     lastQueueSnapshotRevision,
     refreshQueueFromBackend,
-    bulkWaitSelectedJobs,
-    bulkResumeSelectedJobs,
-    bulkRestartSelectedJobs,
-    bulkCancelSelectedJobs,
-    bulkMoveSelectedJobsToTopInner,
-    bulkMoveSelectedJobsToBottomInner,
+    t: (key: string) => t(key),
   });
 
   // Queue / Batch Compress event listeners for queue state updates.
@@ -481,7 +480,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
 
-    bulkCancel: bulkCancelWithFeedback,
+    bulkCancel,
     bulkWait,
     bulkResume,
     bulkRestart,
