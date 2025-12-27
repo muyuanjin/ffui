@@ -148,6 +148,7 @@ const main = async () => {
       env: {
         LANG: "en_US.UTF-8",
         VITE_STARTUP_IDLE_TIMEOUT_MS: "0",
+        VITE_DOCS_SCREENSHOT_HAS_TAURI: "1",
       },
     },
     async ({ baseUrl }) => {
@@ -174,8 +175,22 @@ const main = async () => {
         await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 90_000 });
         await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 90_000 });
 
+        await page.getByTestId("ffui-tab-queue").click();
+
         const viewport = page.locator("[data-testid='queue-panel']");
         await viewport.waitFor({ state: "visible", timeout: 90_000 });
+
+        const queueCards = page.locator("[data-testid='queue-item-card']");
+        await queueCards.first().waitFor({ state: "visible", timeout: 90_000 });
+        const initialCardCount = await queueCards.count();
+        if (initialCardCount <= 0) {
+          throw new Error("Queue scroll verification expected at least 1 queue item card to be visible.");
+        }
+        if (initialCardCount > 250) {
+          throw new Error(
+            `Queue scroll verification expected virtualization to cap DOM rows; saw ${initialCardCount} queue item cards.`,
+          );
+        }
 
         await page.waitForTimeout(250);
         await page.screenshot({ path: path.join(args.outDir, "queue-top.png"), fullPage: false });
@@ -184,6 +199,85 @@ const main = async () => {
         for (let i = 0; i < 20; i += 1) {
           await page.mouse.wheel(0, 1200);
           await page.waitForTimeout(25);
+        }
+
+        await page.waitForFunction(
+          () => {
+            const w = window;
+            return Boolean((w && w.__FFUI_TAURI_EVENT_EMIT__) || false);
+          },
+          { timeout: 90_000 },
+        );
+
+        await page.waitForFunction(
+          () => {
+            const w = window;
+            return Boolean((w && w.__FFUI_QUEUE_PERF__) || false);
+          },
+          { timeout: 90_000 },
+        );
+
+        await page.evaluate(async () => {
+          const w = window;
+          const emit = w.__FFUI_TAURI_EVENT_EMIT__;
+          if (typeof emit !== "function") {
+            throw new Error("Missing __FFUI_TAURI_EVENT_EMIT__ in docs screenshot mode.");
+          }
+
+          const raf = () =>
+            new Promise((resolve) => {
+              w.requestAnimationFrame(() => resolve(undefined));
+            });
+
+          const jobA = "docs-perf-000000";
+          const jobB = "docs-perf-000001";
+          let progressA = 10;
+          let progressB = 10;
+          let elapsedMs = 0;
+
+          // Emit a steady delta stream across multiple frames to validate:
+          // - event coalescing
+          // - delta ordering
+          // - UI smoothness under progress updates
+          for (let rev = 1; rev <= 120; rev += 1) {
+            progressA = Math.min(99, progressA + 0.7);
+            progressB = Math.min(99, progressB + 0.5);
+            elapsedMs += 120;
+
+            emit("ffui://queue-state-lite-delta", {
+              baseSnapshotRevision: 1,
+              deltaRevision: rev,
+              patches: [
+                { id: jobA, status: "processing", progress: progressA, elapsedMs },
+                { id: jobB, status: "processing", progress: progressB, elapsedMs },
+              ],
+            });
+
+            // Yield so the app flushes to the UI thread.
+            // eslint-disable-next-line no-await-in-loop
+            await raf();
+          }
+        });
+
+        const perf = await page.evaluate(() => {
+          const snapshot = window.__FFUI_QUEUE_PERF__;
+          return snapshot ? JSON.parse(JSON.stringify(snapshot)) : null;
+        });
+        if (!perf) {
+          throw new Error("Queue scroll verification expected __FFUI_QUEUE_PERF__ to be available.");
+        }
+        if ((perf.apply?.deltaCalls ?? 0) < 10) {
+          throw new Error(
+            `Queue scroll verification expected delta apply to run; deltaCalls=${perf.apply?.deltaCalls}`,
+          );
+        }
+        const deltaAvgMs = perf.apply?.deltaAvgMs;
+        if (typeof deltaAvgMs === "number" && Number.isFinite(deltaAvgMs) && deltaAvgMs > 2) {
+          throw new Error(`Queue scroll verification: deltaAvgMs too high (${deltaAvgMs.toFixed(3)}ms).`);
+        }
+        const lagP95 = perf.loop?.eventLoopLagP95Ms;
+        if (typeof lagP95 === "number" && Number.isFinite(lagP95) && lagP95 > 60) {
+          throw new Error(`Queue scroll verification: eventLoopLagP95Ms too high (${lagP95.toFixed(1)}ms).`);
         }
 
         await page.screenshot({ path: path.join(args.outDir, "queue-after-scroll.png"), fullPage: false });

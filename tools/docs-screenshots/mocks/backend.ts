@@ -76,7 +76,11 @@ const resolveUiFontName = (): string | null => {
   return v.length > 0 ? v : null;
 };
 
-export const hasTauri = () => false;
+const docsHasTauri = (): boolean => {
+  return readEnv("VITE_DOCS_SCREENSHOT_HAS_TAURI") === "1";
+};
+
+export const hasTauri = () => docsHasTauri();
 
 export const buildPreviewUrl = (path: string | null | undefined): string | null => {
   if (!path) return null;
@@ -722,7 +726,11 @@ const buildQueueJobs = (): TranscodeJob[] => {
 };
 
 export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
-  return { jobs: buildQueueJobs() };
+  const jobs = buildQueueJobs();
+  if (docsHasTauri()) {
+    return { snapshotRevision: 1, jobs };
+  }
+  return { jobs };
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {
