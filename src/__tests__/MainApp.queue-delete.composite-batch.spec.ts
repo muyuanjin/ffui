@@ -3,7 +3,7 @@
  * 测试：通过右键菜单删除复合任务（Batch Compress 批次）
  *
  * 场景：用户右键点击复合任务卡片，选择“从列表删除”，
- * 前端应该调用新的 delete_batch_compress_batch 批量删除命令，后端成功时
+ * 前端应该调用新的 delete_batch_compress_batches_bulk 批量删除命令，后端成功时
  * 视为该批次所有终态子任务已从队列中移除。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -26,7 +26,7 @@ describe("MainApp 复合任务删除", () => {
     vi.clearAllMocks();
   });
 
-  it("右键复合任务卡片后删除，应该调用 delete_batch_compress_batch 并视为整批成功删除", async () => {
+  it("右键复合任务卡片后删除，应该调用 delete_batch_compress_batches_bulk 并视为整批成功删除", async () => {
     const batchId = "batch-composite-delete";
 
     // 模拟一个复合任务，包含多个已完成的子任务
@@ -78,9 +78,11 @@ describe("MainApp 复合任务删除", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_batch_compress_batch: (payload) => {
+      delete_batch_compress_batches_bulk: (payload) => {
         // 模拟后端批量删除成功
-        expect((payload?.batchId ?? payload?.batch_id) as string).toBe(batchId);
+        const ids = (payload?.batchIds ?? payload?.batch_ids) as string[];
+        expect(ids).toEqual([batchId]);
+        setQueueJobs(getQueueJobs().filter((job) => job.batchId !== batchId));
         return true;
       },
     });
@@ -111,14 +113,14 @@ describe("MainApp 复合任务删除", () => {
     }
     await nextTick();
 
-    // 验证：应调用一次 delete_batch_compress_batch，而不是对每个子任务逐个 delete_transcode_job。
-    const deleteBatchCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batch");
+    // 验证：应调用一次 delete_batch_compress_batches_bulk，而不是对每个子任务逐个 delete_transcode_jobs_bulk。
+    const deleteBatchCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batches_bulk");
     expect(deleteBatchCalls.length).toBe(1);
 
     const singlePayload = deleteBatchCalls[0]?.[1] as any;
     expect(singlePayload).toMatchObject({
-      batchId,
-      batch_id: batchId,
+      batchIds: [batchId],
+      batch_ids: [batchId],
     });
 
     // 验证：不应该有错误
@@ -153,7 +155,7 @@ describe("MainApp 复合任务删除", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_batch_compress_batch: () => {
+      delete_batch_compress_batches_bulk: () => {
         // 模拟后端批次删除返回 false（删除失败）
         return false;
       },

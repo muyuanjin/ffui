@@ -298,6 +298,18 @@ pub fn delete_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
     engine.delete_job(&job_id)
 }
 
+/// Permanently delete multiple transcode jobs in one atomic operation.
+///
+/// Only jobs that are already in a terminal state (completed/failed/skipped/
+/// cancelled) are eligible for deletion; active jobs remain protected.
+#[tauri::command]
+pub fn delete_transcode_jobs_bulk(
+    engine: State<'_, TranscodingEngine>,
+    job_ids: Vec<String>,
+) -> bool {
+    engine.delete_jobs_bulk(job_ids)
+}
+
 /// Permanently delete all Batch Compress child jobs that belong to a given batch.
 ///
 /// 前端在“复合任务（Batch Compress 批次）→ 从列表删除”时，会优先调用该命令以确保
@@ -305,6 +317,15 @@ pub fn delete_transcode_job(engine: State<'_, TranscodingEngine>, job_id: String
 #[tauri::command]
 pub fn delete_batch_compress_batch(engine: State<'_, TranscodingEngine>, batch_id: String) -> bool {
     engine.delete_batch_compress_batch(&batch_id)
+}
+
+/// Permanently delete multiple Batch Compress batches in one atomic operation.
+#[tauri::command]
+pub fn delete_batch_compress_batches_bulk(
+    engine: State<'_, TranscodingEngine>,
+    batch_ids: Vec<String>,
+) -> bool {
+    engine.delete_batch_compress_batches_bulk(batch_ids)
 }
 
 /// Reorder jobs in the queue by their IDs.

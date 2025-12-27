@@ -9,7 +9,11 @@ use crate::sync_ext::MutexExt;
 use super::cleanup::collect_job_tmp_cleanup_paths;
 
 mod batch_ops;
-pub(in crate::ffui_core::engine) use batch_ops::delete_batch_compress_batch;
+pub(in crate::ffui_core::engine) use batch_ops::{
+    delete_batch_compress_batch, delete_batch_compress_batches_bulk,
+};
+mod delete_ops;
+pub(in crate::ffui_core::engine) use delete_ops::delete_jobs_bulk;
 
 fn cancel_waiting_like_job(
     state: &mut super::super::state::EngineState,

@@ -855,6 +855,7 @@ export const enqueueTranscodeJobs = async (params: {
 };
 
 export const deleteTranscodeJob = async (_jobId: string): Promise<boolean> => true;
+export const deleteTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
 export const cancelTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const waitTranscodeJob = async (_jobId: string): Promise<boolean> => true;
 export const waitTranscodeJobsBulk = async (_jobIds: string[]): Promise<boolean> => true;
@@ -864,6 +865,7 @@ export const restartTranscodeJob = async (_jobId: string): Promise<boolean> => t
 export const reorderQueue = async (_orderedJobIds: string[]): Promise<boolean> => true;
 
 export const deleteBatchCompressBatchOnBackend = async (_batchId: string): Promise<boolean> => true;
+export const deleteBatchCompressBatchesBulk = async (_batchIds: string[]): Promise<boolean> => true;
 
 export const previewOutputPath = async (params: {
   inputPath: string;

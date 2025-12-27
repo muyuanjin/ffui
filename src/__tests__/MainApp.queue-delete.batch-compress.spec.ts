@@ -52,9 +52,11 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_batch_compress_batch: (payload) => {
-        // 批次级删除：应只调用一次 delete_batch_compress_batch。
-        expect((payload?.batchId ?? payload?.batch_id) as string).toBe(batchId);
+      delete_batch_compress_batches_bulk: (payload) => {
+        // 批次级删除：应只调用一次 delete_batch_compress_batches_bulk。
+        const ids = (payload?.batchIds ?? payload?.batch_ids) as string[];
+        expect(ids).toEqual([batchId]);
+        setQueueJobs(getQueueJobs().filter((job) => job.batchId !== batchId));
         return true;
       },
     });
@@ -82,12 +84,12 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     }
     await nextTick();
 
-    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batch");
+    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batches_bulk");
     expect(batchDeleteCalls.length).toBe(1);
     const payload = batchDeleteCalls[0]?.[1] as any;
     expect(payload).toMatchObject({
-      batchId,
-      batch_id: batchId,
+      batchIds: [batchId],
+      batch_ids: [batchId],
     });
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;
@@ -175,14 +177,18 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_batch_compress_batch: (payload) => {
+      delete_batch_compress_batches_bulk: (payload) => {
         // 仅安全批次（safeBatchId）会触发批次级删除。
-        expect((payload?.batchId ?? payload?.batch_id) as string).toBe(safeBatchId);
+        const ids = (payload?.batchIds ?? payload?.batch_ids) as string[];
+        expect(ids).toEqual([safeBatchId]);
+        setQueueJobs(getQueueJobs().filter((job) => job.batchId !== safeBatchId));
         return true;
       },
-      delete_transcode_job: (payload) => {
-        const id = (payload?.jobId ?? payload?.job_id) as string;
-        deletedIds.push(id);
+      delete_transcode_jobs_bulk: (payload) => {
+        const ids = (payload?.jobIds ?? payload?.job_ids) as string[];
+        deletedIds.push(...(ids ?? []));
+        const deletable = new Set(ids ?? []);
+        setQueueJobs(getQueueJobs().filter((job) => !deletable.has(job.id)));
         return true;
       },
     });
@@ -210,11 +216,11 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     }
     await nextTick();
 
-    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batch");
+    const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batches_bulk");
     expect(batchDeleteCalls.length).toBe(1);
 
-    const deleteJobCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_transcode_job");
-    // 手动任务仍然通过 delete_transcode_job 删除，Batch Compress 安全批次走批次级命令。
+    const deleteJobCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_transcode_jobs_bulk");
+    // 手动任务仍然通过 delete_transcode_jobs_bulk 删除，Batch Compress 安全批次走批次级命令。
     expect(deleteJobCalls.length).toBe(1);
     expect(new Set(deletedIds)).toEqual(new Set(["manual-completed"]));
 
@@ -265,8 +271,8 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: () => {
-        throw new Error("delete_transcode_job should not be called when batch has active jobs");
+      delete_transcode_jobs_bulk: () => {
+        throw new Error("delete_transcode_jobs_bulk should not be called when batch has active jobs");
       },
     });
 
@@ -291,7 +297,9 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     await nextTick();
 
     expect(
-      invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job" || cmd === "delete_batch_compress_batch"),
+      invokeMock.mock.calls.some(
+        ([cmd]) => cmd === "delete_transcode_jobs_bulk" || cmd === "delete_batch_compress_batches_bulk",
+      ),
     ).toBe(false);
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;

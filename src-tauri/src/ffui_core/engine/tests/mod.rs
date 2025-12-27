@@ -63,6 +63,7 @@ mod presets_snapshot;
 mod preview_on_demand_mock_ffmpeg;
 mod progress_parsing_and_utils;
 mod queue_basic;
+mod queue_bulk_delete;
 mod queue_bulk_wait;
 mod queue_cancel;
 mod queue_delete;

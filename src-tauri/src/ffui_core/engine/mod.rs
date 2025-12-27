@@ -379,22 +379,24 @@ impl TranscodingEngine {
         worker::restart_job(&self.inner, job_id)
     }
 
-    /// Permanently delete a job from the in-memory queue state.
-    ///
-    /// Only jobs that are already in a terminal state (completed/failed/
-    /// skipped/cancelled) are eligible for deletion. Running or waiting
-    /// jobs remain protected so the UI cannot "hide" active work.
+    /// Permanently delete a job from the in-memory queue state (terminal only).
+    /// Running/queued jobs remain protected so the UI cannot hide active work.
     pub fn delete_job(&self, job_id: &str) -> bool {
         worker::delete_job(&self.inner, job_id)
     }
-
-    /// Permanently delete all Batch Compress child jobs that belong to the given batch.
-    ///
-    /// This is used by前端在“复合任务（Batch Compress 批次）→ 从列表删除”场景下，一次性
-    /// 清理该批次的所有终态子任务以及对应的批次元数据，避免逐个 `delete_transcode_job`
-    /// 调用在某些边缘状态下失败导致复合任务残留。
+    /// Permanently delete multiple terminal-state jobs in a single atomic operation.
+    pub fn delete_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
+        worker::delete_jobs_bulk(&self.inner, job_ids)
+    }
+    /// Permanently delete a Batch Compress batch (terminal children only).
+    /// Used to delete a composite batch in one go instead of per-job deletes.
     pub fn delete_batch_compress_batch(&self, batch_id: &str) -> bool {
         worker::delete_batch_compress_batch(&self.inner, batch_id)
+    }
+
+    /// Permanently delete multiple Batch Compress batches in a single atomic operation.
+    pub fn delete_batch_compress_batches_bulk(&self, batch_ids: Vec<String>) -> bool {
+        worker::delete_batch_compress_batches_bulk(&self.inner, batch_ids)
     }
 
     /// Reorder the waiting jobs in the queue.

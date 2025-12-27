@@ -1,5 +1,5 @@
 import type { Ref } from "vue";
-import { deleteBatchCompressBatchOnBackend, deleteTranscodeJob, hasTauri } from "@/lib/backend";
+import { deleteBatchCompressBatchesBulk, deleteTranscodeJobsBulk, hasTauri } from "@/lib/backend";
 import type { TranscodeJob } from "@/types";
 
 interface CreateBulkDeleteOptions {
@@ -88,45 +88,46 @@ export function createBulkDelete(options: CreateBulkDeleteOptions) {
       return;
     }
 
-    // Tauri 模式下，优先对整批选中的 Batch Compress 批次使用批量删除命令，
-    // 其它任务仍然逐个调用 delete_transcode_job。
+    // Tauri 模式下使用后端批量命令，避免逐条 IPC 往返与逐条 notify 导致的卡顿。
     const failedJobIds: string[] = [];
 
     // 1) 批次级删除（Batch Compress 复合任务）。
-    for (const batchId of fullBatchIdsToDelete) {
-      const batchJobs = jobsByBatchId.get(batchId) ?? [];
-      if (!batchJobs.length) {
-        continue;
-      }
-
+    const batchIdsToDelete = Array.from(fullBatchIdsToDelete);
+    if (batchIdsToDelete.length > 0) {
       try {
-        const ok = await deleteBatchCompressBatchOnBackend(batchId);
+        const ok = await deleteBatchCompressBatchesBulk(batchIdsToDelete);
         if (!ok) {
-          // 若批次删除失败，则认为该批次所有子任务均删除失败，统一纳入错误集合。
+          for (const batchId of batchIdsToDelete) {
+            const batchJobs = jobsByBatchId.get(batchId) ?? [];
+            for (const job of batchJobs) {
+              failedJobIds.push(job.id);
+            }
+          }
+        }
+      } catch {
+        for (const batchId of batchIdsToDelete) {
+          const batchJobs = jobsByBatchId.get(batchId) ?? [];
           for (const job of batchJobs) {
             failedJobIds.push(job.id);
           }
         }
-      } catch {
-        for (const job of batchJobs) {
-          failedJobIds.push(job.id);
-        }
       }
     }
 
-    // 2) 逐个删除其余终态任务（包括手动任务和未整批选中的 Batch Compress 子任务）。
+    // 2) 批量删除其余终态任务（包括手动任务和未整批选中的 Batch Compress 子任务）。
     const terminalJobsForIndividualDelete = terminalJobsAllowed.filter(
       (job) => !job.batchId || !fullBatchIdsToDelete.has(job.batchId),
     );
 
-    for (const job of terminalJobsForIndividualDelete) {
+    const jobIdsToDelete = terminalJobsForIndividualDelete.map((job) => job.id);
+    if (jobIdsToDelete.length > 0) {
       try {
-        const ok = await deleteTranscodeJob(job.id);
+        const ok = await deleteTranscodeJobsBulk(jobIdsToDelete);
         if (!ok) {
-          failedJobIds.push(job.id);
+          failedJobIds.push(...jobIdsToDelete);
         }
       } catch {
-        failedJobIds.push(job.id);
+        failedJobIds.push(...jobIdsToDelete);
       }
     }
 

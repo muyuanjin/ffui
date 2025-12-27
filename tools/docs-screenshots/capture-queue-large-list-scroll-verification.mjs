@@ -135,6 +135,30 @@ const resolveUniqueOutDir = async (desiredDir) => {
   return desiredDir;
 };
 
+const waitForStableCount = async (page, locator, options) => {
+  const minCount = options?.minCount ?? 1;
+  const stableMs = options?.stableMs ?? 300;
+  const timeoutMs = options?.timeoutMs ?? 90_000;
+  const pollMs = options?.pollMs ?? 50;
+
+  const startedAt = Date.now();
+  let stableStartAt = null;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const count = await locator.count();
+    if (count >= minCount) {
+      if (stableStartAt == null) stableStartAt = Date.now();
+      if (Date.now() - stableStartAt >= stableMs) return count;
+    } else {
+      stableStartAt = null;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(pollMs);
+  }
+
+  throw new Error(`Timed out waiting for stable count>=${minCount} for locator.`);
+};
+
 const main = async () => {
   const args = parseArgs();
   args.outDir = await resolveUniqueOutDir(args.outDir);
@@ -181,10 +205,15 @@ const main = async () => {
         await viewport.waitFor({ state: "visible", timeout: 90_000 });
 
         const queueCards = page.locator("[data-testid='queue-item-card']");
-        await queueCards.first().waitFor({ state: "visible", timeout: 90_000 });
-        const initialCardCount = await queueCards.count();
-        if (initialCardCount <= 0) {
-          throw new Error("Queue scroll verification expected at least 1 queue item card to be visible.");
+        const initialCardCount = await waitForStableCount(page, queueCards, {
+          minCount: 1,
+          stableMs: 300,
+          timeoutMs: 90_000,
+        });
+        if (args.jobs >= 50 && initialCardCount < 2) {
+          throw new Error(
+            `Queue scroll verification expected more than 1 initial card to be visible for large queues; saw ${initialCardCount}.`,
+          );
         }
         if (initialCardCount > 250) {
           throw new Error(

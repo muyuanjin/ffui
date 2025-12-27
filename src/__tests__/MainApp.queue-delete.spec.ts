@@ -37,8 +37,8 @@ describe("MainApp queue delete behaviour", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: () => {
-        throw new Error("delete_transcode_job should not be called for active jobs");
+      delete_transcode_jobs_bulk: () => {
+        throw new Error("delete_transcode_jobs_bulk should not be called for active jobs");
       },
     });
 
@@ -63,7 +63,7 @@ describe("MainApp queue delete behaviour", () => {
     await nextTick();
 
     // No delete_transcode_job call should have been issued.
-    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job")).toBe(false);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_jobs_bulk")).toBe(false);
 
     // An error message should be surfaced to guide the user.
     expect(vm.queueError ?? vm.queueError?.value).toBeTruthy();
@@ -107,11 +107,12 @@ describe("MainApp queue delete behaviour", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: (payload) => {
-        const id = (payload?.jobId ?? payload?.job_id) as string;
-        deletedIds.push(id);
+      delete_transcode_jobs_bulk: (payload) => {
+        const ids = (payload?.jobIds ?? payload?.job_ids) as string[];
+        deletedIds.push(...(ids ?? []));
         // 模拟后端在返回 true 时从队列中移除对应任务。
-        setQueueJobs(getQueueJobs().filter((job) => job.id !== id));
+        const deletable = new Set(ids ?? []);
+        setQueueJobs(getQueueJobs().filter((job) => !deletable.has(job.id)));
         return true;
       },
     });
@@ -138,7 +139,7 @@ describe("MainApp queue delete behaviour", () => {
     await nextTick();
 
     // The backend delete command should be called only for the completed job.
-    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_job")).toBe(true);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_jobs_bulk")).toBe(true);
     expect(deletedIds).toContain("job-completed");
     expect(deletedIds).not.toContain("job-processing");
 
@@ -179,10 +180,11 @@ describe("MainApp queue delete behaviour", () => {
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      delete_transcode_job: (payload) => {
+      delete_transcode_jobs_bulk: (payload) => {
         // 模拟后端在返回 false 的同时，实际上已经把任务从队列中删除的极端情况。
-        const id = (payload?.jobId ?? payload?.job_id) as string;
-        setQueueJobs(getQueueJobs().filter((job) => job.id !== id));
+        const ids = (payload?.jobIds ?? payload?.job_ids) as string[];
+        const deletable = new Set(ids ?? []);
+        setQueueJobs(getQueueJobs().filter((job) => !deletable.has(job.id)));
         return false;
       },
     });

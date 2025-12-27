@@ -19,7 +19,9 @@ import {
   resumeTranscodeJob,
   restartTranscodeJob,
   deleteTranscodeJob,
+  deleteTranscodeJobsBulk,
   deleteBatchCompressBatchOnBackend,
+  deleteBatchCompressBatchesBulk,
   reorderQueue,
   loadPreviewDataUrl,
   ensureJobPreview,
@@ -450,6 +452,22 @@ describe("backend contract", () => {
     expect(result).toBe(true);
   });
 
+  it("deleteTranscodeJobsBulk sends delete_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const jobIds = ["job-a", "job-b"];
+
+    const result = await deleteTranscodeJobsBulk(jobIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("delete_transcode_jobs_bulk");
+    expect(payload).toMatchObject({
+      jobIds,
+      job_ids: jobIds,
+    });
+    expect(result).toBe(true);
+  });
+
   it("deleteBatchCompressBatchOnBackend sends delete_batch_compress_batch with both id name variants", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const batchId = "batch-123";
@@ -462,6 +480,22 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       batchId,
       batch_id: batchId,
+    });
+    expect(result).toBe(true);
+  });
+
+  it("deleteBatchCompressBatchesBulk sends delete_batch_compress_batches_bulk with batchIds/batch_ids payload", async () => {
+    invokeMock.mockResolvedValueOnce(true);
+    const batchIds = ["batch-a", "batch-b"];
+
+    const result = await deleteBatchCompressBatchesBulk(batchIds);
+
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    const [cmd, payload] = invokeMock.mock.calls[0];
+    expect(cmd).toBe("delete_batch_compress_batches_bulk");
+    expect(payload).toMatchObject({
+      batchIds,
+      batch_ids: batchIds,
     });
     expect(result).toBe(true);
   });
