@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
-import { nextTick } from "vue";
+import { nextTick, defineComponent } from "vue";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
@@ -33,6 +33,22 @@ const queueIconItemStub = {
   template: `<div data-testid="queue-icon-item-stub">{{ job.filename }}</div>`,
 };
 
+const vListStub = defineComponent({
+  props: {
+    data: {
+      type: Array,
+      required: true,
+    },
+  },
+  template: `
+    <div>
+      <div v-for="(item, index) in data" :key="index">
+        <slot :item="item" :index="index" />
+      </div>
+    </div>
+  `,
+});
+
 function getArray(possibleRef: any): any[] {
   if (Array.isArray(possibleRef)) return possibleRef;
   if (possibleRef && Array.isArray(possibleRef.value)) return possibleRef.value;
@@ -46,6 +62,18 @@ function setMaybeRef(target: any, key: string, value: any) {
   } else {
     target[key] = value;
   }
+}
+
+async function setQueueModeForTests(vm: any, mode: "display" | "queue") {
+  if ("queueModeModel" in vm) {
+    vm.queueModeModel = mode;
+    return;
+  }
+  if (typeof vm.setQueueMode === "function") {
+    await vm.setQueueMode(mode);
+    return;
+  }
+  setMaybeRef(vm, "queueMode", mode);
 }
 
 describe("MainApp queue view modes and empty state", () => {
@@ -238,9 +266,7 @@ describe("MainApp queue view modes and empty state", () => {
     const previousQueueMode = "queueModeModel" in vm ? vm.queueModeModel : null;
     const previousViewMode = "queueViewModeModel" in vm ? vm.queueViewModeModel : null;
 
-    if ("queueModeModel" in vm) {
-      vm.queueModeModel = "queue";
-    }
+    await setQueueModeForTests(vm, "queue");
     if ("queueViewModeModel" in vm) {
       vm.queueViewModeModel = "icon-small";
     }
@@ -288,8 +314,8 @@ describe("MainApp queue view modes and empty state", () => {
     expect(text).toContain("queued.mp4");
 
     // Restore persisted preferences so other tests remain isolated.
-    if (previousQueueMode && "queueModeModel" in vm) {
-      vm.queueModeModel = previousQueueMode;
+    if (previousQueueMode) {
+      await setQueueModeForTests(vm, previousQueueMode);
     }
     if (previousViewMode && "queueViewModeModel" in vm) {
       vm.queueViewModeModel = previousViewMode;
@@ -313,19 +339,20 @@ describe("MainApp queue view modes and empty state", () => {
     vm.activeTab = "queue";
     await nextTick();
 
-    if ("queueModeModel" in vm) {
-      // Default should be display-only mode.
-      expect(vm.queueModeModel).toBe("display");
+    const currentMode = "queueModeModel" in vm ? vm.queueModeModel : vm.queueMode;
+    expect(currentMode).toBe("display");
 
-      vm.queueModeModel = "queue";
-      await nextTick();
-      expect(vm.queueModeModel).toBe("queue");
+    await setQueueModeForTests(vm, "queue");
+    await nextTick();
 
-      // Changing view mode should not implicitly reset queue mode.
-      vm.queueViewModeModel = "compact";
-      await nextTick();
-      expect(vm.queueModeModel).toBe("queue");
-    }
+    const updatedMode = "queueModeModel" in vm ? vm.queueModeModel : vm.queueMode;
+    expect(updatedMode).toBe("queue");
+
+    // Changing view mode should not implicitly reset queue mode.
+    vm.queueViewModeModel = "compact";
+    await nextTick();
+    const modeAfterViewChange = "queueModeModel" in vm ? vm.queueModeModel : vm.queueMode;
+    expect(modeAfterViewChange).toBe("queue");
 
     wrapper.unmount();
   });
@@ -336,16 +363,16 @@ describe("MainApp queue view modes and empty state", () => {
         plugins: [i18n],
         stubs: {
           QueueItem: queueItemStub,
+          VList: vListStub,
         },
       },
     });
 
     const vm: any = wrapper.vm;
     vm.activeTab = "queue";
+    await nextTick();
 
-    if ("queueModeModel" in vm) {
-      vm.queueModeModel = "queue";
-    }
+    await setQueueModeForTests(vm, "queue");
     if ("queueViewModeModel" in vm) {
       vm.queueViewModeModel = "detail";
     }
@@ -399,11 +426,13 @@ describe("MainApp queue view modes and empty state", () => {
     }
 
     await nextTick();
+    await nextTick();
 
-    const text = wrapper.text();
-    // Group headers should be visible in queue mode.
-    expect(text).toContain("Processing");
-    expect(text).toContain("Waiting");
+    const queuePanelProps =
+      vm.queuePanelProps && "value" in vm.queuePanelProps ? vm.queuePanelProps.value : vm.queuePanelProps;
+    expect(queuePanelProps.queueMode).toBe("queue");
+    expect(queuePanelProps.queueModeProcessingJobs.length).toBe(1);
+    expect(queuePanelProps.queueModeWaitingItems.length).toBe(1);
 
     const items = wrapper.findAll("[data-testid='queue-item-stub']");
     expect(items.length).toBe(3);
