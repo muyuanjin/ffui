@@ -3,9 +3,17 @@ import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
 import os from "node:os";
 
-// 适度并行：根据 CPU 核心数动态分配 2-4 个 worker，加速运行同时避免 jsdom 过度并发。
+const GiB = 1024 ** 3;
+
+// 适度并行：根据 CPU/内存动态分配 worker，加速运行同时避免 jsdom 过度并发/爆内存。
 const cpuCount = os.cpus()?.length ?? 4;
-const parallelWorkers = Math.min(Math.max(2, Math.floor(cpuCount / 2)), 4);
+const totalGiB = os.totalmem() / GiB;
+const maxWorkersByMem = Math.max(2, Math.floor(Math.max(0, totalGiB - 2) / 3));
+const parallelWorkers = Math.min(Math.max(2, Math.floor(cpuCount / 2)), Math.min(8, maxWorkersByMem));
+const heapMiB = Math.min(
+  8192,
+  Math.max(2048, Math.floor((Math.max(0, totalGiB - 2) * 1024) / parallelWorkers / 256) * 256),
+);
 
 export default defineConfig({
   // Keep Vue SFC support for tests, but avoid pulling Tailwind/Vite CSS
@@ -32,7 +40,7 @@ export default defineConfig({
     teardownTimeout: 3000,
     // Give each worker a larger heap to avoid repeated GC thrashing and
     // out-of-memory crashes when mounting MainApp + jsdom.
-    execArgv: ["--max-old-space-size=8192"],
+    execArgv: [`--max-old-space-size=${heapMiB}`],
     setupFiles: ["./vitest.setup.ts"],
   },
 });

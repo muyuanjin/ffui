@@ -167,17 +167,15 @@ async function runFrontendPnpmStep(label, pnpmArgs, opts, options = {}) {
   }
 
   if (process.platform === "linux" && isWsl()) {
-    const windowsPnpmCmd = resolveWindowsPnpmCmdOnWslHost();
+    const windowsPnpmCmd = getWindowsPnpmCmdOnWslHost();
     if (!windowsPnpmCmd) {
       throw new Error(
         "frontend-platform=windows on WSL requires a usable Windows pnpm (pnpm.cmd via Corepack), or set frontend-platform=linux with Linux node_modules installed.",
       );
     }
 
-    const cwdLinux = path.resolve(options.cwd ?? process.cwd());
     await runStep(label, "cmd.exe", ["/d", "/s", "/c", "pnpm", ...pnpmArgs], {
       ...options,
-      cwd: cwdLinux,
     });
     return;
   }
@@ -276,6 +274,15 @@ function resolveWindowsPnpmCmdOnWslHost() {
   if (!pnpmCmdWsl) return null;
   if (!fs.existsSync(pnpmCmdWsl)) return null;
   return pnpmCmdWsl;
+}
+
+let cachedWindowsPnpmCmdOnWslHost;
+let cachedWindowsPnpmCmdOnWslHostResolved = false;
+function getWindowsPnpmCmdOnWslHost() {
+  if (cachedWindowsPnpmCmdOnWslHostResolved) return cachedWindowsPnpmCmdOnWslHost;
+  cachedWindowsPnpmCmdOnWslHostResolved = true;
+  cachedWindowsPnpmCmdOnWslHost = resolveWindowsPnpmCmdOnWslHost();
+  return cachedWindowsPnpmCmdOnWslHost;
 }
 
 function resolveWslCargoPathOnWindowsHost() {
@@ -521,7 +528,7 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
       await runStep(
         "Rust clippy (Windows, deny warnings)",
         "cargo",
-        ["clippy", "--profile", "check-all", "--target-dir", "target/win", "--", "-D", "warnings"],
+        ["clippy", "--profile", "check-all", "--target-dir", "target/win", "--no-deps", "--", "-D", "warnings"],
         {
           cwd: rustRootDir,
           env: resolveCargoEnv(),
@@ -564,6 +571,7 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
           winTargetDir,
           "--manifest-path",
           winCargoToml,
+          "--no-deps",
           "--",
           "-D",
           "warnings",
@@ -592,7 +600,7 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
       await runStep(
         "Rust clippy (Linux, deny warnings)",
         cargo,
-        ["clippy", "--profile", "check-all", "--target-dir", targetDir, "--", "-D", "warnings"],
+        ["clippy", "--profile", "check-all", "--target-dir", targetDir, "--no-deps", "--", "-D", "warnings"],
         {
           cwd: rustRootDir,
           env: resolveCargoEnv(),
@@ -640,6 +648,7 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
         wslTargetDir,
         "--manifest-path",
         wslCargoToml,
+        "--no-deps",
         "--",
         "-D",
         "warnings",
@@ -655,7 +664,7 @@ async function runRustChecksForPlatform(platform, rustRootDir, opts) {
 
 const opts = parseArgs(process.argv.slice(2));
 
-await runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "format:check"], opts);
+await runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "format:check:frontend"], opts);
 await runFrontendPnpmStep("Frontend lint (eslint)", ["run", "lint"], opts);
 await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
 await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
