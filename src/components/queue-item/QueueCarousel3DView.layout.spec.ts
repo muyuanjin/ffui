@@ -105,4 +105,34 @@ describe("QueueCarousel3DView layout guardrails", () => {
     expect(wrapper.find("[data-testid='ffui-carousel-3d-pagination']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='ffui-carousel-3d-hint']").exists()).toBe(true);
   });
+
+  it("uses overflow-hidden and flex sizing to avoid scrollbars", () => {
+    const items: QueueListItem[] = [{ kind: "job", job: makeJob("job-1") }];
+
+    const wrapper = mount(QueueCarousel3DView, {
+      props: {
+        items,
+        selectedJobIds: new Set<string>(),
+        progressStyle: "bar",
+        autoRotationSpeed: 0,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Badge: true,
+          Button: true,
+          Progress: true,
+          QueueJobWarnings: true,
+        },
+      },
+    });
+
+    const container = wrapper.get("[data-testid='ffui-carousel-3d-container']");
+    expect(container.classes()).toContain("overflow-hidden");
+    expect(container.classes()).toContain("min-h-0");
+    expect(container.classes()).toContain("h-full");
+
+    const stage = wrapper.get("[data-testid='ffui-carousel-3d-stage']");
+    expect(stage.classes()).toContain("min-h-0");
+  });
 });

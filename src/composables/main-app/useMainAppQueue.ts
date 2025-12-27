@@ -1,7 +1,8 @@
-import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, ref, type ComputedRef, type Ref } from "vue";
 import type {
   CompositeBatchCompressTask,
   FFmpegPreset,
+  QueueBulkActionKind,
   QueueMode,
   QueueProgressStyle,
   QueueViewMode,
@@ -20,6 +21,9 @@ import {
   resolveManualPreset,
 } from "./useMainAppQueue.ui";
 import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./useMainAppQueue.waiting";
+import { buildFilteredJobsForTests } from "./useMainAppQueue.filteredJobsForTests";
+import { guardExclusiveAsyncAction } from "./useMainAppQueue.guards";
+import { usePausingJobIds } from "./useMainAppQueue.pausing";
 
 export { getQueueIconGridClass } from "./useMainAppQueue.ui";
 
@@ -102,6 +106,8 @@ export interface UseMainAppQueueReturn
   bulkMoveSelectedJobsToBottomInner: () => Promise<void>;
   moveJobToTop: (jobId: string) => Promise<void>;
   bulkDelete: () => Promise<void>;
+  /** UI-only: which bulk action is currently running (for button feedback). */
+  bulkActionInProgress: Ref<QueueBulkActionKind | null>;
   /** Queue-mode waiting items (manual jobs + Batch Compress batches interleaved). */
   queueModeWaitingItems: ComputedRef<QueueListItem[]>;
   /** Batch ids already rendered in queueModeWaitingItems (for de-dupe). */
@@ -186,27 +192,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
 
   ensureManualPresetId(presets.value, manualJobPresetId);
 
-  // UI-only: track jobs that have requested "wait/pause" but remain in
-  // processing state until the backend reaches a safe point and marks them paused.
-  const pausingJobIds = ref<Set<string>>(new Set());
-  watch(
-    jobs,
-    (nextJobs) => {
-      if (pausingJobIds.value.size === 0) return;
-      const byId = new Map(nextJobs.map((job) => [job.id, job]));
-      const next = new Set<string>();
-      for (const id of pausingJobIds.value) {
-        const job = byId.get(id);
-        if (job && job.status === "processing") {
-          next.add(id);
-        }
-      }
-      if (next.size !== pausingJobIds.value.size) {
-        pausingJobIds.value = next;
-      }
-    },
-    { deep: false },
-  );
+  const pausingJobIds = usePausingJobIds(jobs);
 
   // Monotonic progress revision used to trigger progress-based sorting without
   // reintroducing full-list ordering fingerprints on every delta tick.
@@ -373,16 +359,12 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   );
 
   // Expose filtered list for tests and legacy consumers.
-  const filteredJobsForTests = computed(() => {
-    if (queueMode.value === "queue") {
-      const processing = queueModeProcessingJobs.value;
-      const waiting = queueModeWaitingJobs.value;
-      const waitingIds = new Set(waiting.map((j) => j.id));
-      const processingIds = new Set(processing.map((j) => j.id));
-      const others = manualQueueJobs.value.filter((job) => !waitingIds.has(job.id) && !processingIds.has(job.id));
-      return [...processing, ...waiting, ...others];
-    }
-    return displayModeSortedJobs.value;
+  const filteredJobsForTests = buildFilteredJobsForTests({
+    queueMode,
+    manualQueueJobs,
+    displayModeSortedJobs,
+    queueModeProcessingJobs,
+    queueModeWaitingJobs,
   });
 
   const {
@@ -411,6 +393,24 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkMoveSelectedJobsToTopInner,
     bulkMoveSelectedJobsToBottomInner,
   });
+
+  const bulkActionInProgress = ref<QueueBulkActionKind | null>(null);
+
+  const bulkWaitWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "wait", bulkWait);
+  const bulkResumeWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "resume", bulkResume);
+  const bulkRestartWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "restart", bulkRestart);
+  const bulkMoveToTopWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "moveToTop", bulkMoveToTop);
+  const bulkMoveToBottomWithFeedback = guardExclusiveAsyncAction(
+    bulkActionInProgress,
+    "moveToBottom",
+    bulkMoveToBottom,
+  );
+  const bulkDeleteWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "delete", bulkDelete);
+  const bulkCancelWithFeedbackGuarded = guardExclusiveAsyncAction(
+    bulkActionInProgress,
+    "cancel",
+    bulkCancelWithFeedback,
+  );
 
   // Queue / Batch Compress event listeners for queue state updates.
   useQueueEventListeners({
@@ -481,18 +481,19 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     enqueueManualJobsFromPaths,
     enqueueManualJobFromPath,
 
-    bulkCancel: bulkCancelWithFeedback,
-    bulkWait,
-    bulkResume,
-    bulkRestart,
-    bulkMoveToTop,
-    bulkMoveToBottom,
+    bulkCancel: bulkCancelWithFeedbackGuarded,
+    bulkWait: bulkWaitWithFeedback,
+    bulkResume: bulkResumeWithFeedback,
+    bulkRestart: bulkRestartWithFeedback,
+    bulkMoveToTop: bulkMoveToTopWithFeedback,
+    bulkMoveToBottom: bulkMoveToBottomWithFeedback,
     bulkMoveSelectedJobsToTop,
     bulkMoveSelectedJobsToBottom,
     bulkMoveSelectedJobsToTopInner,
     bulkMoveSelectedJobsToBottomInner,
     moveJobToTop,
-    bulkDelete,
+    bulkDelete: bulkDeleteWithFeedback,
+    bulkActionInProgress,
     pausingJobIds,
   };
 }

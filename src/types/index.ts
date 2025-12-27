@@ -29,6 +29,7 @@ export type {
   JobSource,
   QueueViewMode,
   QueueMode,
+  QueueBulkActionKind,
   QueueProgressStyle,
   MediaInfo,
   JobWarning,

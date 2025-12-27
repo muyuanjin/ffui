@@ -21,12 +21,14 @@ const props = withDefaults(
     ProgressRootProps & {
       class?: HTMLAttributes["class"];
       variant?: ProgressVariant;
+      transitionMs?: number;
     }
   >(),
   {
     modelValue: 0,
     variant: "default",
     class: undefined,
+    transitionMs: 150,
   },
 );
 
@@ -70,8 +72,11 @@ const indicatorClass = computed(() => {
     :class="cn('relative h-2 w-full overflow-hidden rounded-full', trackClass, props.class)"
   >
     <ProgressIndicator
-      :class="cn('h-full w-full flex-1 transition-transform duration-150 ease-linear', indicatorClass)"
-      :style="`transform: translateX(-${100 - (props.modelValue ?? 0)}%);`"
+      :class="cn('h-full w-full flex-1 transition-transform ease-linear', indicatorClass)"
+      :style="{
+        transform: `translateX(-${100 - (props.modelValue ?? 0)}%)`,
+        transitionDuration: `${Math.max(0, Math.floor(props.transitionMs ?? 0))}ms`,
+      }"
     />
   </ProgressRoot>
 </template>

@@ -41,11 +41,6 @@ describe("MainApp clears queue selection on blank click", () => {
     vm.activeTab = "queue";
     await nextTick();
 
-    if (typeof vm.refreshQueueFromBackend === "function") {
-      await vm.refreshQueueFromBackend();
-    }
-    await nextTick();
-
     setSelectedJobIds(vm, ["job-1"]);
     await nextTick();
 
@@ -88,6 +83,24 @@ describe("MainApp clears queue selection on blank click", () => {
     const selectedAfter = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
     expect(selectedAfter?.size ?? 0).toBe(0);
 
+    wrapper.unmount();
+  }, 15_000);
+
+  it("does not clear selection when interacting with a Sonner toast", async () => {
+    const { wrapper, vm } = await mountQueueWithOneSelectedJob();
+
+    const toast = document.createElement("div");
+    toast.setAttribute("data-sonner-toast", "");
+    toast.textContent = "toast";
+    document.body.appendChild(toast);
+
+    toast.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+    await nextTick();
+
+    const selectedAfter = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
+    expect(selectedAfter?.size ?? 0).toBe(1);
+
+    toast.remove();
     wrapper.unmount();
   }, 15_000);
 });

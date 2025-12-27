@@ -35,11 +35,13 @@ export function useQueueEventListeners({
   let initialQueuePollCancelled = false;
   let pendingQueueState: QueueStateLite | null = null;
   let pendingApplyHandle: number | null = null;
+  let pendingApplyDeadlineHandle: number | null = null;
   let pendingDeltaBaseRevision: number | null = null;
   let pendingDeltaMaxRevision: number | null = null;
   let pendingDeltaPatchesById: Map<string, { rev: number; patch: QueueStateLiteDelta["patches"][number] }> | null =
     null;
   let pendingDeltaApplyHandle: number | null = null;
+  let pendingDeltaApplyDeadlineHandle: number | null = null;
   let lastAppliedDeltaBaseRevision: number | null = null;
   let lastAppliedDeltaRevision: number | null = null;
   let pendingAheadDeltaBaseRevision: number | null = null;
@@ -51,6 +53,69 @@ export function useQueueEventListeners({
 
   const AHEAD_REFRESH_DELAY_MS = 5_000;
   const AHEAD_REFRESH_MIN_INTERVAL_MS = 30_000;
+  // `requestAnimationFrame` can be throttled heavily when the window is
+  // backgrounded. Keep a hard upper bound on UI staleness by adding a
+  // timeout fallback for queue event flushes.
+  const UI_FLUSH_DEADLINE_MS = 100;
+
+  const flushPendingQueueState = () => {
+    if (pendingApplyHandle != null && typeof window !== "undefined") {
+      if (typeof window.cancelAnimationFrame === "function") {
+        try {
+          window.cancelAnimationFrame(pendingApplyHandle);
+        } catch {
+          // ignore
+        }
+      }
+      window.clearTimeout(pendingApplyHandle);
+    }
+    pendingApplyHandle = null;
+
+    if (pendingApplyDeadlineHandle != null && typeof window !== "undefined") {
+      window.clearTimeout(pendingApplyDeadlineHandle);
+    }
+    pendingApplyDeadlineHandle = null;
+
+    const next = pendingQueueState;
+    pendingQueueState = null;
+    if (next) applyQueueStateFromBackend(next);
+    lastAppliedDeltaBaseRevision = lastQueueSnapshotRevision.value;
+    lastAppliedDeltaRevision = null;
+    flushPendingAheadDeltaIfReady();
+  };
+
+  const flushPendingQueueDelta = () => {
+    if (pendingDeltaApplyHandle != null && typeof window !== "undefined") {
+      if (typeof window.cancelAnimationFrame === "function") {
+        try {
+          window.cancelAnimationFrame(pendingDeltaApplyHandle);
+        } catch {
+          // ignore
+        }
+      }
+      window.clearTimeout(pendingDeltaApplyHandle);
+    }
+    pendingDeltaApplyHandle = null;
+
+    if (pendingDeltaApplyDeadlineHandle != null && typeof window !== "undefined") {
+      window.clearTimeout(pendingDeltaApplyDeadlineHandle);
+    }
+    pendingDeltaApplyDeadlineHandle = null;
+
+    if (!pendingDeltaPatchesById || pendingDeltaBaseRevision == null || pendingDeltaMaxRevision == null) return;
+
+    const delta: QueueStateLiteDelta = {
+      baseSnapshotRevision: pendingDeltaBaseRevision,
+      deltaRevision: pendingDeltaMaxRevision,
+      patches: Array.from(pendingDeltaPatchesById.values()).map((v) => v.patch),
+    };
+    pendingDeltaPatchesById = null;
+    pendingDeltaBaseRevision = null;
+    pendingDeltaMaxRevision = null;
+
+    applyQueueStateLiteDeltaFromBackend(delta);
+    lastAppliedDeltaRevision = delta.deltaRevision;
+  };
 
   const scheduleInitialQueuePoll = () => {
     if (initialQueuePollScheduled) return;
@@ -189,26 +254,16 @@ export function useQueueEventListeners({
       }
 
       if (typeof window === "undefined") {
-        const next = pendingQueueState;
-        pendingQueueState = null;
-        if (next) applyQueueStateFromBackend(next);
-        lastAppliedDeltaBaseRevision = lastQueueSnapshotRevision.value;
-        lastAppliedDeltaRevision = null;
-        flushPendingAheadDeltaIfReady();
-      } else if (pendingApplyHandle == null) {
-        const flush = () => {
-          pendingApplyHandle = null;
-          const next = pendingQueueState;
-          pendingQueueState = null;
-          if (next) applyQueueStateFromBackend(next);
-          lastAppliedDeltaBaseRevision = lastQueueSnapshotRevision.value;
-          lastAppliedDeltaRevision = null;
-          flushPendingAheadDeltaIfReady();
-        };
+        flushPendingQueueState();
+      } else if (pendingApplyHandle == null && pendingApplyDeadlineHandle == null) {
         if (typeof window.requestAnimationFrame === "function") {
-          pendingApplyHandle = window.requestAnimationFrame(flush);
+          pendingApplyHandle = window.requestAnimationFrame(flushPendingQueueState);
+          pendingApplyDeadlineHandle = window.setTimeout(() => {
+            pendingApplyDeadlineHandle = null;
+            flushPendingQueueState();
+          }, UI_FLUSH_DEADLINE_MS);
         } else {
-          pendingApplyHandle = window.setTimeout(flush, 0);
+          pendingApplyHandle = window.setTimeout(flushPendingQueueState, 0);
         }
       }
       // Any push-style queue event cancels the deferred initial poll so we
@@ -292,39 +347,16 @@ export function useQueueEventListeners({
       }
 
       if (typeof window === "undefined") {
-        if (!pendingDeltaPatchesById || pendingDeltaBaseRevision == null || pendingDeltaMaxRevision == null) return;
-        const delta: QueueStateLiteDelta = {
-          baseSnapshotRevision: pendingDeltaBaseRevision,
-          deltaRevision: pendingDeltaMaxRevision,
-          patches: Array.from(pendingDeltaPatchesById.values()).map((v) => v.patch),
-        };
-        pendingDeltaPatchesById = null;
-        pendingDeltaBaseRevision = null;
-        pendingDeltaMaxRevision = null;
-        applyQueueStateLiteDeltaFromBackend(delta);
-        lastAppliedDeltaRevision = delta.deltaRevision;
-      } else if (pendingDeltaApplyHandle == null) {
-        const flushDelta = () => {
-          pendingDeltaApplyHandle = null;
-          if (!pendingDeltaPatchesById || pendingDeltaBaseRevision == null || pendingDeltaMaxRevision == null) return;
-
-          const delta: QueueStateLiteDelta = {
-            baseSnapshotRevision: pendingDeltaBaseRevision,
-            deltaRevision: pendingDeltaMaxRevision,
-            patches: Array.from(pendingDeltaPatchesById.values()).map((v) => v.patch),
-          };
-          pendingDeltaPatchesById = null;
-          pendingDeltaBaseRevision = null;
-          pendingDeltaMaxRevision = null;
-
-          applyQueueStateLiteDeltaFromBackend(delta);
-          lastAppliedDeltaRevision = delta.deltaRevision;
-        };
-
+        flushPendingQueueDelta();
+      } else if (pendingDeltaApplyHandle == null && pendingDeltaApplyDeadlineHandle == null) {
         if (typeof window.requestAnimationFrame === "function") {
-          pendingDeltaApplyHandle = window.requestAnimationFrame(flushDelta);
+          pendingDeltaApplyHandle = window.requestAnimationFrame(flushPendingQueueDelta);
+          pendingDeltaApplyDeadlineHandle = window.setTimeout(() => {
+            pendingDeltaApplyDeadlineHandle = null;
+            flushPendingQueueDelta();
+          }, UI_FLUSH_DEADLINE_MS);
         } else {
-          pendingDeltaApplyHandle = window.setTimeout(flushDelta, 0);
+          pendingDeltaApplyHandle = window.setTimeout(flushPendingQueueDelta, 0);
         }
       }
 
@@ -393,6 +425,10 @@ export function useQueueEventListeners({
       window.clearTimeout(pendingApplyHandle);
       pendingApplyHandle = null;
     }
+    if (pendingApplyDeadlineHandle != null && typeof window !== "undefined") {
+      window.clearTimeout(pendingApplyDeadlineHandle);
+      pendingApplyDeadlineHandle = null;
+    }
     pendingQueueState = null;
 
     if (pendingDeltaApplyHandle != null && typeof window !== "undefined") {
@@ -405,6 +441,10 @@ export function useQueueEventListeners({
       }
       window.clearTimeout(pendingDeltaApplyHandle);
       pendingDeltaApplyHandle = null;
+    }
+    if (pendingDeltaApplyDeadlineHandle != null && typeof window !== "undefined") {
+      window.clearTimeout(pendingDeltaApplyDeadlineHandle);
+      pendingDeltaApplyDeadlineHandle = null;
     }
     pendingDeltaPatchesById = null;
     pendingDeltaBaseRevision = null;

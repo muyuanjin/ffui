@@ -169,7 +169,6 @@
               <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyAllInputPaths") }}
             </DropdownMenuItem>
-
             <DropdownMenuItem
               :disabled="!canBulkBase"
               class="px-3 py-1.5 text-xs gap-2"
@@ -179,78 +178,109 @@
               <Copy class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.copyAllOutputPaths") }}
             </DropdownMenuItem>
-
             <DropdownMenuSeparator class="my-1 bg-border/40" />
-
             <DropdownMenuItem
-              :disabled="!canBulkResume"
+              :disabled="bulkBusy || !canBulkResume"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-resume"
               @select="onResume"
             >
-              <Play class="h-4 w-4 opacity-80 text-emerald-500" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'resume'"
+                class="h-4 w-4 opacity-80 animate-spin text-emerald-500"
+                aria-hidden="true"
+              />
+              <Play v-else class="h-4 w-4 opacity-80 text-emerald-500" aria-hidden="true" />
               {{ t("queue.actions.bulkResume") }}
             </DropdownMenuItem>
-
             <DropdownMenuItem
-              :disabled="!canBulkWait"
+              :disabled="bulkBusy || !canBulkWait"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-wait"
               @select="onWait"
             >
-              <Hourglass class="h-4 w-4 opacity-80 text-amber-500" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'wait'"
+                class="h-4 w-4 opacity-80 animate-spin text-amber-500"
+                aria-hidden="true"
+              />
+              <Hourglass v-else class="h-4 w-4 opacity-80 text-amber-500" aria-hidden="true" />
               {{ t("queue.actions.bulkWait") }}
             </DropdownMenuItem>
-
             <DropdownMenuItem
-              :disabled="!canBulkCancel"
+              :disabled="bulkBusy || !canBulkCancel"
               class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
               data-testid="queue-context-menu-bulk-cancel"
               @select="onCancel"
             >
-              <XCircle class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'cancel'"
+                class="h-4 w-4 opacity-80 animate-spin text-destructive"
+                aria-hidden="true"
+              />
+              <XCircle v-else class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("queue.actions.bulkCancel") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              :disabled="!canBulkRestart"
+              :disabled="bulkBusy || !canBulkRestart"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-restart"
               @select="onRestart"
             >
-              <RefreshCw class="h-4 w-4 opacity-80 text-blue-500" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'restart'"
+                class="h-4 w-4 opacity-80 animate-spin text-blue-500"
+                aria-hidden="true"
+              />
+              <RefreshCw v-else class="h-4 w-4 opacity-80 text-blue-500" aria-hidden="true" />
               {{ t("queue.actions.bulkRestart") }}
             </DropdownMenuItem>
 
             <DropdownMenuSeparator class="my-1 bg-border/40" />
 
             <DropdownMenuItem
-              :disabled="!canBulkMove"
+              :disabled="bulkBusy || !canBulkMove"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-move-top"
               @select="onMoveToTop"
             >
-              <ArrowUpToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'moveToTop'"
+                class="h-4 w-4 opacity-80 animate-spin text-primary"
+                aria-hidden="true"
+              />
+              <ArrowUpToLine v-else class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToTop") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              :disabled="!canBulkMove"
+              :disabled="bulkBusy || !canBulkMove"
               class="px-3 py-1.5 text-xs gap-2"
               data-testid="queue-context-menu-bulk-move-bottom"
               @select="onMoveToBottom"
             >
-              <ArrowDownToLine class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'moveToBottom'"
+                class="h-4 w-4 opacity-80 animate-spin text-primary"
+                aria-hidden="true"
+              />
+              <ArrowDownToLine v-else class="h-4 w-4 opacity-80 text-primary" aria-hidden="true" />
               {{ t("queue.actions.bulkMoveToBottom") }}
             </DropdownMenuItem>
 
             <DropdownMenuItem
-              :disabled="!canBulkDelete"
+              :disabled="bulkBusy || !canBulkDelete"
               class="px-3 py-1.5 text-xs gap-2 text-destructive focus:bg-destructive/10 focus:text-destructive"
               data-testid="queue-context-menu-bulk-remove"
               @select="onRemove"
             >
-              <Trash2 class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
+              <Loader2
+                v-if="props.bulkActionInProgress === 'delete'"
+                class="h-4 w-4 opacity-80 animate-spin text-destructive"
+                aria-hidden="true"
+              />
+              <Trash2 v-else class="h-4 w-4 opacity-80 text-destructive" aria-hidden="true" />
               {{ t("queue.actions.bulkDelete") }}
             </DropdownMenuItem>
           </template>
@@ -259,11 +289,11 @@
     </div>
   </Teleport>
 </template>
-
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { JobStatus, JobType, QueueMode } from "@/types";
+import type { JobStatus, JobType, QueueBulkActionKind, QueueMode } from "@/types";
+import { createQueueContextMenuPermissions } from "./queueContextMenu.permissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -280,6 +310,7 @@ import {
   FolderOpen,
   GitCompare,
   Hourglass,
+  Loader2,
   Play,
   RefreshCw,
   Trash2,
@@ -300,6 +331,7 @@ const props = defineProps<{
   jobType?: JobType;
   queueMode: QueueMode;
   hasSelection: boolean;
+  bulkActionInProgress?: QueueBulkActionKind | null;
   canRevealInputPath?: boolean;
   canRevealOutputPath?: boolean;
 }>();
@@ -328,8 +360,7 @@ const displayY = ref(props.y);
 const closeFromItem = ref(false);
 
 const rootClass = computed(() => {
-  // When the menu is teleported outside dialogs, it must stack above the dialog overlay.
-  // Keep the previous stacking in the inline render to avoid changing unrelated contexts.
+  // When teleported outside dialogs, stack above the dialog overlay (keep inline render stacking unchanged).
   const z = props.teleportToBody ? "z-[60]" : "z-40";
   return `fixed inset-0 ${z}`;
 });
@@ -444,49 +475,23 @@ watch(
   { immediate: true },
 );
 
-const isQueueMode = computed(() => props.queueMode === "queue");
-const status = computed<JobStatus | undefined>(() => props.jobStatus);
-
-const canRevealInput = computed(() => props.mode === "single" && props.canRevealInputPath === true);
-const canRevealOutput = computed(() => props.mode === "single" && props.canRevealOutputPath === true);
-
-const isTerminalStatus = (value: JobStatus | undefined) =>
-  value === "completed" || value === "failed" || value === "skipped" || value === "cancelled";
-
-// 允许在显示模式下也能进行暂停/继续操作（仅影响单个任务状态，不改变队列优先级）。
-const canWait = computed(() => props.mode === "single" && status.value === "processing");
-
-const canResume = computed(() => props.mode === "single" && status.value === "paused");
-
-const canRestart = computed(
-  () =>
-    props.mode === "single" && status.value !== undefined && status.value !== "completed" && status.value !== "skipped",
-);
-
-const canCancel = computed(
-  () =>
-    props.mode === "single" &&
-    status.value !== undefined &&
-    (status.value === "queued" || status.value === "processing" || status.value === "paused"),
-);
-
-const canMove = computed(() => props.mode === "single" && isQueueMode.value);
-
-const canDeleteSingle = computed(() => props.mode === "single" && isTerminalStatus(status.value));
-
-const canCompare = computed(() => {
-  if (props.mode !== "single") return false;
-  if (props.jobType !== "video") return false;
-  return status.value === "processing" || status.value === "paused" || status.value === "completed";
-});
-
-const canBulkBase = computed(() => props.mode === "bulk" && props.hasSelection);
-
-const canBulkCancel = computed(() => canBulkBase.value);
-// 批量暂停/继续在显示模式下也允许；批量移动仍仅在队列模式下。
-const canBulkWait = computed(() => canBulkBase.value);
-const canBulkResume = computed(() => canBulkBase.value);
-const canBulkRestart = computed(() => canBulkBase.value);
-const canBulkMove = computed(() => canBulkBase.value && isQueueMode.value);
-const canBulkDelete = computed(() => canBulkBase.value);
+const {
+  canRevealInput,
+  canRevealOutput,
+  canWait,
+  canResume,
+  canRestart,
+  canCancel,
+  canMove,
+  canDeleteSingle,
+  canCompare,
+  canBulkBase,
+  bulkBusy,
+  canBulkCancel,
+  canBulkWait,
+  canBulkResume,
+  canBulkRestart,
+  canBulkMove,
+  canBulkDelete,
+} = createQueueContextMenuPermissions(props);
 </script>

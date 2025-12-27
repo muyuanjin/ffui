@@ -6,6 +6,7 @@ const props = defineProps<{
   showRippleCardProgress: boolean;
   previewUrl: string | null;
   displayedClampedProgress: number;
+  transitionMs?: number;
   status: string;
 }>();
 
@@ -26,6 +27,11 @@ const rippleFillStyle = computed(() => {
 const cardFillStyle = computed(() => {
   const pct = clampedProgress.value;
   return { clipPath: `inset(0 ${100 - pct}% 0 0)` };
+});
+
+const transitionStyle = computed(() => {
+  const ms = Math.max(0, Math.floor(Number(props.transitionMs ?? 0) || 0));
+  return ms > 0 ? { transitionDuration: `${ms}ms` } : { transitionDuration: "0ms" };
 });
 
 // 根据任务状态计算波纹进度的颜色类
@@ -75,9 +81,9 @@ const staticProgressColorClass = computed(() => {
   >
     <div class="absolute inset-0 bg-card/40" />
     <div
-      class="absolute inset-0 overflow-hidden will-change-[clip-path]"
+      class="absolute inset-0 overflow-hidden will-change-[clip-path] transition-[clip-path] ease-linear"
       data-testid="queue-item-progress-fill"
-      :style="cardFillStyle"
+      :style="{ ...cardFillStyle, ...transitionStyle }"
     >
       <img
         v-if="previewUrl"
@@ -96,7 +102,11 @@ const staticProgressColorClass = computed(() => {
     class="absolute inset-0 pointer-events-none overflow-hidden"
     data-testid="queue-item-progress-ripple-card"
   >
-    <div class="absolute inset-0 will-change-transform" data-testid="queue-item-progress-fill" :style="rippleFillStyle">
+    <div
+      class="absolute inset-0 will-change-transform transition-transform ease-linear"
+      data-testid="queue-item-progress-fill"
+      :style="{ ...rippleFillStyle, ...transitionStyle }"
+    >
       <div
         v-if="props.status === 'processing'"
         class="h-full w-full opacity-80 animate-pulse"

@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import TitleBar from "@/components/TitleBar.vue";
+import { deriveProgressTransitionMs } from "@/lib/progressTransition";
 import Sidebar from "@/components/Sidebar.vue";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
@@ -76,6 +77,7 @@ const {
   bulkMoveToTop,
   bulkMoveToBottom,
   bulkDelete,
+  bulkActionInProgress,
   isInspectingMedia,
   mediaInspectError,
   inspectedMediaPath,
@@ -234,6 +236,7 @@ defineExpose({
       :progress-percent="headerProgressPercent"
       :progress-visible="headerProgressVisible"
       :progress-fading="headerProgressFading"
+      :progress-transition-ms="deriveProgressTransitionMs(progressUpdateIntervalMs)"
       @minimize="minimizeWindow"
       @toggle-maximize="toggleMaximizeWindow"
       @close="closeWindow"
@@ -288,6 +291,7 @@ defineExpose({
           :visible-count="queueJobsForDisplay.length"
           :total-count="jobs.length"
           :selection-bar-pinned="selectionBarPinned"
+          :bulk-action-in-progress="bulkActionInProgress"
           @update:queueMode="setQueueMode"
           @toggle-status-filter="toggleStatusFilter"
           @toggle-type-filter="toggleTypeFilter"
@@ -425,6 +429,7 @@ defineExpose({
       :job-type="queueContextMenuJob?.type"
       :queue-mode="queueMode"
       :has-selection="hasSelection"
+      :bulk-action-in-progress="bulkActionInProgress"
       :can-reveal-input-path="queueContextMenuCanRevealInputPath"
       :can-reveal-output-path="queueContextMenuCanRevealOutputPath"
       @inspect="handleQueueContextInspect"

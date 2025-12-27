@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { defineComponent, nextTick, ref } from "vue";
 import { mount } from "@vue/test-utils";
-import type { QueueStartupHint } from "@/types";
 import { useQueueStartupToast } from "./useQueueStartupToast";
 
 const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -12,7 +11,7 @@ const toastMessageMock = vi.fn();
 vi.mock("vue-sonner", () => {
   return {
     toast: {
-      message: (...args: any[]) => toastMessageMock(...args),
+      success: (...args: any[]) => toastMessageMock(...args),
     },
   };
 });
@@ -23,14 +22,14 @@ vi.mock("@/lib/backend", () => {
   };
 });
 
-const getQueueStartupHintMock = vi.fn<() => Promise<QueueStartupHint | null>>();
 const resumeStartupQueueMock = vi.fn<() => Promise<number>>();
+const getQueueStartupHintMock = vi.fn<() => Promise<any>>();
 const dismissQueueStartupHintMock = vi.fn<() => Promise<void>>();
 
 vi.mock("@/lib/backend.queue-startup", () => {
   return {
-    getQueueStartupHint: () => getQueueStartupHintMock(),
     resumeStartupQueue: () => resumeStartupQueueMock(),
+    getQueueStartupHint: () => getQueueStartupHintMock(),
     dismissQueueStartupHint: () => dismissQueueStartupHintMock(),
   };
 });
@@ -38,19 +37,27 @@ vi.mock("@/lib/backend.queue-startup", () => {
 describe("useQueueStartupToast", () => {
   beforeEach(() => {
     toastMessageMock.mockReset();
-    getQueueStartupHintMock.mockReset();
     resumeStartupQueueMock.mockReset();
+    getQueueStartupHintMock.mockReset();
     dismissQueueStartupHintMock.mockReset();
   });
 
-  it("shows a toast and resumes the startup queue via action button", async () => {
-    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "crashOrKill", autoPausedJobCount: 2 });
+  it("shows a corner toast after the first queue snapshot is loaded", async () => {
     resumeStartupQueueMock.mockResolvedValueOnce(2);
+    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pauseOnExit", autoPausedJobCount: 2 });
 
-    const jobs = ref<any[]>([]);
+    const jobs = ref<any[]>([
+      { id: "job-1", status: "paused" },
+      { id: "job-2", status: "paused" },
+    ]);
     const lastQueueSnapshotRevision = ref<number | null>(null);
     const refreshQueueFromBackend = vi.fn(async () => {});
-    const t = (key: string) => key;
+    const t = (key: string, params?: any) =>
+      params
+        ? `${key}:${Object.entries(params)
+            .map(([k, v]) => `${k}=${String(v)}`)
+            .join(",")}`
+        : key;
 
     const TestHarness = defineComponent({
       setup() {
@@ -70,35 +77,42 @@ describe("useQueueStartupToast", () => {
     await nextTick();
     await flushPromises();
 
-    expect(getQueueStartupHintMock).toHaveBeenCalledTimes(1);
-    expect(toastMessageMock).toHaveBeenCalledTimes(1);
+    expect(toastMessageMock).not.toHaveBeenCalled();
 
-    const [, options] = toastMessageMock.mock.calls[0];
-    expect(options).toMatchObject({
-      description: "queue.startupHint.descriptionCrashOrKill",
-    });
-
-    options.action.onClick();
+    lastQueueSnapshotRevision.value = 1;
+    await nextTick();
     await flushPromises();
 
+    expect(toastMessageMock).toHaveBeenCalledTimes(1);
+    const [title, opts] = toastMessageMock.mock.calls[0] ?? [];
+    expect(title).toBe("queue.startupHint.title");
+    expect(opts?.description).toContain("queue.startupHint.descriptionPauseOnExit");
+    expect(opts?.action?.label).toBe("queue.startupHint.actionResumeTranscoding");
+    expect(opts?.cancel?.label).toBe("queue.startupHint.close");
+
+    opts?.action?.onClick?.();
+    await flushPromises();
     expect(resumeStartupQueueMock).toHaveBeenCalledTimes(1);
     expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
   });
 
-  it("dismisses the startup hint when the cancel button is clicked", async () => {
-    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pausedQueue", autoPausedJobCount: 3 });
+  it("dismisses the backend hint when resumeStartupQueue resumes zero jobs", async () => {
+    resumeStartupQueueMock.mockResolvedValueOnce(0);
+    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "crashOrKill", autoPausedJobCount: 2 });
     dismissQueueStartupHintMock.mockResolvedValueOnce();
 
-    const jobs = ref<any[]>([]);
-    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const jobs = ref<any[]>([
+      { id: "job-3", status: "paused" },
+      { id: "job-4", status: "paused" },
+    ]);
+    const lastQueueSnapshotRevision = ref<number | null>(1);
     const refreshQueueFromBackend = vi.fn(async () => {});
-    const t = (key: string) => key;
 
     const TestHarness = defineComponent({
       setup() {
         useQueueStartupToast({
           enabled: true,
-          t,
+          t: (key: string) => key,
           jobs,
           lastQueueSnapshotRevision,
           refreshQueueFromBackend,
@@ -112,15 +126,15 @@ describe("useQueueStartupToast", () => {
     await nextTick();
     await flushPromises();
 
-    const [, options] = toastMessageMock.mock.calls[0];
-    options.cancel.onClick();
+    const [, opts] = toastMessageMock.mock.calls[0] ?? [];
+    opts?.action?.onClick?.();
     await flushPromises();
-
+    expect(resumeStartupQueueMock).toHaveBeenCalledTimes(1);
     expect(dismissQueueStartupHintMock).toHaveBeenCalledTimes(1);
+    expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
   });
 
   it("no-ops when disabled", async () => {
-    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "normalRestart", autoPausedJobCount: 2 });
     const jobs = ref<any[]>([]);
     const lastQueueSnapshotRevision = ref<number | null>(null);
 
@@ -142,24 +156,48 @@ describe("useQueueStartupToast", () => {
     await nextTick();
     await flushPromises();
 
-    expect(getQueueStartupHintMock).not.toHaveBeenCalled();
     expect(toastMessageMock).not.toHaveBeenCalled();
   });
 
-  it("maps pausedQueue hint kind to the paused description key", async () => {
-    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pausedQueue", autoPausedJobCount: 3 });
-    resumeStartupQueueMock.mockResolvedValueOnce(3);
+  it("does not show when the backend startup hint is empty (manual pause must not trigger)", async () => {
+    getQueueStartupHintMock.mockResolvedValueOnce(null);
 
-    const jobs = ref<any[]>([]);
-    const lastQueueSnapshotRevision = ref<number | null>(null);
-    const refreshQueueFromBackend = vi.fn(async () => {});
-    const t = (key: string) => key;
+    const jobs = ref<any[]>([{ id: "job-1", status: "paused" }]);
+    const lastQueueSnapshotRevision = ref<number | null>(1);
 
     const TestHarness = defineComponent({
       setup() {
         useQueueStartupToast({
           enabled: true,
-          t,
+          t: (key: string) => key,
+          jobs,
+          lastQueueSnapshotRevision,
+          refreshQueueFromBackend: async () => {},
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    mount(TestHarness);
+    await nextTick();
+    await flushPromises();
+
+    expect(toastMessageMock).not.toHaveBeenCalled();
+  });
+
+  it("dismisses the backend hint when the cancel button is clicked", async () => {
+    getQueueStartupHintMock.mockResolvedValueOnce({ kind: "pauseOnExit", autoPausedJobCount: 1 });
+    const jobs = ref<any[]>([{ id: "job-5", status: "paused" }]);
+    const lastQueueSnapshotRevision = ref<number | null>(1);
+    const refreshQueueFromBackend = vi.fn(async () => {});
+    dismissQueueStartupHintMock.mockResolvedValueOnce();
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueStartupToast({
+          enabled: true,
+          t: (key: string) => key,
           jobs,
           lastQueueSnapshotRevision,
           refreshQueueFromBackend,
@@ -173,9 +211,9 @@ describe("useQueueStartupToast", () => {
     await nextTick();
     await flushPromises();
 
-    const [, options] = toastMessageMock.mock.calls[0];
-    expect(options).toMatchObject({
-      description: "queue.startupHint.descriptionPausedQueue",
-    });
+    const [, opts] = toastMessageMock.mock.calls[0] ?? [];
+    opts?.cancel?.onClick?.();
+    await flushPromises();
+    expect(dismissQueueStartupHintMock).toHaveBeenCalledTimes(1);
   });
 });

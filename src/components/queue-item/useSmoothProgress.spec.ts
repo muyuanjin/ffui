@@ -1,29 +1,9 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { computed, ref, nextTick, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
 import type { TranscodeJob } from "@/types";
 import { useSmoothProgress } from "./useSmoothProgress";
-
-vi.mock("gsap", () => {
-  return {
-    default: {
-      to(state: any, opts: any) {
-        // 直接跳到目标值，便于在测试里做断言
-        if (typeof opts?.value === "number") {
-          state.value = opts.value;
-          opts.onUpdate?.();
-          opts.onComplete?.();
-        }
-        return {
-          kill() {
-            // no-op
-          },
-        };
-      },
-    },
-  };
-});
 
 const makeJob = (overrides: Partial<TranscodeJob> = {}): TranscodeJob =>
   ({
@@ -38,13 +18,13 @@ const makeJob = (overrides: Partial<TranscodeJob> = {}): TranscodeJob =>
     ...overrides,
   }) as TranscodeJob;
 
-const mountComposable = (job: Ref<TranscodeJob>) => {
+const mountComposable = (job: Ref<TranscodeJob>, options?: { progressUpdateIntervalMs?: number }) => {
   const wrapper = mount({
     setup() {
       const composable = useSmoothProgress({
         job: computed(() => job.value),
         progressStyle: computed(() => "bar"),
-        progressUpdateIntervalMs: computed(() => 250),
+        progressUpdateIntervalMs: computed(() => options?.progressUpdateIntervalMs ?? 250),
       });
       return { composable };
     },
@@ -59,10 +39,6 @@ const mountComposable = (job: Ref<TranscodeJob>) => {
 };
 
 describe("useSmoothProgress", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
   it("initializes displayedClampedProgress from clamped job progress", async () => {
     const job = ref(makeJob({ progress: 42 }));
     const { composable, wrapper } = mountComposable(job);
@@ -72,7 +48,7 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
-  it("smoothly updates progress when job.progress increases while processing", async () => {
+  it("tracks job.progress updates while processing", async () => {
     const job = ref(makeJob({ progress: 10 }));
     const { composable, wrapper } = mountComposable(job);
 
@@ -82,7 +58,6 @@ describe("useSmoothProgress", () => {
     job.value = { ...job.value, progress: 55 };
     await nextTick();
 
-    // 由于在测试环境中 gsap 被 mock 成立即跳到目标值，因此应直接等于 55
     expect(composable.displayedClampedProgress.value).toBe(55);
     wrapper.unmount();
   });
@@ -98,6 +73,22 @@ describe("useSmoothProgress", () => {
     await nextTick();
 
     expect(composable.displayedClampedProgress.value).toBe(100);
+    wrapper.unmount();
+  });
+
+  it("exposes transition duration tuned by update interval", async () => {
+    const job = ref(makeJob({ status: "processing", progress: 10 }));
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 250 });
+    await nextTick();
+    expect(composable.progressTransitionMs.value).toBe(150);
+    wrapper.unmount();
+  });
+
+  it("disables transitions for extremely frequent updates", async () => {
+    const job = ref(makeJob({ status: "processing", progress: 10 }));
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 50 });
+    await nextTick();
+    expect(composable.progressTransitionMs.value).toBe(0);
     wrapper.unmount();
   });
 });

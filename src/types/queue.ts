@@ -26,6 +26,8 @@ export type QueueViewMode =
  */
 export type QueueMode = "display" | "queue";
 
+export type QueueBulkActionKind = "wait" | "resume" | "cancel" | "restart" | "moveToTop" | "moveToBottom" | "delete";
+
 /**
  * Visual styles for per-job progress. Not all styles need to be implemented
  * at once; the enum is forward-compatible so persisted values stay valid.

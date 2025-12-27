@@ -16,6 +16,10 @@ const shouldIgnoreClearSelectionFromTarget = (target: Element): boolean => {
         '[role="dialog"]',
         "[data-stop-clear-selection]",
 
+        // Sonner toast overlay (drag to dismiss / close button)
+        "[data-sonner-toaster]",
+        "[data-sonner-toast]",
+
         // Queue items/cards
         '[data-testid="queue-item-card"]',
         '[data-testid="queue-icon-item"]',

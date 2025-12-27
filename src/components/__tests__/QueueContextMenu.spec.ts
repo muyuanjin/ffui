@@ -144,6 +144,30 @@ describe("QueueContextMenu", () => {
     expect(bulkWait.attributes("aria-disabled")).toBe("true");
   });
 
+  it("disables bulk actions and shows spinner when bulk action is in progress", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "bulk",
+        queueMode: "queue",
+        hasSelection: true,
+        bulkActionInProgress: "wait",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const bulkWait = wrapper.get("[data-testid='queue-context-menu-bulk-wait']");
+    expect(bulkWait.attributes("aria-disabled")).toBe("true");
+    expect(bulkWait.find("svg").classes()).toContain("animate-spin");
+
+    const bulkCancel = wrapper.get("[data-testid='queue-context-menu-bulk-cancel']");
+    expect(bulkCancel.attributes("aria-disabled")).toBe("true");
+  });
+
   it("emits corresponding events when menu items are clicked", async () => {
     const wrapper = mount(QueueContextMenu, {
       props: {

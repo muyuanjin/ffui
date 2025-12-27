@@ -1,5 +1,5 @@
 import { ref } from "vue";
-import type { TranscodeJob, FFmpegPreset, CompositeBatchCompressTask } from "@/types";
+import type { FFmpegPreset, CompositeBatchCompressTask, TranscodeJob } from "@/types";
 
 /**
  * 对话框管理 Composable

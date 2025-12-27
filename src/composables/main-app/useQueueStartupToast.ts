@@ -28,44 +28,59 @@ export function useQueueStartupToast(options: UseQueueStartupToastOptions) {
     [lastQueueSnapshotRevision, () => jobs.value.length],
     async () => {
       if (!enabled || checked) return;
+      if (lastQueueSnapshotRevision.value === null) return;
       if (!hasTauri()) {
         checked = true;
         return;
       }
+
+      // Startup-only: run exactly once after the first queue snapshot lands.
       checked = true;
 
-      let hint: Awaited<ReturnType<typeof getQueueStartupHint>> = null;
-      try {
-        hint = await getQueueStartupHint();
-      } catch (err) {
-        checked = false;
-        console.error("Failed to load queue startup hint:", err);
-        return;
-      }
-      if (!hint) return;
-      if (!Number.isFinite(hint.autoPausedJobCount) || hint.autoPausedJobCount <= 0) return;
+      const hint = await getQueueStartupHint();
+      if (!hint || hint.autoPausedJobCount <= 0) return;
+
+      const kind: QueueStartupHintKind = hint.kind;
+      const autoPausedJobCount = hint.autoPausedJobCount;
 
       // Ensure the toast host is mounted (App.vue renders it after MainApp).
       await nextTick();
 
-      toast.message(t("queue.startupHint.title"), {
-        description: t(descriptionKeyForKind(hint.kind), { count: hint.autoPausedJobCount }),
+      let resuming = false;
+      const handleResume = async () => {
+        if (resuming) return;
+        resuming = true;
+        try {
+          const resumed = await resumeStartupQueue();
+          if (resumed <= 0) await dismissQueueStartupHint();
+          await refreshQueueFromBackend();
+        } catch (error) {
+          resuming = false;
+          console.error("Failed to resume startup queue:", error);
+        }
+      };
+
+      // Preload the i18n keys that the dialog will render (mainly for tests/mocks).
+      t("queue.startupHint.title");
+      t(descriptionKeyForKind(kind), { count: autoPausedJobCount });
+
+      toast.success(t("queue.startupHint.title"), {
+        description: t(descriptionKeyForKind(kind), { count: autoPausedJobCount }),
         duration: 12_000,
+        closeButton: false,
+        class: "border-l-4 shadow-xl",
+        descriptionClass: "opacity-90",
         action: {
-          label: t("queue.startupHint.action"),
+          label: t("queue.startupHint.actionResumeTranscoding"),
           onClick: () => {
-            void resumeStartupQueue()
-              .then(() => refreshQueueFromBackend())
-              .catch(() => {
-                // Best-effort only: backend errors are surfaced by the normal queue refresh error handling.
-              });
+            void handleResume();
           },
         },
         cancel: {
-          label: t("queue.startupHint.dismiss"),
+          label: t("queue.startupHint.close"),
           onClick: () => {
-            void dismissQueueStartupHint().catch(() => {
-              // Best-effort only.
+            void dismissQueueStartupHint().catch((error) => {
+              console.error("Failed to dismiss queue startup hint:", error);
             });
           },
         },

@@ -1,10 +1,8 @@
 import { computed, ref, watch, type Ref, type ComputedRef } from "vue";
-import gsap from "gsap";
 import type { TranscodeJob, AppSettings, TaskbarProgressMode, TaskbarProgressScope } from "@/types";
+import { clampProgressUpdateIntervalMs } from "@/lib/progressTransition";
 
 // ----- Constants -----
-
-const DEFAULT_PROGRESS_UPDATE_INTERVAL_MS = 250;
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -145,11 +143,7 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
    * notion of "refresh cadence". When unset, fall back to the engine default.
    */
   const progressUpdateIntervalMs = computed<number>(() => {
-    const raw = appSettings.value?.progressUpdateIntervalMs;
-    if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
-      return Math.min(Math.max(raw, 50), 2000);
-    }
-    return DEFAULT_PROGRESS_UPDATE_INTERVAL_MS;
+    return clampProgressUpdateIntervalMs(appSettings.value?.progressUpdateIntervalMs);
   });
 
   /**
@@ -272,45 +266,11 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     return list.some((job) => job.status === "processing" || job.status === "paused");
   });
 
-  // 使用 GSAP 对标题栏进度做补间动画，避免大步跳变。
-  let headerProgressTween: gsap.core.Tween | null = null;
-
-  const animateHeaderProgressTo = (target: number) => {
-    if (!Number.isFinite(target)) return;
-
-    if (headerProgressTween) {
-      headerProgressTween.kill();
-      headerProgressTween = null;
-    }
-
-    const durationMs = progressUpdateIntervalMs.value;
-    if (durationMs <= 0) {
-      headerProgressPercent.value = target;
-      return;
-    }
-
-    // 优化：缩短动画时长，使用更线性的缓动
-    const durationSec = Math.min(Math.max((durationMs * 0.5) / 1000, 0.05), 0.3);
-    const state = { value: headerProgressPercent.value };
-
-    headerProgressTween = gsap.to(state, {
-      value: target,
-      duration: durationSec,
-      ease: "power1.inOut", // 使用更温和的缓动函数
-      onUpdate: () => {
-        headerProgressPercent.value = Math.max(0, Math.min(100, state.value));
-      },
-      onComplete: () => {
-        headerProgressPercent.value = Math.max(0, Math.min(100, target));
-        headerProgressTween = null;
-      },
-    });
-  };
-
   // ----- Header Progress Animation Watch -----
   watch([globalTaskbarProgressPercent, hasActiveJobs], ([percent, active]) => {
-    if (percent != null && active) {
-      animateHeaderProgressTo(percent);
+    const clamped = percent == null ? null : Math.max(0, Math.min(100, percent));
+    if (clamped != null && active) {
+      headerProgressPercent.value = Math.max(headerProgressPercent.value, clamped);
       headerProgressVisible.value = true;
       headerProgressFading.value = false;
       if (headerProgressFadeTimer !== undefined) {
@@ -322,9 +282,13 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
 
     // No active work or queue is empty: fade out the header progress effect.
     if (!headerProgressVisible.value) {
-      headerProgressPercent.value = percent ?? 0;
+      headerProgressPercent.value = clamped ?? 0;
       headerProgressFading.value = false;
       return;
+    }
+
+    if (clamped != null) {
+      headerProgressPercent.value = Math.max(headerProgressPercent.value, clamped);
     }
 
     headerProgressFading.value = true;
@@ -332,10 +296,6 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
       window.clearTimeout(headerProgressFadeTimer);
     }
     headerProgressFadeTimer = window.setTimeout(() => {
-      if (headerProgressTween) {
-        headerProgressTween.kill();
-        headerProgressTween = null;
-      }
       headerProgressVisible.value = false;
       headerProgressFading.value = false;
       headerProgressPercent.value = 0;
@@ -348,10 +308,6 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     if (headerProgressFadeTimer !== undefined) {
       window.clearTimeout(headerProgressFadeTimer);
       headerProgressFadeTimer = undefined;
-    }
-    if (headerProgressTween) {
-      headerProgressTween.kill();
-      headerProgressTween = null;
     }
     for (const stop of stopActiveJobWatches) stop();
     stopActiveJobWatches = [];

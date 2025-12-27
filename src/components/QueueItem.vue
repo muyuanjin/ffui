@@ -190,12 +190,18 @@ const sizeChangeLevel = computed<"decreased" | "slight" | "severe">(() => {
   return increaseRatio >= 1 ? "severe" : "slight";
 });
 
-const { isSkipped, displayedClampedProgress, showBarProgress, showCardFillProgress, showRippleCardProgress } =
-  useSmoothProgress({
-    job: computed(() => props.job),
-    progressStyle: computed(() => props.progressStyle),
-    progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
-  });
+const {
+  isSkipped,
+  displayedClampedProgress,
+  progressTransitionMs,
+  showBarProgress,
+  showCardFillProgress,
+  showRippleCardProgress,
+} = useSmoothProgress({
+  job: computed(() => props.job),
+  progressStyle: computed(() => props.progressStyle),
+  progressUpdateIntervalMs: computed(() => props.progressUpdateIntervalMs),
+});
 
 // 根据任务状态计算进度条颜色变体
 const progressVariant = computed<ProgressVariant>(() => {
@@ -335,6 +341,7 @@ if (isQueuePerfEnabled) {
       :show-ripple-card-progress="showRippleCardProgress"
       :preview-url="previewUrl"
       :displayed-clamped-progress="displayedClampedProgress"
+      :transition-ms="progressTransitionMs"
       :status="job.status"
       @preview-error="handlePreviewError"
     />
@@ -392,6 +399,7 @@ if (isQueuePerfEnabled) {
       v-if="!isMini && showBarProgress"
       :model-value="displayedClampedProgress"
       :variant="progressVariant"
+      :transition-ms="progressTransitionMs"
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />

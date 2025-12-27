@@ -18,6 +18,8 @@ const props = defineProps<{
   progressVisible: boolean;
   /** Whether progress is fading out */
   progressFading: boolean;
+  /** Progress transition duration in ms (0 disables animation). */
+  progressTransitionMs?: number;
 }>();
 
 const emit = defineEmits<{
@@ -28,6 +30,18 @@ const emit = defineEmits<{
 }>();
 
 const { t, locale } = useI18n();
+
+const clampedProgressPercent = computed(() => {
+  const raw = Number(props.progressPercent ?? 0);
+  if (!Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(100, raw));
+});
+
+const progressTransitionMs = computed(() => {
+  const raw = Number(props.progressTransitionMs ?? 150);
+  if (!Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.floor(raw));
+});
 
 const titleText = computed(() => {
   const section =
@@ -63,9 +77,12 @@ const currentLocale = computed<AppLocale>({
     <div
       v-if="progressVisible"
       data-testid="ffui-titlebar-progress"
-      class="absolute inset-y-0 left-0 pointer-events-none transition-[width,opacity] duration-300 ease-linear z-0 bg-gradient-to-r from-emerald-500/50 via-cyan-400/50 to-fuchsia-500/50 shadow-lg"
+      class="absolute inset-y-0 left-0 w-full pointer-events-none transition-[transform,opacity] ease-linear z-0 bg-gradient-to-r from-emerald-500/50 via-cyan-400/50 to-fuchsia-500/50 shadow-lg"
       :class="progressFading ? 'opacity-0' : 'opacity-100'"
-      :style="{ width: `${progressPercent}%` }"
+      :style="{
+        transform: `translateX(-${100 - clampedProgressPercent}%)`,
+        transitionDuration: `${progressTransitionMs}ms`,
+      }"
     />
     <div class="relative z-10 flex items-center justify-between w-full">
       <div class="flex items-center gap-3 h-full text-sm font-semibold tracking-wide text-sidebar-foreground/90">

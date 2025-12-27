@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from "vue";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
-import type { QueueMode } from "@/types";
+import type { QueueBulkActionKind, QueueMode } from "@/types";
 import QueueSelectionBarSizers from "./QueueSelectionBarSizers.vue";
 import {
   CheckSquare,
@@ -11,6 +11,7 @@ import {
   Hourglass,
   Play,
   RefreshCw,
+  Loader2,
   ArrowUpToLine,
   ArrowDownToLine,
   XCircle,
@@ -22,6 +23,7 @@ const props = defineProps<{
   selectionBarPinned: boolean;
   selectedCount: number;
   queueMode: QueueMode;
+  bulkActionInProgress?: QueueBulkActionKind | null;
 }>();
 const emit = defineEmits<{
   (e: "select-all-visible-jobs"): void;
@@ -35,6 +37,8 @@ const emit = defineEmits<{
 }>();
 const { t, locale } = useI18n();
 const emitTogglePin = () => emit("toggle-selection-bar-pinned");
+const hasSelection = computed(() => props.selectedCount > 0);
+const bulkBusy = computed(() => props.bulkActionInProgress !== null && props.bulkActionInProgress !== undefined);
 const viewportEl = ref<HTMLDivElement | null>(null);
 const fullSizerRowEl = ref<HTMLDivElement | null>(null);
 const shortSizerRowEl = ref<HTMLDivElement | null>(null);
@@ -155,6 +159,7 @@ watch(
               size="sm"
               class="queue-selection-bar__button"
               :class="buttonLayoutClass()"
+              :disabled="bulkBusy"
               :title="t('queue.selection.selectAll')"
               :aria-label="t('queue.selection.selectAll')"
               @click="emit('select-all-visible-jobs')"
@@ -174,6 +179,7 @@ watch(
               size="sm"
               class="queue-selection-bar__button"
               :class="buttonLayoutClass()"
+              :disabled="bulkBusy"
               :title="t('queue.selection.invert')"
               :aria-label="t('queue.selection.invert')"
               @click="emit('invert-selection')"
@@ -193,6 +199,7 @@ watch(
               size="sm"
               class="queue-selection-bar__button text-muted-foreground"
               :class="buttonLayoutClass()"
+              :disabled="bulkBusy"
               :title="t('queue.selection.clear')"
               :aria-label="t('queue.selection.clear')"
               @click="emit('clear-selection')"
@@ -215,11 +222,13 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
+            :disabled="bulkBusy || !hasSelection"
             :title="t('queue.actions.bulkResume')"
             :aria-label="t('queue.actions.bulkResume')"
             @click="emit('bulk-resume')"
           >
-            <Play class="h-3 w-3 text-emerald-500" />
+            <Loader2 v-if="props.bulkActionInProgress === 'resume'" class="h-3 w-3 animate-spin text-emerald-500" />
+            <Play v-else class="h-3 w-3 text-emerald-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkResume") }}
             </span>
@@ -234,11 +243,13 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
+            :disabled="bulkBusy || !hasSelection"
             :title="t('queue.actions.bulkWait')"
             :aria-label="t('queue.actions.bulkWait')"
             @click="emit('bulk-wait')"
           >
-            <Hourglass class="h-3 w-3 text-amber-500" />
+            <Loader2 v-if="props.bulkActionInProgress === 'wait'" class="h-3 w-3 animate-spin text-amber-500" />
+            <Hourglass v-else class="h-3 w-3 text-amber-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkWait") }}
             </span>
@@ -253,11 +264,13 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="buttonLayoutClass()"
+            :disabled="bulkBusy || !hasSelection"
             :title="t('queue.actions.bulkCancel')"
             :aria-label="t('queue.actions.bulkCancel')"
             @click="emit('bulk-cancel')"
           >
-            <XCircle class="h-3 w-3 text-destructive" />
+            <Loader2 v-if="props.bulkActionInProgress === 'cancel'" class="h-3 w-3 animate-spin text-destructive" />
+            <XCircle v-else class="h-3 w-3 text-destructive" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkCancel") }}
             </span>
@@ -272,12 +285,13 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
-            :disabled="props.queueMode !== 'queue'"
+            :disabled="bulkBusy || !hasSelection || props.queueMode !== 'queue'"
             :title="t('queue.actions.bulkRestart')"
             :aria-label="t('queue.actions.bulkRestart')"
             @click="emit('bulk-restart')"
           >
-            <RefreshCw class="h-3 w-3 text-blue-500" />
+            <Loader2 v-if="props.bulkActionInProgress === 'restart'" class="h-3 w-3 animate-spin text-blue-500" />
+            <RefreshCw v-else class="h-3 w-3 text-blue-500" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkRestart") }}
             </span>
@@ -291,12 +305,16 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
-            :disabled="props.queueMode !== 'queue'"
+            :disabled="bulkBusy || !hasSelection || props.queueMode !== 'queue'"
             :title="t('queue.actions.bulkMoveToTop')"
             :aria-label="t('queue.actions.bulkMoveToTop')"
             @click="emit('bulk-move-to-top')"
           >
-            <ArrowUpToLine class="h-3 w-3 opacity-80 text-primary" />
+            <Loader2
+              v-if="props.bulkActionInProgress === 'moveToTop'"
+              class="h-3 w-3 animate-spin opacity-80 text-primary"
+            />
+            <ArrowUpToLine v-else class="h-3 w-3 opacity-80 text-primary" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkMoveToTop") }}
             </span>
@@ -308,12 +326,16 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="iconOnlyButtonLayoutClass()"
-            :disabled="props.queueMode !== 'queue'"
+            :disabled="bulkBusy || !hasSelection || props.queueMode !== 'queue'"
             :title="t('queue.actions.bulkMoveToBottom')"
             :aria-label="t('queue.actions.bulkMoveToBottom')"
             @click="emit('bulk-move-to-bottom')"
           >
-            <ArrowDownToLine class="h-3 w-3 opacity-80 text-primary" />
+            <Loader2
+              v-if="props.bulkActionInProgress === 'moveToBottom'"
+              class="h-3 w-3 animate-spin opacity-80 text-primary"
+            />
+            <ArrowDownToLine v-else class="h-3 w-3 opacity-80 text-primary" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkMoveToBottom") }}
             </span>
@@ -328,11 +350,13 @@ watch(
             class="queue-selection-bar__button text-destructive/80 hover:text-destructive"
             :class="iconOnlyButtonLayoutClass()"
             data-testid="queue-selection-bulk-delete"
+            :disabled="bulkBusy || !hasSelection"
             :title="t('queue.actions.bulkDelete')"
             :aria-label="t('queue.actions.bulkDelete')"
             @click="emit('bulk-delete')"
           >
-            <Trash2 class="h-3 w-3 text-destructive" />
+            <Loader2 v-if="props.bulkActionInProgress === 'delete'" class="h-3 w-3 animate-spin text-destructive" />
+            <Trash2 v-else class="h-3 w-3 text-destructive" />
             <span v-if="density === 'full'" class="queue-selection-bar__label whitespace-nowrap">
               {{ t("queue.actions.bulkDelete") }}
             </span>
@@ -344,6 +368,7 @@ watch(
             size="sm"
             class="queue-selection-bar__button"
             :class="[iconOnlyButtonLayoutClass(), { 'text-primary': props.selectionBarPinned }]"
+            :disabled="bulkBusy"
             :title="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
             :aria-label="props.selectionBarPinned ? t('queue.selection.unpin') : t('queue.selection.pin')"
             @click="emitTogglePin"

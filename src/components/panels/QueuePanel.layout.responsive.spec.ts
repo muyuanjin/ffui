@@ -208,6 +208,9 @@ describe("QueuePanel layout responsiveness", () => {
     expect(wrapperEl.classes()).toContain("flex");
     expect(wrapperEl.classes()).toContain("flex-1");
     expect(wrapperEl.classes()).toContain("min-h-0");
+    expect(wrapperEl.classes()).toContain("min-w-0");
+    expect(wrapperEl.classes()).toContain("overflow-hidden");
+    expect(wrapperEl.classes()).not.toContain("overflow-y-auto");
   });
 
   it("renders an auto-fit icon grid when icon mode is enabled", () => {

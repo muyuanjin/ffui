@@ -121,4 +121,35 @@ describe("QueueSelectionBar responsive affordances", () => {
     expect(selectAllIcon.text().trim()).toBe("");
     expect(bulkCancel.text().trim()).toBe("");
   });
+
+  it("disables actions and shows a spinner for the active bulk operation", async () => {
+    (globalThis as any).ResizeObserver = MockResizeObserver;
+    resizeObservers.length = 0;
+
+    const wrapper = mount(QueueSelectionBar, {
+      props: {
+        selectionBarPinned: false,
+        selectedCount: 3,
+        queueMode: "queue",
+        bulkActionInProgress: "wait",
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const selection = (en as any).queue.selection as Record<string, string>;
+    const actions = (en as any).queue.actions as Record<string, string>;
+
+    const selectAll = wrapper.get(`button[aria-label="${selection.selectAll}"]`);
+    expect(selectAll.attributes("disabled")).toBeDefined();
+
+    const bulkWait = wrapper.get(`button[aria-label="${actions.bulkWait}"]`);
+    expect(bulkWait.attributes("disabled")).toBeDefined();
+    expect(bulkWait.get("svg").classes()).toContain("animate-spin");
+
+    const bulkResume = wrapper.get(`button[aria-label="${actions.bulkResume}"]`);
+    expect(bulkResume.attributes("disabled")).toBeDefined();
+
+    const bulkCancel = wrapper.get(`button[aria-label="${actions.bulkCancel}"]`);
+    expect(bulkCancel.attributes("disabled")).toBeDefined();
+  });
 });

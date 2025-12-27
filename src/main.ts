@@ -1,14 +1,17 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import "./index.css";
+import "vue-sonner/style.css";
 import { i18n, loadLocale } from "./i18n";
 import VueApexCharts from "vue3-apexcharts";
 import { hasTauri, loadAppSettings, saveAppSettings } from "@/lib/backend";
 import { bootstrapAppLocale } from "@/lib/bootstrapAppLocale";
 import { perfLog } from "@/lib/perfLog";
+import { installNativeContextMenuGuard } from "@/lib/nativeContextMenuGuard";
 
 // Force dark theme to match design
 document.documentElement.classList.add("dark");
+installNativeContextMenuGuard();
 
 const mountStartMark = "app_mount_start";
 const mountEndMark = "app_mount_end";

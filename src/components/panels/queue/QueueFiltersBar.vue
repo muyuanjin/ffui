@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import type { QueueFilterStatus, QueueFilterKind, QueueSortField, QueueSortDirection } from "@/composables";
-import type { QueueMode } from "@/types";
+import type { QueueBulkActionKind, QueueMode } from "@/types";
 import QueueFiltersPanel from "./QueueFiltersPanel.vue";
 import { ArrowDownUp, ArrowUpDown, Filter, ListOrdered, ChevronUp, X } from "lucide-vue-next";
 import QueueSelectionBar from "./QueueSelectionBar.vue";
@@ -28,6 +28,8 @@ const props = defineProps<{
   totalCount: number;
   /** 是否固定选择操作栏（即使没有选中项也显示） */
   selectionBarPinned?: boolean;
+  /** UI-only: which bulk action is currently running (for button feedback). */
+  bulkActionInProgress?: QueueBulkActionKind | null;
 }>();
 
 const emit = defineEmits<{
@@ -330,6 +332,7 @@ const toggleSecondarySortDirection = () => {
         :selection-bar-pinned="selectionBarPinned"
         :selected-count="props.selectedCount"
         :queue-mode="props.queueMode"
+        :bulk-action-in-progress="props.bulkActionInProgress ?? null"
         @select-all-visible-jobs="emit('select-all-visible-jobs')"
         @invert-selection="emit('invert-selection')"
         @clear-selection="emit('clear-selection')"

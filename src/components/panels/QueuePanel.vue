@@ -296,11 +296,11 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
       <!-- 3D Carousel view mode -->
       <div
         v-if="isCarousel3dViewMode"
-        class="flex flex-1 min-h-0 overflow-y-auto"
+        class="flex flex-1 min-h-0 min-w-0 overflow-hidden"
         data-testid="ffui-queue-carousel-3d-wrapper"
       >
         <QueueCarousel3DView
-          class="flex-1 min-h-0 h-full"
+          class="flex-1 min-h-0 min-w-0 h-full"
           :items="visibleQueueItems"
           :selected-job-ids="selectedJobIds"
           :progress-style="queueProgressStyle"

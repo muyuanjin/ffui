@@ -351,7 +351,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
     v-if="displayedItems.length > 0"
     ref="containerRef"
     data-testid="ffui-carousel-3d-container"
-    class="carousel-3d-container relative select-none outline-none flex flex-1 w-full flex-col items-center py-2 min-h-[calc(100vh-220px)]"
+    class="carousel-3d-container relative select-none outline-none flex flex-1 min-h-0 h-full w-full flex-col items-center overflow-hidden py-2"
     tabindex="0"
     @pointerdown="handlePointerDown"
     @pointermove="handlePointerMove"
@@ -367,7 +367,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
 
     <!-- 卡片轮播区域 - 填满剩余空间 -->
     <!-- NOTE: `z-0` creates a stacking context so card `zIndex` cannot cover header/pagination/hint. -->
-    <div ref="stageRef" data-testid="ffui-carousel-3d-stage" class="relative z-0 w-full flex-1 min-h-[320px]">
+    <div ref="stageRef" data-testid="ffui-carousel-3d-stage" class="relative z-0 w-full flex-1 min-h-0">
       <div class="absolute inset-0 flex items-end justify-center overflow-visible">
         <template v-for="(item, index) in displayedItems" :key="getItemKey(item)">
           <div
