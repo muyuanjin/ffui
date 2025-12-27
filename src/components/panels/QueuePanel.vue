@@ -164,7 +164,6 @@ let listDataBumped = false;
 const bumpListDataOnce = () => {
   if (listDataBumped) return;
   if (!listViewportEl.value) return;
-  if (virtualListRows.value.length < 2) return;
   // Only bump once the viewport is measurable; a 1px height is a safe placeholder.
   if (listViewportHeightPx.value <= 1) return;
 
@@ -207,7 +206,11 @@ const virtualListKey = computed(() => {
 });
 
 const virtualRowKeys = computed(() => virtualListRows.value.map((row) => getQueueVirtualRowKey(row)));
-useFlipReorderAnimation(listViewportEl, virtualRowKeys);
+useFlipReorderAnimation(listViewportEl, virtualRowKeys, {
+  enabled: () => listDataBump.value === 1,
+  durationMs: 520,
+  easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+});
 
 watch(
   listViewportEl,
@@ -315,10 +318,11 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
 
       <!-- Icon view mode -->
       <div v-else-if="isIconViewMode" class="flex-1 min-h-0 overflow-y-auto">
-        <div data-testid="queue-icon-grid" :class="iconGridClass">
-          <template v-for="item in iconViewItems" :key="item.kind === 'batch' ? item.batch.batchId : item.job.id">
+        <TransitionGroup tag="div" name="queue-grid" data-testid="queue-icon-grid" :class="iconGridClass">
+          <template v-for="item in iconViewItems">
             <QueueIconItem
               v-if="item.kind === 'job'"
+              :key="`job:${item.job.id}`"
               :job="item.job"
               :is-pausing="pausingJobIds.has(item.job.id)"
               :size="iconViewSize"
@@ -333,6 +337,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
             />
             <QueueBatchCompressIconBatchItem
               v-else
+              :key="`batch:${item.batch.batchId}`"
               :batch="item.batch"
               :size="iconViewSize"
               :progress-style="queueProgressStyle"
@@ -343,7 +348,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
               @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
             />
           </template>
-        </div>
+        </TransitionGroup>
       </div>
 
       <!-- List view mode -->
@@ -357,68 +362,101 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
           class="flex-1 min-h-0"
           :style="{ height: `${listViewportHeightPx}px` }"
         >
-          <div :key="getQueueVirtualRowKey(row)" :data-queue-flip-key="getQueueVirtualRowKey(row)">
-            <template v-if="row.type === 'header'">
-              <div :class="[index === 0 ? '' : 'pt-4', 'flex items-center justify-between px-1']">
-                <span class="text-xs font-semibold text-muted-foreground uppercase">
-                  {{ row.label }}
-                </span>
-                <span class="text-[11px] text-muted-foreground">
-                  {{ row.count }}
-                </span>
-              </div>
-            </template>
-
-            <template
-              v-else-if="
-                row.type === 'processingJob' ||
-                ((row.type === 'waitingItem' || row.type === 'displayItem') && row.item.kind === 'job')
-              "
+          <div :key="getQueueVirtualRowKey(row)">
+            <div
+              class="queue-vlist-flip-inner"
+              :class="row.type !== 'header' && queueRowVariant !== 'mini' ? 'pb-2' : ''"
+              :data-queue-flip-key="getQueueVirtualRowKey(row)"
             >
-              <QueueItem
-                :job="row.type === 'processingJob' ? row.job : row.item.job"
-                :is-pausing="pausingJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
-                :preset="getPresetForJob(row.type === 'processingJob' ? row.job : row.item.job)"
-                :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                :can-cancel="canCancelJob(row.type === 'processingJob' ? row.job : row.item.job)"
-                :can-wait="hasTauri()"
-                :can-resume="hasTauri()"
-                :can-restart="hasTauri()"
-                :can-select="true"
-                :selected="selectedJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
-                :view-mode="queueRowVariant"
-                :progress-style="queueProgressStyle"
-                :progress-update-interval-ms="progressUpdateIntervalMs"
-                v-on="queueItemListeners"
-              />
-            </template>
+              <template v-if="row.type === 'header'">
+                <div :class="[index === 0 ? '' : 'pt-4', 'flex items-center justify-between px-1']">
+                  <span class="text-xs font-semibold text-muted-foreground uppercase">
+                    {{ row.label }}
+                  </span>
+                  <span class="text-[11px] text-muted-foreground">
+                    {{ row.count }}
+                  </span>
+                </div>
+              </template>
 
-            <template v-else-if="row.type === 'waitingItem' || row.type === 'restItem' || row.type === 'displayItem'">
-              <QueueBatchCompressBatchCard
-                v-if="row.item.kind === 'batch'"
-                v-bind="getBatchCardProps(row.item.batch)"
-                v-on="getBatchCardListeners(row.item.batch)"
-              />
-              <QueueItem
-                v-else-if="row.type === 'restItem'"
-                :job="row.item.job"
-                :is-pausing="pausingJobIds.has(row.item.job.id)"
-                :preset="getPresetForJob(row.item.job)"
-                :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
-                :can-cancel="false"
-                :can-restart="hasTauri() && queueMode === 'queue'"
-                :can-select="true"
-                :selected="selectedJobIds.has(row.item.job.id)"
-                :view-mode="queueRowVariant"
-                :progress-style="queueProgressStyle"
-                :progress-update-interval-ms="progressUpdateIntervalMs"
-                v-on="queueItemListeners"
-              />
-            </template>
-            <template v-else />
+              <template
+                v-else-if="
+                  row.type === 'processingJob' ||
+                  ((row.type === 'waitingItem' || row.type === 'displayItem') && row.item.kind === 'job')
+                "
+              >
+                <QueueItem
+                  :job="row.type === 'processingJob' ? row.job : row.item.job"
+                  :is-pausing="pausingJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
+                  :preset="getPresetForJob(row.type === 'processingJob' ? row.job : row.item.job)"
+                  :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+                  :can-cancel="canCancelJob(row.type === 'processingJob' ? row.job : row.item.job)"
+                  :can-wait="hasTauri()"
+                  :can-resume="hasTauri()"
+                  :can-restart="hasTauri()"
+                  :can-select="true"
+                  :selected="selectedJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
+                  :view-mode="queueRowVariant"
+                  :progress-style="queueProgressStyle"
+                  :progress-update-interval-ms="progressUpdateIntervalMs"
+                  v-on="queueItemListeners"
+                />
+              </template>
+
+              <template v-else-if="row.type === 'waitingItem' || row.type === 'restItem' || row.type === 'displayItem'">
+                <QueueBatchCompressBatchCard
+                  v-if="row.item.kind === 'batch'"
+                  v-bind="getBatchCardProps(row.item.batch)"
+                  v-on="getBatchCardListeners(row.item.batch)"
+                />
+                <QueueItem
+                  v-else-if="row.type === 'restItem'"
+                  :job="row.item.job"
+                  :is-pausing="pausingJobIds.has(row.item.job.id)"
+                  :preset="getPresetForJob(row.item.job)"
+                  :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
+                  :can-cancel="false"
+                  :can-restart="hasTauri() && queueMode === 'queue'"
+                  :can-select="true"
+                  :selected="selectedJobIds.has(row.item.job.id)"
+                  :view-mode="queueRowVariant"
+                  :progress-style="queueProgressStyle"
+                  :progress-update-interval-ms="progressUpdateIntervalMs"
+                  v-on="queueItemListeners"
+                />
+              </template>
+              <template v-else />
+            </div>
           </div>
         </VList>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.queue-vlist-flip-inner {
+  will-change: transform;
+}
+
+.queue-grid-move {
+  transition: transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.queue-grid-enter-active,
+.queue-grid-leave-active {
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.queue-grid-enter-from,
+.queue-grid-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.queue-grid-leave-active {
+  position: absolute;
+}
+</style>

@@ -37,14 +37,17 @@ const perfNow = (): number => {
 const getQueueListItemKey = (item: QueueListItem): string =>
   item.kind === "batch" ? `batch:${item.batch.batchId}` : `job:${item.job.id}`;
 
+const QUEUE_VLIST_ROW_GAP_PX = 8;
+
 export function useQueuePanelVirtualRows(deps: () => QueuePanelVirtualRowsSnapshot, t: (key: string) => string) {
   const getQueueVirtualRowKey = (row: QueueVirtualRow): string => row.key;
 
   const virtualListItemSizeHint = computed(() => {
     const { queueRowVariant } = deps();
+    const rowGapPx = queueRowVariant !== "mini" ? QUEUE_VLIST_ROW_GAP_PX : 0;
     if (queueRowVariant === "mini") return 48;
-    if (queueRowVariant === "compact") return 120;
-    return 180;
+    if (queueRowVariant === "compact") return 120 + rowGapPx;
+    return 180 + rowGapPx;
   });
 
   const virtualListItemSizePx = computed(() => virtualListItemSizeHint.value);

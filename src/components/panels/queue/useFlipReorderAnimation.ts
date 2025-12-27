@@ -2,6 +2,10 @@ import { onUpdated, watch, type Ref } from "vue";
 
 type Rect = Pick<DOMRectReadOnly, "left" | "top">;
 
+type FlipHandle = {
+  cancel: () => void;
+};
+
 const defaultPrefersReducedMotion = (): boolean => {
   if (typeof window === "undefined") return false;
   if (typeof window.matchMedia !== "function") return false;
@@ -36,7 +40,10 @@ export function useFlipReorderAnimation(
   const prefersReducedMotion = options?.prefersReducedMotion ?? defaultPrefersReducedMotion;
 
   let pending = false;
+  let scheduled = false;
+  let rafId: number | null = null;
   let prevRects: Map<string, Rect> | null = null;
+  const handles = new WeakMap<HTMLElement, FlipHandle>();
 
   const readRects = (): { elements: Map<string, HTMLElement>; rects: Map<string, Rect> } => {
     const root = containerEl.value;
@@ -54,10 +61,45 @@ export function useFlipReorderAnimation(
     return { elements, rects };
   };
 
+  const cancelScheduled = () => {
+    if (rafId == null) return;
+    if (typeof window === "undefined") return;
+    if (typeof window.cancelAnimationFrame !== "function") return;
+    window.cancelAnimationFrame(rafId);
+    rafId = null;
+  };
+
+  const cancelHandle = (el: HTMLElement) => {
+    const handle = handles.get(el);
+    if (!handle) return;
+    handle.cancel();
+    handles.delete(el);
+  };
+
+  const scheduleRun = (run: () => void) => {
+    if (scheduled) return;
+    scheduled = true;
+
+    const invoke = () => {
+      scheduled = false;
+      rafId = null;
+      run();
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      rafId = window.requestAnimationFrame(() => invoke());
+      return;
+    }
+
+    void Promise.resolve().then(() => invoke());
+  };
+
   watch(
     containerEl,
     () => {
       pending = false;
+      scheduled = false;
+      cancelScheduled();
       prevRects = null;
     },
     { flush: "sync" },
@@ -81,51 +123,90 @@ export function useFlipReorderAnimation(
   onUpdated(() => {
     if (!pending) return;
     pending = false;
-    if (!enabled()) return;
-    if (prefersReducedMotion()) return;
-    if (!prevRects || prevRects.size === 0) return;
-    if (durationMs <= 0) return;
+    scheduleRun(() => {
+      if (!enabled()) return;
+      if (prefersReducedMotion()) return;
+      if (!prevRects || prevRects.size === 0) {
+        prevRects = null;
+        return;
+      }
+      if (durationMs <= 0) {
+        prevRects = null;
+        return;
+      }
 
-    const { elements, rects: nextRects } = readRects();
-    if (nextRects.size === 0) return;
+      const { elements, rects: nextRects } = readRects();
+      if (nextRects.size === 0) {
+        prevRects = null;
+        return;
+      }
 
-    for (const [key, nextRect] of nextRects) {
-      const prevRect = prevRects.get(key);
-      if (!prevRect) continue;
+      for (const [key, nextRect] of nextRects) {
+        const prevRect = prevRects.get(key);
+        if (!prevRect) continue;
 
-      const dx = prevRect.left - nextRect.left;
-      const dy = prevRect.top - nextRect.top;
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+        const dx = prevRect.left - nextRect.left;
+        const dy = prevRect.top - nextRect.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
 
-      const el = elements.get(key);
-      if (!el) continue;
+        const el = elements.get(key);
+        if (!el) continue;
 
-      if (typeof el.getAnimations === "function") {
-        for (const anim of el.getAnimations()) {
-          anim.cancel();
+        cancelHandle(el);
+
+        if (typeof el.animate === "function") {
+          const anim = el.animate(
+            [{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "translate3d(0, 0, 0)" }],
+            {
+              duration: durationMs,
+              easing,
+            },
+          );
+
+          const handle: FlipHandle = { cancel: () => anim.cancel() };
+          handles.set(el, handle);
+          const clear = () => {
+            if (handles.get(el) !== handle) return;
+            handles.delete(el);
+          };
+          if (typeof (anim as any).addEventListener === "function") {
+            (anim as any).addEventListener("finish", clear);
+            (anim as any).addEventListener("cancel", clear);
+          } else {
+            (anim as any).onfinish = clear;
+            (anim as any).oncancel = clear;
+          }
+          continue;
         }
-      }
 
-      if (typeof el.animate === "function") {
-        el.animate([{ transform: `translate3d(${dx}px, ${dy}px, 0)` }, { transform: "translate3d(0, 0, 0)" }], {
-          duration: durationMs,
-          easing,
-        });
-        continue;
-      }
-
-      if (typeof window === "undefined") continue;
-      el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
-      void Promise.resolve().then(() => {
-        el.style.transition = `transform ${durationMs}ms ${easing}`;
-        el.style.transform = "translate3d(0, 0, 0)";
-        setTimeout(() => {
-          el.style.transition = "";
-          el.style.transform = "";
+        if (typeof window === "undefined") continue;
+        const prevTransform = el.style.transform;
+        const prevTransition = el.style.transition;
+        el.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+        const timer = window.setTimeout(() => {
+          el.style.transition = prevTransition;
+          el.style.transform = prevTransform;
+          if (handles.get(el)?.cancel === handle.cancel) {
+            handles.delete(el);
+          }
         }, durationMs + 50);
-      });
-    }
 
-    prevRects = null;
+        const handle: FlipHandle = {
+          cancel: () => {
+            window.clearTimeout(timer);
+            el.style.transition = prevTransition;
+            el.style.transform = prevTransform;
+          },
+        };
+        handles.set(el, handle);
+
+        void Promise.resolve().then(() => {
+          el.style.transition = `transform ${durationMs}ms ${easing}`;
+          el.style.transform = "translate3d(0, 0, 0)";
+        });
+      }
+
+      prevRects = null;
+    });
   });
 }

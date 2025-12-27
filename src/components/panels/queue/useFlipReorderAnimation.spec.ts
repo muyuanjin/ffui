@@ -34,12 +34,21 @@ const stubRectByDomOrder = (el: HTMLElement) => {
 
 describe("useFlipReorderAnimation", () => {
   const originalAnimate = HTMLElement.prototype.animate;
+  const originalGetAnimations = (HTMLElement.prototype as any).getAnimations;
+  const originalRaf = window.requestAnimationFrame;
 
   afterEach(() => {
     HTMLElement.prototype.animate = originalAnimate;
+    (HTMLElement.prototype as any).getAnimations = originalGetAnimations;
+    window.requestAnimationFrame = originalRaf;
   });
 
   it("runs FLIP animation when keyed items reorder", async () => {
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    }) as any;
+
     const calls: Array<{ key?: string; frames: any[] }> = [];
     const animateSpy = vi.fn(function (this: HTMLElement, frames: any) {
       calls.push({ key: this.dataset.queueFlipKey, frames });
@@ -72,6 +81,7 @@ describe("useFlipReorderAnimation", () => {
       }),
     );
 
+    await nextTick();
     for (const el of wrapper.findAll<HTMLElement>(".item").map((w) => w.element)) {
       stubRectByDomOrder(el);
     }
@@ -84,7 +94,77 @@ describe("useFlipReorderAnimation", () => {
     expect(calls.find((c) => c.key === "b")?.frames?.[0]?.transform).toContain("100px");
   });
 
+  it("cancels previous FLIP animations without touching descendant animations", async () => {
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    }) as any;
+
+    const getAnimationsSpy = vi.fn(() => []);
+    (HTMLElement.prototype as any).getAnimations = getAnimationsSpy;
+
+    const cancelByKey = new Map<string, ReturnType<typeof vi.fn>>();
+    const animateSpy = vi.fn(function (this: HTMLElement) {
+      const cancel = vi.fn();
+      if (this.dataset.queueFlipKey) {
+        cancelByKey.set(this.dataset.queueFlipKey, cancel);
+      }
+      return { cancel } as any;
+    });
+    HTMLElement.prototype.animate = animateSpy as any;
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const containerEl = ref<HTMLElement | null>(null);
+          const keys = ref<string[]>(["a", "b"]);
+
+          useFlipReorderAnimation(
+            containerEl,
+            computed(() => keys.value),
+            {
+              durationMs: 120,
+              prefersReducedMotion: () => false,
+            },
+          );
+
+          return { containerEl, keys };
+        },
+        template: `
+          <div ref="containerEl">
+            <div v-for="k in keys" :key="k" class="item" :data-queue-flip-key="k" />
+          </div>
+        `,
+      }),
+    );
+
+    await nextTick();
+    for (const el of wrapper.findAll<HTMLElement>(".item").map((w) => w.element)) {
+      stubRectByDomOrder(el);
+    }
+
+    (wrapper.vm as any).keys = ["b", "a"];
+    await nextTick();
+
+    const cancelA = cancelByKey.get("a");
+    const cancelB = cancelByKey.get("b");
+    expect(cancelA).toBeDefined();
+    expect(cancelB).toBeDefined();
+
+    (wrapper.vm as any).keys = ["a", "b"];
+    await nextTick();
+
+    expect(cancelA).toHaveBeenCalled();
+    expect(cancelB).toHaveBeenCalled();
+    expect(getAnimationsSpy).not.toHaveBeenCalled();
+  });
+
   it("does nothing when the order is unchanged", async () => {
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 0;
+    }) as any;
+
     const animateSpy = vi.fn(function (this: HTMLElement, ..._args: any[]) {
       return { cancel: vi.fn() } as any;
     });
@@ -115,6 +195,7 @@ describe("useFlipReorderAnimation", () => {
       }),
     );
 
+    await nextTick();
     for (const el of wrapper.findAll<HTMLElement>(".item").map((w) => w.element)) {
       stubRectByDomOrder(el);
     }

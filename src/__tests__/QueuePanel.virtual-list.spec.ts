@@ -140,13 +140,13 @@ describe("QueuePanel virtual list wiring", () => {
 
     const vlist = wrapper.find("[data-testid='virtua-vlist-stub']");
     expect(vlist.exists()).toBe(true);
-    expect(vlist.attributes("data-item-size")).toBe("180");
-    expect(vlist.attributes("data-buffer-size")).toBe("360");
+    expect(vlist.attributes("data-item-size")).toBe("188");
+    expect(vlist.attributes("data-buffer-size")).toBe("376");
 
     await wrapper.setProps({ queueRowVariant: "compact" });
     const vlistAfterCompact = wrapper.find("[data-testid='virtua-vlist-stub']");
-    expect(vlistAfterCompact.attributes("data-item-size")).toBe("120");
-    expect(vlistAfterCompact.attributes("data-buffer-size")).toBe("240");
+    expect(vlistAfterCompact.attributes("data-item-size")).toBe("128");
+    expect(vlistAfterCompact.attributes("data-buffer-size")).toBe("256");
   });
 
   it("does not render the full list in display mode", async () => {
@@ -181,6 +181,33 @@ describe("QueuePanel virtual list wiring", () => {
     const listWrapper = vlist.element.parentElement;
     expect(listWrapper?.className).toContain("flex");
     expect(listWrapper?.className).toContain("flex-col");
+  });
+
+  it("renders FLIP keys on an inner wrapper (avoid conflicting with virtua transforms)", async () => {
+    const jobs = Array.from({ length: 10 }, (_, idx) => buildJob(`job-${idx}`, "queued"));
+    const items = buildListItems(jobs);
+
+    const wrapper = mountQueuePanel({
+      queueMode: "display",
+      queueJobsForDisplay: jobs,
+      visibleQueueItems: items,
+      queueRowVariant: "detail",
+    });
+
+    const vlist = wrapper.find("[data-testid='virtua-vlist-stub']");
+    expect(vlist.exists()).toBe(true);
+
+    const vlistEl = vlist.element as HTMLElement;
+    const directChildren = Array.from(vlistEl.children) as HTMLElement[];
+    expect(directChildren.length).toBeGreaterThan(0);
+    for (const child of directChildren) {
+      expect(child.dataset.queueFlipKey).toBeUndefined();
+    }
+
+    const flipNodes = wrapper.findAll("[data-queue-flip-key]");
+    expect(flipNodes.length).toBeGreaterThan(0);
+    const firstFlip = flipNodes[0]!.element as HTMLElement;
+    expect(firstFlip.parentElement?.parentElement).toBe(vlistEl);
   });
 
   it("keeps queue-mode group headers inside the virtual list", async () => {
