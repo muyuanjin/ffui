@@ -29,7 +29,7 @@
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
     "format:check:frontend": "prettier --check .",
-    "format:staged": "lint-staged --no-stash",
+    "format:staged": "lint-staged",
     "format:rust:staged": "node scripts/format-rust-staged.mjs",
     "docs:screenshots": "node tools/docs-screenshots/capture.mjs",
     "docs:screenshots:queue-large": "node tools/docs-screenshots/capture-queue-large-list-scroll-verification.mjs --jobs 2000 --processing-jobs 2",
