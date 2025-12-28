@@ -10,7 +10,12 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import type { FFmpegPreset, JobRun, TranscodeJob } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
-import { parseAndHighlightLog, parseAndHighlightLogTokens } from "@/composables/useJobLog";
+import {
+  formatJobLogLine,
+  formatWallClockTimestamp,
+  parseAndHighlightLog,
+  parseAndHighlightLogTokens,
+} from "@/composables/useJobLog";
 import type { HighlightToken } from "@/lib/highlightTokens";
 import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
 
@@ -201,13 +206,13 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     if (idx == null) {
       const lines: string[] = [];
       for (const run of runs) {
-        if (run?.logs?.length) lines.push(...run.logs);
+        if (run?.logs?.length) lines.push(...run.logs.map(formatJobLogLine));
       }
       return lines.length ? lines.join("\n") : props.jobDetailLogText || "";
     }
 
     const run = runs[idx];
-    if (run?.logs?.length) return run.logs.join("\n");
+    if (run?.logs?.length) return run.logs.map(formatJobLogLine).join("\n");
 
     // Best-effort fallback: if we don't have per-run logs, keep compatibility
     // by showing the aggregated logs for Run 1.
@@ -235,6 +240,29 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     const endMs = job.endTime ?? Date.now();
     if (endMs <= fallbackStart) return null;
     return (endMs - fallbackStart) / 1000;
+  });
+
+  const formatTimeOrDash = (ms: number | null | undefined): string => {
+    return formatWallClockTimestamp(ms ?? null) ?? "-";
+  };
+
+  const jobStartedAtText = computed(() => {
+    const job = props.job;
+    if (!job) return "-";
+    return formatTimeOrDash(job.processingStartedMs ?? job.startTime ?? null);
+  });
+
+  const jobQueuedAtText = computed(() => {
+    const job = props.job;
+    if (!job?.processingStartedMs || !job?.startTime) return null;
+    if (job.startTime >= job.processingStartedMs) return null;
+    return formatTimeOrDash(job.startTime);
+  });
+
+  const jobCompletedAtText = computed(() => {
+    const job = props.job;
+    if (!job) return "-";
+    return formatTimeOrDash(job.endTime ?? null);
   });
 
   const unknownPresetLabel = computed(() => {
@@ -267,6 +295,9 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     displayedLogText,
     highlightedLogHtml,
     highlightedLogLines,
+    jobStartedAtText,
+    jobQueuedAtText,
+    jobCompletedAtText,
     jobProcessingSeconds,
     unknownPresetLabel,
   };
@@ -293,6 +324,9 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
     displayedLogText: ComputedRef<string>;
     highlightedLogHtml: ComputedRef<string>;
     highlightedLogLines: ComputedRef<import("@/composables/useJobLog").HighlightedLogLine[]>;
+    jobStartedAtText: ComputedRef<string>;
+    jobQueuedAtText: ComputedRef<string | null>;
+    jobCompletedAtText: ComputedRef<string>;
     jobProcessingSeconds: ComputedRef<number | null>;
     unknownPresetLabel: ComputedRef<string>;
   };

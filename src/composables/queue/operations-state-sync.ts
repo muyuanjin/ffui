@@ -357,6 +357,46 @@ export function applyQueueStateLiteDeltaFromBackend(delta: QueueStateLiteDelta, 
         }
       }
 
+      const hasProgressTelemetry =
+        (typeof patch.progressOutTimeSeconds === "number" && Number.isFinite(patch.progressOutTimeSeconds)) ||
+        (typeof patch.progressSpeed === "number" && Number.isFinite(patch.progressSpeed)) ||
+        (typeof patch.progressUpdatedAtMs === "number" && Number.isFinite(patch.progressUpdatedAtMs)) ||
+        (typeof patch.progressEpoch === "number" && Number.isFinite(patch.progressEpoch));
+
+      if (hasProgressTelemetry) {
+        const meta = (job as unknown as { waitMetadata?: Record<string, unknown> }).waitMetadata ?? {};
+        (job as unknown as { waitMetadata?: Record<string, unknown> }).waitMetadata = meta;
+
+        if (
+          typeof patch.progressOutTimeSeconds === "number" &&
+          Number.isFinite(patch.progressOutTimeSeconds) &&
+          patch.progressOutTimeSeconds >= 0
+        ) {
+          meta.lastProgressOutTimeSeconds = patch.progressOutTimeSeconds;
+        }
+        if (
+          typeof patch.progressSpeed === "number" &&
+          Number.isFinite(patch.progressSpeed) &&
+          patch.progressSpeed > 0
+        ) {
+          meta.lastProgressSpeed = patch.progressSpeed;
+        }
+        if (
+          typeof patch.progressUpdatedAtMs === "number" &&
+          Number.isFinite(patch.progressUpdatedAtMs) &&
+          patch.progressUpdatedAtMs >= 0
+        ) {
+          meta.lastProgressUpdatedAtMs = patch.progressUpdatedAtMs;
+        }
+        if (
+          typeof patch.progressEpoch === "number" &&
+          Number.isFinite(patch.progressEpoch) &&
+          patch.progressEpoch >= 0
+        ) {
+          meta.progressEpoch = patch.progressEpoch;
+        }
+      }
+
       if (typeof patch.elapsedMs === "number" && Number.isFinite(patch.elapsedMs) && patch.elapsedMs >= 0) {
         const current = (job as unknown as { elapsedMs?: number }).elapsedMs;
         if (current !== patch.elapsedMs) {

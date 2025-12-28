@@ -46,6 +46,8 @@ fn make_job(i: u64, status: JobStatus) -> TranscodeJobLite {
         elapsed_ms: None,
         output_size_mb: None,
         input_path: Some(input_path),
+        created_time_ms: None,
+        modified_time_ms: None,
         output_path: Some(output_path),
         output_policy: None,
         ffmpeg_command: None,
@@ -112,7 +114,12 @@ fn main() {
             let id = format!("job-{p}");
             patches.push(TranscodeJobLiteDeltaPatch {
                 id,
+                status: None,
                 progress: Some(10.0 + (tick as f64) * 0.01),
+                progress_out_time_seconds: None,
+                progress_speed: None,
+                progress_updated_at_ms: None,
+                progress_epoch: None,
                 elapsed_ms: Some(123_456 + tick),
                 preview_path: None,
                 preview_revision: None,

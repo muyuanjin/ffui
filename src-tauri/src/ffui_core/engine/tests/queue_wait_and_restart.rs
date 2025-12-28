@@ -266,10 +266,9 @@ fn resume_cancels_pending_wait_request_and_logs_when_processing() {
         "wait_requests set must remove the job after cancelling wait"
     );
     assert!(
-        stored
-            .logs
-            .iter()
-            .any(|entry| entry.contains("Resume requested while wait was pending")),
+        stored.logs.iter().any(|entry| entry
+            .text
+            .contains("Resume requested while wait was pending")),
         "resume_job should append a log entry when cancelling a pending wait request"
     );
     assert!(
@@ -353,7 +352,7 @@ fn resume_cancels_pending_wait_request_for_processing_job() {
             stored
                 .logs
                 .iter()
-                .any(|log| log.contains("cancelling wait request")),
+                .any(|log| log.text.contains("cancelling wait request")),
             "logs should record that the wait request was cancelled"
         );
     }

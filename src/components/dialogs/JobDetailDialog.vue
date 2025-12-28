@@ -38,6 +38,9 @@ const {
   commandViewToggleLabel,
   displayedLogText,
   highlightedLogLines,
+  jobStartedAtText,
+  jobQueuedAtText,
+  jobCompletedAtText,
   jobProcessingSeconds,
   unknownPresetLabel,
 } = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)));
@@ -144,6 +147,15 @@ const {
                       data-testid="task-detail-processing-time"
                     >
                       {{ t("taskDetail.durationLabel") }}: {{ jobProcessingSeconds.toFixed(1) }} s
+                    </div>
+                    <div class="text-foreground" data-testid="task-detail-started-at">
+                      {{ t("taskDetail.startedAtLabel") }}: {{ jobStartedAtText }}
+                    </div>
+                    <div v-if="jobQueuedAtText" class="text-foreground" data-testid="task-detail-queued-at">
+                      {{ t("taskDetail.queuedAtLabel") }}: {{ jobQueuedAtText }}
+                    </div>
+                    <div class="text-foreground" data-testid="task-detail-completed-at">
+                      {{ t("taskDetail.completedAtLabel") }}: {{ jobCompletedAtText }}
                     </div>
                     <div v-if="job.originalSizeMB" class="text-foreground">
                       {{ t("taskDetail.sizeLabel") }}: {{ job.originalSizeMB.toFixed(2) }} MB

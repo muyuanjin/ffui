@@ -33,6 +33,8 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                 log_head: None,
                 skip_reason: None,
                 input_path: None,
+                created_time_ms: None,
+                modified_time_ms: None,
                 output_path: None,
                 output_policy: None,
                 ffmpeg_command: None,
@@ -58,7 +60,10 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                     processed_wall_millis: Some(3_000),
                     processed_seconds: Some(60.0),
                     target_seconds: Some(60.0),
+                    progress_epoch: None,
                     last_progress_out_time_seconds: None,
+                    last_progress_speed: None,
+                    last_progress_updated_at_ms: None,
                     last_progress_frame: None,
                     tmp_output_path: None,
                     segments: None,
@@ -68,7 +73,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
         );
     }
 
-    update_job_progress(&inner, &job_id, Some(55.0), None, None);
+    update_job_progress(&inner, &job_id, Some(55.0), None, None, None, None);
 
     let now_after = current_time_millis();
     let state = inner.state.lock_unpoisoned();

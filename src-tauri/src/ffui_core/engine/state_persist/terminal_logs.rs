@@ -241,7 +241,10 @@ pub(in crate::ffui_core::engine) fn load_persisted_terminal_job_logs(
                 job_id.clone(),
                 vec![JobRun {
                     command: String::new(),
-                    logs: lines,
+                    logs: lines
+                        .into_iter()
+                        .map(|text| crate::ffui_core::domain::JobLogLine { text, at_ms: None })
+                        .collect(),
                     started_at_ms: None,
                 }],
             ));

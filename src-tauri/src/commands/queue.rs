@@ -95,6 +95,8 @@ mod tests {
                     log_head: None,
                     skip_reason: None,
                     input_path: None,
+                    created_time_ms: None,
+                    modified_time_ms: None,
                     output_path: None,
                     output_policy: None,
                     ffmpeg_command: None,

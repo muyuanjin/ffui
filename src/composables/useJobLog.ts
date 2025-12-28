@@ -1,5 +1,5 @@
 import { computed, ref, type Ref, watch } from "vue";
-import type { TranscodeJob } from "@/types";
+import type { JobLogLineLike, TranscodeJob } from "@/types";
 import { hasTauri, loadJobDetail } from "@/lib/backend";
 import { parseAndHighlightLog } from "@/composables/jobLogHighlight";
 
@@ -18,6 +18,35 @@ export {
   renderHighlightedLogLine,
   renderHighlightedLogLineTokens,
 } from "@/composables/jobLogHighlight";
+
+const pad2 = (v: number): string => String(v).padStart(2, "0");
+const pad3 = (v: number): string => String(v).padStart(3, "0");
+
+export function formatWallClockTimestamp(ms: number | null | undefined): string | null {
+  const value = typeof ms === "number" ? ms : Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  try {
+    const d = new Date(value);
+    const yyyy = d.getFullYear();
+    const MM = pad2(d.getMonth() + 1);
+    const dd = pad2(d.getDate());
+    const hh = pad2(d.getHours());
+    const mm = pad2(d.getMinutes());
+    const ss = pad2(d.getSeconds());
+    const mmm = pad3(d.getMilliseconds());
+    return `${yyyy}-${MM}-${dd} ${hh}:${mm}:${ss}.${mmm}`;
+  } catch {
+    return null;
+  }
+}
+
+export function formatJobLogLine(line: JobLogLineLike): string {
+  if (typeof line === "string") return line;
+  const text = typeof line?.text === "string" ? line.text : String((line as any)?.text ?? "");
+  const ts = formatWallClockTimestamp(line?.atMs ?? null);
+  return ts ? `[${ts}] ${text}` : text;
+}
 
 // ----- Composable -----
 
@@ -160,7 +189,10 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
 
     const normalizeTail = (tailRaw: unknown): string => {
       if (!tailRaw) return "";
-      if (Array.isArray(tailRaw)) return tailRaw.join("\n");
+      if (Array.isArray(tailRaw)) {
+        if (tailRaw.every((v) => typeof v === "string")) return (tailRaw as string[]).join("\n");
+        return (tailRaw as JobLogLineLike[]).map(formatJobLogLine).join("\n");
+      }
       return String(tailRaw);
     };
 
@@ -168,9 +200,8 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
     const runs = job.runs;
     if (Array.isArray(runs)) {
       for (const run of runs) {
-        if (run?.logs?.length) {
-          runLines.push(...run.logs);
-        }
+        if (!run?.logs?.length) continue;
+        runLines.push(...run.logs.map(formatJobLogLine));
       }
     }
 
@@ -179,13 +210,13 @@ export function useJobLog(options: UseJobLogOptions): UseJobLogReturn {
     // optimistic messages or be incomplete).
     if (hasTauri() && job.id) {
       if (runLines.length) return runLines.join("\n");
-      const full = job.logs?.length ? job.logs.join("\n") : "";
+      const full = job.logs?.length ? job.logs.map(formatJobLogLine).join("\n") : "";
       const tail = normalizeTail(job.logTail);
       return full || tail;
     }
 
     if (runLines.length) return runLines.join("\n");
-    const full = job.logs?.length ? job.logs.join("\n") : "";
+    const full = job.logs?.length ? job.logs.map(formatJobLogLine).join("\n") : "";
     const tail = normalizeTail(job.logTail);
     return full || tail;
   });

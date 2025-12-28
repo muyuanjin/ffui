@@ -14,16 +14,12 @@ import { useQueuePreferences } from "@/lib/queuePreferences";
 import { type QueueListItem, useQueueFiltering, useQueueOperations, type UseQueueFilteringReturn } from "@/composables";
 import { useQueueEventListeners } from "./useMainAppQueue.events";
 import { createQueueBulkActionsWithFeedback } from "./useMainAppQueue.bulkActions";
-import {
-  ensureManualPresetId,
-  getQueueIconGridClass,
-  ICON_VIEW_MAX_VISIBLE_ITEMS,
-  resolveManualPreset,
-} from "./useMainAppQueue.ui";
-import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./useMainAppQueue.waiting";
+import { ensureManualPresetId, getQueueIconGridClass, resolveManualPreset } from "./useMainAppQueue.ui";
 import { buildFilteredJobsForTests } from "./useMainAppQueue.filteredJobsForTests";
 import { guardExclusiveAsyncAction } from "./useMainAppQueue.guards";
 import { usePausingJobIds } from "./useMainAppQueue.pausing";
+import { createQueueDeleteConfirm } from "./useMainAppQueue.deleteConfirm";
+import { createQueueVisibleItems } from "./useMainAppQueue.visibleItems";
 
 export { getQueueIconGridClass } from "./useMainAppQueue.ui";
 
@@ -114,6 +110,15 @@ export interface UseMainAppQueueReturn
   queueModeWaitingBatchIds: ComputedRef<Set<string>>;
   /** UI-only: jobs with a pending "wait" request while still processing. */
   pausingJobIds: Ref<Set<string>>;
+
+  /** UI: confirm dialog when deletion includes active jobs. */
+  queueDeleteConfirmOpen: Ref<boolean>;
+  queueDeleteConfirmSelectedCount: ComputedRef<number>;
+  queueDeleteConfirmTerminalCount: ComputedRef<number>;
+  queueDeleteConfirmActiveCount: ComputedRef<number>;
+  confirmQueueDeleteCancelAndDelete: () => Promise<void>;
+  confirmQueueDeleteTerminalOnly: () => Promise<void>;
+  cancelQueueDeleteConfirm: () => void;
 }
 
 /**
@@ -282,81 +287,18 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     onJobCompleted,
   });
 
-  const queueModeWaitingItems = computed<QueueListItem[]>(() => {
-    if (queueMode.value !== "queue") return [];
-
-    const waitingJobs = filteredJobs.value
-      .filter((job) => isWaitingStatus(job.status))
-      .slice()
-      .sort((a, b) => compareJobsInWaitingGroup(a, b, compareJobsByConfiguredFields));
-
-    const items: QueueListItem[] = [];
-    const renderedBatchIds = new Set<string>();
-
-    for (const job of waitingJobs) {
-      const batchId = job.batchId;
-      if (batchId) {
-        if (renderedBatchIds.has(batchId)) continue;
-        const batch = compositeTasksById.value.get(batchId);
-        if (batch && batchMatchesFilters(batch)) {
-          items.push({ kind: "batch", batch });
-          renderedBatchIds.add(batchId);
-        }
-        continue;
-      }
-      items.push({ kind: "job", job });
-    }
-
-    return items;
-  });
-
-  const queueModeWaitingBatchIds = computed<Set<string>>(() => {
-    const ids = new Set<string>();
-    for (const item of queueModeWaitingItems.value) {
-      if (item.kind === "batch") ids.add(item.batch.batchId);
-    }
-    return ids;
-  });
-
-  const visibleQueueItems = computed<QueueListItem[]>(() => {
-    const items: QueueListItem[] = [];
-
-    if (queueMode.value === "queue") {
-      // Queue mode: always include processing items for icon/carousel views.
-      for (const job of queueModeProcessingJobs.value) {
-        items.push({ kind: "job", job });
-      }
-      const waitingItems = queueModeWaitingItems.value;
-      const waitingBatchIds = queueModeWaitingBatchIds.value;
-      items.push(...waitingItems);
-
-      for (const batch of compositeBatchCompressTasks.value) {
-        if (waitingBatchIds.has(batch.batchId)) continue;
-        if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
-      }
-
-      for (const job of displayModeSortedJobs.value) {
-        if (job.batchId) continue;
-        if (isTerminalStatus(job.status)) items.push({ kind: "job", job });
-      }
-
-      return items;
-    }
-
-    for (const batch of compositeBatchCompressTasks.value) {
-      if (batchMatchesFilters(batch)) items.push({ kind: "batch", batch });
-    }
-    for (const job of displayModeSortedJobs.value) {
-      if (!job.batchId) items.push({ kind: "job", job });
-    }
-    return items;
-  });
-
-  const iconViewItems = computed<QueueListItem[]>(() => visibleQueueItems.value.slice(0, ICON_VIEW_MAX_VISIBLE_ITEMS));
-
-  const queueJobsForDisplay = computed<TranscodeJob[]>(() =>
-    queueMode.value === "queue" ? manualQueueJobs.value : displayModeSortedJobs.value,
-  );
+  const { queueModeWaitingItems, queueModeWaitingBatchIds, visibleQueueItems, iconViewItems, queueJobsForDisplay } =
+    createQueueVisibleItems({
+      queueMode,
+      filteredJobs,
+      displayModeSortedJobs,
+      manualQueueJobs,
+      queueModeProcessingJobs,
+      compositeBatchCompressTasks,
+      compositeTasksById,
+      batchMatchesFilters,
+      compareJobsByConfiguredFields,
+    });
 
   // Expose filtered list for tests and legacy consumers.
   const filteredJobsForTests = buildFilteredJobsForTests({
@@ -405,12 +347,28 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     "moveToBottom",
     bulkMoveToBottom,
   );
-  const bulkDeleteWithFeedback = guardExclusiveAsyncAction(bulkActionInProgress, "delete", bulkDelete);
+  const bulkDeleteWithFeedbackInternal = guardExclusiveAsyncAction(bulkActionInProgress, "delete", bulkDelete);
   const bulkCancelWithFeedbackGuarded = guardExclusiveAsyncAction(
     bulkActionInProgress,
     "cancel",
     bulkCancelWithFeedback,
   );
+
+  const {
+    bulkDeleteWithConfirm,
+    queueDeleteConfirmOpen,
+    queueDeleteConfirmSelectedCount,
+    queueDeleteConfirmTerminalCount,
+    queueDeleteConfirmActiveCount,
+    confirmQueueDeleteCancelAndDelete,
+    confirmQueueDeleteTerminalOnly,
+    cancelQueueDeleteConfirm,
+  } = createQueueDeleteConfirm({
+    jobs,
+    selectedJobIds,
+    bulkCancelSelectedJobs,
+    bulkDeleteTerminalSelection: bulkDeleteWithFeedbackInternal,
+  });
 
   // Queue / Batch Compress event listeners for queue state updates.
   useQueueEventListeners({
@@ -492,8 +450,16 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkMoveSelectedJobsToTopInner,
     bulkMoveSelectedJobsToBottomInner,
     moveJobToTop,
-    bulkDelete: bulkDeleteWithFeedback,
+    bulkDelete: bulkDeleteWithConfirm,
     bulkActionInProgress,
     pausingJobIds,
+
+    queueDeleteConfirmOpen,
+    queueDeleteConfirmSelectedCount,
+    queueDeleteConfirmTerminalCount,
+    queueDeleteConfirmActiveCount,
+    confirmQueueDeleteCancelAndDelete,
+    confirmQueueDeleteTerminalOnly,
+    cancelQueueDeleteConfirm,
   };
 }

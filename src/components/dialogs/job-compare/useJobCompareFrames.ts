@@ -2,8 +2,8 @@ import { computed, onBeforeUnmount, ref, watch, type ComputedRef, type Ref } fro
 import type { JobCompareSources, TranscodeJob } from "@/types";
 import {
   buildPreviewUrl,
-  extractJobCompareConcatFrame,
   extractJobCompareFrame,
+  extractJobCompareOutputFrame,
   hasTauri,
   loadPreviewDataUrl,
 } from "@/lib/backend";
@@ -65,7 +65,6 @@ export function useJobCompareFrames(options: {
 
     const positionSeconds = options.clampedTimelineSeconds.value;
     const inPath = s.inputPath;
-    const out = s.output;
 
     inputFrameLoading.value = inputFrameUrl.value == null;
     outputFrameLoading.value = outputFrameUrl.value == null;
@@ -99,46 +98,12 @@ export function useJobCompareFrames(options: {
       if (!scheduler.isTokenCurrent(token)) return;
 
       try {
-        const outputResult = await (async () => {
-          if (out.kind === "completed") {
-            return extractJobCompareFrame({
-              jobId: job.id,
-              sourcePath: out.outputPath,
-              positionSeconds,
-              durationSeconds: options.totalDurationSeconds.value,
-              quality,
-            });
-          }
-
-          if (out.activeSegmentPath) {
-            return extractJobCompareFrame({
-              jobId: job.id,
-              sourcePath: out.activeSegmentPath,
-              positionSeconds,
-              durationSeconds: options.totalDurationSeconds.value,
-              quality,
-            });
-          }
-
-          if (out.segmentPaths.length >= 2) {
-            return extractJobCompareConcatFrame({
-              jobId: job.id,
-              segmentPaths: out.segmentPaths,
-              positionSeconds,
-              quality,
-            });
-          }
-
-          const single = out.segmentPaths[0];
-          if (!single) throw new Error("missing output segment");
-          return extractJobCompareFrame({
-            jobId: job.id,
-            sourcePath: single,
-            positionSeconds,
-            durationSeconds: options.totalDurationSeconds.value,
-            quality,
-          });
-        })();
+        const outputResult = await extractJobCompareOutputFrame({
+          jobId: job.id,
+          positionSeconds,
+          durationSeconds: options.totalDurationSeconds.value,
+          quality,
+        });
 
         if (!scheduler.isTokenCurrent(token)) return;
 

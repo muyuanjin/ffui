@@ -54,11 +54,21 @@ export interface WaitMetadata {
   /** Intended join target time in seconds for restart-based resume. */
   targetSeconds?: number;
   /**
+   * Optional monotonic epoch identifier for progress reporting. When the backend
+   * must rewind and re-encode earlier media, it may bump this value so the UI
+   * can treat subsequent progress as belonging to a new epoch.
+   */
+  progressEpoch?: number;
+  /**
    * Best-effort last seen ffmpeg `-progress` out_time while the job is actively
    * processing (seconds). Used for crash recovery to avoid relying only on
    * container duration heuristics.
    */
   lastProgressOutTimeSeconds?: number;
+  /** Best-effort last seen ffmpeg progress speed (e.g. 1.5 for "1.5x"). */
+  lastProgressSpeed?: number;
+  /** Best-effort wall-clock timestamp in milliseconds since epoch for the last progress sample. */
+  lastProgressUpdatedAtMs?: number;
   /**
    * Best-effort last seen ffmpeg `-progress` frame counter while the job is
    * actively processing. Primarily a diagnostic + recovery hint.
@@ -105,11 +115,19 @@ export interface JobWarning {
   message: string;
 }
 
+export interface JobLogLine {
+  text: string;
+  /** Best-effort wall-clock timestamp in milliseconds since epoch. */
+  atMs?: number | null;
+}
+
+export type JobLogLineLike = string | JobLogLine;
+
 export interface JobRun {
   /** Copy-safe command string for this run (quoted, user-facing). */
   command: string;
   /** Log lines emitted during this run (bounded). */
-  logs?: string[];
+  logs?: JobLogLineLike[];
   /** Best-effort wall-clock start time for this run in milliseconds since epoch. */
   startedAtMs?: number;
 }
@@ -140,10 +158,14 @@ export interface TranscodeJob {
    */
   elapsedMs?: number;
   outputSizeMB?: number;
-  logs?: string[];
+  logs?: JobLogLineLike[];
   skipReason?: string;
   /** Absolute input path for this job when known (Tauri only). */
   inputPath?: string;
+  /** Best-effort input file creation/birth time in milliseconds since epoch (platform-dependent). */
+  createdTimeMs?: number;
+  /** Best-effort input file modified time in milliseconds since epoch. */
+  modifiedTimeMs?: number;
   /** Planned or final output path for this job (e.g. .compressed.mp4). */
   outputPath?: string;
   /** Output policy snapshot captured at enqueue time. */
@@ -207,6 +229,11 @@ export interface TranscodeJobLiteDeltaPatch {
   id: string;
   status?: JobStatus;
   progress?: number;
+  /** Optional progress telemetry for smoother UI updates. */
+  progressOutTimeSeconds?: number;
+  progressSpeed?: number;
+  progressUpdatedAtMs?: number;
+  progressEpoch?: number;
   elapsedMs?: number;
   previewPath?: string;
   previewRevision?: number;

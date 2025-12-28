@@ -163,6 +163,7 @@ pub fn run() {
             commands::queue::get_job_detail,
             commands::job_compare::get_job_compare_sources,
             commands::job_compare::extract_job_compare_frame,
+            commands::job_compare::extract_job_compare_output_frame,
             commands::job_compare::extract_job_compare_concat_frame,
             commands::output::preview_output_path,
             commands::presets::get_presets,

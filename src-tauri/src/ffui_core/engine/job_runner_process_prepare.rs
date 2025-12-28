@@ -328,7 +328,10 @@ fn prepare_transcode_job(inner: &Inner, job_id: &str) -> Result<Option<PreparedT
                             processed_wall_millis: None,
                             processed_seconds: None,
                             target_seconds: None,
+                            progress_epoch: None,
                             last_progress_out_time_seconds: None,
+                            last_progress_speed: None,
+                            last_progress_updated_at_ms: None,
                             last_progress_frame: None,
                             tmp_output_path: Some(tmp_str.clone()),
                             // `segments` represents completed partial outputs that should be

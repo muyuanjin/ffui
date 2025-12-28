@@ -14,7 +14,7 @@ pub fn make_transcode_job_for_tests(
     progress: f64,
     start_time: Option<u64>,
 ) -> crate::ffui_core::TranscodeJob {
-    use crate::ffui_core::{JobSource, JobType, TranscodeJob};
+    use crate::ffui_core::{JobLogLine, JobSource, JobType, TranscodeJob};
 
     /* jscpd:ignore-start */
     TranscodeJob {
@@ -33,10 +33,12 @@ pub fn make_transcode_job_for_tests(
         processing_started_ms: None,
         elapsed_ms: None,
         output_size_mb: None,
-        logs: Vec::new(),
+        logs: Vec::<JobLogLine>::new(),
         log_head: None,
         skip_reason: None,
         input_path: None,
+        created_time_ms: None,
+        modified_time_ms: None,
         output_path: None,
         output_policy: None,
         ffmpeg_command: None,

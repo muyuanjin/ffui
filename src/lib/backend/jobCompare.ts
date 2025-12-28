@@ -30,6 +30,22 @@ export const extractJobCompareFrame = async (args: {
   });
 };
 
+export const extractJobCompareOutputFrame = async (args: {
+  jobId: string;
+  positionSeconds: number;
+  durationSeconds?: number | null;
+  quality: FallbackFrameQuality;
+}): Promise<string> => {
+  return invoke<string>("extract_job_compare_output_frame", {
+    args: {
+      jobId: args.jobId,
+      positionSeconds: args.positionSeconds,
+      durationSeconds: args.durationSeconds ?? null,
+      quality: args.quality,
+    },
+  });
+};
+
 export const extractJobCompareConcatFrame = async (args: {
   jobId: string;
   segmentPaths: string[];

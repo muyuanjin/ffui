@@ -2,7 +2,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use super::*;
-use crate::ffui_core::domain::{TranscodeJob, TranscodeJobLite};
+use crate::ffui_core::domain::{JobLogLine, TranscodeJob, TranscodeJobLite};
 use crate::ffui_core::settings::types::QueuePersistenceMode;
 use crate::sync_ext::MutexExt;
 
@@ -27,7 +27,10 @@ fn queue_state_lite_persists_first_real_command_for_restart() {
     job.ffmpeg_command = Some("ffmpeg -i INPUT OUTPUT".to_string());
     job.runs.push(crate::ffui_core::domain::JobRun {
         command: "C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv".to_string(),
-        logs: vec!["command: C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv".to_string()],
+        logs: vec![crate::ffui_core::domain::JobLogLine {
+            text: "command: C:/Tools/ffmpeg.exe -i in.mp4 out.seg0.tmp.mkv".to_string(),
+            at_ms: Some(123),
+        }],
         started_at_ms: Some(123),
     });
 
@@ -252,7 +255,10 @@ fn queue_state_json_contains_slim_logs_only() {
             if idx == 50 {
                 line.push_str(" MIDDLE_MARKER ");
             }
-            line
+            JobLogLine {
+                text: line,
+                at_ms: Some(1_700_000_000_000u64.saturating_add(idx)),
+            }
         })
         .collect();
     super::super::worker_utils::recompute_log_tail(&mut job);
@@ -292,7 +298,16 @@ fn does_not_write_terminal_logs_without_terminal_transition() {
     TERMINAL_LOG_WRITE_COUNT.store(0, Ordering::SeqCst);
 
     let mut full_job = make_job("job-1", JobStatus::Processing);
-    full_job.logs = vec!["log-line-1".into(), "log-line-2".into()];
+    full_job.logs = vec![
+        JobLogLine {
+            text: "log-line-1".into(),
+            at_ms: Some(123),
+        },
+        JobLogLine {
+            text: "log-line-2".into(),
+            at_ms: Some(124),
+        },
+    ];
 
     let prev = make_state_lite(vec![make_job("job-1", JobStatus::Processing)]);
     let current = make_state_lite(vec![make_job("job-1", JobStatus::Processing)]);
@@ -329,7 +344,20 @@ fn writes_terminal_log_exactly_once_on_terminal_transition() {
     TERMINAL_LOG_WRITE_COUNT.store(0, Ordering::SeqCst);
 
     let mut full_job = make_job("job-1", JobStatus::Completed);
-    full_job.logs = vec!["full-1".into(), "full-2".into(), "full-3".into()];
+    full_job.logs = vec![
+        JobLogLine {
+            text: "full-1".into(),
+            at_ms: Some(123),
+        },
+        JobLogLine {
+            text: "full-2".into(),
+            at_ms: Some(124),
+        },
+        JobLogLine {
+            text: "full-3".into(),
+            at_ms: Some(125),
+        },
+    ];
 
     let prev = make_state_lite(vec![make_job("job-1", JobStatus::Processing)]);
     let current = make_state_lite(vec![make_job("job-1", JobStatus::Completed)]);
@@ -383,7 +411,16 @@ fn restore_merges_terminal_logs_into_memory_in_full_mode() {
     let _dir_guard = override_queue_logs_dir_for_tests(dir.clone());
 
     let mut job = make_job("job-1", JobStatus::Completed);
-    job.logs = vec!["head-1".into(), "head-2".into()];
+    job.logs = vec![
+        JobLogLine {
+            text: "head-1".into(),
+            at_ms: Some(123),
+        },
+        JobLogLine {
+            text: "head-2".into(),
+            at_ms: Some(124),
+        },
+    ];
     super::super::worker_utils::recompute_log_tail(&mut job);
 
     let lite = make_state_lite(vec![job]);
@@ -412,9 +449,18 @@ fn restore_merges_terminal_logs_into_memory_in_full_mode() {
     assert_eq!(
         restored.logs,
         vec![
-            "restored-1".to_string(),
-            "restored-2".to_string(),
-            "restored-3".to_string()
+            JobLogLine {
+                text: "restored-1".to_string(),
+                at_ms: None
+            },
+            JobLogLine {
+                text: "restored-2".to_string(),
+                at_ms: None
+            },
+            JobLogLine {
+                text: "restored-3".to_string(),
+                at_ms: None
+            }
         ],
         "expected restored job to load full logs into memory"
     );

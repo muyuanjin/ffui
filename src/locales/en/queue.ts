@@ -164,6 +164,18 @@ const queue = {
     bulkDelete: "Remove",
     bulkDeleteShort: "Remove",
   },
+  dialogs: {
+    deleteMixed: {
+      title: "Remove selected jobs",
+      description:
+        "{active} job(s) are still queued/paused/processing and cannot be removed directly. Choose what to do next.",
+      selected: "Selected",
+      active: "Active",
+      terminal: "Terminal",
+      cancelAndDelete: "Stop then remove",
+      deleteTerminalOnly: "Remove terminal only",
+    },
+  },
   feedback: {
     report: {
       title: "Bulk operation report",

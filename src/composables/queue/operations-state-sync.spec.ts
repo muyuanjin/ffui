@@ -569,6 +569,78 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value[0].progress).toBe(0);
   });
 
+  it("applyQueueStateLiteDeltaFromBackend applies progress telemetry into waitMetadata", () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/progress.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 10,
+          logs: [],
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [
+          {
+            id: "job-1",
+            progressOutTimeSeconds: 12.5,
+            progressSpeed: 1.25,
+            progressUpdatedAtMs: 123_456,
+            progressEpoch: 2,
+          },
+        ],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressOutTimeSeconds).toBeCloseTo(12.5, 6);
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressSpeed).toBeCloseTo(1.25, 6);
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressUpdatedAtMs).toBe(123_456);
+    expect(deps.jobs.value[0].waitMetadata?.progressEpoch).toBe(2);
+  });
+
+  it("applyQueueStateLiteDeltaFromBackend can override a stale paused status when progress resumes", () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/resume.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "paused",
+          progress: 42,
+          logs: [],
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [{ id: "job-1", status: "processing", progress: 43 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].status).toBe("processing");
+    expect(deps.jobs.value[0].progress).toBe(43);
+  });
+
   it("applyQueueStateLiteDeltaFromBackend ignores stale or mismatched delta updates", () => {
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([

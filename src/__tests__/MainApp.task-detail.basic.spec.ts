@@ -109,6 +109,45 @@ describe("MainApp task detail surface - basics", () => {
     wrapper.unmount();
   });
 
+  it("shows started/completed timestamps in the task detail header", async () => {
+    const nowMs = 1_700_000_000_000;
+    const job: TranscodeJob = {
+      id: "video-job-time-1",
+      filename: "C:/videos/sample.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: nowMs - 60_000,
+      processingStartedMs: nowMs - 30_000,
+      endTime: nowMs,
+      logs: [],
+    };
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    if (vm.selectedJobForDetail && "value" in vm.selectedJobForDetail) {
+      vm.selectedJobForDetail.value = job;
+    } else {
+      vm.selectedJobForDetail = job;
+    }
+
+    await nextTick();
+
+    const startedAtEl = document.querySelector("[data-testid='task-detail-started-at']") as HTMLElement | null;
+    const queuedAtEl = document.querySelector("[data-testid='task-detail-queued-at']") as HTMLElement | null;
+    const completedAtEl = document.querySelector("[data-testid='task-detail-completed-at']") as HTMLElement | null;
+
+    expect(startedAtEl?.textContent || "").toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}/);
+    expect(queuedAtEl?.textContent || "").toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}/);
+    expect(completedAtEl?.textContent || "").toMatch(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}/);
+
+    wrapper.unmount();
+  });
+
   it("renders encoder command and logs for image Batch Compress jobs", async () => {
     const job: TranscodeJob = {
       id: "image-job-2",

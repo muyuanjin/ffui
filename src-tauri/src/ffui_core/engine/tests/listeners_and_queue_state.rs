@@ -199,7 +199,16 @@ fn queue_state_lite_strips_heavy_fields_but_keeps_required_metadata() {
     {
         let mut state = engine.inner.state.lock_unpoisoned();
         if let Some(j) = state.jobs.get_mut(&job.id) {
-            j.logs = vec!["line-1".into(), "line-2".into()];
+            j.logs = vec![
+                crate::ffui_core::domain::JobLogLine {
+                    text: "line-1".into(),
+                    at_ms: Some(123),
+                },
+                crate::ffui_core::domain::JobLogLine {
+                    text: "line-2".into(),
+                    at_ms: Some(124),
+                },
+            ];
             j.ffmpeg_command = Some("ffmpeg -i input -c:v libx264 output".into());
             j.log_tail = Some("tail-line".into());
         }

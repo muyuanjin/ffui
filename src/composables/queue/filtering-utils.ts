@@ -1,6 +1,16 @@
 import type { TranscodeJob } from "@/types";
 import type { QueueSortDirection, QueueSortField } from "./useQueueFiltering.types";
 
+const STATUS_SORT_RANK: Record<TranscodeJob["status"], number> = {
+  processing: 0,
+  queued: 1,
+  paused: 2,
+  completed: 3,
+  failed: 4,
+  cancelled: 5,
+  skipped: 6,
+};
+
 // ----- Helper Functions -----
 
 /**
@@ -42,7 +52,8 @@ export const getJobSortValue = (job: TranscodeJob, field: QueueSortField) => {
       return name || null;
     }
     case "status":
-      return job.status;
+      // Status should follow the UX order (same as the filter buttons), not lexicographic order.
+      return STATUS_SORT_RANK[job.status] ?? null;
     case "addedTime":
       // For now we treat startTime as the "added to queue" timestamp.
       return job.startTime ?? null;
@@ -50,11 +61,17 @@ export const getJobSortValue = (job: TranscodeJob, field: QueueSortField) => {
       return job.endTime ?? null;
     case "duration":
       return job.mediaInfo?.durationSeconds ?? null;
-    case "elapsed":
-      if (job.startTime && job.endTime && job.endTime > job.startTime) {
-        return job.endTime - job.startTime;
+    case "elapsed": {
+      // "Processing elapsed" should represent actual processing time, not queue wait time.
+      if (typeof job.elapsedMs === "number") {
+        return job.elapsedMs;
+      }
+      const baseline = job.processingStartedMs ?? job.startTime;
+      if (baseline != null && job.endTime != null && job.endTime > baseline) {
+        return job.endTime - baseline;
       }
       return null;
+    }
     case "progress":
       return typeof job.progress === "number" ? job.progress : null;
     case "type":
@@ -66,10 +83,9 @@ export const getJobSortValue = (job: TranscodeJob, field: QueueSortField) => {
     case "outputSize":
       return job.outputSizeMB ?? null;
     case "createdTime":
+      return job.createdTimeMs ?? null;
     case "modifiedTime":
-      // Filesystem timestamps are not yet tracked; keep these as stable
-      // placeholders so sort configs remain forward-compatible.
-      return null;
+      return job.modifiedTimeMs ?? null;
     default:
       return null;
   }
@@ -86,6 +102,12 @@ export const compareJobsByField = (
 ): number => {
   const av = getJobSortValue(a, field);
   const bv = getJobSortValue(b, field);
+  // Always keep null/undefined values at the bottom, regardless of sort direction.
+  // This prevents unfinished/unknown values (e.g. finishedTime) from bubbling to the top on "desc".
+  if (av == null && bv == null) return 0;
+  if (av == null) return 1;
+  if (bv == null) return -1;
+
   let result = comparePrimitive(av, bv);
   if (direction === "desc") {
     result = -result;

@@ -4,7 +4,8 @@ use super::state::{
     BatchCompressBatchStatus, Inner, notify_batch_compress_listeners, notify_queue_listeners,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress, EncoderType, FFmpegPreset, JobStatus, PresetStats, TranscodeJob,
+    AutoCompressProgress, EncoderType, FFmpegPreset, JobLogLine, JobStatus, PresetStats,
+    TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 
@@ -32,13 +33,57 @@ fn is_critical_log_line(line: &str) -> bool {
         || lower.trim_start().starts_with("command:")
 }
 
+fn is_ffmpeg_progress_or_stats_noise_line(line: &str) -> bool {
+    // `-progress pipe:2` emits key/value lines such as:
+    //   out_time=00:00:01.234000 speed=1.0x progress=continue
+    // and periodic `-stats` output looks like:
+    //   frame=  123 fps=... q=... size=... time=... bitrate=... speed=...
+    //
+    // These are high-frequency and can explode job logs when `-stats_period` is
+    // tuned for smoother progress. They are still parsed for progress updates,
+    // so they do not need to be retained in persisted logs.
+    let trimmed = line.trim_start();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if trimmed.contains("progress=")
+        || trimmed.contains("out_time=")
+        || trimmed.contains("out_time_ms=")
+    {
+        return true;
+    }
+    if let Some(rest) = trimmed.strip_prefix("frame=") {
+        // Reduce false positives: require at least one other stats token.
+        let has_stats_hint = rest.contains("fps=")
+            || rest.contains("q=")
+            || rest.contains("time=")
+            || rest.contains("speed=");
+        return has_stats_hint;
+    }
+    false
+}
+
+pub(super) fn should_record_job_log_line(line: &str) -> bool {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    if is_critical_log_line(trimmed) {
+        return true;
+    }
+    if is_ffmpeg_progress_or_stats_noise_line(trimmed) {
+        return false;
+    }
+    true
+}
+
 fn sync_job_logs_with_runs_if_needed(job: &mut TranscodeJob) {
     let run_total: usize = job.runs.iter().map(|r| r.logs.len()).sum();
     if run_total == job.logs.len() {
         return;
     }
 
-    let mut rebuilt: Vec<String> = Vec::with_capacity(run_total);
+    let mut rebuilt: Vec<JobLogLine> = Vec::with_capacity(run_total);
     for run in &job.runs {
         rebuilt.extend(run.logs.iter().cloned());
     }
@@ -64,7 +109,12 @@ pub(super) fn recompute_log_tail(job: &mut TranscodeJob) {
         return;
     }
 
-    let mut joined = job.logs.join("\n");
+    let mut joined = job
+        .logs
+        .iter()
+        .map(|line| line.text.as_str())
+        .collect::<Vec<_>>()
+        .join("\n");
     truncate_string_to_last_bytes(&mut joined, MAX_LOG_TAIL_BYTES);
     job.log_tail = Some(joined);
 }
@@ -81,7 +131,11 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) -> bool {
 
     if job.runs.is_empty() {
         while job.logs.len() > MAX_LOG_LINES {
-            if let Some(idx) = job.logs.iter().position(|line| !is_critical_log_line(line)) {
+            if let Some(idx) = job
+                .logs
+                .iter()
+                .position(|line| !is_critical_log_line(line.text.as_str()))
+            {
                 job.logs.remove(idx);
             } else if !job.logs.is_empty() {
                 job.logs.remove(0);
@@ -105,7 +159,11 @@ pub(super) fn trim_job_logs_with_priority(job: &mut TranscodeJob) -> bool {
                 continue;
             }
 
-            if let Some(local_idx) = run.logs.iter().position(|line| !is_critical_log_line(line)) {
+            if let Some(local_idx) = run
+                .logs
+                .iter()
+                .position(|line| !is_critical_log_line(line.text.as_str()))
+            {
                 run.logs.remove(local_idx);
                 job.logs.remove(prefix + local_idx);
                 removed = true;
@@ -149,20 +207,21 @@ fn append_log_tail(job: &mut TranscodeJob, line: &str) {
 }
 
 pub(super) fn append_job_log_line(job: &mut TranscodeJob, line: impl Into<String>) {
-    let line = line.into();
+    let line = JobLogLine {
+        text: line.into(),
+        at_ms: Some(current_time_millis()),
+    };
     let will_trim = job.logs.len().saturating_add(1) > MAX_LOG_LINES;
 
     // Common case: keep the tail up-to-date without rebuilding by joining all logs.
     // If trimming is required, we will recompute from the final (trimmed) logs.
     if !will_trim {
-        append_log_tail(job, &line);
+        append_log_tail(job, line.text.as_str());
     }
 
-    job.logs.push(line);
-    if let Some(run) = job.runs.last_mut()
-        && let Some(last) = job.logs.last()
-    {
-        run.logs.push(last.clone());
+    job.logs.push(line.clone());
+    if let Some(run) = job.runs.last_mut() {
+        run.logs.push(line);
     }
 
     if will_trim && trim_job_logs_with_priority(job) {
@@ -308,7 +367,10 @@ mod tests {
         let s = format!("你{}", "a".repeat(MAX_LOG_TAIL_BYTES.saturating_sub(2)));
         assert_eq!(s.len(), MAX_LOG_TAIL_BYTES + 1);
 
-        job.logs = vec![s];
+        job.logs = vec![JobLogLine {
+            text: s,
+            at_ms: None,
+        }];
         recompute_log_tail(&mut job);
 
         let tail = job.log_tail.expect("tail should be set");
@@ -325,8 +387,24 @@ mod tests {
     #[test]
     fn append_job_log_line_updates_log_tail_incrementally() {
         let mut job = make_job();
+        job.runs.push(crate::ffui_core::domain::JobRun {
+            command: String::new(),
+            logs: Vec::new(),
+            started_at_ms: None,
+        });
         append_job_log_line(&mut job, "line-1");
         assert_eq!(job.log_tail.as_deref(), Some("line-1"));
+        assert!(
+            job.logs.first().is_some_and(|l| l.at_ms.is_some()),
+            "append_job_log_line should populate at_ms for structured log entries"
+        );
+        assert!(
+            job.runs
+                .first()
+                .and_then(|r| r.logs.first())
+                .is_some_and(|l| l.at_ms.is_some()),
+            "append_job_log_line should populate run log at_ms"
+        );
 
         append_job_log_line(&mut job, "line-2");
         assert_eq!(job.log_tail.as_deref(), Some("line-1\nline-2"));

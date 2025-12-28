@@ -102,6 +102,8 @@ pub(crate) struct EngineState {
     // These are used to avoid overwriting existing outputs and to skip
     // re-enqueuing Batch Compress outputs as new candidates.
     pub(crate) known_batch_compress_outputs: HashSet<String>,
+    // Cache of ffmpeg feature probes keyed by executable path.
+    pub(crate) ffmpeg_supports_stats_period: HashMap<String, bool>,
 }
 
 impl EngineState {
@@ -124,6 +126,7 @@ impl EngineState {
             media_info_cache: HashMap::new(),
             batch_compress_batches: HashMap::new(),
             known_batch_compress_outputs: HashSet::new(),
+            ffmpeg_supports_stats_period: HashMap::new(),
         }
     }
 }
@@ -460,7 +463,6 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
         let Some(batch) = state.batch_compress_batches.get_mut(batch_id) else {
             return;
         };
-
         f(batch);
 
         if force_notify
@@ -484,13 +486,11 @@ pub(super) fn update_batch_compress_batch_with_inner<F>(
         notify_batch_compress_listeners(inner, &progress);
     }
 }
-
 pub(super) fn register_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) {
     let key = path.to_string_lossy().into_owned();
     let mut state = inner.state.lock_unpoisoned();
     state.known_batch_compress_outputs.insert(key);
 }
-
 pub(super) fn is_known_batch_compress_output_with_inner(inner: &Inner, path: &Path) -> bool {
     let key = path.to_string_lossy().into_owned();
     let state = inner.state.lock_unpoisoned();

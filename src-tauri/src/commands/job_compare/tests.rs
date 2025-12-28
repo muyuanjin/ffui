@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::ffui_core::{MediaInfo, WaitMetadata};
+use crate::ffui_core::{
+    ExternalToolSettings, JobStatus, JobType, MediaInfo, TranscodeJob, WaitMetadata,
+};
 
 fn sample_video_job(status: JobStatus) -> TranscodeJob {
     TranscodeJob {
@@ -24,6 +26,8 @@ fn sample_video_job(status: JobStatus) -> TranscodeJob {
         log_head: None,
         skip_reason: None,
         input_path: Some("C:/videos/input.mp4".to_string()),
+        created_time_ms: None,
+        modified_time_ms: None,
         output_path: Some("C:/videos/output.mp4".to_string()),
         output_policy: None,
         ffmpeg_command: None,
@@ -49,7 +53,10 @@ fn sample_video_job(status: JobStatus) -> TranscodeJob {
             processed_wall_millis: None,
             processed_seconds: Some(12.5),
             target_seconds: Some(12.5),
+            progress_epoch: None,
             last_progress_out_time_seconds: None,
+            last_progress_speed: None,
+            last_progress_updated_at_ms: None,
             last_progress_frame: None,
             tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
             segments: Some(vec![
@@ -146,4 +153,42 @@ fn max_compare_seconds_processing_prefers_processed_seconds_over_progress() {
     job.progress = 50.0;
     // processed_seconds is 12.5 in sample_video_job; apply the processing live-edge guard.
     assert_eq!(compute_max_compare_seconds(&job), Some(11.25));
+}
+
+#[test]
+fn segment_end_targets_map_global_seconds_to_the_correct_segment_offset() {
+    let segments = vec![
+        "C:/app-data/tmp/seg0.mp4".to_string(),
+        "C:/app-data/tmp/seg1.mp4".to_string(),
+    ];
+    let end_targets = vec![60.0, 120.0];
+
+    let hit0 = map_seconds_to_segment(&segments, &end_targets, 10.0).expect("hit0");
+    assert_eq!(hit0.index, 0);
+    assert!((hit0.local_seconds - 10.0).abs() < 0.000_001);
+    assert_eq!(hit0.duration_seconds_hint, Some(60.0));
+
+    let hit1 = map_seconds_to_segment(&segments, &end_targets, 70.0).expect("hit1");
+    assert_eq!(hit1.index, 1);
+    assert!((hit1.local_seconds - 10.0).abs() < 0.000_001);
+    assert_eq!(hit1.duration_seconds_hint, Some(60.0));
+}
+
+#[test]
+fn processing_output_targets_append_active_segment_end_when_needed() {
+    let mut job = sample_video_job(JobStatus::Processing);
+    let Some(meta) = job.wait_metadata.as_mut() else {
+        panic!("expected wait_metadata");
+    };
+    meta.segment_end_targets = Some(vec![60.0]);
+    meta.last_progress_out_time_seconds = Some(70.0);
+    meta.processed_seconds = Some(70.0);
+
+    let segments = build_output_segments_with_active(&job);
+    assert_eq!(segments.len(), 2, "sample should have 2 segments");
+
+    let tools = ExternalToolSettings::default();
+    let targets =
+        build_segment_end_targets_best_effort(&job, &tools, &segments, 69.0).expect("targets");
+    assert_eq!(targets, vec![60.0, 70.0]);
 }

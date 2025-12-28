@@ -459,4 +459,33 @@ describe("MainApp task detail surface - logs", () => {
 
     wrapper.unmount();
   });
+
+  it("prefixes log lines with timestamps when atMs is provided", async () => {
+    const job: TranscodeJob = {
+      id: "job-log-ts-1",
+      filename: "C:/videos/log-ts.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      presetId: "p1",
+      status: "completed",
+      progress: 100,
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_000_500,
+      logs: [{ text: "hello", atMs: 1_700_000_000_123 }],
+      ffmpegCommand: "ffmpeg -i in out",
+    };
+
+    const wrapper = mountMainApp();
+    const vm: any = wrapper.vm;
+    setJobsOnVm(vm, [job]);
+    vm.selectedJobForDetail = job;
+
+    await nextTick();
+
+    const logText = document.querySelector("[data-testid='task-detail-log']")?.textContent || "";
+    expect(logText).toMatch(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\] hello/);
+
+    wrapper.unmount();
+  });
 });

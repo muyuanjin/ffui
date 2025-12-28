@@ -16,6 +16,8 @@ fn make_manual_job(id: &str, status: JobStatus) -> TranscodeJob {
         progress: 0.0,
         start_time: Some(current_time_millis()),
         end_time: None,
+        created_time_ms: None,
+        modified_time_ms: None,
         processing_started_ms: None,
         elapsed_ms: None,
         output_size_mb: None,

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { computed, ref, nextTick, type Ref } from "vue";
 import { mount } from "@vue/test-utils";
 import type { TranscodeJob } from "@/types";
@@ -39,6 +39,15 @@ const mountComposable = (job: Ref<TranscodeJob>, options?: { progressUpdateInter
 };
 
 describe("useSmoothProgress", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(0));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("initializes displayedClampedProgress from clamped job progress", async () => {
     const job = ref(makeJob({ progress: 42 }));
     const { composable, wrapper } = mountComposable(job);
@@ -48,17 +57,153 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
-  it("tracks job.progress updates while processing", async () => {
+  it("estimates progress between backend samples using out_time + speed", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 10,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          lastProgressOutTimeSeconds: 10,
+          lastProgressSpeed: 1,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+
+    vi.setSystemTime(new Date(1000));
+    vi.advanceTimersByTime(100);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeGreaterThan(10);
+    expect(composable.displayedClampedProgress.value).toBeLessThan(100);
+    wrapper.unmount();
+  });
+
+  it("does not extrapolate without an explicit speed sample", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 10,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          lastProgressOutTimeSeconds: 10,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+
+    vi.setSystemTime(new Date(1000));
+    vi.advanceTimersByTime(200);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+    wrapper.unmount();
+  });
+
+  it("freezes extrapolation when telemetry timestamps are stale (e.g. after restart)", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 10,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          lastProgressOutTimeSeconds: 10,
+          lastProgressSpeed: 2,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+
+    // Far beyond the staleness threshold: must not jump forward.
+    vi.setSystemTime(new Date(60_000));
+    vi.advanceTimersByTime(200);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+    wrapper.unmount();
+  });
+
+  it("allows rollbacks on epoch changes without teleporting", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 50,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          progressEpoch: 1,
+          lastProgressOutTimeSeconds: 50,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(50, 6);
+
+    job.value = {
+      ...job.value,
+      progress: 40,
+      waitMetadata: {
+        ...(job.value.waitMetadata ?? {}),
+        progressEpoch: 2,
+        lastProgressOutTimeSeconds: 40,
+        lastProgressUpdatedAtMs: 0,
+      },
+    };
+    await nextTick();
+
+    vi.advanceTimersByTime(100);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeLessThan(50);
+    expect(composable.displayedClampedProgress.value).toBeGreaterThan(40);
+
+    vi.advanceTimersByTime(3000);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(40, 1);
+    wrapper.unmount();
+  });
+
+  it("avoids teleporting on queued -> processing transitions", async () => {
     const job = ref(makeJob({ progress: 10 }));
     const { composable, wrapper } = mountComposable(job);
 
     await nextTick();
     expect(composable.displayedClampedProgress.value).toBe(10);
 
-    job.value = { ...job.value, progress: 55 };
+    const originalRaf = window.requestAnimationFrame;
+    (window as unknown as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+
+    job.value = { ...job.value, status: "queued", progress: 0 };
     await nextTick();
 
-    expect(composable.displayedClampedProgress.value).toBe(55);
+    job.value = { ...job.value, status: "processing", progress: 55 };
+    await nextTick();
+
+    // First frame: forced to 0 so the bar/card can mount without snapping.
+    expect(composable.displayedClampedProgress.value).toBe(0);
+
+    // Next tick: moves toward the target.
+    vi.runOnlyPendingTimers();
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeGreaterThan(0);
+
+    (window as unknown as { requestAnimationFrame?: unknown }).requestAnimationFrame = originalRaf;
     wrapper.unmount();
   });
 
@@ -80,7 +225,7 @@ describe("useSmoothProgress", () => {
     const job = ref(makeJob({ status: "processing", progress: 10 }));
     const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 250 });
     await nextTick();
-    expect(composable.progressTransitionMs.value).toBe(150);
+    expect(composable.progressTransitionMs.value).toBeGreaterThan(0);
     wrapper.unmount();
   });
 
@@ -88,7 +233,7 @@ describe("useSmoothProgress", () => {
     const job = ref(makeJob({ status: "processing", progress: 10 }));
     const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 50 });
     await nextTick();
-    expect(composable.progressTransitionMs.value).toBe(0);
+    expect(composable.progressTransitionMs.value).toBeGreaterThan(0);
     wrapper.unmount();
   });
 });

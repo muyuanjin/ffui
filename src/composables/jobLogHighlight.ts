@@ -6,6 +6,8 @@ export type LogLineKind = "version" | "stream" | "progress" | "error" | "command
 export interface LogLineEntry {
   text: string;
   kind: LogLineKind;
+  timestampPrefix?: string;
+  rawText?: string;
 }
 
 interface StructuredProgressPair {
@@ -16,6 +18,7 @@ interface StructuredProgressPair {
 interface StructuredProgressBlock {
   rawLines: string[];
   pairs: Record<string, string>;
+  timestampPrefix?: string;
 }
 
 const STRUCTURED_PROGRESS_KEYS = new Set([
@@ -32,6 +35,14 @@ const STRUCTURED_PROGRESS_KEYS = new Set([
   "speed",
   "progress",
 ]);
+
+const TIMESTAMP_PREFIX_RE = /^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{3})?)\]\s+/;
+
+const splitTimestampPrefix = (line: string): { timestampPrefix?: string; rest: string } => {
+  const match = TIMESTAMP_PREFIX_RE.exec(line);
+  if (!match) return { rest: line };
+  return { timestampPrefix: `[${match[1]}]`, rest: line.slice(match[0].length) };
+};
 
 export const classifyLogLine = (line: string): LogLineKind => {
   const lower = line.toLowerCase();
@@ -129,7 +140,10 @@ export const highlightFfmpegProgressLogLineTokens = (line: string): HighlightTok
 
 export const renderHighlightedLogLine = (entry: LogLineEntry): string => {
   const cls = logLineClass(entry.kind);
-  const title = escapeHtml(entry.text);
+  const title = escapeHtml(entry.rawText ?? entry.text);
+  const tsPrefix = entry.timestampPrefix
+    ? `<span class="text-muted-foreground">${escapeHtml(entry.timestampPrefix)} </span>`
+    : "";
 
   let contentHtml = "";
   if (entry.kind === "progress") {
@@ -144,7 +158,7 @@ export const renderHighlightedLogLine = (entry: LogLineEntry): string => {
     contentHtml = escapeHtml(entry.text);
   }
 
-  return `<div class="${cls}" title="${title}">${contentHtml}</div>`;
+  return `<div class="${cls}" title="${title}">${tsPrefix}${contentHtml}</div>`;
 };
 
 export interface HighlightedLogLine {
@@ -154,8 +168,12 @@ export interface HighlightedLogLine {
 }
 
 export const renderHighlightedLogLineTokens = (entry: LogLineEntry): HighlightToken[] => {
+  const prefixTokens: HighlightToken[] = entry.timestampPrefix
+    ? [{ text: `${entry.timestampPrefix} `, className: "text-muted-foreground" }]
+    : [];
+
   if (entry.kind === "progress") {
-    return highlightFfmpegProgressLogLineTokens(entry.text);
+    return [...prefixTokens, ...highlightFfmpegProgressLogLineTokens(entry.text)];
   }
 
   if (entry.kind === "command") {
@@ -164,10 +182,10 @@ export const renderHighlightedLogLineTokens = (entry: LogLineEntry): HighlightTo
     const rest = idx >= 0 ? entry.text.slice(idx + "command:".length).trimStart() : entry.text;
     const tokens = highlightFfmpegCommandTokens(rest);
     const space = rest ? " " : "";
-    return [{ text: `${prefix}${space}` }, ...tokens];
+    return [...prefixTokens, { text: `${prefix}${space}` }, ...tokens];
   }
 
-  return [{ text: entry.text }];
+  return prefixTokens.length ? [...prefixTokens, { text: entry.text }] : [{ text: entry.text }];
 };
 
 export const parseStructuredProgressPair = (line: string): StructuredProgressPair | null => {
@@ -230,6 +248,8 @@ export const flushStructuredProgressBlock = (
   entries.push({
     text,
     kind: classifyLogLine(text),
+    timestampPrefix: block.timestampPrefix,
+    rawText: block.timestampPrefix ? `${block.timestampPrefix} ${text}` : text,
   });
 
   return null;
@@ -247,7 +267,8 @@ const parseLogEntries = (raw: string | undefined | null): LogLineEntry[] => {
   for (const line of lines) {
     if (!line.trim()) continue;
 
-    const kv = parseStructuredProgressPair(line);
+    const { timestampPrefix, rest } = splitTimestampPrefix(line);
+    const kv = parseStructuredProgressPair(rest);
     if (kv) {
       if (!block) {
         block = {
@@ -256,8 +277,9 @@ const parseLogEntries = (raw: string | undefined | null): LogLineEntry[] => {
         };
       }
 
-      block.rawLines.push(line);
+      block.rawLines.push(rest);
       block.pairs[kv.key] = kv.value;
+      if (timestampPrefix) block.timestampPrefix = timestampPrefix;
 
       if (kv.key === "progress") {
         block = flushStructuredProgressBlock(block, entries);
@@ -270,8 +292,10 @@ const parseLogEntries = (raw: string | undefined | null): LogLineEntry[] => {
     }
 
     entries.push({
-      text: line,
-      kind: classifyLogLine(line),
+      text: rest,
+      kind: classifyLogLine(rest),
+      timestampPrefix,
+      rawText: line,
     });
   }
 
@@ -285,7 +309,7 @@ const parseLogEntries = (raw: string | undefined | null): LogLineEntry[] => {
 export const parseAndHighlightLogTokens = (raw: string | undefined | null): HighlightedLogLine[] => {
   return parseLogEntries(raw).map((entry) => ({
     className: logLineClass(entry.kind),
-    title: entry.text,
+    title: entry.rawText ?? entry.text,
     tokens: renderHighlightedLogLineTokens(entry),
   }));
 };

@@ -72,6 +72,9 @@ describe("backend queue state contract", () => {
             processedSeconds: 36.223129,
             targetSeconds: 36.223129,
             lastProgressOutTimeSeconds: 36.223129,
+            lastProgressSpeed: 1.75,
+            lastProgressUpdatedAtMs: 1712345678901,
+            progressEpoch: 3,
             lastProgressFrame: 12345,
             tmpOutputPath: "C:/tmp/seg0.mkv",
             segments: ["C:/tmp/seg0.mkv"],
@@ -89,6 +92,9 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.waitMetadata?.processedSeconds).toBeCloseTo(36.223129, 6);
     expect(result.jobs[0]?.waitMetadata?.targetSeconds).toBeCloseTo(36.223129, 6);
     expect(result.jobs[0]?.waitMetadata?.lastProgressOutTimeSeconds).toBeCloseTo(36.223129, 6);
+    expect(result.jobs[0]?.waitMetadata?.lastProgressSpeed).toBeCloseTo(1.75, 6);
+    expect(result.jobs[0]?.waitMetadata?.lastProgressUpdatedAtMs).toBe(1712345678901);
+    expect(result.jobs[0]?.waitMetadata?.progressEpoch).toBe(3);
     expect(result.jobs[0]?.waitMetadata?.lastProgressFrame).toBe(12345);
     expect(result.jobs[0]?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg0.mkv");
     expect(result.jobs[0]?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv"]);

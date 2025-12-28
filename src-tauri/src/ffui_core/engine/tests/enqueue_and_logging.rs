@@ -180,7 +180,7 @@ fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
         stored
             .logs
             .iter()
-            .any(|log| log.contains("Cancelled before start")),
+            .any(|log| log.text.contains("Cancelled before start")),
         "cancelled job should record explanatory log entry"
     );
     drop(state_lock);
@@ -230,19 +230,19 @@ fn log_external_command_stores_full_command_in_job_logs() {
         .expect("run should include the command log line");
 
     assert!(
-        last_log.contains("ffmpeg"),
+        last_log.text.contains("ffmpeg"),
         "log should mention the program name"
     );
     assert!(
-        last_log.contains("\"C:/Videos/input file.mp4\""),
+        last_log.text.contains("\"C:/Videos/input file.mp4\""),
         "log should quote arguments with spaces"
     );
     assert!(
-        last_log.contains("C:/Videos/output.tmp.mp4"),
+        last_log.text.contains("C:/Videos/output.tmp.mp4"),
         "log should include the output path"
     );
     assert!(
-        last_run_log.contains("\"C:/Videos/input file.mp4\""),
+        last_run_log.text.contains("\"C:/Videos/input file.mp4\""),
         "run log should quote arguments with spaces"
     );
 
@@ -299,7 +299,10 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
             processed_wall_millis: Some(1234),
             processed_seconds: Some(1.0),
             target_seconds: Some(1.0),
+            progress_epoch: None,
             last_progress_out_time_seconds: None,
+            last_progress_speed: None,
+            last_progress_updated_at_ms: None,
             last_progress_frame: None,
             tmp_output_path: None,
             segments: None,
@@ -348,7 +351,7 @@ fn log_external_command_creates_new_run_for_resume_without_overwriting_initial_c
         last_run
             .logs
             .iter()
-            .any(|l| l.contains("command:") && l.contains("-ss")),
+            .any(|l| l.text.contains("command:") && l.text.contains("-ss")),
         "resume run logs should include the executed command line"
     );
 

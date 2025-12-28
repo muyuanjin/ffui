@@ -23,6 +23,8 @@ fn make_manual_job(id: &str, status: JobStatus) -> TranscodeJob {
         log_head: None,
         skip_reason: None,
         input_path: Some(format!("C:/videos/{id}.mp4")),
+        created_time_ms: None,
+        modified_time_ms: None,
         output_path: Some(format!("C:/videos/{id}.compressed.mp4")),
         output_policy: None,
         ffmpeg_command: None,

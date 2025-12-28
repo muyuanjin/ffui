@@ -77,15 +77,45 @@ fn contains_legacy_waiting_status(data: &[u8]) -> bool {
             .any(|w| w == PATTERN_SPACED)
 }
 
+fn contains_queue_state_lite_marker(data: &[u8]) -> bool {
+    const PATTERN_CAMEL: &[u8] = br#""snapshotRevision""#;
+    const PATTERN_SNAKE: &[u8] = br#""snapshot_revision""#;
+    const PATTERN_FIRST_RUN: &[u8] = br#""firstRunCommand""#;
+    data.windows(PATTERN_CAMEL.len())
+        .any(|w| w == PATTERN_CAMEL)
+        || data
+            .windows(PATTERN_SNAKE.len())
+            .any(|w| w == PATTERN_SNAKE)
+        || data
+            .windows(PATTERN_FIRST_RUN.len())
+            .any(|w| w == PATTERN_FIRST_RUN)
+}
+
+fn contains_queue_state_full_marker(data: &[u8]) -> bool {
+    const PATTERN_LOGS: &[u8] = br#""logs""#;
+    const PATTERN_RUNS: &[u8] = br#""runs""#;
+    data.windows(PATTERN_LOGS.len()).any(|w| w == PATTERN_LOGS)
+        || data.windows(PATTERN_RUNS.len()).any(|w| w == PATTERN_RUNS)
+}
+
 fn decode_persisted_queue_state_bytes(data: &[u8]) -> Option<DecodedPersistedQueueState> {
     // Backward-compatibility: older versions persisted the full QueueState
     // including logs. Newer versions may persist QueueStateLite to avoid
     // heavy log cloning on hot paths.
-    if let Ok(full) = serde_json::from_slice::<QueueState>(data) {
+    if contains_queue_state_lite_marker(data) {
+        if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(data) {
+            return Some(DecodedPersistedQueueState::Lite(lite));
+        }
+    } else if contains_queue_state_full_marker(data)
+        && let Ok(full) = serde_json::from_slice::<QueueState>(data)
+    {
         return Some(DecodedPersistedQueueState::Full(full));
     }
     if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(data) {
         return Some(DecodedPersistedQueueState::Lite(lite));
+    }
+    if let Ok(full) = serde_json::from_slice::<QueueState>(data) {
+        return Some(DecodedPersistedQueueState::Full(full));
     }
     None
 }

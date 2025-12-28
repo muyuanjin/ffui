@@ -1,6 +1,11 @@
 use std::fs;
 use std::path::Path;
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(unix)]
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub(crate) struct FileTimesSnapshot {
@@ -11,7 +16,10 @@ pub(crate) struct FileTimesSnapshot {
 
 pub(crate) fn read_file_times(path: &Path) -> FileTimesSnapshot {
     let meta = fs::metadata(path).ok();
-    let created = meta.as_ref().and_then(|m| m.created().ok());
+    let created = meta
+        .as_ref()
+        .and_then(|m| m.created().ok())
+        .or_else(|| meta.as_ref().and_then(created_from_ctime));
     let accessed = meta.as_ref().and_then(|m| m.accessed().ok());
     let modified = meta.as_ref().and_then(|m| m.modified().ok());
     FileTimesSnapshot {
@@ -19,6 +27,36 @@ pub(crate) fn read_file_times(path: &Path) -> FileTimesSnapshot {
         accessed,
         modified,
     }
+}
+
+pub(crate) fn system_time_to_epoch_ms(value: SystemTime) -> Option<u64> {
+    let d = value.duration_since(UNIX_EPOCH).ok()?;
+    u64::try_from(d.as_millis()).ok()
+}
+
+#[cfg(not(unix))]
+fn created_from_ctime(_meta: &fs::Metadata) -> Option<SystemTime> {
+    None
+}
+
+#[cfg(unix)]
+fn created_from_ctime(meta: &fs::Metadata) -> Option<SystemTime> {
+    // Linux typically does not expose file birth time via `Metadata::created()`.
+    // Use inode change time (ctime) as a best-effort proxy so "createdTime" sorting
+    // remains meaningful across platforms.
+    let secs = meta.ctime();
+    if secs < 0 {
+        return None;
+    }
+    let nsec_raw = meta.ctime_nsec();
+    let nsec = if nsec_raw <= 0 {
+        0u32
+    } else if nsec_raw >= 1_000_000_000 {
+        999_999_999u32
+    } else {
+        u32::try_from(nsec_raw).ok()?
+    };
+    Some(UNIX_EPOCH + Duration::new(secs as u64, nsec))
 }
 
 pub(crate) fn apply_file_times(path: &Path, times: &FileTimesSnapshot) -> Result<(), String> {

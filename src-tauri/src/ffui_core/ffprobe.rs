@@ -3,6 +3,10 @@ use std::process::Command;
 
 use anyhow::{Context, Result};
 
+use super::preview_common::configure_background_command;
+use super::settings::ExternalToolSettings;
+use super::tools::{ExternalToolKind, ensure_tool_available};
+
 fn truncate_for_error(s: &str, max_chars: usize) -> String {
     if max_chars == 0 {
         return String::new();
@@ -91,6 +95,18 @@ pub(crate) fn ffprobe_format_duration_seconds(
     }
 
     parse_ffprobe_format_duration_seconds(source, &output.stdout, &output.stderr)
+}
+
+pub(crate) fn probe_video_duration_seconds_best_effort(
+    source: &Path,
+    tools: &ExternalToolSettings,
+) -> Result<f64> {
+    let (ffprobe_path, _, _) = ensure_tool_available(ExternalToolKind::Ffprobe, tools)?;
+    ffprobe_format_duration_seconds(
+        Path::new(&ffprobe_path),
+        source,
+        configure_background_command,
+    )
 }
 
 #[cfg(test)]

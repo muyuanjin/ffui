@@ -8,7 +8,16 @@ pub use preset::*;
 
 // Job and queue types
 mod job;
-pub use job::*;
+pub use job::{
+    JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo, QueueState, TranscodeJob,
+    WaitMetadata,
+};
+
+mod job_lite;
+pub use job_lite::*;
+
+mod job_logs;
+pub use job_logs::*;
 
 mod queue_startup_hint;
 pub use queue_startup_hint::*;

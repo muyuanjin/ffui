@@ -380,8 +380,6 @@ export function useMainAppSetup() {
   };
 
   const mainApp = {
-    jobs,
-    queueError,
     lastDroppedRoot,
     presets,
     presetsLoadedFromBackend,
@@ -396,6 +394,9 @@ export function useMainAppSetup() {
     ...media,
     ...preview,
     ...dnd,
+    // Keep these refs stable even if downstream composables expose similarly named keys.
+    jobs,
+    queueError,
     currentTitle,
     currentSubtitle,
     selectedJobForDetail,

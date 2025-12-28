@@ -79,6 +79,14 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         start_time,
     } = spec;
 
+    let input_times = super::super::file_times::read_file_times(Path::new(&input_path));
+    let created_time_ms = input_times
+        .created
+        .and_then(super::super::file_times::system_time_to_epoch_ms);
+    let modified_time_ms = input_times
+        .modified
+        .and_then(super::super::file_times::system_time_to_epoch_ms);
+
     TranscodeJob {
         id: job_id,
         filename,
@@ -99,6 +107,8 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         log_head: None,
         skip_reason: None,
         input_path: Some(input_path),
+        created_time_ms,
+        modified_time_ms,
         output_path: None,
         output_policy: Some(output_policy),
         ffmpeg_command: None,

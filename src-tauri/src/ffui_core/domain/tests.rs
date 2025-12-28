@@ -24,10 +24,15 @@ mod domain_contract_tests {
             processing_started_ms: Some(10),
             elapsed_ms: Some(12345),
             output_size_mb: Some(45.0),
-            logs: vec!["line-1".to_string()],
+            logs: vec![JobLogLine {
+                text: "line-1".to_string(),
+                at_ms: Some(123),
+            }],
             log_head: None,
             skip_reason: None,
             input_path: Some("C:/videos/input.mp4".to_string()),
+            created_time_ms: Some(111),
+            modified_time_ms: Some(222),
             output_path: Some("C:/videos/output.mp4".to_string()),
             output_policy: None,
             ffmpeg_command: Some(
@@ -36,7 +41,10 @@ mod domain_contract_tests {
             runs: vec![JobRun {
                 command: "ffmpeg -i \"C:/videos/input.mp4\" -c:v libx264 -crf 23 OUTPUT"
                     .to_string(),
-                logs: vec!["line-1".to_string()],
+                logs: vec![JobLogLine {
+                    text: "line-1".to_string(),
+                    at_ms: Some(123),
+                }],
                 started_at_ms: Some(123),
             }],
             media_info: Some(MediaInfo {
@@ -60,7 +68,10 @@ mod domain_contract_tests {
                 processed_wall_millis: Some(3210),
                 processed_seconds: Some(12.5),
                 target_seconds: Some(12.5),
+                progress_epoch: None,
                 last_progress_out_time_seconds: Some(12.345_678),
+                last_progress_speed: None,
+                last_progress_updated_at_ms: None,
                 last_progress_frame: Some(4242),
                 tmp_output_path: Some("C:/app-data/tmp/seg1.mp4".to_string()),
                 segments: Some(vec!["C:/app-data/tmp/seg1.mp4".to_string()]),
@@ -88,6 +99,20 @@ mod domain_contract_tests {
                 .and_then(Value::as_str)
                 .expect("inputPath present"),
             "C:/videos/input.mp4"
+        );
+        assert_eq!(
+            value
+                .get("createdTimeMs")
+                .and_then(Value::as_u64)
+                .expect("createdTimeMs present"),
+            111
+        );
+        assert_eq!(
+            value
+                .get("modifiedTimeMs")
+                .and_then(Value::as_u64)
+                .expect("modifiedTimeMs present"),
+            222
         );
         assert_eq!(
             value
@@ -285,7 +310,19 @@ mod domain_contract_tests {
         decoded.ensure_run_history_from_legacy();
         assert_eq!(decoded.runs.len(), 1);
         assert_eq!(decoded.runs[0].command, "ffmpeg -i in out");
-        assert_eq!(decoded.runs[0].logs, vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(
+            decoded.runs[0].logs,
+            vec![
+                JobLogLine {
+                    text: "a".to_string(),
+                    at_ms: None,
+                },
+                JobLogLine {
+                    text: "b".to_string(),
+                    at_ms: None,
+                },
+            ]
+        );
     }
 
     #[test]
@@ -352,6 +389,8 @@ mod domain_contract_tests {
             log_head: None,
             skip_reason: None,
             input_path: Some("C:/videos/input.mp4".to_string()),
+            created_time_ms: None,
+            modified_time_ms: None,
             output_path: Some("C:/videos/output.mp4".to_string()),
             output_policy: None,
             ffmpeg_command: None,

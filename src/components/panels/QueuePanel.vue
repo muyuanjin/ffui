@@ -369,13 +369,25 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
               :data-queue-flip-key="getQueueVirtualRowKey(row)"
             >
               <template v-if="row.type === 'header'">
-                <div :class="[index === 0 ? '' : 'pt-4', 'flex items-center justify-between px-1']">
-                  <span class="text-xs font-semibold text-muted-foreground uppercase">
-                    {{ row.label }}
-                  </span>
-                  <span class="text-[11px] text-muted-foreground">
-                    {{ row.count }}
-                  </span>
+                <div :class="[index === 0 ? '' : 'pt-4', 'px-1']">
+                  <div class="relative flex items-center justify-center h-6">
+                    <div
+                      class="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-border opacity-80"
+                      aria-hidden="true"
+                    />
+                    <div class="relative max-w-[70%] bg-background px-3 text-center">
+                      <span
+                        class="text-xs font-semibold text-muted-foreground uppercase leading-none whitespace-nowrap"
+                      >
+                        {{ row.label }}
+                      </span>
+                    </div>
+                    <div
+                      class="absolute right-0 top-1/2 -translate-y-1/2 bg-background pl-2 pr-1 text-[11px] text-muted-foreground tabular-nums"
+                    >
+                      {{ row.count }}
+                    </div>
+                  </div>
                 </div>
               </template>
 

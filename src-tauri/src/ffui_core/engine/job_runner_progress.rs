@@ -4,7 +4,7 @@
 
 use super::transcode_activity;
 use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
-use super::worker_utils::append_job_log_line;
+use super::worker_utils::{append_job_log_line, should_record_job_log_line};
 use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
 
 const PROGRESS_PERSIST_MIN_INTERVAL_MS: u64 = 1000;
@@ -13,11 +13,14 @@ pub(super) fn update_job_progress(
     inner: &Inner,
     job_id: &str,
     percent: Option<f64>,
+    progress_out_time_seconds: Option<f64>,
+    progress_frame: Option<u64>,
     log_line: Option<&str>,
-    _speed: Option<f64>,
+    speed: Option<f64>,
 ) {
     let mut should_notify = false;
     let mut progress_changed = false;
+    let mut telemetry_changed = false;
     let mut should_record_activity = false;
     let now_ms = current_time_millis();
     let mut delta_to_emit: Option<QueueStateLiteDelta> = None;
@@ -47,6 +50,51 @@ pub(super) fn update_job_progress(
                 job.elapsed_ms = Some(previous_wall_ms + current_segment_ms);
             }
 
+            if job.status == JobStatus::Processing {
+                if let Some(out_time) = progress_out_time_seconds
+                    && out_time.is_finite()
+                    && out_time >= 0.0
+                    && let Some(meta) = job.wait_metadata.as_mut()
+                {
+                    let changed = meta
+                        .last_progress_out_time_seconds
+                        .is_none_or(|prev| (prev - out_time).abs() > 0.000_001);
+                    if changed {
+                        meta.last_progress_out_time_seconds = Some(out_time);
+                        meta.last_progress_updated_at_ms = Some(now_ms);
+                        telemetry_changed = true;
+                    } else if meta.last_progress_updated_at_ms.is_none() {
+                        meta.last_progress_updated_at_ms = Some(now_ms);
+                        telemetry_changed = true;
+                    }
+
+                    if let Some(v) = speed
+                        && v.is_finite()
+                        && v > 0.0
+                    {
+                        let changed = meta
+                            .last_progress_speed
+                            .is_none_or(|prev| (prev - v).abs() > 0.000_001);
+                        if changed {
+                            meta.last_progress_speed = Some(v);
+                            meta.last_progress_updated_at_ms = Some(now_ms);
+                            telemetry_changed = true;
+                        }
+                    }
+                }
+
+                if let Some(frame) = progress_frame
+                    && let Some(meta) = job.wait_metadata.as_mut()
+                {
+                    let changed = meta
+                        .last_progress_frame
+                        .is_none_or(|prev| prev != frame);
+                    if changed {
+                        meta.last_progress_frame = Some(frame);
+                    }
+                }
+            }
+
             if let Some(p) = percent {
                 let clamped = p.clamp(0.0, 100.0);
                 if clamped > job.progress {
@@ -70,7 +118,7 @@ pub(super) fn update_job_progress(
                 }
             }
 
-            if let Some(line) = log_line && !line.trim().is_empty() {
+            if let Some(line) = log_line && should_record_job_log_line(line) {
                 append_job_log_line(job, line.to_string());
             }
 
@@ -84,10 +132,28 @@ pub(super) fn update_job_progress(
                 }
             }
 
+            if telemetry_changed {
+                should_notify = true;
+            }
+
             if should_notify {
+                let (progress_out_time_seconds, progress_speed, progress_updated_at_ms, progress_epoch) =
+                    job.wait_metadata.as_ref().map_or((None, None, None, None), |m| {
+                        (
+                            m.last_progress_out_time_seconds,
+                            m.last_progress_speed,
+                            m.last_progress_updated_at_ms,
+                            m.progress_epoch,
+                        )
+                    });
                 pending_patch = Some(TranscodeJobLiteDeltaPatch {
                     id: job.id.clone(),
+                    status: Some(job.status),
                     progress: progress_changed.then_some(job.progress),
+                    progress_out_time_seconds,
+                    progress_speed,
+                    progress_updated_at_ms,
+                    progress_epoch,
                     elapsed_ms: progress_changed.then_some(job.elapsed_ms).flatten(),
                     preview_path: None,
                     preview_revision: None,

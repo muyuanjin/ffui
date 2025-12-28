@@ -216,6 +216,19 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     }
     await nextTick();
 
+    const confirmOpen = vm.queueDeleteConfirmOpen ?? vm.queueDeleteConfirmOpen?.value;
+    expect(confirmOpen).toBe(true);
+    expect(
+      invokeMock.mock.calls.some(
+        ([cmd]) => cmd === "delete_transcode_jobs_bulk" || cmd === "delete_batch_compress_batches_bulk",
+      ),
+    ).toBe(false);
+
+    if (typeof vm.confirmQueueDeleteTerminalOnly === "function") {
+      await vm.confirmQueueDeleteTerminalOnly();
+    }
+    await nextTick();
+
     const batchDeleteCalls = invokeMock.mock.calls.filter(([cmd]) => cmd === "delete_batch_compress_batches_bulk");
     expect(batchDeleteCalls.length).toBe(1);
 
@@ -229,7 +242,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     expect(error).toBe(expected);
 
     const selected = vm.selectedJobIds instanceof Set ? vm.selectedJobIds : vm.selectedJobIds?.value;
-    expect(selected?.size ?? 0).toBe(0);
+    expect(selected).toEqual(new Set(["blocked-processing"]));
 
     wrapper.unmount();
   });

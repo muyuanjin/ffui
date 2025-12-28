@@ -8,7 +8,7 @@ import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
 
 describe("MainApp global alerts", () => {
-  it("surfaces queue deletion warnings as an overlay (without inserting a new layout row)", async () => {
+  it("does not surface a global error when delete requires confirmation", async () => {
     const jobs: TranscodeJob[] = [
       {
         id: "job-processing",
@@ -53,25 +53,13 @@ describe("MainApp global alerts", () => {
     }
     await nextTick();
 
-    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
-    const queueError = (vm.queueError ?? vm.queueError?.value) as string | null;
-    expect(queueError).toBe(expected);
+    const queueError = (vm.queueError ?? vm.queueError?.value) as string | null | undefined;
+    expect(queueError == null).toBe(true);
 
-    const globalAlerts = wrapper.get("[data-testid='global-alerts']");
-    expect(globalAlerts.text()).toContain(expected);
-    expect(globalAlerts.classes()).toContain("h-0");
-
-    const expectedTitle = i18n.global.t("app.tabs.queue");
-    expect(globalAlerts.get("[data-testid='global-alert-title-queue']").text()).toBe(expectedTitle);
-    expect(globalAlerts.get("[data-testid='global-alert-dismiss-queue']").attributes("data-alert-close")).toBeDefined();
-
-    // The global alert bar must not render inside the scrollable queue panel.
-    expect(wrapper.find("[data-testid='queue-panel'] [data-testid='global-alerts']").exists()).toBe(false);
-
-    // Dismissing the alert clears the error state.
-    await globalAlerts.get("[data-testid='global-alert-dismiss-queue']").trigger("click");
-    await nextTick();
     expect(wrapper.find("[data-testid='global-alerts']").exists()).toBe(false);
+
+    const confirmOpen = vm.queueDeleteConfirmOpen ?? vm.queueDeleteConfirmOpen?.value;
+    expect(confirmOpen).toBe(true);
 
     wrapper.unmount();
   });

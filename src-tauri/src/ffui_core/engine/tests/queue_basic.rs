@@ -347,6 +347,8 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 log_head: None,
                 skip_reason: None,
                 input_path: Some(input_path.to_string_lossy().into_owned()),
+                created_time_ms: None,
+                modified_time_ms: None,
                 output_path: None,
                 output_policy: None,
                 ffmpeg_command: None,

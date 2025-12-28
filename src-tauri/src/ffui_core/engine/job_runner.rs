@@ -21,9 +21,7 @@ use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,
 };
 use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, WaitMetadata};
-use crate::ffui_core::settings::{
-    DEFAULT_PROGRESS_UPDATE_INTERVAL_MS, DownloadedToolInfo, DownloadedToolState,
-};
+use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
 use crate::ffui_core::tools::{
     ExternalToolKind, ensure_tool_available, last_tool_download_metadata,
 };

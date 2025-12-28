@@ -91,22 +91,28 @@ fn derive_resume_concat_segment_durations(
 }
 
 fn maybe_inject_stats_period_for_download(
+    inner: &Inner,
     cmd: &mut Command,
     args: &mut Vec<String>,
     settings_snapshot: &AppSettings,
+    ffmpeg_path: &str,
     ffmpeg_source: &str,
 ) {
-    // Increase structured progress update frequency for the bundled ffmpeg
-    // binary so `job.progress` has a higher reporting rate without inventing
-    // synthetic percentages. Old custom ffmpeg builds may not support this
-    // flag, so we only apply it for the known static download source.
-    if ffmpeg_source != "download" {
+    // Increase structured progress update frequency via `-stats_period` so
+    // `job.progress` has a higher reporting rate without inventing synthetic
+    // percentages. Some old custom ffmpeg builds may not support this flag, so
+    // we only inject it when supported.
+    if args.iter().any(|a| a == "-stats_period") {
+        return;
+    }
+
+    if !ffmpeg_supports_stats_period(inner, ffmpeg_path, ffmpeg_source) {
         return;
     }
 
     let interval_ms = settings_snapshot
         .progress_update_interval_ms
-        .unwrap_or(DEFAULT_PROGRESS_UPDATE_INTERVAL_MS);
+        .unwrap_or(crate::ffui_core::settings::DEFAULT_PROGRESS_UPDATE_INTERVAL_MS);
     // Clamp into a sensible range [50ms, 2000ms] to avoid extreme values.
     let clamped_ms = f64::from(interval_ms.clamp(50, 2000));
     let stats_period_secs = clamped_ms / 1000.0;
@@ -115,6 +121,40 @@ fn maybe_inject_stats_period_for_download(
     // 确保日志中记录的命令与实际执行的命令完全一致：包括 -stats_period 参数。
     args.insert(0, stats_arg);
     args.insert(0, "-stats_period".to_string());
+}
+
+fn ffmpeg_supports_stats_period(inner: &Inner, ffmpeg_path: &str, ffmpeg_source: &str) -> bool {
+    if ffmpeg_source == "download" {
+        return true;
+    }
+
+    {
+        let state = inner.state.lock_unpoisoned();
+        if let Some(cached) = state.ffmpeg_supports_stats_period.get(ffmpeg_path).copied() {
+            return cached;
+        }
+    }
+
+    let supported = probe_ffmpeg_supports_stats_period(ffmpeg_path);
+    let mut state = inner.state.lock_unpoisoned();
+    state
+        .ffmpeg_supports_stats_period
+        .insert(ffmpeg_path.to_string(), supported);
+    supported
+}
+
+fn probe_ffmpeg_supports_stats_period(ffmpeg_path: &str) -> bool {
+    // Best-effort probe. If anything fails, fall back to "not supported" so we
+    // never break execution on custom/old binaries.
+    let mut cmd = Command::new(ffmpeg_path);
+    cmd.arg("-hide_banner").arg("-h");
+    let output = cmd.output().ok();
+    let Some(output) = output else {
+        return false;
+    };
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    stdout.contains("stats_period") || stderr.contains("stats_period")
 }
 
 fn send_ffmpeg_quit(stdin: &mut Option<std::process::ChildStdin>) {
@@ -194,6 +234,38 @@ impl PauseLatencyDebug {
 
     #[cfg(not(debug_assertions))]
     fn emit_pause_summary(&self, _inner: &Inner, _job_id: &str) {}
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[cfg(unix)]
+    fn write_executable(path: &std::path::Path, content: &str) {
+        use std::os::unix::fs::PermissionsExt;
+        fs::write(path, content).expect("write fake ffmpeg");
+        let mut perms = fs::metadata(path).expect("stat fake ffmpeg").permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms).expect("chmod fake ffmpeg");
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn probe_ffmpeg_supports_stats_period_detects_flag_in_help() {
+        let dir = std::env::temp_dir().join("ffui_test_stats_period_probe");
+        let _ = fs::create_dir_all(&dir);
+        let exe = dir.join("fake-ffmpeg.sh");
+        write_executable(
+            &exe,
+            "#!/bin/sh\n\necho \"  -stats_period duration   set the period\"\nexit 0\n",
+        );
+
+        assert!(
+            probe_ffmpeg_supports_stats_period(exe.to_string_lossy().as_ref()),
+            "probe should detect stats_period in help output"
+        );
+    }
 }
 
 struct FfmpegStderrPump {

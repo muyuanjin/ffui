@@ -69,7 +69,14 @@ fn execute_transcode_job(
     maybe_insert_copyts_for_overlap_trim(&mut args, resume_plan);
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
-    maybe_inject_stats_period_for_download(&mut cmd, &mut args, &settings_snapshot, &ffmpeg_source);
+    maybe_inject_stats_period_for_download(
+        inner,
+        &mut cmd,
+        &mut args,
+        &settings_snapshot,
+        &ffmpeg_path,
+        &ffmpeg_source,
+    );
     // Record the exact ffmpeg command we are about to run so that users can
     // see and reproduce it from the queue UI if anything goes wrong.
     let ffmpeg_program_for_log = ffmpeg_path.clone();
@@ -168,44 +175,21 @@ fn execute_transcode_job(
                 last_effective_elapsed_seconds = Some(effective_elapsed);
             }
 
-            if sample.frame.is_some() || last_effective_elapsed_seconds.is_some() {
-                let mut state = inner.state.lock_unpoisoned();
-                if let Some(job) = state.jobs.get_mut(job_id)
-                    && let Some(meta) = job.wait_metadata.as_mut()
-                {
-                    if let Some(seconds) = last_effective_elapsed_seconds {
-                        meta.last_progress_out_time_seconds = Some(seconds);
-                    }
-                    if let Some(frame) = sample.frame {
-                        meta.last_progress_frame = Some(frame);
-                    }
-                }
-            }
-
             if wait_requested {
-                update_job_progress(inner, job_id, None, Some(line), speed);
+                update_job_progress(inner, job_id, None, Some(effective_elapsed), sample.frame, Some(line), speed);
             } else {
                 let mut percent = compute_progress_percent(total_duration, effective_elapsed);
                 if percent >= 100.0 {
                     percent = 99.9;
                 }
-                update_job_progress(inner, job_id, Some(percent), Some(line), speed);
+                update_job_progress(inner, job_id, Some(percent), Some(effective_elapsed), sample.frame, Some(line), speed);
             }
         } else {
-            if sample.frame.is_some() {
-                let mut state = inner.state.lock_unpoisoned();
-                if let Some(job) = state.jobs.get_mut(job_id)
-                    && let Some(meta) = job.wait_metadata.as_mut()
-                    && let Some(frame) = sample.frame
-                {
-                    meta.last_progress_frame = Some(frame);
-                }
-            }
-            update_job_progress(inner, job_id, None, Some(line), None);
+            update_job_progress(inner, job_id, None, None, sample.frame, Some(line), None);
         }
 
         if !wait_requested && is_ffmpeg_progress_end(line) {
-            update_job_progress(inner, job_id, Some(100.0), Some(line), None);
+            update_job_progress(inner, job_id, Some(100.0), last_effective_elapsed_seconds, None, Some(line), None);
         }
     };
 

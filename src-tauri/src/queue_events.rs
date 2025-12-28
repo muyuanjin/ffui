@@ -254,7 +254,12 @@ mod tests {
             delta_revision,
             patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
                 id: job_id.to_string(),
+                status: None,
                 progress: Some(progress),
+                progress_out_time_seconds: None,
+                progress_speed: None,
+                progress_updated_at_ms: None,
+                progress_epoch: None,
                 elapsed_ms: None,
                 preview_path: None,
                 preview_revision: None,

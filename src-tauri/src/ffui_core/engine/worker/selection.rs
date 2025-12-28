@@ -1,6 +1,7 @@
 use super::super::state::EngineState;
 use super::super::worker_utils::current_time_millis;
 use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob, WaitMetadata};
+use crate::ffui_core::engine::ffmpeg_args::compute_progress_percent;
 use crate::ffui_core::settings::TranscodeParallelismMode;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,11 +70,49 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         state.active_jobs.insert(job_id.clone());
         state.active_inputs.insert(job.filename.clone());
         job.status = JobStatus::Processing;
+        let now_ms = current_time_millis();
         if job.start_time.is_none() {
-            job.start_time = Some(current_time_millis());
+            job.start_time = Some(now_ms);
         }
         // 记录实际进入 Processing 的时间，用于计算纯处理耗时（不含排队）。
-        job.processing_started_ms = Some(current_time_millis());
+        job.processing_started_ms = Some(now_ms);
+
+        // Progress epoch: each ffmpeg invocation (including resume) starts a new
+        // monotonic progress run. This lets the frontend animate real rollbacks
+        // (e.g. conservative overlap on resume) without "teleporting".
+        if let Some(meta) = job.wait_metadata.as_mut() {
+            let next_epoch = meta.progress_epoch.unwrap_or(0).saturating_add(1);
+            meta.progress_epoch = Some(next_epoch);
+
+            let baseline_out_time_seconds = meta
+                .target_seconds
+                .or(meta.processed_seconds)
+                .or(meta.last_progress_out_time_seconds)
+                .unwrap_or(0.0);
+            if baseline_out_time_seconds.is_finite() && baseline_out_time_seconds >= 0.0 {
+                meta.last_progress_out_time_seconds = Some(baseline_out_time_seconds);
+                meta.last_progress_speed = None;
+                meta.last_progress_updated_at_ms = Some(now_ms);
+
+                if let Some(total) = job.media_info.as_ref().and_then(|m| m.duration_seconds)
+                    && total.is_finite()
+                    && total > 0.0
+                {
+                    let mut baseline_progress =
+                        compute_progress_percent(Some(total), baseline_out_time_seconds);
+                    if baseline_progress >= 100.0 {
+                        baseline_progress = 99.9;
+                    }
+                    if baseline_progress.is_finite()
+                        && (!job.progress.is_finite()
+                            || (job.progress - baseline_progress).abs() > 0.05)
+                    {
+                        job.progress = baseline_progress;
+                    }
+                }
+            }
+        }
+
         // For fresh jobs we start from 0%, but for resumed jobs that already
         // have meaningful progress and wait metadata we keep the existing
         // percentage so the UI does not jump backwards when continuing from
@@ -89,7 +128,10 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
                 processed_wall_millis: job.elapsed_ms,
                 processed_seconds: None,
                 target_seconds: None,
+                progress_epoch: Some(1),
                 last_progress_out_time_seconds: None,
+                last_progress_speed: None,
+                last_progress_updated_at_ms: None,
                 last_progress_frame: None,
                 tmp_output_path: None,
                 segments: None,

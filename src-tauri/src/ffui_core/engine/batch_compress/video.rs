@@ -17,8 +17,8 @@ use super::helpers::{
 use super::video_helpers::{detect_video_codec, estimate_job_seconds_for_preset};
 use super::video_paths::{build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path};
 use crate::ffui_core::domain::{
-    BatchCompressConfig, FFmpegPreset, JobRun, JobStatus, JobType, OutputDirectoryPolicy,
-    OutputFilenamePolicy, OutputPolicy, TranscodeJob,
+    BatchCompressConfig, FFmpegPreset, JobLogLine, JobRun, JobStatus, JobType,
+    OutputDirectoryPolicy, OutputFilenamePolicy, OutputPolicy, TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
@@ -51,9 +51,13 @@ pub(crate) fn handle_video_file(
         });
     let output_path = output_plan.output_path.to_string_lossy().into_owned();
     let warnings = output_plan.warnings;
-    let mut logs: Vec<String> = Vec::new();
+    let mut logs: Vec<JobLogLine> = Vec::new();
+    let warning_at_ms = current_time_millis();
     for w in &warnings {
-        logs.push(format!("warning: {}", w.message));
+        logs.push(JobLogLine {
+            text: format!("warning: {}", w.message),
+            at_ms: Some(warning_at_ms),
+        });
     }
     let runs = if logs.is_empty() {
         Vec::new()

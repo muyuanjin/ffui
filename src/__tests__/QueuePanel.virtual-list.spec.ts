@@ -226,6 +226,19 @@ describe("QueuePanel virtual list wiring", () => {
 
     expect(wrapper.text()).toContain(t("queue.groups.processing"));
     expect(wrapper.text()).toContain(t("queue.groups.waiting"));
+
+    const processingHeader = wrapper.find("[data-queue-flip-key='group:processing']");
+    expect(processingHeader.exists()).toBe(true);
+    expect(processingHeader.text()).toContain("2");
+    const processingDivider = processingHeader.element.querySelector("[aria-hidden='true']") as HTMLElement | null;
+    expect(processingDivider?.className).toContain("border-t");
+
+    const waitingHeader = wrapper.find("[data-queue-flip-key='group:waiting']");
+    expect(waitingHeader.exists()).toBe(true);
+    expect(waitingHeader.text()).toContain("200");
+    const waitingDivider = waitingHeader.element.querySelector("[aria-hidden='true']") as HTMLElement | null;
+    expect(waitingDivider?.className).toContain("border-t");
+
     expect(wrapper.findAll("[data-testid='queue-item-stub']").length).toBeGreaterThan(0);
     expect(wrapper.findAll("[data-testid='queue-item-stub']").length).toBeLessThanOrEqual(MAX_RENDERED_ROWS_FOR_TEST);
   });

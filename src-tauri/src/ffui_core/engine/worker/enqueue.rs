@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -8,7 +8,7 @@ use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
 use crate::ffui_core::domain::{
-    JobSource, JobStatus, JobType, MediaInfo, OutputPolicy, TranscodeJob,
+    JobLogLine, JobSource, JobStatus, JobType, MediaInfo, OutputPolicy, TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 
@@ -53,6 +53,14 @@ fn enqueue_transcode_job_no_notify(
     let computed_original_size_mb = fs::metadata(&normalized_filename)
         .map(|m| m.len() as f64 / (1024.0 * 1024.0))
         .unwrap_or(original_size_mb);
+
+    let input_times = super::super::file_times::read_file_times(Path::new(&normalized_filename));
+    let created_time_ms = input_times
+        .created
+        .and_then(super::super::file_times::system_time_to_epoch_ms);
+    let modified_time_ms = input_times
+        .modified
+        .and_then(super::super::file_times::system_time_to_epoch_ms);
 
     let codec_for_job = original_codec.clone();
 
@@ -102,9 +110,12 @@ fn enqueue_transcode_job_no_notify(
             None
         };
 
-        let mut logs: Vec<String> = Vec::new();
+        let mut logs: Vec<JobLogLine> = Vec::new();
         for w in &warnings {
-            logs.push(format!("warning: {}", w.message));
+            logs.push(JobLogLine {
+                text: format!("warning: {}", w.message),
+                at_ms: Some(now_ms),
+            });
         }
 
         let job = TranscodeJob {
@@ -127,6 +138,8 @@ fn enqueue_transcode_job_no_notify(
             log_head: None,
             skip_reason: None,
             input_path: Some(input_path),
+            created_time_ms,
+            modified_time_ms,
             output_path,
             output_policy: Some(queue_output_policy),
             ffmpeg_command: planned_command,

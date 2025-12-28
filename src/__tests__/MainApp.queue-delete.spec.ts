@@ -15,7 +15,7 @@ import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
 
 describe("MainApp queue delete behaviour", () => {
-  it("does not call backend delete for non-terminal jobs and surfaces an error", async () => {
+  it("opens a confirm dialog for non-terminal jobs instead of failing deletion", async () => {
     const jobs: TranscodeJob[] = [
       {
         id: "job-processing",
@@ -65,8 +65,16 @@ describe("MainApp queue delete behaviour", () => {
     // No delete_transcode_job call should have been issued.
     expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_jobs_bulk")).toBe(false);
 
-    // An error message should be surfaced to guide the user.
-    expect(vm.queueError ?? vm.queueError?.value).toBeTruthy();
+    const confirmOpen = vm.queueDeleteConfirmOpen ?? vm.queueDeleteConfirmOpen?.value;
+    expect(confirmOpen).toBe(true);
+
+    // No error banner should be surfaced until the user picks an action.
+    const queueError = vm.queueError ?? vm.queueError?.value;
+    expect(queueError == null).toBe(true);
+
+    if (typeof vm.cancelQueueDeleteConfirm === "function") {
+      vm.cancelQueueDeleteConfirm();
+    }
 
     wrapper.unmount();
   });
@@ -138,6 +146,15 @@ describe("MainApp queue delete behaviour", () => {
     }
     await nextTick();
 
+    const confirmOpen = vm.queueDeleteConfirmOpen ?? vm.queueDeleteConfirmOpen?.value;
+    expect(confirmOpen).toBe(true);
+    expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_jobs_bulk")).toBe(false);
+
+    if (typeof vm.confirmQueueDeleteTerminalOnly === "function") {
+      await vm.confirmQueueDeleteTerminalOnly();
+    }
+    await nextTick();
+
     // The backend delete command should be called only for the completed job.
     expect(invokeMock.mock.calls.some(([cmd]) => cmd === "delete_transcode_jobs_bulk")).toBe(true);
     expect(deletedIds).toContain("job-completed");
@@ -149,11 +166,8 @@ describe("MainApp queue delete behaviour", () => {
     expect(remainingIds).toContain("job-processing");
     expect(remainingIds).not.toContain("job-completed");
 
-    // When some selected jobs are still active,已经完成的任务会被删除，
-    // 但应提示用户“正在运行或排队中的任务不能直接从列表删除”而不是“部分任务删除失败”。
     const error = vm.queueError ?? vm.queueError?.value ?? null;
-    const expected = i18n.global.t("queue.error.deleteActiveNotAllowed");
-    expect(error).toBe(expected);
+    expect(error).toBeNull();
 
     wrapper.unmount();
   });

@@ -340,7 +340,12 @@ export const enqueueTranscodeJobs = async (params: {
 
 export type { FallbackFrameQuality } from "./backend/fallbackPreview";
 export { cleanupFallbackPreviewFramesAsync, extractFallbackPreviewFrame } from "./backend/fallbackPreview";
-export { getJobCompareSources, extractJobCompareFrame, extractJobCompareConcatFrame } from "./backend/jobCompare";
+export {
+  getJobCompareSources,
+  extractJobCompareFrame,
+  extractJobCompareOutputFrame,
+  extractJobCompareConcatFrame,
+} from "./backend/jobCompare";
 export { cleanupPreviewCachesAsync } from "./backend/previewCache";
 
 export const inspectMedia = async (path: string): Promise<string> => {

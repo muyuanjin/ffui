@@ -167,6 +167,17 @@ const queue = {
     bulkDelete: "从列表中删除",
     bulkDeleteShort: "移除",
   },
+  dialogs: {
+    deleteMixed: {
+      title: "从列表中删除",
+      description: "选中 {selected} 项，其中 {active} 项仍处于排队/暂停/处理中，不能直接删除。请选择操作：",
+      selected: "已选中",
+      active: "非终态",
+      terminal: "终态",
+      cancelAndDelete: "取消任务后删除",
+      deleteTerminalOnly: "只删除终态任务",
+    },
+  },
   feedback: {
     report: {
       title: "批量操作报告",

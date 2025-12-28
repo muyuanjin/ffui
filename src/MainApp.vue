@@ -19,7 +19,6 @@ import { useLocalePersistence } from "@/composables/main-app/useLocalePersistenc
 import { useQueueBlankClickClearSelection } from "@/composables/main-app/useQueueBlankClickClearSelection";
 const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
 const {
-  // Shell / 标题栏与侧边栏
   activeTab,
   minimizeWindow,
   toggleMaximizeWindow,
@@ -29,7 +28,6 @@ const {
   presets,
   currentTitle,
   currentSubtitle,
-  // 队列过滤与排序
   activeStatusFilters,
   activeTypeFilters,
   filterText,
@@ -53,7 +51,6 @@ const {
   selectAllVisibleJobs,
   invertSelection,
   clearSelection,
-  // 队列视图与操作
   queueViewModeModel,
   queuePanelProps,
   queueError,
@@ -87,7 +84,6 @@ const {
   inspectedRawJson,
   openMediaFileDialog,
   clearInspectedMedia,
-  // 设置与外部工具
   appSettings,
   toolStatuses,
   toolStatusesFresh,
@@ -95,7 +91,6 @@ const {
   settingsSaveError,
   handleUpdateAppSettings,
   settings,
-  // 应用更新
   updaterConfigured,
   updateAvailable,
   availableVersion,
@@ -141,7 +136,6 @@ const {
   handleQueueContextOpenOutputFolder,
   handleQueueContextCopyInputPath,
   handleQueueContextCopyOutputPath,
-  // 对话框栈 / 智能扫描 / 预览
   dialogManager,
   presetPendingDelete,
   presetsPendingBatchDelete,
@@ -196,7 +190,6 @@ const {
   setSelectionBarPinned,
   queueOutputPolicy,
   setQueueOutputPolicy,
-  // 排序比较函数（用于批次子任务排序）
   compareJobsForDisplay,
 } = mainApp;
 useQueueBlankClickClearSelection({ activeTab, hasSelection, clearSelection });
@@ -252,7 +245,6 @@ defineExpose({
         @add-job-folder="addManualJobsFromFolder"
         @batch-compress="startBatchCompress"
       />
-      <!-- 主内容区作为 flex 子项必须设置 min-w-0，避免内部长内容把整体布局撑宽，导致侧边栏被挤压 -->
       <main class="flex-1 flex min-h-0 min-w-0 flex-col bg-background">
         <MainContentHeader
           :active-tab="activeTab"
@@ -452,6 +444,12 @@ defineExpose({
       :presets="presets"
       :preset-pending-delete="presetPendingDelete"
       :presets-pending-batch-delete="presetsPendingBatchDelete"
+      v-bind="{
+        queueDeleteConfirmOpen: mainApp.queueDeleteConfirmOpen.value,
+        queueDeleteConfirmSelectedCount: mainApp.queueDeleteConfirmSelectedCount.value,
+        queueDeleteConfirmTerminalCount: mainApp.queueDeleteConfirmTerminalCount.value,
+        queueDeleteConfirmActiveCount: mainApp.queueDeleteConfirmActiveCount.value,
+      }"
       :smart-config="smartConfig"
       :default-video-preset-id="manualJobPresetId"
       :queue-progress-style="queueProgressStyle"
@@ -476,6 +474,9 @@ defineExpose({
       @cancelDeletePreset="cancelDeletePreset"
       @confirmDeletePresets="confirmBatchDeletePresets"
       @cancelDeletePresets="cancelBatchDeletePresets"
+      @confirmQueueDeleteCancelAndDelete="mainApp.confirmQueueDeleteCancelAndDelete"
+      @confirmQueueDeleteTerminalOnly="mainApp.confirmQueueDeleteTerminalOnly"
+      @cancelQueueDelete="mainApp.cancelQueueDeleteConfirm"
       @closeJobDetail="dialogManager.closeJobDetail()"
       @handleJobDetailExpandPreview="handleJobDetailExpandPreview"
       @copyToClipboard="copyToClipboard($event)"

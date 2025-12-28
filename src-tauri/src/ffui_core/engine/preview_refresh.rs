@@ -56,7 +56,12 @@ impl TranscodingEngine {
                 job.preview_revision = job.preview_revision.saturating_add(1);
                 Some(TranscodeJobLiteDeltaPatch {
                     id: job.id.clone(),
+                    status: None,
                     progress: None,
+                    progress_out_time_seconds: None,
+                    progress_speed: None,
+                    progress_updated_at_ms: None,
+                    progress_epoch: None,
                     elapsed_ms: None,
                     preview_path: Some(preview_str.clone()),
                     preview_revision: Some(job.preview_revision),
@@ -178,7 +183,12 @@ impl TranscodingEngine {
             if let Some(preview_revision) = next_preview_revision {
                 preview_patches.push(TranscodeJobLiteDeltaPatch {
                     id: job_id.clone(),
+                    status: None,
                     progress: None,
+                    progress_out_time_seconds: None,
+                    progress_speed: None,
+                    progress_updated_at_ms: None,
+                    progress_epoch: None,
                     elapsed_ms: None,
                     preview_path: Some(preview_str.clone()),
                     preview_revision: Some(preview_revision),

@@ -2,6 +2,7 @@
 import { toRefs } from "vue";
 import DeletePresetDialog from "@/components/dialogs/DeletePresetDialog.vue";
 import DeletePresetsDialog from "@/components/dialogs/DeletePresetsDialog.vue";
+import QueueDeleteConfirmDialog from "@/components/dialogs/QueueDeleteConfirmDialog.vue";
 import JobDetailDialog from "@/components/dialogs/JobDetailDialog.vue";
 import BatchDetailDialog from "@/components/dialogs/BatchDetailDialog.vue";
 import ExpandedPreviewDialog from "@/components/dialogs/ExpandedPreviewDialog.vue";
@@ -22,6 +23,10 @@ const props = withDefaults(
     presets: FFmpegPreset[];
     presetPendingDelete: FFmpegPreset | null;
     presetsPendingBatchDelete?: FFmpegPreset[];
+    queueDeleteConfirmOpen?: boolean;
+    queueDeleteConfirmSelectedCount?: number;
+    queueDeleteConfirmTerminalCount?: number;
+    queueDeleteConfirmActiveCount?: number;
     smartConfig: BatchCompressConfig;
     defaultVideoPresetId: string | null;
     queueProgressStyle: QueueProgressStyle;
@@ -42,6 +47,10 @@ const props = withDefaults(
   {
     jobDetailJob: null,
     presetsPendingBatchDelete: () => [],
+    queueDeleteConfirmOpen: false,
+    queueDeleteConfirmSelectedCount: 0,
+    queueDeleteConfirmTerminalCount: 0,
+    queueDeleteConfirmActiveCount: 0,
     sortCompareFn: undefined,
   },
 );
@@ -51,6 +60,10 @@ const {
   presets,
   presetPendingDelete,
   presetsPendingBatchDelete,
+  queueDeleteConfirmOpen,
+  queueDeleteConfirmSelectedCount,
+  queueDeleteConfirmTerminalCount,
+  queueDeleteConfirmActiveCount,
   smartConfig,
   defaultVideoPresetId,
   queueProgressStyle,
@@ -78,6 +91,9 @@ const emit = defineEmits<{
   (e: "cancelDeletePreset"): void;
   (e: "confirmDeletePresets"): void;
   (e: "cancelDeletePresets"): void;
+  (e: "confirmQueueDeleteCancelAndDelete"): void;
+  (e: "confirmQueueDeleteTerminalOnly"): void;
+  (e: "cancelQueueDelete"): void;
   (e: "closeJobDetail"): void;
   (e: "handleJobDetailExpandPreview"): void;
   (e: "copyToClipboard", value: string): void;
@@ -144,6 +160,17 @@ const openCompareFromJobDetail = () => {
     @update:open="($event) => ($event ? undefined : emit('cancelDeletePresets'))"
     @confirm="emit('confirmDeletePresets')"
     @cancel="emit('cancelDeletePresets')"
+  />
+
+  <QueueDeleteConfirmDialog
+    :open="queueDeleteConfirmOpen"
+    :selected-count="queueDeleteConfirmSelectedCount"
+    :terminal-count="queueDeleteConfirmTerminalCount"
+    :active-count="queueDeleteConfirmActiveCount"
+    @update:open="($event) => ($event ? undefined : emit('cancelQueueDelete'))"
+    @cancel="emit('cancelQueueDelete')"
+    @delete-terminal-only="emit('confirmQueueDeleteTerminalOnly')"
+    @cancel-and-delete="emit('confirmQueueDeleteCancelAndDelete')"
   />
 
   <JobDetailDialog

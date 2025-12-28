@@ -27,7 +27,7 @@ fn paused_jobs_do_not_mark_transcode_activity() {
         .expect("job should exist")
         .status = JobStatus::Paused;
 
-    update_job_progress(&inner, &job.id, Some(1.0), None, None);
+    update_job_progress(&inner, &job.id, Some(1.0), None, None, None, None);
 
     assert!(
         inner.state.lock_unpoisoned().settings.monitor.is_none(),
@@ -59,7 +59,7 @@ fn processing_jobs_mark_transcode_activity() {
         .expect("job should exist")
         .status = JobStatus::Processing;
 
-    update_job_progress(&inner, &job.id, Some(1.0), None, None);
+    update_job_progress(&inner, &job.id, Some(1.0), None, None, None, None);
 
     let has_activity = inner
         .state

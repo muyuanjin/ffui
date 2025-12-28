@@ -46,6 +46,7 @@ pub use engine::{TranscodingEngine, init_child_process_job};
 pub(crate) use fallback_preview::{
     FallbackFramePosition, FallbackFrameQuality, clear_fallback_frame_cache, extract_fallback_frame,
 };
+pub(crate) use ffprobe::probe_video_duration_seconds_best_effort;
 // Expose core monitoring snapshots and GPU sampling helper so other modules
 // (such as system_metrics) can reuse the same NVML-based logic.
 pub use monitor::{CpuUsageSnapshot, GpuUsageSnapshot, sample_gpu_usage};
@@ -59,6 +60,7 @@ pub(crate) use preset_bundle::{
 pub(crate) use preview_cache::{
     cleanup_unreferenced_previews, previews_root_dir_best_effort, referenced_preview_filenames,
 };
+pub(crate) use settings::ExternalToolSettings;
 #[allow(unused_imports)]
 pub use settings::QueuePersistenceMode;
 pub(crate) use settings::load_presets;
