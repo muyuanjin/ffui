@@ -176,6 +176,19 @@ describe("MainApp queue view modes and empty state", () => {
 
     first = items[0];
     expect(first.attributes("data-view-mode")).toBe("compact");
+    // While a job is processing, the queue intentionally disables repaint-heavy
+    // progress styles to keep scrolling smooth.
+    expect(first.attributes("data-progress-style")).toBe("bar");
+
+    // Once the queue is no longer running, the user preference should be
+    // passed through again.
+    const jobsAfter = getArray(vm.jobs);
+    expect(jobsAfter.length).toBe(1);
+    (jobsAfter[0] as any).status = "paused";
+    await nextTick();
+    items = wrapper.findAll("[data-testid='queue-item-stub']");
+    expect(items.length).toBe(1);
+    first = items[0];
     expect(first.attributes("data-progress-style")).toBe("ripple-card");
 
     if ("queueViewModeModel" in vm) {

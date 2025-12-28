@@ -115,14 +115,17 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
   const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
   const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
 
-  const originalPausingSnapshot = new Set(deps.pausingJobIds.value);
-
-  if (processingIds.length > 0) {
-    deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, ...processingIds]);
+  const existingPausing = deps.pausingJobIds.value;
+  const addedPausingIds = processingIds.filter((id) => !existingPausing.has(id));
+  if (addedPausingIds.length > 0) {
+    deps.pausingJobIds.value = new Set([...existingPausing, ...addedPausingIds]);
   }
 
   const rollbackOptimisticUpdates = () => {
-    deps.pausingJobIds.value = new Set(originalPausingSnapshot);
+    if (addedPausingIds.length === 0) return;
+    const next = new Set(deps.pausingJobIds.value);
+    for (const id of addedPausingIds) next.delete(id);
+    deps.pausingJobIds.value = next;
   };
 
   try {
@@ -133,6 +136,16 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
       return;
     }
     deps.queueError.value = null;
+
+    // UI-first: queued jobs can be paused immediately and safely on the client
+    // (they won't be picked by the worker selection logic).
+    const idSet = new Set(ids);
+    for (const job of deps.jobs.value) {
+      if (!idSet.has(job.id)) continue;
+      if (job.status === "queued") {
+        job.status = "paused";
+      }
+    }
     await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk wait jobs", error);

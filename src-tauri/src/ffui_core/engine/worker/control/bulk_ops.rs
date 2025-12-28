@@ -20,11 +20,15 @@ fn run_bulk_job_op(
 
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
     let mut should_notify = false;
+    let mut touched_any = false;
 
     {
         let mut state = inner.state.lock_unpoisoned();
 
         for job_id in &unique_job_ids {
+            if state.jobs.contains_key(job_id.as_str()) {
+                touched_any = true;
+            }
             if op(&mut state, job_id.as_str(), &mut cleanup_paths) {
                 should_notify = true;
             }
@@ -35,6 +39,11 @@ fn run_bulk_job_op(
         if notify_cv {
             inner.cv.notify_all();
         }
+        notify_queue_listeners(inner);
+    } else if touched_any {
+        // Even when an operation is idempotent (e.g. cancel already requested),
+        // we still notify so the frontend can observe a new snapshot revision
+        // and avoid slow fallback refreshes.
         notify_queue_listeners(inner);
     }
 
@@ -103,6 +112,7 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
     }
 
     let mut should_notify = false;
+    let mut touched_any = false;
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -111,6 +121,7 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
                 Some(job) => job.status,
                 None => continue,
             };
+            touched_any = true;
 
             match status {
                 JobStatus::Queued => {
@@ -144,6 +155,8 @@ pub(in crate::ffui_core::engine) fn resume_jobs_bulk(
 
     if should_notify {
         inner.cv.notify_all();
+        notify_queue_listeners(inner);
+    } else if touched_any {
         notify_queue_listeners(inner);
     }
 

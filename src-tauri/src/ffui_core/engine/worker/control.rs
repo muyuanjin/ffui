@@ -37,9 +37,22 @@ fn unique_nonempty_job_ids(job_ids: Vec<String>) -> Option<HashSet<String>> {
 }
 
 fn cleanup_temp_files_best_effort(paths: Vec<PathBuf>) {
-    for path in paths {
-        drop(std::fs::remove_file(path));
+    if paths.is_empty() {
+        return;
     }
+    if cfg!(test) {
+        for path in paths {
+            drop(std::fs::remove_file(path));
+        }
+        return;
+    }
+    // File cleanup can be slow (network drives / antivirus). Do it off-thread so
+    // UI-triggered commands return quickly and remain responsive.
+    drop(std::thread::spawn(move || {
+        for path in paths {
+            drop(std::fs::remove_file(path));
+        }
+    }));
 }
 
 fn cancel_waiting_like_job(
@@ -120,9 +133,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
     }
 
     // Perform filesystem cleanup outside of the engine lock.
-    for path in cleanup_paths {
-        drop(std::fs::remove_file(path));
-    }
+    cleanup_temp_files_best_effort(cleanup_paths);
 
     result
 }
@@ -176,10 +187,11 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
     inner: &Arc<Inner>,
     job_ids: Vec<String>,
 ) -> bool {
-    let should_notify = {
+    let (should_notify, touched_any) = {
         let mut state = inner.state.lock_unpoisoned();
 
         let mut should_notify = false;
+        let mut touched_any = false;
         for job_id in &job_ids {
             if job_id.trim().is_empty() {
                 continue;
@@ -188,6 +200,7 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
                 Some(job) => job.status,
                 None => continue,
             };
+            touched_any = true;
 
             match status {
                 JobStatus::Processing => {
@@ -217,10 +230,10 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
             }
         }
 
-        should_notify
+        (should_notify, touched_any)
     };
 
-    if should_notify {
+    if should_notify || touched_any {
         notify_queue_listeners(inner);
     }
 

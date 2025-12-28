@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
+import { nextTick } from "vue";
 import en from "@/locales/en";
 import MediaPanel from "./MediaPanel.vue";
 
@@ -71,7 +72,7 @@ describe("MediaPanel raw JSON actions", () => {
     expect(writeText).toHaveBeenCalledWith(baseProps.rawJson);
   });
 
-  it("renders highlighted JSON with scrollable large area", () => {
+  it("renders highlighted JSON with scrollable large area", async () => {
     const wrapper = mount(MediaPanel, {
       props: baseProps,
       global: { plugins: [i18n] },
@@ -85,6 +86,8 @@ describe("MediaPanel raw JSON actions", () => {
     expect(viewer.classes().some((cls) => cls.startsWith("max-h"))).toBe(true);
 
     // JSON 已经过基本语法高亮（key / string）
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
     const innerHtml = (pre.element as HTMLElement).innerHTML;
     expect(innerHtml).toContain("text-sky-400"); // key 高亮
     expect(innerHtml).toContain("text-emerald-200"); // string 高亮

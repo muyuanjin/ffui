@@ -1,6 +1,7 @@
 use super::*;
 use crate::ffui_core::JobStatus;
 use crate::test_support::make_transcode_job_for_tests;
+use tempfile::tempdir;
 
 fn make_queue_order_test_state() -> EngineState {
     let mut state = EngineState::new(Vec::new(), AppSettings::default());
@@ -75,4 +76,31 @@ fn snapshot_queue_state_lite_does_not_mutate_locked_job_queue_order() {
     assert_eq!(state.jobs.get("b").expect("job b exists").queue_order, None);
     let _ = snapshot_queue_state_lite_from_locked_state(&mut state);
     assert_eq!(state.jobs.get("b").expect("job b exists").queue_order, None);
+}
+
+#[test]
+fn snapshot_queue_state_lite_clears_legacy_video_preview_paths() {
+    let data_root = tempdir().expect("create temp data root");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
+
+    let mut state = EngineState::new(Vec::new(), AppSettings::default());
+    state.settings.preview_capture_percent = 25;
+
+    let mut job = make_transcode_job_for_tests("v1", JobStatus::Queued, 0.0, None);
+    job.input_path = Some("C:/input.mp4".to_string());
+    job.preview_path = Some("C:/legacy-preview.jpg".to_string());
+    state.jobs.insert(job.id.clone(), job);
+
+    let snapshot = snapshot_queue_state_lite_from_locked_state(&mut state);
+    let lite = snapshot
+        .jobs
+        .iter()
+        .find(|j| j.id == "v1")
+        .expect("job present");
+    assert!(
+        lite.preview_path.is_none(),
+        "legacy preview path should be hidden so the UI triggers ensure_job_preview"
+    );
 }

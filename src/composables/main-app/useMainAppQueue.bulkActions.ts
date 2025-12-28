@@ -129,6 +129,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   };
 
   const bulkWait = async () => {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
@@ -182,6 +183,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   };
 
   const bulkResume = async () => {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
@@ -220,6 +222,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   };
 
   const bulkRestart = async () => {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
@@ -265,6 +268,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   };
 
   async function bulkMoveWaiting(key: "bulkMoveToTop" | "bulkMoveToBottom", moveSelectedJobs: () => Promise<void>) {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
@@ -315,6 +319,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   });
 
   const bulkDelete = async () => {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;
@@ -375,6 +380,7 @@ export function createQueueBulkActionsWithFeedback(options: CreateQueueBulkActio
   };
 
   const bulkCancelWithFeedback = async () => {
+    await nextTick();
     const selectedBefore = selectedJobs.value.slice();
     const selectedIds = selectedBefore.map((job) => job.id);
     const selectedCount = selectedBefore.length;

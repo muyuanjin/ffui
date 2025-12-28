@@ -46,6 +46,43 @@ const run = async () => {
   app.use(VueApexCharts);
   app.mount("#app");
 
+  // Tauri drag regions + modal pointer-event locks can occasionally leave the app
+  // in an unclickable state if an overlay fails to clean up; run a small watchdog
+  // that restores interactivity only when no overlay is open.
+  if (typeof document !== "undefined" && hasTauri() && document.body) {
+    const body = document.body;
+
+    const hasOpenOverlay = () => {
+      // Reka-ui overlays consistently expose `data-state="open"` and roles such as
+      // listbox/menu/dialog; only restore pointer events when none are present.
+      return (
+        document.querySelector('[data-state="open"][role="listbox"]') ||
+        document.querySelector('[data-state="open"][role="menu"]') ||
+        document.querySelector('[data-state="open"][role="dialog"]')
+      );
+    };
+
+    const maybeRestore = () => {
+      if (body.style.pointerEvents !== "none") return;
+      if (hasOpenOverlay()) return;
+      body.style.pointerEvents = "";
+    };
+
+    const styleObserver = new MutationObserver(() => maybeRestore());
+    styleObserver.observe(body, { attributes: true, attributeFilter: ["style"] });
+
+    // When overlays mount/unmount or change state, try restore if body got stuck.
+    const overlayObserver = new MutationObserver(() => maybeRestore());
+    overlayObserver.observe(body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["data-state"],
+    });
+
+    maybeRestore();
+  }
+
   // Once the Vue shell has mounted, hand drag regions over to the in-app
   // TitleBar instead of the temporary global drag region defined on <body>
   // in index.html. This keeps the boot shell draggable during startup

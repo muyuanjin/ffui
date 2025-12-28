@@ -60,12 +60,12 @@ fn delete_job_cleans_resume_segment_tmp_artifacts() {
 
     assert!(engine.delete_job(job_id), "job should be deletable");
 
-    assert!(!seg0.exists(), "seg0 should be deleted");
-    assert!(!seg1.exists(), "seg1 should be deleted");
-    assert!(!seg2_orphan.exists(), "orphan seg2 should be deleted");
-    assert!(!marker0.exists(), "marker should be deleted");
-    assert!(!noaudio_tmp1.exists(), "noaudio tmp should be deleted");
-    assert!(!concat_list.exists(), "concat list should be deleted");
-    assert!(!joined_video_tmp.exists(), "joined tmp should be deleted");
-    assert!(!mux_tmp.exists(), "mux tmp should be deleted");
+    assert_path_eventually_gone(&seg0, "seg0 should be deleted");
+    assert_path_eventually_gone(&seg1, "seg1 should be deleted");
+    assert_path_eventually_gone(&seg2_orphan, "orphan seg2 should be deleted");
+    assert_path_eventually_gone(&marker0, "marker should be deleted");
+    assert_path_eventually_gone(&noaudio_tmp1, "noaudio tmp should be deleted");
+    assert_path_eventually_gone(&concat_list, "concat list should be deleted");
+    assert_path_eventually_gone(&joined_video_tmp, "joined tmp should be deleted");
+    assert_path_eventually_gone(&mux_tmp, "mux tmp should be deleted");
 }

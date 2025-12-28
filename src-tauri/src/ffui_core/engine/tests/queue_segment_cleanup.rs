@@ -166,10 +166,10 @@ fn restart_job_cleans_partial_segments_for_non_processing_job() {
         engine.restart_job(&job.id),
         "restart_job should accept waiting job"
     );
-    assert!(!seg0.exists(), "seg0 should be deleted");
-    assert!(!seg1.exists(), "seg1 should be deleted");
-    assert!(!marker0.exists(), "marker0 should be deleted");
-    assert!(!marker1.exists(), "marker1 should be deleted");
+    assert_path_eventually_gone(&seg0, "seg0 should be deleted");
+    assert_path_eventually_gone(&seg1, "seg1 should be deleted");
+    assert_path_eventually_gone(&marker0, "marker0 should be deleted");
+    assert_path_eventually_gone(&marker1, "marker1 should be deleted");
 
     let state = engine.inner.state.lock_unpoisoned();
     let stored = state.jobs.get(&job.id).expect("job exists");
@@ -230,10 +230,10 @@ fn cancel_processing_job_cleans_partial_segments() {
         engine.cancel_job(&job.id),
         "cancel_job should accept processing job"
     );
-    assert!(!seg0.exists(), "seg0 should be deleted");
-    assert!(!seg1.exists(), "seg1 should be deleted");
-    assert!(!marker0.exists(), "marker0 should be deleted");
-    assert!(!marker1.exists(), "marker1 should be deleted");
+    assert_path_eventually_gone(&seg0, "seg0 should be deleted");
+    assert_path_eventually_gone(&seg1, "seg1 should be deleted");
+    assert_path_eventually_gone(&marker0, "marker0 should be deleted");
+    assert_path_eventually_gone(&marker1, "marker1 should be deleted");
 
     let state = engine.inner.state.lock_unpoisoned();
     assert!(
@@ -287,13 +287,10 @@ fn mark_job_cancelled_cleans_segments_when_restarting_processing_job() {
     );
     mark_job_cancelled(&engine.inner, &job.id).expect("mark_job_cancelled should succeed");
 
-    assert!(
-        !seg0.exists(),
-        "seg0 should be deleted after restart cancellation"
-    );
-    assert!(
-        !marker0.exists(),
-        "marker0 should be deleted after restart cancellation"
+    assert_path_eventually_gone(&seg0, "seg0 should be deleted after restart cancellation");
+    assert_path_eventually_gone(
+        &marker0,
+        "marker0 should be deleted after restart cancellation",
     );
 
     let state = engine.inner.state.lock_unpoisoned();
@@ -359,11 +356,8 @@ fn finalize_resume_cleanup_removes_noaudio_marker_files() {
     .expect("finalize_resumed_job_output_for_tests should succeed");
 
     assert!(output_path.exists(), "final output should exist");
-    assert!(!seg0.exists(), "segment should be deleted after finalize");
-    assert!(
-        !marker0.exists(),
-        "noaudio marker should be deleted after finalize"
-    );
+    assert_path_eventually_gone(&seg0, "segment should be deleted after finalize");
+    assert_path_eventually_gone(&marker0, "noaudio marker should be deleted after finalize");
 }
 
 #[test]

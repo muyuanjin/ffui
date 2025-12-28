@@ -15,7 +15,7 @@ export interface UseMainAppDnDAndContextMenuReturn {
   isDragging: Ref<boolean>;
   handleDragOver: (e: DragEvent) => void;
   handleDragLeave: () => void;
-  handleDrop: (e: DragEvent) => void;
+  handleDrop: (e: DragEvent) => Promise<void>;
   waitingJobContextMenuVisible: Ref<boolean>;
   waitingJobContextMenuJobId: Ref<string | null>;
   openWaitingJobContextMenu: (job: TranscodeJob, event: MouseEvent) => void;
@@ -48,9 +48,7 @@ export function useMainAppDnDAndContextMenu(
   };
 
   const dragOptions: UseDragAndDropOptions = {
-    onFilesDropped: (paths) => {
-      void handleTauriFileDrop(paths);
-    },
+    onFilesDropped: (paths) => handleTauriFileDrop(paths),
   };
 
   const { isDragging, handleDragOver, handleDragLeave, handleDrop } = useDragAndDrop(dragOptions);

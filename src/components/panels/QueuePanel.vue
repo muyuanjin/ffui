@@ -13,6 +13,10 @@ import { useVirtuaViewportBump } from "@/components/panels/queue/useVirtuaViewpo
 import { useFlipReorderAnimation } from "@/components/panels/queue/useFlipReorderAnimation";
 import QueueIconVirtualGrid from "@/components/panels/queue/QueueIconVirtualGrid.vue";
 import { useQueuePanelVirtualRows } from "./useQueuePanelVirtualRows";
+import { provideQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
+import { useScrollActivitySignal } from "@/components/panels/queue/useScrollActivitySignal";
+import { coerceQueueProgressStyleForPerf } from "@/components/panels/queue/queueProgressStylePolicy";
+import { useQueuePreviewPrefetch } from "@/components/panels/queue/useQueuePreviewPrefetch";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
@@ -63,7 +67,7 @@ const getBatchCardProps = (batch: CompositeBatchCompressTask) => {
     presets: props.presets,
     ffmpegResolvedPath: props.ffmpegResolvedPath ?? null,
     queueRowVariant: props.queueRowVariant,
-    queueProgressStyle: props.queueProgressStyle,
+    queueProgressStyle: effectiveQueueProgressStyle.value,
     progressUpdateIntervalMs: props.progressUpdateIntervalMs,
     selectedJobIds: props.selectedJobIds,
     isExpanded: isBatchExpanded(batch.batchId),
@@ -151,6 +155,17 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
   emit("openBulkContextMenu", event);
 };
 
+const panelEl = ref<HTMLElement | null>(null);
+const { isScrolling } = useScrollActivitySignal(panelEl);
+const isQueueRunning = computed(() => props.queueModeProcessingJobs.length > 0 || props.pausingJobIds.size > 0);
+const allowHeavyEffects = computed(() => !isScrolling.value && !isQueueRunning.value);
+
+provideQueuePerfHints({ isScrolling, isQueueRunning });
+
+const effectiveQueueProgressStyle = computed(() => {
+  return coerceQueueProgressStyleForPerf(props.queueProgressStyle, allowHeavyEffects.value);
+});
+
 // Startup safety net: force a one-time VList remount once the viewport is measurable.
 const listViewportEl = ref<HTMLElement | null>(null);
 const listViewportBump = useVirtuaViewportBump(listViewportEl);
@@ -204,9 +219,21 @@ const virtualListKey = computed(() => {
 
 const virtualRowKeys = computed(() => virtualListRows.value.map((row) => getQueueVirtualRowKey(row)));
 useFlipReorderAnimation(listViewportEl, virtualRowKeys, {
-  enabled: () => listDataBump.value === 1,
+  enabled: () => listDataBump.value === 1 && allowHeavyEffects.value,
   durationMs: 520,
   easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+});
+
+const {
+  vlistRef: listVListRef,
+  onScroll: onListScroll,
+  onScrollEnd: onListScrollEnd,
+} = useQueuePreviewPrefetch({
+  isScrolling,
+  rows: virtualListRows,
+  viewportHeightPx: listViewportHeightPx,
+  itemSizePx: virtualListItemSizePx,
+  bufferSizePx: virtualListBufferSizePx,
 });
 
 watch(
@@ -230,6 +257,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
 
 <template>
   <section
+    ref="panelEl"
     class="flex flex-1 min-h-0 flex-col gap-4 w-full min-w-0"
     data-testid="queue-panel"
     @contextmenu.prevent="(event) => emit('openBulkContextMenu', event)"
@@ -300,7 +328,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
           class="flex-1 min-h-0 min-w-0 h-full"
           :items="visibleQueueItems"
           :selected-job-ids="selectedJobIds"
-          :progress-style="queueProgressStyle"
+          :progress-style="effectiveQueueProgressStyle"
           :auto-rotation-speed="carouselAutoRotationSpeed"
           @toggle-job-selected="emit('toggleJobSelected', $event)"
           @inspect-job="emit('inspectJob', $event)"
@@ -318,7 +346,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
         <QueueIconVirtualGrid
           :items="iconViewItems"
           :icon-view-size="iconViewSize"
-          :queue-progress-style="queueProgressStyle"
+          :queue-progress-style="effectiveQueueProgressStyle"
           :pausing-job-ids="pausingJobIds"
           :selected-job-ids="selectedJobIds"
           :is-batch-fully-selected="isBatchFullySelected"
@@ -336,6 +364,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
       <!-- List view mode -->
       <div v-else ref="listViewportEl" class="flex flex-1 min-h-0 flex-col overflow-hidden">
         <VList
+          :ref="listVListRef"
           :key="virtualListKey"
           v-slot="{ item: row, index }"
           :data="virtualListRows"
@@ -343,6 +372,8 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
           :item-size="virtualListItemSizePx"
           class="flex-1 min-h-0"
           :style="{ height: `${listViewportHeightPx}px` }"
+          @scroll="onListScroll"
+          @scroll-end="onListScrollEnd"
         >
           <div :key="getQueueVirtualRowKey(row)">
             <div
@@ -402,7 +433,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
                   :can-select="true"
                   :selected="selectedJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
                   :view-mode="queueRowVariant"
-                  :progress-style="queueProgressStyle"
+                  :progress-style="effectiveQueueProgressStyle"
                   :progress-update-interval-ms="progressUpdateIntervalMs"
                   v-on="queueItemListeners"
                 />
@@ -425,7 +456,7 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
                   :can-select="true"
                   :selected="selectedJobIds.has(row.item.job.id)"
                   :view-mode="queueRowVariant"
-                  :progress-style="queueProgressStyle"
+                  :progress-style="effectiveQueueProgressStyle"
                   :progress-update-interval-ms="progressUpdateIntervalMs"
                   v-on="queueItemListeners"
                 />

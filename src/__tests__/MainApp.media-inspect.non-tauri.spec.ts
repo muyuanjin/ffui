@@ -58,10 +58,7 @@ describe("MainApp media inspect in non-Tauri (web) mode", () => {
       },
     } as unknown as DragEvent;
 
-    vm.handleDrop(event);
-
-    // inspectMediaForPath is async; wait for the microtask queue to flush.
-    await Promise.resolve();
+    await vm.handleDrop(event);
 
     expect(vm.inspectedMediaPath).toBe("C:/videos/sample.mp4");
     expect(vm.inspectedAnalysis && vm.inspectedAnalysis.summary).not.toBeNull();

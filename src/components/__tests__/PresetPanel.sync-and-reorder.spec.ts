@@ -13,6 +13,11 @@ vi.mock("@vueuse/integrations/useSortable", () => ({
   useSortable: (...args: any[]) => {
     // 记录调用参数，便于测试中手动调用 onEnd。
     useSortableMock(...args);
+    return {
+      start: () => {},
+      stop: () => {},
+      option: () => undefined,
+    };
   },
 }));
 

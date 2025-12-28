@@ -109,9 +109,7 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batch(
 
     notify_queue_listeners(inner);
 
-    for path in cleanup_paths {
-        drop(std::fs::remove_file(path));
-    }
+    super::cleanup_temp_files_best_effort(cleanup_paths);
     true
 }
 
@@ -231,8 +229,6 @@ pub(in crate::ffui_core::engine) fn delete_batch_compress_batches_bulk(
 
     notify_queue_listeners(inner);
 
-    for path in cleanup_paths {
-        drop(std::fs::remove_file(path));
-    }
+    super::cleanup_temp_files_best_effort(cleanup_paths);
     true
 }

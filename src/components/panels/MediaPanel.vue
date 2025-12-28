@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ParsedMediaAnalysis, MediaFileInfo } from "@/lib/mediaInfo";
+import type { HighlightToken } from "@/lib/highlightTokens";
 import FallbackMediaPreview from "@/components/media/FallbackMediaPreview.vue";
 import { hasTauri } from "@/lib/backend";
 import {
@@ -13,7 +14,7 @@ import {
   formatFrameRate,
   mapStreamsForDisplay,
 } from "@/components/panels/media/mediaPanelUtils";
-import { highlightJsonTokens } from "@/lib/jsonHighlight";
+import { highlightJsonTokensAsync } from "@/lib/asyncJson";
 
 const props = defineProps<{
   inspecting: boolean;
@@ -73,7 +74,30 @@ const streamsForDisplay = computed(() => {
 
 const hasRawJson = computed(() => typeof props.rawJson === "string" && props.rawJson.trim().length > 0);
 
-const highlightedRawJsonTokens = computed(() => highlightJsonTokens(props.rawJson));
+const highlightedRawJsonTokens = ref<HighlightToken[]>([]);
+let highlightedRawJsonSeq = 0;
+const MAX_HIGHLIGHT_JSON_CHARS = 200_000;
+watch(
+  () => props.rawJson,
+  async (raw) => {
+    const seq = (highlightedRawJsonSeq += 1);
+    if (!raw || !raw.trim()) {
+      highlightedRawJsonTokens.value = [];
+      return;
+    }
+
+    // Render un-highlighted text immediately, then upgrade to tokenized output
+    // once the worker finishes, so large payloads do not stall UI input.
+    highlightedRawJsonTokens.value = [{ text: raw }];
+    if (raw.length > MAX_HIGHLIGHT_JSON_CHARS) {
+      return;
+    }
+    const tokens = await highlightJsonTokensAsync(raw);
+    if (seq !== highlightedRawJsonSeq) return;
+    highlightedRawJsonTokens.value = tokens;
+  },
+  { immediate: true },
+);
 
 const copyRawJson = async () => {
   if (!hasRawJson.value || !props.rawJson) return;

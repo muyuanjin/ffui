@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, ref, type ComputedRef, type Ref } from "vue";
+import { onMounted, onUnmounted, ref, type Ref } from "vue";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { hasTauri, metricsSubscribe, metricsUnsubscribe, fetchMetricsHistory } from "@/lib/backend";
 import type { SystemMetricsSnapshot } from "@/types";
@@ -50,11 +50,11 @@ export interface NetworkSeries {
 
 export interface UseSystemMetricsReturn {
   snapshots: Readonly<Ref<SystemMetricsSnapshot[]>>;
-  cpuTotalSeries: Readonly<ComputedRef<TimePoint[]>>;
-  perCoreSeries: Readonly<ComputedRef<CoreSeries[]>>;
-  memorySeries: Readonly<ComputedRef<MemoryPoint[]>>;
-  diskSeries: Readonly<ComputedRef<DiskPoint[]>>;
-  networkSeries: Readonly<ComputedRef<NetworkSeries[]>>;
+  cpuTotalSeries: Readonly<Ref<TimePoint[]>>;
+  perCoreSeries: Readonly<Ref<CoreSeries[]>>;
+  memorySeries: Readonly<Ref<MemoryPoint[]>>;
+  diskSeries: Readonly<Ref<DiskPoint[]>>;
+  networkSeries: Readonly<Ref<NetworkSeries[]>>;
   start: () => Promise<void>;
   stop: () => Promise<void>;
 }
@@ -68,6 +68,13 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
   const viewUpdateMinIntervalMs = options.viewUpdateMinIntervalMs ?? 0;
 
   const snapshots = ref<SystemMetricsSnapshot[]>([]);
+  const cpuTotalSeries = ref<TimePoint[]>([]);
+  const perCoreSeries = ref<CoreSeries[]>([]);
+  const memorySeries = ref<MemoryPoint[]>([]);
+  const diskSeries = ref<DiskPoint[]>([]);
+  const networkSeries = ref<NetworkSeries[]>([]);
+  const networkSeriesByName = new Map<string, NetworkSeries>();
+
   const isActive = ref(false);
 
   let metricsUnlisten: UnlistenFn | null = null;
@@ -75,11 +82,113 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
   let mockBootAtMs: number | null = null;
   let lastPushedAt = 0;
 
+  const resetDerivedSeries = () => {
+    cpuTotalSeries.value = [];
+    perCoreSeries.value = [];
+    memorySeries.value = [];
+    diskSeries.value = [];
+    networkSeries.value = [];
+    networkSeriesByName.clear();
+  };
+
+  const rebuildDerivedSeries = (source: SystemMetricsSnapshot[]) => {
+    resetDerivedSeries();
+    if (source.length === 0) return;
+
+    cpuTotalSeries.value = source.map((s) => ({ timestamp: s.timestamp, value: s.cpu.total }));
+    memorySeries.value = source.map((s) => ({
+      timestamp: s.timestamp,
+      usedBytes: s.memory.usedBytes,
+      totalBytes: s.memory.totalBytes,
+    }));
+    diskSeries.value = source.map((s) => {
+      const io = s.disk.io[0];
+      return { timestamp: s.timestamp, readBps: io?.readBps ?? 0, writeBps: io?.writeBps ?? 0 };
+    });
+
+    const latest = source[source.length - 1];
+    const visibleCores = Math.min(latest.cpu.cores.length, MAX_CORES_FOR_CHART);
+    perCoreSeries.value = Array.from({ length: visibleCores }, (_, coreIndex) => ({
+      coreIndex,
+      values: source.map((s) => ({
+        timestamp: s.timestamp,
+        value: s.cpu.cores[coreIndex] ?? 0,
+      })),
+    }));
+
+    for (const snapshot of source) {
+      for (const iface of snapshot.network.interfaces) {
+        const key = iface.name;
+        let entry = networkSeriesByName.get(key);
+        if (!entry) {
+          entry = { name: key, values: [] };
+          networkSeriesByName.set(key, entry);
+        }
+        entry.values.push({ timestamp: snapshot.timestamp, rxBps: iface.rxBps, txBps: iface.txBps });
+      }
+    }
+    networkSeries.value = Array.from(networkSeriesByName.values());
+  };
+
+  const trimDerivedSeriesByCount = (removeCount: number) => {
+    if (removeCount <= 0) return;
+    cpuTotalSeries.value.splice(0, removeCount);
+    memorySeries.value.splice(0, removeCount);
+    diskSeries.value.splice(0, removeCount);
+    for (const series of perCoreSeries.value) {
+      series.values.splice(0, removeCount);
+    }
+
+    const cutoff = snapshots.value[0]?.timestamp;
+    if (typeof cutoff !== "number") {
+      for (const series of networkSeries.value) {
+        series.values.splice(0, series.values.length);
+      }
+      return;
+    }
+    for (const series of networkSeries.value) {
+      let keepFrom = 0;
+      while (keepFrom < series.values.length && series.values[keepFrom]!.timestamp < cutoff) keepFrom += 1;
+      if (keepFrom > 0) series.values.splice(0, keepFrom);
+    }
+  };
+
   const pushSnapshot = (snapshot: SystemMetricsSnapshot) => {
-    const arr = snapshots.value;
-    arr.push(snapshot);
-    if (arr.length > historyLimit) {
-      arr.splice(0, arr.length - historyLimit);
+    snapshots.value.push(snapshot);
+
+    cpuTotalSeries.value.push({ timestamp: snapshot.timestamp, value: snapshot.cpu.total });
+    memorySeries.value.push({
+      timestamp: snapshot.timestamp,
+      usedBytes: snapshot.memory.usedBytes,
+      totalBytes: snapshot.memory.totalBytes,
+    });
+    const io = snapshot.disk.io[0];
+    diskSeries.value.push({ timestamp: snapshot.timestamp, readBps: io?.readBps ?? 0, writeBps: io?.writeBps ?? 0 });
+
+    const visibleCores = Math.min(snapshot.cpu.cores.length, MAX_CORES_FOR_CHART);
+    if (perCoreSeries.value.length !== visibleCores) {
+      rebuildDerivedSeries(snapshots.value);
+    } else {
+      for (const series of perCoreSeries.value) {
+        series.values.push({ timestamp: snapshot.timestamp, value: snapshot.cpu.cores[series.coreIndex] ?? 0 });
+      }
+    }
+
+    for (const iface of snapshot.network.interfaces) {
+      const key = iface.name;
+      let entry = networkSeriesByName.get(key);
+      if (!entry) {
+        entry = { name: key, values: [] };
+        networkSeriesByName.set(key, entry);
+        networkSeries.value.push(entry);
+      }
+      entry.values.push({ timestamp: snapshot.timestamp, rxBps: iface.rxBps, txBps: iface.txBps });
+    }
+
+    if (snapshots.value.length > historyLimit) {
+      const removeCount = snapshots.value.length - historyLimit;
+      snapshots.value.splice(0, removeCount);
+      trimDerivedSeriesByCount(removeCount);
     }
   };
 
@@ -156,6 +265,7 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
     if (isActive.value) return;
     isActive.value = true;
     snapshots.value = [];
+    resetDerivedSeries();
     lastPushedAt = 0;
 
     if (hasTauri()) {
@@ -170,11 +280,9 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
           if (last && last.timestamp === snapshot.timestamp) continue;
           deduped.push(snapshot);
         }
-        if (deduped.length > historyLimit) {
-          snapshots.value = deduped.slice(deduped.length - historyLimit);
-        } else {
-          snapshots.value = deduped;
-        }
+        const next = deduped.length > historyLimit ? deduped.slice(deduped.length - historyLimit) : deduped;
+        snapshots.value = next;
+        rebuildDerivedSeries(next);
       };
 
       try {
@@ -238,72 +346,6 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
 
   onUnmounted(() => {
     void stop();
-  });
-
-  const cpuTotalSeries = computed<TimePoint[]>(() =>
-    snapshots.value.map((s) => ({
-      timestamp: s.timestamp,
-      value: s.cpu.total,
-    })),
-  );
-
-  const perCoreSeries = computed<CoreSeries[]>(() => {
-    if (snapshots.value.length === 0) return [];
-
-    const latest = snapshots.value[snapshots.value.length - 1];
-    const coreCount = latest.cpu.cores.length;
-    const visibleCores = Math.min(coreCount, MAX_CORES_FOR_CHART);
-
-    const result: CoreSeries[] = [];
-    for (let coreIndex = 0; coreIndex < visibleCores; coreIndex += 1) {
-      const values: TimePoint[] = snapshots.value.map((s) => ({
-        timestamp: s.timestamp,
-        value: s.cpu.cores[coreIndex] ?? 0,
-      }));
-      result.push({ coreIndex, values });
-    }
-    return result;
-  });
-
-  const memorySeries = computed<MemoryPoint[]>(() =>
-    snapshots.value.map((s) => ({
-      timestamp: s.timestamp,
-      usedBytes: s.memory.usedBytes,
-      totalBytes: s.memory.totalBytes,
-    })),
-  );
-
-  const diskSeries = computed<DiskPoint[]>(() =>
-    snapshots.value.map((s) => {
-      const io = s.disk.io[0];
-      return {
-        timestamp: s.timestamp,
-        readBps: io?.readBps ?? 0,
-        writeBps: io?.writeBps ?? 0,
-      };
-    }),
-  );
-
-  const networkSeries = computed<NetworkSeries[]>(() => {
-    const byName = new Map<string, NetworkSeries>();
-
-    for (const snapshot of snapshots.value) {
-      for (const iface of snapshot.network.interfaces) {
-        const key = iface.name;
-        let entry = byName.get(key);
-        if (!entry) {
-          entry = { name: key, values: [] };
-          byName.set(key, entry);
-        }
-        entry.values.push({
-          timestamp: snapshot.timestamp,
-          rxBps: iface.rxBps,
-          txBps: iface.txBps,
-        });
-      }
-    }
-
-    return Array.from(byName.values());
   });
 
   return {

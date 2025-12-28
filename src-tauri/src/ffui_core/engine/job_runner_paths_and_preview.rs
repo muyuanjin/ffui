@@ -296,11 +296,23 @@ fn build_preview_output_path_in_root(
     input: &Path,
     capture_percent: u8,
 ) -> PathBuf {
+    const PREVIEW_THUMB_VERSION: u8 = 2;
+    const PREVIEW_THUMB_HEIGHT_PX: u16 = 180;
+    const PREVIEW_THUMB_Q: u8 = 8;
+
     let mut hasher = DefaultHasher::new();
     input.to_string_lossy().hash(&mut hasher);
     capture_percent.hash(&mut hasher);
+    PREVIEW_THUMB_VERSION.hash(&mut hasher);
+    PREVIEW_THUMB_HEIGHT_PX.hash(&mut hasher);
+    PREVIEW_THUMB_Q.hash(&mut hasher);
     let hash = hasher.finish();
     preview_root.join(format!("{hash:016x}.jpg"))
+}
+
+pub(super) fn expected_preview_output_path_for_video(input: &Path, capture_percent: u8) -> Option<PathBuf> {
+    let preview_root = crate::ffui_core::previews_dir().ok()?;
+    Some(build_preview_output_path_in_root(&preview_root, input, capture_percent))
 }
 
 #[cfg(test)]
@@ -335,6 +347,34 @@ pub(super) fn compute_preview_seek_seconds(
     raw.clamp(min, max)
 }
 
+fn build_preview_ffmpeg_args(ss: &str, input: &Path, output: &Path) -> Vec<OsString> {
+    vec![
+        "-y".into(),
+        "-ss".into(),
+        ss.into(),
+        "-i".into(),
+        input.as_os_str().into(),
+        "-map".into(),
+        "0:v:0".into(),
+        "-an".into(),
+        "-frames:v".into(),
+        "1".into(),
+        "-vf".into(),
+        "scale=-2:180".into(),
+        "-q:v".into(),
+        "8".into(),
+        "-f".into(),
+        "image2".into(),
+        "-c:v".into(),
+        "mjpeg".into(),
+        "-pix_fmt".into(),
+        "yuvj420p".into(),
+        "-strict".into(),
+        "-1".into(),
+        output.as_os_str().into(),
+    ]
+}
+
 pub(super) fn generate_preview_for_video(
     input: &Path,
     ffmpeg_path: &str,
@@ -358,16 +398,7 @@ pub(super) fn generate_preview_for_video(
     let mut cmd = Command::new(ffmpeg_path);
     configure_background_command(&mut cmd);
     let status = cmd
-        .arg("-y")
-        .arg("-ss")
-        .arg(&ss_arg)
-        .arg("-i")
-        .arg(input.as_os_str())
-        .arg("-frames:v")
-        .arg("1")
-        .arg("-q:v")
-        .arg("2")
-        .arg(preview_path.as_os_str())
+        .args(build_preview_ffmpeg_args(&ss_arg, input, &preview_path))
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -378,5 +409,34 @@ pub(super) fn generate_preview_for_video(
     } else {
         drop(fs::remove_file(&preview_path));
         None
+    }
+}
+
+#[cfg(test)]
+mod preview_thumbnail_args_tests {
+    use super::*;
+
+    #[test]
+    fn preview_thumbnail_ffmpeg_args_are_scaled_and_mjpeg() {
+        let args = build_preview_ffmpeg_args("1.234", Path::new("C:/in.mp4"), Path::new("C:/out.jpg"));
+        let rendered: Vec<String> = args.iter().map(|v| v.to_string_lossy().into_owned()).collect();
+
+        assert!(rendered.iter().any(|v| v == "-an"), "preview extraction should disable audio");
+        assert!(
+            rendered.windows(2).any(|w| w[0] == "-vf" && w[1] == "scale=-2:180"),
+            "preview extraction should scale down frames"
+        );
+        assert!(
+            rendered.windows(2).any(|w| w[0] == "-q:v" && w[1] == "8"),
+            "preview extraction should use a moderate jpeg quality"
+        );
+        assert!(
+            rendered.windows(2).any(|w| w[0] == "-c:v" && w[1] == "mjpeg"),
+            "preview extraction should force mjpeg for stable jpg outputs"
+        );
+        assert!(
+            rendered.windows(2).any(|w| w[0] == "-pix_fmt" && w[1] == "yuvj420p"),
+            "preview extraction should use a broadly supported pixel format"
+        );
     }
 }

@@ -76,6 +76,16 @@ pub(super) fn lock_mock_ffmpeg_env() -> std::sync::MutexGuard<'static, ()> {
         .lock_unpoisoned()
 }
 
+pub(super) fn assert_path_eventually_gone(path: &std::path::Path, message: &str) {
+    use std::time::{Duration, Instant};
+
+    let deadline = Instant::now() + Duration::from_millis(800);
+    while path.exists() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(!path.exists(), "{message}");
+}
+
 /// Best-effort check whether `ffmpeg` is available on PATH.
 pub(super) fn ffmpeg_available() -> bool {
     // 为了避免在测试环境中误触发系统弹窗，这里的 ffmpeg 集成测试默认是

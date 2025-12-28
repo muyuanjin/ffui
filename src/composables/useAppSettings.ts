@@ -20,6 +20,7 @@ import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { listen } from "@tauri-apps/api/event";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
+import { stringifyJsonAsync } from "@/lib/asyncJson";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
 import {
   externalToolCustomPath,
@@ -148,6 +149,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const toolStatuses = ref<ExternalToolStatus[]>([]);
   const toolStatusesFresh = ref(false);
   let settingsSaveTimer: number | undefined;
+  let settingsSaveIdleHandle: number | undefined;
   let toolStatusUnlisten: (() => void) | undefined;
   let lastSavedSettingsSnapshot: string | null = null;
   let awaitingToolsRefreshEvent = false;
@@ -168,6 +170,13 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     if (settingsSaveTimer !== undefined) {
       window.clearTimeout(settingsSaveTimer);
       settingsSaveTimer = undefined;
+    }
+    if (settingsSaveIdleHandle !== undefined) {
+      // requestIdleCallback is not available in all runtimes (e.g. some test envs / browsers).
+      if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(settingsSaveIdleHandle);
+      }
+      settingsSaveIdleHandle = undefined;
     }
   };
 
@@ -238,16 +247,13 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     if (!hasTauri() || !appSettings.value) return;
     settingsSaveError.value = null;
     cancelScheduledSave();
-    // Use a minimal async delay so tests can reliably observe saves without
-    // needing to advance long timers, while still debouncing rapid changes.
-    settingsSaveTimer = window.setTimeout(async () => {
-      settingsSaveTimer = undefined;
+
+    const runSave = async () => {
       if (!hasTauri() || !appSettings.value) return;
       const current = appSettings.value;
-      const serialized = JSON.stringify(current);
-      if (serialized === lastSavedSettingsSnapshot) {
-        return;
-      }
+      const serialized = await stringifyJsonAsync(current);
+      if (serialized === lastSavedSettingsSnapshot) return;
+
       isSavingSettings.value = true;
       try {
         // 仅将当前快照持久化，不再用后端返回值覆盖前端状态，
@@ -261,6 +267,25 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       } finally {
         isSavingSettings.value = false;
       }
+    };
+
+    // Defer serialization + persistence off the current UI event tick.
+    // Prefer requestIdleCallback to keep interactions smooth; fall back to setTimeout for environments without it.
+    if (typeof window.requestIdleCallback === "function") {
+      settingsSaveIdleHandle = window.requestIdleCallback(
+        () => {
+          settingsSaveIdleHandle = undefined;
+          void runSave();
+        },
+        { timeout: 1000 },
+      );
+      return;
+    }
+
+    // Minimal async delay so tests can reliably observe saves without needing long timers.
+    settingsSaveTimer = window.setTimeout(() => {
+      settingsSaveTimer = undefined;
+      void runSave();
     }, 0);
   };
 
@@ -276,7 +301,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     cancelScheduledSave();
     settingsSaveError.value = null;
 
-    const serialized = JSON.stringify(current);
+    const serialized = await stringifyJsonAsync(current);
     if (serialized === lastSavedSettingsSnapshot) {
       return;
     }

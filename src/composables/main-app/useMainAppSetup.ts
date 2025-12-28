@@ -232,7 +232,7 @@ export function useMainAppSetup() {
   // 保存预设排序模式变化
   watch(
     presetSortMode,
-    async (nextMode) => {
+    (nextMode) => {
       if (!settings.appSettings.value || !hasTauri()) return;
       if (settings.appSettings.value.presetSortMode === nextMode) return;
 
@@ -241,14 +241,14 @@ export function useMainAppSetup() {
         presetSortMode: nextMode,
       };
       settings.appSettings.value = nextSettings;
-      await settings.persistNow(nextSettings);
+      settings.scheduleSaveSettings();
     },
     { flush: "post" },
   );
   // 保存预设视图模式变化
   watch(
     presetViewMode,
-    async (nextMode) => {
+    (nextMode) => {
       if (!settings.appSettings.value || !hasTauri()) return;
       if (settings.appSettings.value.presetViewMode === nextMode) return;
 
@@ -257,7 +257,7 @@ export function useMainAppSetup() {
         presetViewMode: nextMode,
       };
       settings.appSettings.value = nextSettings;
-      await settings.persistNow(nextSettings);
+      settings.scheduleSaveSettings();
     },
     { flush: "post" },
   );

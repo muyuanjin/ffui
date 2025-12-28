@@ -19,6 +19,7 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
     };
 
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
+    let mut touched_any = false;
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -30,6 +31,7 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
             let Some(job) = state.jobs.get(job_id.as_str()) else {
                 continue;
             };
+            touched_any = true;
 
             match job.status {
                 JobStatus::Completed
@@ -45,6 +47,12 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
         }
 
         if deletable_job_ids.is_empty() {
+            // No-op is still considered "accepted" so the frontend can avoid
+            // slow refresh fallbacks by observing a new snapshot revision.
+            drop(state);
+            if touched_any {
+                notify_queue_listeners(inner);
+            }
             return true;
         }
 

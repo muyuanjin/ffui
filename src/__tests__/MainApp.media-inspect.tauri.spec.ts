@@ -109,7 +109,8 @@ describe("MainApp media inspect in Tauri mode", () => {
       },
     });
     await nextTick();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await nextTick();
 
     expect(inspectMedia).toHaveBeenCalledTimes(1);
     expect((inspectMedia as any).mock.calls[0][0]).toBe("C:/videos/sample.mp4");

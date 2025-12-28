@@ -1,17 +1,12 @@
 import * as backend from "@/lib/backend";
 
 const MAX_CONCURRENCY = 1;
-// Must be comfortably larger than the maximum number of concurrently rendered queue items
-// (virtua buffer + grid/icon views) to avoid dropping "currently visible" preview requests.
-const MAX_QUEUE = 128;
 const SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE = 2048;
 
 let inFlight = 0;
 const queuedJobIds: string[] = [];
-const enqueuedJobIds = new Set<string>();
-const pendingPromiseByJobId = new Map<string, Promise<string | null>>();
-const resolveByJobId = new Map<string, (path: string | null) => void>();
+const queuedJobIdSet = new Set<string>();
 const resolvedPreviewPathByJobId = new Map<string, { path: string; resolvedAtMs: number }>();
 
 const nowMs = () => (typeof Date?.now === "function" ? Date.now() : new Date().getTime());
@@ -62,11 +57,48 @@ const schedule = (fn: () => void) => {
   window.setTimeout(fn, 0);
 };
 
+type Consumer = {
+  resolve: (path: string | null) => void;
+  settled: boolean;
+};
+
+type JobOp = {
+  state: "queued" | "running";
+  consumers: Map<number, Consumer>;
+};
+
+const jobOpsById = new Map<string, JobOp>();
+let requestSeq = 0;
+
+const removeFromQueue = (jobId: string) => {
+  if (!queuedJobIdSet.has(jobId)) return;
+  queuedJobIdSet.delete(jobId);
+  const idx = queuedJobIds.indexOf(jobId);
+  if (idx >= 0) queuedJobIds.splice(idx, 1);
+};
+
 const pump = () => {
   if (inFlight >= MAX_CONCURRENCY) return;
-  const jobId = queuedJobIds.shift();
+  let jobId: string | undefined;
+  while (queuedJobIds.length > 0) {
+    const candidate = queuedJobIds.shift();
+    if (!candidate) break;
+    queuedJobIdSet.delete(candidate);
+    const op = jobOpsById.get(candidate);
+    if (!op) continue;
+    if (op.state !== "queued") continue;
+    if (op.consumers.size === 0) {
+      jobOpsById.delete(candidate);
+      continue;
+    }
+    jobId = candidate;
+    break;
+  }
   if (!jobId) return;
-  enqueuedJobIds.delete(jobId);
+
+  const op = jobOpsById.get(jobId);
+  if (!op || op.state !== "queued") return;
+  op.state = "running";
 
   inFlight += 1;
   let ensurePromise: Promise<string | null>;
@@ -81,62 +113,88 @@ const pump = () => {
     .then((path) => {
       const resolvedPath = path ?? null;
       cacheResolvedPreviewPath(jobId, resolvedPath);
-      resolveByJobId.get(jobId)?.(resolvedPath);
+      const consumers = jobOpsById.get(jobId)?.consumers;
+      if (consumers) {
+        for (const c of consumers.values()) {
+          if (c.settled) continue;
+          c.settled = true;
+          c.resolve(resolvedPath);
+        }
+      }
     })
     .finally(() => {
-      pendingPromiseByJobId.delete(jobId);
-      resolveByJobId.delete(jobId);
+      jobOpsById.delete(jobId);
       inFlight -= 1;
       schedule(pump);
     });
 };
 
-export function ensureJobPreviewAuto(jobId: string): Promise<string | null> {
-  if (!backend.hasTauri()) return Promise.resolve(null);
-  if (!jobId) return Promise.resolve(null);
+export function requestJobPreviewAutoEnsure(jobId: string): { promise: Promise<string | null>; cancel: () => void } {
+  if (!backend.hasTauri()) return { promise: Promise.resolve(null), cancel: () => {} };
+  if (!jobId) return { promise: Promise.resolve(null), cancel: () => {} };
 
   const cached = resolvedPreviewPathByJobId.get(jobId);
   if (cached && isCacheEntryFresh(cached)) {
-    return Promise.resolve(cached.path);
+    return { promise: Promise.resolve(cached.path), cancel: () => {} };
   }
   if (cached) {
     resolvedPreviewPathByJobId.delete(jobId);
   }
 
-  const existing = pendingPromiseByJobId.get(jobId);
-  if (existing) return existing;
+  const requestId = (requestSeq = (requestSeq + 1) >>> 0);
+
+  let op = jobOpsById.get(jobId);
+  if (!op) {
+    op = { state: "queued", consumers: new Map() };
+    jobOpsById.set(jobId, op);
+  }
 
   let resolveFn: (path: string | null) => void = () => {};
+  const consumer: Consumer = {
+    resolve: (path) => resolveFn(path),
+    settled: false,
+  };
+
   const promise = new Promise<string | null>((resolve) => {
     resolveFn = resolve;
   });
-  pendingPromiseByJobId.set(jobId, promise);
-  resolveByJobId.set(jobId, resolveFn);
 
-  if (!enqueuedJobIds.has(jobId)) {
-    enqueuedJobIds.add(jobId);
+  op.consumers.set(requestId, consumer);
+
+  if (op.state === "queued" && !queuedJobIdSet.has(jobId)) {
+    queuedJobIdSet.add(jobId);
     queuedJobIds.push(jobId);
-    if (queuedJobIds.length > MAX_QUEUE) {
-      const dropped = queuedJobIds.shift();
-      if (dropped) {
-        enqueuedJobIds.delete(dropped);
-        resolveByJobId.get(dropped)?.(null);
-        pendingPromiseByJobId.delete(dropped);
-        resolveByJobId.delete(dropped);
-      }
-    }
+    schedule(pump);
   }
 
-  schedule(pump);
+  const cancel = () => {
+    const current = jobOpsById.get(jobId);
+    const c = current?.consumers.get(requestId);
+    if (!c) return;
+    current?.consumers.delete(requestId);
+    if (!c.settled) {
+      c.settled = true;
+      c.resolve(null);
+    }
 
-  return promise;
+    if (current && current.state === "queued" && current.consumers.size === 0) {
+      jobOpsById.delete(jobId);
+      removeFromQueue(jobId);
+    }
+  };
+
+  return { promise, cancel };
+}
+
+export function ensureJobPreviewAuto(jobId: string): Promise<string | null> {
+  return requestJobPreviewAutoEnsure(jobId).promise;
 }
 
 export function resetPreviewAutoEnsureForTests() {
   inFlight = 0;
   queuedJobIds.length = 0;
-  enqueuedJobIds.clear();
-  pendingPromiseByJobId.clear();
-  resolveByJobId.clear();
+  queuedJobIdSet.clear();
+  jobOpsById.clear();
+  requestSeq = 0;
   resolvedPreviewPathByJobId.clear();
 }

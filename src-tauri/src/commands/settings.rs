@@ -17,11 +17,16 @@ pub fn get_app_settings(engine: State<'_, TranscodingEngine>) -> AppSettings {
 
 /// Save application settings.
 #[tauri::command]
-pub fn save_app_settings(
+pub async fn save_app_settings(
     engine: State<'_, TranscodingEngine>,
     settings: AppSettings,
 ) -> Result<AppSettings, String> {
-    engine.save_settings(settings).map_err(|e| e.to_string())
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.save_settings(settings).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Get the default batch compress configuration.
@@ -43,12 +48,17 @@ pub fn save_batch_compress_defaults(
 
 /// Run auto-compression: scan a directory and enqueue matching files.
 #[tauri::command]
-pub fn run_auto_compress(
+pub async fn run_auto_compress(
     engine: State<'_, TranscodingEngine>,
     root_path: String,
     config: BatchCompressConfig,
 ) -> Result<AutoCompressResult, String> {
-    engine
-        .run_auto_compress(root_path, config)
-        .map_err(|e| e.to_string())
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine
+            .run_auto_compress(root_path, config)
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }

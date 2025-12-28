@@ -180,8 +180,16 @@ pub fn ack_taskbar_progress(app: AppHandle, engine: State<'_, TranscodingEngine>
 
 /// Inspect a media file and return its metadata as JSON.
 #[tauri::command]
-pub fn inspect_media(engine: State<'_, TranscodingEngine>, path: String) -> Result<String, String> {
-    engine.inspect_media(&path).map_err(|e| e.to_string())
+pub async fn inspect_media(
+    engine: State<'_, TranscodingEngine>,
+    path: String,
+) -> Result<String, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.inspect_media(&path).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Read a generated preview image from disk and return it as a data URL string
@@ -191,7 +199,13 @@ pub fn inspect_media(engine: State<'_, TranscodingEngine>, path: String) -> Resu
 /// due to platform quirks), while still constraining reads to the preview
 /// images produced by the transcoding engine.
 #[tauri::command]
-pub fn get_preview_data_url(preview_path: String) -> Result<String, String> {
+pub async fn get_preview_data_url(preview_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || get_preview_data_url_impl(preview_path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn get_preview_data_url_impl(preview_path: String) -> Result<String, String> {
     use std::fs;
     use std::path::Path;
 
@@ -253,8 +267,14 @@ pub(crate) fn preview_root_dir_for_tests() -> PathBuf {
 /// When a user deletes the preview image from disk, this regenerates a fresh
 /// preview using the latest capture percent setting.
 #[tauri::command]
-pub fn ensure_job_preview(engine: State<'_, TranscodingEngine>, job_id: String) -> Option<String> {
-    engine.ensure_job_preview(&job_id)
+pub async fn ensure_job_preview(
+    engine: State<'_, TranscodingEngine>,
+    job_id: String,
+) -> Result<Option<String>, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || Ok(engine.ensure_job_preview(&job_id)))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// Open the system file manager for the given path and select/highlight the
@@ -286,7 +306,7 @@ mod tests {
 
         fs::write(&path, b"dummy-bytes").expect("failed to write outside preview file");
 
-        let err = get_preview_data_url(path.to_string_lossy().into_owned())
+        let err = get_preview_data_url_impl(path.to_string_lossy().into_owned())
             .expect_err("outside preview paths must be rejected");
         assert!(
             err.contains("outside the previews directory"),

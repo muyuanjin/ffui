@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
@@ -28,6 +28,10 @@ vi.mock("@/lib/backend", () => {
 vi.mock("@/components/queue-item/previewAutoEnsure", () => {
   return {
     ensureJobPreviewAuto: (jobId: string) => ensureJobPreviewAutoMock(jobId),
+    requestJobPreviewAutoEnsure: (jobId: string) => ({
+      promise: ensureJobPreviewAutoMock(jobId),
+      cancel: vi.fn(() => {}),
+    }),
     resetPreviewAutoEnsureForTests: vi.fn(() => {}),
   };
 });
@@ -104,6 +108,8 @@ function makeJob(overrides: Partial<TranscodeJob> = {}): TranscodeJob {
 }
 
 describe("QueueItem display preview & command view", () => {
+  let prevRaf: any;
+
   beforeEach(() => {
     (hasTauri as any).mockReset();
     (hasTauri as any).mockReturnValue(false);
@@ -111,6 +117,20 @@ describe("QueueItem display preview & command view", () => {
     (ensureJobPreview as any).mockReset();
     resetJobPreviewWarmupForTests();
     i18n.global.locale.value = "en";
+    prevRaf = (window as any).requestAnimationFrame;
+    (window as any).requestAnimationFrame = (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 0);
+  });
+
+  afterEach(() => {
+    if (prevRaf) {
+      (window as any).requestAnimationFrame = prevRaf;
+      return;
+    }
+    try {
+      delete (window as any).requestAnimationFrame;
+    } catch {
+      // ignore
+    }
   });
 
   it("renders media summary when mediaInfo is present", () => {
@@ -141,7 +161,7 @@ describe("QueueItem display preview & command view", () => {
     expect(text.toLowerCase()).toContain("h264");
   });
 
-  it("renders a thumbnail image when previewPath is present (pure web mode)", () => {
+  it("renders a thumbnail image when previewPath is present (pure web mode)", async () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
 
     const wrapper = mount(QueueItem, {
@@ -154,6 +174,9 @@ describe("QueueItem display preview & command view", () => {
         plugins: [i18n],
       },
     });
+
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
 
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const img = thumb.find("img");
@@ -186,6 +209,8 @@ describe("QueueItem display preview & command view", () => {
     // Flush the async auto-ensure promise + Vue re-render.
     await Promise.resolve();
     await nextTick();
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
 
     expect(ensureJobPreviewAutoMock).toHaveBeenCalledTimes(1);
     expect(ensureJobPreviewAutoMock).toHaveBeenCalledWith(job.id);
@@ -211,6 +236,9 @@ describe("QueueItem display preview & command view", () => {
       },
     });
 
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
+
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const img = thumb.find("img");
     expect(img.attributes("src")).toBe("C:/app-data/previews/abc123.jpg?ffuiPreviewRev=1");
@@ -218,6 +246,8 @@ describe("QueueItem display preview & command view", () => {
     await wrapper.setProps({
       job: { ...job, previewRevision: 2 },
     });
+    await nextTick();
+    await new Promise((r) => setTimeout(r, 0));
     await nextTick();
 
     const img2 = wrapper.get("[data-testid='queue-item-thumbnail']").find("img");
@@ -321,6 +351,8 @@ describe("QueueItem display preview & command view", () => {
       },
     });
 
+    await nextTick();
+    await new Promise((r) => setTimeout(r, 0));
     await nextTick();
 
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");

@@ -71,6 +71,7 @@ mod queue_delete;
 mod queue_delete_cleanup;
 mod queue_invariant_repair;
 mod queue_recovery_tests;
+mod queue_reorder;
 mod queue_segment_cleanup;
 mod queue_selection_input_lock;
 mod queue_wait_and_restart;

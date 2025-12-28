@@ -23,8 +23,9 @@ fn get_preview_data_url_builds_data_url_prefix() {
 
     fs::write(&path, b"dummy-preview-bytes").expect("failed to write preview test file");
 
-    let url = get_preview_data_url(path.to_string_lossy().into_owned())
-        .expect("preview data url generation must succeed for readable file");
+    let url =
+        tauri::async_runtime::block_on(get_preview_data_url(path.to_string_lossy().into_owned()))
+            .expect("preview data url generation must succeed for readable file");
 
     assert!(
         url.starts_with("data:image/jpeg;base64,"),

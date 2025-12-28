@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRef, onUpdated, onScopeDispose } from "vue";
+import { computed, toRef, onUpdated } from "vue";
 import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
-import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { ensureJobPreviewAuto } from "@/components/queue-item/previewAutoEnsure";
+import { hasTauri } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
+import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -225,104 +225,10 @@ const compareDisabledText = computed(() => {
   return t("jobCompare.disabled.unavailable") as string;
 });
 
-const previewUrl = ref<string | null>(null);
-const previewFallbackLoaded = ref(false);
-const previewRescreenshotAttempted = ref(false);
-const ensuredPreviewPath = ref<string | null>(null);
-const autoEnsureAttempted = ref(false);
-const lastJobId = ref<string | null>(null);
-const autoEnsureRetryTick = ref(0);
-let autoEnsureRetryTimer: number | null = null;
-
-watch(
-  () => ({
-    id: props.job.id,
-    previewPath: props.job.previewPath,
-    previewRevision: props.job.previewRevision,
-    type: props.job.type,
-    ensuredPreviewPath: ensuredPreviewPath.value,
-    autoEnsureRetryTick: autoEnsureRetryTick.value,
-  }),
-  ({ id, previewPath, previewRevision, type, ensuredPreviewPath: ensured }) => {
-    previewFallbackLoaded.value = false;
-    previewRescreenshotAttempted.value = false;
-    if (id !== lastJobId.value) {
-      lastJobId.value = id;
-      ensuredPreviewPath.value = null;
-      autoEnsureAttempted.value = false;
-    }
-    if (type === "video" && !previewPath && !ensuredPreviewPath.value && !autoEnsureAttempted.value && hasTauri()) {
-      autoEnsureAttempted.value = true;
-      void ensureJobPreviewAuto(id).then((resolved) => {
-        if (resolved) {
-          ensuredPreviewPath.value = resolved;
-          return;
-        }
-        if (autoEnsureRetryTick.value >= 2) return;
-        autoEnsureAttempted.value = false;
-        if (typeof window === "undefined") {
-          autoEnsureRetryTick.value += 1;
-          return;
-        }
-        if (autoEnsureRetryTimer != null) {
-          window.clearTimeout(autoEnsureRetryTimer);
-        }
-        autoEnsureRetryTimer = window.setTimeout(() => {
-          autoEnsureRetryTimer = null;
-          autoEnsureRetryTick.value += 1;
-        }, 500);
-      });
-    }
-    const path = previewPath || ensured || null;
-    if (!path) {
-      previewUrl.value = null;
-      return;
-    }
-    previewUrl.value = buildJobPreviewUrl(path, previewRevision);
-  },
-  { immediate: true },
-);
-
-onScopeDispose(() => {
-  if (typeof window === "undefined") return;
-  if (autoEnsureRetryTimer != null) {
-    window.clearTimeout(autoEnsureRetryTimer);
-    autoEnsureRetryTimer = null;
-  }
+const { previewUrl, handlePreviewError } = useQueueItemPreview({
+  job: computed(() => props.job),
+  isTestEnv,
 });
-
-const handlePreviewError = async () => {
-  const path = props.job.previewPath || ensuredPreviewPath.value;
-  if (!path) return;
-  if (!hasTauri()) return;
-  if (previewFallbackLoaded.value) return;
-
-  try {
-    const url = await loadPreviewDataUrl(path);
-    previewUrl.value = url;
-    previewFallbackLoaded.value = true;
-  } catch (error) {
-    if (previewRescreenshotAttempted.value) {
-      console.error("QueueIconItem: failed to load preview via data URL fallback", error);
-      return;
-    }
-
-    previewRescreenshotAttempted.value = true;
-    if (!isTestEnv) {
-      console.warn("QueueIconItem: preview missing or unreadable, attempting regeneration", error);
-    }
-
-    try {
-      const regenerated = await ensureJobPreview(props.job.id);
-      if (regenerated) {
-        previewUrl.value = buildJobPreviewUrl(regenerated, props.job.previewRevision);
-        previewFallbackLoaded.value = false;
-      }
-    } catch (regenError) {
-      console.error("QueueIconItem: failed to regenerate preview", regenError);
-    }
-  }
-};
 
 const onInspect = () => {
   emit("inspect", props.job);

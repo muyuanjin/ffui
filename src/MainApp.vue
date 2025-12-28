@@ -339,7 +339,7 @@ defineExpose({
           </div>
         </div>
         <ScrollArea v-else class="flex-1 min-h-0">
-          <div class="p-4 min-h-full flex flex-col">
+          <div class="min-h-full flex flex-col" :class="activeTab === 'presets' ? undefined : 'p-4'">
             <PresetPanel
               v-if="activeTab === 'presets'"
               :presets="presets"

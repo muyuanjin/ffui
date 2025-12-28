@@ -9,6 +9,11 @@ let lastSortableOptions: any = null;
 vi.mock("@vueuse/integrations/useSortable", () => ({
   useSortable: (_el: any, _list: any, options: any) => {
     lastSortableOptions = options;
+    return {
+      start: () => {},
+      stop: () => {},
+      option: () => undefined,
+    };
   },
 }));
 

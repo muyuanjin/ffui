@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
+import { nextTick } from "vue";
 import type { TranscodeJob } from "@/types";
 import en from "@/locales/en";
 
@@ -227,6 +228,9 @@ describe("QueueIconItem", () => {
         plugins: [i18n],
       },
     });
+
+    await new Promise((r) => setTimeout(r, 0));
+    await nextTick();
 
     const img = wrapper.get("img");
     await img.trigger("click");

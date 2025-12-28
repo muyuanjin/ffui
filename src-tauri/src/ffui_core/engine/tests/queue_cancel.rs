@@ -59,9 +59,9 @@ fn cancel_paused_job_transitions_to_cancelled_and_allows_delete() {
         engine.delete_job(&job.id),
         "cancelled job should be deletable"
     );
-    assert!(
-        !seg0.exists(),
-        "cancelling a paused job should best-effort remove partial segments"
+    assert_path_eventually_gone(
+        &seg0,
+        "cancelling a paused job should best-effort remove partial segments",
     );
 
     let _ = fs::remove_dir_all(&dir);

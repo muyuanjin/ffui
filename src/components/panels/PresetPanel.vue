@@ -72,7 +72,7 @@ const handleViewModeChange = (mode: ViewMode) => {
   emit("update:viewMode", mode);
 };
 
-// 本地排序模式（与 prop 同步）
+// 排序模式
 const localSortMode = ref<PresetSortMode>(props.sortMode);
 
 // 监听 prop 变化
@@ -179,7 +179,7 @@ const emitExportSelectedCommandsToClipboard = () => {
 };
 
 // Setup sortable - 始终启用拖拽
-useSortable(containerRef, localPresets, {
+const sortable = useSortable(containerRef, localPresets, {
   animation: 150,
   handle: ".drag-handle",
   ghostClass: "opacity-30",
@@ -218,220 +218,237 @@ useSortable(containerRef, localPresets, {
     emit("reorder", orderedIds);
   },
 });
+
+const updateSortableDisabled = () => {
+  sortable.option("disabled", localSortMode.value !== "manual");
+};
+
+watch(localSortMode, () => updateSortableDisabled());
+
+updateSortableDisabled();
 </script>
 
 <template>
-  <div class="w-full px-4 overflow-x-hidden" data-testid="preset-panel">
-    <div class="mb-4 text-sm text-muted-foreground flex flex-wrap items-center justify-between gap-2">
-      <div class="flex items-center gap-2 min-w-0 flex-shrink">
-        <GripVertical class="w-4 h-4 flex-shrink-0" />
-        <span class="truncate">
-          {{ t("presets.dragToReorder") }} · {{ t("presets.presetCount", { count: presets.length }) }}
-        </span>
-      </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <Select :key="locale" :model-value="localSortMode" @update:model-value="handleSortModeChange">
-          <SelectTrigger class="h-7 w-[100px] px-2 py-0 text-[11px]">
-            <SelectValue>
-              {{ currentSortLabel }}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent :disable-outside-pointer-events="false">
-            <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">
-              {{ t(option.labelKey) }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+  <div class="w-full overflow-x-hidden" data-testid="preset-panel">
+    <header class="shrink-0 border-b border-border bg-card/60 backdrop-blur" data-testid="preset-toolbar">
+      <div class="px-3 py-1.5 overflow-x-auto">
+        <div class="flex items-center justify-between gap-3 min-w-max">
+          <div class="flex items-center gap-2 min-w-0 shrink-0 text-xs text-muted-foreground">
+            <GripVertical class="w-4 h-4 shrink-0" />
+            <span class="truncate">
+              {{ t("presets.dragToReorder") }} · {{ t("presets.presetCount", { count: presets.length }) }}
+            </span>
+          </div>
 
-        <div class="flex border rounded-md flex-shrink-0">
-          <Button
-            data-testid="preset-view-grid"
-            variant="ghost"
-            size="sm"
-            class="h-7 w-7 p-0 rounded-r-none"
-            :class="{ 'bg-accent': localViewMode === 'grid' }"
-            @click="handleViewModeChange('grid')"
-          >
-            <LayoutGrid class="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            data-testid="preset-view-compact"
-            variant="ghost"
-            size="sm"
-            class="h-7 w-7 p-0 rounded-l-none border-l"
-            :class="{ 'bg-accent': localViewMode === 'compact' }"
-            @click="handleViewModeChange('compact')"
-          >
-            <LayoutList class="w-3.5 h-3.5" />
-          </Button>
-        </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
+              <SelectTrigger
+                class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]"
+              >
+                <SelectValue>{{ currentSortLabel }}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">
+                  {{ t(option.labelKey) }}
+                </SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-7 px-2 text-[11px] whitespace-nowrap"
-          data-testid="preset-import-recommended-pack"
-          @click="emit('importSmartPack')"
-        >
-          {{ t("presets.importSmartPack") }}
-        </Button>
-        <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
-          <Button
-            variant="ghost"
-            size="sm"
-            class="h-7 px-2 text-[11px] whitespace-nowrap rounded-none"
-            data-testid="preset-import-bundle"
-            @click="emit('importBundle')"
-          >
-            <Upload class="h-3 w-3 mr-1" />
-            {{ t("presets.import") }}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
+            <div class="flex border rounded-md flex-shrink-0">
+              <Button
+                data-testid="preset-view-grid"
+                variant="ghost"
+                size="sm"
+                class="h-7 w-7 p-0 rounded-r-none"
+                :class="{ 'bg-accent': localViewMode === 'grid' }"
+                @click="handleViewModeChange('grid')"
+              >
+                <LayoutGrid class="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                data-testid="preset-view-compact"
+                variant="ghost"
+                size="sm"
+                class="h-7 w-7 p-0 rounded-l-none border-l"
+                :class="{ 'bg-accent': localViewMode === 'compact' }"
+                @click="handleViewModeChange('compact')"
+              >
+                <LayoutList class="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              class="h-7 px-2 text-[11px] whitespace-nowrap"
+              data-testid="preset-import-recommended-pack"
+              @click="emit('importSmartPack')"
+            >
+              {{ t("presets.importSmartPack") }}
+            </Button>
+            <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
               <Button
                 variant="ghost"
                 size="sm"
-                class="h-7 w-7 p-0 rounded-none border-l border-border/60"
-                data-testid="preset-import-menu"
+                class="h-7 px-2 text-[11px] whitespace-nowrap rounded-none"
+                data-testid="preset-import-bundle"
+                @click="emit('importBundle')"
               >
-                <ChevronDown class="h-3.5 w-3.5" />
+                <Upload class="h-3 w-3 mr-1" />
+                {{ t("presets.import") }}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
-              :side-offset="4"
-              :portal-disabled="true"
-            >
-              <DropdownMenuItem
-                class="px-3 py-1.5 text-xs gap-2"
-                data-testid="preset-import-clipboard"
-                @select="emit('importBundleFromClipboard')"
-              >
-                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-                {{ t("presets.importFromClipboard") }}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                class="px-3 py-1.5 text-xs gap-2"
-                data-testid="preset-import-commands"
-                @select="emit('importCommands')"
-              >
-                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-                {{ t("presets.importCommands") }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 w-7 p-0 rounded-none border-l border-border/60"
+                    data-testid="preset-import-menu"
+                  >
+                    <ChevronDown class="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
+                  :side-offset="4"
+                  :portal-disabled="true"
+                >
+                  <DropdownMenuItem
+                    class="px-3 py-1.5 text-xs gap-2"
+                    data-testid="preset-import-clipboard"
+                    @select="emit('importBundleFromClipboard')"
+                  >
+                    <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                    {{ t("presets.importFromClipboard") }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    class="px-3 py-1.5 text-xs gap-2"
+                    data-testid="preset-import-commands"
+                    @select="emit('importCommands')"
+                  >
+                    <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                    {{ t("presets.importCommands") }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-        <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
+            <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2 text-[11px] whitespace-nowrap rounded-none"
+                data-testid="preset-export-file"
+                :disabled="selectedCount === 0"
+                @click="emitExportSelectedToFile"
+              >
+                <Download class="h-3 w-3 mr-1" />
+                {{ t("presets.export") }}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger as-child>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="h-7 w-7 p-0 rounded-none border-l border-border/60"
+                    data-testid="preset-export-menu"
+                    :disabled="selectedCount === 0"
+                  >
+                    <ChevronDown class="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
+                  :side-offset="4"
+                  :portal-disabled="true"
+                >
+                  <DropdownMenuItem
+                    class="px-3 py-1.5 text-xs gap-2"
+                    data-testid="preset-export-clipboard"
+                    @select="emitExportSelectedToClipboard"
+                  >
+                    <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                    {{ t("presets.exportToClipboard") }}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    class="px-3 py-1.5 text-xs gap-2"
+                    data-testid="preset-export-commands"
+                    @select="emitExportSelectedCommandsToClipboard"
+                  >
+                    <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
+                    {{ t("presets.copyTemplateCommands") }}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div
+      v-if="selectedCount > 0"
+      class="border-b border-border/60 px-3 py-1.5 bg-accent/5 text-xs"
+      data-testid="preset-selection-actions"
+    >
+      <div class="flex items-center justify-between gap-2 min-w-max">
+        <div class="text-muted-foreground">{{ t("presets.selectedCount", { count: selectedCount }) }}</div>
+        <div class="flex items-center gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            class="h-7 px-2 text-[11px] whitespace-nowrap rounded-none"
-            data-testid="preset-export-file"
-            :disabled="selectedCount === 0"
+            class="h-7 px-2 text-[11px]"
+            data-testid="preset-batch-export"
             @click="emitExportSelectedToFile"
           >
             <Download class="h-3 w-3 mr-1" />
             {{ t("presets.export") }}
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-7 w-7 p-0 rounded-none border-l border-border/60"
-                data-testid="preset-export-menu"
-                :disabled="selectedCount === 0"
-              >
-                <ChevronDown class="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              class="z-50 min-w-[160px] overflow-hidden rounded-md border border-border bg-popover text-xs shadow-md py-1"
-              :side-offset="4"
-              :portal-disabled="true"
-            >
-              <DropdownMenuItem
-                class="px-3 py-1.5 text-xs gap-2"
-                data-testid="preset-export-clipboard"
-                @select="emitExportSelectedToClipboard"
-              >
-                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-                {{ t("presets.exportToClipboard") }}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                class="px-3 py-1.5 text-xs gap-2"
-                data-testid="preset-export-commands"
-                @select="emitExportSelectedCommandsToClipboard"
-              >
-                <Copy class="h-4 w-4 opacity-80" aria-hidden="true" />
-                {{ t("presets.copyTemplateCommands") }}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <Button
+            variant="destructive"
+            size="sm"
+            class="h-7 px-2 text-[11px]"
+            data-testid="preset-batch-delete"
+            @click="emitBatchDelete"
+          >
+            <Trash2 class="h-3 w-3 mr-1" />
+            {{ t("presets.batchDelete") }}
+          </Button>
+          <Button variant="outline" size="sm" class="h-7 px-2 text-[11px]" @click="clearSelection">
+            {{ t("presets.clearSelection") }}
+          </Button>
         </div>
       </div>
     </div>
 
-    <div
-      v-if="selectedCount > 0"
-      class="mb-3 flex items-center justify-between gap-2 rounded-md border border-border/50 bg-card/80 px-3 py-2 text-xs"
-      data-testid="preset-selection-actions"
-    >
-      <div class="text-muted-foreground">{{ t("presets.selectedCount", { count: selectedCount }) }}</div>
-      <div class="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          class="h-7 px-2 text-[11px]"
-          data-testid="preset-batch-export"
-          @click="emitExportSelectedToFile"
-        >
-          <Download class="h-3 w-3 mr-1" />
-          {{ t("presets.export") }}
-        </Button>
-        <Button
-          variant="destructive"
-          size="sm"
-          class="h-7 px-2 text-[11px]"
-          data-testid="preset-batch-delete"
-          @click="emitBatchDelete"
-        >
-          <Trash2 class="h-3 w-3 mr-1" />
-          {{ t("presets.batchDelete") }}
-        </Button>
-        <Button variant="outline" size="sm" class="h-7 px-2 text-[11px]" @click="clearSelection">
-          {{ t("presets.clearSelection") }}
-        </Button>
+    <div class="p-4">
+      <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
+        <PresetRowCompact
+          v-for="preset in sortedPresets"
+          :key="preset.id"
+          :preset="preset"
+          :selected="isSelected(preset.id)"
+          @toggle-select="toggleSelected"
+          @duplicate="emit('duplicate', $event)"
+          @exportPresetToFile="emit('exportPresetToFile', $event)"
+          @edit="emit('edit', $event)"
+          @delete="emit('delete', $event)"
+        />
       </div>
-    </div>
 
-    <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
-      <PresetRowCompact
-        v-for="preset in sortedPresets"
-        :key="preset.id"
-        :preset="preset"
-        :selected="isSelected(preset.id)"
-        @toggle-select="toggleSelected"
-        @duplicate="emit('duplicate', $event)"
-        @exportPresetToFile="emit('exportPresetToFile', $event)"
-        @edit="emit('edit', $event)"
-        @delete="emit('delete', $event)"
-      />
-    </div>
-
-    <div v-else ref="containerRef" class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch">
-      <PresetCardGrid
-        v-for="preset in sortedPresets"
-        :key="preset.id"
-        :preset="preset"
-        :selected="isSelected(preset.id)"
-        @toggle-select="toggleSelected"
-        @duplicate="emit('duplicate', $event)"
-        @exportPresetToFile="emit('exportPresetToFile', $event)"
-        @edit="emit('edit', $event)"
-        @delete="emit('delete', $event)"
-      />
+      <div v-else ref="containerRef" class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch">
+        <PresetCardGrid
+          v-for="preset in sortedPresets"
+          :key="preset.id"
+          :preset="preset"
+          :selected="isSelected(preset.id)"
+          @toggle-select="toggleSelected"
+          @duplicate="emit('duplicate', $event)"
+          @exportPresetToFile="emit('exportPresetToFile', $event)"
+          @edit="emit('edit', $event)"
+          @delete="emit('delete', $event)"
+        />
+      </div>
     </div>
   </div>
 </template>

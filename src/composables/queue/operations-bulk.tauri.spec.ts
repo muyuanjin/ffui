@@ -96,8 +96,8 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
 
       const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
       expect(statusById.get("job-processing")).toBe("processing");
-      expect(statusById.get("job-waiting")).toBe("queued");
-      expect(statusById.get("job-queued")).toBe("queued");
+      expect(statusById.get("job-waiting")).toBe("paused");
+      expect(statusById.get("job-queued")).toBe("paused");
 
       expect(pausingJobIds.value.has("job-processing")).toBe(true);
     });

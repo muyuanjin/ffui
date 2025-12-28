@@ -2,6 +2,7 @@ import { computed, ref, type ComputedRef, type Ref } from "vue";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { readFromClipboard } from "@/lib/readFromClipboard";
+import { parseJsonAsync, stringifyJsonAsync } from "@/lib/asyncJson";
 import {
   deletePresetOnBackend,
   exportPresetsBundle,
@@ -270,7 +271,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
     try {
       const text = await readFromClipboard();
       if (!text || text.trim().length === 0) return;
-      const parsed = JSON.parse(text) as unknown;
+      const parsed = await parseJsonAsync<unknown>(text);
       await importPresetsCore(isRecord(parsed) ? parsed.presets : null);
     } catch (e) {
       console.error("Failed to import presets bundle from clipboard:", e);
@@ -323,7 +324,8 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
         exportedAtMs: Date.now(),
         presets: presetsToExport,
       };
-      await copyToClipboard(JSON.stringify(bundle, null, 2));
+      const serialized = await stringifyJsonAsync(bundle, 2);
+      await copyToClipboard(serialized);
     } catch (e) {
       console.error("Failed to export presets bundle to clipboard:", e);
     }

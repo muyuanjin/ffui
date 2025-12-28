@@ -7,7 +7,7 @@ import { hasTauri } from "@/lib/backend";
  */
 export interface UseDragAndDropOptions {
   /** 文件拖放完成时的回调函数 */
-  onFilesDropped?: (paths: string[]) => void;
+  onFilesDropped?: (paths: string[]) => void | Promise<void>;
 }
 
 /**
@@ -76,7 +76,11 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
         paths.push(typeof filePath === "string" && filePath.trim().length > 0 ? filePath : file.name);
       }
       if (paths.length > 0 && onFilesDropped) {
-        onFilesDropped(paths);
+        try {
+          await onFilesDropped(paths);
+        } catch (error) {
+          console.error("Failed to handle dropped files:", error);
+        }
       }
     }
   };
@@ -88,7 +92,9 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
         dragDropUnlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
           const paths = event.payload.paths;
           if (paths && paths.length > 0 && onFilesDropped) {
-            onFilesDropped(paths);
+            void Promise.resolve(onFilesDropped(paths)).catch((error) => {
+              console.error("Failed to handle tauri drag-drop payload:", error);
+            });
           }
         });
       } catch (error) {

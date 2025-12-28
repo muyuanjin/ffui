@@ -3,7 +3,9 @@ import { computed, ref, onMounted, onUnmounted, watch, reactive, nextTick } from
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
-import { buildJobPreviewUrl, buildPreviewUrl, ensureJobPreview, hasTauri } from "@/lib/backend";
+import { buildJobPreviewUrl, buildPreviewUrl, hasTauri } from "@/lib/backend";
+import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
+import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { createWheelSoftSnapController } from "@/lib/wheelSoftSnap";
 import QueueCarousel3DHeader from "@/components/queue-item/QueueCarousel3DHeader.vue";
 import QueueCarousel3DFooter from "@/components/queue-item/QueueCarousel3DFooter.vue";
@@ -44,6 +46,10 @@ const containerRef = ref<HTMLElement | null>(null);
 const stageRef = ref<HTMLElement | null>(null);
 
 const previewCache = reactive<Record<string, string | null>>({});
+const pendingPreviewEnsures = new Map<string, { promise: Promise<string | null>; cancel: () => void }>();
+
+const perfHints = useQueuePerfHints();
+const allowAutoEnsure = computed(() => perfHints?.allowPreviewAutoEnsure.value ?? true);
 
 let autoRotationTimer: ReturnType<typeof setInterval> | null = null;
 let stageResizeObserver: ResizeObserver | null = null;
@@ -125,14 +131,18 @@ const ensurePreviewForItem = async (item: QueueListItem) => {
   if (!job) return;
   if (job.previewPath || previewCache[job.id] || job.type !== "video") return;
   if (!hasTauri()) return;
+  if (!allowAutoEnsure.value) return;
+  if (pendingPreviewEnsures.has(job.id)) return;
 
   try {
-    const path = await ensureJobPreview(job.id);
-    if (path) {
-      previewCache[job.id] = path;
-    }
+    const handle = requestJobPreviewAutoEnsure(job.id);
+    pendingPreviewEnsures.set(job.id, handle);
+    const path = await handle.promise;
+    if (path) previewCache[job.id] = path;
   } catch {
     // silent
+  } finally {
+    pendingPreviewEnsures.delete(job.id);
   }
 };
 
@@ -140,11 +150,31 @@ watch(
   activeIndex,
   (newIndex) => {
     const items = displayedItems.value;
+    const keep = new Set<string>();
     for (let i = Math.max(0, newIndex - 2); i <= Math.min(items.length - 1, newIndex + 2); i++) {
+      const job = getItemJob(items[i]);
+      if (job) keep.add(job.id);
       ensurePreviewForItem(items[i]);
+    }
+    for (const [jobId, handle] of pendingPreviewEnsures) {
+      if (keep.has(jobId)) continue;
+      handle.cancel();
+      pendingPreviewEnsures.delete(jobId);
     }
   },
   { immediate: true },
+);
+
+watch(
+  allowAutoEnsure,
+  (allowed) => {
+    if (allowed) return;
+    for (const handle of pendingPreviewEnsures.values()) {
+      handle.cancel();
+    }
+    pendingPreviewEnsures.clear();
+  },
+  { flush: "sync" },
 );
 
 const getCardStyle = (index: number) => {
@@ -323,6 +353,10 @@ onMounted(() => {
 onUnmounted(() => {
   containerRef.value?.removeEventListener("wheel", handleWheel);
   wheelSnap.reset();
+  for (const handle of pendingPreviewEnsures.values()) {
+    handle.cancel();
+  }
+  pendingPreviewEnsures.clear();
   if (stageResizeObserver) {
     stageResizeObserver.disconnect();
     stageResizeObserver = null;
