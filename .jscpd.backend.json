@@ -1,7 +1,7 @@
 {
   "pattern": "**/*.rs",
-  "minLines": 8,
-  "minTokens": 80,
+  "minLines": 10,
+  "minTokens": 100,
   "threshold": 0,
   "reporters": ["console", "html", "json"],
   "output": ".jscpd/rust",

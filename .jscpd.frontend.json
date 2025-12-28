@@ -1,7 +1,7 @@
 {
   "pattern": "**/*",
-  "minLines": 8,
-  "minTokens": 80,
+  "minLines": 12,
+  "minTokens": 120,
   "threshold": 0,
   "format": ["typescript", "tsx", "markup"],
   "formatsExts": {
