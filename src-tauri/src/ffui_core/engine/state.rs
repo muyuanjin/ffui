@@ -23,45 +23,23 @@ mod restore;
 pub(in crate::ffui_core::engine) mod restore_segment_probe;
 #[cfg(test)]
 mod restore_tests;
+mod snapshots;
+mod types;
+mod ui_lite;
+
+use snapshots::snapshot_queue_state_lite_from_locked_state;
 
 pub(super) use restore::restore_jobs_from_persisted_queue;
+pub(super) use types::{
+    BATCH_COMPRESS_PROGRESS_EVERY, BatchCompressProgressListener, QueueListener,
+    QueueLiteDeltaListener, QueueLiteListener,
+};
+pub(crate) use types::{BatchCompressBatch, BatchCompressBatchStatus};
+pub(super) use ui_lite::snapshot_queue_state_ui_lite;
 
 #[cfg(test)]
 pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
     restore::restore_jobs_from_snapshot(inner, snapshot);
-}
-
-pub(super) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
-
-pub(super) type QueueListener = Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
-pub(super) type QueueLiteListener = Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;
-pub(super) type QueueLiteDeltaListener = Arc<dyn Fn(QueueStateLiteDelta) + Send + Sync + 'static>;
-pub(super) type BatchCompressProgressListener =
-    Arc<dyn Fn(AutoCompressProgress) + Send + Sync + 'static>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum BatchCompressBatchStatus {
-    Scanning,
-    Running,
-    Completed,
-    #[allow(dead_code)]
-    Failed,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct BatchCompressBatch {
-    pub(crate) batch_id: String,
-    pub(crate) root_path: String,
-    /// 当前批次是否在压缩完成后替换原文件（移动到回收站并更新输出路径）。
-    pub(crate) replace_original: bool,
-    pub(crate) status: BatchCompressBatchStatus,
-    pub(crate) total_files_scanned: u64,
-    pub(crate) total_candidates: u64,
-    pub(crate) total_processed: u64,
-    pub(crate) child_job_ids: Vec<String>,
-    #[allow(dead_code)]
-    pub(crate) started_at_ms: u64,
-    pub(crate) completed_at_ms: Option<u64>,
 }
 
 pub(crate) struct EngineState {
@@ -246,25 +224,6 @@ pub(super) fn snapshot_queue_state(inner: &Inner) -> QueueState {
 
     let state = inner.state.lock_unpoisoned();
     snapshot_queue_state_from_locked_state(&state)
-}
-
-fn snapshot_queue_state_lite_from_locked_state(state: &mut EngineState) -> QueueStateLite {
-    let snapshot_revision = state.queue_snapshot_revision;
-    let order_by_id = build_queue_order_map(state);
-
-    let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
-    for (id, job) in &state.jobs {
-        let mut lite = TranscodeJobLite::from(job);
-        lite.queue_order = order_by_id.get(id.as_str()).copied();
-        jobs.push(lite);
-    }
-
-    sort_jobs_by_queue_order_and_id(&mut jobs);
-
-    QueueStateLite {
-        snapshot_revision,
-        jobs,
-    }
 }
 
 fn repair_queue_invariants_locked(state: &mut EngineState) {

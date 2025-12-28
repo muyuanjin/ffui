@@ -90,7 +90,6 @@ describe("MainApp repeated wait/resume cycles", () => {
           processedWallMillis: 1234,
           processedSeconds: 36.223129,
           tmpOutputPath: "C:/tmp/seg0.mkv",
-          segments: ["C:/tmp/seg0.mkv"],
         },
       } as TranscodeJob,
     ]);
@@ -120,7 +119,6 @@ describe("MainApp repeated wait/resume cycles", () => {
           processedWallMillis: 1234,
           processedSeconds: 36.223129,
           tmpOutputPath: "C:/tmp/seg0.mkv",
-          segments: ["C:/tmp/seg0.mkv"],
         },
       } as TranscodeJob,
     ]);
@@ -145,7 +143,6 @@ describe("MainApp repeated wait/resume cycles", () => {
           processedWallMillis: 2468,
           processedSeconds: 73.873,
           tmpOutputPath: "C:/tmp/seg1.mkv",
-          segments: ["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"],
         },
       } as TranscodeJob,
     ]);
@@ -155,7 +152,7 @@ describe("MainApp repeated wait/resume cycles", () => {
     expect(pausedJob1?.status).toBe("paused");
     expect(pausedJob1?.waitMetadata?.processedWallMillis).toBe(2468);
     expect(pausedJob1?.waitMetadata?.processedSeconds).toBeCloseTo(73.873, 3);
-    expect(pausedJob1?.waitMetadata?.segments).toEqual(["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"]);
+    expect(pausedJob1?.waitMetadata?.tmpOutputPath).toBe("C:/tmp/seg1.mkv");
 
     await vm.handleResumeJob(jobId);
     await nextTick();

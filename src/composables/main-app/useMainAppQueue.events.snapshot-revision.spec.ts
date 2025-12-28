@@ -206,6 +206,90 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
     wrapper.unmount();
   });
 
+  it("merges sparse queue-state-lite-delta patches so status updates are not dropped", async () => {
+    const jobs = ref<TranscodeJob[]>([]);
+    const queueError = ref<string | null>(null);
+    const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const startupIdleReady = ref(false);
+
+    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
+      jobs,
+      queueError,
+      lastQueueSnapshotAtMs,
+      lastQueueSnapshotRevision,
+    };
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueEventListeners({
+          jobs,
+          lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
+          startupIdleReady,
+          refreshQueueFromBackend: async () => {},
+          applyQueueStateFromBackend: (state: QueueStateLite) => applyQueueStateFromBackend(state, deps),
+          applyQueueStateLiteDeltaFromBackend: (delta: QueueStateLiteDelta) =>
+            applyQueueStateLiteDeltaFromBackend(delta, deps),
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    const wrapper = mount(TestHarness);
+    await nextTick();
+
+    expect(capturedHandler).toBeTypeOf("function");
+    expect(capturedDeltaHandler).toBeTypeOf("function");
+
+    capturedHandler!({
+      payload: {
+        snapshotRevision: 2,
+        jobs: [
+          {
+            id: "job-1",
+            filename: "a.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            presetId: "preset-1",
+            status: "paused",
+            progress: 0,
+          },
+        ],
+      } satisfies QueueStateLite,
+    });
+
+    // Same job id, same baseSnapshotRevision, higher deltaRevision:
+    // the preview-only patch must not wipe the earlier status/progress update.
+    capturedDeltaHandler!({
+      payload: {
+        baseSnapshotRevision: 2,
+        deltaRevision: 1,
+        patches: [{ id: "job-1", status: "processing", progress: 10 }],
+      } satisfies QueueStateLiteDelta,
+    });
+    capturedDeltaHandler!({
+      payload: {
+        baseSnapshotRevision: 2,
+        deltaRevision: 2,
+        patches: [{ id: "job-1", previewPath: "C:/previews/job-1.jpg", previewRevision: 5 }],
+      } satisfies QueueStateLiteDelta,
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+
+    expect(jobs.value).toHaveLength(1);
+    expect(jobs.value[0].status).toBe("processing");
+    expect(jobs.value[0].progress).toBe(10);
+    expect(jobs.value[0].previewPath).toBe("C:/previews/job-1.jpg");
+    expect(jobs.value[0].previewRevision).toBe(5);
+
+    wrapper.unmount();
+  });
+
   it("buffers deltas for a newer baseSnapshotRevision until the matching snapshot arrives", async () => {
     const jobs = ref<TranscodeJob[]>([]);
     const queueError = ref<string | null>(null);

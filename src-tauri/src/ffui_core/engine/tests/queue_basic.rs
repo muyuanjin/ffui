@@ -194,6 +194,51 @@ fn cancelling_processing_job_in_multi_worker_pool_only_affects_target_job() {
 }
 
 #[test]
+fn cancel_then_delete_removes_job_once_worker_releases_slot() {
+    let engine = make_engine_with_preset();
+
+    let filename = "C:/videos/cancel-then-delete.mp4".to_string();
+    let job = engine.enqueue_transcode_job(
+        filename.clone(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let taken = next_job_for_worker_locked(&mut state).expect("job should be selected");
+        assert_eq!(taken, job.id);
+    }
+
+    assert!(
+        engine.cancel_job(&job.id),
+        "cancel_job must succeed for a job in Processing status"
+    );
+    mark_job_cancelled(&engine.inner, &job.id).expect("mark_job_cancelled should succeed");
+
+    // Simulate the worker thread releasing its active slot before deletion.
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.active_jobs.remove(&job.id);
+        state.active_inputs.remove(&filename);
+    }
+
+    assert!(
+        engine.delete_job(&job.id),
+        "delete_job must accept cancelled jobs once they are not active"
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    assert!(
+        !state.jobs.contains_key(&job.id),
+        "deleted job must be removed from jobs map"
+    );
+}
+
+#[test]
 fn multi_worker_wait_resume_respects_queue_order() {
     let engine = make_engine_with_preset();
 

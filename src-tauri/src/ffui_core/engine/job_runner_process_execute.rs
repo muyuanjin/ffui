@@ -71,7 +71,6 @@ fn execute_transcode_job(
     configure_background_command(&mut cmd);
     maybe_inject_stats_period_for_download(
         inner,
-        &mut cmd,
         &mut args,
         &settings_snapshot,
         &ffmpeg_path,
@@ -102,6 +101,15 @@ fn execute_transcode_job(
     let mut pause_debug = PauseLatencyDebug::default();
     let mut stderr_pump = FfmpegStderrPump::spawn(&mut child);
     let poll = Duration::from_millis(50);
+
+    #[derive(Debug, Clone, Copy, Default)]
+    struct PendingProgress {
+        elapsed_seconds: Option<f64>,
+        speed: Option<f64>,
+        frame: Option<u64>,
+    }
+
+    let mut pending_progress = PendingProgress::default();
 
     let mut handle_ffmpeg_line = |line: &str, wait_requested: bool| {
         // When ffprobe is unavailable or fails, infer total duration from
@@ -134,62 +142,111 @@ fn execute_transcode_job(
         }
 
         let sample = parse_ffmpeg_progress_sample(line);
-        let parsed = parse_ffmpeg_progress_line(line)
-            .or_else(|| sample.elapsed_seconds.map(|elapsed| (elapsed, sample.speed)));
-        if let Some((elapsed, speed)) = parsed {
-            if let Some(total) = total_duration
-                && elapsed.is_finite()
-                && total.is_finite()
-                && elapsed > total * 1.01
-            {
-                total_duration = Some(elapsed);
-                let mut state = inner.state.lock_unpoisoned();
-                if let Some(job) = state.jobs.get_mut(job_id) {
-                    if let Some(info) = job.media_info.as_mut() {
-                        info.duration_seconds = Some(elapsed);
-                    } else {
-                        job.media_info = Some(MediaInfo {
-                            duration_seconds: Some(elapsed),
-                            width: None,
-                            height: None,
-                            frame_rate: None,
-                            video_codec: None,
-                            audio_codec: None,
-                            size_mb: None,
-                        });
-                    }
-                    let key = job.filename.clone();
-                    if let Some(info) = job.media_info.clone() {
-                        state.media_info_cache.insert(key, info);
-                    }
-                }
-            }
-
-            let effective_elapsed = resume_target_seconds.map_or(elapsed, |base| base + elapsed);
-            if elapsed.is_finite()
-                && elapsed > 0.0
-                && effective_elapsed.is_finite()
-                && last_effective_elapsed_seconds
-                    .is_none_or(|last| effective_elapsed > last + 0.000_001)
-            {
-                last_effective_elapsed_seconds = Some(effective_elapsed);
-            }
-
-            if wait_requested {
-                update_job_progress(inner, job_id, None, Some(effective_elapsed), sample.frame, Some(line), speed);
-            } else {
-                let mut percent = compute_progress_percent(total_duration, effective_elapsed);
-                if percent >= 100.0 {
-                    percent = 99.9;
-                }
-                update_job_progress(inner, job_id, Some(percent), Some(effective_elapsed), sample.frame, Some(line), speed);
-            }
-        } else {
-            update_job_progress(inner, job_id, None, None, sample.frame, Some(line), None);
+        if let Some(v) = sample.elapsed_seconds {
+            pending_progress.elapsed_seconds = Some(v);
+        }
+        if let Some(v) = sample.speed {
+            pending_progress.speed = Some(v);
+        }
+        if let Some(v) = sample.frame {
+            pending_progress.frame = Some(v);
         }
 
-        if !wait_requested && is_ffmpeg_progress_end(line) {
-            update_job_progress(inner, job_id, Some(100.0), last_effective_elapsed_seconds, None, Some(line), None);
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("progress=") {
+            let speed = pending_progress.speed;
+            let frame = pending_progress.frame;
+            if let Some(elapsed) = pending_progress.elapsed_seconds {
+                if let Some(total) = total_duration
+                    && elapsed.is_finite()
+                    && total.is_finite()
+                    && elapsed > total * 1.01
+                {
+                    total_duration = Some(elapsed);
+                    let mut state = inner.state.lock_unpoisoned();
+                    if let Some(job) = state.jobs.get_mut(job_id) {
+                        if let Some(info) = job.media_info.as_mut() {
+                            info.duration_seconds = Some(elapsed);
+                        } else {
+                            job.media_info = Some(MediaInfo {
+                                duration_seconds: Some(elapsed),
+                                width: None,
+                                height: None,
+                                frame_rate: None,
+                                video_codec: None,
+                                audio_codec: None,
+                                size_mb: None,
+                            });
+                        }
+                        let key = job.filename.clone();
+                        if let Some(info) = job.media_info.clone() {
+                            state.media_info_cache.insert(key, info);
+                        }
+                    }
+                }
+
+                let effective_elapsed =
+                    resume_target_seconds.map_or(elapsed, |base| base + elapsed);
+                if elapsed.is_finite()
+                    && elapsed > 0.0
+                    && effective_elapsed.is_finite()
+                    && last_effective_elapsed_seconds
+                        .is_none_or(|last| effective_elapsed > last + 0.000_001)
+                {
+                    last_effective_elapsed_seconds = Some(effective_elapsed);
+                }
+
+                if wait_requested {
+                    update_job_progress(
+                        inner,
+                        job_id,
+                        None,
+                        Some(effective_elapsed),
+                        frame,
+                        Some(line),
+                        speed,
+                    );
+                } else {
+                    let mut percent = compute_progress_percent(total_duration, effective_elapsed);
+                    if percent >= 100.0 {
+                        percent = 99.9;
+                    }
+                    update_job_progress(
+                        inner,
+                        job_id,
+                        Some(percent),
+                        Some(effective_elapsed),
+                        frame,
+                        Some(line),
+                        speed,
+                    );
+                }
+            } else {
+                // Still accept speed-only samples so the frontend can keep
+                // extrapolating even when out_time is temporarily stalled.
+                update_job_progress(inner, job_id, None, None, frame, Some(line), speed);
+            }
+
+            if !wait_requested && is_ffmpeg_progress_end(line) {
+                update_job_progress(
+                    inner,
+                    job_id,
+                    Some(100.0),
+                    last_effective_elapsed_seconds,
+                    None,
+                    Some(line),
+                    None,
+                );
+            }
+
+            pending_progress = PendingProgress::default();
+            return;
+        }
+
+        // Non-progress marker lines: keep recording useful logs, but avoid
+        // streaming high-frequency noise as separate state updates.
+        if parse_ffmpeg_progress_line(line).is_none() && sample.elapsed_seconds.is_none() {
+            update_job_progress(inner, job_id, None, None, None, Some(line), None);
         }
     };
 

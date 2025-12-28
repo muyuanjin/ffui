@@ -71,11 +71,12 @@ pub(super) fn update_job_progress(
                 job.elapsed_ms = Some(previous_wall_ms + current_segment_ms);
             }
 
-            if job.status == JobStatus::Processing {
+            if job.status == JobStatus::Processing
+                && let Some(meta) = job.wait_metadata.as_mut()
+            {
                 if let Some(out_time) = progress_out_time_seconds
                     && out_time.is_finite()
                     && out_time >= 0.0
-                    && let Some(meta) = job.wait_metadata.as_mut()
                 {
                     let changed = meta
                         .last_progress_out_time_seconds
@@ -88,24 +89,29 @@ pub(super) fn update_job_progress(
                         meta.last_progress_updated_at_ms = Some(now_ms);
                         telemetry_changed = true;
                     }
+                }
 
-                    if let Some(v) = speed
-                        && v.is_finite()
-                        && v > 0.0
-                    {
-                        let changed = meta
-                            .last_progress_speed
-                            .is_none_or(|prev| (prev - v).abs() > 0.000_001);
-                        if changed {
-                            meta.last_progress_speed = Some(v);
-                            meta.last_progress_updated_at_ms = Some(now_ms);
-                            telemetry_changed = true;
-                        }
+                if let Some(v) = speed
+                    && v.is_finite()
+                    && v > 0.0
+                {
+                    let changed = meta
+                        .last_progress_speed
+                        .is_none_or(|prev| (prev - v).abs() > 0.000_001);
+                    if changed {
+                        meta.last_progress_speed = Some(v);
+                        telemetry_changed = true;
+                    }
+                    // Even when the speed value itself is stable, refresh the
+                    // timestamp so the frontend can keep extrapolating while
+                    // ffmpeg is busy but out_time is temporarily stalled.
+                    if meta.last_progress_updated_at_ms.is_none_or(|prev| prev != now_ms) {
+                        meta.last_progress_updated_at_ms = Some(now_ms);
+                        telemetry_changed = true;
                     }
                 }
 
                 if let Some(frame) = progress_frame
-                    && let Some(meta) = job.wait_metadata.as_mut()
                 {
                     let changed = meta
                         .last_progress_frame
@@ -117,25 +123,28 @@ pub(super) fn update_job_progress(
             }
 
             if let Some(p) = percent {
-                let clamped = p.clamp(0.0, 100.0);
-                if clamped > job.progress {
-                    job.progress = clamped;
-                    progress_changed = true;
-                    if job.status == JobStatus::Processing
-                        && let Some(meta) = job.wait_metadata.as_mut()
-                    {
-                        meta.last_progress_percent = Some(job.progress);
-                        if let Some(total) =
-                            job.media_info.as_ref().and_then(|m| m.duration_seconds)
-                            && total.is_finite()
-                            && total > 0.0
-                            && job.progress.is_finite()
-                        {
-                            let frac = (job.progress / 100.0).clamp(0.0, 1.0);
-                            meta.processed_seconds = Some(total * frac);
+                // Progress percent is only meaningful while the job is actively processing.
+                // When a job is Paused/Queued, the UI must never show "paused but still
+                // advancing" due to stray/stale percent updates.
+                if job.status == JobStatus::Processing {
+                    let clamped = p.clamp(0.0, 100.0);
+                    if clamped > job.progress {
+                        job.progress = clamped;
+                        progress_changed = true;
+                        if let Some(meta) = job.wait_metadata.as_mut() {
+                            meta.last_progress_percent = Some(job.progress);
+                            if let Some(total) =
+                                job.media_info.as_ref().and_then(|m| m.duration_seconds)
+                                && total.is_finite()
+                                && total > 0.0
+                                && job.progress.is_finite()
+                            {
+                                let frac = (job.progress / 100.0).clamp(0.0, 1.0);
+                                meta.processed_seconds = Some(total * frac);
+                            }
                         }
+                        should_notify = true;
                     }
-                    should_notify = true;
                 }
             }
 

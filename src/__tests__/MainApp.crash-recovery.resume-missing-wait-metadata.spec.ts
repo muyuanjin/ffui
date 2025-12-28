@@ -26,7 +26,7 @@ async function flushQueuedQueueStateApply() {
 }
 
 describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
-  it("allows resuming a paused job even when waitMetadata is absent, then accepts recovered segments from backend snapshot", async () => {
+  it("allows resuming a paused job even when waitMetadata is absent, then accepts recovered tmp output path from backend snapshot", async () => {
     const jobId = "job-1766587734267";
     const pausedJob: TranscodeJob = {
       id: jobId,
@@ -64,13 +64,12 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
     await nextTick();
     expect(getJobsFromVm(vm).find((j) => j.id === jobId)?.status).toBe("queued");
 
-    // Backend later sends a snapshot with recovered waitMetadata.segments.
+    // Backend later sends a snapshot with recovered waitMetadata.tmpOutputPath.
     emitQueueState([
       {
         ...pausedJob,
         status: "queued",
         waitMetadata: {
-          segments: ["F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv"],
           tmpOutputPath: "F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv",
           lastProgressPercent: 35,
         },
@@ -79,9 +78,6 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
     await flushQueuedQueueStateApply();
 
     const updated = getJobsFromVm(vm).find((j) => j.id === jobId);
-    expect(updated?.waitMetadata?.segments).toEqual([
-      "F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv",
-    ]);
     expect(updated?.waitMetadata?.tmpOutputPath).toBe(
       "F:/out/FC2-2319995-20251224-224859.job-1766587734267.seg0.tmp.mkv",
     );

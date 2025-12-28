@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::ffui_core::{QueueStateLite, QueueStateLiteDelta, TranscodingEngine};
+use crate::ffui_core::{QueueStateLite, QueueStateLiteDelta, QueueStateUiLite, TranscodingEngine};
 #[cfg(windows)]
 use crate::taskbar_progress::update_taskbar_progress_lite;
 
@@ -50,6 +50,40 @@ struct QueueStateLiteDeltaPatchEntry {
     patch: crate::ffui_core::TranscodeJobLiteDeltaPatch,
 }
 
+fn merge_queue_state_lite_delta_patch(
+    into: &mut crate::ffui_core::TranscodeJobLiteDeltaPatch,
+    newer: crate::ffui_core::TranscodeJobLiteDeltaPatch,
+) {
+    debug_assert_eq!(into.id, newer.id);
+    if newer.status.is_some() {
+        into.status = newer.status;
+    }
+    if newer.progress.is_some() {
+        into.progress = newer.progress;
+    }
+    if newer.progress_out_time_seconds.is_some() {
+        into.progress_out_time_seconds = newer.progress_out_time_seconds;
+    }
+    if newer.progress_speed.is_some() {
+        into.progress_speed = newer.progress_speed;
+    }
+    if newer.progress_updated_at_ms.is_some() {
+        into.progress_updated_at_ms = newer.progress_updated_at_ms;
+    }
+    if newer.progress_epoch.is_some() {
+        into.progress_epoch = newer.progress_epoch;
+    }
+    if newer.elapsed_ms.is_some() {
+        into.elapsed_ms = newer.elapsed_ms;
+    }
+    if newer.preview_path.is_some() {
+        into.preview_path = newer.preview_path;
+    }
+    if newer.preview_revision.is_some() {
+        into.preview_revision = newer.preview_revision;
+    }
+}
+
 impl PendingQueueLiteDelta {
     fn push(&mut self, delta: QueueStateLiteDelta) {
         let base = delta.base_snapshot_revision;
@@ -67,9 +101,15 @@ impl PendingQueueLiteDelta {
 
         for patch in delta.patches {
             let id = patch.id.clone();
-            match self.patches_by_id.get(&id) {
-                Some(existing) if existing.delta_revision > delta.delta_revision => continue,
-                _ => {
+            match self.patches_by_id.get_mut(&id) {
+                Some(existing) => {
+                    if existing.delta_revision > delta.delta_revision {
+                        continue;
+                    }
+                    existing.delta_revision = delta.delta_revision;
+                    merge_queue_state_lite_delta_patch(&mut existing.patch, patch);
+                }
+                None => {
                     self.patches_by_id.insert(
                         id,
                         QueueStateLiteDeltaPatchEntry {
@@ -171,7 +211,8 @@ pub fn register_queue_stream(handle: &AppHandle) {
                 }
 
                 // Lightweight snapshot event used by the queue UI.
-                if let Err(err) = event_handle.emit("ffui://queue-state-lite", &lite) {
+                let ui_lite = QueueStateUiLite::from(&lite);
+                if let Err(err) = event_handle.emit("ffui://queue-state-lite", &ui_lite) {
                     crate::debug_eprintln!("failed to emit queue-state-lite event: {err}");
                 }
 
@@ -307,6 +348,58 @@ mod tests {
         assert_eq!(by_id.get("job-1").copied(), Some(3.0));
         assert_eq!(by_id.get("job-2").copied(), Some(2.0));
         assert_eq!(by_id.len(), 2);
+    }
+
+    #[test]
+    fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
+        let mut pending = PendingQueueLiteDelta::default();
+
+        pending.push(QueueStateLiteDelta {
+            base_snapshot_revision: 10,
+            delta_revision: 1,
+            patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
+                id: "job-1".to_string(),
+                status: Some(crate::ffui_core::JobStatus::Paused),
+                progress: Some(10.0),
+                progress_out_time_seconds: None,
+                progress_speed: None,
+                progress_updated_at_ms: None,
+                progress_epoch: None,
+                elapsed_ms: None,
+                preview_path: None,
+                preview_revision: None,
+            }],
+        });
+
+        // A later patch may update preview fields only; coalescing must not
+        // drop earlier progress/status fields for the same job id.
+        pending.push(QueueStateLiteDelta {
+            base_snapshot_revision: 10,
+            delta_revision: 2,
+            patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
+                id: "job-1".to_string(),
+                status: None,
+                progress: None,
+                progress_out_time_seconds: None,
+                progress_speed: None,
+                progress_updated_at_ms: None,
+                progress_epoch: None,
+                elapsed_ms: None,
+                preview_path: Some("C:/previews/job-1.jpg".to_string()),
+                preview_revision: Some(5),
+            }],
+        });
+
+        let coalesced = pending.take_coalesced().expect("should emit a delta");
+        let patch = coalesced
+            .patches
+            .iter()
+            .find(|p| p.id == "job-1")
+            .expect("expected job-1 patch");
+        assert_eq!(patch.status, Some(crate::ffui_core::JobStatus::Paused));
+        assert_eq!(patch.progress, Some(10.0));
+        assert_eq!(patch.preview_path.as_deref(), Some("C:/previews/job-1.jpg"));
+        assert_eq!(patch.preview_revision, Some(5));
     }
 
     #[test]

@@ -11,7 +11,7 @@ use tauri::State;
 use super::wait_for_queue_recovery;
 use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
 use crate::ffui_core::{
-    JobSource, JobType, QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
+    JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
     TranscodingEngine,
 };
 
@@ -31,8 +31,8 @@ pub fn get_queue_state(engine: State<'_, TranscodingEngine>) -> QueueState {
 /// such as the full logs vector. This is intended for startup and frequent
 /// updates where payload size matters more than full detail.
 #[tauri::command]
-pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateLite {
-    engine.queue_state_lite()
+pub fn get_queue_state_lite(engine: State<'_, TranscodingEngine>) -> QueueStateUiLite {
+    engine.queue_state_ui_lite()
 }
 
 #[tauri::command]

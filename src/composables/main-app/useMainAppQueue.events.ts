@@ -28,6 +28,16 @@ export function useQueueEventListeners({
   applyQueueStateFromBackend,
   applyQueueStateLiteDeltaFromBackend,
 }: QueueEventDeps): void {
+  const mergeDeltaPatch = (
+    existing: QueueStateLiteDelta["patches"][number],
+    incoming: QueueStateLiteDelta["patches"][number],
+  ): QueueStateLiteDelta["patches"][number] => {
+    if (existing.id !== incoming.id) return incoming;
+    // Delta patches are sparse; coalescing must merge fields instead of letting
+    // later patches (e.g. preview-only) accidentally drop earlier status/progress.
+    return { ...existing, ...incoming };
+  };
+
   let queueUnlisten: UnlistenFn | null = null;
   let queueDeltaUnlisten: UnlistenFn | null = null;
   let queueTimer: number | undefined;
@@ -308,8 +318,18 @@ export function useQueueEventListeners({
             const id = patch?.id;
             if (!id) continue;
             const existing = pendingAheadDeltaPatchesById.get(id);
-            if (!existing || rev >= existing.rev) {
+            if (!existing) {
               pendingAheadDeltaPatchesById.set(id, { rev, patch });
+              continue;
+            }
+            if (rev < existing.rev) continue;
+            pendingAheadDeltaPatchesById.set(id, {
+              rev,
+              patch: mergeDeltaPatch(existing.patch, patch),
+            });
+            if (rev > existing.rev) {
+              pendingAheadDeltaMaxRevision =
+                pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
             }
           }
         }
@@ -340,8 +360,17 @@ export function useQueueEventListeners({
           const id = patch?.id;
           if (!id) continue;
           const existing = pendingDeltaPatchesById.get(id);
-          if (!existing || rev >= existing.rev) {
+          if (!existing) {
             pendingDeltaPatchesById.set(id, { rev, patch });
+            continue;
+          }
+          if (rev < existing.rev) continue;
+          pendingDeltaPatchesById.set(id, {
+            rev,
+            patch: mergeDeltaPatch(existing.patch, patch),
+          });
+          if (rev > existing.rev) {
+            pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
           }
         }
       }

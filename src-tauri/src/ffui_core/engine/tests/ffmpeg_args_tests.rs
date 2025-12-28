@@ -54,6 +54,38 @@ fn build_ffmpeg_args_respects_existing_progress_flag_in_template() {
 }
 
 #[test]
+fn build_ffmpeg_args_forces_progress_to_pipe2_even_when_template_uses_pipe1() {
+    let mut preset = make_test_preset();
+    preset.advanced_enabled = Some(true);
+    preset.ffmpeg_template =
+        Some("-progress pipe:1 -i INPUT -c:v libx264 -crf 23 OUTPUT".to_string());
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let args = build_ffmpeg_args(&preset, &input, &output, true, None);
+
+    let progress_flags: Vec<usize> = args
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, arg)| (arg.as_str() == "-progress").then_some(idx))
+        .collect();
+    assert_eq!(
+        progress_flags.len(),
+        1,
+        "command must include a single -progress flag, got: {}",
+        args.join(" ")
+    );
+    let idx = progress_flags[0];
+    let target = args.get(idx + 1).map(|s| s.as_str()).unwrap_or("");
+    assert_eq!(
+        target,
+        "pipe:2",
+        "progress target must be normalized to pipe:2, got: {}",
+        args.join(" ")
+    );
+}
+
+#[test]
 fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
     let mut preset = make_test_preset();
     preset.global = Some(GlobalConfig {

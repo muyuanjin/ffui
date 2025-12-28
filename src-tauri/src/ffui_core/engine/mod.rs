@@ -22,6 +22,7 @@ mod test_mutex;
 mod tests;
 mod tools_refresh;
 mod transcode_activity;
+mod ui_lite;
 mod worker;
 mod worker_utils;
 pub(crate) use batch_compress::is_video_file;
@@ -52,7 +53,6 @@ use state::{
 };
 use std::path::Path;
 use std::sync::Arc;
-
 /// The main transcoding engine facade.
 #[derive(Clone)]
 pub struct TranscodingEngine {

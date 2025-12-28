@@ -16,6 +16,9 @@ pub use job::{
 mod job_lite;
 pub use job_lite::*;
 
+mod job_ui_lite;
+pub use job_ui_lite::*;
+
 mod job_logs;
 pub use job_logs::*;
 

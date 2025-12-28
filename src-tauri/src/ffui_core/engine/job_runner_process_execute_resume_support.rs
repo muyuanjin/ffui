@@ -92,7 +92,6 @@ fn derive_resume_concat_segment_durations(
 
 fn maybe_inject_stats_period_for_download(
     inner: &Inner,
-    cmd: &mut Command,
     args: &mut Vec<String>,
     settings_snapshot: &AppSettings,
     ffmpeg_path: &str,
@@ -101,14 +100,8 @@ fn maybe_inject_stats_period_for_download(
     // Increase structured progress update frequency via `-stats_period` so
     // `job.progress` has a higher reporting rate without inventing synthetic
     // percentages. Some old custom ffmpeg builds may not support this flag, so
-    // we only inject it when supported.
-    if args.iter().any(|a| a == "-stats_period") {
-        return;
-    }
-
-    if !ffmpeg_supports_stats_period(inner, ffmpeg_path, ffmpeg_source) {
-        return;
-    }
+    // we only apply it when supported.
+    let supports = ffmpeg_supports_stats_period(inner, ffmpeg_path, ffmpeg_source);
 
     let interval_ms = settings_snapshot
         .progress_update_interval_ms
@@ -117,10 +110,53 @@ fn maybe_inject_stats_period_for_download(
     let clamped_ms = f64::from(interval_ms.clamp(50, 2000));
     let stats_period_secs = clamped_ms / 1000.0;
     let stats_arg = format!("{stats_period_secs:.3}");
-    cmd.arg("-stats_period").arg(&stats_arg);
-    // 确保日志中记录的命令与实际执行的命令完全一致：包括 -stats_period 参数。
-    args.insert(0, stats_arg);
-    args.insert(0, "-stats_period".to_string());
+
+    let mut indices: Vec<usize> = args
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, a)| (a == "-stats_period").then_some(idx))
+        .collect();
+
+    if !supports {
+        // If the template asked for `-stats_period` but the binary does not
+        // support it, remove the flag to avoid failing the entire transcode.
+        if !indices.is_empty() {
+            for idx in indices.into_iter().rev() {
+                args.remove(idx);
+                if idx < args.len() {
+                    args.remove(idx);
+                }
+            }
+        }
+        return;
+    }
+
+    if indices.is_empty() {
+        // Ensure logs match execution by injecting directly into the argv vector.
+        args.insert(0, stats_arg);
+        args.insert(0, "-stats_period".to_string());
+        return;
+    }
+
+    // Template already specified `-stats_period`: normalize it to match the
+    // configured progress update interval.
+    let last_idx = *indices.last().expect("indices is non-empty");
+    if last_idx + 1 >= args.len() {
+        args.insert(last_idx + 1, stats_arg);
+    } else {
+        args[last_idx + 1] = stats_arg;
+    }
+
+    // Remove duplicates (keep the last one so argv stays deterministic).
+    if indices.len() > 1 {
+        indices.pop();
+        for idx in indices.into_iter().rev() {
+            args.remove(idx);
+            if idx < args.len() {
+                args.remove(idx);
+            }
+        }
+    }
 }
 
 fn ffmpeg_supports_stats_period(inner: &Inner, ffmpeg_path: &str, ffmpeg_source: &str) -> bool {
@@ -237,10 +273,10 @@ impl PauseLatencyDebug {
     fn emit_pause_summary(&self, _inner: &Inner, _job_id: &str) {}
 }
 
-#[cfg(all(test, unix))]
-mod tests {
-    use super::*;
-    use std::fs;
+	#[cfg(all(test, unix))]
+	mod tests {
+	    use super::*;
+	    use std::fs;
 
     #[cfg(unix)]
     fn write_executable(path: &std::path::Path, content: &str) {
@@ -253,21 +289,90 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn probe_ffmpeg_supports_stats_period_detects_flag_in_help() {
-        let dir = std::env::temp_dir().join("ffui_test_stats_period_probe");
-        let _ = fs::create_dir_all(&dir);
-        let exe = dir.join("fake-ffmpeg.sh");
+	    fn probe_ffmpeg_supports_stats_period_detects_flag_in_help() {
+	        let dir = std::env::temp_dir().join("ffui_test_stats_period_probe");
+	        let _ = fs::create_dir_all(&dir);
+	        let exe = dir.join("fake-ffmpeg.sh");
         write_executable(
             &exe,
             "#!/bin/sh\n\necho \"  -stats_period duration   set the period\"\nexit 0\n",
         );
 
-        assert!(
-            probe_ffmpeg_supports_stats_period(exe.to_string_lossy().as_ref()),
-            "probe should detect stats_period in help output"
-        );
-    }
-}
+	        assert!(
+	            probe_ffmpeg_supports_stats_period(exe.to_string_lossy().as_ref()),
+	            "probe should detect stats_period in help output"
+	        );
+	    }
+
+	    #[test]
+	    #[cfg(unix)]
+	    fn maybe_inject_stats_period_normalizes_existing_flag_to_settings_interval() {
+	        let mut settings = AppSettings::default();
+	        settings.progress_update_interval_ms = Some(200);
+	        let inner = Inner::new(Vec::new(), settings.clone());
+
+	        let mut args = vec![
+	            "-stats_period".to_string(),
+	            "9.999".to_string(),
+	            "-i".to_string(),
+	            "INPUT".to_string(),
+	        ];
+	        maybe_inject_stats_period_for_download(
+	            &inner,
+	            &mut args,
+	            &settings,
+	            "fake-ffmpeg",
+	            "download",
+	        );
+
+	        let pairs = args
+	            .windows(2)
+	            .filter(|w| w[0] == "-stats_period")
+	            .count();
+	        assert_eq!(pairs, 1, "must keep a single -stats_period, got: {args:?}");
+	        let idx = args
+	            .iter()
+	            .position(|a| a == "-stats_period")
+	            .expect("expected -stats_period to be present");
+	        assert_eq!(
+	            args.get(idx + 1).map(String::as_str),
+	            Some("0.200"),
+	            "must normalize to 200ms => 0.200s, got: {args:?}"
+	        );
+	    }
+
+	    #[test]
+	    #[cfg(unix)]
+	    fn maybe_inject_stats_period_removes_flag_when_unsupported() {
+	        let mut settings = AppSettings::default();
+	        settings.progress_update_interval_ms = Some(250);
+	        let inner = Inner::new(Vec::new(), settings.clone());
+
+	        let dir = std::env::temp_dir().join("ffui_test_stats_period_unsupported");
+	        let _ = fs::create_dir_all(&dir);
+	        let exe = dir.join("fake-ffmpeg-no-stats-period.sh");
+	        write_executable(&exe, "#!/bin/sh\n\necho \"nope\"\nexit 0\n");
+
+	        let mut args = vec![
+	            "-stats_period".to_string(),
+	            "1.000".to_string(),
+	            "-i".to_string(),
+	            "INPUT".to_string(),
+	        ];
+	        maybe_inject_stats_period_for_download(
+	            &inner,
+	            &mut args,
+	            &settings,
+	            exe.to_string_lossy().as_ref(),
+	            "custom",
+	        );
+
+	        assert!(
+	            !args.iter().any(|a| a == "-stats_period"),
+	            "unsupported binaries must not be invoked with -stats_period, got: {args:?}"
+	        );
+	    }
+	}
 
 struct FfmpegStderrPump {
     rx: Option<std::sync::mpsc::Receiver<String>>,

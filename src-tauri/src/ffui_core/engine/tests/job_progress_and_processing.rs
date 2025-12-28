@@ -281,6 +281,119 @@ fn update_job_progress_heals_paused_jobs_when_progress_samples_arrive() {
 }
 
 #[test]
+fn update_job_progress_does_not_advance_paused_jobs_without_telemetry() {
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/paused-percent-ignored.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    });
+
+    {
+        deltas.lock_unpoisoned().clear();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job.id)
+            .expect("job should exist after enqueue");
+        stored.status = JobStatus::Paused;
+        stored.progress = 25.0;
+    }
+
+    update_job_progress(&engine.inner, &job.id, Some(50.0), None, None, None, None);
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job.id)
+        .expect("job should exist after update");
+    assert_eq!(stored.status, JobStatus::Paused);
+    assert_eq!(
+        stored.progress, 25.0,
+        "paused jobs must not advance progress from percent-only updates"
+    );
+    assert!(
+        deltas.lock_unpoisoned().is_empty(),
+        "percent-only updates for paused jobs must not emit queue-lite deltas"
+    );
+}
+
+#[test]
+fn update_job_progress_updates_speed_telemetry_even_without_out_time() {
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/speed-only-telemetry.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    });
+
+    {
+        deltas.lock_unpoisoned().clear();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job.id)
+            .expect("job should exist after enqueue");
+        stored.status = JobStatus::Processing;
+        stored.wait_metadata = Some(WaitMetadata {
+            last_progress_percent: Some(0.0),
+            processed_wall_millis: None,
+            processed_seconds: None,
+            target_seconds: None,
+            progress_epoch: Some(1),
+            last_progress_out_time_seconds: Some(0.0),
+            last_progress_speed: None,
+            last_progress_updated_at_ms: None,
+            last_progress_frame: None,
+            tmp_output_path: None,
+            segments: None,
+            segment_end_targets: None,
+        });
+    }
+
+    update_job_progress(&engine.inner, &job.id, None, None, None, None, Some(1.25));
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job.id)
+        .expect("job should still exist after update");
+    let meta = stored
+        .wait_metadata
+        .as_ref()
+        .expect("wait_metadata should be present");
+    assert_eq!(meta.last_progress_speed, Some(1.25));
+    assert!(
+        meta.last_progress_updated_at_ms.is_some(),
+        "speed-only telemetry must refresh last_progress_updated_at_ms"
+    );
+    assert!(
+        !deltas.lock_unpoisoned().is_empty(),
+        "speed-only telemetry should emit a queue-lite delta so the frontend can keep smoothing"
+    );
+}
+
+#[test]
 fn update_job_progress_filters_ffmpeg_progress_noise_from_logs() {
     let settings = AppSettings::default();
     let inner = Inner::new(Vec::new(), settings);
