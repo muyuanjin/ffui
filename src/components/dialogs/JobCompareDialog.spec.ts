@@ -72,6 +72,26 @@ describe("JobCompareDialog", () => {
     (extractJobCompareConcatFrame as any).mockClear?.();
   });
 
+  it("opens as non-modal (avoids global body pointer-events lock)", async () => {
+    const wrapper = mount(JobCompareDialog, {
+      props: { open: true, job: makeJob() },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          ...stubs,
+          Dialog: {
+            name: "Dialog",
+            props: ["open", "modal"],
+            template: `<div data-testid="job-compare-dialog-root" :data-modal="String(modal)"><slot /></div>`,
+          },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="job-compare-dialog-root"]').attributes("data-modal")).toBe("false");
+    wrapper.unmount();
+  });
+
   it("clamps frame compare seeks to stay strictly within max duration", async () => {
     vi.useFakeTimers();
 

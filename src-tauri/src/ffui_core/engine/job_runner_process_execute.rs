@@ -285,6 +285,13 @@ fn execute_transcode_job(
     }
 
     if wait_requested {
+        // The ffmpeg "quit current segment" request (`q\n`) is irreversible once
+        // sent. Users can still click "Resume" before ffmpeg exits; in that
+        // case we must NOT leave the job stuck in Paused state. Instead, we
+        // treat the current run as a paused segment, persist wait metadata,
+        // then immediately re-queue the job for continuation.
+        let pause_still_requested = is_job_wait_requested(inner, job_id);
+
         // 暂停：尽快把状态切到 Paused，因此这里不再做任何 ffprobe 探测（它在 Windows
         // 上通常要几百毫秒到 1s）。续转边界使用 ffmpeg `-progress out_time*` 的最后值：
         // - 若该值在某些编码器/B 帧情况下略偏小，只会造成更大的 overlap（安全）；
@@ -308,6 +315,10 @@ fn execute_transcode_job(
         )?;
         pause_debug.mark_mark_waiting_end(current_time_millis());
         pause_debug.emit_pause_summary(inner, job_id);
+
+        if !pause_still_requested {
+            requeue_job_after_cancelled_wait(inner, job_id);
+        }
         return Ok(());
     }
 

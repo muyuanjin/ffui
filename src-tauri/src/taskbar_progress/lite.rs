@@ -52,70 +52,10 @@ pub fn update_taskbar_progress_lite(
     mode: TaskbarProgressMode,
     scope: TaskbarProgressScope,
 ) {
-    use tauri::window::{ProgressBarState, ProgressBarStatus};
-    use tauri::{Manager, UserAttentionType};
-
-    if let Some(window) = app.get_webview_window("main") {
-        let completed_queue =
-            state.jobs.iter().all(|job| super::is_terminal(&job.status)) && !state.jobs.is_empty();
-
-        if let Some(progress) = compute_taskbar_progress_lite(state, mode, scope) {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
-
-            let is_completed_bar = completed_queue && (progress - 1.0).abs() < f64::EPSILON;
-
-            if is_completed_bar {
-                let is_focused = window.is_focused().unwrap_or(false);
-
-                if is_focused {
-                    let state = ProgressBarState {
-                        status: Some(ProgressBarStatus::None),
-                        progress: None,
-                    };
-                    if let Err(err) = window.set_progress_bar(state) {
-                        crate::debug_eprintln!(
-                            "failed to clear Windows taskbar progress for focused window: {err}"
-                        );
-                    }
-                } else {
-                    let state = ProgressBarState {
-                        status: Some(ProgressBarStatus::Paused),
-                        progress: Some(pct),
-                    };
-                    if let Err(err) = window.set_progress_bar(state) {
-                        crate::debug_eprintln!(
-                            "failed to set paused Windows taskbar progress for completed queue: {err}"
-                        );
-                    }
-
-                    if let Err(err) =
-                        window.request_user_attention(Some(UserAttentionType::Critical))
-                    {
-                        crate::debug_eprintln!(
-                            "failed to request user attention for taskbar completion: {err}"
-                        );
-                    }
-                }
-            } else {
-                let state = ProgressBarState {
-                    status: Some(ProgressBarStatus::Normal),
-                    progress: Some(pct),
-                };
-                if let Err(err) = window.set_progress_bar(state) {
-                    crate::debug_eprintln!("failed to set Windows taskbar progress: {err}");
-                }
-            }
-        } else {
-            let state = ProgressBarState {
-                status: Some(ProgressBarStatus::None),
-                progress: None,
-            };
-            if let Err(err) = window.set_progress_bar(state) {
-                crate::debug_eprintln!("failed to clear Windows taskbar progress: {err}");
-            }
-        }
-    }
+    let completed_queue =
+        state.jobs.iter().all(|job| super::is_terminal(&job.status)) && !state.jobs.is_empty();
+    let progress = compute_taskbar_progress_lite(state, mode, scope);
+    super::update_windows_taskbar_progress_bar(app, progress, completed_queue);
 }
 
 #[cfg(not(windows))]

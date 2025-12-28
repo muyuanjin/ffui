@@ -233,6 +233,42 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
+  it("keeps baseline progress on resume transitions (paused -> queued -> processing)", async () => {
+    const job = ref(
+      makeJob({
+        status: "paused",
+        progress: 40,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          lastProgressPercent: 40,
+          processedWallMillis: 1234,
+          tmpOutputPath: "C:/tmp/seg0.mkv",
+          lastProgressOutTimeSeconds: 40,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(40, 6);
+
+    const originalRaf = window.requestAnimationFrame;
+    (window as unknown as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+
+    job.value = { ...job.value, status: "queued" };
+    await nextTick();
+
+    job.value = { ...job.value, status: "processing" };
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeGreaterThan(0);
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(40, 1);
+
+    (window as unknown as { requestAnimationFrame?: unknown }).requestAnimationFrame = originalRaf;
+    wrapper.unmount();
+  });
+
   it("jumps to 100 when job reaches a terminal status", async () => {
     const job = ref(makeJob({ status: "processing", progress: 90 }));
     const { composable, wrapper } = mountComposable(job);

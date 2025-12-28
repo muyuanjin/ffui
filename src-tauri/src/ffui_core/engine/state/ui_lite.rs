@@ -15,7 +15,9 @@ impl QueueOrderSortable for TranscodeJobUiLite {
     }
 }
 
-fn snapshot_queue_state_ui_lite_from_locked_state(state: &mut EngineState) -> QueueStateUiLite {
+pub(super) fn snapshot_queue_state_ui_lite_from_locked_state(
+    state: &mut EngineState,
+) -> QueueStateUiLite {
     let snapshot_revision = state.queue_snapshot_revision;
     let order_by_id = build_queue_order_map(state);
 

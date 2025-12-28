@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 
 import { useQueueContextMenu } from "@/composables/main-app/useQueueContextMenu";
 import type { TranscodeJob } from "@/types";
@@ -188,5 +188,56 @@ describe("useQueueContextMenu bulk vs single operations", () => {
 
     expect(bulkCancel).toHaveBeenCalledTimes(1);
     expect(handleCancelJob).not.toHaveBeenCalled();
+  });
+});
+
+describe("useQueueContextMenu dialog actions", () => {
+  it("closes the menu before opening compare", async () => {
+    const job: TranscodeJob = {
+      id: "job-compare",
+      filename: "C:/videos/input.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      presetId: "preset-1",
+      status: "paused",
+      progress: 0,
+      logs: [],
+    };
+
+    const jobs = ref<TranscodeJob[]>([job]);
+    const selectedJobIds = ref<Set<string>>(new Set());
+    const openJobCompare = vi.fn();
+
+    const ctx = useQueueContextMenu({
+      jobs,
+      selectedJobIds,
+      handleWaitJob: noopAsync,
+      handleResumeJob: noopAsync,
+      handleRestartJob: noopAsync,
+      handleCancelJob: noopAsync,
+      bulkCancel: noopAsync,
+      bulkWait: noopAsync,
+      bulkResume: noopAsync,
+      bulkRestart: noopAsync,
+      bulkMoveToTop: noopAsync,
+      bulkMoveToBottom: noopAsync,
+      bulkDelete: vi.fn(),
+      openJobDetail: vi.fn(),
+      openJobCompare,
+    });
+
+    ctx.openQueueContextMenuForJob({ job, event: { clientX: 0, clientY: 0 } as MouseEvent });
+    expect(ctx.queueContextMenuVisible.value).toBe(true);
+
+    ctx.handleQueueContextCompare();
+
+    // Close is immediate; opening the dialog is deferred until after the next tick.
+    expect(ctx.queueContextMenuVisible.value).toBe(false);
+    expect(openJobCompare).not.toHaveBeenCalled();
+
+    await nextTick();
+    expect(openJobCompare).toHaveBeenCalledTimes(1);
+    expect(openJobCompare).toHaveBeenCalledWith(job);
   });
 });

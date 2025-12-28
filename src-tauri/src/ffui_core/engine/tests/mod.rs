@@ -18,7 +18,7 @@ use crate::ffui_core::domain::{
     WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::{ImageTargetFormat, JobStatus};
+use crate::ffui_core::{AutoCompressProgress, ImageTargetFormat, JobStatus};
 pub(super) use crate::sync_ext::MutexExt;
 
 mod common;

@@ -2,15 +2,90 @@ use crate::ffui_core::{
     JobStatus, QueueState, TaskbarProgressMode, TaskbarProgressScope, TranscodeJob,
 };
 
+#[allow(dead_code)]
 mod lite;
+#[allow(dead_code)]
+mod ui_lite;
 
+#[allow(unused_imports)]
 pub use lite::update_taskbar_progress_lite;
+#[allow(unused_imports)]
+pub use ui_lite::update_taskbar_progress_ui_lite;
 
 const fn is_terminal(status: &JobStatus) -> bool {
     matches!(
         status,
         JobStatus::Completed | JobStatus::Failed | JobStatus::Skipped | JobStatus::Cancelled
     )
+}
+
+#[cfg(windows)]
+fn update_windows_taskbar_progress_bar(
+    app: &tauri::AppHandle,
+    progress: Option<f64>,
+    completed_queue: bool,
+) {
+    use tauri::window::{ProgressBarState, ProgressBarStatus};
+    use tauri::{Manager, UserAttentionType};
+
+    if let Some(window) = app.get_webview_window("main") {
+        if let Some(progress) = progress {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let pct = (progress * 100.0).round().clamp(0.0, 100.0) as u64;
+
+            let is_completed_bar = completed_queue && (progress - 1.0).abs() < f64::EPSILON;
+
+            if is_completed_bar {
+                let is_focused = window.is_focused().unwrap_or(false);
+
+                if is_focused {
+                    let state = ProgressBarState {
+                        status: Some(ProgressBarStatus::None),
+                        progress: None,
+                    };
+                    if let Err(err) = window.set_progress_bar(state) {
+                        crate::debug_eprintln!(
+                            "failed to clear Windows taskbar progress for focused window: {err}"
+                        );
+                    }
+                } else {
+                    let state = ProgressBarState {
+                        status: Some(ProgressBarStatus::Paused),
+                        progress: Some(pct),
+                    };
+                    if let Err(err) = window.set_progress_bar(state) {
+                        crate::debug_eprintln!(
+                            "failed to set paused Windows taskbar progress for completed queue: {err}"
+                        );
+                    }
+
+                    if let Err(err) =
+                        window.request_user_attention(Some(UserAttentionType::Critical))
+                    {
+                        crate::debug_eprintln!(
+                            "failed to request user attention for taskbar completion: {err}"
+                        );
+                    }
+                }
+            } else {
+                let state = ProgressBarState {
+                    status: Some(ProgressBarStatus::Normal),
+                    progress: Some(pct),
+                };
+                if let Err(err) = window.set_progress_bar(state) {
+                    crate::debug_eprintln!("failed to set Windows taskbar progress: {err}");
+                }
+            }
+        } else {
+            let state = ProgressBarState {
+                status: Some(ProgressBarStatus::None),
+                progress: None,
+            };
+            if let Err(err) = window.set_progress_bar(state) {
+                crate::debug_eprintln!("failed to clear Windows taskbar progress: {err}");
+            }
+        }
+    }
 }
 
 pub trait JobProgressModel {
@@ -99,41 +174,12 @@ fn normalized_job_progress_generic<J: JobProgressModel>(job: &J) -> f64 {
 }
 
 fn job_weight_generic<J: JobProgressModel>(job: &J, mode: TaskbarProgressMode) -> f64 {
-    let size_mb = job.size_mb().max(0.0);
-    let duration_seconds = job.duration_seconds().max(0.0);
-    let estimated_seconds = job.estimated_seconds().unwrap_or(0.0);
-
-    let weight = match mode {
-        TaskbarProgressMode::BySize => {
-            if size_mb > 0.0 {
-                size_mb
-            } else {
-                1.0
-            }
-        }
-        TaskbarProgressMode::ByDuration => {
-            if duration_seconds > 0.0 {
-                duration_seconds
-            } else if size_mb > 0.0 {
-                size_mb * 8.0
-            } else {
-                1.0
-            }
-        }
-        TaskbarProgressMode::ByEstimatedTime => {
-            if estimated_seconds > 0.0 {
-                estimated_seconds
-            } else if duration_seconds > 0.0 {
-                duration_seconds
-            } else if size_mb > 0.0 {
-                size_mb * 8.0
-            } else {
-                1.0
-            }
-        }
-    };
-
-    weight.max(1.0e-3)
+    crate::ffui_core::taskbar_progress_weight(
+        mode,
+        job.size_mb(),
+        job.duration_seconds(),
+        job.estimated_seconds(),
+    )
 }
 
 pub fn compute_taskbar_progress_generic<J: JobProgressModel>(

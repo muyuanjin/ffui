@@ -130,6 +130,7 @@ describe("createQueueSortingState", () => {
     await nextTick();
     expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["b", "a"]);
     const prevSorted = state?.displayModeSortedJobs.value as unknown as TranscodeJob[];
+    const prevIds = state?.displayModeSortedJobs.value.map((job) => job.id) ?? [];
 
     // Progress value changes alone should not restart sorting when a dedicated
     // progress revision is supplied (sorting is driven by delta/apply).
@@ -142,6 +143,7 @@ describe("createQueueSortingState", () => {
     queueProgressRevision.value += 1;
     await nextTick();
     expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
+    expect(prevIds).toEqual(["b", "a"]);
     expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["a", "b"]);
 
     wrapper.unmount();
@@ -204,6 +206,7 @@ describe("createQueueSortingState", () => {
     await nextTick();
     expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["b", "a"]);
     const prevSorted = state?.displayModeSortedJobs.value as unknown as TranscodeJob[];
+    const prevIds = state?.displayModeSortedJobs.value.map((job) => job.id) ?? [];
 
     // Elapsed value changes alone should not restart sorting when a dedicated
     // progress/volatile revision is supplied.
@@ -216,6 +219,7 @@ describe("createQueueSortingState", () => {
     queueProgressRevision.value += 1;
     await nextTick();
     expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
+    expect(prevIds).toEqual(["b", "a"]);
     expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["a", "b"]);
 
     wrapper.unmount();

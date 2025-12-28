@@ -203,9 +203,26 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       const token = smoothStartToken;
 
       if (next === "processing") {
-        // Avoid "teleporting": ensure the progress layer mounts at 0, then
-        // allow it to animate toward the latest estimate on the next frame.
-        if (prev === "queued") {
+        const meta = options.job.value.waitMetadata;
+        const hasResumeEvidence =
+          meta != null &&
+          ((typeof meta.lastProgressPercent === "number" &&
+            Number.isFinite(meta.lastProgressPercent) &&
+            meta.lastProgressPercent > 0) ||
+            (typeof meta.processedSeconds === "number" &&
+              Number.isFinite(meta.processedSeconds) &&
+              meta.processedSeconds > 0) ||
+            (typeof meta.processedWallMillis === "number" &&
+              Number.isFinite(meta.processedWallMillis) &&
+              meta.processedWallMillis > 0) ||
+            (typeof meta.tmpOutputPath === "string" && meta.tmpOutputPath.trim() !== ""));
+
+        // Avoid "teleporting" on fresh queued -> processing starts: ensure the
+        // progress layer mounts at 0, then animate toward the latest estimate.
+        //
+        // For resume flows (paused -> queued -> processing), keep continuity by
+        // starting from the best-known baseline instead of resetting to 0.
+        if (prev === "queued" && !hasResumeEvidence) {
           displayedProgress.value = 0;
           const schedule = typeof window !== "undefined" && typeof window.requestAnimationFrame === "function";
           if (schedule) {
@@ -222,6 +239,11 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
             }, 0);
           }
           return;
+        }
+
+        if (prev === "queued" && hasResumeEvidence) {
+          const baseline = estimateProgressPercentNow(Date.now(), false);
+          displayedProgress.value = Math.max(0, Math.min(100, baseline));
         }
 
         startSmoothing();

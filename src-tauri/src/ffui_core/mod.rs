@@ -16,6 +16,8 @@ mod preview_cache;
 mod preview_common;
 mod settings;
 mod shutdown_marker;
+#[cfg(any(windows, feature = "bench"))]
+mod taskbar_progress_delta;
 pub mod tools;
 
 #[cfg(feature = "bench")]
@@ -69,8 +71,56 @@ pub use settings::{
     AppSettings, DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS, DEFAULT_METRICS_INTERVAL_MS,
     TaskbarProgressMode, TaskbarProgressScope, hardware_smart_default_presets,
 };
+
+#[cfg(any(windows, feature = "bench"))]
+pub(crate) fn taskbar_progress_weight(
+    mode: TaskbarProgressMode,
+    size_mb: f64,
+    duration_seconds: f64,
+    estimated_seconds: Option<f64>,
+) -> f64 {
+    let size_mb = size_mb.max(0.0);
+    let duration_seconds = duration_seconds.max(0.0);
+    let estimated_seconds = estimated_seconds.unwrap_or(0.0);
+
+    let weight = match mode {
+        TaskbarProgressMode::BySize => {
+            if size_mb > 0.0 {
+                size_mb
+            } else {
+                1.0
+            }
+        }
+        TaskbarProgressMode::ByDuration => {
+            if duration_seconds > 0.0 {
+                duration_seconds
+            } else if size_mb > 0.0 {
+                size_mb * 8.0
+            } else {
+                1.0
+            }
+        }
+        TaskbarProgressMode::ByEstimatedTime => {
+            if estimated_seconds > 0.0 {
+                estimated_seconds
+            } else if duration_seconds > 0.0 {
+                duration_seconds
+            } else if size_mb > 0.0 {
+                size_mb * 8.0
+            } else {
+                1.0
+            }
+        }
+    };
+
+    weight.max(1.0e-3)
+}
 pub(crate) use shutdown_marker::{
     ShutdownMarkerKind, read_shutdown_marker, write_shutdown_marker,
     write_shutdown_marker_with_auto_wait_job_ids,
 };
+#[cfg(feature = "bench")]
+pub use taskbar_progress_delta::TaskbarProgressDeltaTracker;
+#[cfg(all(not(feature = "bench"), windows))]
+pub(crate) use taskbar_progress_delta::TaskbarProgressDeltaTracker;
 pub use tools::{ExternalToolCandidate, ExternalToolStatus};

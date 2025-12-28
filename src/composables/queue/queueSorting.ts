@@ -1,4 +1,4 @@
-import { computed, ref, watch, type ComputedRef, type Ref } from "vue";
+import { computed, shallowRef, triggerRef, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { compareJobsByField, getJobSortValue } from "./filtering-utils";
 import { progressiveMergeSort } from "./progressiveSort";
@@ -184,8 +184,8 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
   // For large queues, compute a first sorted chunk quickly and defer the
   // full ordering via incremental slices, yielding to the main thread so the
   // UI can keep processing input and drag events.
-  const displayModeSortedJobsInternal = ref<TranscodeJob[]>([]);
-  const sortedIndexById = new Map<string, number>();
+  const displayModeSortedJobsInternal = shallowRef<TranscodeJob[]>([]);
+  const volatileIndexHintById = new Map<string, number>();
 
   let cachedFilteredJobsArray: TranscodeJob[] | null = null;
   let cachedFilteredJobsById: Map<string, TranscodeJob> | null = null;
@@ -197,12 +197,21 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     return cachedFilteredJobsById;
   };
 
-  const rebuildSortedIndex = () => {
-    sortedIndexById.clear();
-    const arr = displayModeSortedJobsInternal.value;
-    for (let i = 0; i < arr.length; i += 1) {
-      sortedIndexById.set(arr[i]!.id, i);
+  const findJobIndexHinted = (arr: readonly TranscodeJob[], id: string, job: TranscodeJob): number => {
+    const hint = volatileIndexHintById.get(id);
+    if (typeof hint === "number" && hint >= 0 && hint < arr.length) {
+      if (arr[hint] === job) return hint;
+      // Local search around the last known index. Between 100ms ticks a job
+      // should not teleport far unless the queue structure changed.
+      const MAX_PROBE = 64;
+      for (let d = 1; d <= MAX_PROBE; d += 1) {
+        const lo = hint - d;
+        if (lo >= 0 && arr[lo] === job) return lo;
+        const hi = hint + d;
+        if (hi < arr.length && arr[hi] === job) return hi;
+      }
     }
+    return arr.indexOf(job);
   };
 
   const consumeVolatileDirtyIds = (): string[] => {
@@ -256,10 +265,6 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
 
     const byId = getFilteredJobsById(source);
 
-    if (sortedIndexById.size !== sorted.length) {
-      rebuildSortedIndex();
-    }
-
     const uniqueDirtyIds = Array.from(new Set(dirtyIds));
     if (uniqueDirtyIds.length === 0) return true;
 
@@ -267,8 +272,8 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     for (const id of uniqueDirtyIds) {
       const job = byId.get(id);
       if (!job) return false;
-      const idx = sortedIndexById.get(id);
-      if (typeof idx !== "number") return false;
+      const idx = findJobIndexHinted(sorted, id, job);
+      if (idx < 0) return false;
       if (sorted[idx] !== job) return false;
       dirtyIndices.push(idx);
     }
@@ -283,12 +288,22 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
 
     // Reinsert based on current comparator values.
     removed.sort((a, b) => compareJobsForDisplay(a, b));
+    const inserted: Array<{ id: string; index: number }> = [];
     for (const job of removed) {
       const insertAt = findBinaryInsertIndex(sorted, job);
       sorted.splice(insertAt, 0, job);
+      inserted.push({ id: job.id, index: insertAt });
+      // Adjust previously recorded indices when an insertion happens before them.
+      for (let i = 0; i < inserted.length - 1; i += 1) {
+        if (insertAt <= inserted[i]!.index) inserted[i]!.index += 1;
+      }
     }
 
-    rebuildSortedIndex();
+    // Refresh index hints for the jobs that actually moved.
+    for (const item of inserted) {
+      volatileIndexHintById.set(item.id, item.index);
+    }
+    triggerRef(displayModeSortedJobsInternal);
     return true;
   };
 
@@ -309,7 +324,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
       const jobs = filteredJobs.value;
       if (!jobs || jobs.length === 0) {
         displayModeSortedJobsInternal.value = [];
-        sortedIndexById.clear();
+        volatileIndexHintById.clear();
         cachedFilteredJobsArray = null;
         cachedFilteredJobsById = null;
         cancelLargeQueueSort();
@@ -344,7 +359,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
         // behaviour stays predictable and easy to reason about.
         cancelLargeQueueSort();
         displayModeSortedJobsInternal.value = list.sort((a, b) => compareJobsForDisplay(a, b));
-        sortedIndexById.clear();
+        volatileIndexHintById.clear();
         return;
       }
 
@@ -359,7 +374,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
         onPartial: (partial) => {
           if (runId !== sortRunId) return;
           displayModeSortedJobsInternal.value = partial;
-          sortedIndexById.clear();
+          volatileIndexHintById.clear();
         },
       });
     },

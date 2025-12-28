@@ -28,14 +28,20 @@ export function useQueueEventListeners({
   applyQueueStateFromBackend,
   applyQueueStateLiteDeltaFromBackend,
 }: QueueEventDeps): void {
-  const mergeDeltaPatch = (
+  const mergeDeltaPatchInto = (
     existing: QueueStateLiteDelta["patches"][number],
     incoming: QueueStateLiteDelta["patches"][number],
-  ): QueueStateLiteDelta["patches"][number] => {
-    if (existing.id !== incoming.id) return incoming;
+  ): void => {
+    if (existing.id !== incoming.id) return;
     // Delta patches are sparse; coalescing must merge fields instead of letting
     // later patches (e.g. preview-only) accidentally drop earlier status/progress.
-    return { ...existing, ...incoming };
+    const incomingAny = incoming as unknown as Record<string, unknown>;
+    const existingAny = existing as unknown as Record<string, unknown>;
+    for (const key of Object.keys(incomingAny)) {
+      if (key === "id") continue;
+      if (incomingAny[key] === undefined) continue;
+      existingAny[key] = incomingAny[key];
+    }
   };
 
   let queueUnlisten: UnlistenFn | null = null;
@@ -323,11 +329,9 @@ export function useQueueEventListeners({
               continue;
             }
             if (rev < existing.rev) continue;
-            pendingAheadDeltaPatchesById.set(id, {
-              rev,
-              patch: mergeDeltaPatch(existing.patch, patch),
-            });
+            mergeDeltaPatchInto(existing.patch, patch);
             if (rev > existing.rev) {
+              existing.rev = rev;
               pendingAheadDeltaMaxRevision =
                 pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
             }
@@ -365,11 +369,9 @@ export function useQueueEventListeners({
             continue;
           }
           if (rev < existing.rev) continue;
-          pendingDeltaPatchesById.set(id, {
-            rev,
-            patch: mergeDeltaPatch(existing.patch, patch),
-          });
+          mergeDeltaPatchInto(existing.patch, patch);
           if (rev > existing.rev) {
+            existing.rev = rev;
             pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
           }
         }

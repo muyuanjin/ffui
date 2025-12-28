@@ -209,6 +209,41 @@ pub(super) fn mark_job_waiting(
     Ok(())
 }
 
+pub(super) fn requeue_job_after_cancelled_wait(inner: &Inner, job_id: &str) {
+    let should_notify = {
+        let mut state = inner.state.lock_unpoisoned();
+        let status = match state.jobs.get(job_id) {
+            Some(job) => job.status,
+            None => return,
+        };
+
+        if status != JobStatus::Paused {
+            return;
+        }
+
+        if let Some(job) = state.jobs.get_mut(job_id) {
+            job.status = JobStatus::Queued;
+            super::worker_utils::append_job_log_line(
+                job,
+                "Resume requested after wait segment boundary; auto-queuing continuation"
+                    .to_string(),
+            );
+        }
+        if !state.queue.iter().any(|id| id == job_id) {
+            state.queue.push_front(job_id.to_string());
+        }
+        state.wait_requests.remove(job_id);
+        state.cancelled_jobs.remove(job_id);
+        state.restart_requests.remove(job_id);
+        true
+    };
+
+    if should_notify {
+        notify_queue_listeners(inner);
+        inner.cv.notify_one();
+    }
+}
+
 pub(super) fn collect_wait_metadata_cleanup_paths(meta: &WaitMetadata) -> Vec<PathBuf> {
     use std::collections::HashSet;
 

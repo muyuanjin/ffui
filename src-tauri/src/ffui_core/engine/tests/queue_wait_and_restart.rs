@@ -469,3 +469,66 @@ fn rapid_pause_resume_pause_sequence_handles_correctly() {
         );
     }
 }
+
+#[test]
+fn cancelled_wait_requeues_job_after_cooperative_pause() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/rapid-toggle.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    // Simulate the worker already processing the job.
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+            j.progress = 40.0;
+            j.media_info = Some(MediaInfo {
+                duration_seconds: Some(100.0),
+                width: None,
+                height: None,
+                frame_rate: None,
+                video_codec: None,
+                audio_codec: None,
+                size_mb: None,
+            });
+        }
+    }
+
+    // User clicks "pause" then immediately "resume" before the cooperative pause completes.
+    assert!(
+        engine.wait_job(&job.id),
+        "wait_job must accept processing job"
+    );
+    assert!(
+        engine.resume_job(&job.id),
+        "resume_job must cancel the pending wait request"
+    );
+
+    // The worker still reaches a segment boundary and marks the job paused.
+    let tmp = PathBuf::from("C:/videos/rapid-toggle.compressed.tmp.mp4");
+    let out = PathBuf::from("C:/videos/rapid-toggle.compressed.mp4");
+    mark_job_waiting(&engine.inner, &job.id, &tmp, &out, Some(100.0), None)
+        .expect("mark_job_waiting must succeed");
+
+    requeue_job_after_cancelled_wait(&engine.inner, &job.id);
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state.jobs.get(&job.id).expect("job must exist");
+    assert_eq!(
+        stored.status,
+        JobStatus::Queued,
+        "job must be re-queued after a cancelled wait boundary"
+    );
+    assert!(
+        state.queue.contains(&job.id),
+        "job must remain present in queue ordering"
+    );
+}

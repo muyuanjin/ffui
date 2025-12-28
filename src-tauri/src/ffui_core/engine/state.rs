@@ -10,7 +10,7 @@ use super::state_persist::{
 };
 use crate::ffui_core::domain::{
     AutoCompressProgress, FFmpegPreset, JobStatus, MediaInfo, QueueStartupHint, QueueState,
-    QueueStateLite, QueueStateLiteDelta, TranscodeJob, TranscodeJobLite,
+    QueueStateLite, QueueStateLiteDelta, QueueStateUiLite, TranscodeJob, TranscodeJobLite,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::settings::types::QueuePersistenceMode;
@@ -32,7 +32,7 @@ use snapshots::snapshot_queue_state_lite_from_locked_state;
 pub(super) use restore::restore_jobs_from_persisted_queue;
 pub(super) use types::{
     BATCH_COMPRESS_PROGRESS_EVERY, BatchCompressProgressListener, QueueListener,
-    QueueLiteDeltaListener, QueueLiteListener,
+    QueueLiteDeltaListener, QueueLiteListener, QueueUiLiteListener,
 };
 pub(crate) use types::{BatchCompressBatch, BatchCompressBatchStatus};
 pub(super) use ui_lite::snapshot_queue_state_ui_lite;
@@ -119,6 +119,7 @@ pub(crate) struct Inner {
     pub(crate) startup_auto_paused_job_ids: Mutex<HashSet<String>>,
     pub(crate) queue_listeners: Mutex<Vec<QueueListener>>,
     pub(crate) queue_lite_listeners: Mutex<Vec<QueueLiteListener>>,
+    pub(crate) queue_ui_lite_listeners: Mutex<Vec<QueueUiLiteListener>>,
     pub(crate) queue_lite_delta_listeners: Mutex<Vec<QueueLiteDeltaListener>>,
     pub(crate) batch_compress_listeners: Mutex<Vec<BatchCompressProgressListener>>,
 }
@@ -135,6 +136,7 @@ impl Inner {
             startup_auto_paused_job_ids: Mutex::new(HashSet::new()),
             queue_listeners: Mutex::new(Vec::new()),
             queue_lite_listeners: Mutex::new(Vec::new()),
+            queue_ui_lite_listeners: Mutex::new(Vec::new()),
             queue_lite_delta_listeners: Mutex::new(Vec::new()),
             batch_compress_listeners: Mutex::new(Vec::new()),
         }
@@ -330,12 +332,15 @@ pub(super) fn persist_queue_state_lite_best_effort(inner: &Inner) {
 pub(super) fn notify_queue_listeners(inner: &Inner) {
     let full_listeners = inner.queue_listeners.lock_unpoisoned().clone();
     let lite_listeners = inner.queue_lite_listeners.lock_unpoisoned().clone();
+    let ui_lite_listeners = inner.queue_ui_lite_listeners.lock_unpoisoned().clone();
 
-    let (lite_snapshot, full_snapshot, persistence_mode, retention) = {
+    let (lite_snapshot, ui_lite_snapshot, full_snapshot, persistence_mode, retention) = {
         let mut state = inner.state.lock_unpoisoned();
         state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
         repair_queue_invariants_locked(&mut state);
         let lite = snapshot_queue_state_lite_from_locked_state(&mut state);
+        let ui_lite = (!ui_lite_listeners.is_empty())
+            .then(|| ui_lite::snapshot_queue_state_ui_lite_from_locked_state(&mut state));
         let full = if full_listeners.is_empty() {
             None
         } else {
@@ -345,6 +350,7 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
         };
         (
             lite,
+            ui_lite,
             full,
             state.settings.queue_persistence_mode,
             state.settings.crash_recovery_log_retention,
@@ -395,10 +401,33 @@ pub(super) fn notify_queue_listeners(inner: &Inner) {
     for listener in &lite_listeners {
         listener(lite_snapshot.clone());
     }
+    if let Some(ui_lite_snapshot) = ui_lite_snapshot {
+        for listener in &ui_lite_listeners {
+            listener(ui_lite_snapshot.clone());
+        }
+    }
     if let Some(full_snapshot) = full_snapshot {
         for listener in &full_listeners {
             listener(full_snapshot.clone());
         }
+    }
+}
+
+pub(super) fn notify_queue_ui_lite_listeners(inner: &Inner) {
+    let ui_lite_listeners = inner.queue_ui_lite_listeners.lock_unpoisoned().clone();
+    if ui_lite_listeners.is_empty() {
+        return;
+    }
+
+    let ui_lite_snapshot: QueueStateUiLite = {
+        let mut state = inner.state.lock_unpoisoned();
+        state.queue_snapshot_revision = state.queue_snapshot_revision.saturating_add(1);
+        repair_queue_invariants_locked(&mut state);
+        ui_lite::snapshot_queue_state_ui_lite_from_locked_state(&mut state)
+    };
+
+    for listener in &ui_lite_listeners {
+        listener(ui_lite_snapshot.clone());
     }
 }
 

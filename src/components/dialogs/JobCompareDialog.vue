@@ -339,7 +339,7 @@ function formatTime(seconds: number) {
 </script>
 
 <template>
-  <Dialog :open="open" @update:open="emit('update:open', $event)">
+  <Dialog :open="open" :modal="false" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-6xl">
       <DialogHeader>
         <DialogTitle class="text-base">

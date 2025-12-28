@@ -258,9 +258,9 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         guard.extend(auto_paused_ids);
     }
 
-    // Emit a snapshot so the frontend sees the recovered queue without having
-    // to poll immediately after startup.
-    super::notify_queue_listeners(inner);
+    // Emit a UI snapshot so the frontend sees the recovered queue without
+    // forcing a heavy crash-recovery snapshot clone/persist on startup.
+    super::notify_queue_ui_lite_listeners(inner);
 
     // Wake any worker threads that might already be waiting for work so they
     // can immediately observe the recovered queue instead of staying parked

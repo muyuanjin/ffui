@@ -1,4 +1,4 @@
-import { computed, ref, type ComputedRef, type Ref } from "vue";
+import { computed, nextTick, ref, type ComputedRef, type Ref } from "vue";
 import type { JobStatus, TranscodeJob } from "@/types";
 import { hasTauri, revealPathInFolder } from "@/lib/backend";
 import { copyToClipboard } from "@/lib/copyToClipboard";
@@ -161,14 +161,25 @@ export function useQueueContextMenu(options: UseQueueContextMenuOptions): UseQue
   const handleQueueContextInspect = () => {
     const job = queueContextMenuJob.value;
     if (!job) return;
-    openJobDetail(job);
+    void (async () => {
+      // Close the context menu first so modal dialogs mount after the menu is fully gone.
+      closeQueueContextMenu();
+      await nextTick();
+      openJobDetail(job);
+    })();
   };
 
   const handleQueueContextCompare = () => {
     if (queueContextMenuMode.value !== "single") return;
     const job = queueContextMenuJob.value;
     if (!job) return;
-    openJobCompare(job);
+    void (async () => {
+      // Close the context menu first so the compare dialog does not compete for
+      // dismissable-layer ordering/pointer-events with the menu.
+      closeQueueContextMenu();
+      await nextTick();
+      openJobCompare(job);
+    })();
   };
 
   const handleQueueContextWait = async () => {

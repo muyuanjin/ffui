@@ -7,6 +7,7 @@ mod enqueue_bulk;
 mod ffmpeg_args;
 mod file_times;
 mod job_runner;
+mod listeners;
 mod os_paths;
 mod output_policy_paths;
 mod preview_cache_gc;
@@ -32,8 +33,8 @@ pub(crate) use state_persist::lock_persist_test_mutex_for_tests;
 pub(crate) use state_persist::override_queue_state_sidecar_path_for_tests;
 // 导出 Job Object 初始化函数，供应用启动时调用
 use crate::ffui_core::domain::{
-    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource,
-    JobType, OutputPolicy, QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
+    AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobSource, JobType, OutputPolicy,
+    QueueStartupHint, QueueState, QueueStateLite, TranscodeJob,
 };
 use crate::ffui_core::monitor::{
     CpuUsageSnapshot, GpuUsageSnapshot, sample_cpu_usage, sample_gpu_usage,
@@ -215,30 +216,6 @@ impl TranscodingEngine {
         F: Fn(QueueState) + Send + Sync + 'static,
     {
         let mut listeners = self.inner.queue_listeners.lock_unpoisoned();
-        listeners.push(Arc::new(listener));
-    }
-    /// Register a listener for lightweight queue state changes.
-    pub fn register_queue_lite_listener<F>(&self, listener: F)
-    where
-        F: Fn(QueueStateLite) + Send + Sync + 'static,
-    {
-        let mut listeners = self.inner.queue_lite_listeners.lock_unpoisoned();
-        listeners.push(Arc::new(listener));
-    }
-    /// Register a listener for lightweight queue delta updates.
-    pub fn register_queue_lite_delta_listener<F>(&self, listener: F)
-    where
-        F: Fn(crate::ffui_core::QueueStateLiteDelta) + Send + Sync + 'static,
-    {
-        let mut listeners = self.inner.queue_lite_delta_listeners.lock_unpoisoned();
-        listeners.push(Arc::new(listener));
-    }
-    /// Register a listener for Batch Compress progress updates.
-    pub fn register_batch_compress_listener<F>(&self, listener: F)
-    where
-        F: Fn(AutoCompressProgress) + Send + Sync + 'static,
-    {
-        let mut listeners = self.inner.batch_compress_listeners.lock_unpoisoned();
         listeners.push(Arc::new(listener));
     }
     /// Get the list of available presets.

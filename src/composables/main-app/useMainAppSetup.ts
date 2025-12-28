@@ -22,6 +22,7 @@ import { scheduleStartupIdle } from "./startupIdle";
 import { useUiAppearanceSync } from "./useUiAppearanceSync";
 import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
 import { useQueueStartupToast } from "./useQueueStartupToast";
+import { useBodyPointerEventsFailsafe } from "./useBodyPointerEventsFailsafe";
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -368,6 +369,30 @@ export function useMainAppSetup() {
     handleQueueContextCopyInputPath,
     handleQueueContextCopyOutputPath,
   } = queueContextMenu;
+
+  const hasBlockingOverlay = computed(() => {
+    const dm = dialogs.dialogManager;
+    return (
+      dm.wizardOpen.value ||
+      dm.parameterPanelOpen.value ||
+      dm.batchCompressOpen.value ||
+      dm.jobDetailOpen.value ||
+      dm.batchDetailOpen.value ||
+      dm.previewOpen.value ||
+      dm.jobCompareOpen.value ||
+      dm.exitConfirmOpen.value ||
+      dm.deletePresetDialogOpen.value ||
+      dm.smartPresetImportOpen.value ||
+      dm.importCommandsOpen.value ||
+      presetsModule.presetPendingDelete.value != null ||
+      presetsModule.presetsPendingBatchDelete.value.length > 0 ||
+      queue.queueDeleteConfirmOpen.value ||
+      dnd.waitingJobContextMenuVisible.value ||
+      queueContextMenuVisible.value
+    );
+  });
+
+  useBodyPointerEventsFailsafe({ hasBlockingOverlay });
 
   const { jobDetailLogText, jobDetailJob, highlightedLogHtml } = useJobLog({
     selectedJob: dialogManager.selectedJob,

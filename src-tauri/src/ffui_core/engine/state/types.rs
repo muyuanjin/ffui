@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::ffui_core::domain::{
-    AutoCompressProgress, QueueState, QueueStateLite, QueueStateLiteDelta,
+    AutoCompressProgress, QueueState, QueueStateLite, QueueStateLiteDelta, QueueStateUiLite,
 };
 
 pub(in crate::ffui_core::engine) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
@@ -10,6 +10,8 @@ pub(in crate::ffui_core::engine) type QueueListener =
     Arc<dyn Fn(QueueState) + Send + Sync + 'static>;
 pub(in crate::ffui_core::engine) type QueueLiteListener =
     Arc<dyn Fn(QueueStateLite) + Send + Sync + 'static>;
+pub(in crate::ffui_core::engine) type QueueUiLiteListener =
+    Arc<dyn Fn(QueueStateUiLite) + Send + Sync + 'static>;
 pub(in crate::ffui_core::engine) type QueueLiteDeltaListener =
     Arc<dyn Fn(QueueStateLiteDelta) + Send + Sync + 'static>;
 pub(in crate::ffui_core::engine) type BatchCompressProgressListener =
