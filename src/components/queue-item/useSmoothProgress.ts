@@ -91,14 +91,36 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
     const cappedBackend = capWhileProcessing(backendPercent);
     const cappedEstimate = capWhileProcessing(estimatedPercent);
 
+    const basePercent = Math.max(0, Math.min(100, (baseOutTimeSeconds / durationSeconds) * 100));
+    const cappedBasePercent = capWhileProcessing(basePercent);
+
+    const computeLeadCapPercent = (): number => {
+      if (speed <= 0) return 0;
+      const ratePercentPerSecond = (speed / durationSeconds) * 100;
+      if (!Number.isFinite(ratePercentPerSecond) || ratePercentPerSecond <= 0) return 0;
+
+      const intervalSeconds = effectiveProgressIntervalMs.value / 1000;
+      const durationBoundSeconds = Math.min(0.8, Math.max(0.05, durationSeconds * 0.05));
+      const cadenceBoundSeconds = Math.min(0.5, Math.max(0.05, intervalSeconds));
+      const maxLeadSeconds = Math.min(durationBoundSeconds, cadenceBoundSeconds);
+
+      const cap = ratePercentPerSecond * maxLeadSeconds;
+      return Number.isFinite(cap) ? Math.max(0.5, Math.min(6, cap)) : 0;
+    };
+
+    const leadCapPercent = computeLeadCapPercent();
+    const baseline = Math.max(cappedBackend, cappedBasePercent);
+    const leadLimitedEstimate =
+      leadCapPercent > 0 ? Math.min(cappedEstimate, baseline + leadCapPercent) : cappedEstimate;
+
     if (allowDecrease) {
       // New epoch: accept true rollbacks (e.g. crash recovery overlap) by
       // trusting telemetry rather than forcing monotonic progress.
-      return cappedEstimate;
+      return leadLimitedEstimate;
     }
 
     // Same epoch: never drift backward.
-    return Math.max(cappedBackend, cappedEstimate);
+    return Math.max(cappedBackend, leadLimitedEstimate);
   };
 
   const displayedProgress = ref<number>(clampedProgress.value);
@@ -106,6 +128,9 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   let smoothStartToken = 0;
   let lastSmoothTickAtMs: number | null = null;
   let lastEpochSeen: number | null = null;
+  let lastTelemetryUpdatedAtMs: number | null = null;
+  let lastTelemetryOutTimeSeconds: number | null = null;
+  let rollbackModeUntilMs = 0;
 
   const stopSmoothing = () => {
     if (smoothTimer != null) {
@@ -119,6 +144,15 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
     const epoch = options.job.value.waitMetadata?.progressEpoch;
     if (typeof epoch === "number" && Number.isFinite(epoch) && epoch >= 0) return Math.floor(epoch);
     return null;
+  };
+
+  const resolveTelemetrySample = (): { updatedAtMs: number; outTimeSeconds: number } | null => {
+    const meta = options.job.value.waitMetadata;
+    const updatedAtMs = meta?.lastProgressUpdatedAtMs;
+    const outTimeSeconds = meta?.lastProgressOutTimeSeconds;
+    if (typeof updatedAtMs !== "number" || !Number.isFinite(updatedAtMs) || updatedAtMs < 0) return null;
+    if (typeof outTimeSeconds !== "number" || !Number.isFinite(outTimeSeconds) || outTimeSeconds < 0) return null;
+    return { updatedAtMs, outTimeSeconds };
   };
 
   const computeMaxDeltaPercent = (dtSeconds: number, current: number, target: number): number => {
@@ -167,13 +201,45 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       const isNewEpoch = lastEpochSeen != null && epoch != null && epoch !== lastEpochSeen;
       if (epoch != null && (lastEpochSeen == null || isNewEpoch)) {
         lastEpochSeen = epoch;
+        if (isNewEpoch) {
+          lastTelemetryUpdatedAtMs = null;
+          lastTelemetryOutTimeSeconds = null;
+        }
       }
 
-      const target = estimateProgressPercentNow(nowMs, isNewEpoch);
+      const sample = resolveTelemetrySample();
+      let telemetryRollback = false;
+      if (sample != null) {
+        if (lastTelemetryUpdatedAtMs == null || sample.updatedAtMs > lastTelemetryUpdatedAtMs) {
+          if (
+            lastTelemetryOutTimeSeconds != null &&
+            sample.outTimeSeconds + 1e-3 < lastTelemetryOutTimeSeconds &&
+            !isNewEpoch
+          ) {
+            telemetryRollback = true;
+          }
+          lastTelemetryUpdatedAtMs = sample.updatedAtMs;
+          lastTelemetryOutTimeSeconds = sample.outTimeSeconds;
+        } else if (isNewEpoch) {
+          lastTelemetryUpdatedAtMs = sample.updatedAtMs;
+          lastTelemetryOutTimeSeconds = sample.outTimeSeconds;
+        }
+      }
+
+      if (isNewEpoch || telemetryRollback) {
+        rollbackModeUntilMs = Math.max(rollbackModeUntilMs, nowMs + 5000);
+      }
+
+      const allowDecrease = rollbackModeUntilMs > 0 && nowMs <= rollbackModeUntilMs;
+      let target = estimateProgressPercentNow(nowMs, allowDecrease);
       const current = displayedProgress.value;
       if (!Number.isFinite(current)) {
         displayedProgress.value = target;
         return;
+      }
+
+      if (!allowDecrease && target < current) {
+        target = current;
       }
 
       const dtSeconds = dtMs / 1000;
@@ -181,13 +247,16 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       const diff = target - current;
       if (Math.abs(diff) <= 0.1) {
         displayedProgress.value = target;
+        if (allowDecrease && target >= current - 0.1) rollbackModeUntilMs = 0;
         return;
       }
       if (Math.abs(diff) <= maxDelta) {
         displayedProgress.value = target;
+        if (allowDecrease && target >= current - 0.1) rollbackModeUntilMs = 0;
         return;
       }
       displayedProgress.value = current + Math.sign(diff) * maxDelta;
+      if (allowDecrease && displayedProgress.value <= target + 0.1) rollbackModeUntilMs = 0;
     };
     tick();
     smoothTimer = setInterval(tick, smoothTickMs.value);

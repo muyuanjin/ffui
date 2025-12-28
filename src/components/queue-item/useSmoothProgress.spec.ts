@@ -205,6 +205,99 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
+  it("allows rollbacks when telemetry out_time decreases within the same epoch", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 50,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          progressEpoch: 1,
+          lastProgressOutTimeSeconds: 50,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(50, 6);
+
+    vi.advanceTimersByTime(1000);
+    await nextTick();
+    const updatedAtMs = Date.now();
+    job.value = {
+      ...job.value,
+      progress: 40,
+      waitMetadata: {
+        ...(job.value.waitMetadata ?? {}),
+        progressEpoch: 1,
+        lastProgressOutTimeSeconds: 40,
+        lastProgressUpdatedAtMs: updatedAtMs,
+      },
+    };
+    await nextTick();
+
+    vi.advanceTimersByTime(100);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeLessThan(50);
+    expect(composable.displayedClampedProgress.value).toBeGreaterThan(40);
+
+    vi.advanceTimersByTime(3000);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(40, 1);
+    wrapper.unmount();
+  });
+
+  it("suppresses prediction-only rollbacks within the same epoch", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 10,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          progressEpoch: 1,
+          lastProgressOutTimeSeconds: 10,
+          lastProgressSpeed: 20,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+
+    vi.setSystemTime(new Date(1000));
+    vi.advanceTimersByTime(200);
+    await nextTick();
+
+    const peak = composable.displayedClampedProgress.value;
+    expect(peak).toBeGreaterThan(10);
+
+    const updatedAtMs = Date.now();
+    job.value = {
+      ...job.value,
+      progress: 10.6,
+      waitMetadata: {
+        ...(job.value.waitMetadata ?? {}),
+        progressEpoch: 1,
+        lastProgressOutTimeSeconds: 10.6,
+        lastProgressSpeed: 1,
+        lastProgressUpdatedAtMs: updatedAtMs,
+      },
+    };
+    await nextTick();
+
+    vi.advanceTimersByTime(100);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeGreaterThanOrEqual(peak - 1e-6);
+    wrapper.unmount();
+  });
+
   it("avoids teleporting on queued -> processing transitions", async () => {
     const job = ref(makeJob({ progress: 10 }));
     const { composable, wrapper } = mountComposable(job);
