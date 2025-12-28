@@ -17,6 +17,7 @@ fn make_job(
         original_codec: None,
         preset_id: "p1".to_string(),
         status,
+        wait_request_pending: false,
         progress,
         start_time,
         end_time: None,

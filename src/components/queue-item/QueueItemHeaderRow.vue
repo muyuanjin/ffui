@@ -8,13 +8,12 @@ import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { hasTauri } from "@/lib/backend";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
+import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
 const props = withDefaults(
   defineProps<{
     job: TranscodeJob;
     preset: FFmpegPreset;
-    /** UI-only: true when a pause request is pending while the job is still processing. */
-    isPausing?: boolean;
     isSelectable: boolean;
     isSelected: boolean;
     isSkipped: boolean;
@@ -36,14 +35,12 @@ const props = withDefaults(
   }>(),
   {
     sizeChangeLevel: "decreased",
-    isPausing: false,
   },
 );
 
 const {
   job,
   preset,
-  isPausing,
   isSelectable,
   isSelected,
   isSkipped,
@@ -63,6 +60,8 @@ const {
   previewUrl,
   t,
 } = toRefs(props);
+
+const isPausing = computed(() => resolveUiJobStatus(props.job) === "pausing");
 
 // 使用时间显示组合式函数
 const { elapsedTimeDisplay, estimatedTotalTimeDisplay, shouldShowTimeInfo, isTerminalState, isProcessing } =

@@ -23,6 +23,7 @@ import { useUiAppearanceSync } from "./useUiAppearanceSync";
 import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
 import { useQueueStartupToast } from "./useQueueStartupToast";
 import { useBodyPointerEventsFailsafe } from "./useBodyPointerEventsFailsafe";
+import { normalizePresetSortMode, normalizePresetViewMode } from "./presetUiPreferences";
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -212,13 +213,15 @@ export function useMainAppSetup() {
       if (!value) return;
 
       // 恢复预设排序模式
-      if (value.presetSortMode && value.presetSortMode !== presetSortMode.value) {
-        presetSortMode.value = value.presetSortMode;
+      const nextPresetSortMode = normalizePresetSortMode(value.presetSortMode, presetSortMode.value);
+      if (nextPresetSortMode !== presetSortMode.value) {
+        presetSortMode.value = nextPresetSortMode;
       }
 
       // 恢复预设视图模式
-      if (value.presetViewMode && value.presetViewMode !== presetViewMode.value) {
-        presetViewMode.value = value.presetViewMode;
+      const nextPresetViewMode = normalizePresetViewMode(value.presetViewMode, presetViewMode.value);
+      if (nextPresetViewMode !== presetViewMode.value) {
+        presetViewMode.value = nextPresetViewMode;
       }
 
       // 自动打开智能预设导入对话框
@@ -295,7 +298,6 @@ export function useMainAppSetup() {
     queueModeProcessingJobs: queue.queueModeProcessingJobs,
     queueModeWaitingItems: queue.queueModeWaitingItems,
     queueModeWaitingBatchIds: queue.queueModeWaitingBatchIds,
-    pausingJobIds: queue.pausingJobIds,
     presets,
     queueViewMode: queue.queueViewMode,
     // Expand bare `ffmpeg` tokens in the "full command" view using the

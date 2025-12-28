@@ -164,6 +164,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
             original_codec: None,
             preset_id: "preset-1".to_string(),
             status: crate::ffui_core::JobStatus::Queued,
+            wait_request_pending: false,
             progress: 0.0,
             start_time: Some(0),
             end_time: None,

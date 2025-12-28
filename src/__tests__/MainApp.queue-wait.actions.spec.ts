@@ -34,6 +34,21 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     useBackendMock({
       wait_transcode_job: (payload) => {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        setQueueJobs([
+          {
+            id: jobId,
+            filename: "C:/videos/wait-me.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            originalCodec: "h264",
+            presetId: "preset-1",
+            status: "processing",
+            waitRequestPending: true,
+            progress: 25,
+            logs: [],
+          } as TranscodeJob,
+        ]);
         return true;
       },
     });
@@ -45,13 +60,13 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     expect(getJobsFromVm(vm).length).toBeGreaterThan(0);
 
     await vm.handleWaitJob(jobId);
+    await vm.refreshQueueFromBackend();
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("processing");
+    expect(updatedJob?.waitRequestPending).toBe(true);
     expect(updatedJob?.logs ?? []).toEqual([]);
-    const pausingIds: Set<string> | undefined = vm.pausingJobIds?.value ?? vm.pausingJobIds;
-    expect(pausingIds?.has(jobId)).toBe(true);
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.any(Object));
   });
 
@@ -306,6 +321,21 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     useBackendMock({
       wait_transcode_job: (payload) => {
         expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        setQueueJobs([
+          {
+            id: jobId,
+            filename: "C:/videos/context-wait.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            originalCodec: "h264",
+            presetId: "preset-1",
+            status: "processing",
+            waitRequestPending: true,
+            progress: 25,
+            logs: [],
+          } as TranscodeJob,
+        ]);
         return true;
       },
     });
@@ -324,13 +354,13 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
       event: { clientX: 0, clientY: 0 } as any,
     });
     await vm.handleQueueContextWait();
+    await vm.refreshQueueFromBackend();
     await nextTick();
 
     const updatedJob = getJobsFromVm(vm).find((j) => j.id === jobId);
     expect(updatedJob?.status).toBe("processing");
+    expect(updatedJob?.waitRequestPending).toBe(true);
     expect(updatedJob?.logs ?? []).toEqual([]);
-    const pausingIds: Set<string> | undefined = vm.pausingJobIds?.value ?? vm.pausingJobIds;
-    expect(pausingIds?.has(jobId)).toBe(true);
     expect(invokeMock).toHaveBeenCalledWith("wait_transcode_job", expect.objectContaining({ jobId }));
   });
 

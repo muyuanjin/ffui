@@ -188,8 +188,8 @@ describe("QueueItem progress and actions", () => {
     expect(wrapper.emitted("restart")?.[0]).toEqual([job.id]);
   });
 
-  it("shows a pausing indicator and disables the wait button when isPausing is true", () => {
-    const job = makeJob({ status: "processing", progress: 50 });
+  it("shows a pausing indicator and disables the wait button when waitRequestPending is true", () => {
+    const job = makeJob({ status: "processing", progress: 50, waitRequestPending: true });
 
     const wrapper = mount(QueueItem, {
       props: {
@@ -199,7 +199,6 @@ describe("QueueItem progress and actions", () => {
         canWait: true,
         canResume: true,
         canRestart: true,
-        isPausing: true,
       },
       global: { plugins: [i18n] },
     });

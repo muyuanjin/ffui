@@ -89,7 +89,6 @@ function mountQueuePanel(overrides: Partial<any>) {
       queueModeProcessingJobs: [],
       queueModeWaitingItems: [],
       queueModeWaitingBatchIds: new Set<string>(),
-      pausingJobIds: new Set<string>(),
       presets: [],
       queueViewMode: "list",
       ffmpegResolvedPath: null,

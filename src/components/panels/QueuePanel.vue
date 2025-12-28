@@ -157,7 +157,7 @@ const handleBatchContextMenu = (batch: CompositeBatchCompressTask, event: MouseE
 
 const panelEl = ref<HTMLElement | null>(null);
 const { isScrolling } = useScrollActivitySignal(panelEl);
-const isQueueRunning = computed(() => props.queueModeProcessingJobs.length > 0 || props.pausingJobIds.size > 0);
+const isQueueRunning = computed(() => props.queueModeProcessingJobs.length > 0);
 const allowHeavyEffects = computed(() => !isScrolling.value && !isQueueRunning.value);
 
 provideQueuePerfHints({ isScrolling, isQueueRunning });
@@ -347,7 +347,6 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
           :items="iconViewItems"
           :icon-view-size="iconViewSize"
           :queue-progress-style="effectiveQueueProgressStyle"
-          :pausing-job-ids="pausingJobIds"
           :selected-job-ids="selectedJobIds"
           :is-batch-fully-selected="isBatchFullySelected"
           @toggle-job-selected="emit('toggleJobSelected', $event)"
@@ -423,7 +422,6 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
               >
                 <QueueItem
                   :job="row.type === 'processingJob' ? row.job : row.item.job"
-                  :is-pausing="pausingJobIds.has(row.type === 'processingJob' ? row.job.id : row.item.job.id)"
                   :preset="getPresetForJob(row.type === 'processingJob' ? row.job : row.item.job)"
                   :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                   :can-cancel="canCancelJob(row.type === 'processingJob' ? row.job : row.item.job)"
@@ -448,7 +446,6 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
                 <QueueItem
                   v-else-if="row.type === 'restItem'"
                   :job="row.item.job"
-                  :is-pausing="pausingJobIds.has(row.item.job.id)"
                   :preset="getPresetForJob(row.item.job)"
                   :ffmpeg-resolved-path="ffmpegResolvedPath ?? null"
                   :can-cancel="false"

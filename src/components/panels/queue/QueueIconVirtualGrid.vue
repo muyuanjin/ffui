@@ -19,7 +19,6 @@ const props = defineProps<{
   items: QueueListItem[];
   iconViewSize: "small" | "medium" | "large";
   queueProgressStyle: QueueProgressStyle;
-  pausingJobIds: Set<string>;
   selectedJobIds: Set<string>;
   isBatchFullySelected: (batch: CompositeBatchCompressTask) => boolean;
 }>();
@@ -153,7 +152,6 @@ watch([rows, viewportHeightPx, virtualListItemSizePx, virtualListBufferSizePx], 
             <QueueIconItem
               v-if="item.kind === 'job'"
               :job="item.job"
-              :is-pausing="pausingJobIds.has(item.job.id)"
               :size="iconViewSize"
               :progress-style="queueProgressStyle"
               :can-select="true"

@@ -17,7 +17,6 @@ import { createQueueBulkActionsWithFeedback } from "./useMainAppQueue.bulkAction
 import { ensureManualPresetId, getQueueIconGridClass, resolveManualPreset } from "./useMainAppQueue.ui";
 import { buildFilteredJobsForTests } from "./useMainAppQueue.filteredJobsForTests";
 import { guardExclusiveAsyncAction } from "./useMainAppQueue.guards";
-import { usePausingJobIds } from "./useMainAppQueue.pausing";
 import { createQueueDeleteConfirm } from "./useMainAppQueue.deleteConfirm";
 import { createQueueVisibleItems } from "./useMainAppQueue.visibleItems";
 
@@ -108,8 +107,6 @@ export interface UseMainAppQueueReturn
   queueModeWaitingItems: ComputedRef<QueueListItem[]>;
   /** Batch ids already rendered in queueModeWaitingItems (for de-dupe). */
   queueModeWaitingBatchIds: ComputedRef<Set<string>>;
-  /** UI-only: jobs with a pending "wait" request while still processing. */
-  pausingJobIds: Ref<Set<string>>;
 
   /** UI: confirm dialog when deletion includes active jobs. */
   queueDeleteConfirmOpen: Ref<boolean>;
@@ -197,8 +194,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
 
   ensureManualPresetId(presets.value, manualJobPresetId);
 
-  const pausingJobIds = usePausingJobIds(jobs);
-
   // Monotonic progress revision used to trigger progress-based sorting without
   // reintroducing full-list ordering fingerprints on every delta tick.
   const queueProgressRevision = ref(0);
@@ -282,7 +277,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     bulkMoveSelectedJobsToBottom: bulkMoveSelectedJobsToBottomInner,
   } = useQueueOperations({
     jobs,
-    pausingJobIds,
     manualJobPreset,
     presets,
     queueError,
@@ -464,7 +458,6 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     moveJobToTop,
     bulkDelete: bulkDeleteWithConfirm,
     bulkActionInProgress,
-    pausingJobIds,
 
     queueDeleteConfirmOpen,
     queueDeleteConfirmSelectedCount,

@@ -120,7 +120,6 @@ describe("QueuePanel Batch Compress icon batch interactions", () => {
         queueModeProcessingJobs: [],
         queueModeWaitingItems: [],
         queueModeWaitingBatchIds: new Set<string>(),
-        pausingJobIds: new Set<string>(),
         presets: [basePreset],
 
         // View settings

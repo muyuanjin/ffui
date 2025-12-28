@@ -22,8 +22,6 @@ export interface QueuePanelProps {
   queueModeProcessingJobs: TranscodeJob[];
   queueModeWaitingItems: QueueListItem[];
   queueModeWaitingBatchIds: Set<string>;
-  /** UI-only: jobs that have requested pause but are still processing. */
-  pausingJobIds: Set<string>;
   presets: FFmpegPreset[];
 
   // View settings

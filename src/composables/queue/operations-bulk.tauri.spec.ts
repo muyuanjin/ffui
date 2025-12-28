@@ -61,7 +61,7 @@ async function withTauriBackendMock<T>(
 }
 
 describe("bulkWaitSelectedJobs (tauri)", () => {
-  it("uses a single backend bulk wait call and does not start queued jobs", async () => {
+  it("uses a single backend bulk wait call", async () => {
     await withTauriBackendMock(async ({ bulkWaitSelectedJobs, waitMock }) => {
       waitMock.mockResolvedValueOnce(true);
 
@@ -73,7 +73,6 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
 
       const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
       const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
-      const pausingJobIds = ref(new Set<string>());
 
       const handleWaitJob = vi.fn(async (_jobId: string) => {});
 
@@ -81,7 +80,6 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds,
         queueError: ref(null),
         refreshQueueFromBackend: async () => {},
         handleCancelJob: async () => {},
@@ -93,13 +91,6 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
       expect(handleWaitJob).not.toHaveBeenCalled();
       expect(waitMock).toHaveBeenCalledTimes(1);
       expect(waitMock).toHaveBeenCalledWith(["job-processing", "job-waiting", "job-queued"]);
-
-      const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
-      expect(statusById.get("job-processing")).toBe("processing");
-      expect(statusById.get("job-waiting")).toBe("paused");
-      expect(statusById.get("job-queued")).toBe("paused");
-
-      expect(pausingJobIds.value.has("job-processing")).toBe(true);
     });
   });
 
@@ -129,7 +120,6 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
 
       const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
       const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
-      const pausingJobIds = ref(new Set<string>());
       const lastQueueSnapshotRevision = ref<number | null>(123);
       const queueError = ref<string | null>(null);
 
@@ -141,7 +131,6 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds,
         queueError,
         lastQueueSnapshotRevision,
         refreshQueueFromBackend,
@@ -162,7 +151,7 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
     }
   });
 
-  it("rolls back optimistic state when backend rejects", async () => {
+  it("does not mutate jobs when backend rejects", async () => {
     await withTauriBackendMock(async ({ bulkWaitSelectedJobs, waitMock }) => {
       waitMock.mockResolvedValueOnce(false);
 
@@ -174,14 +163,13 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
 
       const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
       const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
-      const pausingJobIds = ref(new Set<string>(["some-other-job"]));
+      const queueError = ref<string | null>(null);
 
       await bulkWaitSelectedJobs({
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds,
-        queueError: ref(null),
+        queueError,
         refreshQueueFromBackend: async () => {},
         handleCancelJob: async () => {},
         handleWaitJob: async () => {},
@@ -194,7 +182,7 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
       expect(statusById.get("job-processing")).toBe("processing");
       expect(statusById.get("job-waiting")).toBe("queued");
       expect(statusById.get("job-queued")).toBe("queued");
-      expect(pausingJobIds.value).toEqual(new Set(["some-other-job"]));
+      expect(queueError.value).toBe("queue.error.waitRejected");
     });
   });
 });
@@ -221,7 +209,6 @@ describe("bulkCancelSelectedJobs (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds: ref(new Set()),
         queueError: ref(null),
         refreshQueueFromBackend: async () => {},
         handleCancelJob,
@@ -265,7 +252,6 @@ describe("bulkResumeSelectedJobs (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds: ref(new Set()),
         queueError: ref(null),
         refreshQueueFromBackend: async () => {},
         handleCancelJob: async () => {},
@@ -308,7 +294,6 @@ describe("bulkRestartSelectedJobs (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds: ref(new Set()),
         queueError: ref(null),
         refreshQueueFromBackend: async () => {},
         handleCancelJob: async () => {},
@@ -338,7 +323,6 @@ describe("reorderWaitingQueue (tauri)", () => {
     const jobs = ref<TranscodeJob[]>([makeJob("waiting-a", "queued"), makeJob("waiting-b", "queued")]);
     const selectedJobIds = ref(new Set<string>());
     const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
-    const pausingJobIds = ref(new Set<string>());
     const queueError = ref<string | null>(null);
     const lastQueueSnapshotAtMs = ref<number | null>(1000);
     const lastQueueSnapshotRevision = ref<number | null>(1);
@@ -369,7 +353,6 @@ describe("reorderWaitingQueue (tauri)", () => {
         jobs,
         selectedJobIds,
         selectedJobs,
-        pausingJobIds,
         queueError,
         lastQueueSnapshotAtMs,
         lastQueueSnapshotRevision,

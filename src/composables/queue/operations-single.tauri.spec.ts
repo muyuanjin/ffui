@@ -68,12 +68,10 @@ describe("handleWaitJob (tauri)", () => {
       waitMock.mockResolvedValueOnce(true);
 
       const jobs = ref<TranscodeJob[]>([makeJob("job-queued", "queued")]);
-      const pausingJobIds = ref(new Set<string>());
       const refreshQueueFromBackend = vi.fn(async () => {});
 
       await handleWaitJob("job-queued", {
         jobs,
-        pausingJobIds,
         manualJobPreset: computed<FFmpegPreset | null>(() => null),
         presets: ref([]),
         queueError: ref(null),
@@ -83,7 +81,6 @@ describe("handleWaitJob (tauri)", () => {
 
       expect(waitMock).toHaveBeenCalledWith("job-queued");
       expect(jobs.value[0]?.status).toBe("queued");
-      expect(pausingJobIds.value.has("job-queued")).toBe(true);
       expect(refreshQueueFromBackend).toHaveBeenCalledTimes(1);
     });
   });
@@ -106,7 +103,6 @@ describe("handleResumeJob / handleRestartJob / handleCancelJob (tauri)", () => {
 
         await handleResumeJob("job-paused", {
           jobs,
-          pausingJobIds: ref(new Set<string>()),
           manualJobPreset: computed<FFmpegPreset | null>(() => null),
           presets: ref([]),
           queueError: ref(null),
@@ -119,7 +115,6 @@ describe("handleResumeJob / handleRestartJob / handleCancelJob (tauri)", () => {
 
         await handleRestartJob("job-processing", {
           jobs,
-          pausingJobIds: ref(new Set<string>()),
           manualJobPreset: computed<FFmpegPreset | null>(() => null),
           presets: ref([]),
           queueError: ref(null),
@@ -133,7 +128,6 @@ describe("handleResumeJob / handleRestartJob / handleCancelJob (tauri)", () => {
 
         await handleCancelJob("job-processing", {
           jobs,
-          pausingJobIds: ref(new Set<string>()),
           manualJobPreset: computed<FFmpegPreset | null>(() => null),
           presets: ref([]),
           queueError: ref(null),

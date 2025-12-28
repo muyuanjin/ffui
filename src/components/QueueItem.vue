@@ -13,16 +13,14 @@ import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandVi
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { isQueuePerfEnabled, recordQueueItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
+import { resolveUiJobStatus, type UiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
-type UiJobStatus = TranscodeJob["status"] | "pausing";
 
 const props = defineProps<{
   job: TranscodeJob;
   preset: FFmpegPreset;
-  /** UI-only: true when a pause request is pending while the job is still processing. */
-  isPausing?: boolean;
   canCancel?: boolean;
   canWait?: boolean;
   canResume?: boolean;
@@ -77,7 +75,8 @@ const emit = defineEmits<{
 const rowVariant = computed<"detail" | "compact" | "mini">(() => props.viewMode ?? "detail");
 const isCompact = computed(() => rowVariant.value === "compact");
 const isMini = computed(() => rowVariant.value === "mini");
-const effectiveStatus = computed<UiJobStatus>(() => (props.isPausing ? "pausing" : props.job.status));
+const effectiveStatus = computed<UiJobStatus>(() => resolveUiJobStatus(props.job));
+const isPausing = computed(() => effectiveStatus.value === "pausing");
 
 const statusTextClass = computed(() => {
   switch (effectiveStatus.value) {
@@ -127,7 +126,7 @@ const isCancellable = computed(
     (props.job.status === "queued" || props.job.status === "processing" || props.job.status === "paused"),
 );
 
-const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !props.isPausing);
+const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !isPausing.value);
 
 const isResumable = computed(() => props.canResume && props.job.status === "paused");
 
@@ -376,7 +375,6 @@ if (isQueuePerfEnabled) {
       v-else
       :job="job"
       :preset="preset"
-      :is-pausing="props.isPausing === true"
       :is-selectable="isSelectable"
       :is-selected="isSelected"
       :is-skipped="isSkipped"

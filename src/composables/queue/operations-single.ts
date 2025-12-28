@@ -17,8 +17,6 @@ import {
 export interface SingleJobOpsDeps {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
-  /** Job ids that have a pending "wait" request but are still processing. */
-  pausingJobIds: Ref<Set<string>>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   /** All available presets. */
@@ -36,7 +34,7 @@ export interface SingleJobOpsDeps {
 /**
  * Wait (pause) a processing job.
  * In non-Tauri mode, updates job status locally.
- * In Tauri mode, calls backend and updates UI-only state (no log injection).
+ * In Tauri mode, calls backend and relies on backend snapshots for UI state.
  */
 export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
   if (!jobId) return;
@@ -53,20 +51,9 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     return;
   }
 
-  const existingJob = deps.jobs.value.find((job) => job.id === jobId) ?? null;
-  const expectsCooperativePause = existingJob?.status === "processing" || existingJob?.status === "queued";
-
   try {
-    if (expectsCooperativePause) {
-      deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, jobId]);
-    }
     const ok = await waitTranscodeJob(jobId);
     if (!ok) {
-      if (expectsCooperativePause) {
-        const next = new Set(deps.pausingJobIds.value);
-        next.delete(jobId);
-        deps.pausingJobIds.value = next;
-      }
       deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
       return;
     }
@@ -78,11 +65,6 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
     });
   } catch (error) {
     console.error("Failed to wait job", error);
-    if (expectsCooperativePause) {
-      const next = new Set(deps.pausingJobIds.value);
-      next.delete(jobId);
-      deps.pausingJobIds.value = next;
-    }
     deps.queueError.value = deps.t?.("queue.error.waitFailed") ?? "";
   }
 }

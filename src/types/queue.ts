@@ -147,6 +147,11 @@ export interface TranscodeJob {
   originalCodec?: string;
   presetId: string;
   status: JobStatus;
+  /**
+   * Backend-owned: true when a cooperative pause (`wait`) was requested but the
+   * job is still processing until ffmpeg reaches a safe point.
+   */
+  waitRequestPending?: boolean;
   progress: number;
   startTime?: number;
   endTime?: number;

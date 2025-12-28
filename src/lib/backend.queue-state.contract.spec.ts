@@ -39,6 +39,7 @@ describe("backend queue state contract", () => {
           originalSizeMB: 10,
           presetId: "preset-1",
           status: "processing",
+          waitRequestPending: true,
           queueOrder: null,
           progress: 10,
           logs: [],
@@ -52,6 +53,7 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.status).toBe("queued");
     expect(result.jobs[0]?.queueOrder).toBe(3);
     expect(result.jobs[1]?.queueOrder).toBeNull();
+    expect(result.jobs[1]?.waitRequestPending).toBe(true);
   });
 
   it("loadQueueStateLite preserves waitMetadata field names and values", async () => {

@@ -100,7 +100,6 @@ describe("QueuePanel layout responsiveness", () => {
         queueModeProcessingJobs: [],
         queueModeWaitingItems: [],
         queueModeWaitingBatchIds: new Set<string>(),
-        pausingJobIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "detail",
@@ -161,7 +160,6 @@ describe("QueuePanel layout responsiveness", () => {
         queueModeProcessingJobs: [],
         queueModeWaitingItems: [],
         queueModeWaitingBatchIds: new Set<string>(),
-        pausingJobIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "carousel-3d",
@@ -225,7 +223,6 @@ describe("QueuePanel layout responsiveness", () => {
         queueModeProcessingJobs: [],
         queueModeWaitingItems: [],
         queueModeWaitingBatchIds: new Set<string>(),
-        pausingJobIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "icon-small",

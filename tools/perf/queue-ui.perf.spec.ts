@@ -180,7 +180,6 @@ describe("perf: QueuePanel reactive update costs (manual)", () => {
             queueModeProcessingJobs: queueModeProcessingJobs.value,
             queueModeWaitingItems: queueModeWaitingItems.value,
             queueModeWaitingBatchIds: new Set<string>(),
-            pausingJobIds: new Set<string>(),
             presets: [],
             queueViewMode: "list",
             ffmpegResolvedPath: null,

@@ -14,6 +14,9 @@ export const listenMock =
 let queueStateHandler: ((event: { payload: unknown }) => void) | null = null;
 let batchCompressProgressHandler: ((event: { payload: unknown }) => void) | null = null;
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
+let closeRequestedHandler:
+  | ((event: { preventDefault: () => void; isPreventDefault: () => boolean }) => void | Promise<void>)
+  | null = null;
 let queueJobs: TranscodeJob[] = [];
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
@@ -32,6 +35,14 @@ vi.mock("@tauri-apps/api/window", () => ({
     minimize: vi.fn(),
     toggleMaximize: vi.fn(),
     close: vi.fn(),
+    onCloseRequested: vi.fn(async (handler: any) => {
+      closeRequestedHandler = handler;
+      return () => {
+        if (closeRequestedHandler === handler) {
+          closeRequestedHandler = null;
+        }
+      };
+    }),
   }),
 }));
 
@@ -127,6 +138,21 @@ export function emitDragDrop(paths: string[]): void {
   dragDropHandler?.({ payload: { paths } });
 }
 
+export async function emitWindowCloseRequested(): Promise<boolean> {
+  let prevented = false;
+  const event = {
+    preventDefault: () => {
+      prevented = true;
+    },
+    isPreventDefault: () => prevented,
+  };
+  const handler = closeRequestedHandler;
+  if (typeof handler === "function") {
+    await handler(event);
+  }
+  return prevented;
+}
+
 export function getQueueStateHandler() {
   return queueStateHandler;
 }
@@ -188,6 +214,7 @@ beforeEach(() => {
   queueStateHandler = null;
   batchCompressProgressHandler = null;
   dragDropHandler = null;
+  closeRequestedHandler = null;
 
   listenMock.mockImplementation(async (event: string, handler: (event: { payload: unknown }) => void) => {
     if (event === "ffui://queue-state" || event === "ffui://queue-state-lite") {

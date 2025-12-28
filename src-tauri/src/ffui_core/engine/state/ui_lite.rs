@@ -25,6 +25,7 @@ pub(super) fn snapshot_queue_state_ui_lite_from_locked_state(
     for (id, job) in &state.jobs {
         let mut lite = TranscodeJobUiLite::from(job);
         lite.queue_order = order_by_id.get(id.as_str()).copied();
+        lite.wait_request_pending = state.wait_requests.contains(id);
         jobs.push(lite);
     }
 

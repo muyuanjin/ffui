@@ -84,6 +84,7 @@ fn make_job(i: usize, status: JobStatus, progress: f64) -> TranscodeJobUiLite {
         original_codec: Some("h264".to_string()),
         preset_id: "preset-1".to_string(),
         status,
+        wait_request_pending: false,
         progress,
         start_time: Some(1),
         end_time: None,

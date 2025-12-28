@@ -1,4 +1,54 @@
 use super::*;
+
+#[test]
+fn queue_state_ui_lite_exposes_wait_request_pending_for_processing_job() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/ui-lite-wait-pending.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        assert_eq!(state.queue.pop_front(), Some(job.id.clone()));
+        if let Some(j) = state.jobs.get_mut(&job.id) {
+            j.status = JobStatus::Processing;
+        }
+    }
+
+    assert!(engine.wait_job(&job.id), "wait_job must accept Processing");
+
+    let snapshot = engine.queue_state_ui_lite();
+    let ui = snapshot
+        .jobs
+        .iter()
+        .find(|j| j.id == job.id)
+        .expect("ui snapshot must contain the job");
+    assert_eq!(ui.status, JobStatus::Processing);
+    assert!(
+        ui.wait_request_pending,
+        "ui snapshot must surface pending wait requests"
+    );
+
+    assert!(
+        engine.resume_job(&job.id),
+        "resume_job must cancel the pending wait request"
+    );
+
+    let snapshot = engine.queue_state_ui_lite();
+    let ui = snapshot
+        .jobs
+        .iter()
+        .find(|j| j.id == job.id)
+        .expect("ui snapshot must contain the job");
+    assert!(!ui.wait_request_pending);
+}
+
 #[test]
 fn wait_and_resume_preserve_progress_and_queue_membership() {
     let engine = make_engine_with_preset();

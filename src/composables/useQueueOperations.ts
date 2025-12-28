@@ -31,8 +31,6 @@ import type { QueueOperationMethods } from "./queue/queueOperations.types";
 export interface UseQueueOperationsOptions {
   /** The list of jobs (will be updated by operations). */
   jobs: Ref<TranscodeJob[]>;
-  /** Job ids that have a pending "wait" request but are still processing. */
-  pausingJobIds: Ref<Set<string>>;
   /** The currently selected preset for manual jobs. */
   manualJobPreset: ComputedRef<FFmpegPreset | null>;
   /** All available presets. */
@@ -95,7 +93,6 @@ export interface UseQueueOperationsReturn extends QueueOperationMethods {
 export function useQueueOperations(options: UseQueueOperationsOptions): UseQueueOperationsReturn {
   const {
     jobs,
-    pausingJobIds,
     manualJobPreset,
     presets,
     queueError,
@@ -138,7 +135,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
 
   const singleJobOpsDeps = {
     jobs,
-    pausingJobIds,
     manualJobPreset,
     presets,
     queueError,
@@ -166,7 +162,6 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     jobs,
     selectedJobIds,
     selectedJobs,
-    pausingJobIds,
     queueError,
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,

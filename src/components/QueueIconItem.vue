@@ -9,14 +9,13 @@ import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
+import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
 const props = defineProps<{
   job: TranscodeJob;
-  /** UI-only: true when a pause request is pending while the job is still processing. */
-  isPausing?: boolean;
   /**
    * Small/medium/large icon sizes map to slightly different typographic
    * scales but share the same structural layout.
@@ -85,14 +84,17 @@ const showRippleCardProgress = computed(
     props.job.status !== "queued" && props.job.status !== "skipped" && effectiveProgressStyle.value === "ripple-card",
 );
 
+const uiStatus = computed(() => resolveUiJobStatus(props.job));
+
 // 根据任务状态计算进度条颜色类
 const progressColorClass = computed(() => {
-  switch (props.job.status) {
+  switch (uiStatus.value) {
     case "completed":
       return "bg-emerald-500";
     case "failed":
       return "bg-red-500";
     case "paused":
+    case "pausing":
     case "queued":
       return "bg-amber-500";
     case "cancelled":
@@ -106,12 +108,13 @@ const progressColorClass = computed(() => {
 
 // 波纹进度条的渐变色类
 const rippleProgressColorClass = computed(() => {
-  switch (props.job.status) {
+  switch (uiStatus.value) {
     case "completed":
       return "bg-gradient-to-r from-emerald-500/60 via-emerald-500 to-emerald-500/60";
     case "failed":
       return "bg-gradient-to-r from-red-500/60 via-red-500 to-red-500/60";
     case "paused":
+    case "pausing":
     case "queued":
       return "bg-gradient-to-r from-amber-500/60 via-amber-500 to-amber-500/60";
     case "cancelled":
@@ -123,18 +126,19 @@ const rippleProgressColorClass = computed(() => {
   }
 });
 
-const displayStatusKey = computed(() => (props.isPausing ? "pausing" : props.job.status));
+const displayStatusKey = computed(() => uiStatus.value);
 
 const statusLabel = computed(() => t(`queue.status.${displayStatusKey.value}`) as string);
 
 const statusBadgeClass = computed(() => {
-  switch (props.job.status) {
+  switch (uiStatus.value) {
     case "completed":
       return "border-emerald-500/60 text-emerald-200 bg-emerald-500/20";
     case "processing":
       return "border-blue-500/60 text-blue-200 bg-blue-500/20";
-    case "queued":
     case "paused":
+    case "pausing":
+    case "queued":
       return "border-amber-500/60 text-amber-200 bg-amber-500/20";
     case "failed":
       return "border-red-500/60 text-red-200 bg-red-500/20";

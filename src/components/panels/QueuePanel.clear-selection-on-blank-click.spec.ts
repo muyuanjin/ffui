@@ -88,7 +88,6 @@ describe.skip("QueuePanel clears selection on blank click", () => {
         queueModeProcessingJobs: [],
         queueModeWaitingItems: [],
         queueModeWaitingBatchIds: new Set<string>(),
-        pausingJobIds: new Set<string>(),
         presets: [basePreset],
 
         queueViewMode: "icon-small",

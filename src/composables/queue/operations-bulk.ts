@@ -35,8 +35,6 @@ export interface BulkOpsDeps {
   selectedJobIds: Ref<Set<string>>;
   /** Selected jobs computed ref. */
   selectedJobs: ComputedRef<TranscodeJob[]>;
-  /** UI-only: jobs with a pending "wait" request while still processing. */
-  pausingJobIds: Ref<Set<string>>;
   /** Queue error message ref. */
   queueError: Ref<string | null>;
   /** Last queue snapshot timestamp (used to avoid redundant refreshes). */
@@ -113,43 +111,18 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
   }
 
   const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
-  const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
-
-  const existingPausing = deps.pausingJobIds.value;
-  const addedPausingIds = processingIds.filter((id) => !existingPausing.has(id));
-  if (addedPausingIds.length > 0) {
-    deps.pausingJobIds.value = new Set([...existingPausing, ...addedPausingIds]);
-  }
-
-  const rollbackOptimisticUpdates = () => {
-    if (addedPausingIds.length === 0) return;
-    const next = new Set(deps.pausingJobIds.value);
-    for (const id of addedPausingIds) next.delete(id);
-    deps.pausingJobIds.value = next;
-  };
 
   try {
     const ok = await waitTranscodeJobsBulk(ids);
     if (!ok) {
-      rollbackOptimisticUpdates();
       deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
       return;
     }
     deps.queueError.value = null;
 
-    // UI-first: queued jobs can be paused immediately and safely on the client
-    // (they won't be picked by the worker selection logic).
-    const idSet = new Set(ids);
-    for (const job of deps.jobs.value) {
-      if (!idSet.has(job.id)) continue;
-      if (job.status === "queued") {
-        job.status = "paused";
-      }
-    }
     await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
     console.error("Failed to bulk wait jobs", error);
-    rollbackOptimisticUpdates();
     deps.queueError.value = deps.t?.("queue.error.waitFailed") ?? "";
   }
 }

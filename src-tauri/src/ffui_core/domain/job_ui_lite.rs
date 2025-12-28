@@ -73,6 +73,10 @@ pub struct TranscodeJobUiLite {
     pub original_codec: Option<String>,
     pub preset_id: String,
     pub status: JobStatus,
+    /// True when the frontend requested a cooperative pause (`wait`) and the job
+    /// is still running until ffmpeg reaches a safe point.
+    #[serde(default)]
+    pub wait_request_pending: bool,
     pub progress: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start_time: Option<u64>,
@@ -199,6 +203,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
             original_codec,
             preset_id,
             status,
+            wait_request_pending: false,
             progress,
             start_time,
             end_time,
@@ -314,6 +319,7 @@ mod ui_lite_tests {
 
         let job_json = &json["jobs"][0];
         assert!(job_json.get("logHead").is_none());
+        assert_eq!(job_json["waitRequestPending"], false);
 
         let meta = &job_json["waitMetadata"];
         assert_eq!(meta["tmpOutputPath"], "C:/tmp/seg0.mkv");
