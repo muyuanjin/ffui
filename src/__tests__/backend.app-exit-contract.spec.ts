@@ -28,10 +28,22 @@ describe("backend app exit contract", () => {
     expect(invokeMock).toHaveBeenCalledWith("reset_exit_prompt", undefined);
   });
 
+  it("resetExitPrompt is a no-op when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI_INTERNALS__;
+    await resetExitPrompt();
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it("exitAppNow invokes exit_app_now without payload", async () => {
     invokeMock.mockResolvedValueOnce(undefined);
     await exitAppNow();
     expect(invokeMock).toHaveBeenCalledWith("exit_app_now", undefined);
+  });
+
+  it("exitAppNow is a no-op when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI_INTERNALS__;
+    await exitAppNow();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it("exitAppWithAutoWait invokes exit_app_with_auto_wait without payload", async () => {

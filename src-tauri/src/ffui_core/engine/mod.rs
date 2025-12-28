@@ -343,6 +343,12 @@ impl TranscodingEngine {
     pub fn wait_jobs_bulk(&self, job_ids: Vec<String>) -> bool {
         worker::wait_jobs_bulk(&self.inner, job_ids)
     }
+    /// Request all queued + processing jobs to pause in a single atomic operation.
+    ///
+    /// Returns `(requested_job_count, processing_job_ids_at_request_time)`.
+    pub fn wait_all_processing_and_queued_jobs_bulk(&self) -> (usize, Vec<String>) {
+        worker::wait_all_processing_and_queued_jobs_bulk(&self.inner)
+    }
     /// Resume a paused job.
     pub fn resume_job(&self, job_id: &str) -> bool {
         worker::resume_job(&self.inner, job_id)

@@ -84,6 +84,31 @@ describe("AppExitConfirmDialog", () => {
     wrapper.unmount();
   });
 
+  it("prevents duplicate pause-and-exit clicks while working", async () => {
+    const wrapper = mount(AppExitConfirmDialog, {
+      global: { plugins: [i18n] },
+      props: {
+        open: true,
+        processingJobCount: 1,
+        timeoutSeconds: 5,
+      },
+    });
+
+    await flushPromises();
+    const pauseExit = document.body.querySelector(
+      '[data-testid="exit-confirm-pause-and-exit"]',
+    ) as HTMLButtonElement | null;
+    expect(pauseExit).not.toBeNull();
+    pauseExit?.click();
+    pauseExit?.click();
+    await flushPromises();
+
+    expect(exitAppWithAutoWait).toHaveBeenCalledTimes(1);
+    expect(pauseExit?.disabled).toBe(true);
+
+    wrapper.unmount();
+  });
+
   it("invokes immediate exit", async () => {
     const wrapper = mount(AppExitConfirmDialog, {
       global: { plugins: [i18n] },

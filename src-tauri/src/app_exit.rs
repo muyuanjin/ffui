@@ -58,17 +58,11 @@ pub fn pause_processing_jobs_for_exit(
         crate::ffui_core::DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS
     };
 
-    let job_ids: Vec<String> = {
-        let state = engine.inner.state.lock_unpoisoned();
-        state
-            .jobs
-            .values()
-            .filter(|job| job.status == JobStatus::Processing)
-            .map(|job| job.id.clone())
-            .collect()
-    };
-
-    engine.wait_jobs_bulk(job_ids.clone());
+    // Must match "bulk pause" semantics: pause queued jobs immediately so no
+    // new job can start while we wait for processing jobs to reach a safe
+    // cooperative pause point.
+    let (requested_job_count, processing_job_ids) =
+        engine.wait_all_processing_and_queued_jobs_bulk();
 
     let deadline = if timeout_seconds > 0.0 {
         Some(Instant::now() + Duration::from_secs_f64(timeout_seconds))
@@ -77,7 +71,7 @@ pub fn pause_processing_jobs_for_exit(
     };
     let mut state = engine.inner.state.lock_unpoisoned();
     loop {
-        let remaining = job_ids.iter().filter(|job_id| {
+        let remaining = processing_job_ids.iter().filter(|job_id| {
             state
                 .jobs
                 .get(*job_id)
@@ -101,7 +95,7 @@ pub fn pause_processing_jobs_for_exit(
         state = guard;
     }
 
-    let still_processing = job_ids
+    let still_processing = processing_job_ids
         .iter()
         .filter(|job_id| {
             state
@@ -116,8 +110,8 @@ pub fn pause_processing_jobs_for_exit(
     let _ = engine.force_persist_queue_state_lite_now();
 
     ExitAutoWaitOutcome {
-        requested_job_count: job_ids.len(),
-        completed_job_count: job_ids.len().saturating_sub(still_processing),
+        requested_job_count,
+        completed_job_count: requested_job_count.saturating_sub(still_processing),
         timed_out_job_count: still_processing,
         timeout_seconds,
     }
@@ -198,6 +192,66 @@ mod tests {
                 job.status = JobStatus::Paused;
             }
         });
+    }
+
+    #[test]
+    fn pause_processing_jobs_for_exit_pauses_queued_jobs_before_processing_job_stops() {
+        let engine = TranscodingEngine::new_for_tests();
+
+        let processing_id = "job-exit-processing".to_string();
+        let queued_id = "job-exit-queued".to_string();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.jobs.insert(
+                processing_id.clone(),
+                make_job(&processing_id, JobStatus::Processing),
+            );
+            state
+                .jobs
+                .insert(queued_id.clone(), make_job(&queued_id, JobStatus::Queued));
+            state.queue.push_back(queued_id.clone());
+        }
+
+        let worker_engine = engine.clone();
+        let worker_processing_id = processing_id.clone();
+        let handle =
+            std::thread::spawn(move || pause_processing_jobs_for_exit(&worker_engine, 2.0));
+
+        // Give the worker a moment to request the bulk wait.
+        std::thread::sleep(Duration::from_millis(30));
+        {
+            let state = engine.inner.state.lock_unpoisoned();
+            let queued = state.jobs.get(&queued_id).expect("queued job exists");
+            assert_eq!(
+                queued.status,
+                JobStatus::Paused,
+                "queued job should be paused immediately during exit auto-wait",
+            );
+            let processing = state
+                .jobs
+                .get(&processing_id)
+                .expect("processing job exists");
+            assert_eq!(
+                processing.status,
+                JobStatus::Processing,
+                "processing job should still be processing until the worker cooperates",
+            );
+        }
+
+        // Simulate the processing job reaching its safe pause point.
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            let processing = state
+                .jobs
+                .get_mut(&worker_processing_id)
+                .expect("processing job exists");
+            processing.status = JobStatus::Paused;
+        }
+        engine.inner.cv.notify_all();
+
+        let outcome = handle.join().expect("pause thread should finish");
+        assert_eq!(outcome.requested_job_count, 2);
+        assert_eq!(outcome.timed_out_job_count, 0);
     }
 
     #[test]

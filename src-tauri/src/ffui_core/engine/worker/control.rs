@@ -240,6 +240,63 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
     true
 }
 
+/// Pause all queued + processing jobs in a single atomic engine lock acquisition.
+///
+/// This is used by graceful shutdown ("pause on exit") so no queued job can start
+/// after a running job enters a cooperative wait point but before the app exits.
+///
+/// Returns `(requested_job_count, processing_job_ids_at_request_time)`.
+pub(in crate::ffui_core::engine) fn wait_all_processing_and_queued_jobs_bulk(
+    inner: &Arc<Inner>,
+) -> (usize, Vec<String>) {
+    let (should_notify, requested_job_count, processing_job_ids) = {
+        let mut state = inner.state.lock_unpoisoned();
+
+        let mut should_notify = false;
+        let mut requested_job_count = 0usize;
+        let mut processing_job_ids = Vec::new();
+
+        let job_ids: Vec<String> = state.jobs.keys().cloned().collect();
+        for job_id in job_ids {
+            let status = match state.jobs.get(job_id.as_str()) {
+                Some(job) => job.status,
+                None => continue,
+            };
+
+            match status {
+                JobStatus::Processing => {
+                    requested_job_count = requested_job_count.saturating_add(1);
+                    processing_job_ids.push(job_id.clone());
+                    if state.wait_requests.insert(job_id) {
+                        should_notify = true;
+                    }
+                }
+                JobStatus::Queued => {
+                    requested_job_count = requested_job_count.saturating_add(1);
+                    if let Some(job) = state.jobs.get_mut(job_id.as_str()) {
+                        job.status = JobStatus::Paused;
+                        append_job_log_line(job, "Paused while waiting".to_string());
+                        job.log_head = None;
+                    }
+                    state.wait_requests.remove(job_id.as_str());
+                    state.cancelled_jobs.remove(job_id.as_str());
+                    state.restart_requests.remove(job_id.as_str());
+                    should_notify = true;
+                }
+                _ => {}
+            }
+        }
+
+        (should_notify, requested_job_count, processing_job_ids)
+    };
+
+    if should_notify || requested_job_count > 0 {
+        notify_queue_listeners(inner);
+    }
+
+    (requested_job_count, processing_job_ids)
+}
+
 /// Restart a job from 0% progress. For jobs that are currently processing
 /// this schedules a cooperative cancellation followed by a fresh enqueue
 /// in `mark_job_cancelled`. For non-processing jobs the state is reset
