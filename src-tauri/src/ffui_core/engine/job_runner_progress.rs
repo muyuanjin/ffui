@@ -35,15 +35,14 @@ pub(super) fn update_job_progress(
         let mut heal_to_processing: Option<(String, String)> = None;
 
         if let Some(job) = state.jobs.get_mut(job_id) {
-            let saw_progress_sample = percent.is_some()
-                || progress_out_time_seconds.is_some()
+            let saw_progress_sample = progress_out_time_seconds.is_some()
                 || progress_frame.is_some()
                 || speed.is_some();
             if saw_progress_sample && matches!(job.status, JobStatus::Paused | JobStatus::Queued) {
-                // A progress sample can only come from an actively running ffmpeg process.
-                // If the job is still marked Paused/Queued, it means the runtime state got
-                // out of sync (e.g. crash recovery/startup resume). Heal it immediately so
-                // the UI never shows "paused" while progress keeps advancing.
+                // These telemetry samples can only come from an actively running ffmpeg process.
+                // If the job is still marked Paused/Queued, it means the runtime state got out
+                // of sync (e.g. crash recovery/startup resume). Heal it immediately so the UI
+                // never shows "paused" while output telemetry keeps advancing.
                 job.status = JobStatus::Processing;
                 if job.start_time.is_none() {
                     job.start_time = Some(now_ms);
