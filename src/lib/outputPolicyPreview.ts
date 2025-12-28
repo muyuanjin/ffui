@@ -75,8 +75,11 @@ export function previewOutputPathLocal(inputPath: string, policy: OutputPolicy):
       if (policy.filename.appendEncoderQuality) outStem = `${outStem}-ENC-QUALITY`;
       continue;
     }
-    if (typeof policy.filename.randomSuffixLen === "number" && policy.filename.randomSuffixLen > 0) {
-      outStem = `${outStem}-RANDOM`;
+    if (item === "random") {
+      if (typeof policy.filename.randomSuffixLen === "number" && policy.filename.randomSuffixLen > 0) {
+        outStem = `${outStem}-RANDOM`;
+      }
+      continue;
     }
   }
 

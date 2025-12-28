@@ -24,6 +24,26 @@ describe("previewOutputPathLocal", () => {
     expect(out).toBe("C:/videos/input-YYYYMMDD-HHmmss.compressed-RANDOM-ENC-QUALITY.mp4");
   });
 
+  it("does not duplicate RANDOM when appendOrder is omitted", () => {
+    const policy: OutputPolicy = {
+      ...DEFAULT_OUTPUT_POLICY,
+      container: { mode: "force", format: "mp4" },
+      directory: { mode: "sameAsInput" },
+      filename: {
+        ...DEFAULT_OUTPUT_POLICY.filename,
+        suffix: ".compressed",
+        appendTimestamp: true,
+        appendEncoderQuality: true,
+        randomSuffixLen: 6,
+        appendOrder: undefined,
+      },
+      preserveFileTimes: false,
+    };
+
+    const out = previewOutputPathLocal("C:/videos/input.mkv", policy);
+    expect(out).toBe("C:/videos/input.compressed-YYYYMMDD-HHmmss-ENC-QUALITY-RANDOM.mp4");
+  });
+
   it("normalizes fixed directories into a stable preview path", () => {
     const policy: OutputPolicy = {
       ...DEFAULT_OUTPUT_POLICY,
