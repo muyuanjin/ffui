@@ -34,6 +34,29 @@ pub(super) fn update_job_progress(
         let mut pending_patch: Option<TranscodeJobLiteDeltaPatch> = None;
 
         if let Some(job) = state.jobs.get_mut(job_id) {
+            let saw_progress_sample = percent.is_some()
+                || progress_out_time_seconds.is_some()
+                || progress_frame.is_some()
+                || speed.is_some();
+            if saw_progress_sample && matches!(job.status, JobStatus::Paused | JobStatus::Queued) {
+                // A progress sample can only come from an actively running ffmpeg process.
+                // If the job is still marked Paused/Queued, it means the runtime state got
+                // out of sync (e.g. crash recovery/startup resume). Heal it immediately so
+                // the UI never shows "paused" while progress keeps advancing.
+                job.status = JobStatus::Processing;
+                if job.start_time.is_none() {
+                    job.start_time = Some(now_ms);
+                }
+                if job.processing_started_ms.is_none() {
+                    job.processing_started_ms = Some(now_ms);
+                }
+                state.active_jobs.insert(job.id.clone());
+                state.active_inputs.insert(job.filename.clone());
+                state.queue.retain(|id| id != job_id);
+                telemetry_changed = true;
+                should_notify = true;
+            }
+
             // 更新累计已用时间：基于 processing_started_ms 计算当前段的时间，加上之前暂停时累积的时间
             if job.status == JobStatus::Processing {
                 should_record_activity = true;

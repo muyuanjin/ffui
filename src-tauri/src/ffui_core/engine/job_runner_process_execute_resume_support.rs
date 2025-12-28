@@ -147,6 +147,7 @@ fn probe_ffmpeg_supports_stats_period(ffmpeg_path: &str) -> bool {
     // Best-effort probe. If anything fails, fall back to "not supported" so we
     // never break execution on custom/old binaries.
     let mut cmd = Command::new(ffmpeg_path);
+    configure_background_command(&mut cmd);
     cmd.arg("-hide_banner").arg("-h");
     let output = cmd.output().ok();
     let Some(output) = output else {
