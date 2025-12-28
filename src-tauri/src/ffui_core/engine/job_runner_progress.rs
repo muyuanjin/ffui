@@ -32,6 +32,7 @@ pub(super) fn update_job_progress(
         let last_persist_snapshot_at_ms = state.last_queue_persist_snapshot_at_ms;
         let mut next_persist_snapshot_at_ms: Option<u64> = None;
         let mut pending_patch: Option<TranscodeJobLiteDeltaPatch> = None;
+        let mut heal_to_processing: Option<(String, String)> = None;
 
         if let Some(job) = state.jobs.get_mut(job_id) {
             let saw_progress_sample = percent.is_some()
@@ -50,9 +51,7 @@ pub(super) fn update_job_progress(
                 if job.processing_started_ms.is_none() {
                     job.processing_started_ms = Some(now_ms);
                 }
-                state.active_jobs.insert(job.id.clone());
-                state.active_inputs.insert(job.filename.clone());
-                state.queue.retain(|id| id != job_id);
+                heal_to_processing = Some((job.id.clone(), job.filename.clone()));
                 telemetry_changed = true;
                 should_notify = true;
             }
@@ -182,6 +181,12 @@ pub(super) fn update_job_progress(
                     preview_revision: None,
                 });
             }
+        }
+
+        if let Some((job_id_owned, filename)) = heal_to_processing {
+            state.active_jobs.insert(job_id_owned.clone());
+            state.active_inputs.insert(filename);
+            state.queue.retain(|id| id != &job_id_owned);
         }
 
         if let Some(next) = next_persist_snapshot_at_ms {

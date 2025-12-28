@@ -211,19 +211,22 @@ fn update_job_progress_heals_paused_jobs_when_progress_samples_arrive() {
 
     {
         let mut state = engine.inner.state.lock_unpoisoned();
-        let stored = state
-            .jobs
-            .get_mut(&job.id)
-            .expect("job should exist after enqueue");
-        stored.status = JobStatus::Paused;
-        stored.progress = 0.0;
+        let stored_filename = {
+            let stored = state
+                .jobs
+                .get_mut(&job.id)
+                .expect("job should exist after enqueue");
+            stored.status = JobStatus::Paused;
+            stored.progress = 0.0;
+            stored.filename.clone()
+        };
 
         // Simulate a restored paused job that is still present in the waiting queue.
         if !state.queue.iter().any(|id| id == &job.id) {
             state.queue.push_back(job.id.clone());
         }
         state.active_jobs.remove(&job.id);
-        state.active_inputs.remove(&stored.filename);
+        state.active_inputs.remove(&stored_filename);
     }
 
     // A real progress sample can only come from an active ffmpeg process.
