@@ -186,6 +186,98 @@ fn update_job_progress_emits_queue_lite_delta_for_log_only_updates() {
 }
 
 #[test]
+fn update_job_progress_heals_paused_jobs_when_progress_samples_arrive() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/heal-paused.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    });
+
+    {
+        deltas.lock_unpoisoned().clear();
+    }
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job.id)
+            .expect("job should exist after enqueue");
+        stored.status = JobStatus::Paused;
+        stored.progress = 0.0;
+
+        // Simulate a restored paused job that is still present in the waiting queue.
+        if !state.queue.iter().any(|id| id == &job.id) {
+            state.queue.push_back(job.id.clone());
+        }
+        state.active_jobs.remove(&job.id);
+        state.active_inputs.remove(&stored.filename);
+    }
+
+    // A real progress sample can only come from an active ffmpeg process.
+    // If the job is still marked Paused, the engine must self-heal to Processing
+    // so the UI never shows "paused" while progress advances.
+    update_job_progress(
+        &engine.inner,
+        &job.id,
+        Some(10.0),
+        Some(1.0),
+        None,
+        None,
+        Some(1.0),
+    );
+
+    {
+        let state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get(&job.id)
+            .expect("job should still exist after progress update");
+        assert_eq!(
+            stored.status,
+            JobStatus::Processing,
+            "progress samples must promote restored Paused jobs into Processing"
+        );
+        assert!(
+            !state.queue.contains(&job.id),
+            "processing jobs must not remain in the waiting queue"
+        );
+        assert!(
+            state.active_jobs.contains(&job.id),
+            "processing jobs must be tracked as active"
+        );
+    }
+
+    let states = deltas.lock_unpoisoned();
+    assert!(
+        !states.is_empty(),
+        "expected a queue-lite delta to be emitted for progress updates"
+    );
+    let patch = states
+        .iter()
+        .flat_map(|delta| delta.patches.iter())
+        .find(|patch| patch.id == job.id)
+        .expect("expected a delta patch for the job");
+    assert_eq!(
+        patch.status,
+        Some(JobStatus::Processing),
+        "delta patches must carry the healed Processing status"
+    );
+}
+
+#[test]
 fn update_job_progress_filters_ffmpeg_progress_noise_from_logs() {
     let settings = AppSettings::default();
     let inner = Inner::new(Vec::new(), settings);
