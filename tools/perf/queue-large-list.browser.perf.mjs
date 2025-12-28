@@ -22,18 +22,28 @@ const parseArgs = () => {
   const parsed = {
     jobs: 800,
     processingJobs: 2,
+    pausedJobs: 0,
     width: 900,
     height: 900,
     locale: "zh-CN",
     durationMs: 6000,
     tickMs: 50,
+    previewMode: "static",
+    ensurePreviewDelayMs: 0,
     scrollEveryMs: 40,
     scrollDeltaY: 240,
     includeCommand: true,
+    progressStyle: "bar",
+    sortPrimary: "addedTime",
+    sortPrimaryDirection: "asc",
+    sortSecondary: "filename",
+    sortSecondaryDirection: "asc",
+    modes: ["detail", "compact", "mini"],
     assert: false,
     minFps: 55,
     maxLagP95Ms: 20,
     maxDomRows: 120,
+    maxDomIconRows: 180,
   };
 
   for (let i = 0; i < args.length; i += 1) {
@@ -46,6 +56,11 @@ const parseArgs = () => {
     }
     if (a === "--processing-jobs") {
       parsed.processingJobs = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--paused-jobs") {
+      parsed.pausedJobs = Number(takeValue(args, i, a));
       i += 1;
       continue;
     }
@@ -74,12 +89,55 @@ const parseArgs = () => {
       i += 1;
       continue;
     }
+    if (a === "--preview-mode") {
+      parsed.previewMode = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--ensure-preview-delay-ms") {
+      parsed.ensurePreviewDelayMs = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
     if (a === "--include-command") {
       parsed.includeCommand = true;
       continue;
     }
     if (a === "--no-include-command") {
       parsed.includeCommand = false;
+      continue;
+    }
+    if (a === "--progress-style") {
+      parsed.progressStyle = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--sort-primary") {
+      parsed.sortPrimary = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--sort-primary-direction") {
+      parsed.sortPrimaryDirection = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--sort-secondary") {
+      parsed.sortSecondary = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--sort-secondary-direction") {
+      parsed.sortSecondaryDirection = takeValue(args, i, a);
+      i += 1;
+      continue;
+    }
+    if (a === "--modes") {
+      parsed.modes = takeValue(args, i, a)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      i += 1;
       continue;
     }
     if (a === "--assert") {
@@ -105,6 +163,11 @@ const parseArgs = () => {
       i += 1;
       continue;
     }
+    if (a === "--max-dom-icon-rows") {
+      parsed.maxDomIconRows = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
     if (a === "--help" || a === "-h") {
       // eslint-disable-next-line no-console
       console.log(
@@ -115,16 +178,26 @@ const parseArgs = () => {
           "Options:",
           "  --jobs <N>             Total jobs (default: 800)",
           "  --processing-jobs <N>  Processing jobs (default: 2)",
+          "  --paused-jobs <N>      Paused jobs (default: 0)",
           "  --locale <LOCALE>      Locale query param (default: zh-CN)",
           "  --width <PX>           Viewport width (default: 900)",
           "  --height <PX>          Viewport height (default: 900)",
           "  --duration-ms <MS>     Perf run duration (default: 6000)",
-          "  --tick-ms <MS>         Delta emit interval (default: 50)",
+          "  --tick-ms <MS>         Delta emit interval, 0 disables (default: 50)",
           "  --[no-]include-command Include long ffmpegCommand in jobs (default: on)",
+          "  --preview-mode <M>     static|unique-rev|missing-auto-ensure (default: static)",
+          "  --ensure-preview-delay-ms <MS> Delay for ensureJobPreview in mock mode (default: 0)",
+          "  --progress-style <S>   Set ffui.queueProgressStyle (bar|card-fill|ripple-card)",
+          "  --sort-primary <F>     Set ffui.queueSortPrimary (e.g. progress|elapsed|addedTime)",
+          "  --sort-primary-direction <D>   Set ffui.queueSortPrimaryDirection (asc|desc)",
+          "  --sort-secondary <F>   Set ffui.queueSortSecondary",
+          "  --sort-secondary-direction <D> Set ffui.queueSortSecondaryDirection (asc|desc)",
+          "  --modes <LIST>         Comma-separated: detail,compact,mini,icon-small,icon-medium,icon-large",
           "  --assert               Fail with non-zero exit when thresholds are not met",
           "  --min-fps <N>          Threshold when --assert (default: 55)",
           "  --max-lag-p95-ms <N>   Threshold when --assert (default: 20)",
           "  --max-dom-rows <N>     Threshold when --assert (default: 120)",
+          "  --max-dom-icon-rows <N> Threshold when --assert (default: 180)",
         ].join("\n"),
       );
       process.exit(0);
@@ -135,15 +208,62 @@ const parseArgs = () => {
   if (!Number.isFinite(parsed.jobs) || parsed.jobs <= 0) throw new Error(`Invalid --jobs: ${parsed.jobs}`);
   if (!Number.isFinite(parsed.processingJobs) || parsed.processingJobs < 0)
     throw new Error(`Invalid --processing-jobs: ${parsed.processingJobs}`);
+  if (!Number.isFinite(parsed.pausedJobs) || parsed.pausedJobs < 0)
+    throw new Error(`Invalid --paused-jobs: ${parsed.pausedJobs}`);
   if (!Number.isFinite(parsed.width) || parsed.width <= 0) throw new Error(`Invalid --width: ${parsed.width}`);
   if (!Number.isFinite(parsed.height) || parsed.height <= 0) throw new Error(`Invalid --height: ${parsed.height}`);
   if (!Number.isFinite(parsed.durationMs) || parsed.durationMs <= 0) throw new Error(`Invalid --duration-ms`);
-  if (!Number.isFinite(parsed.tickMs) || parsed.tickMs <= 0) throw new Error(`Invalid --tick-ms`);
+  if (!Number.isFinite(parsed.tickMs) || parsed.tickMs < 0) throw new Error(`Invalid --tick-ms`);
+  if (!Number.isFinite(parsed.ensurePreviewDelayMs) || parsed.ensurePreviewDelayMs < 0)
+    throw new Error(`Invalid --ensure-preview-delay-ms: ${parsed.ensurePreviewDelayMs}`);
   if (!Number.isFinite(parsed.minFps) || parsed.minFps <= 0) throw new Error(`Invalid --min-fps: ${parsed.minFps}`);
   if (!Number.isFinite(parsed.maxLagP95Ms) || parsed.maxLagP95Ms < 0)
     throw new Error(`Invalid --max-lag-p95-ms: ${parsed.maxLagP95Ms}`);
   if (!Number.isFinite(parsed.maxDomRows) || parsed.maxDomRows <= 0)
     throw new Error(`Invalid --max-dom-rows: ${parsed.maxDomRows}`);
+  if (!Number.isFinite(parsed.maxDomIconRows) || parsed.maxDomIconRows <= 0)
+    throw new Error(`Invalid --max-dom-icon-rows: ${parsed.maxDomIconRows}`);
+  if (!["bar", "card-fill", "ripple-card"].includes(parsed.progressStyle)) {
+    throw new Error(`Invalid --progress-style: ${parsed.progressStyle}`);
+  }
+  const sortDirections = new Set(["asc", "desc"]);
+  if (!sortDirections.has(parsed.sortPrimaryDirection)) {
+    throw new Error(`Invalid --sort-primary-direction: ${parsed.sortPrimaryDirection}`);
+  }
+  if (!sortDirections.has(parsed.sortSecondaryDirection)) {
+    throw new Error(`Invalid --sort-secondary-direction: ${parsed.sortSecondaryDirection}`);
+  }
+  const sortFields = new Set([
+    "filename",
+    "status",
+    "addedTime",
+    "finishedTime",
+    "duration",
+    "elapsed",
+    "progress",
+    "type",
+    "path",
+    "inputSize",
+    "outputSize",
+    "createdTime",
+    "modifiedTime",
+  ]);
+  if (!sortFields.has(parsed.sortPrimary)) {
+    throw new Error(`Invalid --sort-primary: ${parsed.sortPrimary}`);
+  }
+  if (!sortFields.has(parsed.sortSecondary)) {
+    throw new Error(`Invalid --sort-secondary: ${parsed.sortSecondary}`);
+  }
+
+  const validModes = new Set(["detail", "compact", "mini", "icon-small", "icon-medium", "icon-large"]);
+  for (const mode of parsed.modes) {
+    if (!validModes.has(mode)) throw new Error(`Invalid --modes entry: ${mode}`);
+  }
+
+  const validPreviewModes = new Set(["static", "unique-rev", "missing-auto-ensure"]);
+  if (!validPreviewModes.has(parsed.previewMode)) {
+    throw new Error(`Invalid --preview-mode: ${parsed.previewMode}`);
+  }
 
   return parsed;
 };
@@ -154,6 +274,29 @@ const setQueueViewMode = async (page, modeTestId) => {
   await page.getByTestId("ffui-queue-view-mode-trigger").click();
   await page.getByTestId(modeTestId).click();
   await page.waitForTimeout(150);
+};
+
+const ensureQueuePanelVisible = async (page) => {
+  await page.getByTestId("ffui-tab-queue").click();
+  await page.locator("[data-testid='queue-panel']").waitFor({ state: "visible", timeout: 90_000 });
+};
+
+const waitForQueueModeReady = async (page, mode) => {
+  if (mode.startsWith("icon-")) {
+    await page.getByTestId("queue-icon-grid").waitFor({ state: "visible", timeout: 90_000 });
+    await page.getByTestId("queue-icon-grid").locator("[data-testid='queue-icon-item']").first().waitFor({
+      state: "visible",
+      timeout: 90_000,
+    });
+    return;
+  }
+
+  await page.locator("[data-testid='queue-item-card']").first().waitFor({ state: "visible", timeout: 90_000 });
+};
+
+const isContextDestroyedError = (error) => {
+  const message = String((error && (error.message ?? error)) ?? "");
+  return message.includes("Execution context was destroyed") || message.includes("most likely because of a navigation");
 };
 
 const startPerfRun = async (page, options) => {
@@ -217,8 +360,9 @@ const startPerfRun = async (page, options) => {
       });
     };
 
-    const tickMs = Math.max(10, Math.floor(opts.tickMs));
-    const tickTimer = globalThis.setInterval(emitTick, tickMs);
+    const tickMs = Math.max(0, Math.floor(opts.tickMs));
+    const shouldEmit = tickMs > 0 && jobIds.length > 0;
+    const tickTimer = shouldEmit ? globalThis.setInterval(emitTick, tickMs) : null;
 
     const sleep = (ms) => new Promise((r) => globalThis.setTimeout(r, ms));
     while (nowMs() < endAt) {
@@ -226,7 +370,7 @@ const startPerfRun = async (page, options) => {
       await sleep(100);
     }
 
-    globalThis.clearInterval(tickTimer);
+    if (tickTimer != null) globalThis.clearInterval(tickTimer);
     globalThis.clearInterval(lagTimer);
     rafActive = false;
 
@@ -260,6 +404,9 @@ const assertResult = (label, result, thresholds) => {
   if (typeof result?.domRows === "number" && result.domRows > thresholds.maxDomRows) {
     failures.push(`domRows=${result.domRows} > ${thresholds.maxDomRows}`);
   }
+  if (typeof result?.domIconRows === "number" && result.domIconRows > thresholds.maxDomIconRows) {
+    failures.push(`domIconRows=${result.domIconRows} > ${thresholds.maxDomIconRows}`);
+  }
   if (failures.length > 0) {
     const msg = `[perf] queue large list assert failed (${label}): ${failures.join(", ")}`;
     throw new Error(msg);
@@ -287,21 +434,51 @@ const main = async () => {
           viewport: { width: args.width, height: args.height },
           deviceScaleFactor: 1,
         });
+        await context.addInitScript(
+          (prefs) => {
+            try {
+              globalThis.localStorage?.setItem("ffui.queueProgressStyle", String(prefs.progressStyle));
+              globalThis.localStorage?.setItem("ffui.queueSortPrimary", String(prefs.sortPrimary));
+              globalThis.localStorage?.setItem("ffui.queueSortPrimaryDirection", String(prefs.sortPrimaryDirection));
+              globalThis.localStorage?.setItem("ffui.queueSortSecondary", String(prefs.sortSecondary));
+              globalThis.localStorage?.setItem(
+                "ffui.queueSortSecondaryDirection",
+                String(prefs.sortSecondaryDirection),
+              );
+            } catch {
+              // ignore
+            }
+          },
+          {
+            progressStyle: args.progressStyle,
+            sortPrimary: args.sortPrimary,
+            sortPrimaryDirection: args.sortPrimaryDirection,
+            sortSecondary: args.sortSecondary,
+            sortSecondaryDirection: args.sortSecondaryDirection,
+          },
+        );
         const page = await context.newPage();
 
         const url = new URL(ensureTrailingSlash(baseUrl));
         url.searchParams.set("ffuiLocale", args.locale);
         url.searchParams.set("ffuiQueueJobs", String(args.jobs));
         url.searchParams.set("ffuiQueueProcessingJobs", String(args.processingJobs));
-        url.searchParams.set("ffuiQueuePausedJobs", "0");
+        url.searchParams.set("ffuiQueuePausedJobs", String(args.pausedJobs));
         if (args.includeCommand) {
           url.searchParams.set("ffuiQueueIncludeCommand", "1");
+        }
+        url.searchParams.set("ffuiQueuePreviewMode", String(args.previewMode));
+        if (args.ensurePreviewDelayMs > 0) {
+          url.searchParams.set("ffuiQueueEnsurePreviewDelayMs", String(Math.floor(args.ensurePreviewDelayMs)));
         }
 
         await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 90_000 });
         await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 90_000 });
         await page.getByTestId("ffui-tab-queue").click();
         await page.locator("[data-testid='queue-panel']").waitFor({ state: "visible", timeout: 90_000 });
+        // Vite may trigger a one-time reload while optimizing deps; wait briefly
+        // so the perf run doesn't start inside a navigation.
+        await page.waitForTimeout(1200);
 
         const jobIds = [];
         for (let i = 0; i < Math.max(0, args.processingJobs); i += 1) {
@@ -309,61 +486,65 @@ const main = async () => {
         }
 
         const results = {};
-        const thresholds = { minFps: args.minFps, maxLagP95Ms: args.maxLagP95Ms, maxDomRows: args.maxDomRows };
+        const thresholds = {
+          minFps: args.minFps,
+          maxLagP95Ms: args.maxLagP95Ms,
+          maxDomRows: args.maxDomRows,
+          maxDomIconRows: args.maxDomIconRows,
+        };
 
-        // Detail list
-        await setQueueViewMode(page, "ffui-queue-view-mode-detail");
-        const detailRun = startPerfRun(page, {
-          durationMs: args.durationMs,
-          tickMs: args.tickMs,
-          baseSnapshotRevision: 1,
-          jobIds,
-        });
-        const scrollStartedAt = Date.now();
-        while (Date.now() - scrollStartedAt < args.durationMs) {
-          // eslint-disable-next-line no-await-in-loop
-          await page.mouse.wheel(0, args.scrollDeltaY);
-          // eslint-disable-next-line no-await-in-loop
-          await page.waitForTimeout(args.scrollEveryMs);
-        }
-        results.detail = await detailRun;
-        if (args.assert) assertResult("detail", results.detail, thresholds);
+        const runMode = async (mode, testId, key) => {
+          let lastError = null;
+          for (let attempt = 0; attempt < 3; attempt += 1) {
+            try {
+              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
+              await ensureQueuePanelVisible(page);
+              await setQueueViewMode(page, testId);
+              await waitForQueueModeReady(page, mode);
+              // Vite may trigger a one-time dependency optimization reload the first
+              // time a mode is mounted (icon views are often the first to load).
+              // Give it a moment to settle before starting page.evaluate().
+              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
+              await page.waitForTimeout(900);
 
-        // Compact list
-        await setQueueViewMode(page, "ffui-queue-view-mode-compact");
-        const compactRun = startPerfRun(page, {
-          durationMs: args.durationMs,
-          tickMs: args.tickMs,
-          baseSnapshotRevision: 1,
-          jobIds,
-        });
-        const scrollStartedAt2 = Date.now();
-        while (Date.now() - scrollStartedAt2 < args.durationMs) {
-          // eslint-disable-next-line no-await-in-loop
-          await page.mouse.wheel(0, args.scrollDeltaY);
-          // eslint-disable-next-line no-await-in-loop
-          await page.waitForTimeout(args.scrollEveryMs);
-        }
-        results.compact = await compactRun;
-        if (args.assert) assertResult("compact", results.compact, thresholds);
+              const perfRun = startPerfRun(page, {
+                durationMs: args.durationMs,
+                tickMs: args.tickMs,
+                baseSnapshotRevision: 1,
+                jobIds,
+              });
+              const scrollStartedAt = Date.now();
+              while (Date.now() - scrollStartedAt < args.durationMs) {
+                // eslint-disable-next-line no-await-in-loop
+                await page.mouse.wheel(0, args.scrollDeltaY);
+                // eslint-disable-next-line no-await-in-loop
+                await page.waitForTimeout(args.scrollEveryMs);
+              }
+              results[key] = await perfRun;
+              if (args.assert) assertResult(mode, results[key], thresholds);
+              return;
+            } catch (error) {
+              lastError = error;
+              if (!isContextDestroyedError(error) || attempt === 2) {
+                throw error;
+              }
+              // Retry after navigation/reload.
+              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 }).catch(() => {});
+              await page.waitForTimeout(1200);
+            }
+          }
+          if (lastError) throw lastError;
+        };
 
-        // Mini list (densest)
-        await setQueueViewMode(page, "ffui-queue-view-mode-mini");
-        const miniRun = startPerfRun(page, {
-          durationMs: args.durationMs,
-          tickMs: args.tickMs,
-          baseSnapshotRevision: 1,
-          jobIds,
-        });
-        const scrollStartedAt3 = Date.now();
-        while (Date.now() - scrollStartedAt3 < args.durationMs) {
-          // eslint-disable-next-line no-await-in-loop
-          await page.mouse.wheel(0, args.scrollDeltaY);
-          // eslint-disable-next-line no-await-in-loop
-          await page.waitForTimeout(args.scrollEveryMs);
+        for (const mode of args.modes) {
+          if (mode === "detail") await runMode("detail", "ffui-queue-view-mode-detail", "detail");
+          else if (mode === "compact") await runMode("compact", "ffui-queue-view-mode-compact", "compact");
+          else if (mode === "mini") await runMode("mini", "ffui-queue-view-mode-mini", "mini");
+          else if (mode === "icon-small") await runMode("icon-small", "ffui-queue-view-mode-icon-small", "iconSmall");
+          else if (mode === "icon-medium")
+            await runMode("icon-medium", "ffui-queue-view-mode-icon-medium", "iconMedium");
+          else if (mode === "icon-large") await runMode("icon-large", "ffui-queue-view-mode-icon-large", "iconLarge");
         }
-        results.mini = await miniRun;
-        if (args.assert) assertResult("mini", results.mini, thresholds);
 
         // eslint-disable-next-line no-console
         console.log("[perf] queue large list (browser):", JSON.stringify({ args, results }, null, 2));
