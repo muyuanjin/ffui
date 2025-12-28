@@ -2,6 +2,7 @@ import { onScopeDispose, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import type { QueueVirtualRow } from "@/components/panels/useQueuePanelVirtualRows";
 import { createQueuePreviewPrefetcher } from "@/components/queue-item/previewPrefetcher";
+import { createQueuePreviewEnsurePrefetcher } from "@/components/queue-item/previewEnsurePrefetcher";
 
 const pickJobsForPrefetch = (
   rows: readonly QueueVirtualRow[],
@@ -38,7 +39,11 @@ export function useQueuePreviewPrefetch(options: {
   const scrollOffset = ref(0);
   const vlistRef = ref<any>(null);
   const prefetcher = createQueuePreviewPrefetcher();
-  onScopeDispose(() => prefetcher.clear());
+  const ensurePrefetcher = createQueuePreviewEnsurePrefetcher();
+  onScopeDispose(() => {
+    prefetcher.clear();
+    ensurePrefetcher.clear();
+  });
 
   const updateTargets = () => {
     const handleOffset = vlistRef.value?.scrollOffset;
@@ -48,6 +53,7 @@ export function useQueuePreviewPrefetch(options: {
 
     if (options.isScrolling.value) {
       prefetcher.clear();
+      ensurePrefetcher.clear();
       return;
     }
 
@@ -57,7 +63,9 @@ export function useQueuePreviewPrefetch(options: {
     const start = Math.floor(scrollOffset.value / itemSize) - overscanItems;
     const end = start + viewportItems + overscanItems * 2;
 
-    prefetcher.setTargetJobs(pickJobsForPrefetch(options.rows.value, start, end));
+    const jobs = pickJobsForPrefetch(options.rows.value, start, end);
+    prefetcher.setTargetJobs(jobs);
+    ensurePrefetcher.setTargetJobs(jobs);
   };
 
   const onScroll = (offset: number) => {

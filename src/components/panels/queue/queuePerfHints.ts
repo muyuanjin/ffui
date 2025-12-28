@@ -17,7 +17,7 @@ const QUEUE_PERF_HINTS_KEY: unique symbol = Symbol("ffui.queue.perfHints");
 
 export function provideQueuePerfHints(hints: { isScrolling: Ref<boolean>; isQueueRunning: ComputedRef<boolean> }) {
   const allowHeavyEffects = computed(() => !hints.isScrolling.value && !hints.isQueueRunning.value);
-  const allowPreviewAutoEnsure = computed(() => !hints.isScrolling.value && !hints.isQueueRunning.value);
+  const allowPreviewAutoEnsure = computed(() => !hints.isScrolling.value);
   const allowPreviewLoads = computed(() => !hints.isScrolling.value);
 
   provide(QUEUE_PERF_HINTS_KEY, {

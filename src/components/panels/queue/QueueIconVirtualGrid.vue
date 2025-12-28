@@ -8,6 +8,7 @@ import { useVirtuaViewportBump } from "@/components/panels/queue/useVirtuaViewpo
 import { buildIconGridRows, computeIconGridColumns, getIconGridMinColumnWidthPx } from "./iconGridVirtualization";
 import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { createQueuePreviewPrefetcher } from "@/components/queue-item/previewPrefetcher";
+import { createQueuePreviewEnsurePrefetcher } from "@/components/queue-item/previewEnsurePrefetcher";
 
 const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
 const QueueBatchCompressIconBatchItem = defineAsyncComponent(
@@ -72,7 +73,11 @@ const perfHints = useQueuePerfHints();
 const iconScrollOffset = ref(0);
 const iconVListRef = ref<any>(null);
 const iconPrefetcher = createQueuePreviewPrefetcher();
-onScopeDispose(() => iconPrefetcher.clear());
+const iconEnsurePrefetcher = createQueuePreviewEnsurePrefetcher();
+onScopeDispose(() => {
+  iconPrefetcher.clear();
+  iconEnsurePrefetcher.clear();
+});
 
 const updateIconPrefetchTargets = () => {
   const handleOffset = iconVListRef.value?.scrollOffset;
@@ -81,6 +86,7 @@ const updateIconPrefetchTargets = () => {
   }
   if (perfHints?.isScrolling.value) {
     iconPrefetcher.clear();
+    iconEnsurePrefetcher.clear();
     return;
   }
   const itemSize = Math.max(1, virtualListItemSizePx.value);
@@ -101,6 +107,7 @@ const updateIconPrefetchTargets = () => {
     }
   }
   iconPrefetcher.setTargetJobs(picked);
+  iconEnsurePrefetcher.setTargetJobs(picked);
 };
 
 const onIconScroll = (offset: number) => {

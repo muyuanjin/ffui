@@ -178,4 +178,45 @@ describe("useQueueItemPreview (auto ensure)", () => {
 
     wrapper.unmount();
   });
+
+  it("auto-generates previews even while queue is running (when not scrolling)", async () => {
+    const isScrolling = ref(false);
+    const isQueueRunning = ref(true);
+    const job = ref(makeJob({ id: "job-auto-preview-while-running" }));
+
+    const PreviewChild = {
+      name: "PreviewChild",
+      setup() {
+        const composable = useQueueItemPreview({
+          job: computed(() => job.value),
+          isTestEnv: true,
+        });
+        return { composable };
+      },
+      template: "<div />",
+    };
+
+    const wrapper = mount({
+      components: { PreviewChild },
+      setup() {
+        provideQueuePerfHints({ isScrolling, isQueueRunning: computed(() => isQueueRunning.value) });
+      },
+      template: "<PreviewChild />",
+    });
+
+    const { composable } = wrapper.findComponent(PreviewChild).vm as unknown as {
+      composable: ReturnType<typeof useQueueItemPreview>;
+    };
+
+    await nextTick();
+    expect(composable.previewUrl.value).toBe(null);
+
+    await vi.runAllTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewMock).toHaveBeenCalledWith("job-auto-preview-while-running");
+    expect(composable.previewUrl.value).toBe("url:C:/previews/job-auto-preview-while-running.jpg?rev=0");
+
+    wrapper.unmount();
+  });
 });
