@@ -21,8 +21,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   "update:open": [value: boolean];
   cancel: [];
-  cancelAndDelete: [];
-  deleteTerminalOnly: [];
+  "cancel-and-delete": [];
+  "delete-terminal-only": [];
 }>();
 
 const { t } = useI18n();
@@ -31,18 +31,15 @@ const canDeleteTerminalOnly = computed(() => props.terminalCount > 0);
 
 const handleCancel = () => {
   emit("cancel");
-  emit("update:open", false);
 };
 
 const handleCancelAndDelete = () => {
-  emit("cancelAndDelete");
-  emit("update:open", false);
+  emit("cancel-and-delete");
 };
 
 const handleDeleteTerminalOnly = () => {
   if (!canDeleteTerminalOnly.value) return;
-  emit("deleteTerminalOnly");
-  emit("update:open", false);
+  emit("delete-terminal-only");
 };
 </script>
 
@@ -78,7 +75,7 @@ const handleDeleteTerminalOnly = () => {
         <Button variant="outline" size="sm" @click="handleCancel">
           {{ t("app.actions.cancel") }}
         </Button>
-        <Button variant="secondary" size="sm" :disabled="!canDeleteTerminalOnly" @click="handleDeleteTerminalOnly">
+        <Button variant="success" size="sm" :disabled="!canDeleteTerminalOnly" @click="handleDeleteTerminalOnly">
           {{ t("queue.dialogs.deleteMixed.deleteTerminalOnly") }}
         </Button>
         <Button variant="destructive" size="sm" @click="handleCancelAndDelete">

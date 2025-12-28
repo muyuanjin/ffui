@@ -50,6 +50,7 @@ const queue = {
   groups: {
     processing: "Processing",
     waiting: "Waiting queue",
+    completed: "Completed",
   },
   status: {
     completed: "completed",

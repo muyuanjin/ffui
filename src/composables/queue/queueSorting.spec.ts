@@ -105,6 +105,7 @@ describe("createQueueSortingState", () => {
     const sortSecondaryDirection = ref("asc" as any);
 
     const queueProgressRevision = ref(0);
+    const queueVolatileSortDirtyJobIds = ref<Set<string>>(new Set());
 
     let state: ReturnType<typeof createQueueSortingState> | undefined;
 
@@ -118,6 +119,7 @@ describe("createQueueSortingState", () => {
             sortSecondary,
             sortSecondaryDirection,
             queueProgressRevision,
+            queueVolatileSortDirtyJobIds,
           });
           return {};
         },
@@ -136,9 +138,84 @@ describe("createQueueSortingState", () => {
     expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
 
     // Once the revision bumps, the order updates.
+    queueVolatileSortDirtyJobIds.value.add("a");
     queueProgressRevision.value += 1;
     await nextTick();
-    expect(state?.displayModeSortedJobs.value).not.toBe(prevSorted);
+    expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
+    expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["a", "b"]);
+
+    wrapper.unmount();
+  });
+
+  it("uses queueProgressRevision as the trigger for elapsed-based sorting", async () => {
+    const jobs = ref<TranscodeJob[]>([
+      reactive({
+        id: "a",
+        inputPath: "/a.mp4",
+        status: "processing",
+        elapsedMs: 1_000,
+        type: "video",
+        source: "manual",
+        presetId: "preset",
+        originalSizeMB: 1,
+      } as any),
+      reactive({
+        id: "b",
+        inputPath: "/b.mp4",
+        status: "processing",
+        elapsedMs: 2_000,
+        type: "video",
+        source: "manual",
+        presetId: "preset",
+        originalSizeMB: 1,
+      } as any),
+    ] as any);
+
+    const filteredJobs = computed(() => jobs.value);
+
+    const sortPrimary = ref("elapsed" as any);
+    const sortPrimaryDirection = ref("desc" as any);
+    const sortSecondary = ref("filename" as any);
+    const sortSecondaryDirection = ref("asc" as any);
+
+    const queueProgressRevision = ref(0);
+    const queueVolatileSortDirtyJobIds = ref<Set<string>>(new Set());
+
+    let state: ReturnType<typeof createQueueSortingState> | undefined;
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          state = createQueueSortingState({
+            filteredJobs,
+            sortPrimary,
+            sortPrimaryDirection,
+            sortSecondary,
+            sortSecondaryDirection,
+            queueProgressRevision,
+            queueVolatileSortDirtyJobIds,
+          });
+          return {};
+        },
+        template: "<div />",
+      }),
+    );
+
+    await nextTick();
+    expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["b", "a"]);
+    const prevSorted = state?.displayModeSortedJobs.value as unknown as TranscodeJob[];
+
+    // Elapsed value changes alone should not restart sorting when a dedicated
+    // progress/volatile revision is supplied.
+    (jobs.value[0] as any).elapsedMs = 3_000;
+    await nextTick();
+    expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
+
+    // Once the revision bumps, the order updates.
+    queueVolatileSortDirtyJobIds.value.add("a");
+    queueProgressRevision.value += 1;
+    await nextTick();
+    expect(state?.displayModeSortedJobs.value).toBe(prevSorted);
     expect(state?.displayModeSortedJobs.value.map((job) => job.id)).toEqual(["a", "b"]);
 
     wrapper.unmount();

@@ -95,15 +95,28 @@ export function useQueuePanelVirtualRows(deps: () => QueuePanelVirtualRowsSnapsh
       }
     }
 
+    const restItems: QueueListItem[] = [];
     for (const item of snapshot.visibleQueueItems) {
       if (item.kind === "batch") {
         if (!snapshot.queueModeWaitingBatchIds.has(item.batch.batchId)) {
-          rows.push({ type: "restItem", key: getQueueListItemKey(item), item });
+          restItems.push(item);
         }
         continue;
       }
 
       if (TERMINAL_STATUSES_FOR_QUEUE_MODE.has(item.job.status)) {
+        restItems.push(item);
+      }
+    }
+
+    if (restItems.length > 0) {
+      rows.push({
+        type: "header",
+        key: "group:completed",
+        label: t("queue.groups.completed"),
+        count: restItems.length,
+      });
+      for (const item of restItems) {
         rows.push({ type: "restItem", key: getQueueListItemKey(item), item });
       }
     }

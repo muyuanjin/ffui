@@ -49,6 +49,10 @@ export interface UseQueueOperationsOptions {
   lastQueueSnapshotRevision: Ref<number | null>;
   /** Monotonic progress revision (bumps on progress deltas). */
   queueProgressRevision: Ref<number>;
+  /** Optional dirty ids set for volatile (progress/elapsed) sorting. */
+  queueVolatileSortDirtyJobIds?: Ref<Set<string>>;
+  /** Optional runtime flag: only track volatile dirty ids when needed by UI sorting. */
+  trackVolatileSortDirtyJobIds?: Ref<boolean>;
   /** Optional i18n translation function. */
   t?: Translate;
   /** Callback when a job completes (for preset stats update). */
@@ -100,6 +104,8 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
     queueProgressRevision,
+    queueVolatileSortDirtyJobIds,
+    trackVolatileSortDirtyJobIds,
     t,
     onJobCompleted,
   } = options;
@@ -112,6 +118,8 @@ export function useQueueOperations(options: UseQueueOperationsOptions): UseQueue
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
     queueProgressRevision,
+    queueVolatileSortDirtyJobIds,
+    trackVolatileSortDirtyJobIds,
     t,
     onJobCompleted,
   };

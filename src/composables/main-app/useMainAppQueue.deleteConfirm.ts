@@ -1,6 +1,7 @@
 import { computed, ref, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { isTerminalStatus } from "@/composables/queue/jobStatus";
+import { waitForQueueUpdate } from "@/composables/queue/waitForQueueUpdate";
 
 type PendingQueueDelete = {
   selectedIds: string[];
@@ -9,10 +10,19 @@ type PendingQueueDelete = {
 export function createQueueDeleteConfirm(options: {
   jobs: Ref<TranscodeJob[]>;
   selectedJobIds: Ref<Set<string>>;
+  lastQueueSnapshotAtMs: Ref<number | null>;
+  refreshQueueFromBackend: () => Promise<void>;
   bulkCancelSelectedJobs: () => Promise<void>;
   bulkDeleteTerminalSelection: () => Promise<void>;
 }) {
-  const { jobs, selectedJobIds, bulkCancelSelectedJobs, bulkDeleteTerminalSelection } = options;
+  const {
+    jobs,
+    selectedJobIds,
+    lastQueueSnapshotAtMs,
+    refreshQueueFromBackend,
+    bulkCancelSelectedJobs,
+    bulkDeleteTerminalSelection,
+  } = options;
 
   const pendingQueueDelete = ref<PendingQueueDelete | null>(null);
   const queueDeleteConfirmOpen = ref(false);
@@ -86,8 +96,61 @@ export function createQueueDeleteConfirm(options: {
     if (!pending) return;
     queueDeleteConfirmOpen.value = false;
 
+    const activeIdsBeforeCancel = pendingActiveIds.value;
+    const hadProcessingBeforeCancel = pendingSelectedJobs.value.some((job) => job.status === "processing");
+
     selectedJobIds.value = new Set(pending.selectedIds);
     await bulkCancelSelectedJobs();
+
+    // Ensure cooperative cancellations (processing -> cancelled) are observed before deletion.
+    // We intentionally sync with backend snapshots so we don't rely on optimistic UI statuses.
+    if (hadProcessingBeforeCancel) {
+      try {
+        await refreshQueueFromBackend();
+      } catch {
+        // Best-effort: we can still rely on queue events / later refreshes.
+      }
+    }
+
+    const isTestEnv =
+      typeof import.meta !== "undefined" &&
+      typeof import.meta.env !== "undefined" &&
+      (import.meta.env as { MODE?: string }).MODE === "test";
+
+    const totalTimeoutMs = isTestEnv ? 600 : 30_000;
+    const stepTimeoutMs = isTestEnv ? 50 : 1_500;
+
+    const startMs = Date.now();
+    let sinceMs: number | null = lastQueueSnapshotAtMs.value;
+    let refreshedAfterTimeout = false;
+
+    while (Date.now() - startMs < totalTimeoutMs) {
+      const byId = new Map(jobs.value.map((job) => [job.id, job] as const));
+      const stillActive = activeIdsBeforeCancel.filter((id) => {
+        const job = byId.get(id);
+        return job != null && !isTerminalStatus(job.status);
+      });
+      if (stillActive.length === 0) break;
+
+      const updated = await waitForQueueUpdate(lastQueueSnapshotAtMs, { sinceMs, timeoutMs: stepTimeoutMs });
+      sinceMs = lastQueueSnapshotAtMs.value;
+      if (updated) {
+        refreshedAfterTimeout = false;
+        continue;
+      }
+
+      // Fall back to an explicit refresh if we didn't receive queue events.
+      // Avoid tight refresh loops by only retrying after at least one timeout.
+      if (!refreshedAfterTimeout) {
+        refreshedAfterTimeout = true;
+        try {
+          await refreshQueueFromBackend();
+        } catch {
+          // keep waiting
+        }
+        sinceMs = lastQueueSnapshotAtMs.value;
+      }
+    }
 
     const terminalIdsNow = pendingTerminalIds.value;
     const activeIdsNow = pendingActiveIds.value;

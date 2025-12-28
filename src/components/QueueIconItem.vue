@@ -374,7 +374,7 @@ if (isQueuePerfEnabled) {
         :src="previewUrl"
         alt=""
         decoding="async"
-        loading="eager"
+        loading="lazy"
         fetchpriority="low"
         class="absolute inset-0 h-full w-full object-cover"
         @click="onPreview"

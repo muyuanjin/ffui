@@ -95,7 +95,9 @@ describe("timeUtils", () => {
         startTime: nowMs - 30000,
         elapsedMs: 25000, // 后端提供的累计时间
       };
-      expect(computeJobElapsedMs(job, nowMs)).toBe(25000);
+      // Prefer wall-clock so UI can refresh at 1Hz without reacting to every
+      // backend elapsedMs tick.
+      expect(computeJobElapsedMs(job, nowMs)).toBe(30000);
     });
 
     it("falls back to startTime for processing jobs without elapsedMs", () => {

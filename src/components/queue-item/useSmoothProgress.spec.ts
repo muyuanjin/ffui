@@ -136,6 +136,32 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
+  it("does not extrapolate while paused (even if telemetry exists)", async () => {
+    const job = ref(
+      makeJob({
+        status: "paused",
+        progress: 10,
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          lastProgressOutTimeSeconds: 10,
+          lastProgressSpeed: 2,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+
+    vi.setSystemTime(new Date(1000));
+    vi.advanceTimersByTime(400);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(10, 6);
+    wrapper.unmount();
+  });
+
   it("allows rollbacks on epoch changes without teleporting", async () => {
     const job = ref(
       makeJob({

@@ -268,6 +268,6 @@ describe("QueuePanel layout responsiveness", () => {
     });
 
     const grid = wrapper.get("[data-testid='queue-icon-grid']");
-    expect(grid.attributes("class")).toContain("grid-cols-[repeat(auto-fill,minmax(200px,1fr))]");
+    expect(grid.attributes("data-queue-icon-grid-virtual")).toBe("1");
   });
 });

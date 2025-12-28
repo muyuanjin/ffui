@@ -159,7 +159,7 @@ describe("QueueItem display preview & command view", () => {
     const img = thumb.find("img");
     expect(img.element).toBeTruthy();
     expect(img.attributes("src")).toBe(job.previewPath);
-    expect(img.attributes("loading")).toBe("eager");
+    expect(img.attributes("loading")).toBe("lazy");
   });
 
   it("auto-generates previews on mount when previewPath is missing (Tauri mode)", async () => {

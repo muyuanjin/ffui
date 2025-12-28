@@ -17,7 +17,7 @@ import { installQueueFilterSortStorage } from "./queue/queueFilterSortStorage";
  * Composable for queue filtering, sorting, and selection.
  */
 export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFilteringReturn {
-  const { jobs, queueStructureRevision, queueProgressRevision, t } = options;
+  const { jobs, queueStructureRevision, queueProgressRevision, queueVolatileSortDirtyJobIds, t } = options;
 
   // ----- State -----
   const selectedJobIds = ref<Set<string>>(new Set());
@@ -313,6 +313,7 @@ export function useQueueFiltering(options: UseQueueFilteringOptions): UseQueueFi
     sortSecondaryDirection,
     queueStructureRevision,
     queueProgressRevision,
+    queueVolatileSortDirtyJobIds,
   });
 
   const { isJobSelected, toggleJobSelected, clearSelection, selectAllVisibleJobs, invertSelection } =

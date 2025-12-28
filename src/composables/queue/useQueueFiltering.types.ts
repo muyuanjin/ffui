@@ -39,6 +39,12 @@ export interface UseQueueFilteringOptions {
   queueStructureRevision?: Ref<number | null>;
   /** Optional progress revision for progress-based sorting. */
   queueProgressRevision?: Ref<number>;
+  /**
+   * Optional set of job ids whose volatile sort keys (progress/elapsed) were
+   * patched by the latest delta tick. Used to incrementally reorder only the
+   * affected jobs instead of re-sorting the entire list on every tick.
+   */
+  queueVolatileSortDirtyJobIds?: Ref<Set<string>>;
   /** Composite batch compress tasks for batch display. */
   compositeBatchCompressTasks: ComputedRef<CompositeBatchCompressTask[]>;
   /** Map of batch ID to composite task. */

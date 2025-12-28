@@ -1,7 +1,6 @@
 import { computed, type ComputedRef, type Ref } from "vue";
 import type { CompositeBatchCompressTask, QueueMode, TranscodeJob } from "@/types";
 import type { QueueListItem } from "@/composables";
-import { ICON_VIEW_MAX_VISIBLE_ITEMS } from "./useMainAppQueue.ui";
 import { compareJobsInWaitingGroup, isTerminalStatus, isWaitingStatus } from "./useMainAppQueue.waiting";
 
 export function createQueueVisibleItems(options: {
@@ -97,7 +96,7 @@ export function createQueueVisibleItems(options: {
     return items;
   });
 
-  const iconViewItems = computed<QueueListItem[]>(() => visibleQueueItems.value.slice(0, ICON_VIEW_MAX_VISIBLE_ITEMS));
+  const iconViewItems = computed<QueueListItem[]>(() => visibleQueueItems.value);
 
   const queueJobsForDisplay = computed<TranscodeJob[]>(() =>
     queueMode.value === "queue" ? manualQueueJobs.value : displayModeSortedJobs.value,

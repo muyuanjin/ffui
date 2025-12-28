@@ -151,6 +151,16 @@ export const extractJobCompareFrame = async (_args: {
   return url ?? `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
 };
 
+export const extractJobCompareOutputFrame = async (_args: {
+  jobId: string;
+  positionSeconds: number;
+  durationSeconds?: number | null;
+  quality: FallbackFrameQuality;
+}): Promise<string> => {
+  const url = resolveCompareFrameUrl("output");
+  return url ?? `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+};
+
 export const extractJobCompareConcatFrame = async (_args: {
   jobId: string;
   segmentPaths: string[];
@@ -517,6 +527,9 @@ const buildQueueJobs = (): TranscodeJob[] => {
     const processingCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueueProcessingJobs") ?? 2));
     const pausedCount = Math.max(0, Math.floor(readQueryParamNumber("ffuiQueuePausedJobs") ?? 0));
     const includeCommand = readQueryParamFlag("ffuiQueueIncludeCommand");
+    const previewMode = readQueryParam("ffuiQueuePreviewMode") ?? "static";
+    const isPreviewMissing = previewMode === "missing-auto-ensure";
+    const uniquePreviewRev = previewMode === "unique-rev" || isPreviewMissing;
 
     const total = Math.max(1, Math.floor(queueJobs));
     const jobs: TranscodeJob[] = new Array(total);
@@ -545,7 +558,8 @@ const buildQueueJobs = (): TranscodeJob[] => {
         progress,
         inputPath: filename,
         outputPath,
-        previewPath: poster1,
+        previewPath: isPreviewMissing ? undefined : poster1,
+        previewRevision: uniquePreviewRev ? i + 1 : 0,
         ffmpegCommand,
         logs: [],
         estimatedSeconds: 300,
@@ -771,7 +785,19 @@ export const loadPreviewDataUrl = async (_path: string): Promise<string> => {
   throw new Error("loadPreviewDataUrl is not implemented in docs screenshot mode");
 };
 
-export const ensureJobPreview = async (_jobId: string): Promise<string | null> => null;
+export const ensureJobPreview = async (_jobId: string): Promise<string | null> => {
+  if (!docsHasTauri()) return null;
+  const previewMode = readQueryParam("ffuiQueuePreviewMode") ?? "static";
+  if (previewMode !== "missing-auto-ensure") return null;
+
+  const delayMs = readQueryParamNumber("ffuiQueueEnsurePreviewDelayMs");
+  if (typeof delayMs === "number" && Number.isFinite(delayMs) && delayMs > 0) {
+    await sleep(delayMs);
+  }
+
+  const poster1 = resolvePosterEnv("VITE_DOCS_SCREENSHOT_POSTER_1");
+  return poster1 ?? null;
+};
 
 export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null> => {
   const state = await loadQueueStateLite();

@@ -155,14 +155,14 @@ watch(
 <template>
   <Dialog :open="open" @update:open="emit('update:open', $event)">
     <DialogContent
-      class="sm:max-w-4xl max-h-[calc(100vh-2rem)] overflow-x-hidden overflow-y-auto"
+      class="sm:max-w-4xl max-h-[calc(100vh-2rem)] min-w-0 overflow-x-hidden overflow-y-auto"
       data-testid="expanded-preview-dialog"
     >
-      <DialogHeader>
-        <DialogTitle class="text-base">
-          <div class="flex items-center justify-between gap-3">
-            <div class="min-w-0 flex items-center gap-2">
-              <span class="min-w-0 truncate">
+      <DialogHeader class="min-w-0">
+        <DialogTitle class="text-base overflow-hidden">
+          <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+            <div class="flex min-w-0 flex-1 items-center gap-2">
+              <span class="block min-w-0 truncate" :title="titlePath" data-testid="expanded-preview-title-text">
                 {{ titlePath }}
               </span>
               <Badge
@@ -173,7 +173,7 @@ watch(
                 {{ resolvedPreviewSourceLabel }}
               </Badge>
             </div>
-            <Tabs v-model="previewSourceModeModel" activation-mode="manual" class="shrink-0">
+            <Tabs v-model="previewSourceModeModel" activation-mode="manual" class="shrink-0 self-start sm:self-auto">
               <TabsList class="h-6 bg-background/50 border border-border/30 p-0.5">
                 <TabsTrigger
                   value="input"

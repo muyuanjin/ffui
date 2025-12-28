@@ -96,8 +96,8 @@ describe("bulkWaitSelectedJobs (tauri)", () => {
 
       const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
       expect(statusById.get("job-processing")).toBe("processing");
-      expect(statusById.get("job-waiting")).toBe("paused");
-      expect(statusById.get("job-queued")).toBe("paused");
+      expect(statusById.get("job-waiting")).toBe("queued");
+      expect(statusById.get("job-queued")).toBe("queued");
 
       expect(pausingJobIds.value.has("job-processing")).toBe(true);
     });
@@ -210,6 +210,7 @@ describe("bulkCancelSelectedJobs (tauri)", () => {
         makeJob("job-paused", "paused"),
         makeJob("job-completed", "completed"),
       ]);
+      const originalJob = jobs.value[0];
 
       const selectedJobIds = ref(new Set(jobs.value.map((j) => j.id)));
       const selectedJobs = computed(() => jobs.value.filter((j) => selectedJobIds.value.has(j.id)));
@@ -232,6 +233,7 @@ describe("bulkCancelSelectedJobs (tauri)", () => {
       expect(handleCancelJob).not.toHaveBeenCalled();
       expect(cancelMock).toHaveBeenCalledTimes(1);
       expect(cancelMock).toHaveBeenCalledWith(["job-processing", "job-queued", "job-paused"]);
+      expect(jobs.value[0]).toBe(originalJob);
 
       const statusById = new Map(jobs.value.map((j) => [j.id, j.status]));
       expect(statusById.get("job-processing")).toBe("cancelled");

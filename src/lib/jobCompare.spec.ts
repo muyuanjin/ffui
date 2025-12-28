@@ -35,7 +35,7 @@ describe("jobCompare eligibility", () => {
       getJobCompareDisabledReason({
         ...baseJob,
         status: "paused",
-        waitMetadata: { segments: [], tmpOutputPath: undefined },
+        waitMetadata: { tmpOutputPath: undefined },
       }),
     ).toBe("no-partial-output");
 
@@ -43,7 +43,7 @@ describe("jobCompare eligibility", () => {
       getJobCompareDisabledReason({
         ...baseJob,
         status: "paused",
-        waitMetadata: { segments: ["C:/tmp/seg0.mkv"] },
+        waitMetadata: { tmpOutputPath: "C:/tmp/seg0.mkv" },
       }),
     ).toBeNull();
 

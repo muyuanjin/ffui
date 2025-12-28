@@ -11,14 +11,11 @@ import type { QueuePanelEmits, QueuePanelProps } from "./QueuePanel.types";
 import { usePresetLookup } from "@/composables/presets/usePresetLookup";
 import { useVirtuaViewportBump } from "@/components/panels/queue/useVirtuaViewportBump";
 import { useFlipReorderAnimation } from "@/components/panels/queue/useFlipReorderAnimation";
+import QueueIconVirtualGrid from "@/components/panels/queue/QueueIconVirtualGrid.vue";
 import { useQueuePanelVirtualRows } from "./useQueuePanelVirtualRows";
 
 // Lazy load queue item components
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
-const QueueIconItem = defineAsyncComponent(() => import("@/components/QueueIconItem.vue"));
-const QueueBatchCompressIconBatchItem = defineAsyncComponent(
-  () => import("@/components/QueueBatchCompressIconBatchItem.vue"),
-);
 const QueueCarousel3DView = defineAsyncComponent(() => import("@/components/queue-item/QueueCarousel3DView.vue"));
 
 const props = defineProps<QueuePanelProps>();
@@ -317,38 +314,23 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
       </div>
 
       <!-- Icon view mode -->
-      <div v-else-if="isIconViewMode" class="flex-1 min-h-0 overflow-y-auto">
-        <TransitionGroup tag="div" name="queue-grid" data-testid="queue-icon-grid" :class="iconGridClass">
-          <template v-for="item in iconViewItems">
-            <QueueIconItem
-              v-if="item.kind === 'job'"
-              :key="`job:${item.job.id}`"
-              :job="item.job"
-              :is-pausing="pausingJobIds.has(item.job.id)"
-              :size="iconViewSize"
-              :progress-style="queueProgressStyle"
-              :can-select="true"
-              :selected="selectedJobIds.has(item.job.id)"
-              @toggle-select="emit('toggleJobSelected', $event)"
-              @inspect="emit('inspectJob', $event)"
-              @preview="emit('previewJob', $event)"
-              @compare="emit('compareJob', $event)"
-              @contextmenu-job="(payload) => emit('openJobContextMenu', payload)"
-            />
-            <QueueBatchCompressIconBatchItem
-              v-else
-              :key="`batch:${item.batch.batchId}`"
-              :batch="item.batch"
-              :size="iconViewSize"
-              :progress-style="queueProgressStyle"
-              :can-select="true"
-              :selected="isBatchFullySelected(item.batch)"
-              @open-detail="emit('openBatchDetail', $event)"
-              @toggle-select="handleToggleBatchSelection(item.batch)"
-              @contextmenu-batch="(payload) => handleBatchContextMenu(item.batch, payload.event)"
-            />
-          </template>
-        </TransitionGroup>
+      <div v-else-if="isIconViewMode" class="flex flex-1 min-h-0 overflow-hidden">
+        <QueueIconVirtualGrid
+          :items="iconViewItems"
+          :icon-view-size="iconViewSize"
+          :queue-progress-style="queueProgressStyle"
+          :pausing-job-ids="pausingJobIds"
+          :selected-job-ids="selectedJobIds"
+          :is-batch-fully-selected="isBatchFullySelected"
+          @toggle-job-selected="emit('toggleJobSelected', $event)"
+          @inspect-job="emit('inspectJob', $event)"
+          @preview-job="emit('previewJob', $event)"
+          @compare-job="emit('compareJob', $event)"
+          @open-job-context-menu="(payload) => emit('openJobContextMenu', payload)"
+          @open-batch-detail="emit('openBatchDetail', $event)"
+          @toggle-batch-selection="handleToggleBatchSelection($event)"
+          @contextmenu-batch="(payload) => handleBatchContextMenu(payload.batch, payload.event)"
+        />
       </div>
 
       <!-- List view mode -->
@@ -369,7 +351,18 @@ watch(listViewportHeightPx, () => bumpListDataOnce(), { flush: "post" });
               :data-queue-flip-key="getQueueVirtualRowKey(row)"
             >
               <template v-if="row.type === 'header'">
-                <div :class="[index === 0 ? '' : 'pt-4', 'px-1']">
+                <div
+                  :class="[
+                    'px-1',
+                    index === 0
+                      ? queueRowVariant === 'mini'
+                        ? 'pb-2'
+                        : 'pb-3'
+                      : queueRowVariant === 'mini'
+                        ? 'py-2'
+                        : 'pt-1 pb-3',
+                  ]"
+                >
                   <div class="relative flex items-center justify-center h-6">
                     <div
                       class="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-border opacity-80"

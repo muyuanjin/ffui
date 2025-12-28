@@ -29,14 +29,22 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
   const needsTick = computed(() => {
     const value = job.value as unknown as {
       status?: string;
-      elapsedMs?: number;
       startTime?: number;
       processingStartedMs?: number;
     };
     if (value?.status !== "processing") return false;
-    if (typeof value.elapsedMs === "number" && Number.isFinite(value.elapsedMs) && value.elapsedMs > 0) return false;
     return typeof (value.processingStartedMs ?? value.startTime) === "number";
   });
+
+  const sampledProgress = ref<number | null>(null);
+  const sampleProgressNow = () => {
+    const p = job.value.progress;
+    if (typeof p !== "number" || !Number.isFinite(p)) {
+      sampledProgress.value = null;
+      return;
+    }
+    sampledProgress.value = p;
+  };
 
   let subscribed = false;
   const syncSubscription = (next: boolean) => {
@@ -55,12 +63,22 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
 
   onMounted(() => {
     syncSubscription(needsTick.value);
+    if (needsTick.value) {
+      sampleProgressNow();
+    } else {
+      sampledProgress.value = null;
+    }
   });
 
   watch(
     needsTick,
     (next) => {
       syncSubscription(next);
+      if (next) {
+        sampleProgressNow();
+      } else {
+        sampledProgress.value = null;
+      }
     },
     { flush: "sync" },
   );
@@ -79,6 +97,20 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
     return computeJobElapsedMs(job.value, now);
   });
 
+  const progressForEstimates = computed(() => {
+    if (!needsTick.value) return job.value.progress;
+    return sampledProgress.value ?? job.value.progress;
+  });
+
+  watch(
+    sharedNowMs,
+    () => {
+      if (!needsTick.value) return;
+      sampleProgressNow();
+    },
+    { flush: "sync" },
+  );
+
   // 格式化的已用时间
   const elapsedTimeDisplay = computed(() => {
     return formatElapsedTime(elapsedMs.value);
@@ -86,7 +118,7 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
 
   // 预估总时间（毫秒）
   const estimatedTotalMs = computed(() => {
-    return estimateTotalTime(elapsedMs.value, job.value.progress);
+    return estimateTotalTime(elapsedMs.value, progressForEstimates.value);
   });
 
   // 格式化的预估总时间
@@ -96,7 +128,7 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
 
   // 预估剩余时间（毫秒）
   const estimatedRemainingMs = computed(() => {
-    return estimateRemainingTime(elapsedMs.value, job.value.progress);
+    return estimateRemainingTime(elapsedMs.value, progressForEstimates.value);
   });
 
   // 格式化的预估剩余时间

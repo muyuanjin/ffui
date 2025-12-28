@@ -54,7 +54,7 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
   }
 
   const existingJob = deps.jobs.value.find((job) => job.id === jobId) ?? null;
-  const expectsCooperativePause = existingJob?.status === "processing";
+  const expectsCooperativePause = existingJob?.status === "processing" || existingJob?.status === "queued";
 
   try {
     if (expectsCooperativePause) {
@@ -70,17 +70,12 @@ export async function handleWaitJob(jobId: string, deps: SingleJobOpsDeps) {
       deps.queueError.value = deps.t?.("queue.error.waitRejected") ?? "";
       return;
     }
-    if (!expectsCooperativePause) {
-      deps.jobs.value = deps.jobs.value.map((job) =>
-        job.id === jobId
-          ? ({
-              ...job,
-              status: "paused" as JobStatus,
-            } as TranscodeJob)
-          : job,
-      );
-    }
     deps.queueError.value = null;
+    // Backend is the single source of truth. Refresh to collapse any UI/backend
+    // race where a queued job starts processing while a wait request is in flight.
+    void deps.refreshQueueFromBackend().catch((error) => {
+      console.error("Failed to refresh queue state after wait", error);
+    });
   } catch (error) {
     console.error("Failed to wait job", error);
     if (expectsCooperativePause) {
@@ -126,16 +121,10 @@ export async function handleResumeJob(jobId: string, deps: SingleJobOpsDeps) {
       return;
     }
 
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (job.id !== jobId) return job;
-      if (job.status === "paused") {
-        return {
-          ...job,
-          status: "queued" as JobStatus,
-        };
-      }
-      return job;
-    });
+    const job = deps.jobs.value.find((j) => j.id === jobId);
+    if (job && job.status === "paused") {
+      job.status = "queued";
+    }
     deps.queueError.value = null;
     void deps.refreshQueueFromBackend().catch((error) => {
       console.error("Failed to refresh queue state after resume", error);
@@ -184,19 +173,13 @@ export async function handleRestartJob(jobId: string, deps: SingleJobOpsDeps) {
       return;
     }
 
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (job.id !== jobId) return job;
-      if (job.status !== "completed" && job.status !== "skipped") {
-        return {
-          ...job,
-          status: "queued" as JobStatus,
-          progress: 0,
-          failureReason: undefined,
-          skipReason: undefined,
-        };
-      }
-      return job;
-    });
+    const job = deps.jobs.value.find((j) => j.id === jobId);
+    if (job && job.status !== "completed" && job.status !== "skipped") {
+      job.status = "queued";
+      job.progress = 0;
+      job.failureReason = undefined;
+      job.skipReason = undefined;
+    }
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to restart job", error);
@@ -223,19 +206,10 @@ export async function handleCancelJob(jobId: string, deps: SingleJobOpsDeps) {
       return;
     }
 
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (job.id !== jobId) return job;
-      if (job.status === "queued" || job.status === "paused") {
-        return { ...job, status: "cancelled" as JobStatus };
-      }
-      if (job.status === "processing") {
-        return {
-          ...job,
-          status: "cancelled" as JobStatus,
-        };
-      }
-      return job;
-    });
+    const job = deps.jobs.value.find((j) => j.id === jobId);
+    if (job && (job.status === "queued" || job.status === "paused" || job.status === "processing")) {
+      job.status = "cancelled";
+    }
     deps.queueError.value = null;
   } catch (error) {
     console.error("Failed to cancel job", error);

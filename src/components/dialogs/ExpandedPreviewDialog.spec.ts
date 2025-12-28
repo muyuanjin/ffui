@@ -217,6 +217,73 @@ describe("ExpandedPreviewDialog", () => {
     expect(wrapper.get("[data-testid='expanded-preview-source-badge']").text()).toBe("Input");
   });
 
+  it("constrains long titles using truncation instead of growing the layout", () => {
+    const longName = `C:/videos/${"a".repeat(420)}.mp4`;
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-long-title-1",
+          filename: longName,
+          inputPath: longName,
+          outputPath: "C:/videos/out.mp4",
+        } as any,
+        previewSourceMode: "input",
+        previewUrl: `file:///${longName}`,
+        previewPath: longName,
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: "<div><slot /></div>" },
+          DialogHeader: { template: "<div><slot /></div>" },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    const title = wrapper.get('[data-testid="expanded-preview-title-text"]');
+    expect(title.attributes("title")).toBe(longName);
+    expect(title.classes()).toContain("truncate");
+    expect(title.classes()).toContain("block");
+  });
+
+  it("prevents header content from forcing a minimum width", () => {
+    const wrapper = mount(ExpandedPreviewDialog, {
+      props: {
+        open: true,
+        job: {
+          id: "job-header-minw-1",
+          filename: `C:/videos/${"x".repeat(512)}.mp4`,
+          inputPath: "C:/videos/in.mp4",
+          outputPath: "C:/videos/out.mp4",
+        } as any,
+        previewSourceMode: "input",
+        previewUrl: "file:///C:/videos/in.mp4",
+        previewPath: `C:/videos/${"x".repeat(512)}.mp4`,
+        isImage: false,
+        error: null,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          Dialog: { template: "<div><slot /></div>" },
+          DialogContent: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogHeader: { template: '<div v-bind="$attrs"><slot /></div>' },
+          DialogTitle: { template: "<div><slot /></div>" },
+          DialogDescription: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    expect(wrapper.get('[data-testid="expanded-preview-dialog"]').classes()).toContain("min-w-0");
+    expect(wrapper.get('[data-testid="expanded-preview-title-text"]').classes()).toContain("min-w-0");
+  });
+
   it("disables the output toggle for in-flight jobs without a temp output path", () => {
     const wrapper = mount(ExpandedPreviewDialog, {
       props: {

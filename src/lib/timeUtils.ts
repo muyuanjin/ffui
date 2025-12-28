@@ -80,9 +80,18 @@ export function computeJobElapsedMs(
     endTime?: number;
     processingStartedMs?: number;
     elapsedMs?: number;
+    waitMetadata?: {
+      processedWallMillis?: number;
+    };
   },
   nowMs: number,
 ): number | null {
+  const processedWallMillis = (() => {
+    const v = job.waitMetadata?.processedWallMillis;
+    if (typeof v !== "number" || !Number.isFinite(v) || v < 0) return 0;
+    return v;
+  })();
+
   // 对于已完成的任务，优先使用 elapsedMs，否则基于 startTime/endTime 计算
   if (job.status === "completed" || job.status === "failed" || job.status === "cancelled" || job.status === "skipped") {
     if (job.elapsedMs != null && job.elapsedMs > 0) {
@@ -97,18 +106,20 @@ export function computeJobElapsedMs(
 
   // 对于暂停的任务，使用 elapsedMs
   if (job.status === "paused") {
+    if (processedWallMillis > 0) return processedWallMillis;
     return job.elapsedMs ?? null;
   }
 
-  // 对于正在处理的任务，使用后端提供的 elapsedMs（已包含暂停累计时间）
-  // 如果没有 elapsedMs，则基于 startTime 计算
+  // 对于正在处理的任务：优先使用 wall-clock + processingStartedMs（并叠加
+  // processedWallMillis）计算，这样 UI 可以用 1Hz ticker 刷新而不依赖后端
+  // 高频推送 elapsedMs。
   if (job.status === "processing") {
-    if (job.elapsedMs != null && job.elapsedMs > 0) {
-      return job.elapsedMs;
-    }
     const fallbackStart = job.processingStartedMs ?? job.startTime;
     if (fallbackStart != null && nowMs > fallbackStart) {
-      return nowMs - fallbackStart;
+      return processedWallMillis + (nowMs - fallbackStart);
+    }
+    if (job.elapsedMs != null && job.elapsedMs > 0) {
+      return job.elapsedMs;
     }
   }
 

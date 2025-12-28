@@ -1,8 +1,6 @@
 import type { Ref } from "vue";
 import type { FFmpegPreset, QueueViewMode } from "@/types";
 
-export const ICON_VIEW_MAX_VISIBLE_ITEMS = 200;
-
 export function getQueueIconGridClass(queueViewMode: QueueViewMode): string {
   // Use CSS grid auto-fill so the queue can naturally fill wide windows (e.g. maximized),
   // while still keeping the per-size density stable when there are only a few items.

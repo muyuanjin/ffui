@@ -202,6 +202,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   // Monotonic progress revision used to trigger progress-based sorting without
   // reintroducing full-list ordering fingerprints on every delta tick.
   const queueProgressRevision = ref(0);
+  const queueVolatileSortDirtyJobIds = ref<Set<string>>(new Set());
   const {
     selectedJobIds,
     activeStatusFilters,
@@ -240,6 +241,7 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     jobs,
     queueStructureRevision: lastQueueSnapshotRevision,
     queueProgressRevision,
+    queueVolatileSortDirtyJobIds,
     compositeBatchCompressTasks,
     compositeTasksById,
     t: (key: string) => t(key),
@@ -255,6 +257,12 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   void compareJobsByConfiguredFields;
   void compareJobsForDisplay;
   void hasPrimarySortTies;
+
+  const trackVolatileSortDirtyJobIds = computed(() => {
+    const primary = sortPrimary.value;
+    const secondary = sortSecondary.value;
+    return primary === "progress" || primary === "elapsed" || secondary === "progress" || secondary === "elapsed";
+  });
 
   const {
     refreshQueueFromBackend,
@@ -283,6 +291,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
     lastQueueSnapshotAtMs,
     lastQueueSnapshotRevision,
     queueProgressRevision,
+    queueVolatileSortDirtyJobIds,
+    trackVolatileSortDirtyJobIds,
     t: (key: string, params?: Record<string, unknown>) => t(key, params),
     onJobCompleted,
   });
@@ -366,6 +376,8 @@ export function useMainAppQueue(options: UseMainAppQueueOptions): UseMainAppQueu
   } = createQueueDeleteConfirm({
     jobs,
     selectedJobIds,
+    lastQueueSnapshotAtMs,
+    refreshQueueFromBackend,
     bulkCancelSelectedJobs,
     bulkDeleteTerminalSelection: bulkDeleteWithFeedbackInternal,
   });

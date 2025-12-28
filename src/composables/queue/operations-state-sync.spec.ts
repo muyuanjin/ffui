@@ -538,6 +538,42 @@ describe("queue operations state sync", () => {
     expect(queueProgressRevision.value).toBe(1);
   });
 
+  it("applyQueueStateLiteDeltaFromBackend does not track volatile dirty ids when UI sorting does not need them", () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/progress.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 10,
+          logs: [],
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    const queueProgressRevision = ref(0);
+    const queueVolatileSortDirtyJobIds = ref<Set<string>>(new Set(["stale-id"]));
+    const trackVolatileSortDirtyJobIds = ref(false);
+    (deps as any).queueProgressRevision = queueProgressRevision;
+    (deps as any).queueVolatileSortDirtyJobIds = queueVolatileSortDirtyJobIds;
+    (deps as any).trackVolatileSortDirtyJobIds = trackVolatileSortDirtyJobIds;
+
+    applyQueueStateLiteDeltaFromBackend(
+      { baseSnapshotRevision: 1, deltaRevision: 1, patches: [{ id: "job-1", progress: 11, elapsedMs: 1000 }] },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(11);
+    expect(deps.jobs.value[0].elapsedMs).toBe(1000);
+    expect(queueProgressRevision.value).toBe(0);
+    expect(queueVolatileSortDirtyJobIds.value.size).toBe(0);
+  });
+
   it("applyQueueStateLiteDeltaFromBackend applies progress decreases (restart/resume semantics)", () => {
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([

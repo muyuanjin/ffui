@@ -26,6 +26,12 @@ export interface QueueSortingDeps {
   queueStructureRevision?: Ref<number | null>;
   /** Optional progress revision used for progress-based sorting. */
   queueProgressRevision?: Ref<number>;
+  /**
+   * Optional set of job ids whose volatile sort keys changed in the latest
+   * backend delta tick. When present, volatile sorting can reorder only those
+   * jobs instead of re-sorting the full list on every tick.
+   */
+  queueVolatileSortDirtyJobIds?: Ref<Set<string>>;
 }
 
 export interface QueueSortingState {
@@ -41,6 +47,8 @@ export interface QueueSortingState {
 
 export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingState {
   const { filteredJobs, sortPrimary, sortPrimaryDirection, sortSecondary, sortSecondaryDirection } = deps;
+
+  const isVolatileSortField = (field: QueueSortField): boolean => field === "progress" || field === "elapsed";
 
   const hasPrimarySortTies = computed(() => {
     const list = filteredJobs.value;
@@ -97,36 +105,115 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     return compareJobsInWaitingGroupBase(a, b, compareJobsByConfiguredFields);
   };
 
-  const progressSortRevision = computed(() => {
+  const volatileSortRevision = computed(() => {
     const primary = sortPrimary.value;
     const secondary = sortSecondary.value;
-    if (primary !== "progress" && secondary !== "progress") return 0;
+    if (!isVolatileSortField(primary) && !isVolatileSortField(secondary)) return 0;
     return deps.queueProgressRevision?.value ?? 0;
   });
 
-  const orderingFingerprint = computed(() => {
+  const orderingSignature = computed(() => {
     const list = filteredJobs.value;
-    if (!list || list.length === 0) return "";
+    if (!list || list.length === 0) return "0:0";
 
+    // Avoid building large fingerprint strings on the UI thread: for large queues
+    // this creates unnecessary allocations and GC pressure during startup.
+    //
+    // When a structural revision is available, it already captures ordering-
+    // relevant changes from the backend. In that case we only need a cheap list
+    // identity signature so sort recomputation still reacts to filter changes.
+    const struct = deps.queueStructureRevision?.value ?? null;
+    const hasStruct = typeof struct === "number" && Number.isFinite(struct);
     const primary = sortPrimary.value;
     const secondary = sortSecondary.value;
     const canUseProgressRevision = deps.queueProgressRevision != null;
 
-    return list
-      .map((job) => {
-        const pv = canUseProgressRevision && primary === "progress" ? "" : getJobSortValue(job, primary);
-        const sv = canUseProgressRevision && secondary === "progress" ? "" : getJobSortValue(job, secondary);
-        const qo = job.queueOrder ?? "";
-        const st = job.startTime ?? "";
-        return `${job.id}\u0000${String(pv ?? "")}\u0000${String(sv ?? "")}\u0000${qo}\u0000${st}`;
-      })
-      .join("\n");
+    let hash = 2166136261;
+    for (const job of list) {
+      const id = job.id ?? "";
+      for (let i = 0; i < id.length; i += 1) {
+        hash ^= id.charCodeAt(i);
+        hash = Math.imul(hash, 16777619);
+      }
+      hash ^= 10; // newline separator
+      hash = Math.imul(hash, 16777619);
+
+      if (hasStruct) {
+        continue;
+      }
+
+      const pv = canUseProgressRevision && isVolatileSortField(primary) ? "" : getJobSortValue(job, primary);
+      const sv = canUseProgressRevision && isVolatileSortField(secondary) ? "" : getJobSortValue(job, secondary);
+
+      const qo = job.queueOrder ?? null;
+      const st = job.startTime ?? null;
+
+      const parts: Array<string | number | null> = [pv ?? "", sv ?? "", qo, st];
+      for (const part of parts) {
+        if (part == null) {
+          hash ^= 0;
+          hash = Math.imul(hash, 16777619);
+          hash ^= 31;
+          hash = Math.imul(hash, 16777619);
+          continue;
+        }
+        if (typeof part === "number") {
+          // Hash a stable text form for numbers.
+          const text = Number.isFinite(part) ? part.toString() : "";
+          for (let i = 0; i < text.length; i += 1) {
+            hash ^= text.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+          }
+          hash ^= 31;
+          hash = Math.imul(hash, 16777619);
+          continue;
+        }
+        const text = typeof part === "string" ? part : String(part);
+        for (let i = 0; i < text.length; i += 1) {
+          hash ^= text.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        hash ^= 31;
+        hash = Math.imul(hash, 16777619);
+      }
+    }
+
+    return `${list.length}:${hash >>> 0}`;
   });
 
   // For large queues, compute a first sorted chunk quickly and defer the
   // full ordering via incremental slices, yielding to the main thread so the
   // UI can keep processing input and drag events.
   const displayModeSortedJobsInternal = ref<TranscodeJob[]>([]);
+  const sortedIndexById = new Map<string, number>();
+
+  let cachedFilteredJobsArray: TranscodeJob[] | null = null;
+  let cachedFilteredJobsById: Map<string, TranscodeJob> | null = null;
+
+  const getFilteredJobsById = (list: TranscodeJob[]): Map<string, TranscodeJob> => {
+    if (cachedFilteredJobsArray === list && cachedFilteredJobsById) return cachedFilteredJobsById;
+    cachedFilteredJobsArray = list;
+    cachedFilteredJobsById = new Map(list.map((job) => [job.id, job]));
+    return cachedFilteredJobsById;
+  };
+
+  const rebuildSortedIndex = () => {
+    sortedIndexById.clear();
+    const arr = displayModeSortedJobsInternal.value;
+    for (let i = 0; i < arr.length; i += 1) {
+      sortedIndexById.set(arr[i]!.id, i);
+    }
+  };
+
+  const consumeVolatileDirtyIds = (): string[] => {
+    const setRef = deps.queueVolatileSortDirtyJobIds;
+    if (!setRef) return [];
+    const set = setRef.value;
+    if (!set || set.size === 0) return [];
+    const ids = Array.from(set);
+    set.clear();
+    return ids;
+  };
 
   const isTestEnv =
     typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -147,20 +234,73 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
     sortRunId += 1;
   };
 
+  const findBinaryInsertIndex = (arr: readonly TranscodeJob[], job: TranscodeJob): number => {
+    let low = 0;
+    let high = arr.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      const cmp = compareJobsForDisplay(job, arr[mid] as TranscodeJob);
+      if (cmp < 0) {
+        high = mid;
+      } else {
+        // Keep insertion stable by placing after equals.
+        low = mid + 1;
+      }
+    }
+    return low;
+  };
+
+  const applyVolatileReorderInPlace = (dirtyIds: string[], source: TranscodeJob[]): boolean => {
+    const sorted = displayModeSortedJobsInternal.value;
+    if (sorted.length !== source.length) return false;
+
+    const byId = getFilteredJobsById(source);
+
+    if (sortedIndexById.size !== sorted.length) {
+      rebuildSortedIndex();
+    }
+
+    const uniqueDirtyIds = Array.from(new Set(dirtyIds));
+    if (uniqueDirtyIds.length === 0) return true;
+
+    const dirtyIndices: number[] = [];
+    for (const id of uniqueDirtyIds) {
+      const job = byId.get(id);
+      if (!job) return false;
+      const idx = sortedIndexById.get(id);
+      if (typeof idx !== "number") return false;
+      if (sorted[idx] !== job) return false;
+      dirtyIndices.push(idx);
+    }
+
+    // Remove dirty jobs from their old positions.
+    dirtyIndices.sort((a, b) => b - a);
+    const removed: TranscodeJob[] = [];
+    for (const idx of dirtyIndices) {
+      removed.push(sorted[idx] as TranscodeJob);
+      sorted.splice(idx, 1);
+    }
+
+    // Reinsert based on current comparator values.
+    removed.sort((a, b) => compareJobsForDisplay(a, b));
+    for (const job of removed) {
+      const insertAt = findBinaryInsertIndex(sorted, job);
+      sorted.splice(insertAt, 0, job);
+    }
+
+    rebuildSortedIndex();
+    return true;
+  };
+
   const sortTriggerKey = computed(() => {
     const primary = sortPrimary.value;
     const primaryDirection = sortPrimaryDirection.value;
     const secondary = sortSecondary.value;
     const secondaryDirection = sortSecondaryDirection.value;
     const structureRevision = deps.queueStructureRevision?.value ?? null;
-    const progressRevision = progressSortRevision.value;
-    const fingerprint = orderingFingerprint.value;
-
-    if (!fingerprint) {
-      return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|struct=${structureRevision ?? "none"}|progress=${progressRevision}|empty`;
-    }
-
-    return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|struct=${structureRevision ?? "none"}|progress=${progressRevision}\n${fingerprint}`;
+    const progressRevision = volatileSortRevision.value;
+    const signature = orderingSignature.value;
+    return `${primary}|${primaryDirection}|${secondary}|${secondaryDirection}|struct=${structureRevision ?? "none"}|progress=${progressRevision}|list=${signature}`;
   });
 
   watch(
@@ -169,17 +309,42 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
       const jobs = filteredJobs.value;
       if (!jobs || jobs.length === 0) {
         displayModeSortedJobsInternal.value = [];
+        sortedIndexById.clear();
+        cachedFilteredJobsArray = null;
+        cachedFilteredJobsById = null;
         cancelLargeQueueSort();
         return;
       }
 
+      const primary = sortPrimary.value;
+      const secondary = sortSecondary.value;
+      const volatileSortActive = isVolatileSortField(primary) || isVolatileSortField(secondary);
+      const dirtyIds = volatileSortActive ? consumeVolatileDirtyIds() : [];
+
+      if (
+        dirtyIds.length > 0 &&
+        volatileSortActive &&
+        deps.queueProgressRevision != null &&
+        typeof window !== "undefined"
+      ) {
+        cancelLargeQueueSort();
+        if (applyVolatileReorderInPlace(dirtyIds, jobs)) {
+          return;
+        }
+      }
+
       const list = jobs.slice();
 
-      if (typeof window === "undefined" || isTestEnv || list.length <= LARGE_QUEUE_SORT_THRESHOLD) {
-        // Small/medium lists: keep the simple synchronous sort so behaviour
-        // stays predictable and easy to reason about.
+      if (
+        typeof window === "undefined" ||
+        isTestEnv ||
+        (!volatileSortActive && list.length <= LARGE_QUEUE_SORT_THRESHOLD)
+      ) {
+        // Small/medium lists (or tests): keep the simple synchronous sort so
+        // behaviour stays predictable and easy to reason about.
         cancelLargeQueueSort();
         displayModeSortedJobsInternal.value = list.sort((a, b) => compareJobsForDisplay(a, b));
+        sortedIndexById.clear();
         return;
       }
 
@@ -194,6 +359,7 @@ export function createQueueSortingState(deps: QueueSortingDeps): QueueSortingSta
         onPartial: (partial) => {
           if (runId !== sortRunId) return;
           displayModeSortedJobsInternal.value = partial;
+          sortedIndexById.clear();
         },
       });
     },

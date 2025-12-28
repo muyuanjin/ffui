@@ -11,6 +11,7 @@ describe("useJobTimeDisplay", () => {
     vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
 
     const setIntervalSpy = vi.spyOn(globalThis, "setInterval");
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
 
     const job = ref<TranscodeJob>({
       id: "job-wall-clock",
@@ -43,8 +44,10 @@ describe("useJobTimeDisplay", () => {
     expect(vm.time.estimatedTotalTimeDisplay.value).toBe("0:08");
 
     wrapper.unmount();
-    expect(setIntervalSpy).not.toHaveBeenCalled();
+    expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
     setIntervalSpy.mockRestore();
+    clearIntervalSpy.mockRestore();
     vi.useRealTimers();
   });
 
@@ -112,6 +115,58 @@ describe("useJobTimeDisplay", () => {
 
     setIntervalSpy.mockRestore();
     clearIntervalSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("does not re-render time labels on high-frequency backend elapsedMs/progress ticks (samples at 1Hz)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T00:00:00Z"));
+
+    const job = ref<TranscodeJob>({
+      id: "job-throttle",
+      filename: "throttle.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      startTime: Date.now() - 10_000,
+      processingStartedMs: Date.now() - 10_000,
+      elapsedMs: 10_000,
+      waitMetadata: { processedWallMillis: 0 },
+    } as any);
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const time = useJobTimeDisplay(job);
+          return { time };
+        },
+        template: "<div />",
+      }),
+    );
+
+    const vm: any = wrapper.vm;
+    expect(vm.time.elapsedTimeDisplay.value).toBe("0:10");
+    expect(vm.time.estimatedTotalTimeDisplay.value).toBe("1:40");
+
+    // Simulate rapid backend ticks: these should not drive the UI time labels
+    // directly (we update on the shared 1Hz ticker).
+    job.value.elapsedMs = 123_456;
+    job.value.progress = 20;
+    await Promise.resolve();
+
+    expect(vm.time.elapsedTimeDisplay.value).toBe("0:10");
+    expect(vm.time.estimatedTotalTimeDisplay.value).toBe("1:40");
+
+    vi.advanceTimersByTime(1000);
+    await Promise.resolve();
+
+    expect(vm.time.elapsedTimeDisplay.value).toBe("0:11");
+    expect(vm.time.estimatedTotalTimeDisplay.value).toBe("0:55");
+
+    wrapper.unmount();
     vi.useRealTimers();
   });
 });

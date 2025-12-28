@@ -93,4 +93,32 @@ describe("useQueueItemPreview (auto ensure)", () => {
 
     wrapper.unmount();
   });
+
+  it("reuses ensured preview across remounts to avoid re-ensuring on scroll unmounts", async () => {
+    const job = ref(makeJob({ id: "job-auto-preview-cache" }));
+
+    {
+      const { composable, wrapper } = mountComposable(job);
+      await nextTick();
+      expect(composable.previewUrl.value).toBe(null);
+
+      await vi.runAllTimersAsync();
+      await nextTick();
+
+      expect(ensureJobPreviewMock).toHaveBeenCalledTimes(1);
+      expect(composable.previewUrl.value).toBe("url:C:/previews/job-auto-preview-cache.jpg?rev=0");
+      wrapper.unmount();
+    }
+
+    {
+      const { composable, wrapper } = mountComposable(job);
+      await nextTick();
+      expect(composable.previewUrl.value).toBe(null);
+
+      await nextTick();
+      expect(ensureJobPreviewMock).toHaveBeenCalledTimes(1);
+      expect(composable.previewUrl.value).toBe("url:C:/previews/job-auto-preview-cache.jpg?rev=0");
+      wrapper.unmount();
+    }
+  });
 });

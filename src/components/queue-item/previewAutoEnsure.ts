@@ -4,12 +4,39 @@ const MAX_CONCURRENCY = 1;
 // Must be comfortably larger than the maximum number of concurrently rendered queue items
 // (virtua buffer + grid/icon views) to avoid dropping "currently visible" preview requests.
 const MAX_QUEUE = 128;
+const SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_CACHE = 2048;
 
 let inFlight = 0;
 const queuedJobIds: string[] = [];
 const enqueuedJobIds = new Set<string>();
 const pendingPromiseByJobId = new Map<string, Promise<string | null>>();
 const resolveByJobId = new Map<string, (path: string | null) => void>();
+const resolvedPreviewPathByJobId = new Map<string, { path: string; resolvedAtMs: number }>();
+
+const nowMs = () => (typeof Date?.now === "function" ? Date.now() : new Date().getTime());
+
+const isCacheEntryFresh = (entry: { path: string; resolvedAtMs: number }): boolean => {
+  const ageMs = Math.max(0, nowMs() - entry.resolvedAtMs);
+  return ageMs <= SUCCESS_CACHE_TTL_MS;
+};
+
+const cacheResolvedPreviewPath = (jobId: string, path: string | null) => {
+  if (!jobId) return;
+  const safePath = (path ?? "").trim();
+  if (!safePath) return;
+  resolvedPreviewPathByJobId.set(jobId, { path: safePath, resolvedAtMs: nowMs() });
+  if (resolvedPreviewPathByJobId.size <= MAX_CACHE) return;
+
+  const overflow = resolvedPreviewPathByJobId.size - MAX_CACHE;
+  if (overflow <= 0) return;
+  const keys = resolvedPreviewPathByJobId.keys();
+  for (let i = 0; i < overflow; i += 1) {
+    const k = keys.next().value;
+    if (!k) break;
+    resolvedPreviewPathByJobId.delete(k);
+  }
+};
 
 const schedule = (fn: () => void) => {
   if (typeof window === "undefined") {
@@ -53,6 +80,7 @@ const pump = () => {
     .catch(() => null)
     .then((path) => {
       const resolvedPath = path ?? null;
+      cacheResolvedPreviewPath(jobId, resolvedPath);
       resolveByJobId.get(jobId)?.(resolvedPath);
     })
     .finally(() => {
@@ -66,6 +94,14 @@ const pump = () => {
 export function ensureJobPreviewAuto(jobId: string): Promise<string | null> {
   if (!backend.hasTauri()) return Promise.resolve(null);
   if (!jobId) return Promise.resolve(null);
+
+  const cached = resolvedPreviewPathByJobId.get(jobId);
+  if (cached && isCacheEntryFresh(cached)) {
+    return Promise.resolve(cached.path);
+  }
+  if (cached) {
+    resolvedPreviewPathByJobId.delete(jobId);
+  }
 
   const existing = pendingPromiseByJobId.get(jobId);
   if (existing) return existing;
@@ -102,4 +138,5 @@ export function resetPreviewAutoEnsureForTests() {
   enqueuedJobIds.clear();
   pendingPromiseByJobId.clear();
   resolveByJobId.clear();
+  resolvedPreviewPathByJobId.clear();
 }

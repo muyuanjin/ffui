@@ -212,32 +212,49 @@ describe("QueuePanel virtual list wiring", () => {
 
   it("keeps queue-mode group headers inside the virtual list", async () => {
     const processingJobs = [buildJob("processing-1", "processing"), buildJob("processing-2", "processing")];
-    const waitingJobs = Array.from({ length: 200 }, (_, idx) => buildJob(`waiting-${idx}`, "queued"));
+    const waitingJobs = Array.from({ length: 10 }, (_, idx) => buildJob(`waiting-${idx}`, "queued"));
     const waitingItems = buildListItems(waitingJobs);
+    const terminalJobs = [buildJob("completed-1", "completed"), buildJob("failed-1", "failed")];
+    const terminalItems = buildListItems(terminalJobs);
 
     const wrapper = mountQueuePanel({
       queueMode: "queue",
       queueModeProcessingJobs: processingJobs,
       queueModeWaitingItems: waitingItems,
       queueModeWaitingBatchIds: new Set<string>(),
-      queueJobsForDisplay: [...processingJobs, ...waitingJobs],
-      visibleQueueItems: waitingItems,
+      queueJobsForDisplay: [...processingJobs, ...waitingJobs, ...terminalJobs],
+      visibleQueueItems: [...waitingItems, ...terminalItems],
     });
 
     expect(wrapper.text()).toContain(t("queue.groups.processing"));
     expect(wrapper.text()).toContain(t("queue.groups.waiting"));
+    expect(wrapper.text()).toContain(t("queue.groups.completed"));
 
     const processingHeader = wrapper.find("[data-queue-flip-key='group:processing']");
     expect(processingHeader.exists()).toBe(true);
     expect(processingHeader.text()).toContain("2");
     const processingDivider = processingHeader.element.querySelector("[aria-hidden='true']") as HTMLElement | null;
     expect(processingDivider?.className).toContain("border-t");
+    const processingHeaderPadding = processingHeader.element.firstElementChild as HTMLElement | null;
+    expect(processingHeaderPadding?.className).toContain("pb-3");
 
     const waitingHeader = wrapper.find("[data-queue-flip-key='group:waiting']");
     expect(waitingHeader.exists()).toBe(true);
-    expect(waitingHeader.text()).toContain("200");
+    expect(waitingHeader.text()).toContain("10");
     const waitingDivider = waitingHeader.element.querySelector("[aria-hidden='true']") as HTMLElement | null;
     expect(waitingDivider?.className).toContain("border-t");
+    const waitingHeaderPadding = waitingHeader.element.firstElementChild as HTMLElement | null;
+    expect(waitingHeaderPadding?.className).toContain("pt-1");
+    expect(waitingHeaderPadding?.className).toContain("pb-3");
+
+    const completedHeader = wrapper.find("[data-queue-flip-key='group:completed']");
+    expect(completedHeader.exists()).toBe(true);
+    expect(completedHeader.text()).toContain("2");
+    const completedDivider = completedHeader.element.querySelector("[aria-hidden='true']") as HTMLElement | null;
+    expect(completedDivider?.className).toContain("border-t");
+    const completedHeaderPadding = completedHeader.element.firstElementChild as HTMLElement | null;
+    expect(completedHeaderPadding?.className).toContain("pt-1");
+    expect(completedHeaderPadding?.className).toContain("pb-3");
 
     expect(wrapper.findAll("[data-testid='queue-item-stub']").length).toBeGreaterThan(0);
     expect(wrapper.findAll("[data-testid='queue-item-stub']").length).toBeLessThanOrEqual(MAX_RENDERED_ROWS_FOR_TEST);

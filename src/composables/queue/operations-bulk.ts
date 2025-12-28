@@ -82,13 +82,12 @@ export async function bulkCancelSelectedJobs(deps: BulkOpsDeps) {
     }
 
     const idSet = new Set(ids);
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (!idSet.has(job.id)) return job;
+    for (const job of deps.jobs.value) {
+      if (!idSet.has(job.id)) continue;
       if (job.status === "queued" || job.status === "paused" || job.status === "processing") {
-        return { ...job, status: "cancelled" as const };
+        job.status = "cancelled";
       }
-      return job;
-    });
+    }
     deps.queueError.value = null;
     await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
@@ -114,37 +113,16 @@ export async function bulkWaitSelectedJobs(deps: BulkOpsDeps) {
   }
 
   const sinceRevision = deps.lastQueueSnapshotRevision?.value ?? null;
-  const waitingLikeIds = selected.filter((job) => job.status === "queued").map((job) => job.id);
   const processingIds = selected.filter((job) => job.status === "processing").map((job) => job.id);
 
-  const waitingLikeSet = new Set(waitingLikeIds);
-  const originalStatusById = new Map<string, TranscodeJob["status"]>(selected.map((job) => [job.id, job.status]));
   const originalPausingSnapshot = new Set(deps.pausingJobIds.value);
 
   if (processingIds.length > 0) {
     deps.pausingJobIds.value = new Set([...deps.pausingJobIds.value, ...processingIds]);
   }
 
-  if (waitingLikeSet.size > 0) {
-    deps.jobs.value = deps.jobs.value.map((job) =>
-      waitingLikeSet.has(job.id) && job.status === "queued"
-        ? ({
-            ...job,
-            status: "paused",
-          } as TranscodeJob)
-        : job,
-    );
-  }
-
   const rollbackOptimisticUpdates = () => {
     deps.pausingJobIds.value = new Set(originalPausingSnapshot);
-    if (waitingLikeSet.size === 0) return;
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (!waitingLikeSet.has(job.id)) return job;
-      const status = originalStatusById.get(job.id);
-      if (!status) return job;
-      return { ...job, status } as TranscodeJob;
-    });
   };
 
   try {
@@ -198,13 +176,12 @@ export async function bulkResumeSelectedJobs(deps: BulkOpsDeps) {
     }
 
     const idSet = new Set(ids);
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (!idSet.has(job.id)) return job;
+    for (const job of deps.jobs.value) {
+      if (!idSet.has(job.id)) continue;
       if (job.status === "paused") {
-        return { ...job, status: "queued" as const };
+        job.status = "queued";
       }
-      return job;
-    });
+    }
 
     deps.queueError.value = null;
     await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
@@ -248,19 +225,15 @@ export async function bulkRestartSelectedJobs(deps: BulkOpsDeps) {
     }
 
     const idSet = new Set(ids);
-    deps.jobs.value = deps.jobs.value.map((job) => {
-      if (!idSet.has(job.id)) return job;
+    for (const job of deps.jobs.value) {
+      if (!idSet.has(job.id)) continue;
       if (job.status !== "completed" && job.status !== "skipped") {
-        return {
-          ...job,
-          status: "queued" as const,
-          progress: 0,
-          failureReason: undefined,
-          skipReason: undefined,
-        };
+        job.status = "queued";
+        job.progress = 0;
+        job.failureReason = undefined;
+        job.skipReason = undefined;
       }
-      return job;
-    });
+    }
     deps.queueError.value = null;
     await syncQueueSnapshotAfterBulkOp(deps, sinceRevision);
   } catch (error) {
