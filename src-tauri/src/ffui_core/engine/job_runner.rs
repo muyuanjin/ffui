@@ -34,6 +34,7 @@ include!("job_runner_time_and_batch_compress.rs");
 include!("job_runner_state.rs");
 include!("job_runner_progress.rs");
 include!("job_runner_paths_and_preview.rs");
+include!("job_runner_preview_thumbnails.rs");
 include!("job_runner_media_and_logging.rs");
 // 将包含测试子模块的 job_runner_process 放在最后，避免 clippy::items_after_test_module
 // 警告，同时保持原有 API 和行为不变。

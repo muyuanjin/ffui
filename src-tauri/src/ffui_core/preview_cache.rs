@@ -69,5 +69,16 @@ pub(crate) fn cleanup_unreferenced_previews(
     Ok(deleted)
 }
 
+pub(crate) fn clear_preview_thumb_cache(previews_root: &Path) -> Result<()> {
+    let dir = previews_root.join("thumb-cache");
+    if !dir.exists() {
+        return Ok(());
+    }
+    if dir.is_dir() {
+        drop(fs::remove_dir_all(&dir));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests;

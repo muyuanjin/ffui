@@ -6,7 +6,13 @@ import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl, markPreviewDecoded } from "@/components/queue-item/previewWarmCache";
 
-export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; isTestEnv: boolean }): {
+type DesiredHeightInput = number | null | undefined | { value: number | null | undefined };
+
+export function useQueueItemPreview(options: {
+  job: ComputedRef<TranscodeJob>;
+  isTestEnv: boolean;
+  desiredHeightPx?: DesiredHeightInput;
+}): {
   previewUrl: Ref<string | null>;
   handlePreviewError: () => Promise<void>;
 } {
@@ -17,6 +23,7 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
   const lastPreviewPath = ref<string | null>(null);
   const ensuredPreviewPath = ref<string | null>(null);
   const lastJobId = ref<string | null>(null);
+  const lastDesiredHeightPx = ref<number>(180);
   let autoEnsureHandle: { promise: Promise<string | null>; cancel: () => void } | null = null;
   let pendingPreviewLoadCancel: (() => void) | null = null;
   let pendingPreviewLoadAbort: AbortController | null = null;
@@ -24,6 +31,13 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
   let desiredPreviewToken = 0;
 
   const job = computed(() => options.job.value);
+  const desiredHeightPx = computed(() => {
+    const raw = options.desiredHeightPx;
+    const value = raw && typeof raw === "object" && "value" in raw ? raw.value : raw;
+    const parsed = Math.floor(Number(value ?? 180));
+    if (!Number.isFinite(parsed) || parsed <= 0) return 180;
+    return parsed;
+  });
   const perfHints = useQueuePerfHints();
   const allowAutoEnsure = computed(() => perfHints?.allowPreviewAutoEnsure.value ?? true);
   const allowPreviewLoads = computed(() => perfHints?.allowPreviewLoads.value ?? true);
@@ -45,6 +59,7 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
       inputPath: job.value.inputPath,
       outputPath: job.value.outputPath,
       ensuredPreviewPath: ensuredPreviewPath.value,
+      desiredHeightPx: desiredHeightPx.value,
       allowAutoEnsure: allowAutoEnsure.value,
       allowPreviewLoads: allowPreviewLoads.value,
     }),
@@ -56,12 +71,14 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
       inputPath,
       outputPath,
       ensuredPreviewPath: ensured,
+      desiredHeightPx: desiredHeightPxSnapshot,
       allowAutoEnsure: allowAutoEnsureSnapshot,
       allowPreviewLoads: allowPreviewLoadsSnapshot,
     }) => {
       if (id !== lastJobId.value) {
         lastJobId.value = id;
         ensuredPreviewPath.value = null;
+        lastDesiredHeightPx.value = desiredHeightPxSnapshot;
         if (autoEnsureHandle) {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
@@ -79,19 +96,39 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
         previewUrl.value = null;
       }
 
+      if (desiredHeightPxSnapshot !== lastDesiredHeightPx.value) {
+        lastDesiredHeightPx.value = desiredHeightPxSnapshot;
+        ensuredPreviewPath.value = null;
+        if (autoEnsureHandle) {
+          autoEnsureHandle.cancel();
+          autoEnsureHandle = null;
+        }
+      }
+
       previewFallbackLoaded.value = false;
       if ((previewPath ?? null) !== lastPreviewPath.value) {
         previewRescreenshotAttempted.value = false;
         lastPreviewPath.value = previewPath ?? null;
+        if (type === "video" && desiredHeightPxSnapshot !== 180) {
+          ensuredPreviewPath.value = null;
+          if (autoEnsureHandle) {
+            autoEnsureHandle.cancel();
+            autoEnsureHandle = null;
+          }
+        }
       }
 
       if (type === "video") {
-        const shouldEnsure = !previewPath && !ensuredPreviewPath.value && allowAutoEnsureSnapshot && hasTauri();
+        const shouldEnsure =
+          !ensuredPreviewPath.value &&
+          allowAutoEnsureSnapshot &&
+          hasTauri() &&
+          (desiredHeightPxSnapshot !== 180 || !previewPath);
         if (!shouldEnsure && autoEnsureHandle) {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
         } else if (shouldEnsure && !autoEnsureHandle) {
-          autoEnsureHandle = requestJobPreviewAutoEnsure(id);
+          autoEnsureHandle = requestJobPreviewAutoEnsure(id, { heightPx: desiredHeightPxSnapshot });
           void autoEnsureHandle.promise.then((resolved) => {
             if (!resolved) return;
             if (job.value.id !== id) return;
@@ -103,8 +140,12 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
       let path: string | null = null;
 
       if (previewPath) {
-        path = previewPath;
-        ensuredPreviewPath.value = null;
+        if (type === "video" && desiredHeightPxSnapshot !== 180) {
+          path = ensured || previewPath;
+        } else {
+          path = previewPath;
+          ensuredPreviewPath.value = null;
+        }
       } else if (type === "image") {
         path = outputPath || inputPath || null;
       } else if (type === "video") {
@@ -162,7 +203,7 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
 
       const shouldHighPriority = previewUrl.value == null;
       const cancelScheduled = schedulePreviewLoad(
-        `queue-preview:${id}`,
+        `queue-preview:${id}|h=${desiredHeightPxSnapshot}`,
         async () => {
           if (token !== desiredPreviewToken) return;
           if (abortController.signal.aborted) return;
@@ -254,7 +295,7 @@ export function useQueueItemPreview(options: { job: ComputedRef<TranscodeJob>; i
   });
 
   const handlePreviewError = async () => {
-    const path = job.value.previewPath || ensuredPreviewPath.value;
+    const path = ensuredPreviewPath.value || job.value.previewPath;
     if (!path) return;
     if (!hasTauri()) return;
     if (previewFallbackLoaded.value) return;

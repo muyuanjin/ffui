@@ -277,6 +277,24 @@ pub async fn ensure_job_preview(
         .map_err(|e| e.to_string())?
 }
 
+/// Ensure a preview thumbnail variant exists for the given job and size.
+///
+/// Unlike `ensure_job_preview`, this does not mutate queue state or update the
+/// job's `previewPath`; it only returns a cached filesystem path.
+#[tauri::command]
+pub async fn ensure_job_preview_variant(
+    engine: State<'_, TranscodingEngine>,
+    job_id: String,
+    height_px: u16,
+) -> Result<Option<String>, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        engine.ensure_job_preview_variant(&job_id, height_px)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Open the system file manager for the given path and select/highlight the
 /// file when supported by the platform.
 #[tauri::command]

@@ -225,9 +225,16 @@ const compareDisabledText = computed(() => {
   return t("jobCompare.disabled.unavailable") as string;
 });
 
+const desiredPreviewHeightPx = computed(() => {
+  if (props.size === "large") return 720;
+  if (props.size === "medium") return 540;
+  return 360;
+});
+
 const { previewUrl, handlePreviewError } = useQueueItemPreview({
   job: computed(() => props.job),
   isTestEnv,
+  desiredHeightPx: desiredPreviewHeightPx,
 });
 
 const onInspect = () => {

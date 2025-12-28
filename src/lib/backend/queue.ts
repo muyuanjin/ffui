@@ -125,3 +125,14 @@ export const ensureJobPreview = async (jobId: string): Promise<string | null> =>
     job_id: jobId,
   });
 };
+
+export const ensureJobPreviewVariant = async (jobId: string, heightPx: number): Promise<string | null> => {
+  if (!hasTauri()) return null;
+  const normalized = Math.max(0, Math.floor(Number(heightPx)));
+  return invoke<string | null>("ensure_job_preview_variant", {
+    jobId,
+    job_id: jobId,
+    heightPx: normalized,
+    height_px: normalized,
+  });
+};

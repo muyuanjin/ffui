@@ -60,6 +60,7 @@ export {
   loadJobDetail,
   loadPreviewDataUrl,
   ensureJobPreview,
+  ensureJobPreviewVariant,
 } from "./backend/queue";
 export const loadAppSettings = async (): Promise<AppSettings> => {
   return invoke<AppSettings>("get_app_settings");

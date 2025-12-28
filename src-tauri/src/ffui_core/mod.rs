@@ -60,7 +60,8 @@ pub(crate) use preset_bundle::{
     PresetBundle, PresetBundleExportResult, export_presets_bundle, read_presets_bundle,
 };
 pub(crate) use preview_cache::{
-    cleanup_unreferenced_previews, previews_root_dir_best_effort, referenced_preview_filenames,
+    cleanup_unreferenced_previews, clear_preview_thumb_cache, previews_root_dir_best_effort,
+    referenced_preview_filenames,
 };
 pub(crate) use settings::ExternalToolSettings;
 #[allow(unused_imports)]

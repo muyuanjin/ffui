@@ -3,7 +3,7 @@ use tauri::State;
 use crate::commands::wait_for_queue_recovery;
 use crate::ffui_core::{
     TranscodingEngine, cleanup_unreferenced_previews, clear_fallback_frame_cache,
-    previews_root_dir_best_effort, referenced_preview_filenames,
+    clear_preview_thumb_cache, previews_root_dir_best_effort, referenced_preview_filenames,
 };
 
 fn cleanup_preview_caches_worker(
@@ -29,6 +29,9 @@ fn cleanup_preview_caches_worker(
     match previews_root {
         Ok(previews_root) => {
             drop(cleanup_unreferenced_previews(&previews_root, &referenced));
+            // User-triggered cleanup should also clear higher-resolution thumbnail variants so
+            // disk usage remains bounded even after switching view modes frequently.
+            drop(clear_preview_thumb_cache(&previews_root));
         }
         Err(err) => {
             crate::debug_eprintln!(

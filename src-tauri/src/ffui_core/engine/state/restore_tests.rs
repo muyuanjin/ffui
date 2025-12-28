@@ -4,7 +4,7 @@ use crate::ffui_core::engine::TranscodingEngine;
 use crate::ffui_core::engine::segment_discovery;
 use crate::ffui_core::shutdown_marker::{ShutdownMarker, ShutdownMarkerKind};
 use crate::sync_ext::MutexExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
     TranscodeJob {
@@ -74,8 +74,8 @@ fn setup_segment_probe_paths() -> SegmentProbePaths {
 }
 
 fn build_segment_probe_jobs(
-    input_path: &PathBuf,
-    output_path: &PathBuf,
+    input_path: &Path,
+    output_path: &Path,
     jobs_count: usize,
     progress: f64,
     start_time: Option<u64>,

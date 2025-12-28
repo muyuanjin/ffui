@@ -245,9 +245,12 @@ const handleCopyCommand = async () => {
   await copyToClipboard(effectiveCommand.value);
 };
 
+const desiredPreviewHeightPx = computed(() => (isMini.value ? 120 : 180));
+
 const { previewUrl, handlePreviewError } = useQueueItemPreview({
   job: computed(() => props.job),
   isTestEnv,
+  desiredHeightPx: desiredPreviewHeightPx,
 });
 
 const rowListeners = {

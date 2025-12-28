@@ -10,6 +10,7 @@ vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
   const loadPreviewDataUrl = vi.fn(async (path: string) => `data:image/jpeg;base64,TEST:${path}`);
   const ensureJobPreview = vi.fn(async () => null);
+  const ensureJobPreviewVariant = vi.fn(async () => null);
 
   return {
     buildPreviewUrl: (path: string | null) => path,
@@ -18,10 +19,11 @@ vi.mock("@/lib/backend", () => {
     hasTauri,
     loadPreviewDataUrl,
     ensureJobPreview,
+    ensureJobPreviewVariant,
   };
 });
 
-import { ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
+import { ensureJobPreview, ensureJobPreviewVariant, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
 import { resetJobPreviewWarmupForTests } from "@/lib/jobPreviewWarmup";
 import { resetPreviewAutoEnsureForTests } from "@/components/queue-item/previewAutoEnsure";
 import QueueIconItem from "@/components/QueueIconItem.vue";
@@ -55,6 +57,7 @@ describe("QueueIconItem", () => {
     (hasTauri as any).mockReturnValue(false);
     (loadPreviewDataUrl as any).mockReset();
     (ensureJobPreview as any).mockReset();
+    (ensureJobPreviewVariant as any).mockReset();
     resetJobPreviewWarmupForTests();
     resetPreviewAutoEnsureForTests();
   });
@@ -248,7 +251,7 @@ describe("QueueIconItem", () => {
     try {
       const job = makeJob({ previewPath: undefined, status: "processing" });
       (hasTauri as any).mockReturnValue(true);
-      (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/autogen.jpg");
+      (ensureJobPreviewVariant as any).mockResolvedValueOnce("C:/app-data/previews/thumb-cache/autogen.jpg");
 
       mount(QueueIconItem, {
         props: {
@@ -263,7 +266,8 @@ describe("QueueIconItem", () => {
 
       await vi.runAllTimersAsync();
 
-      expect(ensureJobPreview).toHaveBeenCalledTimes(1);
+      expect(ensureJobPreviewVariant).toHaveBeenCalledTimes(1);
+      expect(ensureJobPreviewVariant).toHaveBeenCalledWith(job.id, 540);
     } finally {
       vi.useRealTimers();
     }
@@ -306,6 +310,7 @@ describe("QueueIconItem", () => {
     });
 
     expect(ensureJobPreview).toHaveBeenCalledTimes(0);
+    expect(ensureJobPreviewVariant).toHaveBeenCalledTimes(0);
   });
 
   it("regenerates preview when thumbnail is missing in Tauri mode", async () => {

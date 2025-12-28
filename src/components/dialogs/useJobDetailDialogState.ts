@@ -10,6 +10,7 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import type { FFmpegPreset, JobRun, TranscodeJob } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
+import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
 import {
   formatJobLogLine,
   formatWallClockTimestamp,
@@ -34,11 +35,16 @@ export type JobDetailDialogProps = {
 };
 
 type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
+type DesiredHeightInput = number | null | undefined | { value: number | null | undefined };
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
-export function useJobDetailDialogState(props: JobDetailDialogProps, t: TranslateFn) {
+export function useJobDetailDialogState(
+  props: JobDetailDialogProps,
+  t: TranslateFn,
+  opts?: { desiredPreviewHeightPx?: DesiredHeightInput },
+) {
   // --- Run selection (command + logs) ---
   const selectedCommandRun = ref("0");
   const selectedLogRun = ref("all"); // "all" | "0" | "1" | ...
@@ -85,6 +91,18 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
   const inlinePreviewUrl = ref<string | null>(null);
   const inlinePreviewFallbackLoaded = ref(false);
   const inlinePreviewRescreenshotAttempted = ref(false);
+  let variantEnsureHandle: { promise: Promise<string | null>; cancel: () => void } | null = null;
+
+  const desiredPreviewHeightPx = computed(() => {
+    const raw = opts?.desiredPreviewHeightPx;
+    const value = raw && typeof raw === "object" && "value" in raw ? raw.value : raw;
+    const parsed = Math.floor(Number(value ?? 0));
+    if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+    // Keep a bounded set of tiers so caching remains effective.
+    if (parsed <= 200) return 360;
+    if (parsed <= 420) return 540;
+    return 720;
+  });
 
   watch(
     () => props.open,
@@ -92,22 +110,63 @@ export function useJobDetailDialogState(props: JobDetailDialogProps, t: Translat
       if (prev && !open && hasTauri()) {
         void cleanupFallbackPreviewFramesAsync();
       }
+      if (prev && !open && variantEnsureHandle) {
+        variantEnsureHandle.cancel();
+        variantEnsureHandle = null;
+      }
     },
   );
 
   watch(
-    () => ({ previewPath: props.job?.previewPath, previewRevision: props.job?.previewRevision }),
-    ({ previewPath, previewRevision }) => {
+    () => ({
+      open: props.open,
+      jobId: props.job?.id,
+      type: props.job?.type,
+      previewPath: props.job?.previewPath,
+      previewRevision: props.job?.previewRevision,
+      desiredHeightPx: desiredPreviewHeightPx.value,
+    }),
+    ({ open, jobId, type, previewPath, previewRevision, desiredHeightPx }) => {
       inlinePreviewFallbackLoaded.value = false;
       inlinePreviewRescreenshotAttempted.value = false;
-      if (!previewPath) {
-        if (props.job?.type === "video" && props.job?.id) {
-          requestJobPreviewWarmup(props.job.id);
-        }
+
+      if (!open) {
         inlinePreviewUrl.value = null;
+        if (variantEnsureHandle) {
+          variantEnsureHandle.cancel();
+          variantEnsureHandle = null;
+        }
         return;
       }
-      inlinePreviewUrl.value = buildJobPreviewUrl(previewPath, previewRevision);
+
+      const baseUrl = previewPath ? buildJobPreviewUrl(previewPath, previewRevision) : null;
+      inlinePreviewUrl.value = baseUrl;
+
+      if (!jobId || type !== "video" || !hasTauri()) {
+        if (!baseUrl && type === "video" && jobId) {
+          requestJobPreviewWarmup(jobId);
+        }
+        return;
+      }
+
+      if (desiredHeightPx <= 0) {
+        if (!baseUrl) {
+          requestJobPreviewWarmup(jobId);
+        }
+        return;
+      }
+
+      if (variantEnsureHandle) {
+        variantEnsureHandle.cancel();
+        variantEnsureHandle = null;
+      }
+      variantEnsureHandle = requestJobPreviewAutoEnsure(jobId, { heightPx: desiredHeightPx });
+      void variantEnsureHandle.promise.then((resolved) => {
+        if (!resolved) return;
+        if (!props.open) return;
+        if (props.job?.id !== jobId) return;
+        inlinePreviewUrl.value = buildJobPreviewUrl(resolved, props.job?.previewRevision);
+      });
     },
     { immediate: true },
   );

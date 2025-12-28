@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
+import { useElementSize } from "@vueuse/core";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogScrollContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,15 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const previewButtonRef = ref<HTMLElement | null>(null);
+const { height: previewHeightPx } = useElementSize(previewButtonRef);
+const previewDesiredPixels = computed(() => {
+  const dpr = typeof window !== "undefined" ? Number(window.devicePixelRatio ?? 1) : 1;
+  const height = Math.max(0, Math.floor(previewHeightPx.value));
+  if (!Number.isFinite(dpr) || dpr <= 0) return height;
+  return Math.max(0, Math.floor(height * dpr));
+});
 
 const {
   selectedCommandRun,
@@ -43,7 +54,9 @@ const {
   jobCompletedAtText,
   jobProcessingSeconds,
   unknownPresetLabel,
-} = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)));
+} = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)), {
+  desiredPreviewHeightPx: previewDesiredPixels,
+});
 </script>
 
 <template>
@@ -82,6 +95,7 @@ const {
 
               <div class="relative flex flex-col gap-4 px-3 py-3 md:flex-row">
                 <Button
+                  ref="previewButtonRef"
                   type="button"
                   variant="outline"
                   size="sm"

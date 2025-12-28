@@ -132,8 +132,7 @@ mod tests {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let sidecar_path = tmp_dir.join(format!("{prefix}_{stamp}.json"));
-        sidecar_path
+        tmp_dir.join(format!("{prefix}_{stamp}.json"))
     }
 
     fn make_job(id: &str, status: JobStatus) -> TranscodeJob {

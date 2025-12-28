@@ -12,6 +12,11 @@ import { resetPreviewWarmCacheForTests } from "./previewWarmCache";
 const ensureJobPreviewMock = vi.fn<(jobId: string) => Promise<string | null>>(async (jobId) => {
   return `C:/previews/${jobId}.jpg`;
 });
+const ensureJobPreviewVariantMock = vi.fn<(jobId: string, heightPx: number) => Promise<string | null>>(
+  async (jobId, heightPx) => {
+    return `C:/previews/thumb-cache/${jobId}-${heightPx}.jpg`;
+  },
+);
 const buildJobPreviewUrlMock = vi.fn<(path: string | null | undefined, rev?: number | null) => string | null>(
   (path, rev) => {
     if (!path) return null;
@@ -23,6 +28,7 @@ vi.mock("@/lib/backend", () => {
   return {
     hasTauri: () => true,
     ensureJobPreview: (jobId: string) => ensureJobPreviewMock(jobId),
+    ensureJobPreviewVariant: (jobId: string, heightPx: number) => ensureJobPreviewVariantMock(jobId, heightPx),
     buildJobPreviewUrl: (path: string | null | undefined, rev?: number | null) => {
       return buildJobPreviewUrlMock(path, rev);
     },
@@ -73,6 +79,7 @@ describe("useQueueItemPreview (auto ensure)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     ensureJobPreviewMock.mockClear();
+    ensureJobPreviewVariantMock.mockClear();
     buildJobPreviewUrlMock.mockClear();
     (window as any).requestIdleCallback = undefined;
     (window as any).requestAnimationFrame = undefined;
@@ -98,6 +105,33 @@ describe("useQueueItemPreview (auto ensure)", () => {
     expect(ensureJobPreviewMock).toHaveBeenCalledTimes(1);
     expect(ensureJobPreviewMock).toHaveBeenCalledWith("job-auto-preview");
     expect(composable.previewUrl.value).toBe("url:C:/previews/job-auto-preview.jpg?rev=0");
+
+    wrapper.unmount();
+  });
+
+  it("requests a larger preview variant when desiredHeightPx is provided", async () => {
+    const job = ref(makeJob({ id: "job-variant", previewPath: "C:/previews/base.jpg" }));
+    const wrapper = mount({
+      setup() {
+        provideQueuePerfHints({ isScrolling: ref(false), isQueueRunning: computed(() => false) });
+        const composable = useQueueItemPreview({
+          job: computed(() => job.value),
+          isTestEnv: true,
+          desiredHeightPx: 720,
+        });
+        return { composable };
+      },
+      template: "<div />",
+    });
+
+    const { composable } = wrapper.vm as unknown as { composable: ReturnType<typeof useQueueItemPreview> };
+
+    await nextTick();
+    await vi.runAllTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewVariantMock).toHaveBeenCalledWith("job-variant", 720);
+    expect(composable.previewUrl.value).toBe("url:C:/previews/thumb-cache/job-variant-720.jpg?rev=0");
 
     wrapper.unmount();
   });

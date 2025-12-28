@@ -212,6 +212,7 @@ pub fn run() {
             commands::tools::fallback_preview::cleanup_fallback_preview_frames_async,
             commands::tools::preview_cache::cleanup_preview_caches_async,
             commands::tools::ensure_job_preview,
+            commands::tools::ensure_job_preview_variant,
             commands::tools::playable_media::select_playable_media_path,
             commands::tools::reveal_path_in_folder,
             commands::tools::metrics_subscribe,

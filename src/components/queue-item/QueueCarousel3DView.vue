@@ -129,13 +129,13 @@ const getPreviewUrl = (item: QueueListItem): string | null => {
 const ensurePreviewForItem = async (item: QueueListItem) => {
   const job = getItemJob(item);
   if (!job) return;
-  if (job.previewPath || previewCache[job.id] || job.type !== "video") return;
+  if (previewCache[job.id] || job.type !== "video") return;
   if (!hasTauri()) return;
   if (!allowAutoEnsure.value) return;
   if (pendingPreviewEnsures.has(job.id)) return;
 
   try {
-    const handle = requestJobPreviewAutoEnsure(job.id);
+    const handle = requestJobPreviewAutoEnsure(job.id, { heightPx: 1080 });
     pendingPreviewEnsures.set(job.id, handle);
     const path = await handle.promise;
     if (path) previewCache[job.id] = path;

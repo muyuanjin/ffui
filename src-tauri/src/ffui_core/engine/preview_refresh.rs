@@ -89,6 +89,71 @@ impl TranscodingEngine {
         Some(preview_str)
     }
 
+    /// Ensure a cached preview image variant exists on disk for the given job.
+    ///
+    /// This does not mutate the job's `preview_path` or emit queue deltas; it
+    /// simply returns a stable filesystem path for the requested preview size.
+    pub fn ensure_job_preview_variant(
+        &self,
+        job_id: &str,
+        height_px: u16,
+    ) -> Result<Option<String>, String> {
+        use std::path::Path;
+
+        let (job_type, input_path, duration_seconds) = {
+            let state = self.inner.state.lock_unpoisoned();
+            let job = state
+                .jobs
+                .get(job_id)
+                .ok_or_else(|| "job not found".to_string())?;
+            (
+                job.job_type,
+                job.input_path
+                    .clone()
+                    .ok_or_else(|| "job input_path missing".to_string())?,
+                job.media_info
+                    .as_ref()
+                    .and_then(|info| info.duration_seconds),
+            )
+        };
+
+        if job_type != JobType::Video {
+            return Ok(None);
+        }
+
+        let (height_px, q) = match height_px {
+            120 => (120, 9),
+            180 => (180, 8),
+            360 => (360, 7),
+            540 => (540, 7),
+            720 => (720, 6),
+            1080 => (1080, 6),
+            _ => {
+                return Err(
+                    "unsupported preview height_px (allowed: 120,180,360,540,720,1080)".to_string(),
+                );
+            }
+        };
+
+        let settings = self.settings();
+        let capture_percent = settings.preview_capture_percent;
+
+        let (ffmpeg_path, _source, _did_download) =
+            ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)
+                .map_err(|e| e.to_string())?;
+
+        let preview_path = job_runner::generate_preview_for_video_variant(
+            Path::new(&input_path),
+            &ffmpeg_path,
+            duration_seconds,
+            capture_percent,
+            height_px,
+            q,
+        );
+
+        Ok(preview_path.map(|p| p.to_string_lossy().into_owned()))
+    }
+
     pub(super) fn refresh_video_previews_for_percent(
         &self,
         capture_percent: u8,

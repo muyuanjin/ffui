@@ -39,6 +39,9 @@ pub(super) fn spawn_preview_cache_gc(engine: TranscodingEngine) {
                     &previews_root,
                     &referenced,
                 ));
+                if referenced.is_empty() {
+                    drop(crate::ffui_core::clear_preview_thumb_cache(&previews_root));
+                }
             }
         })
         .map(|_| ());
