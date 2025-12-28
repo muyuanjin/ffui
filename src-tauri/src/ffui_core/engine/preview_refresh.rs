@@ -100,17 +100,22 @@ impl TranscodingEngine {
     ) -> Result<Option<String>, String> {
         use std::path::Path;
 
-        let (job_type, input_path, duration_seconds) = {
+        let (job_type, source_path, duration_seconds) = {
             let state = self.inner.state.lock_unpoisoned();
-            let job = state
-                .jobs
-                .get(job_id)
-                .ok_or_else(|| "job not found".to_string())?;
+            let Some(job) = state.jobs.get(job_id) else {
+                return Ok(None);
+            };
+            let source_path = job.input_path.clone().or_else(|| {
+                let trimmed = job.filename.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                }
+            });
             (
                 job.job_type,
-                job.input_path
-                    .clone()
-                    .ok_or_else(|| "job input_path missing".to_string())?,
+                source_path,
                 job.media_info
                     .as_ref()
                     .and_then(|info| info.duration_seconds),
@@ -120,6 +125,10 @@ impl TranscodingEngine {
         if job_type != JobType::Video {
             return Ok(None);
         }
+
+        let Some(source_path) = source_path else {
+            return Ok(None);
+        };
 
         let (height_px, q) = match height_px {
             120 => (120, 9),
@@ -139,11 +148,13 @@ impl TranscodingEngine {
         let capture_percent = settings.preview_capture_percent;
 
         let (ffmpeg_path, _source, _did_download) =
-            ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)
-                .map_err(|e| e.to_string())?;
+            match ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools) {
+                Ok(v) => v,
+                Err(_) => return Ok(None),
+            };
 
         let preview_path = job_runner::generate_preview_for_video_variant(
-            Path::new(&input_path),
+            Path::new(&source_path),
             &ffmpeg_path,
             duration_seconds,
             capture_percent,
