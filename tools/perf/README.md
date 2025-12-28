@@ -4,12 +4,13 @@
 
 ## 必跑门禁
 
-- `pnpm bench:queue:browser:gate`
+- `pnpm bench:queue:browser:gate` -（可选）规模门禁：`pnpm bench:queue:browser:scale:gate`
 
 该门禁覆盖：
 
 - `--jobs 1000 --processing-jobs 2 --tick-ms 100`
 - `sortPrimary=progress/elapsed`（desc）
+- `sortPrimary=addedTime`（processing 也必须流畅）
 - `progressStyle=bar/ripple-card/card-fill`
 - `全暂停纯滚动`：`--processing-jobs 0 --paused-jobs 1000 --tick-ms 0`
 - `icon view`：`--modes icon-small,icon-medium`
@@ -19,6 +20,9 @@
 ## 手动调参/排查
 
 - `pnpm bench:queue:browser --help`
+- 规模对比（同配置跑 1000/1万/10万）：`pnpm bench:queue:browser:scale` 或 `pnpm bench:queue:browser --jobs-list 1000,10000,100000 ...`
+- 后端增量聚合基准（用于确认 O(patches) 而非 O(N)）：`cargo run --manifest-path src-tauri/Cargo.toml --features bench --bin bench_taskbar_progress_delta -- --jobs-list 1000,10000,100000 --processing-jobs 2 --ticks 5000`
+  - 期望：`avg_apply_delta` 在 1k→100k 规模下保持同数量级，且 100k/1k 的比值不应接近线性增长（经验阈值：≤ 2x）。
 - 例：`pnpm bench:queue:browser --assert --jobs 1000 --processing-jobs 2 --tick-ms 100 --sort-primary progress --sort-primary-direction desc`
 - 例（不发后端增量事件，隔离纯前端滚动）：`pnpm bench:queue:browser --assert --jobs 1000 --processing-jobs 0 --paused-jobs 1000 --tick-ms 0 --modes detail,icon-small`
 - 例（模拟“缺失预览图 + 自动生成 + cache-bust”）：`pnpm bench:queue:browser --assert --jobs 1000 --processing-jobs 0 --paused-jobs 1000 --tick-ms 0 --preview-mode missing-auto-ensure --ensure-preview-delay-ms 30 --modes detail,icon-small`

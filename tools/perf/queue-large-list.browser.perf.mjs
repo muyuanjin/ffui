@@ -21,6 +21,7 @@ const parseArgs = () => {
   const args = process.argv.slice(2);
   const parsed = {
     jobs: 800,
+    jobsList: null,
     processingJobs: 2,
     pausedJobs: 0,
     width: 900,
@@ -51,6 +52,15 @@ const parseArgs = () => {
     if (a === "--") continue;
     if (a === "--jobs") {
       parsed.jobs = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--jobs-list") {
+      parsed.jobsList = takeValue(args, i, a)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => Number(s));
       i += 1;
       continue;
     }
@@ -177,6 +187,7 @@ const parseArgs = () => {
           "",
           "Options:",
           "  --jobs <N>             Total jobs (default: 800)",
+          "  --jobs-list <CSV>      Total jobs list (e.g. 1000,10000,100000). When set, runs each entry.",
           "  --processing-jobs <N>  Processing jobs (default: 2)",
           "  --paused-jobs <N>      Paused jobs (default: 0)",
           "  --locale <LOCALE>      Locale query param (default: zh-CN)",
@@ -206,6 +217,14 @@ const parseArgs = () => {
   }
 
   if (!Number.isFinite(parsed.jobs) || parsed.jobs <= 0) throw new Error(`Invalid --jobs: ${parsed.jobs}`);
+  if (parsed.jobsList != null) {
+    if (!Array.isArray(parsed.jobsList) || parsed.jobsList.length === 0) {
+      throw new Error("Invalid --jobs-list: must be a non-empty CSV list");
+    }
+    for (const n of parsed.jobsList) {
+      if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid --jobs-list entry: ${n}`);
+    }
+  }
   if (!Number.isFinite(parsed.processingJobs) || parsed.processingJobs < 0)
     throw new Error(`Invalid --processing-jobs: ${parsed.processingJobs}`);
   if (!Number.isFinite(parsed.pausedJobs) || parsed.pausedJobs < 0)
@@ -379,6 +398,7 @@ const startPerfRun = async (page, options) => {
 
     const domRows = globalThis.document.querySelectorAll("[data-testid='queue-item-card']").length;
     const domIconRows = globalThis.document.querySelectorAll("[data-testid='queue-icon-item']").length;
+    const queuePerf = globalThis.__FFUI_QUEUE_PERF__ ?? null;
 
     return {
       elapsedMs,
@@ -389,6 +409,7 @@ const startPerfRun = async (page, options) => {
       eventLoopLagP95Ms: sortedP95(lagSamples),
       domRows,
       domIconRows,
+      queuePerf,
     };
   }, options);
 };
@@ -457,35 +478,11 @@ const main = async () => {
             sortSecondaryDirection: args.sortSecondaryDirection,
           },
         );
-        const page = await context.newPage();
-
-        const url = new URL(ensureTrailingSlash(baseUrl));
-        url.searchParams.set("ffuiLocale", args.locale);
-        url.searchParams.set("ffuiQueueJobs", String(args.jobs));
-        url.searchParams.set("ffuiQueueProcessingJobs", String(args.processingJobs));
-        url.searchParams.set("ffuiQueuePausedJobs", String(args.pausedJobs));
-        if (args.includeCommand) {
-          url.searchParams.set("ffuiQueueIncludeCommand", "1");
-        }
-        url.searchParams.set("ffuiQueuePreviewMode", String(args.previewMode));
-        if (args.ensurePreviewDelayMs > 0) {
-          url.searchParams.set("ffuiQueueEnsurePreviewDelayMs", String(Math.floor(args.ensurePreviewDelayMs)));
-        }
-
-        await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 90_000 });
-        await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 90_000 });
-        await page.getByTestId("ffui-tab-queue").click();
-        await page.locator("[data-testid='queue-panel']").waitFor({ state: "visible", timeout: 90_000 });
-        // Vite may trigger a one-time reload while optimizing deps; wait briefly
-        // so the perf run doesn't start inside a navigation.
-        await page.waitForTimeout(1200);
-
         const jobIds = [];
         for (let i = 0; i < Math.max(0, args.processingJobs); i += 1) {
           jobIds.push(`docs-perf-${String(i).padStart(6, "0")}`);
         }
 
-        const results = {};
         const thresholds = {
           minFps: args.minFps,
           maxLagP95Ms: args.maxLagP95Ms,
@@ -493,61 +490,98 @@ const main = async () => {
           maxDomIconRows: args.maxDomIconRows,
         };
 
-        const runMode = async (mode, testId, key) => {
-          let lastError = null;
-          for (let attempt = 0; attempt < 3; attempt += 1) {
-            try {
-              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
-              await ensureQueuePanelVisible(page);
-              await setQueueViewMode(page, testId);
-              await waitForQueueModeReady(page, mode);
-              // Vite may trigger a one-time dependency optimization reload the first
-              // time a mode is mounted (icon views are often the first to load).
-              // Give it a moment to settle before starting page.evaluate().
-              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
-              await page.waitForTimeout(900);
+        const jobsRuns = Array.isArray(args.jobsList) && args.jobsList.length > 0 ? args.jobsList : [args.jobs];
+        const runs = [];
 
-              const perfRun = startPerfRun(page, {
-                durationMs: args.durationMs,
-                tickMs: args.tickMs,
-                baseSnapshotRevision: 1,
-                jobIds,
-              });
-              const scrollStartedAt = Date.now();
-              while (Date.now() - scrollStartedAt < args.durationMs) {
-                // eslint-disable-next-line no-await-in-loop
-                await page.mouse.wheel(0, args.scrollDeltaY);
-                // eslint-disable-next-line no-await-in-loop
-                await page.waitForTimeout(args.scrollEveryMs);
-              }
-              results[key] = await perfRun;
-              if (args.assert) assertResult(mode, results[key], thresholds);
-              return;
-            } catch (error) {
-              lastError = error;
-              if (!isContextDestroyedError(error) || attempt === 2) {
-                throw error;
-              }
-              // Retry after navigation/reload.
-              await page.waitForLoadState("domcontentloaded", { timeout: 90_000 }).catch(() => {});
-              await page.waitForTimeout(1200);
+        for (const jobsCount of jobsRuns) {
+          const page = await context.newPage();
+          try {
+            const url = new URL(ensureTrailingSlash(baseUrl));
+            url.searchParams.set("ffuiLocale", args.locale);
+            url.searchParams.set("ffuiQueueJobs", String(jobsCount));
+            url.searchParams.set("ffuiQueueProcessingJobs", String(args.processingJobs));
+            url.searchParams.set("ffuiQueuePausedJobs", String(args.pausedJobs));
+            if (args.includeCommand) {
+              url.searchParams.set("ffuiQueueIncludeCommand", "1");
             }
-          }
-          if (lastError) throw lastError;
-        };
+            url.searchParams.set("ffuiQueuePreviewMode", String(args.previewMode));
+            if (args.ensurePreviewDelayMs > 0) {
+              url.searchParams.set("ffuiQueueEnsurePreviewDelayMs", String(Math.floor(args.ensurePreviewDelayMs)));
+            }
 
-        for (const mode of args.modes) {
-          if (mode === "detail") await runMode("detail", "ffui-queue-view-mode-detail", "detail");
-          else if (mode === "compact") await runMode("compact", "ffui-queue-view-mode-compact", "compact");
-          else if (mode === "mini") await runMode("mini", "ffui-queue-view-mode-mini", "mini");
-          else if (mode === "icon-small") await runMode("icon-small", "ffui-queue-view-mode-icon-small", "iconSmall");
-          else if (mode === "icon-medium")
-            await runMode("icon-medium", "ffui-queue-view-mode-icon-medium", "iconMedium");
-          else if (mode === "icon-large") await runMode("icon-large", "ffui-queue-view-mode-icon-large", "iconLarge");
+            await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 90_000 });
+            await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 90_000 });
+            await page.getByTestId("ffui-tab-queue").click();
+            await page.locator("[data-testid='queue-panel']").waitFor({ state: "visible", timeout: 90_000 });
+            // Vite may trigger a one-time reload while optimizing deps; wait briefly
+            // so the perf run doesn't start inside a navigation.
+            await page.waitForTimeout(1200);
+
+            const results = {};
+
+            const runMode = async (mode, testId, key) => {
+              let lastError = null;
+              for (let attempt = 0; attempt < 3; attempt += 1) {
+                try {
+                  await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
+                  await ensureQueuePanelVisible(page);
+                  await setQueueViewMode(page, testId);
+                  await waitForQueueModeReady(page, mode);
+                  // Vite may trigger a one-time dependency optimization reload the first
+                  // time a mode is mounted (icon views are often the first to load).
+                  // Give it a moment to settle before starting page.evaluate().
+                  await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
+                  await page.waitForTimeout(900);
+
+                  const perfRun = startPerfRun(page, {
+                    durationMs: args.durationMs,
+                    tickMs: args.tickMs,
+                    baseSnapshotRevision: 1,
+                    jobIds,
+                  });
+                  const scrollStartedAt = Date.now();
+                  while (Date.now() - scrollStartedAt < args.durationMs) {
+                    // eslint-disable-next-line no-await-in-loop
+                    await page.mouse.wheel(0, args.scrollDeltaY);
+                    // eslint-disable-next-line no-await-in-loop
+                    await page.waitForTimeout(args.scrollEveryMs);
+                  }
+                  results[key] = await perfRun;
+                  if (args.assert) assertResult(`${mode} (jobs=${jobsCount})`, results[key], thresholds);
+                  return;
+                } catch (error) {
+                  lastError = error;
+                  if (!isContextDestroyedError(error) || attempt === 2) {
+                    throw error;
+                  }
+                  // Retry after navigation/reload.
+                  await page.waitForLoadState("domcontentloaded", { timeout: 90_000 }).catch(() => {});
+                  await page.waitForTimeout(1200);
+                }
+              }
+              if (lastError) throw lastError;
+            };
+
+            for (const mode of args.modes) {
+              if (mode === "detail") await runMode("detail", "ffui-queue-view-mode-detail", "detail");
+              else if (mode === "compact") await runMode("compact", "ffui-queue-view-mode-compact", "compact");
+              else if (mode === "mini") await runMode("mini", "ffui-queue-view-mode-mini", "mini");
+              else if (mode === "icon-small")
+                await runMode("icon-small", "ffui-queue-view-mode-icon-small", "iconSmall");
+              else if (mode === "icon-medium")
+                await runMode("icon-medium", "ffui-queue-view-mode-icon-medium", "iconMedium");
+              else if (mode === "icon-large")
+                await runMode("icon-large", "ffui-queue-view-mode-icon-large", "iconLarge");
+            }
+
+            runs.push({ jobs: jobsCount, results });
+          } finally {
+            await page.close().catch(() => {});
+          }
         }
 
         // eslint-disable-next-line no-console
-        console.log("[perf] queue large list (browser):", JSON.stringify({ args, results }, null, 2));
+        console.log("[perf] queue large list (browser):", JSON.stringify({ args, runs }, null, 2));
       } finally {
         await browser.close();
       }

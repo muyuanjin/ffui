@@ -100,3 +100,8 @@ required-features = ["bench"]
 name = "bench_queue_state_lite"
 path = "src/bin/bench_queue_state_lite.rs"
 required-features = ["bench"]
+
+[[bin]]
+name = "bench_taskbar_progress_delta"
+path = "src/bin/bench_taskbar_progress_delta.rs"
+required-features = ["bench"]

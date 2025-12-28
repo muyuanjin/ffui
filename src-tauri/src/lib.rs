@@ -37,7 +37,10 @@ pub use crate::ffui_core::{
 };
 
 #[cfg(feature = "bench")]
-pub use crate::ffui_core::bench;
+pub use crate::ffui_core::{
+    QueueStateUiLite, TaskbarProgressDeltaTracker, TaskbarProgressMode, TaskbarProgressScope,
+    TranscodeJobUiLite, bench,
+};
 
 // Taskbar progress APIs are Windows-only; on other platforms we keep the module
 // present but empty so `-D warnings` does not fail due to unused helpers.
