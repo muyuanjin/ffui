@@ -312,6 +312,7 @@ const other = {
     // 排序方式（字符数保持一致以获得更好观感）
     sortManual: "手动排序",
     sortUsage: "使用次数",
+    sortInputSize: "输入数据",
     sortRatio: "压缩效率",
     sortSpeed: "处理速度",
     sortName: "名称排序",

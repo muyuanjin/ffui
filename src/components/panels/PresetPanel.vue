@@ -95,6 +95,7 @@ const handleSortModeChange = (value: AcceptableValue) => {
 const sortOptions: { value: PresetSortMode; labelKey: string }[] = [
   { value: "manual", labelKey: "presets.sortManual" },
   { value: "usage", labelKey: "presets.sortUsage" },
+  { value: "inputSize", labelKey: "presets.sortInputSize" },
   { value: "ratio", labelKey: "presets.sortRatio" },
   { value: "speed", labelKey: "presets.sortSpeed" },
   { value: "name", labelKey: "presets.sortName" },
@@ -230,12 +231,12 @@ useSortable(containerRef, localPresets, {
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <Select :key="locale" :model-value="localSortMode" @update:model-value="handleSortModeChange">
-          <SelectTrigger class="h-7 w-[100px] text-[11px]">
+          <SelectTrigger class="h-7 w-[100px] px-2 py-0 text-[11px]">
             <SelectValue>
               {{ currentSortLabel }}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent :disable-outside-pointer-events="false">
             <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">
               {{ t(option.labelKey) }}
             </SelectItem>

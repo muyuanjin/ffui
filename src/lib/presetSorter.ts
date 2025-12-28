@@ -42,6 +42,16 @@ export function sortPresets(presets: FFmpegPreset[], sortMode: PresetSortMode): 
     case "usage":
       sorted.sort((a, b) => b.stats.usageCount - a.stats.usageCount);
       break;
+    case "inputSize":
+      sorted.sort((a, b) => {
+        const sizeA = a.stats.totalInputSizeMB > 0 ? a.stats.totalInputSizeMB : null;
+        const sizeB = b.stats.totalInputSizeMB > 0 ? b.stats.totalInputSizeMB : null;
+        if (sizeA == null && sizeB == null) return 0;
+        if (sizeA == null) return 1;
+        if (sizeB == null) return -1;
+        return sizeB - sizeA;
+      });
+      break;
     case "ratio":
       sorted.sort((a, b) => {
         const ratioA = getPresetAvgRatio(a);

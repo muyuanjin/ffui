@@ -21,7 +21,7 @@ export interface AppUpdaterSettings {
 }
 
 /** 预设排序方式 */
-export type PresetSortMode = "manual" | "usage" | "ratio" | "speed" | "name";
+export type PresetSortMode = "manual" | "usage" | "inputSize" | "ratio" | "speed" | "name";
 
 /** 预设面板视图模式 */
 export type PresetViewMode = "grid" | "compact";

@@ -323,6 +323,7 @@ const other = {
     // Sort modes (keep character count consistent for better appearance)
     sortManual: "Manual   ",
     sortUsage: "By usage ",
+    sortInputSize: "Input MB",
     sortRatio: "By ratio ",
     sortSpeed: "By speed ",
     sortName: "By name  ",
