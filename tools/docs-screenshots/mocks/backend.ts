@@ -89,6 +89,7 @@ export const buildPreviewUrl = (path: string | null | undefined): string | null 
 
 export const buildJobPreviewUrl = (path: string | null | undefined, revision?: number | null): string | null => {
   if (!path) return null;
+  if (path.startsWith("data:") || path.startsWith("blob:")) return path;
   const r = Number(revision ?? 0);
   if (!Number.isFinite(r) || r <= 0) return path;
   const sep = path.includes("?") ? "&" : "?";
@@ -102,6 +103,14 @@ export type FallbackFrameQuality = "low" | "high";
 
 const FALLBACK_PREVIEW_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1W2XwAAAAASUVORK5CYII=";
+
+let perfPosterDataUrl: string | null = null;
+
+const getPerfPosterDataUrl = (): string => {
+  if (perfPosterDataUrl) return perfPosterDataUrl;
+  perfPosterDataUrl = `data:image/png;base64,${FALLBACK_PREVIEW_PNG_BASE64}`;
+  return perfPosterDataUrl;
+};
 
 export const extractFallbackPreviewFrame = async (_args: {
   sourcePath: string;
@@ -464,9 +473,9 @@ const resolveMediaEnv = (key: string, fallback: string): string => {
   return v ?? fallback;
 };
 
-const resolvePosterEnv = (key: string): string | undefined => {
+const resolvePosterEnv = (key: string): string => {
   const v = readEnv(key);
-  return v;
+  return v ?? getPerfPosterDataUrl();
 };
 
 const readQueryParam = (key: string): string | undefined => {
@@ -530,6 +539,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
     const previewMode = readQueryParam("ffuiQueuePreviewMode") ?? "static";
     const isPreviewMissing = previewMode === "missing-auto-ensure";
     const uniquePreviewRev = previewMode === "unique-rev" || isPreviewMissing;
+    const thumbUrlFor = (id: string) => `/__ffui_perf__/thumb.bmp?jobId=${encodeURIComponent(id)}`;
 
     const total = Math.max(1, Math.floor(queueJobs));
     const jobs: TranscodeJob[] = new Array(total);
@@ -546,6 +556,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
         ? `ffmpeg -hide_banner -nostdin -y -progress pipe:2 -i \"${filename}\" -c:v libx264 -preset medium -crf 23 -vf \"scale=-2:1080\" -c:a copy \"${outputPath}\"`
         : undefined;
 
+      const thumbUrl = thumbUrlFor(id);
       jobs[i] = {
         id,
         filename,
@@ -558,7 +569,7 @@ const buildQueueJobs = (): TranscodeJob[] => {
         progress,
         inputPath: filename,
         outputPath,
-        previewPath: isPreviewMissing ? undefined : poster1,
+        previewPath: isPreviewMissing ? undefined : thumbUrl,
         previewRevision: uniquePreviewRev ? i + 1 : 0,
         ffmpegCommand,
         logs: [],
@@ -796,6 +807,12 @@ export const ensureJobPreview = async (_jobId: string): Promise<string | null> =
   }
 
   const poster1 = resolvePosterEnv("VITE_DOCS_SCREENSHOT_POSTER_1");
+  const queueJobs = readQueryParamNumber("ffuiQueueJobs");
+  if (typeof queueJobs === "number" && queueJobs > 0) {
+    const normalized = String(_jobId ?? "").trim();
+    if (normalized.length === 0) return poster1 ?? null;
+    return poster1 ?? `/__ffui_perf__/thumb.bmp?jobId=${encodeURIComponent(normalized)}`;
+  }
   return poster1 ?? null;
 };
 

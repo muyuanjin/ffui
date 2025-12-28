@@ -33,6 +33,8 @@ const parseArgs = () => {
     ensurePreviewDelayMs: 0,
     scrollEveryMs: 40,
     scrollDeltaY: 240,
+    segments: 1,
+    maxHeapGrowthMB: null,
     includeCommand: true,
     progressStyle: "bar",
     sortPrimary: "addedTime",
@@ -106,6 +108,26 @@ const parseArgs = () => {
     }
     if (a === "--ensure-preview-delay-ms") {
       parsed.ensurePreviewDelayMs = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--scroll-every-ms") {
+      parsed.scrollEveryMs = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--scroll-delta-y") {
+      parsed.scrollDeltaY = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--segments") {
+      parsed.segments = Number(takeValue(args, i, a));
+      i += 1;
+      continue;
+    }
+    if (a === "--max-heap-growth-mb") {
+      parsed.maxHeapGrowthMB = Number(takeValue(args, i, a));
       i += 1;
       continue;
     }
@@ -195,6 +217,9 @@ const parseArgs = () => {
           "  --height <PX>          Viewport height (default: 900)",
           "  --duration-ms <MS>     Perf run duration (default: 6000)",
           "  --tick-ms <MS>         Delta emit interval, 0 disables (default: 50)",
+          "  --scroll-every-ms <MS> Mouse wheel cadence (default: 40)",
+          "  --scroll-delta-y <PX>  Mouse wheel deltaY (default: 240)",
+          "  --segments <N>         Split run into N segments and report per-segment stats (default: 1)",
           "  --[no-]include-command Include long ffmpegCommand in jobs (default: on)",
           "  --preview-mode <M>     static|unique-rev|missing-auto-ensure (default: static)",
           "  --ensure-preview-delay-ms <MS> Delay for ensureJobPreview in mock mode (default: 0)",
@@ -207,6 +232,7 @@ const parseArgs = () => {
           "  --assert               Fail with non-zero exit when thresholds are not met",
           "  --min-fps <N>          Threshold when --assert (default: 55)",
           "  --max-lag-p95-ms <N>   Threshold when --assert (default: 20)",
+          "  --max-heap-growth-mb <N> Optional threshold when --assert (requires Chromium performance.memory)",
           "  --max-dom-rows <N>     Threshold when --assert (default: 120)",
           "  --max-dom-icon-rows <N> Threshold when --assert (default: 180)",
         ].join("\n"),
@@ -233,6 +259,16 @@ const parseArgs = () => {
   if (!Number.isFinite(parsed.height) || parsed.height <= 0) throw new Error(`Invalid --height: ${parsed.height}`);
   if (!Number.isFinite(parsed.durationMs) || parsed.durationMs <= 0) throw new Error(`Invalid --duration-ms`);
   if (!Number.isFinite(parsed.tickMs) || parsed.tickMs < 0) throw new Error(`Invalid --tick-ms`);
+  if (!Number.isFinite(parsed.scrollEveryMs) || parsed.scrollEveryMs < 0)
+    throw new Error(`Invalid --scroll-every-ms: ${parsed.scrollEveryMs}`);
+  if (!Number.isFinite(parsed.scrollDeltaY)) throw new Error(`Invalid --scroll-delta-y: ${parsed.scrollDeltaY}`);
+  if (!Number.isFinite(parsed.segments) || parsed.segments <= 0)
+    throw new Error(`Invalid --segments: ${parsed.segments}`);
+  if (parsed.maxHeapGrowthMB != null) {
+    if (!Number.isFinite(parsed.maxHeapGrowthMB) || parsed.maxHeapGrowthMB < 0) {
+      throw new Error(`Invalid --max-heap-growth-mb: ${parsed.maxHeapGrowthMB}`);
+    }
+  }
   if (!Number.isFinite(parsed.ensurePreviewDelayMs) || parsed.ensurePreviewDelayMs < 0)
     throw new Error(`Invalid --ensure-preview-delay-ms: ${parsed.ensurePreviewDelayMs}`);
   if (!Number.isFinite(parsed.minFps) || parsed.minFps <= 0) throw new Error(`Invalid --min-fps: ${parsed.minFps}`);
@@ -289,9 +325,18 @@ const parseArgs = () => {
 
 const ensureTrailingSlash = (value) => (value.endsWith("/") ? value : `${value}/`);
 
-const setQueueViewMode = async (page, modeTestId) => {
-  await page.getByTestId("ffui-queue-view-mode-trigger").click();
-  await page.getByTestId(modeTestId).click();
+const setQueueViewMode = async (page, mode) => {
+  // Prefer a localStorage + reload path over UI clicking:
+  // UI interactions here are prone to flakiness when overlays/transforms are active.
+  await page.evaluate((nextMode) => {
+    try {
+      globalThis.localStorage?.setItem("ffui.queueViewMode", String(nextMode));
+    } catch {
+      // ignore
+    }
+  }, mode);
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 90_000 });
+  await ensureQueuePanelVisible(page);
   await page.waitForTimeout(150);
 };
 
@@ -331,7 +376,26 @@ const startPerfRun = async (page, options) => {
     const startedAt = nowMs();
     const endAt = startedAt + Math.max(0, Math.floor(opts.durationMs));
 
+    const segmentCount = (() => {
+      const n = Number(opts.segments ?? 1);
+      if (!Number.isFinite(n) || n <= 0) return 1;
+      return Math.floor(n);
+    })();
+    const durationMs = Math.max(1, Math.floor(opts.durationMs));
+    const segmentMs = Math.max(1, Math.floor(durationMs / segmentCount));
+    const segmentIndexAt = (tMs) => Math.min(segmentCount - 1, Math.max(0, Math.floor(tMs / segmentMs)));
+
+    const readHeapUsedBytes = () => {
+      const mem = performance?.memory;
+      const used = mem?.usedJSHeapSize;
+      return typeof used === "number" && Number.isFinite(used) ? used : null;
+    };
+
+    const heapUsedStartBytes = readHeapUsedBytes();
+    const heapUsedEndBySegment = new Array(segmentCount).fill(null);
+
     const lagSamples = [];
+    const lagSamplesBySegment = Array.from({ length: segmentCount }, () => []);
     const LAG_SAMPLE_INTERVAL_MS = 100;
     let expected = nowMs() + LAG_SAMPLE_INTERVAL_MS;
     const lagTimer = globalThis.setInterval(() => {
@@ -339,13 +403,16 @@ const startPerfRun = async (page, options) => {
       const lag = Math.max(0, now - expected);
       expected = now + LAG_SAMPLE_INTERVAL_MS;
       lagSamples.push(lag);
+      lagSamplesBySegment[segmentIndexAt(now - startedAt)]?.push(lag);
     }, LAG_SAMPLE_INTERVAL_MS);
 
     let rafFrames = 0;
+    const rafFramesBySegment = new Array(segmentCount).fill(0);
     let rafActive = true;
     const rafTick = () => {
       if (!rafActive) return;
       rafFrames += 1;
+      rafFramesBySegment[segmentIndexAt(nowMs() - startedAt)] += 1;
       globalThis.requestAnimationFrame(rafTick);
     };
     globalThis.requestAnimationFrame(rafTick);
@@ -383,6 +450,16 @@ const startPerfRun = async (page, options) => {
     const shouldEmit = tickMs > 0 && jobIds.length > 0;
     const tickTimer = shouldEmit ? globalThis.setInterval(emitTick, tickMs) : null;
 
+    const heapTimer = globalThis.setInterval(
+      () => {
+        const used = readHeapUsedBytes();
+        if (used == null) return;
+        const idx = segmentIndexAt(nowMs() - startedAt);
+        heapUsedEndBySegment[idx] = used;
+      },
+      Math.min(500, segmentMs),
+    );
+
     const sleep = (ms) => new Promise((r) => globalThis.setTimeout(r, ms));
     while (nowMs() < endAt) {
       // eslint-disable-next-line no-await-in-loop
@@ -391,6 +468,7 @@ const startPerfRun = async (page, options) => {
 
     if (tickTimer != null) globalThis.clearInterval(tickTimer);
     globalThis.clearInterval(lagTimer);
+    globalThis.clearInterval(heapTimer);
     rafActive = false;
 
     const elapsedMs = Math.max(1, nowMs() - startedAt);
@@ -399,6 +477,23 @@ const startPerfRun = async (page, options) => {
     const domRows = globalThis.document.querySelectorAll("[data-testid='queue-item-card']").length;
     const domIconRows = globalThis.document.querySelectorAll("[data-testid='queue-icon-item']").length;
     const queuePerf = globalThis.__FFUI_QUEUE_PERF__ ?? null;
+
+    const segments = new Array(segmentCount).fill(null).map((_, idx) => {
+      const segElapsedMs = idx === segmentCount - 1 ? elapsedMs - idx * segmentMs : segmentMs;
+      const frames = rafFramesBySegment[idx] ?? 0;
+      const fpsSeg = segElapsedMs > 0 ? (frames * 1000) / segElapsedMs : 0;
+      const lagP95 = sortedP95(lagSamplesBySegment[idx] ?? []);
+      return {
+        fps: fpsSeg,
+        eventLoopLagP95Ms: lagP95,
+        heapUsedEndBytes: heapUsedEndBySegment[idx] ?? null,
+      };
+    });
+    const heapUsedEndBytes = readHeapUsedBytes();
+    const heapGrowthBytes =
+      typeof heapUsedStartBytes === "number" && typeof heapUsedEndBytes === "number"
+        ? heapUsedEndBytes - heapUsedStartBytes
+        : null;
 
     return {
       elapsedMs,
@@ -410,6 +505,10 @@ const startPerfRun = async (page, options) => {
       domRows,
       domIconRows,
       queuePerf,
+      segments,
+      heapUsedStartBytes,
+      heapUsedEndBytes,
+      heapGrowthBytes,
     };
   }, options);
 };
@@ -421,6 +520,15 @@ const assertResult = (label, result, thresholds) => {
   }
   if (typeof result?.eventLoopLagP95Ms === "number" && result.eventLoopLagP95Ms > thresholds.maxLagP95Ms) {
     failures.push(`lagP95=${result.eventLoopLagP95Ms.toFixed(1)}ms > ${thresholds.maxLagP95Ms}ms`);
+  }
+  if (
+    typeof thresholds?.maxHeapGrowthMB === "number" &&
+    typeof result?.heapGrowthBytes === "number" &&
+    result.heapGrowthBytes / (1024 * 1024) > thresholds.maxHeapGrowthMB
+  ) {
+    failures.push(
+      `heapGrowth=${(result.heapGrowthBytes / (1024 * 1024)).toFixed(1)}MB > ${thresholds.maxHeapGrowthMB}MB`,
+    );
   }
   if (typeof result?.domRows === "number" && result.domRows > thresholds.maxDomRows) {
     failures.push(`domRows=${result.domRows} > ${thresholds.maxDomRows}`);
@@ -486,6 +594,7 @@ const main = async () => {
         const thresholds = {
           minFps: args.minFps,
           maxLagP95Ms: args.maxLagP95Ms,
+          maxHeapGrowthMB: args.maxHeapGrowthMB,
           maxDomRows: args.maxDomRows,
           maxDomIconRows: args.maxDomIconRows,
         };
@@ -519,13 +628,12 @@ const main = async () => {
 
             const results = {};
 
-            const runMode = async (mode, testId, key) => {
+            const runMode = async (mode, key) => {
               let lastError = null;
               for (let attempt = 0; attempt < 3; attempt += 1) {
                 try {
                   await page.waitForLoadState("domcontentloaded", { timeout: 90_000 });
-                  await ensureQueuePanelVisible(page);
-                  await setQueueViewMode(page, testId);
+                  await setQueueViewMode(page, mode);
                   await waitForQueueModeReady(page, mode);
                   // Vite may trigger a one-time dependency optimization reload the first
                   // time a mode is mounted (icon views are often the first to load).
@@ -536,6 +644,7 @@ const main = async () => {
                   const perfRun = startPerfRun(page, {
                     durationMs: args.durationMs,
                     tickMs: args.tickMs,
+                    segments: args.segments,
                     baseSnapshotRevision: 1,
                     jobIds,
                   });
@@ -563,15 +672,12 @@ const main = async () => {
             };
 
             for (const mode of args.modes) {
-              if (mode === "detail") await runMode("detail", "ffui-queue-view-mode-detail", "detail");
-              else if (mode === "compact") await runMode("compact", "ffui-queue-view-mode-compact", "compact");
-              else if (mode === "mini") await runMode("mini", "ffui-queue-view-mode-mini", "mini");
-              else if (mode === "icon-small")
-                await runMode("icon-small", "ffui-queue-view-mode-icon-small", "iconSmall");
-              else if (mode === "icon-medium")
-                await runMode("icon-medium", "ffui-queue-view-mode-icon-medium", "iconMedium");
-              else if (mode === "icon-large")
-                await runMode("icon-large", "ffui-queue-view-mode-icon-large", "iconLarge");
+              if (mode === "detail") await runMode("detail", "detail");
+              else if (mode === "compact") await runMode("compact", "compact");
+              else if (mode === "mini") await runMode("mini", "mini");
+              else if (mode === "icon-small") await runMode("icon-small", "iconSmall");
+              else if (mode === "icon-medium") await runMode("icon-medium", "iconMedium");
+              else if (mode === "icon-large") await runMode("icon-large", "iconLarge");
             }
 
             runs.push({ jobs: jobsCount, results });
