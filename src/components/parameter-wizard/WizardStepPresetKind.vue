@@ -19,7 +19,7 @@ const emit = defineEmits<{
   <div class="space-y-4" data-testid="preset-kind-step">
     <div>
       <h3 class="text-base font-semibold">{{ t("presetEditor.kind.title") }}</h3>
-      <p class="text-xs text-muted-foreground mt-1">
+      <p class="text-xs text-muted-foreground mt-1 whitespace-normal break-words">
         {{ t("presetEditor.kind.description") }}
       </p>
     </div>
@@ -41,7 +41,7 @@ const emit = defineEmits<{
           </div>
           <div class="min-w-0">
             <div class="font-medium text-sm text-foreground">{{ t("presetEditor.kind.structuredTitle") }}</div>
-            <div class="text-[11px] text-muted-foreground mt-1">
+            <div class="text-[11px] text-muted-foreground mt-1 whitespace-normal break-words">
               {{ t("presetEditor.kind.structuredDescription") }}
             </div>
           </div>
@@ -64,7 +64,7 @@ const emit = defineEmits<{
           </div>
           <div class="min-w-0">
             <div class="font-medium text-sm text-foreground">{{ t("presetEditor.kind.customTitle") }}</div>
-            <div class="text-[11px] text-muted-foreground mt-1">
+            <div class="text-[11px] text-muted-foreground mt-1 whitespace-normal break-words">
               {{ t("presetEditor.kind.customDescription") }}
             </div>
           </div>

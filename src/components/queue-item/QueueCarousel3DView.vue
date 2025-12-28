@@ -168,13 +168,20 @@ watch(
 watch(
   allowAutoEnsure,
   (allowed) => {
-    if (allowed) return;
-    for (const handle of pendingPreviewEnsures.values()) {
-      handle.cancel();
+    if (!allowed) {
+      for (const handle of pendingPreviewEnsures.values()) {
+        handle.cancel();
+      }
+      pendingPreviewEnsures.clear();
+      return;
     }
-    pendingPreviewEnsures.clear();
+
+    const items = displayedItems.value;
+    for (let i = Math.max(0, activeIndex.value - 2); i <= Math.min(items.length - 1, activeIndex.value + 2); i++) {
+      void ensurePreviewForItem(items[i]);
+    }
   },
-  { flush: "sync" },
+  { flush: "post" },
 );
 
 const getCardStyle = (index: number) => {
