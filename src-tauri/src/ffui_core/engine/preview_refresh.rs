@@ -139,17 +139,11 @@ impl TranscodingEngine {
                     status: None,
                     progress: None,
                     telemetry: None,
-                    progress_out_time_seconds: None,
-                    progress_speed: None,
-                    progress_updated_at_ms: None,
-                    progress_epoch: None,
                     elapsed_ms: None,
                     preview: Some(TranscodeJobLitePreviewDelta {
                         preview_path: Some(preview_str.clone()),
                         preview_revision: Some(job.preview_revision),
                     }),
-                    preview_path: Some(preview_str.clone()),
-                    preview_revision: Some(job.preview_revision),
                 })
             } else {
                 None
@@ -383,17 +377,11 @@ impl TranscodingEngine {
                     status: None,
                     progress: None,
                     telemetry: None,
-                    progress_out_time_seconds: None,
-                    progress_speed: None,
-                    progress_updated_at_ms: None,
-                    progress_epoch: None,
                     elapsed_ms: None,
                     preview: Some(TranscodeJobLitePreviewDelta {
                         preview_path: Some(preview_str.clone()),
                         preview_revision: Some(preview_revision),
                     }),
-                    preview_path: Some(preview_str.clone()),
-                    preview_revision: Some(preview_revision),
                 });
             }
 

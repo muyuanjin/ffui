@@ -120,6 +120,11 @@ pub(super) fn update_job_progress(
                         .is_none_or(|prev| prev != frame);
                     if changed {
                         meta.last_progress_frame = Some(frame);
+                        meta.last_progress_updated_at_ms = Some(now_ms);
+                        telemetry_changed = true;
+                    } else if meta.last_progress_updated_at_ms.is_none() {
+                        meta.last_progress_updated_at_ms = Some(now_ms);
+                        telemetry_changed = true;
                     }
                 }
             }
@@ -175,11 +180,13 @@ pub(super) fn update_job_progress(
                         last_progress_out_time_seconds: m.last_progress_out_time_seconds,
                         last_progress_speed: m.last_progress_speed,
                         last_progress_updated_at_ms: m.last_progress_updated_at_ms,
+                        last_progress_frame: m.last_progress_frame,
                     };
                     if delta.progress_epoch.is_none()
                         && delta.last_progress_out_time_seconds.is_none()
                         && delta.last_progress_speed.is_none()
                         && delta.last_progress_updated_at_ms.is_none()
+                        && delta.last_progress_frame.is_none()
                     {
                         None
                     } else {
@@ -191,14 +198,8 @@ pub(super) fn update_job_progress(
                     status: Some(job.status),
                     progress: progress_changed.then_some(job.progress),
                     telemetry,
-                    progress_out_time_seconds: None,
-                    progress_speed: None,
-                    progress_updated_at_ms: None,
-                    progress_epoch: None,
                     elapsed_ms: progress_changed.then_some(job.elapsed_ms).flatten(),
                     preview: None,
-                    preview_path: None,
-                    preview_revision: None,
                 });
             }
         }

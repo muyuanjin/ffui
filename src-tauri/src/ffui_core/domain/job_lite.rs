@@ -145,6 +145,8 @@ pub struct TranscodeJobLiteTelemetryDelta {
     pub last_progress_speed: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_progress_updated_at_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_progress_frame: Option<u64>,
 }
 
 /// Grouped preview patch applied onto `TranscodeJob.previewPath` / `previewRevision`.
@@ -168,24 +170,11 @@ pub struct TranscodeJobLiteDeltaPatch {
     /// Optional grouped progress telemetry applied onto `waitMetadata`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TranscodeJobLiteTelemetryDelta>,
-    /// Optional progress telemetry for smoother frontend rendering.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub progress_out_time_seconds: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub progress_speed: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub progress_updated_at_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub progress_epoch: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elapsed_ms: Option<u64>,
     /// Optional grouped preview patch applied onto `previewPath` / `previewRevision`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview: Option<TranscodeJobLitePreviewDelta>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_path: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub preview_revision: Option<u64>,
 }
 
 impl From<&TranscodeJob> for TranscodeJobLite {

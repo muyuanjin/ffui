@@ -203,29 +203,11 @@ fn merge_queue_state_lite_delta_patch(
     if newer.telemetry.is_some() {
         into.telemetry = newer.telemetry;
     }
-    if newer.progress_out_time_seconds.is_some() {
-        into.progress_out_time_seconds = newer.progress_out_time_seconds;
-    }
-    if newer.progress_speed.is_some() {
-        into.progress_speed = newer.progress_speed;
-    }
-    if newer.progress_updated_at_ms.is_some() {
-        into.progress_updated_at_ms = newer.progress_updated_at_ms;
-    }
-    if newer.progress_epoch.is_some() {
-        into.progress_epoch = newer.progress_epoch;
-    }
     if newer.elapsed_ms.is_some() {
         into.elapsed_ms = newer.elapsed_ms;
     }
     if newer.preview.is_some() {
         into.preview = newer.preview;
-    }
-    if newer.preview_path.is_some() {
-        into.preview_path = newer.preview_path;
-    }
-    if newer.preview_revision.is_some() {
-        into.preview_revision = newer.preview_revision;
     }
 }
 
