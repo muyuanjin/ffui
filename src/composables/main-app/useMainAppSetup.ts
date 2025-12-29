@@ -1,11 +1,11 @@
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, type ComputedRef } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AppSettings, FFmpegPreset, PresetSortMode, PresetViewMode, TranscodeJob } from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
 import { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
 import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
-import { useMainAppQueue } from "@/composables/main-app/useMainAppQueue";
+import { useMainAppQueue, type UseMainAppQueueReturn } from "@/composables/main-app/useMainAppQueue";
 import { useMainAppSettings } from "@/composables/main-app/useMainAppSettings";
 import { useMainAppMedia } from "@/composables/main-app/useMainAppMedia";
 import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
@@ -24,6 +24,15 @@ import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
 import { useQueueStartupToast } from "./useQueueStartupToast";
 import { useBodyPointerEventsFailsafe } from "./useBodyPointerEventsFailsafe";
 import { usePresetPanelModePersistence } from "./usePresetPanelModePersistence";
+
+type MainAppQueueTabModule = UseMainAppQueueReturn & {
+  selectionBarPinned: ComputedRef<boolean>;
+  setSelectionBarPinned: (pinned: boolean) => void;
+  queueOutputPolicy: ReturnType<typeof useQueueOutputPolicy>["queueOutputPolicy"];
+  setQueueOutputPolicy: ReturnType<typeof useQueueOutputPolicy>["setQueueOutputPolicy"];
+  queuePanelProps: ReturnType<typeof createQueuePanelProps>;
+  queueTotalCount: ComputedRef<number>;
+};
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -99,7 +108,7 @@ export function useMainAppSetup() {
     compositeTasksById: batchCompress.compositeTasksById,
     onJobCompleted: presetsModule.handleCompletedJobFromBackend,
     startupIdleReady,
-  });
+  }) as MainAppQueueTabModule;
 
   useQueueStartupToast({
     enabled: !isTestEnv,
@@ -259,6 +268,7 @@ export function useMainAppSetup() {
   };
 
   const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(settings.appSettings);
+  const queueTotalCount = computed(() => jobs.value.length);
   const { dialogManager, selectedJobForDetail } = dialogs;
   // Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
   // Prefer the backend-probed resolvedPath (which already accounts for
@@ -304,6 +314,13 @@ export function useMainAppSetup() {
     expandedBatchIds: batchCompress.expandedBatchIds,
     sortCompareFn: queue.compareJobsForDisplay,
   });
+
+  queue.selectionBarPinned = selectionBarPinned;
+  queue.setSelectionBarPinned = setSelectionBarPinned;
+  queue.queueOutputPolicy = queueOutputPolicy;
+  queue.setQueueOutputPolicy = setQueueOutputPolicy;
+  queue.queuePanelProps = queuePanelProps;
+  queue.queueTotalCount = queueTotalCount;
 
   const queueContextMenu = useQueueContextMenu({
     jobs,
@@ -384,13 +401,8 @@ export function useMainAppSetup() {
     completedCount,
     presetSortMode,
     presetViewMode,
-    selectionBarPinned,
-    setSelectionBarPinned,
     presetSelectionBarPinned,
     setPresetSelectionBarPinned,
-    queueOutputPolicy,
-    setQueueOutputPolicy,
-    queuePanelProps,
     selectedJobForDetail,
     jobDetailJob,
     jobDetailLogText,
