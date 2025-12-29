@@ -1,7 +1,8 @@
 import { onMounted, onUnmounted, ref, type Ref } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { hasTauri, metricsSubscribe, metricsUnsubscribe, fetchMetricsHistory } from "@/lib/backend";
 import type { SystemMetricsSnapshot } from "@/types";
+import { createUnlistenHandle } from "@/lib/tauriUnlisten";
 
 export interface UseSystemMetricsOptions {
   /** Maximum number of snapshots kept in memory for charting. */
@@ -77,7 +78,7 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
 
   const isActive = ref(false);
 
-  let metricsUnlisten: UnlistenFn | null = null;
+  const metricsListener = createUnlistenHandle(METRICS_EVENT_NAME);
   let mockTimer: number | null = null;
   let mockBootAtMs: number | null = null;
   let lastPushedAt = 0;
@@ -287,15 +288,17 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
 
       try {
         const throttleMs = viewUpdateMinIntervalMs;
-        metricsUnlisten = await listen<SystemMetricsSnapshot>(METRICS_EVENT_NAME, (event) => {
+        const unlisten = await listen<SystemMetricsSnapshot>(METRICS_EVENT_NAME, (event) => {
           const now = Date.now();
           if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
             lastPushedAt = now;
             pushSnapshot(event.payload);
           }
         });
+        metricsListener.replace(unlisten);
       } catch (error) {
         console.error("Failed to listen for system metrics events:", error);
+        metricsListener.replace(null);
       }
 
       try {
@@ -318,16 +321,7 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
   const stop = async () => {
     if (!isActive.value) return;
     isActive.value = false;
-
-    if (metricsUnlisten) {
-      try {
-        metricsUnlisten();
-      } catch (error) {
-        console.error("Failed to unlisten system metrics:", error);
-      } finally {
-        metricsUnlisten = null;
-      }
-    }
+    metricsListener.clear();
 
     if (hasTauri()) {
       try {

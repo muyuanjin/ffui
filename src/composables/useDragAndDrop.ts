@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 import { hasTauri } from "@/lib/backend";
+import { createUnlistenHandle } from "@/lib/tauriUnlisten";
 
 /**
  * 拖放处理 Composable 配置选项
@@ -30,7 +31,7 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   const { onFilesDropped } = options;
 
   const isDragging = ref(false);
-  let dragDropUnlisten: UnlistenFn | null = null;
+  const dragDropListener = createUnlistenHandle("tauri://drag-drop");
 
   const isFileDragEvent = (e: DragEvent): boolean => {
     // In browsers, dataTransfer.types contains 'Files' when dragging files from OS.
@@ -89,7 +90,7 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
     if (hasTauri()) {
       // Tauri 拖放监听
       try {
-        dragDropUnlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
+        const unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
           const paths = event.payload.paths;
           if (paths && paths.length > 0 && onFilesDropped) {
             void Promise.resolve(onFilesDropped(paths)).catch((error) => {
@@ -97,23 +98,16 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
             });
           }
         });
+        dragDropListener.replace(unlisten);
       } catch (error) {
         console.error("Failed to listen for tauri drag-drop events:", error);
-        dragDropUnlisten = null;
+        dragDropListener.replace(null);
       }
     }
   });
 
   onUnmounted(() => {
-    if (dragDropUnlisten) {
-      try {
-        dragDropUnlisten();
-      } catch (error) {
-        console.error("Failed to unlisten tauri drag-drop events:", error);
-      } finally {
-        dragDropUnlisten = null;
-      }
-    }
+    dragDropListener.clear();
   });
 
   return {
