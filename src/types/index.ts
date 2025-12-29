@@ -27,6 +27,8 @@ export type {
   JobStatus,
   JobType,
   JobSource,
+  EnqueueTranscodeJobRequest,
+  EnqueueTranscodeJobsRequest,
   QueueViewMode,
   QueueMode,
   QueueBulkActionKind,
