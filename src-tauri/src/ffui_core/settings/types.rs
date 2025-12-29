@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+mod preset_panel_modes;
 mod tool_custom_path_sanitize;
 mod types_helpers;
 
@@ -11,6 +12,7 @@ pub use super::tool_probe_cache::{
 use crate::ffui_core::domain::{
     BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
 };
+pub use preset_panel_modes::{PresetSortMode, PresetViewMode};
 
 /// Human-readable metadata for a downloaded tool binary.
 /// All fields are optional so existing settings.json files remain valid and minimal.
@@ -271,6 +273,12 @@ pub struct AppSettings {
     /// the first available preset will be used.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_queue_preset_id: Option<String>,
+    /// Optional preset sort mode for the presets panel and dropdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset_sort_mode: Option<PresetSortMode>,
+    /// Optional preset view mode for the presets panel.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset_view_mode: Option<PresetViewMode>,
     /// Concurrency strategy for transcoding workers (unified cap or CPU/HW split).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parallelism_mode: Option<TranscodeParallelismMode>,
@@ -349,6 +357,12 @@ impl AppSettings {
         self.max_parallel_hw_jobs =
             types_helpers::normalize_parallel_limit(self.max_parallel_hw_jobs);
         types_helpers::normalize_string_option(&mut self.locale);
+        if matches!(self.preset_sort_mode, Some(PresetSortMode::Unknown)) {
+            self.preset_sort_mode = None;
+        }
+        if matches!(self.preset_view_mode, Some(PresetViewMode::Unknown)) {
+            self.preset_view_mode = None;
+        }
         self.tools
             .sanitize_custom_paths_for_auto_managed_downloads();
 
@@ -454,6 +468,8 @@ impl Default for AppSettings {
             preview_capture_percent: default_preview_capture_percent(),
             developer_mode_enabled: false,
             default_queue_preset_id: None,
+            preset_sort_mode: None,
+            preset_view_mode: None,
             parallelism_mode: None,
             max_parallel_jobs: None,
             max_parallel_cpu_jobs: None,

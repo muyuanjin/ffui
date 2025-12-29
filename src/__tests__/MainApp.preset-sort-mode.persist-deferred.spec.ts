@@ -42,7 +42,7 @@ const makeAppSettings = (): AppSettings => ({
 });
 
 describe("MainApp preset sort mode persistence", () => {
-  it("defers saving preset sort mode so UI updates are not blocked", async () => {
+  it("persists preset sort mode without relying on requestIdleCallback", async () => {
     let idleCallback: ((deadline: IdleDeadline) => void) | null = null;
     const originalRequestIdleCallback = (window as any).requestIdleCallback;
     const originalCancelIdleCallback = (window as any).cancelIdleCallback;
@@ -81,12 +81,6 @@ describe("MainApp preset sort mode persistence", () => {
       vm.presetSortMode = "name";
       await nextTick();
 
-      expect(invokeMock.mock.calls.filter(([cmd]) => cmd === "save_app_settings").length).toBe(0);
-
-      const cb = idleCallback as unknown;
-      if (typeof cb === "function") {
-        (cb as any)({ didTimeout: false, timeRemaining: () => 50 });
-      }
       await flushTimers();
       await nextTick();
 
@@ -95,6 +89,7 @@ describe("MainApp preset sort mode persistence", () => {
       const payload = (saveCalls[0]?.[1] ?? {}) as Record<string, any>;
       expect(payload.settings?.presetSortMode).toBe("name");
 
+      expect(typeof idleCallback).toBe("function");
       wrapper.unmount();
     } finally {
       (window as any).requestIdleCallback = originalRequestIdleCallback;

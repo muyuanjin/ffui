@@ -4,7 +4,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import type { AppSettings, FFmpegPreset } from "@/types";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
-import { emitWindowCloseRequested, i18n, invokeMock, useBackendMock } from "./helpers/mainAppTauriDialog";
+import { i18n, invokeMock, useBackendMock } from "./helpers/mainAppTauriDialog";
 import MainApp from "@/MainApp.vue";
 
 const flushTimers = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -41,8 +41,8 @@ const makeAppSettings = (): AppSettings => ({
   onboardingCompleted: true,
 });
 
-describe("MainApp preset sort mode flush-on-close", () => {
-  it("flushes deferred preset sort mode change before window closes", async () => {
+describe("MainApp preset sort mode persistence", () => {
+  it("persists preset sort mode even when the idle saver never runs", async () => {
     let idleCallback: ((deadline: IdleDeadline) => void) | null = null;
     const originalRequestIdleCallback = (window as any).requestIdleCallback;
     const originalCancelIdleCallback = (window as any).cancelIdleCallback;
@@ -83,11 +83,6 @@ describe("MainApp preset sort mode flush-on-close", () => {
       vm.presetSortMode = "name";
       await nextTick();
 
-      expect(invokeMock.mock.calls.filter(([cmd]) => cmd === "save_app_settings").length).toBe(0);
-      expect(typeof idleCallback).toBe("function");
-
-      const prevented = await emitWindowCloseRequested();
-      expect(prevented).toBe(true);
       await flushTimers();
       await nextTick();
 
@@ -95,6 +90,7 @@ describe("MainApp preset sort mode flush-on-close", () => {
       expect(saveCalls.length).toBe(1);
       const payload = (saveCalls[0]?.[1] ?? {}) as Record<string, any>;
       expect(payload.settings?.presetSortMode).toBe("name");
+      expect(typeof idleCallback).toBe("function");
 
       wrapper.unmount();
     } finally {

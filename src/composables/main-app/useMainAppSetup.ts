@@ -23,7 +23,7 @@ import { useUiAppearanceSync } from "./useUiAppearanceSync";
 import { useBatchCompressQueueRefresh } from "./useBatchCompressQueueRefresh";
 import { useQueueStartupToast } from "./useQueueStartupToast";
 import { useBodyPointerEventsFailsafe } from "./useBodyPointerEventsFailsafe";
-import { normalizePresetSortMode, normalizePresetViewMode } from "./presetUiPreferences";
+import { usePresetPanelModePersistence } from "./usePresetPanelModePersistence";
 export function useMainAppSetup() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -123,6 +123,13 @@ export function useMainAppSetup() {
     startupIdleReady,
   });
   useUiAppearanceSync(settings.appSettings);
+  usePresetPanelModePersistence({
+    presetSortMode,
+    presetViewMode,
+    appSettings: settings.appSettings,
+    ensureAppSettingsLoaded: settings.ensureAppSettingsLoaded,
+    persistNow: settings.persistNow,
+  });
 
   // Restore preferred UI locale after AppSettings load. Keep the assignment
   // scoped to supported locales so future/unknown values do not break i18n.
@@ -212,55 +219,10 @@ export function useMainAppSetup() {
       if (!hasTauri()) return;
       if (!value) return;
 
-      // 恢复预设排序模式
-      const nextPresetSortMode = normalizePresetSortMode(value.presetSortMode, presetSortMode.value);
-      if (nextPresetSortMode !== presetSortMode.value) {
-        presetSortMode.value = nextPresetSortMode;
-      }
-
-      // 恢复预设视图模式
-      const nextPresetViewMode = normalizePresetViewMode(value.presetViewMode, presetViewMode.value);
-      if (nextPresetViewMode !== presetViewMode.value) {
-        presetViewMode.value = nextPresetViewMode;
-      }
-
-      // 自动打开智能预设导入对话框
       if (!value.onboardingCompleted && !autoOnboardingTriggered.value) {
         autoOnboardingTriggered.value = true;
         dialogs.dialogManager.openSmartPresetImport();
       }
-    },
-    { flush: "post" },
-  );
-  // 保存预设排序模式变化
-  watch(
-    presetSortMode,
-    (nextMode) => {
-      if (!settings.appSettings.value || !hasTauri()) return;
-      if (settings.appSettings.value.presetSortMode === nextMode) return;
-
-      const nextSettings: AppSettings = {
-        ...settings.appSettings.value,
-        presetSortMode: nextMode,
-      };
-      settings.appSettings.value = nextSettings;
-      settings.scheduleSaveSettings();
-    },
-    { flush: "post" },
-  );
-  // 保存预设视图模式变化
-  watch(
-    presetViewMode,
-    (nextMode) => {
-      if (!settings.appSettings.value || !hasTauri()) return;
-      if (settings.appSettings.value.presetViewMode === nextMode) return;
-
-      const nextSettings: AppSettings = {
-        ...settings.appSettings.value,
-        presetViewMode: nextMode,
-      };
-      settings.appSettings.value = nextSettings;
-      settings.scheduleSaveSettings();
     },
     { flush: "post" },
   );

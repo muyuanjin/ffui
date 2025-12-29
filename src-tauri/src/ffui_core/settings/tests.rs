@@ -4,6 +4,7 @@ use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 
 mod network_proxy;
+mod preset_panel_modes;
 mod presets_loading;
 mod tests_selection_bar_pinned;
 mod tools_custom_path_sanitization;
