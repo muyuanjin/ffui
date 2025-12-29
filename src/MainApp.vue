@@ -7,9 +7,10 @@ import Sidebar from "@/components/Sidebar.vue";
 import PresetTabPanel from "@/components/panels/PresetTabPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
-import { MediaPanel, MonitorPanelPro, SettingsPanel } from "@/components/main/lazyTabs";
+import { MonitorPanelPro, SettingsPanel } from "@/components/main/lazyTabs";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import MainDialogsStackHost from "@/components/main/MainDialogsStackHost.vue";
+import MainMediaTabHost from "@/components/main/MainMediaTabHost.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
@@ -92,17 +93,7 @@ const { startBatchCompress, toggleBatchExpanded } = setup.batchCompress;
 
 const { addManualJob, reloadPresets } = setup.presetsModule;
 
-const {
-  isInspectingMedia,
-  mediaInspectError,
-  inspectedMediaPath,
-  inspectedPreviewUrl,
-  inspectedIsImage,
-  inspectedAnalysis,
-  inspectedRawJson,
-  openMediaFileDialog,
-  clearInspectedMedia,
-} = setup.media;
+const media = setup.media;
 
 const {
   appSettings,
@@ -186,6 +177,10 @@ const manualJobPresetId = computed<string | null>({
     manualJobPresetIdRef.value = value;
   },
 });
+
+const clearMediaInspectError = () => {
+  media.mediaInspectError.value = null;
+};
 </script>
 <template>
   <div
@@ -281,10 +276,10 @@ const manualJobPresetId = computed<string | null>({
         />
         <MainGlobalAlerts
           :queue-error="queueError"
-          :media-inspect-error="mediaInspectError"
+          :media-inspect-error="media.mediaInspectError.value"
           :settings-save-error="settingsSaveError"
           @clearQueueError="queueError = null"
-          @clearMediaInspectError="mediaInspectError = null"
+          @clearMediaInspectError="clearMediaInspectError"
           @clearSettingsSaveError="settingsSaveError = null"
         />
         <div v-if="activeTab === 'queue'" class="flex-1 min-h-0 flex flex-col">
@@ -325,18 +320,7 @@ const manualJobPresetId = computed<string | null>({
               :dialog-manager="dialogManager"
               :presets-module="setup.presetsModule"
             />
-            <MediaPanel
-              v-else-if="activeTab === 'media'"
-              :inspecting="isInspectingMedia"
-              :error="mediaInspectError"
-              :inspected-path="inspectedMediaPath"
-              :preview-url="inspectedPreviewUrl"
-              :is-image="inspectedIsImage"
-              :analysis="inspectedAnalysis"
-              :raw-json="inspectedRawJson"
-              @inspect-requested="openMediaFileDialog"
-              @clear="clearInspectedMedia"
-            />
+            <MainMediaTabHost v-else-if="activeTab === 'media'" :media="media" />
             <MonitorPanelPro v-else-if="activeTab === 'monitor'" />
             <SettingsPanel
               v-else-if="activeTab === 'settings'"
