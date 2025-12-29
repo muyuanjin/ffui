@@ -146,6 +146,8 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
     return clampProgressUpdateIntervalMs(appSettings.value?.progressUpdateIntervalMs);
   });
 
+  const titlebarProgressEnabled = computed<boolean>(() => appSettings.value?.titlebarProgressEnabled ?? true);
+
   /**
    * Calculate global taskbar progress as a weighted average.
    *
@@ -267,7 +269,18 @@ export function useJobProgress(options: UseJobProgressOptions): UseJobProgressRe
   });
 
   // ----- Header Progress Animation Watch -----
-  watch([globalTaskbarProgressPercent, hasActiveJobs], ([percent, active]) => {
+  watch([titlebarProgressEnabled, globalTaskbarProgressPercent, hasActiveJobs], ([enabled, percent, active]) => {
+    if (!enabled) {
+      if (headerProgressFadeTimer !== undefined) {
+        window.clearTimeout(headerProgressFadeTimer);
+        headerProgressFadeTimer = undefined;
+      }
+      headerProgressVisible.value = false;
+      headerProgressFading.value = false;
+      headerProgressPercent.value = 0;
+      return;
+    }
+
     const clamped = percent == null ? null : Math.max(0, Math.min(100, percent));
     if (clamped != null && active) {
       headerProgressPercent.value = Math.max(headerProgressPercent.value, clamped);

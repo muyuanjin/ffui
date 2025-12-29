@@ -6,6 +6,7 @@ use super::*;
 mod network_proxy;
 mod preset_panel_modes;
 mod presets_loading;
+mod tests_preset_selection_bar_pinned;
 mod tests_selection_bar_pinned;
 mod tools_custom_path_sanitization;
 mod updater_metadata;
@@ -133,6 +134,10 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
         value.get("selectionBarPinned").is_none(),
         "selectionBarPinned should be absent when false"
     );
+    assert!(
+        value.get("presetSelectionBarPinned").is_none(),
+        "presetSelectionBarPinned should be absent when false"
+    );
     // When UI appearance values are default, they should be omitted so the
     // settings.json stays minimal.
     assert!(
@@ -241,11 +246,39 @@ fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
         decoded.progress_update_interval_ms.is_none(),
         "legacy settings without progressUpdateIntervalMs must decode with progress_update_interval_ms = None"
     );
+    assert!(
+        decoded.titlebar_progress_enabled,
+        "legacy settings without titlebarProgressEnabled must decode with titlebar_progress_enabled = true"
+    );
     // Legacy JSON without tools.downloaded should transparently default to
     // an empty metadata map.
     assert!(
         decoded.tools.downloaded.is_none(),
         "legacy settings without tools.downloaded must decode with downloaded = None"
+    );
+}
+
+#[test]
+fn app_settings_serializes_titlebar_progress_enabled_when_disabled() {
+    let settings = AppSettings {
+        titlebar_progress_enabled: false,
+        ..AppSettings::default()
+    };
+    let value = serde_json::to_value(&settings)
+        .expect("serialize AppSettings with titlebar progress disabled");
+    assert_eq!(
+        value
+            .get("titlebarProgressEnabled")
+            .and_then(Value::as_bool),
+        Some(false),
+        "titlebarProgressEnabled should serialize when non-default"
+    );
+
+    let decoded: AppSettings = serde_json::from_value(value)
+        .expect("deserialize AppSettings with titlebar progress disabled");
+    assert!(
+        !decoded.titlebar_progress_enabled,
+        "titlebar_progress_enabled should round-trip when disabled"
     );
 }
 #[test]

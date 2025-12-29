@@ -349,6 +349,8 @@ const other = {
     selectedCount: "{count} selected",
     clearSelection: "Clear selection",
     batchDelete: "Delete selected",
+    pinSelectionBar: "Pin toolbar",
+    unpinSelectionBar: "Unpin toolbar",
     importCommandsTitle: "Import ffmpeg commands",
     importCommandsDescription:
       "Paste one command per line. FFUI will analyze each line and let you import as editable presets (strict) or as advanced custom command presets.",

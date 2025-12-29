@@ -84,6 +84,8 @@ export interface AppSettings {
   maxParallelHwJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
   progressUpdateIntervalMs?: number;
+  /** When true (default), show the in-app custom titlebar progress bar. */
+  titlebarProgressEnabled?: boolean;
   /**
    * When true (default), exiting the app while jobs are running will prompt the user and can attempt
    * a best-effort "pause on exit" flow so precise resume remains usable after restart.
@@ -105,6 +107,8 @@ export interface AppSettings {
   onboardingCompleted?: boolean;
   /** Whether the queue selection bar should remain visible even when no jobs are selected. */
   selectionBarPinned?: boolean;
+  /** Whether the preset selection actions bar should remain visible even when no presets are selected. */
+  presetSelectionBarPinned?: boolean;
   /** Output policy for manual queue enqueues (container/dir/name/timestamps). */
   queueOutputPolicy?: OutputPolicy;
 }

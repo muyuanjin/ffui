@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import TitleBar from "@/components/TitleBar.vue";
 import { deriveProgressTransitionMs } from "@/lib/progressTransition";
 import Sidebar from "@/components/Sidebar.vue";
-import PresetPanel from "@/components/panels/PresetPanel.vue";
+import PresetTabPanel from "@/components/panels/PresetTabPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import { MediaPanel, MonitorPanelPro, SettingsPanel } from "@/components/main/lazyTabs";
@@ -139,18 +139,7 @@ const {
   dialogManager,
   presetPendingDelete,
   presetsPendingBatchDelete,
-  openPresetEditor,
-  duplicatePreset,
-  importPresetsBundleFromFile,
-  importPresetsBundleFromClipboard,
   importPresetsCandidates,
-  exportSelectedPresetsBundleToFile,
-  exportSelectedPresetsBundleToClipboard,
-  exportSelectedPresetsTemplateCommandsToClipboard,
-  exportPresetToFile,
-  requestDeletePreset,
-  requestBatchDeletePresets,
-  handleReorderPresets,
   reloadPresets,
   smartConfig,
   queueProgressStyle,
@@ -185,7 +174,6 @@ const {
   headerProgressVisible,
   headerProgressFading,
   presetSortMode,
-  presetViewMode,
   selectionBarPinned,
   setSelectionBarPinned,
   queueOutputPolicy,
@@ -340,27 +328,7 @@ defineExpose({
         </div>
         <ScrollArea v-else class="flex-1 min-h-0">
           <div class="min-h-full flex flex-col" :class="activeTab === 'presets' ? undefined : 'p-4'">
-            <PresetPanel
-              v-if="activeTab === 'presets'"
-              :presets="presets"
-              :sort-mode="presetSortMode"
-              :view-mode="presetViewMode"
-              @edit="openPresetEditor"
-              @duplicate="duplicatePreset"
-              @delete="requestDeletePreset"
-              @batchDelete="requestBatchDeletePresets"
-              @exportSelectedToFile="exportSelectedPresetsBundleToFile"
-              @exportSelectedToClipboard="exportSelectedPresetsBundleToClipboard"
-              @exportSelectedCommandsToClipboard="exportSelectedPresetsTemplateCommandsToClipboard"
-              @exportPresetToFile="exportPresetToFile"
-              @reorder="handleReorderPresets"
-              @importSmartPack="dialogManager.openSmartPresetImport()"
-              @importBundle="importPresetsBundleFromFile"
-              @importBundleFromClipboard="importPresetsBundleFromClipboard"
-              @importCommands="dialogManager.openImportCommands()"
-              @update:sortMode="(v) => (presetSortMode = v)"
-              @update:viewMode="(v) => (presetViewMode = v)"
-            />
+            <PresetTabPanel v-if="activeTab === 'presets'" :main-app="mainApp" />
             <MediaPanel
               v-else-if="activeTab === 'media'"
               :inspecting="isInspectingMedia"

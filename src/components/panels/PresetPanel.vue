@@ -12,7 +12,18 @@ import {
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetSortMode } from "@/types";
-import { GripVertical, Trash2, Copy, Download, Upload, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
+import {
+  GripVertical,
+  Trash2,
+  Copy,
+  Download,
+  Upload,
+  ChevronDown,
+  LayoutGrid,
+  LayoutList,
+  Pin,
+  PinOff,
+} from "lucide-vue-next";
 import type { AcceptableValue } from "@/components/ui/select";
 import type { SortableEvent } from "sortablejs";
 import PresetRowCompact from "./presets/PresetRowCompact.vue";
@@ -26,10 +37,13 @@ const props = withDefaults(
     presets: FFmpegPreset[];
     sortMode?: PresetSortMode;
     viewMode?: ViewMode;
+    /** 是否固定选择操作栏（即使没有选中项也显示） */
+    selectionBarPinned?: boolean;
   }>(),
   {
     sortMode: "manual",
     viewMode: "grid",
+    selectionBarPinned: false,
   },
 );
 
@@ -49,6 +63,7 @@ const emit = defineEmits<{
   importCommands: [];
   "update:sortMode": [mode: PresetSortMode];
   "update:viewMode": [mode: ViewMode];
+  "update:selectionBarPinned": [value: boolean];
 }>();
 
 const { t, locale } = useI18n();
@@ -57,6 +72,10 @@ const localPresets = ref<FFmpegPreset[]>([...props.presets]);
 const localViewMode = ref<ViewMode>(props.viewMode);
 const selectedIds = ref<Set<string>>(new Set());
 const selectedCount = computed(() => selectedIds.value.size);
+const selectionBarPinned = computed(() => props.selectionBarPinned ?? false);
+const toggleSelectionBarPinned = () => {
+  emit("update:selectionBarPinned", !selectionBarPinned.value);
+};
 
 // 监听 viewMode prop 变化
 watch(
@@ -387,7 +406,7 @@ updateSortableDisabled();
     </header>
 
     <div
-      v-if="selectedCount > 0"
+      v-if="selectedCount > 0 || selectionBarPinned"
       class="border-b border-border/60 px-3 py-1.5 bg-accent/5 text-xs"
       data-testid="preset-selection-actions"
     >
@@ -399,6 +418,7 @@ updateSortableDisabled();
             size="sm"
             class="h-7 px-2 text-[11px]"
             data-testid="preset-batch-export"
+            :disabled="selectedCount === 0"
             @click="emitExportSelectedToFile"
           >
             <Download class="h-3 w-3 mr-1" />
@@ -409,13 +429,34 @@ updateSortableDisabled();
             size="sm"
             class="h-7 px-2 text-[11px]"
             data-testid="preset-batch-delete"
+            :disabled="selectedCount === 0"
             @click="emitBatchDelete"
           >
             <Trash2 class="h-3 w-3 mr-1" />
             {{ t("presets.batchDelete") }}
           </Button>
-          <Button variant="outline" size="sm" class="h-7 px-2 text-[11px]" @click="clearSelection">
+          <Button
+            variant="outline"
+            size="sm"
+            class="h-7 px-2 text-[11px]"
+            :disabled="selectedCount === 0"
+            @click="clearSelection"
+          >
             {{ t("presets.clearSelection") }}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            class="h-7 w-7 p-0"
+            data-testid="preset-selection-pin"
+            :class="selectionBarPinned ? 'text-primary' : undefined"
+            :title="selectionBarPinned ? t('presets.unpinSelectionBar') : t('presets.pinSelectionBar')"
+            :aria-label="selectionBarPinned ? t('presets.unpinSelectionBar') : t('presets.pinSelectionBar')"
+            @click="toggleSelectionBarPinned"
+          >
+            <PinOff v-if="selectionBarPinned" class="h-3 w-3 text-primary" />
+            <Pin v-else class="h-3 w-3 text-muted-foreground" />
           </Button>
         </div>
       </div>

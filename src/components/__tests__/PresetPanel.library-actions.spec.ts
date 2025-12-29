@@ -21,6 +21,29 @@ const makePreset = (id: string, name: string): FFmpegPreset => ({
 });
 
 describe("PresetPanel library actions", () => {
+  it("pins selection actions bar and keeps it visible with no selection", async () => {
+    const presets = [makePreset("p1", "One")];
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+        selectionBarPinned: true,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(true);
+    expect(wrapper.get('[data-testid="preset-batch-export"]').attributes("disabled")).toBeDefined();
+
+    await wrapper.get('[data-testid="preset-selection-pin"]').trigger("click");
+    const pinEmitted = wrapper.emitted("update:selectionBarPinned") as unknown[][] | undefined;
+    expect(pinEmitted?.[0]?.[0]).toBe(false);
+
+    await wrapper.setProps({ selectionBarPinned: false });
+    expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
   it("toggles selection and emits batch actions", async () => {
     const presets = [makePreset("p1", "One"), makePreset("p2", "Two")];
     const wrapper = mount(PresetPanel, {

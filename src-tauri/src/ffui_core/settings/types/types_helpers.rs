@@ -36,6 +36,10 @@ pub(super) const fn default_exit_auto_wait_enabled() -> bool {
     true
 }
 
+pub(super) const fn default_titlebar_progress_enabled() -> bool {
+    true
+}
+
 pub(super) const fn default_exit_auto_wait_timeout_seconds() -> f64 {
     DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS
 }
