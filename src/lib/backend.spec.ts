@@ -136,13 +136,13 @@ describe("backend contract", () => {
     expect(cmd).toBe("enqueue_transcode_jobs");
     expect(payload).toMatchObject({
       filenames,
-      fileNames: filenames,
       jobType: "video",
       originalSizeMb: 0,
       originalCodec: "h264",
       presetId,
       source: "manual",
     });
+    expect(payload).not.toHaveProperty("fileNames");
 
     expect(result).toEqual(fakeJobs);
   });

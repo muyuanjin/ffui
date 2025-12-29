@@ -51,7 +51,7 @@ export const deleteBatchCompressBatchesBulk = async (batchIds: string[]): Promis
 };
 
 export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
-  return invokeCommand<boolean>("reorder_queue", { orderedIds, jobIds: orderedIds });
+  return invokeCommand<boolean>("reorder_queue", { orderedIds });
 };
 
 export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null> => {
