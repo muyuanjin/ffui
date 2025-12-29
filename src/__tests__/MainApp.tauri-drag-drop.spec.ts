@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 let unlistenCalled = false;
@@ -101,7 +102,7 @@ describe("MainApp Tauri drag & drop integration", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     expect(listenMock).toHaveBeenCalled();
@@ -142,7 +143,7 @@ describe("MainApp Tauri drag & drop integration", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     expect(typeof dragDropHandler).toBe("function");

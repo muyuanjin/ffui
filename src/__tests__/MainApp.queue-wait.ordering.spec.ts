@@ -8,6 +8,7 @@ import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
 const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
@@ -113,7 +114,7 @@ describe("MainApp queue ordering helpers", () => {
       }
       if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
-        const ids = payload?.jobIds ?? payload?.job_ids;
+        const ids = payload?.orderedIds ?? payload?.ordered_ids;
         expect(ids).toEqual(["waiting-1", "waiting-2"]);
         return Promise.resolve(true);
       }
@@ -121,7 +122,7 @@ describe("MainApp queue ordering helpers", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     vm.jobs = queueJobs;
@@ -130,7 +131,7 @@ describe("MainApp queue ordering helpers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
-      expect.objectContaining({ jobIds: ["waiting-1", "waiting-2"] }),
+      expect.objectContaining({ orderedIds: ["waiting-1", "waiting-2"] }),
     );
   });
 
@@ -174,7 +175,7 @@ describe("MainApp queue ordering helpers", () => {
       }
       if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
-        const ids = payload?.jobIds ?? payload?.job_ids;
+        const ids = payload?.orderedIds ?? payload?.ordered_ids;
         expect(ids).toEqual(["waiting-2", "waiting-1"]);
         return Promise.resolve(true);
       }
@@ -182,7 +183,7 @@ describe("MainApp queue ordering helpers", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     vm.jobs = queueJobs;
@@ -190,7 +191,7 @@ describe("MainApp queue ordering helpers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
-      expect.objectContaining({ jobIds: ["waiting-2", "waiting-1"] }),
+      expect.objectContaining({ orderedIds: ["waiting-2", "waiting-1"] }),
     );
   });
 
@@ -256,7 +257,7 @@ describe("MainApp queue ordering helpers", () => {
       }
       if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
-        const ids = payload?.jobIds ?? payload?.job_ids;
+        const ids = payload?.orderedIds ?? payload?.ordered_ids;
         expect(ids).toEqual(["manual-1", "batch1-b", "batch1-a", "manual-2"]);
         return Promise.resolve(true);
       }
@@ -264,7 +265,7 @@ describe("MainApp queue ordering helpers", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     vm.jobs = queueJobs;
@@ -273,7 +274,7 @@ describe("MainApp queue ordering helpers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
-      expect.objectContaining({ jobIds: ["manual-1", "batch1-b", "batch1-a", "manual-2"] }),
+      expect.objectContaining({ orderedIds: ["manual-1", "batch1-b", "batch1-a", "manual-2"] }),
     );
   });
 
@@ -339,7 +340,7 @@ describe("MainApp queue ordering helpers", () => {
       }
       if (cmd === "refresh_external_tool_statuses_async") return Promise.resolve(true);
       if (cmd === "reorder_queue") {
-        const ids = payload?.jobIds ?? payload?.job_ids;
+        const ids = payload?.orderedIds ?? payload?.ordered_ids;
         expect(ids).toEqual(["batch1-a", "batch1-b", "manual-1", "manual-2"]);
         return Promise.resolve(true);
       }
@@ -347,7 +348,7 @@ describe("MainApp queue ordering helpers", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     vm.jobs = queueJobs;
@@ -356,7 +357,7 @@ describe("MainApp queue ordering helpers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith(
       "reorder_queue",
-      expect.objectContaining({ jobIds: ["batch1-a", "batch1-b", "manual-1", "manual-2"] }),
+      expect.objectContaining({ orderedIds: ["batch1-a", "batch1-b", "manual-1", "manual-2"] }),
     );
   });
 });

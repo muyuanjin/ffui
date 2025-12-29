@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 let resolveAppSettings: ((settings: any) => void) | null = null;
 
@@ -111,7 +112,7 @@ describe("MainApp queue selection toolbar pin", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     // 先让队列初始轮询等异步逻辑完成，避免之后我们手动设置的 jobs 被覆盖回空列表。
     await flushPromises();
     vm.activeTab = "queue";

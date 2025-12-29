@@ -323,32 +323,7 @@ export function useMainAppSetup() {
     openJobCompare: dialogs.dialogManager.openJobCompare,
   });
 
-  const {
-    queueContextMenuVisible,
-    queueContextMenuMode,
-    queueContextMenuX,
-    queueContextMenuY,
-    queueContextMenuJob,
-    queueContextMenuJobStatus,
-    queueContextMenuCanRevealInputPath,
-    queueContextMenuCanRevealOutputPath,
-    openQueueContextMenuForJob,
-    openQueueContextMenuForBulk,
-    closeQueueContextMenu,
-    handleQueueContextInspect,
-    handleQueueContextCompare,
-    handleQueueContextWait,
-    handleQueueContextResume,
-    handleQueueContextRestart,
-    handleQueueContextCancel,
-    handleQueueContextMoveToTop,
-    handleQueueContextMoveToBottom,
-    handleQueueContextDelete,
-    handleQueueContextOpenInputFolder,
-    handleQueueContextOpenOutputFolder,
-    handleQueueContextCopyInputPath,
-    handleQueueContextCopyOutputPath,
-  } = queueContextMenu;
+  const { queueContextMenuVisible } = queueContextMenu;
 
   const hasBlockingOverlay = computed(() => {
     const dm = dialogs.dialogManager;
@@ -384,35 +359,28 @@ export function useMainAppSetup() {
     settings.appSettings.value = next;
   };
 
-  const mainApp = {
+  return {
+    shell,
+    dialogs,
+    batchCompress,
+    presetsModule,
+    queue,
+    media,
+    preview,
+    dnd,
+    settings,
+    updater,
+    queueContextMenu,
+
+    jobs,
+    queueError,
     lastDroppedRoot,
     presets,
     presetsLoadedFromBackend,
-    settings,
-    ...shell,
-    ...dialogs,
-    ...batchCompress,
-    ...settings,
-    ...updater,
-    ...presetsModule,
-    ...queue,
-    ...media,
-    ...preview,
-    ...dnd,
-    // Keep these refs stable even if downstream composables expose similarly named keys.
-    jobs,
-    queueError,
+    manualJobPresetId,
+
     currentTitle,
     currentSubtitle,
-    selectedJobForDetail,
-    jobDetailJob,
-    globalTaskbarProgressPercent: settings.globalTaskbarProgressPercent,
-    compositeBatchCompressTasks: batchCompress.compositeBatchCompressTasks,
-    batchCompressBatchMeta: batchCompress.batchCompressBatchMeta,
-    jobDetailLogText,
-    highlightedLogHtml,
-    copyToClipboard,
-    // Additional bindings used only by the template but not originally exposed on the instance.
     completedCount,
     presetSortMode,
     presetViewMode,
@@ -423,35 +391,14 @@ export function useMainAppSetup() {
     queueOutputPolicy,
     setQueueOutputPolicy,
     queuePanelProps,
+    selectedJobForDetail,
+    jobDetailJob,
+    jobDetailLogText,
+    highlightedLogHtml,
     handleImportSmartPackConfirmed,
     ffmpegResolvedPath,
     handleUpdateAppSettings,
-    // Queue context menu bindings used by the template.
-    queueContextMenuVisible,
-    queueContextMenuMode,
-    queueContextMenuX,
-    queueContextMenuY,
-    queueContextMenuJob,
-    queueContextMenuJobStatus,
-    queueContextMenuCanRevealInputPath,
-    queueContextMenuCanRevealOutputPath,
-    openQueueContextMenuForJob,
-    openQueueContextMenuForBulk,
-    closeQueueContextMenu,
-    handleQueueContextInspect,
-    handleQueueContextCompare,
-    handleQueueContextWait,
-    handleQueueContextResume,
-    handleQueueContextRestart,
-    handleQueueContextCancel,
-    handleQueueContextMoveToTop,
-    handleQueueContextMoveToBottom,
-    handleQueueContextDelete,
-    handleQueueContextOpenInputFolder,
-    handleQueueContextOpenOutputFolder,
-    handleQueueContextCopyInputPath,
-    handleQueueContextCopyOutputPath,
+    copyToClipboard,
   };
-  return { mainApp, manualJobPresetId };
 }
 export type MainAppSetup = ReturnType<typeof useMainAppSetup>;

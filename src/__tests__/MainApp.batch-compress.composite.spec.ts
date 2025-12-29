@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
 import type { TranscodeJob } from "@/types";
@@ -55,7 +56,7 @@ describe("MainApp Batch Compress composite batches (non-Tauri)", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // Seed a synthetic Batch Compress batch and corresponding jobs directly,
     // since MainApp only drives real Batch Compress via the Tauri backend.
@@ -147,7 +148,7 @@ describe("MainApp Batch Compress composite batches (non-Tauri)", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     if ("queueViewModeModel" in vm) {
@@ -213,7 +214,7 @@ describe("MainApp Batch Compress composite batches (non-Tauri)", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const batchId = "batch-delete-1";

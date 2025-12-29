@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick, defineComponent } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
@@ -87,7 +88,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     await nextTick();
 
@@ -121,7 +122,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     // Start from a known preference baseline so previous tests or localStorage
@@ -214,7 +215,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const jobs: TranscodeJob[] = [
@@ -273,7 +274,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const previousQueueMode = "queueModeModel" in vm ? vm.queueModeModel : null;
@@ -348,7 +349,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     await nextTick();
 
@@ -381,7 +382,7 @@ describe("MainApp queue view modes and empty state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     await nextTick();
 

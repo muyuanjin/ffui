@@ -11,6 +11,7 @@ import {
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { AutoCompressProgress, TranscodeJob } from "@/types";
@@ -52,7 +53,7 @@ describe("MainApp Batch Compress integration (queue snapshots)", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     vm.lastDroppedRoot = rootPath;
 
@@ -139,7 +140,7 @@ describe("MainApp Batch Compress integration (queue snapshots)", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     vm.lastDroppedRoot = rootPath;
 

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { i18n, invokeMock, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -54,7 +55,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
     expect(getJobsFromVm(vm).length).toBeGreaterThan(0);
@@ -109,7 +110,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleResumeJob(jobId);
@@ -145,7 +146,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleCancelJob(jobId);
@@ -181,7 +182,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleCancelJob(jobId);
@@ -217,7 +218,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleRestartJob(jobId);
@@ -253,7 +254,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleRestartJob(jobId);
@@ -290,7 +291,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
 
     await vm.handleRestartJob(jobId);
@@ -341,7 +342,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 
@@ -403,7 +404,7 @@ describe("MainApp queue wait/resume/restart in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 

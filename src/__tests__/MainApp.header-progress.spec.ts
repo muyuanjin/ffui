@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
@@ -44,7 +45,7 @@ describe("MainApp header progress bar", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const processingJob: TranscodeJob = {
       id: "job-1",
@@ -98,7 +99,7 @@ describe("MainApp header progress bar", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const queuedJob: TranscodeJob = {
       id: "job-waiting",

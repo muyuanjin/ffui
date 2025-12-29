@@ -9,6 +9,7 @@ import {
   defaultAppSettings,
 } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
@@ -65,7 +66,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -89,7 +90,6 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
     const payload = batchDeleteCalls[0]?.[1] as any;
     expect(payload).toMatchObject({
       batchIds: [batchId],
-      batch_ids: [batchId],
     });
 
     const error = vm.queueError ?? vm.queueError?.value ?? null;
@@ -197,7 +197,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -293,7 +293,7 @@ describe("MainApp queue delete behaviour (Batch Compress batches)", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();

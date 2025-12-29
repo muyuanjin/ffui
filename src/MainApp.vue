@@ -9,7 +9,7 @@ import QueuePanel from "@/components/panels/QueuePanel.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import { MediaPanel, MonitorPanelPro, SettingsPanel } from "@/components/main/lazyTabs";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
-import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
+import MainDialogsStackHost from "@/components/main/MainDialogsStackHost.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
@@ -17,17 +17,33 @@ import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 import { useMainAppSetup } from "@/composables/main-app/useMainAppSetup";
 import { useLocalePersistence } from "@/composables/main-app/useLocalePersistence";
 import { useQueueBlankClickClearSelection } from "@/composables/main-app/useQueueBlankClickClearSelection";
-const { mainApp, manualJobPresetId: manualJobPresetIdRef } = useMainAppSetup();
+
+const setup = useMainAppSetup();
+
 const {
-  activeTab,
-  minimizeWindow,
-  toggleMaximizeWindow,
-  closeWindow,
   jobs,
   completedCount,
   presets,
   currentTitle,
   currentSubtitle,
+  queueError,
+  presetSortMode,
+  presetViewMode,
+  selectionBarPinned,
+  setSelectionBarPinned,
+  presetSelectionBarPinned,
+  setPresetSelectionBarPinned,
+  queueOutputPolicy,
+  setQueueOutputPolicy,
+  queuePanelProps,
+  handleUpdateAppSettings,
+  manualJobPresetId: manualJobPresetIdRef,
+} = setup;
+
+const { activeTab, minimizeWindow, toggleMaximizeWindow, closeWindow } = setup.shell;
+const { dialogManager } = setup.dialogs;
+
+const {
   activeStatusFilters,
   activeTypeFilters,
   filterText,
@@ -52,10 +68,6 @@ const {
   invertSelection,
   clearSelection,
   queueViewModeModel,
-  queuePanelProps,
-  queueError,
-  addManualJob,
-  startBatchCompress,
   setQueueViewMode,
   setQueueProgressStyle,
   carouselAutoRotationSpeed,
@@ -65,8 +77,6 @@ const {
   handleResumeJob,
   handleRestartJob,
   toggleJobSelected,
-  toggleBatchExpanded,
-  openBatchDetail,
   bulkCancel,
   bulkWait,
   bulkResume,
@@ -75,6 +85,47 @@ const {
   bulkMoveToBottom,
   bulkDelete,
   bulkActionInProgress,
+} = setup.queue;
+
+const { startBatchCompress, toggleBatchExpanded } = setup.batchCompress;
+
+const {
+  addManualJob,
+  reloadPresets,
+  openPresetEditor,
+  duplicatePreset,
+  requestDeletePreset,
+  requestBatchDeletePresets,
+  exportSelectedPresetsBundleToFile,
+  exportSelectedPresetsBundleToClipboard,
+  exportSelectedPresetsTemplateCommandsToClipboard,
+  exportPresetToFile,
+  handleReorderPresets,
+  importPresetsBundleFromFile,
+  importPresetsBundleFromClipboard,
+} = setup.presetsModule;
+
+const presetsTabMainApp = {
+  presets,
+  presetSortMode,
+  presetViewMode,
+  presetSelectionBarPinned,
+  setPresetSelectionBarPinned,
+  openPresetEditor,
+  duplicatePreset,
+  requestDeletePreset,
+  requestBatchDeletePresets,
+  exportSelectedPresetsBundleToFile,
+  exportSelectedPresetsBundleToClipboard,
+  exportSelectedPresetsTemplateCommandsToClipboard,
+  exportPresetToFile,
+  handleReorderPresets,
+  importPresetsBundleFromFile,
+  importPresetsBundleFromClipboard,
+  dialogManager,
+};
+
+const {
   isInspectingMedia,
   mediaInspectError,
   inspectedMediaPath,
@@ -84,13 +135,23 @@ const {
   inspectedRawJson,
   openMediaFileDialog,
   clearInspectedMedia,
+} = setup.media;
+
+const {
   appSettings,
   toolStatuses,
   toolStatusesFresh,
   isSavingSettings,
   settingsSaveError,
-  handleUpdateAppSettings,
-  settings,
+  progressUpdateIntervalMs,
+  headerProgressPercent,
+  headerProgressVisible,
+  headerProgressFading,
+} = setup.settings;
+
+const settings = setup.settings;
+
+const {
   updaterConfigured,
   updateAvailable,
   availableVersion,
@@ -105,6 +166,9 @@ const {
   autoCheckDefault,
   checkForAppUpdate,
   downloadAndInstallUpdate,
+} = setup.updater;
+
+const {
   isDragging,
   handleDragOver,
   handleDragLeave,
@@ -112,6 +176,9 @@ const {
   waitingJobContextMenuVisible,
   handleWaitingJobContextMoveToTop,
   closeWaitingJobContextMenu,
+} = setup.dnd;
+
+const {
   queueContextMenuVisible,
   queueContextMenuX,
   queueContextMenuY,
@@ -136,50 +203,10 @@ const {
   handleQueueContextOpenOutputFolder,
   handleQueueContextCopyInputPath,
   handleQueueContextCopyOutputPath,
-  dialogManager,
-  presetPendingDelete,
-  presetsPendingBatchDelete,
-  importPresetsCandidates,
-  reloadPresets,
-  smartConfig,
-  queueProgressStyle,
-  progressUpdateIntervalMs,
-  selectedJobPreset,
-  jobDetailJob,
-  jobDetailLogText,
-  highlightedLogHtml,
-  previewUrl,
-  previewPath,
-  previewSourceMode,
-  previewIsImage,
-  previewError,
-  ffmpegResolvedPath,
-  setPreviewSourceMode,
-  handleImportSmartPackConfirmed,
-  handleSavePreset,
-  runBatchCompress,
-  closeBatchCompressWizard,
-  confirmDeletePreset,
-  confirmBatchDeletePresets,
-  cancelDeletePreset,
-  cancelBatchDeletePresets,
-  handleJobDetailExpandPreview,
-  copyToClipboard,
-  handleExpandedPreviewError,
-  handleExpandedImagePreviewError,
-  closeExpandedPreview,
-  openPreviewInSystemPlayer,
-  openJobPreviewFromQueue,
-  headerProgressPercent,
-  headerProgressVisible,
-  headerProgressFading,
-  presetSortMode,
-  selectionBarPinned,
-  setSelectionBarPinned,
-  queueOutputPolicy,
-  setQueueOutputPolicy,
-  compareJobsForDisplay,
-} = mainApp;
+} = setup.queueContextMenu;
+
+const { openJobPreviewFromQueue, openBatchDetail } = setup.preview;
+
 useQueueBlankClickClearSelection({ activeTab, hasSelection, clearSelection });
 const { handleLocaleChange } = useLocalePersistence({ appSettings, handleUpdateAppSettings });
 const addManualJobsFromFiles = () => addManualJob("files");
@@ -189,15 +216,6 @@ const manualJobPresetId = computed<string | null>({
     return manualJobPresetIdRef.value;
   },
   set(value) {
-    manualJobPresetIdRef.value = value;
-  },
-});
-defineExpose({
-  ...mainApp,
-  get manualJobPresetId() {
-    return manualJobPresetIdRef.value;
-  },
-  set manualJobPresetId(value: string | null) {
     manualJobPresetIdRef.value = value;
   },
 });
@@ -328,7 +346,7 @@ defineExpose({
         </div>
         <ScrollArea v-else class="flex-1 min-h-0">
           <div class="min-h-full flex flex-col" :class="activeTab === 'presets' ? undefined : 'p-4'">
-            <PresetTabPanel v-if="activeTab === 'presets'" :main-app="mainApp" />
+            <PresetTabPanel v-if="activeTab === 'presets'" :main-app="presetsTabMainApp" />
             <MediaPanel
               v-else-if="activeTab === 'media'"
               :inspecting="isInspectingMedia"
@@ -407,61 +425,6 @@ defineExpose({
       @copy-output-path="handleQueueContextCopyOutputPath"
       @close="closeQueueContextMenu"
     />
-    <MainDialogsStack
-      :dialog-manager="dialogManager"
-      :presets="presets"
-      :preset-pending-delete="presetPendingDelete"
-      :presets-pending-batch-delete="presetsPendingBatchDelete"
-      v-bind="{
-        queueDeleteConfirmOpen: mainApp.queueDeleteConfirmOpen.value,
-        queueDeleteConfirmSelectedCount: mainApp.queueDeleteConfirmSelectedCount.value,
-        queueDeleteConfirmTerminalCount: mainApp.queueDeleteConfirmTerminalCount.value,
-        queueDeleteConfirmActiveCount: mainApp.queueDeleteConfirmActiveCount.value,
-      }"
-      :smart-config="smartConfig"
-      :default-video-preset-id="manualJobPresetId"
-      :queue-progress-style="queueProgressStyle"
-      :progress-update-interval-ms="progressUpdateIntervalMs"
-      :selected-job-preset="selectedJobPreset"
-      :job-detail-job="jobDetailJob"
-      :job-detail-log-text="jobDetailLogText"
-      :highlighted-log-html="highlightedLogHtml"
-      :preview-url="previewUrl"
-      :preview-path="previewPath"
-      :preview-source-mode="previewSourceMode"
-      :preview-is-image="previewIsImage"
-      :preview-error="previewError"
-      :ffmpeg-resolved-path="ffmpegResolvedPath"
-      :sort-compare-fn="compareJobsForDisplay"
-      @savePreset="handleSavePreset"
-      @closeWizard="dialogManager.closeWizard()"
-      @closeParameterPanel="dialogManager.closeParameterPanel()"
-      @runBatchCompress="runBatchCompress"
-      @closeBatchCompressWizard="closeBatchCompressWizard"
-      @confirmDeletePreset="confirmDeletePreset"
-      @cancelDeletePreset="cancelDeletePreset"
-      @confirmDeletePresets="confirmBatchDeletePresets"
-      @cancelDeletePresets="cancelBatchDeletePresets"
-      @confirmQueueDeleteCancelAndDelete="mainApp.confirmQueueDeleteCancelAndDelete"
-      @confirmQueueDeleteTerminalOnly="mainApp.confirmQueueDeleteTerminalOnly"
-      @cancelQueueDelete="mainApp.cancelQueueDeleteConfirm"
-      @closeJobDetail="dialogManager.closeJobDetail()"
-      @handleJobDetailExpandPreview="handleJobDetailExpandPreview"
-      @copyToClipboard="copyToClipboard($event)"
-      @openJobPreviewFromQueue="openJobPreviewFromQueue"
-      @handleCancelJob="handleCancelJob"
-      @handleWaitJob="handleWaitJob"
-      @handleResumeJob="handleResumeJob"
-      @handleRestartJob="handleRestartJob"
-      @closeBatchDetail="dialogManager.closeBatchDetail()"
-      @handleExpandedPreviewError="handleExpandedPreviewError"
-      @handleExpandedImagePreviewError="handleExpandedImagePreviewError"
-      @closeExpandedPreview="closeExpandedPreview"
-      @setPreviewSourceMode="setPreviewSourceMode"
-      @openPreviewInSystemPlayer="openPreviewInSystemPlayer"
-      @importSmartPackConfirmed="handleImportSmartPackConfirmed"
-      @importCommandsPresets="importPresetsCandidates"
-      @openToolsSettings="activeTab = 'settings'"
-    />
+    <MainDialogsStackHost :setup="setup" @openToolsSettings="activeTab = 'settings'" />
   </div>
 </template>

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick, defineComponent, inject, provide, ref, h } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob } from "@/types";
@@ -194,7 +195,7 @@ describe("MainApp task detail surface - logs", () => {
     } as any;
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 
@@ -228,7 +229,7 @@ describe("MainApp task detail surface - logs", () => {
     } as any;
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 
@@ -264,7 +265,7 @@ describe("MainApp task detail surface - logs", () => {
     } as any;
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 
@@ -295,7 +296,7 @@ describe("MainApp task detail surface - logs", () => {
     } as any;
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 
@@ -338,7 +339,7 @@ describe("MainApp task detail surface - logs", () => {
     } as TranscodeJob);
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [liteJob]);
     vm.selectedJobForDetail = liteJob;
 
@@ -393,7 +394,7 @@ describe("MainApp task detail surface - logs", () => {
     } as any;
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 
@@ -477,7 +478,7 @@ describe("MainApp task detail surface - logs", () => {
     };
 
     const wrapper = mountMainApp();
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     setJobsOnVm(vm, [job]);
     vm.selectedJobForDetail = job;
 

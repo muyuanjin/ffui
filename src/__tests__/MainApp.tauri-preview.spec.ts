@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 const openPathMock = vi.fn();
 const selectPlayableMediaPathMock = vi.fn(async (candidates: string[]) => candidates[0] ?? null);
@@ -120,7 +121,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-1",
@@ -170,7 +171,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-image-1",
@@ -220,7 +221,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-waiting-1",
@@ -275,7 +276,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-processing-1",
@@ -327,7 +328,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-processing-stale-output-1",
@@ -387,7 +388,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-failed-1",
@@ -444,7 +445,7 @@ describe("MainApp Tauri preview fallback", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const job = {
       id: "job-completed-missing-output",

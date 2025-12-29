@@ -13,6 +13,7 @@ import {
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { AutoCompressProgress, TranscodeJob } from "@/types";
@@ -40,7 +41,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     expect(vm.lastDroppedRoot).toBe(null);
     expect(vm.showBatchCompress).toBe(false);
@@ -71,7 +72,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // 模拟之前有拖拽路径
     vm.lastDroppedRoot = droppedRoot;
@@ -94,7 +95,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
 
@@ -128,7 +129,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
 
@@ -178,7 +179,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     vm.lastDroppedRoot = rootPath;
 
@@ -260,7 +261,7 @@ describe("MainApp Batch Compress integration", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     vm.lastDroppedRoot = rootPath;
 

@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { i18n, useBackendMock, setQueueJobs, getQueueJobs, defaultAppSettings } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
@@ -36,7 +37,7 @@ describe("MainApp global alerts", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();

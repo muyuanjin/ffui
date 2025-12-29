@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
@@ -60,7 +61,7 @@ describe("MainApp queue sorting basics", () => {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
@@ -122,7 +123,7 @@ describe("MainApp queue sorting basics", () => {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) vm.queueModeModel = "queue";
 
@@ -182,7 +183,7 @@ describe("MainApp queue sorting basics", () => {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
@@ -250,7 +251,7 @@ describe("MainApp queue sorting basics", () => {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) vm.queueModeModel = "display";
 
