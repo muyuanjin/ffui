@@ -156,10 +156,6 @@ describe("MonitorPanelPro", () => {
     );
 
     const wrapper = mount(MonitorPanelPro, {
-      props: {
-        cpuSnapshot: null,
-        gpuSnapshot: null,
-      },
       global: {
         plugins: [i18n],
       },
@@ -193,10 +189,6 @@ describe("MonitorPanelPro", () => {
     );
 
     const wrapper = mount(MonitorPanelPro, {
-      props: {
-        cpuSnapshot: null,
-        gpuSnapshot: null,
-      },
       global: {
         plugins: [i18n],
       },

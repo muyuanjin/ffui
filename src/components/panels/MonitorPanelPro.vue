@@ -1,15 +1,9 @@
 <script setup lang="ts">
 import VChart from "vue-echarts";
 import "echarts";
-import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useMonitorPanelProState } from "@/composables/monitor";
 import { GpuCard, CpuHeatmap, ResourceBar, TranscodeHeatmapRing } from "./monitor";
 import { useI18n } from "vue-i18n";
-
-defineProps<{
-  cpuSnapshot?: CpuUsageSnapshot | null;
-  gpuSnapshot?: GpuUsageSnapshot | null;
-}>();
 
 const { t } = useI18n();
 
