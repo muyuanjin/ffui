@@ -5,6 +5,27 @@ export type JobType = "video" | "image" | "audio";
 export type JobSource = "manual" | "batch_compress";
 
 /**
+ * Request payload for creating a single transcoding job on the backend.
+ *
+ * This is intentionally separate from the `TranscodeJob` read model so enqueue
+ * APIs can evolve (tracks/subtitles/filters) without inflating the queue
+ * snapshot surface area.
+ */
+export interface EnqueueTranscodeJobRequest {
+  filename: string;
+  jobType: JobType;
+  source: JobSource;
+  /** Best-effort original input size in megabytes. */
+  originalSizeMb: number;
+  originalCodec?: string;
+  presetId: string;
+}
+
+export interface EnqueueTranscodeJobsRequest extends Omit<EnqueueTranscodeJobRequest, "filename"> {
+  filenames: string[];
+}
+
+/**
  * Queue view modes used by the queue UI. Additional modes (icon views,
  * dynamic cards, etc.) can be added in future changes while keeping the
  * enum stable for persisted preferences.

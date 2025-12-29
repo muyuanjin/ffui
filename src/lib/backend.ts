@@ -8,13 +8,13 @@ import type {
   ExternalToolStatus,
   GpuUsageSnapshot,
   FFmpegPreset,
-  JobSource,
-  JobType,
   OutputPolicy,
   BatchCompressConfig,
   QueueState,
   QueueStateLite,
   TranscodeJob,
+  EnqueueTranscodeJobRequest,
+  EnqueueTranscodeJobsRequest,
   SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
@@ -258,14 +258,7 @@ export const previewOutputPath = async (params: {
   return invokeWithAliases<string | null>("preview_output_path", { inputPath, presetId, outputPolicy });
 };
 
-export const enqueueTranscodeJob = async (params: {
-  filename: string;
-  jobType: JobType;
-  source: JobSource;
-  originalSizeMb: number;
-  originalCodec?: string;
-  presetId: string;
-}): Promise<TranscodeJob> => {
+export const enqueueTranscodeJob = async (params: EnqueueTranscodeJobRequest): Promise<TranscodeJob> => {
   const { filename, jobType, source, originalSizeMb, originalCodec, presetId } = params;
   return invokeWithAliases<TranscodeJob>("enqueue_transcode_job", {
     filename,
@@ -277,14 +270,7 @@ export const enqueueTranscodeJob = async (params: {
   });
 };
 
-export const enqueueTranscodeJobs = async (params: {
-  filenames: string[];
-  jobType: JobType;
-  source: JobSource;
-  originalSizeMb: number;
-  originalCodec?: string;
-  presetId: string;
-}): Promise<TranscodeJob[]> => {
+export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest): Promise<TranscodeJob[]> => {
   const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
   return invokeWithAliases<TranscodeJob[]>("enqueue_transcode_jobs", {
     filenames,
