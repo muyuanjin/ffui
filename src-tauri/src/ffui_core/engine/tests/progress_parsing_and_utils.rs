@@ -8,18 +8,18 @@ fn compute_preview_seek_seconds_uses_capture_percent_with_clamping() {
         "expected seek around 50s for 25% of 200s, got {seek}"
     );
 
-    // Very low percent clamps to at least 1s.
+    // Very low percent should seek to the start.
     let seek_low = compute_preview_seek_seconds(Some(200.0), 0);
     assert!(
-        (seek_low - 1.0).abs() < 0.001,
-        "seek should clamp to >= 1s when percent is 0, got {seek_low}"
+        seek_low.abs() < 0.001,
+        "seek should be ~0s when percent is 0, got {seek_low}"
     );
 
-    // Very high percent clamps to at most duration - 1s.
+    // Very high percent clamps slightly before EOF to avoid empty frames.
     let seek_high = compute_preview_seek_seconds(Some(200.0), 100);
     assert!(
-        (seek_high - 199.0).abs() < 0.001,
-        "seek should clamp to <= duration-1s, expected ~199, got {seek_high}"
+        (seek_high - 199.999).abs() < 0.01,
+        "seek should clamp to <= duration-0.001s, expected ~199.999, got {seek_high}"
     );
 }
 
@@ -40,11 +40,11 @@ fn compute_preview_seek_seconds_falls_back_when_duration_unavailable() {
 
 #[test]
 fn compute_preview_seek_seconds_handles_very_short_clips() {
-    // For very short clips we use a simple midpoint rather than 1..D-1.
+    // For very short clips, honour the capture percent directly.
     let seek_short = compute_preview_seek_seconds(Some(1.0), 25);
     assert!(
-        (seek_short - 0.5).abs() < 0.001,
-        "very short clips should use a midpoint (~0.5s for 1s clip), got {seek_short}"
+        (seek_short - 0.25).abs() < 0.001,
+        "very short clips should use percent-based seek (~0.25s for 25% of 1s), got {seek_short}"
     );
 }
 

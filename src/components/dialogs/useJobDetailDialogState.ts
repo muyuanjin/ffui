@@ -10,7 +10,7 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import type { FFmpegPreset, JobRun, TranscodeJob } from "@/types";
 import { useFfmpegCommandView } from "@/components/queue-item/useFfmpegCommandView";
 import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
-import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
+import { invalidateJobPreviewAutoEnsure, requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
 import {
   formatJobLogLine,
   formatWallClockTimestamp,
@@ -19,6 +19,7 @@ import {
 } from "@/composables/useJobLog";
 import type { HighlightToken } from "@/lib/highlightTokens";
 import { requestJobPreviewWarmup } from "@/lib/jobPreviewWarmup";
+import { appendQueryParam } from "@/lib/url";
 
 export type JobDetailDialogProps = {
   open: boolean;
@@ -91,6 +92,7 @@ export function useJobDetailDialogState(
   const inlinePreviewUrl = ref<string | null>(null);
   const inlinePreviewFallbackLoaded = ref(false);
   const inlinePreviewRescreenshotAttempted = ref(false);
+  const inlinePreviewVariantRetryAttempted = ref(false);
   let variantEnsureHandle: { promise: Promise<string | null>; cancel: () => void } | null = null;
 
   const desiredPreviewHeightPx = computed(() => {
@@ -129,6 +131,7 @@ export function useJobDetailDialogState(
     ({ open, jobId, type, previewPath, previewRevision, desiredHeightPx }) => {
       inlinePreviewFallbackLoaded.value = false;
       inlinePreviewRescreenshotAttempted.value = false;
+      inlinePreviewVariantRetryAttempted.value = false;
 
       if (!open) {
         inlinePreviewUrl.value = null;
@@ -160,7 +163,8 @@ export function useJobDetailDialogState(
         variantEnsureHandle.cancel();
         variantEnsureHandle = null;
       }
-      variantEnsureHandle = requestJobPreviewAutoEnsure(jobId, { heightPx: desiredHeightPx });
+      const cacheKey = previewPath ? `${previewPath}|rev=${Number(previewRevision ?? 0)}` : null;
+      variantEnsureHandle = requestJobPreviewAutoEnsure(jobId, { heightPx: desiredHeightPx, cacheKey });
       void variantEnsureHandle.promise.then((resolved) => {
         if (!resolved) return;
         if (!props.open) return;
@@ -178,6 +182,26 @@ export function useJobDetailDialogState(
     if (inlinePreviewFallbackLoaded.value) return;
 
     try {
+      const jobId = props.job?.id;
+      const heightPx = desiredPreviewHeightPx.value;
+      if (jobId && props.job?.type === "video" && heightPx > 0 && !inlinePreviewVariantRetryAttempted.value) {
+        inlinePreviewVariantRetryAttempted.value = true;
+        const cacheKey = path ? `${path}|rev=${Number(props.job?.previewRevision ?? 0)}` : null;
+        invalidateJobPreviewAutoEnsure(jobId, { heightPx, cacheKey });
+        try {
+          const handle = requestJobPreviewAutoEnsure(jobId, { heightPx, cacheKey });
+          const regenerated = await handle.promise;
+          if (regenerated && props.open && props.job?.id === jobId) {
+            const url = buildJobPreviewUrl(regenerated, props.job?.previewRevision);
+            inlinePreviewUrl.value = url ? appendQueryParam(url, "ffuiPreviewRetry", String(Date.now())) : null;
+            inlinePreviewFallbackLoaded.value = false;
+            return;
+          }
+        } catch {
+          // fall back to base/data URL logic below
+        }
+      }
+
       inlinePreviewUrl.value = await loadPreviewDataUrl(path);
       inlinePreviewFallbackLoaded.value = true;
     } catch (error) {

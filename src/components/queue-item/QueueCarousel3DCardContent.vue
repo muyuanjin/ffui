@@ -21,6 +21,7 @@ const emit = defineEmits<{
   inspectJob: [job: TranscodeJob];
   openBatchDetail: [batch: CompositeBatchCompressTask];
   compareJob: [job: TranscodeJob];
+  previewError: [jobId: string];
 }>();
 
 const { t } = useI18n();
@@ -32,6 +33,8 @@ const job = computed<TranscodeJob | null>(() => {
   return null;
 });
 
+const jobIdForPreview = computed(() => job.value?.id ?? null);
+
 const statusKey = computed(() => {
   if (props.item.kind !== "job") return null;
   const raw = props.item.job.status;
@@ -42,7 +45,13 @@ const statusKey = computed(() => {
 <template>
   <!-- 预览区：占据大部分卡片高度 -->
   <div class="relative flex-1 bg-muted/50 overflow-hidden">
-    <img v-if="previewUrl" :src="previewUrl" alt="" class="w-full h-full object-cover" />
+    <img
+      v-if="previewUrl"
+      :src="previewUrl"
+      alt=""
+      class="w-full h-full object-cover"
+      @error="jobIdForPreview ? emit('previewError', jobIdForPreview) : undefined"
+    />
     <div v-else class="w-full h-full flex items-center justify-center">
       <component
         :is="item.kind === 'batch' ? Folder : getTypeIcon(item.kind === 'job' ? item.job.type : 'video')"

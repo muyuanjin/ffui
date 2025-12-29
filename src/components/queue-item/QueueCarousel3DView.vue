@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch, reactive, nextTick } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import { useI18n } from "vue-i18n";
 import type { TranscodeJob, QueueProgressStyle, CompositeBatchCompressTask } from "@/types";
 import type { QueueListItem } from "@/composables";
-import { buildJobPreviewUrl, buildPreviewUrl, hasTauri } from "@/lib/backend";
-import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
 import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { createWheelSoftSnapController } from "@/lib/wheelSoftSnap";
 import QueueCarousel3DHeader from "@/components/queue-item/QueueCarousel3DHeader.vue";
 import QueueCarousel3DFooter from "@/components/queue-item/QueueCarousel3DFooter.vue";
 import QueueCarousel3DCardContent from "@/components/queue-item/QueueCarousel3DCardContent.vue";
+import { useQueueCarouselPreviewEnsure } from "@/components/queue-item/useQueueCarouselPreviewEnsure";
 import {
   computeCarousel3DLayout,
   computeCarouselCardStyle,
@@ -44,9 +43,6 @@ const dragStartX = ref(0);
 const dragOffset = ref(0);
 const containerRef = ref<HTMLElement | null>(null);
 const stageRef = ref<HTMLElement | null>(null);
-
-const previewCache = reactive<Record<string, string | null>>({});
-const pendingPreviewEnsures = new Map<string, { promise: Promise<string | null>; cancel: () => void }>();
 
 const perfHints = useQueuePerfHints();
 const allowAutoEnsure = computed(() => perfHints?.allowPreviewAutoEnsure.value ?? true);
@@ -107,44 +103,13 @@ const getItemJob = (item: QueueListItem): TranscodeJob | null => {
   return null;
 };
 
-const getPreviewUrl = (item: QueueListItem): string | null => {
-  const job = getItemJob(item);
-  if (!job) return null;
-
-  if (previewCache[job.id]) {
-    return buildJobPreviewUrl(previewCache[job.id], job.previewRevision);
-  }
-
-  if (job.previewPath) {
-    return buildJobPreviewUrl(job.previewPath, job.previewRevision);
-  }
-
-  if (job.type === "image") {
-    return buildPreviewUrl(job.outputPath || job.inputPath || null);
-  }
-
-  return null;
-};
-
-const ensurePreviewForItem = async (item: QueueListItem) => {
-  const job = getItemJob(item);
-  if (!job) return;
-  if (previewCache[job.id] || job.type !== "video") return;
-  if (!hasTauri()) return;
-  if (!allowAutoEnsure.value) return;
-  if (pendingPreviewEnsures.has(job.id)) return;
-
-  try {
-    const handle = requestJobPreviewAutoEnsure(job.id, { heightPx: 1080 });
-    pendingPreviewEnsures.set(job.id, handle);
-    const path = await handle.promise;
-    if (path) previewCache[job.id] = path;
-  } catch {
-    // silent
-  } finally {
-    pendingPreviewEnsures.delete(job.id);
-  }
-};
+const { pendingPreviewEnsures, getPreviewUrl, ensurePreviewForItem, handlePreviewError } =
+  useQueueCarouselPreviewEnsure({
+    displayedItems,
+    allowAutoEnsure,
+    getItemJob,
+    heightPx: 1080,
+  });
 
 watch(
   activeIndex,
@@ -438,6 +403,7 @@ const getDisplayFilename = (item: QueueListItem): string => {
               @inspect-job="emit('inspectJob', $event)"
               @open-batch-detail="emit('openBatchDetail', $event)"
               @compare-job="emit('compareJob', $event)"
+              @preview-error="handlePreviewError"
             />
           </div>
         </template>

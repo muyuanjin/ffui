@@ -180,3 +180,114 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
         "ensure_job_preview delta should include previewRevision"
     );
 }
+
+#[test]
+fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
+    let _env_lock = crate::test_support::env_lock();
+    let _env_guard = crate::test_support::EnvVarGuard::capture([
+        "FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT",
+        "FFUI_MOCK_FFMPEG_EXIT_CODE",
+        "FFUI_MOCK_FFMPEG_CAPTURE_PATH",
+        "FFUI_MOCK_FFMPEG_CAPTURE_APPEND",
+        "FFUI_MOCK_FFPROBE_FORMAT_DURATION",
+    ]);
+    crate::test_support::set_env("FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT", "1");
+    crate::test_support::set_env("FFUI_MOCK_FFMPEG_EXIT_CODE", "0");
+    crate::test_support::set_env("FFUI_MOCK_FFMPEG_CAPTURE_APPEND", "1");
+    crate::test_support::set_env("FFUI_MOCK_FFPROBE_FORMAT_DURATION", "100.0\n");
+
+    let data_root = tempdir().expect("create temp data root for mock preview test");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
+
+    let capture_path = data_root.path().join("captures.jsonl");
+    crate::test_support::set_env(
+        "FFUI_MOCK_FFMPEG_CAPTURE_PATH",
+        capture_path.to_string_lossy().as_ref(),
+    );
+
+    let engine = make_engine_with_preset();
+    let mock_exe = locate_mock_ffmpeg_exe();
+
+    let input = data_root.path().join("input-missing-duration.mp4");
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings.preview_capture_percent = 50;
+        state.settings.tools.auto_download = false;
+        state.settings.tools.ffmpeg_path = Some(mock_exe.to_string_lossy().into_owned());
+        state.settings.tools.ffprobe_path = Some(mock_exe.to_string_lossy().into_owned());
+
+        let mut job = crate::test_support::make_transcode_job_for_tests(
+            "job-1",
+            JobStatus::Queued,
+            0.0,
+            Some(1),
+        );
+        job.filename = input.to_string_lossy().into_owned();
+        job.input_path = Some(input.to_string_lossy().into_owned());
+        if let Some(info) = job.media_info.as_mut() {
+            info.duration_seconds = None;
+        }
+        state.jobs.insert(job.id.clone(), job);
+    }
+
+    let regenerated = engine.ensure_job_preview("job-1");
+    assert!(
+        regenerated.is_some(),
+        "ensure_job_preview should succeed with mock ffmpeg"
+    );
+
+    let contents = std::fs::read_to_string(&capture_path).expect("read capture file");
+    let mut ss_arg: Option<String> = None;
+    for line in contents.lines() {
+        let Ok(payload) = serde_json::from_str::<serde_json::Value>(line) else {
+            continue;
+        };
+        let Some(argv) = payload.get("argv").and_then(|v| v.as_array()) else {
+            continue;
+        };
+        let argv: Vec<String> = argv
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+        if !argv.iter().any(|a| a == "-i") {
+            continue;
+        }
+        if let Some(pos) = argv.iter().position(|a| a == "-ss") {
+            if let Some(v) = argv.get(pos + 1) {
+                ss_arg = Some(v.clone());
+                break;
+            }
+        }
+    }
+
+    assert_eq!(
+        ss_arg.as_deref(),
+        Some("50.000"),
+        "preview extraction should seek to 50% of probed 100s duration"
+    );
+
+    let ss_pos = contents
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .filter_map(|payload| payload.get("argv").and_then(|v| v.as_array()).cloned())
+        .filter_map(|argv| {
+            let argv: Vec<String> = argv
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            if !argv.iter().any(|a| a == "-i") {
+                return None;
+            }
+            let i_pos = argv.iter().position(|a| a == "-i")?;
+            let ss_pos = argv.iter().position(|a| a == "-ss")?;
+            Some((i_pos, ss_pos))
+        })
+        .next();
+
+    assert!(
+        ss_pos.is_some_and(|(i_pos, ss_pos)| ss_pos > i_pos),
+        "preview extraction should use accurate seek (-ss after -i)"
+    );
+}

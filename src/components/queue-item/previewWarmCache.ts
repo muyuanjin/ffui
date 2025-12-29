@@ -56,3 +56,7 @@ export const getDecodedPreviewUrl = (jobId: string, expectedUrl: string): string
 export const resetPreviewWarmCacheForTests = () => {
   decodedByJobId.clear();
 };
+
+export const clearPreviewWarmCache = () => {
+  decodedByJobId.clear();
+};

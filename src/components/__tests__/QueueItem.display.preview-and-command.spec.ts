@@ -7,7 +7,9 @@ import type { FFmpegPreset, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 
-const ensureJobPreviewAutoMock = vi.fn(async (_jobId: string) => "C:/app-data/previews/autogen.jpg");
+const ensureJobPreviewAutoMock = vi.fn(
+  async (_jobId: string): Promise<string | null> => "C:/app-data/previews/autogen.jpg",
+);
 
 vi.mock("@/lib/backend", () => {
   const hasTauri = vi.fn(() => false);
@@ -32,6 +34,7 @@ vi.mock("@/components/queue-item/previewAutoEnsure", () => {
       promise: ensureJobPreviewAutoMock(jobId),
       cancel: vi.fn(() => {}),
     }),
+    invalidateJobPreviewAutoEnsure: vi.fn(() => {}),
     resetPreviewAutoEnsureForTests: vi.fn(() => {}),
   };
 });
@@ -258,6 +261,7 @@ describe("QueueItem display preview & command view", () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
 
     (hasTauri as any).mockReturnValue(true);
+    ensureJobPreviewAutoMock.mockResolvedValueOnce(null);
     (loadPreviewDataUrl as any).mockResolvedValueOnce("data:image/jpeg;base64,FALLBACK=");
 
     const wrapper = mount(QueueItem, {
@@ -286,6 +290,7 @@ describe("QueueItem display preview & command view", () => {
     const job = makeJob({ previewPath: "C:/app-data/previews/abc123.jpg" });
 
     (hasTauri as any).mockReturnValue(true);
+    ensureJobPreviewAutoMock.mockResolvedValueOnce(null);
     (loadPreviewDataUrl as any).mockRejectedValueOnce(new Error("preview missing"));
     (ensureJobPreview as any).mockResolvedValueOnce("C:/app-data/previews/regenerated.jpg");
 
@@ -309,7 +314,7 @@ describe("QueueItem display preview & command view", () => {
 
     const thumb = wrapper.get("[data-testid='queue-item-thumbnail']");
     const img = thumb.find("img");
-    expect(img.attributes("src")).toBe("C:/app-data/previews/regenerated.jpg");
+    expect(img.attributes("src")).toContain("C:/app-data/previews/regenerated.jpg");
   });
 
   it("renders a stable thumbnail placeholder when previewPath is missing", () => {

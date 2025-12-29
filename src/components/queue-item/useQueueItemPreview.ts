@@ -1,10 +1,11 @@
 import { computed, nextTick, onScopeDispose, ref, watch, type ComputedRef, type Ref } from "vue";
 import type { TranscodeJob } from "@/types";
 import { buildJobPreviewUrl, ensureJobPreview, hasTauri, loadPreviewDataUrl } from "@/lib/backend";
-import { requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
+import { invalidateJobPreviewAutoEnsure, requestJobPreviewAutoEnsure } from "@/components/queue-item/previewAutoEnsure";
 import { useQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { schedulePreviewLoad } from "@/components/queue-item/previewLoadScheduler";
 import { getDecodedPreviewUrl, markPreviewDecoded } from "@/components/queue-item/previewWarmCache";
+import { appendQueryParam } from "@/lib/url";
 
 type DesiredHeightInput = number | null | undefined | { value: number | null | undefined };
 
@@ -24,6 +25,7 @@ export function useQueueItemPreview(options: {
   const ensuredPreviewPath = ref<string | null>(null);
   const lastJobId = ref<string | null>(null);
   const lastDesiredHeightPx = ref<number>(180);
+  const previewVariantRetryAttempted = ref(false);
   let autoEnsureHandle: { promise: Promise<string | null>; cancel: () => void } | null = null;
   let pendingPreviewLoadCancel: (() => void) | null = null;
   let pendingPreviewLoadAbort: AbortController | null = null;
@@ -60,6 +62,9 @@ export function useQueueItemPreview(options: {
       outputPath: job.value.outputPath,
       ensuredPreviewPath: ensuredPreviewPath.value,
       desiredHeightPx: desiredHeightPx.value,
+      previewCacheKey: job.value.previewPath
+        ? `${job.value.previewPath}|rev=${Number(job.value.previewRevision ?? 0)}`
+        : "",
       allowAutoEnsure: allowAutoEnsure.value,
       allowPreviewLoads: allowPreviewLoads.value,
     }),
@@ -72,6 +77,7 @@ export function useQueueItemPreview(options: {
       outputPath,
       ensuredPreviewPath: ensured,
       desiredHeightPx: desiredHeightPxSnapshot,
+      previewCacheKey,
       allowAutoEnsure: allowAutoEnsureSnapshot,
       allowPreviewLoads: allowPreviewLoadsSnapshot,
     }) => {
@@ -79,6 +85,7 @@ export function useQueueItemPreview(options: {
         lastJobId.value = id;
         ensuredPreviewPath.value = null;
         lastDesiredHeightPx.value = desiredHeightPxSnapshot;
+        previewVariantRetryAttempted.value = false;
         if (autoEnsureHandle) {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
@@ -99,6 +106,7 @@ export function useQueueItemPreview(options: {
       if (desiredHeightPxSnapshot !== lastDesiredHeightPx.value) {
         lastDesiredHeightPx.value = desiredHeightPxSnapshot;
         ensuredPreviewPath.value = null;
+        previewVariantRetryAttempted.value = false;
         if (autoEnsureHandle) {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
@@ -109,6 +117,7 @@ export function useQueueItemPreview(options: {
       if ((previewPath ?? null) !== lastPreviewPath.value) {
         previewRescreenshotAttempted.value = false;
         lastPreviewPath.value = previewPath ?? null;
+        previewVariantRetryAttempted.value = false;
         if (type === "video" && desiredHeightPxSnapshot !== 180) {
           ensuredPreviewPath.value = null;
           if (autoEnsureHandle) {
@@ -128,7 +137,10 @@ export function useQueueItemPreview(options: {
           autoEnsureHandle.cancel();
           autoEnsureHandle = null;
         } else if (shouldEnsure && !autoEnsureHandle) {
-          autoEnsureHandle = requestJobPreviewAutoEnsure(id, { heightPx: desiredHeightPxSnapshot });
+          autoEnsureHandle = requestJobPreviewAutoEnsure(id, {
+            heightPx: desiredHeightPxSnapshot,
+            cacheKey: previewCacheKey,
+          });
           void autoEnsureHandle.promise.then((resolved) => {
             if (!resolved) return;
             if (job.value.id !== id) return;
@@ -304,6 +316,32 @@ export function useQueueItemPreview(options: {
     previewErrorHandlingInFlight.value = true;
 
     try {
+      const heightPx = lastDesiredHeightPx.value;
+      const cacheKey = job.value.previewPath
+        ? `${job.value.previewPath}|rev=${Number(job.value.previewRevision ?? 0)}`
+        : null;
+
+      if (!previewVariantRetryAttempted.value) {
+        previewVariantRetryAttempted.value = true;
+        invalidateJobPreviewAutoEnsure(job.value.id, { heightPx, cacheKey });
+        try {
+          previewUrl.value = null;
+          await nextTick();
+          const handle = requestJobPreviewAutoEnsure(job.value.id, { heightPx, cacheKey });
+          const regenerated = await handle.promise;
+          if (regenerated) {
+            ensuredPreviewPath.value = heightPx === 180 ? null : regenerated;
+            const url = buildJobPreviewUrl(regenerated, job.value.previewRevision);
+            previewUrl.value = url ? appendQueryParam(url, "ffuiPreviewRetry", String(Date.now())) : null;
+            previewFallbackLoaded.value = false;
+            await nextTick();
+            return;
+          }
+        } catch {
+          // fall back to data URL / base preview regeneration below
+        }
+      }
+
       try {
         const url = await loadPreviewDataUrl(path);
         previewUrl.value = url;

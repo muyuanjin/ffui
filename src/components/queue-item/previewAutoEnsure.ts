@@ -17,11 +17,11 @@ const isCacheEntryFresh = (entry: { path: string; resolvedAtMs: number }): boole
   return ageMs <= SUCCESS_CACHE_TTL_MS;
 };
 
-const cacheResolvedPreviewPath = (jobId: string, path: string | null) => {
-  if (!jobId) return;
+const cacheResolvedPreviewPath = (key: string, path: string | null) => {
+  if (!key) return;
   const safePath = (path ?? "").trim();
   if (!safePath) return;
-  resolvedPreviewPathByKey.set(jobId, { path: safePath, resolvedAtMs: nowMs() });
+  resolvedPreviewPathByKey.set(key, { path: safePath, resolvedAtMs: nowMs() });
   if (resolvedPreviewPathByKey.size <= MAX_CACHE) return;
 
   const overflow = resolvedPreviewPathByKey.size - MAX_CACHE;
@@ -71,6 +71,16 @@ type JobOp = {
 const jobOpsByKey = new Map<string, JobOp>();
 let requestSeq = 0;
 
+const hashCacheKey = (value: string): string => {
+  // FNV-1a 32-bit, encoded as 8-char hex.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+};
+
 const removeFromQueue = (key: string) => {
   if (!queuedKeySet.has(key)) return;
   queuedKeySet.delete(key);
@@ -104,8 +114,9 @@ const pump = () => {
   inFlight += 1;
   let ensurePromise: Promise<string | null>;
   try {
-    const [jobId, heightPart] = key.split("|h=", 2);
-    const parsedHeight = Number.parseInt(heightPart ?? "", 10);
+    const [jobId, heightPartRaw] = key.split("|h=", 2);
+    const heightPart = (heightPartRaw ?? "").split("|", 1)[0] ?? "";
+    const parsedHeight = Number.parseInt(heightPart, 10);
     const heightPx = Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : DEFAULT_HEIGHT_PX;
 
     const ensureJobPreview = (backend as any).ensureJobPreview as undefined | ((id: string) => Promise<string | null>);
@@ -151,19 +162,46 @@ const normalizeHeightPx = (heightPx: number | null | undefined): number => {
   return parsed;
 };
 
-const buildEnsureKey = (jobId: string, heightPx: number): string => {
-  return `${jobId}|h=${Math.max(1, heightPx)}`;
+const normalizeCacheKey = (cacheKey: string | null | undefined): string | null => {
+  const trimmed = String(cacheKey ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed;
 };
+
+const buildEnsureKey = (jobId: string, heightPx: number, cacheKey?: string | null): string => {
+  const base = `${jobId}|h=${Math.max(1, heightPx)}`;
+  const normalizedCacheKey = normalizeCacheKey(cacheKey);
+  if (!normalizedCacheKey) return base;
+  return `${base}|k=${hashCacheKey(normalizedCacheKey)}`;
+};
+
+export function invalidateJobPreviewAutoEnsure(
+  jobId: string,
+  opts?: { heightPx?: number | null; cacheKey?: string | null },
+) {
+  const normalizedJobId = String(jobId ?? "").trim();
+  if (!normalizedJobId) return;
+  const heightPx = normalizeHeightPx(opts?.heightPx);
+  const key = buildEnsureKey(normalizedJobId, heightPx, opts?.cacheKey);
+  resolvedPreviewPathByKey.delete(key);
+
+  const op = jobOpsByKey.get(key);
+  if (op?.state === "queued") {
+    op.consumers.clear();
+    jobOpsByKey.delete(key);
+    removeFromQueue(key);
+  }
+}
 
 export function requestJobPreviewAutoEnsure(
   jobId: string,
-  opts?: { heightPx?: number | null },
+  opts?: { heightPx?: number | null; cacheKey?: string | null },
 ): { promise: Promise<string | null>; cancel: () => void } {
   if (!backend.hasTauri()) return { promise: Promise.resolve(null), cancel: () => {} };
   if (!jobId) return { promise: Promise.resolve(null), cancel: () => {} };
 
   const heightPx = normalizeHeightPx(opts?.heightPx);
-  const key = buildEnsureKey(jobId, heightPx);
+  const key = buildEnsureKey(jobId, heightPx, opts?.cacheKey);
 
   const cached = resolvedPreviewPathByKey.get(key);
   if (cached && isCacheEntryFresh(cached)) {
@@ -228,5 +266,9 @@ export function resetPreviewAutoEnsureForTests() {
   queuedKeySet.clear();
   jobOpsByKey.clear();
   requestSeq = 0;
+  resolvedPreviewPathByKey.clear();
+}
+
+export function clearPreviewAutoEnsureCache() {
   resolvedPreviewPathByKey.clear();
 }

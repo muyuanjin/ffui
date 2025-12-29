@@ -1,12 +1,86 @@
 use super::state::notify_queue_lite_delta_listeners;
 use super::{TranscodingEngine, job_runner};
-use crate::ffui_core::domain::JobType;
+use crate::ffui_core::domain::{JobType, MediaInfo};
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
 use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
+    fn resolve_job_source_path(input_path: Option<String>, filename: &str) -> Option<String> {
+        let from_input = input_path.and_then(|v| {
+            let trimmed = v.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        });
+        if from_input.is_some() {
+            return from_input;
+        }
+
+        let trimmed = filename.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        // Avoid treating a bare filename as a relative path, which could point
+        // to an unrelated file depending on the process working directory.
+        let looks_like_path =
+            trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains(':');
+        if !looks_like_path {
+            return None;
+        }
+
+        Some(trimmed.to_string())
+    }
+
+    fn resolve_duration_seconds_and_update_media_info(
+        &self,
+        job_id: &str,
+        duration_seconds: Option<f64>,
+        source_path: &str,
+        tools: &ExternalToolSettings,
+    ) -> Option<f64> {
+        use std::path::Path;
+
+        let duration_seconds = duration_seconds.or_else(|| {
+            crate::ffui_core::probe_video_duration_seconds_best_effort(
+                Path::new(source_path),
+                tools,
+            )
+            .ok()
+        });
+
+        if duration_seconds.is_some() {
+            let mut state = self.inner.state.lock_unpoisoned();
+            if let Some(job) = state.jobs.get_mut(job_id)
+                && job.job_type == JobType::Video
+            {
+                match job.media_info.as_mut() {
+                    Some(info) if info.duration_seconds.is_none() => {
+                        info.duration_seconds = duration_seconds;
+                    }
+                    None => {
+                        job.media_info = Some(MediaInfo {
+                            duration_seconds,
+                            width: None,
+                            height: None,
+                            frame_rate: None,
+                            video_codec: None,
+                            audio_codec: None,
+                            size_mb: None,
+                        });
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        duration_seconds
+    }
+
     /// Ensure a video job has a readable preview image on disk.
     ///
     /// If the preview image is missing or unreadable, regenerate it using the
@@ -35,6 +109,12 @@ impl TranscodingEngine {
 
         let settings = self.settings();
         let capture_percent = settings.preview_capture_percent;
+        let duration_seconds = self.resolve_duration_seconds_and_update_media_info(
+            job_id,
+            duration_seconds,
+            &input_path,
+            &settings.tools,
+        );
 
         let (ffmpeg_path, _source, _did_download) =
             ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools).ok()?;
@@ -105,14 +185,7 @@ impl TranscodingEngine {
             let Some(job) = state.jobs.get(job_id) else {
                 return Ok(None);
             };
-            let source_path = job.input_path.clone().or_else(|| {
-                let trimmed = job.filename.trim();
-                if trimmed.is_empty() {
-                    None
-                } else {
-                    Some(trimmed.to_string())
-                }
-            });
+            let source_path = Self::resolve_job_source_path(job.input_path.clone(), &job.filename);
             (
                 job.job_type,
                 source_path,
@@ -146,6 +219,12 @@ impl TranscodingEngine {
 
         let settings = self.settings();
         let capture_percent = settings.preview_capture_percent;
+        let duration_seconds = self.resolve_duration_seconds_and_update_media_info(
+            job_id,
+            duration_seconds,
+            &source_path,
+            &settings.tools,
+        );
 
         let (ffmpeg_path, _source, _did_download) =
             match ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools) {
@@ -195,7 +274,8 @@ impl TranscodingEngine {
                 .values()
                 .filter(|job| job.job_type == JobType::Video)
                 .filter_map(|job| {
-                    let input = job.input_path.clone()?;
+                    let input =
+                        Self::resolve_job_source_path(job.input_path.clone(), &job.filename)?;
                     let duration = job
                         .media_info
                         .as_ref()
@@ -224,6 +304,42 @@ impl TranscodingEngine {
                 let state = self.inner.state.lock_unpoisoned();
                 if state.preview_refresh_token != refresh_token {
                     return;
+                }
+            }
+
+            let duration_seconds = duration_seconds.or_else(|| {
+                crate::ffui_core::probe_video_duration_seconds_best_effort(
+                    Path::new(&input_path),
+                    tools,
+                )
+                .ok()
+            });
+
+            if duration_seconds.is_some() {
+                let mut state = self.inner.state.lock_unpoisoned();
+                if state.preview_refresh_token != refresh_token {
+                    return;
+                }
+                if let Some(job) = state.jobs.get_mut(&job_id)
+                    && job.job_type == JobType::Video
+                {
+                    match job.media_info.as_mut() {
+                        Some(info) if info.duration_seconds.is_none() => {
+                            info.duration_seconds = duration_seconds;
+                        }
+                        None => {
+                            job.media_info = Some(MediaInfo {
+                                duration_seconds,
+                                width: None,
+                                height: None,
+                                frame_rate: None,
+                                video_codec: None,
+                                audio_codec: None,
+                                size_mb: None,
+                            });
+                        }
+                        _ => {}
+                    }
                 }
             }
 
@@ -343,5 +459,31 @@ impl TranscodingEngine {
         for delta in deltas {
             notify_queue_lite_delta_listeners(&self.inner, delta);
         }
+    }
+}
+
+#[cfg(test)]
+mod preview_refresh_path_resolution_tests {
+    use super::TranscodingEngine;
+
+    #[test]
+    fn resolve_job_source_path_prefers_input_path() {
+        let resolved = TranscodingEngine::resolve_job_source_path(
+            Some("C:/videos/in.mp4".to_string()),
+            "C:/videos/fallback.mp4",
+        );
+        assert_eq!(resolved.as_deref(), Some("C:/videos/in.mp4"));
+    }
+
+    #[test]
+    fn resolve_job_source_path_uses_filename_when_path_like() {
+        let resolved = TranscodingEngine::resolve_job_source_path(None, "C:/videos/legacy.mp4");
+        assert_eq!(resolved.as_deref(), Some("C:/videos/legacy.mp4"));
+    }
+
+    #[test]
+    fn resolve_job_source_path_ignores_bare_filename() {
+        let resolved = TranscodingEngine::resolve_job_source_path(None, "legacy.mp4");
+        assert_eq!(resolved, None);
     }
 }

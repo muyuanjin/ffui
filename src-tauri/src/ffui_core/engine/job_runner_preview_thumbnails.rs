@@ -18,7 +18,7 @@ fn build_preview_output_path_in_root(
     height_px: u16,
     q: u8,
 ) -> PathBuf {
-    const PREVIEW_THUMB_VERSION: u8 = 2;
+    const PREVIEW_THUMB_VERSION: u8 = 3;
 
     let mut hasher = DefaultHasher::new();
     input.to_string_lossy().hash(&mut hasher);
@@ -49,19 +49,15 @@ pub(super) fn compute_preview_seek_seconds(total_duration: Option<f64>, capture_
     };
 
     // Clamp the configured percentage into a sane range so bogus configs
-    // cannot cause us to seek past the end or before the first second.
+    // cannot cause us to seek past the end.
     let percent = f64::from(capture_percent).clamp(0.0, 100.0);
     let raw = duration * percent / 100.0;
 
-    // For very short clips, prefer a simple midpoint to avoid degenerate
-    // ranges where `duration - 1` becomes <= 1.
-    if duration <= 2.0 {
-        return (duration / 2.0).max(0.0);
-    }
-
-    let min = 1.0;
-    let max = (duration - 1.0).max(min);
-    raw.clamp(min, max)
+    // Avoid seeking exactly to EOF which can produce a black/empty frame on
+    // some demuxers. Keep the clamp small enough so "100%" is still the last
+    // meaningful frame.
+    let max = (duration - 0.001).max(0.0);
+    raw.clamp(0.0, max)
 }
 
 fn build_preview_ffmpeg_args_variant(
@@ -73,10 +69,10 @@ fn build_preview_ffmpeg_args_variant(
 ) -> Vec<OsString> {
     vec![
         "-y".into(),
-        "-ss".into(),
-        ss.into(),
         "-i".into(),
         input.as_os_str().into(),
+        "-ss".into(),
+        ss.into(),
         "-map".into(),
         "0:v:0".into(),
         "-an".into(),

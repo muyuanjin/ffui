@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { cleanupPreviewCachesAsync, hasTauri } from "@/lib/backend";
+import { clearPreviewAutoEnsureCache } from "@/components/queue-item/previewAutoEnsure";
+import { clearPreviewWarmCache } from "@/components/queue-item/previewWarmCache";
 import type { AppSettings } from "@/types";
 
 const { t } = useI18n();
@@ -66,6 +68,10 @@ const cleanupPreviewCache = async () => {
     previewCacheCleanupTooltip.value = started
       ? (t("app.settings.previewCacheCleanupStarted") as string)
       : (t("app.settings.previewCacheCleanupNotStarted") as string);
+    if (started) {
+      clearPreviewAutoEnsureCache();
+      clearPreviewWarmCache();
+    }
   } catch (error) {
     previewCacheCleanupStatus.value = "error";
     previewCacheCleanupTooltip.value = (error as Error)?.message ?? String(error);
