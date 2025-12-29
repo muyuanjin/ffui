@@ -274,7 +274,6 @@ export const enqueueTranscodeJobs = async (params: EnqueueTranscodeJobsRequest):
   const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
   return invokeCommand<TranscodeJob[]>("enqueue_transcode_jobs", {
     filenames,
-    fileNames: filenames,
     jobType,
     source,
     originalSizeMb,
