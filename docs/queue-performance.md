@@ -81,4 +81,4 @@ Any copy/paste regression that reintroduces duplicated markup or logic will fail
   - Selection toggles do not stall.
   - Context menus open immediately.
 - If you need a local backend-side serialization comparison:
-  - `cargo run --release --manifest-path src-tauri/Cargo.toml --bin bench_queue_state_lite -- --jobs 10000 --baseline-ticks 10 --delta-ticks 2000 --patches 2`
+  - `cargo run --release --manifest-path tools/bench/Cargo.toml --bin bench_queue_state_lite -- --jobs 10000 --baseline-ticks 10 --delta-ticks 2000 --patches 2`

@@ -1,10 +1,11 @@
 [package]
 name = "ffui"
-version = "0.2.1"
+version = "0.3.0"
 description = "A Tauri App"
 authors = ["muyuanjin"]
 edition = "2024"
 default-run = "ffui"
+autobins = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -77,7 +78,7 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 panic = "abort"
-strip = true
+strip = "debuginfo"
 debug = 0
 incremental = false
 
@@ -92,16 +93,5 @@ path = "tests/ffui_mock_ffmpeg.rs"
 harness = false
 
 [[bin]]
-name = "bench_queue_restore"
-path = "src/bin/bench_queue_restore.rs"
-required-features = ["bench"]
-
-[[bin]]
-name = "bench_queue_state_lite"
-path = "src/bin/bench_queue_state_lite.rs"
-required-features = ["bench"]
-
-[[bin]]
-name = "bench_taskbar_progress_delta"
-path = "src/bin/bench_taskbar_progress_delta.rs"
-required-features = ["bench"]
+name = "ffui"
+path = "src/main.rs"

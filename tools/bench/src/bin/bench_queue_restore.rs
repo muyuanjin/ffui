@@ -40,7 +40,7 @@ fn median_ms(mut values: Vec<f64>) -> f64 {
 fn main() -> anyhow::Result<()> {
     let Some(path) = parse_arg_path("--path") else {
         eprintln!(
-            "usage: cargo run --release --features bench --bin bench_queue_restore -- --path <queue-state.json> [--repeat N]"
+            "usage: cargo run --release --manifest-path tools/bench/Cargo.toml --bin bench_queue_restore -- --path <queue-state.json> [--repeat N]"
         );
         std::process::exit(2);
     };
@@ -97,7 +97,7 @@ fn main() -> anyhow::Result<()> {
 #[cfg(not(feature = "bench"))]
 fn main() {
     eprintln!(
-        "bench feature not enabled; run with: cargo run --release --features bench --bin bench_queue_restore -- --path <queue-state.json>"
+        "bench feature not enabled; run with: cargo run --release --manifest-path tools/bench/Cargo.toml --bin bench_queue_restore -- --path <queue-state.json>"
     );
     std::process::exit(2);
 }

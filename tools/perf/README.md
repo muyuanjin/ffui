@@ -23,7 +23,7 @@
 - `pnpm bench:queue:browser --help`
 - 规模对比（同配置跑 1000/1万/10万）：`pnpm bench:queue:browser:scale` 或 `pnpm bench:queue:browser --jobs-list 1000,10000,100000 ...`
 - 长跑/分段统计：`pnpm bench:queue:browser --segments 6 --duration-ms 60000 ...`（输出每段 fps/lag 与 heap 采样）
-- 后端增量聚合基准（用于确认 O(patches) 而非 O(N)）：`cargo run --manifest-path src-tauri/Cargo.toml --features bench --bin bench_taskbar_progress_delta -- --jobs-list 1000,10000,100000 --processing-jobs 2 --ticks 5000`
+- 后端增量聚合基准（用于确认 O(patches) 而非 O(N)）：`cargo run --manifest-path tools/bench/Cargo.toml --bin bench_taskbar_progress_delta -- --jobs-list 1000,10000,100000 --processing-jobs 2 --ticks 5000`
   - 期望：`avg_apply_delta` 在 1k→100k 规模下保持同数量级，且 100k/1k 的比值不应接近线性增长（经验阈值：≤ 2x）。
 - 例：`pnpm bench:queue:browser --assert --jobs 1000 --processing-jobs 2 --tick-ms 100 --sort-primary progress --sort-primary-direction desc`
 - 例（不发后端增量事件，隔离纯前端滚动）：`pnpm bench:queue:browser --assert --jobs 1000 --processing-jobs 0 --paused-jobs 1000 --tick-ms 0 --modes detail,icon-small`

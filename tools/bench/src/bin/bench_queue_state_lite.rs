@@ -156,6 +156,6 @@ fn main() {
         (baseline_avg_ms) / ((delta_avg_us / 1000.0).max(1e-12))
     );
     println!(
-        "[bench] run: cargo run --release --bin bench_queue_state_lite -- --jobs {jobs_count} --baseline-ticks {baseline_ticks} --delta-ticks {delta_ticks} --patches {patches_per_tick}"
+        "[bench] run: cargo run --release --manifest-path tools/bench/Cargo.toml --bin bench_queue_state_lite -- --jobs {jobs_count} --baseline-ticks {baseline_ticks} --delta-ticks {delta_ticks} --patches {patches_per_tick}"
     );
 }

@@ -114,14 +114,16 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: pnpm
-
-      - name: Enable Corepack (pnpm)
-        run: corepack enable
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -177,6 +179,20 @@ jobs:
             fi
           fi
 
+      - name: Validate Cargo binary targets
+        shell: bash
+        run: |
+          node -e "const { execSync } = require('node:child_process'); const json = JSON.parse(execSync('cargo metadata --manifest-path src-tauri/Cargo.toml --no-deps --format-version 1', { encoding: 'utf8' })); const pkg = json.packages.find(p => p.name === 'ffui'); if (!pkg) { console.error('Failed to locate ffui package in cargo metadata'); process.exit(1); } const bins = pkg.targets.filter(t => Array.isArray(t.kind) && t.kind.includes('bin')).map(t => t.name); if (bins.length !== 1 || bins[0] !== 'ffui') { console.error('Unexpected Cargo bin targets (will be bundled on Linux packages): ' + (bins.join(', ') || '<none>')); process.exit(1); }"
+
+      - name: Validate no extra Rust bins under src-tauri/src/bin
+        shell: bash
+        run: |
+          if [ -d "src-tauri/src/bin" ] && find "src-tauri/src/bin" -maxdepth 1 -type f -name '*.rs' | grep -q .; then
+            echo "Unexpected Rust bin sources under src-tauri/src/bin; move them out to avoid Tauri bundling side effects." >&2
+            find "src-tauri/src/bin" -maxdepth 1 -type f -name '*.rs' -print >&2
+            exit 1
+          fi
+
       - name: Validate updater signing configuration
         shell: bash
         env:
@@ -198,7 +214,7 @@ jobs:
 
       - name: Build and release with Tauri
         id: tauri
-        uses: tauri-apps/tauri-action@v1
+        uses: tauri-apps/tauri-action@v0
         env:
           # GitHub 默认提供的 token，用于创建 Release 与上传构建产物
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -208,8 +224,7 @@ jobs:
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
           retryAttempts: 3
-          # __VERSION__ 会自动替换为 src-tauri/tauri.conf.json 中的 version 字段
-          tagName: v__VERSION__
+          tagName: ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
 

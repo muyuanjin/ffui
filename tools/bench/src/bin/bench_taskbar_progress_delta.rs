@@ -131,7 +131,7 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.iter().any(|a| a == "--help" || a == "-h") {
         println!(
-            "Usage:\n  cargo run --features bench --bin bench_taskbar_progress_delta -- [options]\n\nOptions:\n  --jobs <N>              Total jobs (default: 10000)\n  --jobs-list <CSV>       Jobs list, e.g. 1000,10000,100000\n  --processing-jobs <N>   Jobs patched per tick (default: 2)\n  --ticks <N>             Delta ticks to run (default: 5000)\n  --mode <M>              size|duration|estimated (default: size)\n  --scope <S>             all|active (default: all)\n"
+            "Usage:\n  cargo run --manifest-path tools/bench/Cargo.toml --bin bench_taskbar_progress_delta -- [options]\n\nOptions:\n  --jobs <N>              Total jobs (default: 10000)\n  --jobs-list <CSV>       Jobs list, e.g. 1000,10000,100000\n  --processing-jobs <N>   Jobs patched per tick (default: 2)\n  --ticks <N>             Delta ticks to run (default: 5000)\n  --mode <M>              size|duration|estimated (default: size)\n  --scope <S>             all|active (default: all)\n"
         );
         return;
     }
@@ -196,6 +196,6 @@ fn main() {
     }
 
     println!(
-        "[bench] run:\n  cargo run --features bench --bin bench_taskbar_progress_delta -- --jobs-list 1000,10000,100000 --processing-jobs 2 --ticks 5000 --mode size --scope all"
+        "[bench] run:\n  cargo run --manifest-path tools/bench/Cargo.toml --bin bench_taskbar_progress_delta -- --jobs-list 1000,10000,100000 --processing-jobs 2 --ticks 5000 --mode size --scope all"
     );
 }

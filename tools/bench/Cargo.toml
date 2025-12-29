@@ -1,0 +1,26 @@
+[package]
+name = "ffui-bench"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+anyhow = "1"
+ffui_lib = { path = "../../src-tauri", package = "ffui", default-features = false }
+serde_json = "1"
+
+[features]
+default = ["bench"]
+bench = ["ffui_lib/bench"]
+
+[[bin]]
+name = "bench_queue_restore"
+path = "src/bin/bench_queue_restore.rs"
+
+[[bin]]
+name = "bench_queue_state_lite"
+path = "src/bin/bench_queue_state_lite.rs"
+
+[[bin]]
+name = "bench_taskbar_progress_delta"
+path = "src/bin/bench_taskbar_progress_delta.rs"
