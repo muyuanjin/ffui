@@ -89,41 +89,7 @@ const {
 
 const { startBatchCompress, toggleBatchExpanded } = setup.batchCompress;
 
-const {
-  addManualJob,
-  reloadPresets,
-  openPresetEditor,
-  duplicatePreset,
-  requestDeletePreset,
-  requestBatchDeletePresets,
-  exportSelectedPresetsBundleToFile,
-  exportSelectedPresetsBundleToClipboard,
-  exportSelectedPresetsTemplateCommandsToClipboard,
-  exportPresetToFile,
-  handleReorderPresets,
-  importPresetsBundleFromFile,
-  importPresetsBundleFromClipboard,
-} = setup.presetsModule;
-
-const presetsTabMainApp = {
-  presets,
-  presetSortMode,
-  presetViewMode,
-  presetSelectionBarPinned,
-  setPresetSelectionBarPinned,
-  openPresetEditor,
-  duplicatePreset,
-  requestDeletePreset,
-  requestBatchDeletePresets,
-  exportSelectedPresetsBundleToFile,
-  exportSelectedPresetsBundleToClipboard,
-  exportSelectedPresetsTemplateCommandsToClipboard,
-  exportPresetToFile,
-  handleReorderPresets,
-  importPresetsBundleFromFile,
-  importPresetsBundleFromClipboard,
-  dialogManager,
-};
+const { addManualJob, reloadPresets } = setup.presetsModule;
 
 const {
   isInspectingMedia,
@@ -346,7 +312,18 @@ const manualJobPresetId = computed<string | null>({
         </div>
         <ScrollArea v-else class="flex-1 min-h-0">
           <div class="min-h-full flex flex-col" :class="activeTab === 'presets' ? undefined : 'p-4'">
-            <PresetTabPanel v-if="activeTab === 'presets'" :main-app="presetsTabMainApp" />
+            <PresetTabPanel
+              v-if="activeTab === 'presets'"
+              :presets="presets"
+              :preset-sort-mode="presetSortMode"
+              :preset-view-mode="presetViewMode"
+              :preset-selection-bar-pinned="presetSelectionBarPinned"
+              :set-preset-selection-bar-pinned="setPresetSelectionBarPinned"
+              :set-preset-sort-mode="(v) => (presetSortMode = v)"
+              :set-preset-view-mode="(v) => (presetViewMode = v)"
+              :dialog-manager="dialogManager"
+              :presets-module="setup.presetsModule"
+            />
             <MediaPanel
               v-else-if="activeTab === 'media'"
               :inspecting="isInspectingMedia"
