@@ -121,6 +121,47 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
 }
 
 #[test]
+fn merge_queue_state_lite_delta_patch_applies_all_fields() {
+    let mut into = crate::ffui_core::TranscodeJobLiteDeltaPatch {
+        id: "job-1".to_string(),
+        status: Some(crate::ffui_core::JobStatus::Queued),
+        progress: Some(1.0),
+        progress_out_time_seconds: Some(2.0),
+        progress_speed: Some(1.0),
+        progress_updated_at_ms: Some(100),
+        progress_epoch: Some(1),
+        elapsed_ms: Some(50),
+        preview_path: Some("C:/previews/old.jpg".to_string()),
+        preview_revision: Some(1),
+    };
+
+    let newer = crate::ffui_core::TranscodeJobLiteDeltaPatch {
+        id: "job-1".to_string(),
+        status: Some(crate::ffui_core::JobStatus::Processing),
+        progress: Some(9.0),
+        progress_out_time_seconds: Some(8.0),
+        progress_speed: Some(3.5),
+        progress_updated_at_ms: Some(999),
+        progress_epoch: Some(5),
+        elapsed_ms: Some(123),
+        preview_path: Some("C:/previews/new.jpg".to_string()),
+        preview_revision: Some(42),
+    };
+
+    merge_queue_state_lite_delta_patch(&mut into, newer);
+
+    assert_eq!(into.status, Some(crate::ffui_core::JobStatus::Processing));
+    assert_eq!(into.progress, Some(9.0));
+    assert_eq!(into.progress_out_time_seconds, Some(8.0));
+    assert_eq!(into.progress_speed, Some(3.5));
+    assert_eq!(into.progress_updated_at_ms, Some(999));
+    assert_eq!(into.progress_epoch, Some(5));
+    assert_eq!(into.elapsed_ms, Some(123));
+    assert_eq!(into.preview_path.as_deref(), Some("C:/previews/new.jpg"));
+    assert_eq!(into.preview_revision, Some(42));
+}
+
+#[test]
 fn pending_queue_lite_delta_resets_on_base_snapshot_change() {
     let mut pending = PendingQueueLiteDelta::default();
 
