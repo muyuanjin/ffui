@@ -70,14 +70,8 @@ fn patch_progress(id: &str, progress: f64) -> crate::ffui_core::TranscodeJobLite
         status: None,
         progress: Some(progress),
         telemetry: None,
-        progress_out_time_seconds: None,
-        progress_speed: None,
-        progress_updated_at_ms: None,
-        progress_epoch: None,
         elapsed_ms: None,
         preview: None,
-        preview_path: None,
-        preview_revision: None,
     }
 }
 
@@ -87,14 +81,8 @@ fn patch_status(id: &str, status: JobStatus) -> crate::ffui_core::TranscodeJobLi
         status: Some(status),
         progress: None,
         telemetry: None,
-        progress_out_time_seconds: None,
-        progress_speed: None,
-        progress_updated_at_ms: None,
-        progress_epoch: None,
         elapsed_ms: None,
         preview: None,
-        preview_path: None,
-        preview_revision: None,
     }
 }
 

@@ -394,6 +394,71 @@ fn update_job_progress_updates_speed_telemetry_even_without_out_time() {
 }
 
 #[test]
+fn update_job_progress_emits_queue_lite_delta_for_frame_only_telemetry() {
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/frame-only-telemetry.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    });
+
+    {
+        deltas.lock_unpoisoned().clear();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job.id)
+            .expect("job should exist after enqueue");
+        stored.status = JobStatus::Processing;
+        stored.wait_metadata = Some(WaitMetadata {
+            last_progress_percent: Some(0.0),
+            processed_wall_millis: None,
+            processed_seconds: None,
+            target_seconds: None,
+            progress_epoch: Some(1),
+            last_progress_out_time_seconds: None,
+            last_progress_speed: None,
+            last_progress_updated_at_ms: None,
+            last_progress_frame: None,
+            tmp_output_path: None,
+            segments: None,
+            segment_end_targets: None,
+        });
+    }
+
+    update_job_progress(&engine.inner, &job.id, None, None, Some(120), None, None);
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job.id)
+        .expect("job should still exist after update");
+    let meta = stored
+        .wait_metadata
+        .as_ref()
+        .expect("wait_metadata should be present");
+    assert_eq!(meta.last_progress_frame, Some(120));
+    assert!(
+        meta.last_progress_updated_at_ms.is_some(),
+        "frame-only telemetry must set last_progress_updated_at_ms"
+    );
+    assert!(
+        !deltas.lock_unpoisoned().is_empty(),
+        "frame-only telemetry should emit a queue-lite delta so the frontend can display the latest progress sample"
+    );
+}
+
+#[test]
 fn update_job_progress_filters_ffmpeg_progress_noise_from_logs() {
     let settings = AppSettings::default();
     let inner = Inner::new(Vec::new(), settings);
@@ -1024,7 +1089,7 @@ fn update_job_progress_delta_omits_large_fields_for_ipc() {
     assert!(patch.progress.is_some());
     assert!(patch.elapsed_ms.is_some());
     assert!(
-        patch.preview_path.is_none() && patch.preview_revision.is_none(),
+        patch.preview.is_none(),
         "queue-lite delta must omit unrelated fields"
     );
 }

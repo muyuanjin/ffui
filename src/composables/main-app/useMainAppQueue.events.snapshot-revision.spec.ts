@@ -274,7 +274,7 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
       payload: {
         baseSnapshotRevision: 2,
         deltaRevision: 2,
-        patches: [{ id: "job-1", previewPath: "C:/previews/job-1.jpg", previewRevision: 5 }],
+        patches: [{ id: "job-1", preview: { previewPath: "C:/previews/job-1.jpg", previewRevision: 5 } }],
       } satisfies QueueStateLiteDelta,
     });
 

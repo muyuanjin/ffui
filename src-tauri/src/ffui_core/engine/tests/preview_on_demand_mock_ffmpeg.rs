@@ -171,12 +171,19 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
         "ensure_job_preview delta should target the preview job id"
     );
     assert_eq!(
-        patch.preview_path.as_deref(),
+        patch
+            .preview
+            .as_ref()
+            .and_then(|p| p.preview_path.as_deref()),
         Some(preview_path_str.as_str()),
         "ensure_job_preview delta should include previewPath"
     );
     assert!(
-        patch.preview_revision.is_some(),
+        patch
+            .preview
+            .as_ref()
+            .and_then(|p| p.preview_revision)
+            .is_some(),
         "ensure_job_preview delta should include previewRevision"
     );
 }

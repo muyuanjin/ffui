@@ -256,6 +256,7 @@ export interface TranscodeJobLiteTelemetryDelta {
   lastProgressOutTimeSeconds?: number;
   lastProgressSpeed?: number;
   lastProgressUpdatedAtMs?: number;
+  lastProgressFrame?: number;
 }
 
 export interface TranscodeJobLitePreviewDelta {
@@ -268,15 +269,8 @@ export interface TranscodeJobLiteDeltaPatch {
   status?: JobStatus;
   progress?: number;
   telemetry?: TranscodeJobLiteTelemetryDelta;
-  /** Optional progress telemetry for smoother UI updates. */
-  progressOutTimeSeconds?: number;
-  progressSpeed?: number;
-  progressUpdatedAtMs?: number;
-  progressEpoch?: number;
   elapsedMs?: number;
   preview?: TranscodeJobLitePreviewDelta;
-  previewPath?: string;
-  previewRevision?: number;
 }
 
 export interface QueueStateLiteDelta {
