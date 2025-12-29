@@ -478,4 +478,6 @@ export function useMainAppUpdater(options: UseMainAppUpdaterOptions) {
   };
 }
 
+export type UseMainAppUpdaterReturn = ReturnType<typeof useMainAppUpdater>;
+
 export default useMainAppUpdater;
