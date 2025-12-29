@@ -77,8 +77,8 @@ describe("backend data root contract", () => {
     await exportConfigBundle(" /tmp/out.json ");
     expect(invokeMock).toHaveBeenCalledWith("export_config_bundle", {
       targetPath: "/tmp/out.json",
-      target_path: "/tmp/out.json",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("target_path");
   });
 
   it("imports config bundle via import_config_bundle", async () => {
@@ -87,8 +87,8 @@ describe("backend data root contract", () => {
     await importConfigBundle("/tmp/in.json");
     expect(invokeMock).toHaveBeenCalledWith("import_config_bundle", {
       sourcePath: "/tmp/in.json",
-      source_path: "/tmp/in.json",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("source_path");
   });
 
   it("clears app data via clear_all_app_data", async () => {

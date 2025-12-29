@@ -43,7 +43,7 @@ describe("backend contract", () => {
     invokeMock.mockReset();
   });
 
-  it("sends both camelCase and snake_case keys expected by the Rust command", async () => {
+  it("enqueueTranscodeJob sends canonical camelCase payload keys expected by the Rust command", async () => {
     const fakeJob: TranscodeJob = {
       id: "1",
       filename: "C:/videos/sample.mp4",
@@ -91,20 +91,20 @@ describe("backend contract", () => {
     expect(payload).toMatchObject({
       filename: fakeJob.filename,
       jobType: "video",
-      job_type: "video",
       originalSizeMb: 0,
-      original_size_mb: 0,
       originalCodec: fakeJob.originalCodec,
-      original_codec: fakeJob.originalCodec,
       presetId: fakeJob.presetId,
-      preset_id: fakeJob.presetId,
     });
+    expect(payload).not.toHaveProperty("job_type");
+    expect(payload).not.toHaveProperty("original_size_mb");
+    expect(payload).not.toHaveProperty("original_codec");
+    expect(payload).not.toHaveProperty("preset_id");
 
     // Ensure the returned job is passed through unchanged.
     expect(result).toEqual(fakeJob);
   });
 
-  it("enqueueTranscodeJobs sends both camelCase and snake_case keys and preserves filename order", async () => {
+  it("enqueueTranscodeJobs sends canonical camelCase keys and preserves filename order", async () => {
     const filenames = ["C:/videos/02.mp4", "C:/videos/03.mkv"];
     const presetId = "preset-1";
     const fakeJobs: TranscodeJob[] = filenames.map((filename, idx) => ({
@@ -138,13 +138,9 @@ describe("backend contract", () => {
       filenames,
       fileNames: filenames,
       jobType: "video",
-      job_type: "video",
       originalSizeMb: 0,
-      original_size_mb: 0,
       originalCodec: "h264",
-      original_codec: "h264",
       presetId,
-      preset_id: presetId,
       source: "manual",
     });
 
@@ -219,7 +215,7 @@ describe("backend contract", () => {
     });
   });
 
-  it("loadPreviewDataUrl uses the dedicated preview command with both name variants", async () => {
+  it("loadPreviewDataUrl uses the dedicated preview command with canonical camelCase keys", async () => {
     const previewPath = "C:/app-data/previews/abc123.jpg";
     const fakeUrl = "data:image/jpeg;base64,AAAA";
 
@@ -233,13 +229,13 @@ describe("backend contract", () => {
     expect(cmd).toBe("get_preview_data_url");
     expect(payload).toMatchObject({
       previewPath,
-      preview_path: previewPath,
     });
+    expect(payload).not.toHaveProperty("preview_path");
 
     expect(result).toBe(fakeUrl);
   });
 
-  it("selectPlayableMediaPath delegates to select_playable_media_path with both name variants", async () => {
+  it("selectPlayableMediaPath delegates to select_playable_media_path with canonical camelCase keys", async () => {
     const candidates = ["C:/videos/missing.compressed.mp4", "C:/videos/source.mp4"];
     const chosen = candidates[1];
 
@@ -258,7 +254,6 @@ describe("backend contract", () => {
     expect(cmd).toBe("select_playable_media_path");
     expect(payload).toMatchObject({
       candidatePaths: candidates,
-      candidate_paths: candidates,
     });
 
     expect(result).toBe(chosen);
@@ -284,7 +279,7 @@ describe("backend contract", () => {
     }
   });
 
-  it("ensureJobPreview delegates to ensure_job_preview with both name variants", async () => {
+  it("ensureJobPreview delegates to ensure_job_preview with canonical camelCase keys", async () => {
     const originalWindow = (globalThis as any).window;
     (globalThis as any).window = { ...(originalWindow ?? {}), __TAURI__: {} };
 
@@ -301,7 +296,6 @@ describe("backend contract", () => {
     expect(cmd).toBe("ensure_job_preview");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(previewPath);
 
@@ -359,7 +353,7 @@ describe("backend contract", () => {
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
-  it("cancelTranscodeJob sends cancel_transcode_job with both id name variants", async () => {
+  it("cancelTranscodeJob sends cancel_transcode_job with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
 
     const jobId = "42";
@@ -370,12 +364,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("cancel_transcode_job");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(true);
   });
 
-  it("cancelTranscodeJobsBulk sends cancel_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+  it("cancelTranscodeJobsBulk sends cancel_transcode_jobs_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobIds = ["job-a", "job-b"];
 
@@ -386,12 +379,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("cancel_transcode_jobs_bulk");
     expect(payload).toMatchObject({
       jobIds,
-      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });
 
-  it("waitTranscodeJob sends wait_transcode_job with both id name variants", async () => {
+  it("waitTranscodeJob sends wait_transcode_job with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-wait";
 
@@ -402,12 +394,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("wait_transcode_job");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(true);
   });
 
-  it("waitTranscodeJobsBulk sends wait_transcode_jobs_bulk with both ids name variants", async () => {
+  it("waitTranscodeJobsBulk sends wait_transcode_jobs_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobIds = ["job-1", "job-2", "job-3"];
 
@@ -418,12 +409,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("wait_transcode_jobs_bulk");
     expect(payload).toMatchObject({
       jobIds,
-      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });
 
-  it("resumeTranscodeJob sends resume_transcode_job with both id name variants", async () => {
+  it("resumeTranscodeJob sends resume_transcode_job with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-resume";
 
@@ -434,12 +424,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("resume_transcode_job");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(true);
   });
 
-  it("resumeTranscodeJobsBulk sends resume_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+  it("resumeTranscodeJobsBulk sends resume_transcode_jobs_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobIds = ["job-a", "job-b"];
 
@@ -450,12 +439,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("resume_transcode_jobs_bulk");
     expect(payload).toMatchObject({
       jobIds,
-      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });
 
-  it("restartTranscodeJob sends restart_transcode_job with both id name variants", async () => {
+  it("restartTranscodeJob sends restart_transcode_job with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-restart";
 
@@ -466,12 +454,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("restart_transcode_job");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(true);
   });
 
-  it("restartTranscodeJobsBulk sends restart_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+  it("restartTranscodeJobsBulk sends restart_transcode_jobs_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobIds = ["job-a", "job-b"];
 
@@ -482,12 +469,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("restart_transcode_jobs_bulk");
     expect(payload).toMatchObject({
       jobIds,
-      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });
 
-  it("deleteTranscodeJob sends delete_transcode_job with both id name variants", async () => {
+  it("deleteTranscodeJob sends delete_transcode_job with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobId = "job-delete";
 
@@ -498,12 +484,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("delete_transcode_job");
     expect(payload).toMatchObject({
       jobId,
-      job_id: jobId,
     });
     expect(result).toBe(true);
   });
 
-  it("deleteTranscodeJobsBulk sends delete_transcode_jobs_bulk with jobIds/job_ids payload", async () => {
+  it("deleteTranscodeJobsBulk sends delete_transcode_jobs_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const jobIds = ["job-a", "job-b"];
 
@@ -514,12 +499,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("delete_transcode_jobs_bulk");
     expect(payload).toMatchObject({
       jobIds,
-      job_ids: jobIds,
     });
     expect(result).toBe(true);
   });
 
-  it("deleteBatchCompressBatchOnBackend sends delete_batch_compress_batch with both id name variants", async () => {
+  it("deleteBatchCompressBatchOnBackend sends delete_batch_compress_batch with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const batchId = "batch-123";
 
@@ -530,12 +514,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("delete_batch_compress_batch");
     expect(payload).toMatchObject({
       batchId,
-      batch_id: batchId,
     });
     expect(result).toBe(true);
   });
 
-  it("deleteBatchCompressBatchesBulk sends delete_batch_compress_batches_bulk with batchIds/batch_ids payload", async () => {
+  it("deleteBatchCompressBatchesBulk sends delete_batch_compress_batches_bulk with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const batchIds = ["batch-a", "batch-b"];
 
@@ -546,12 +529,11 @@ describe("backend contract", () => {
     expect(cmd).toBe("delete_batch_compress_batches_bulk");
     expect(payload).toMatchObject({
       batchIds,
-      batch_ids: batchIds,
     });
     expect(result).toBe(true);
   });
 
-  it("reorderQueue sends reorder_queue with orderedIds and ordered_ids payload", async () => {
+  it("reorderQueue sends reorder_queue with canonical camelCase keys", async () => {
     invokeMock.mockResolvedValueOnce(true);
     const ids = ["a", "b", "c"];
 
@@ -560,11 +542,9 @@ describe("backend contract", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     const [cmd, payload] = invokeMock.mock.calls[0];
     expect(cmd).toBe("reorder_queue");
+    expect(payload).not.toHaveProperty("jobIds");
     expect(payload).toMatchObject({
       orderedIds: ids,
-      ordered_ids: ids,
-      jobIds: ids,
-      job_ids: ids,
     });
     expect(result).toBe(true);
   });

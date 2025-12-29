@@ -1,4 +1,4 @@
-import { invokeWithAliases } from "./invokeWithAliases";
+import { invokeCommand } from "./invokeCommand";
 
 export type FallbackFrameQuality = "low" | "high";
 
@@ -9,7 +9,7 @@ export const extractFallbackPreviewFrame = async (args: {
   durationSeconds?: number | null;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return invokeWithAliases<string>("extract_fallback_preview_frame", {
+  return invokeCommand<string>("extract_fallback_preview_frame", {
     sourcePath: args.sourcePath,
     positionPercent: args.positionPercent,
     positionSeconds: args.positionSeconds,
@@ -19,5 +19,5 @@ export const extractFallbackPreviewFrame = async (args: {
 };
 
 export const cleanupFallbackPreviewFramesAsync = async (): Promise<boolean> => {
-  return invokeWithAliases<boolean>("cleanup_fallback_preview_frames_async");
+  return invokeCommand<boolean>("cleanup_fallback_preview_frames_async");
 };

@@ -30,12 +30,12 @@ describe("backend fallback preview contract", () => {
     expect(cmd).toBe("extract_fallback_preview_frame");
     expect(payload).toMatchObject({
       sourcePath: "C:/videos/sample.mp4",
-      source_path: "C:/videos/sample.mp4",
       positionPercent: 80,
-      position_percent: 80,
       durationSeconds: 12,
-      duration_seconds: 12,
       quality: "low",
     });
+    expect(payload).not.toHaveProperty("source_path");
+    expect(payload).not.toHaveProperty("position_percent");
+    expect(payload).not.toHaveProperty("duration_seconds");
   });
 });

@@ -20,15 +20,13 @@ describe("backend external tools contract", () => {
     expect(invokeMock).toHaveBeenCalledWith("get_external_tool_statuses_cached");
   });
 
-  it("passes both camelCase and snake_case for manual remote refresh", async () => {
+  it("passes canonical camelCase payload keys for manual remote refresh", async () => {
     await refreshExternalToolStatusesAsync({ remoteCheck: true, manualRemoteCheck: true });
     expect(invokeMock).toHaveBeenCalledWith(
       "refresh_external_tool_statuses_async",
       expect.objectContaining({
         remoteCheck: true,
-        remote_check: true,
         manualRemoteCheck: true,
-        manual_remote_check: true,
       }),
     );
   });

@@ -232,7 +232,8 @@ describe("backend contract - presets", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     const [cmd, payload] = invokeMock.mock.calls[0];
     expect(cmd).toBe("delete_preset");
-    expect(payload).toMatchObject({ presetId: "custom-1", preset_id: "custom-1" });
+    expect(payload).toMatchObject({ presetId: "custom-1" });
+    expect(payload).not.toHaveProperty("preset_id");
     expect(result).toEqual(remaining);
   });
 });

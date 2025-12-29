@@ -16,7 +16,7 @@ describe("backend batch compress contract", () => {
     invokeMock.mockClear();
   });
 
-  it("runAutoCompress passes both rootPath and root_path keys", async () => {
+  it("runAutoCompress passes canonical camelCase payload keys", async () => {
     const rootPath = "C:/media";
     const config: BatchCompressConfig = {
       replaceOriginal: true,
@@ -40,9 +40,7 @@ describe("backend batch compress contract", () => {
     };
 
     await runAutoCompress(rootPath, config);
-    expect(invokeMock).toHaveBeenCalledWith(
-      "run_auto_compress",
-      expect.objectContaining({ rootPath, root_path: rootPath, config }),
-    );
+    expect(invokeMock).toHaveBeenCalledWith("run_auto_compress", { rootPath, config });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("root_path");
   });
 });

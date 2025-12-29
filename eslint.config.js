@@ -131,6 +131,31 @@ export default [
   },
 
   {
+    files: ["src/**/*.{ts,tsx,vue}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tauri-apps/api/core",
+              importNames: ["invoke"],
+              message:
+                "Use invokeCommand() from src/lib/backend/invokeCommand.ts instead of importing invoke directly.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/lib/backend/invokeCommand.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+
+  {
     files: ["**/*.{js,mjs,cjs}"],
     rules: {
       "no-unused-vars": [
