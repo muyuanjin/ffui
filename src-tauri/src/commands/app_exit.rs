@@ -9,7 +9,7 @@ use crate::sync_ext::MutexExt;
 #[tauri::command]
 #[allow(clippy::needless_pass_by_value)]
 pub fn reset_exit_prompt(coordinator: State<'_, ExitCoordinator>) {
-    coordinator.reset_prompt_emitted();
+    coordinator.is_exit_allowed();
 }
 
 #[tauri::command]

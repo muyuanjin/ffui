@@ -28,7 +28,6 @@ import {
   installExternalToolAutoUpdateWatcher,
   setExternalToolCustomPath,
 } from "./useAppSettingsExternalTools";
-import { installAppSettingsCloseFlush } from "./useAppSettingsCloseFlush";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -154,7 +153,6 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   let toolStatusUnlisten: (() => void) | undefined;
   let lastSavedSettingsSnapshot: string | null = null;
   let awaitingToolsRefreshEvent = false;
-  const closeFlush = installAppSettingsCloseFlush({ enabled: hasTauri, persistNow: () => persistNow() });
 
   // ----- Auto-save Watch -----
   watch(
@@ -440,7 +438,6 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
       toolStatusUnlisten();
       toolStatusUnlisten = undefined;
     }
-    closeFlush.cleanup();
   };
 
   onUnmounted(() => {

@@ -18,7 +18,6 @@ pub struct ExitAutoWaitOutcome {
 #[derive(Default)]
 pub struct ExitCoordinator {
     allow_exit: AtomicBool,
-    prompt_emitted: AtomicBool,
     system_exit_in_progress: AtomicBool,
 }
 
@@ -33,14 +32,6 @@ impl ExitCoordinator {
 
     pub fn consume_exit_allowance(&self) -> bool {
         self.allow_exit.swap(false, Ordering::SeqCst)
-    }
-
-    pub fn try_mark_prompt_emitted(&self) -> bool {
-        !self.prompt_emitted.swap(true, Ordering::SeqCst)
-    }
-
-    pub fn reset_prompt_emitted(&self) {
-        self.prompt_emitted.store(false, Ordering::SeqCst);
     }
 
     pub fn try_mark_system_exit_in_progress(&self) -> bool {

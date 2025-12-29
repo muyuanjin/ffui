@@ -243,9 +243,6 @@ pub fn run() {
             }
 
             api.prevent_close();
-            if !coordinator.try_mark_prompt_emitted() {
-                return;
-            }
 
             let payload = ExitRequestPayload {
                 processing_job_count,
