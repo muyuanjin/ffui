@@ -70,7 +70,6 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - For Rust, add unit tests in the same module and run them with `cargo test` from `src-tauri`.
 - Aim for meaningful coverage around transcoding logic and platform-specific behavior, especially any file or process handling.
 
----
 
 - DATE: 2025-12-02
 - CONTEXT: 在 FFUI 项目中多次出现“添加任务/拖拽后崩溃”这类低级回归，修复时没有配套前端/后端/接口测试，导致相同类型问题反复出现，用户明确要求把测试纪律写入 AGENTS。
