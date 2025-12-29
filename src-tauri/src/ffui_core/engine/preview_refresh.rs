@@ -3,7 +3,9 @@ use super::{TranscodingEngine, job_runner};
 use crate::ffui_core::domain::{JobType, MediaInfo};
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
-use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
+use crate::ffui_core::{
+    QueueStateLiteDelta, TranscodeJobLiteDeltaPatch, TranscodeJobLitePreviewDelta,
+};
 use crate::sync_ext::MutexExt;
 
 impl TranscodingEngine {
@@ -25,8 +27,7 @@ impl TranscodingEngine {
             return None;
         }
 
-        // Avoid treating a bare filename as a relative path, which could point
-        // to an unrelated file depending on the process working directory.
+        // Avoid treating a bare filename as a relative path, which could point to an unrelated file depending on the process working directory.
         let looks_like_path =
             trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains(':');
         if !looks_like_path {
@@ -83,9 +84,8 @@ impl TranscodingEngine {
 
     /// Ensure a video job has a readable preview image on disk.
     ///
-    /// If the preview image is missing or unreadable, regenerate it using the
-    /// latest `preview_capture_percent` setting and update the job's
-    /// `preview_path`, then broadcast a queue snapshot so the UI refreshes.
+    /// If the preview image is missing or unreadable, regenerate it using the latest `preview_capture_percent` setting.
+    /// Updates `preview_path`, then broadcasts a queue snapshot so the UI refreshes.
     ///
     /// Returns the resolved preview path when available, otherwise None.
     pub fn ensure_job_preview(&self, job_id: &str) -> Option<String> {
@@ -138,11 +138,16 @@ impl TranscodingEngine {
                     id: job.id.clone(),
                     status: None,
                     progress: None,
+                    telemetry: None,
                     progress_out_time_seconds: None,
                     progress_speed: None,
                     progress_updated_at_ms: None,
                     progress_epoch: None,
                     elapsed_ms: None,
+                    preview: Some(TranscodeJobLitePreviewDelta {
+                        preview_path: Some(preview_str.clone()),
+                        preview_revision: Some(job.preview_revision),
+                    }),
                     preview_path: Some(preview_str.clone()),
                     preview_revision: Some(job.preview_revision),
                 })
@@ -377,11 +382,16 @@ impl TranscodingEngine {
                     id: job_id.clone(),
                     status: None,
                     progress: None,
+                    telemetry: None,
                     progress_out_time_seconds: None,
                     progress_speed: None,
                     progress_updated_at_ms: None,
                     progress_epoch: None,
                     elapsed_ms: None,
+                    preview: Some(TranscodeJobLitePreviewDelta {
+                        preview_path: Some(preview_str.clone()),
+                        preview_revision: Some(preview_revision),
+                    }),
                     preview_path: Some(preview_str.clone()),
                     preview_revision: Some(preview_revision),
                 });

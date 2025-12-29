@@ -251,16 +251,30 @@ export interface QueueStateLite {
   jobs: TranscodeJobLite[];
 }
 
+export interface TranscodeJobLiteTelemetryDelta {
+  progressEpoch?: number;
+  lastProgressOutTimeSeconds?: number;
+  lastProgressSpeed?: number;
+  lastProgressUpdatedAtMs?: number;
+}
+
+export interface TranscodeJobLitePreviewDelta {
+  previewPath?: string;
+  previewRevision?: number;
+}
+
 export interface TranscodeJobLiteDeltaPatch {
   id: string;
   status?: JobStatus;
   progress?: number;
+  telemetry?: TranscodeJobLiteTelemetryDelta;
   /** Optional progress telemetry for smoother UI updates. */
   progressOutTimeSeconds?: number;
   progressSpeed?: number;
   progressUpdatedAtMs?: number;
   progressEpoch?: number;
   elapsedMs?: number;
+  preview?: TranscodeJobLitePreviewDelta;
   previewPath?: string;
   previewRevision?: number;
 }

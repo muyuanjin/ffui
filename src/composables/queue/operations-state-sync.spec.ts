@@ -522,7 +522,14 @@ describe("queue operations state sync", () => {
       {
         baseSnapshotRevision: 1,
         deltaRevision: 1,
-        patches: [{ id: "job-a", progress: 12, elapsedMs: 234, previewPath: "C:/previews/a2.jpg", previewRevision: 2 }],
+        patches: [
+          {
+            id: "job-a",
+            progress: 12,
+            elapsedMs: 234,
+            preview: { previewPath: "C:/previews/a2.jpg", previewRevision: 2 },
+          },
+        ],
       },
       deps,
     );
@@ -630,10 +637,12 @@ describe("queue operations state sync", () => {
         patches: [
           {
             id: "job-1",
-            progressOutTimeSeconds: 12.5,
-            progressSpeed: 1.25,
-            progressUpdatedAtMs: 123_456,
-            progressEpoch: 2,
+            telemetry: {
+              lastProgressOutTimeSeconds: 12.5,
+              lastProgressSpeed: 1.25,
+              lastProgressUpdatedAtMs: 123_456,
+              progressEpoch: 2,
+            },
           },
         ],
       },

@@ -15,11 +15,13 @@ fn make_lite_delta(
             id: job_id.to_string(),
             status: None,
             progress: Some(progress),
+            telemetry: None,
             progress_out_time_seconds: None,
             progress_speed: None,
             progress_updated_at_ms: None,
             progress_epoch: None,
             elapsed_ms: None,
+            preview: None,
             preview_path: None,
             preview_revision: None,
         }],
@@ -79,11 +81,13 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
             id: "job-1".to_string(),
             status: Some(crate::ffui_core::JobStatus::Paused),
             progress: Some(10.0),
+            telemetry: None,
             progress_out_time_seconds: None,
             progress_speed: None,
             progress_updated_at_ms: None,
             progress_epoch: None,
             elapsed_ms: None,
+            preview: None,
             preview_path: None,
             preview_revision: None,
         }],
@@ -98,11 +102,16 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
             id: "job-1".to_string(),
             status: None,
             progress: None,
+            telemetry: None,
             progress_out_time_seconds: None,
             progress_speed: None,
             progress_updated_at_ms: None,
             progress_epoch: None,
             elapsed_ms: None,
+            preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
+                preview_path: Some("C:/previews/job-1.jpg".to_string()),
+                preview_revision: Some(5),
+            }),
             preview_path: Some("C:/previews/job-1.jpg".to_string()),
             preview_revision: Some(5),
         }],
@@ -126,11 +135,21 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         id: "job-1".to_string(),
         status: Some(crate::ffui_core::JobStatus::Queued),
         progress: Some(1.0),
+        telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
+            progress_epoch: Some(1),
+            last_progress_out_time_seconds: Some(2.0),
+            last_progress_speed: Some(1.0),
+            last_progress_updated_at_ms: Some(100),
+        }),
         progress_out_time_seconds: Some(2.0),
         progress_speed: Some(1.0),
         progress_updated_at_ms: Some(100),
         progress_epoch: Some(1),
         elapsed_ms: Some(50),
+        preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
+            preview_path: Some("C:/previews/old.jpg".to_string()),
+            preview_revision: Some(1),
+        }),
         preview_path: Some("C:/previews/old.jpg".to_string()),
         preview_revision: Some(1),
     };
@@ -139,11 +158,21 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         id: "job-1".to_string(),
         status: Some(crate::ffui_core::JobStatus::Processing),
         progress: Some(9.0),
+        telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
+            progress_epoch: Some(5),
+            last_progress_out_time_seconds: Some(8.0),
+            last_progress_speed: Some(3.5),
+            last_progress_updated_at_ms: Some(999),
+        }),
         progress_out_time_seconds: Some(8.0),
         progress_speed: Some(3.5),
         progress_updated_at_ms: Some(999),
         progress_epoch: Some(5),
         elapsed_ms: Some(123),
+        preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
+            preview_path: Some("C:/previews/new.jpg".to_string()),
+            preview_revision: Some(42),
+        }),
         preview_path: Some("C:/previews/new.jpg".to_string()),
         preview_revision: Some(42),
     };
@@ -157,8 +186,25 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     assert_eq!(into.progress_updated_at_ms, Some(999));
     assert_eq!(into.progress_epoch, Some(5));
     assert_eq!(into.elapsed_ms, Some(123));
+    assert_eq!(
+        into.telemetry
+            .as_ref()
+            .and_then(|t| t.last_progress_out_time_seconds),
+        Some(8.0)
+    );
+    assert_eq!(
+        into.telemetry.as_ref().and_then(|t| t.progress_epoch),
+        Some(5)
+    );
     assert_eq!(into.preview_path.as_deref(), Some("C:/previews/new.jpg"));
     assert_eq!(into.preview_revision, Some(42));
+    assert_eq!(
+        into.preview
+            .as_ref()
+            .and_then(|p| p.preview_revision)
+            .unwrap_or_default(),
+        42
+    );
 }
 
 #[test]
@@ -240,11 +286,13 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
             id: "job-1".to_string(),
             status: Some(crate::ffui_core::JobStatus::Processing),
             progress: Some(12.5),
+            telemetry: None,
             progress_out_time_seconds: None,
             progress_speed: None,
             progress_updated_at_ms: None,
             progress_epoch: None,
             elapsed_ms: Some(100),
+            preview: None,
             preview_path: None,
             preview_revision: None,
         }],
