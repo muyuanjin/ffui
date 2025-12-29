@@ -11,6 +11,7 @@ import {
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 
 function getJobsFromVm(vm: any): TranscodeJob[] {
@@ -67,7 +68,7 @@ describe("MainApp repeated wait/resume cycles", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 

@@ -4,6 +4,7 @@ import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import type { TranscodeJob } from "@/types";
 import { emitQueueState, i18n, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 
 function getJobsFromVm(vm: any): TranscodeJob[] {
@@ -52,7 +53,7 @@ describe("MainApp crash-recovery resume (missing waitMetadata)", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 

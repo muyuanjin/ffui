@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { i18n, invokeMock, setQueueJobs, useBackendMock } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
@@ -42,7 +43,7 @@ describe("MainApp queue context menu copy/reveal in Tauri mode", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 
@@ -91,7 +92,7 @@ describe("MainApp queue context menu copy/reveal in Tauri mode", () => {
     useBackendMock({});
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 
@@ -147,7 +148,7 @@ describe("MainApp queue context menu copy/reveal in Tauri mode", () => {
     useBackendMock({});
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 

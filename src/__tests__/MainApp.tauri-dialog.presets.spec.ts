@@ -9,6 +9,7 @@ import {
   invokeMock,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import MainDialogsStack from "@/components/main/MainDialogsStack.vue";
@@ -81,7 +82,7 @@ describe("MainApp Tauri presets", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const newPreset: FFmpegPreset = {
       id: "custom-preset-1",
@@ -170,7 +171,7 @@ describe("MainApp Tauri presets", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -262,7 +263,7 @@ describe("MainApp Tauri presets", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -304,7 +305,7 @@ describe("MainApp Tauri presets", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // By default the app opens on the queue tab.
     expect(vm.activeTab).toBe("queue");

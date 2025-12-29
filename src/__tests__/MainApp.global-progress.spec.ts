@@ -9,6 +9,7 @@ import type { AppSettings, TranscodeJob } from "@/types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 const i18n = createI18n({
   legacy: false,
@@ -35,7 +36,7 @@ describe("MainApp global aggregated progress", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // Inject settings so the frontend uses bySize weighting, matching the
     // backend TaskbarProgressMode::BySize behaviour.
@@ -114,7 +115,7 @@ describe("MainApp global aggregated progress", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const settings: AppSettings = {
       tools: {
@@ -182,7 +183,7 @@ describe("MainApp global aggregated progress", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     const settings: AppSettings = {
       tools: {

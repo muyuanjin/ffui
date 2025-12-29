@@ -9,8 +9,10 @@ import {
   getQueueJobs,
   i18n,
   setQueueJobs,
+  invokeMock,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 
 function getRefValue<T>(maybeRef: any): T {
@@ -21,6 +23,17 @@ function getRefValue<T>(maybeRef: any): T {
 function getJobsFromVm(vm: any): TranscodeJob[] {
   const jobs = getRefValue<unknown>(vm.jobs);
   return Array.isArray(jobs) ? (jobs as TranscodeJob[]) : [];
+}
+
+async function flushBackendInvokes() {
+  await Promise.resolve();
+  const pending = invokeMock.mock.results
+    .map((result) => result.value)
+    .filter((p): p is Promise<unknown> => !!p && typeof (p as any)?.then === "function");
+  if (pending.length) {
+    await Promise.all(pending);
+  }
+  await nextTick();
 }
 
 describe("MainApp task detail - live refresh for multi-run logs", () => {
@@ -50,7 +63,8 @@ describe("MainApp task detail - live refresh for multi-run logs", () => {
       get_queue_state_lite: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
       get_job_detail: (payload) => {
-        expect(payload?.jobId ?? payload?.job_id).toBe(jobId);
+        expect(payload?.jobId).toBe(jobId);
+        expect(payload).not.toHaveProperty("job_id");
         const base = getQueueJobs()[0] as TranscodeJob;
         return {
           ...base,
@@ -63,7 +77,7 @@ describe("MainApp task detail - live refresh for multi-run logs", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     await vm.refreshQueueFromBackend();
@@ -74,10 +88,11 @@ describe("MainApp task detail - live refresh for multi-run logs", () => {
 
     vm.dialogManager.openJobDetail(job as TranscodeJob);
     await nextTick();
+    expect(vm.dialogManager.jobDetailOpen?.value ?? vm.dialogManager.jobDetailOpen).toBe(true);
 
     // First hydrate should load Run 1 logs.
-    await Promise.resolve();
-    await nextTick();
+    await flushBackendInvokes();
+    expect(invokeMock).toHaveBeenCalledWith("get_job_detail", { jobId });
 
     const detail0 = getRefValue<TranscodeJob | null>(vm.jobDetailJob);
     expect(detail0?.runs?.length).toBe(1);
@@ -96,8 +111,7 @@ describe("MainApp task detail - live refresh for multi-run logs", () => {
 
     // After one poll tick, task detail should include Run 2 logs.
     await vi.advanceTimersByTimeAsync(1000);
-    await Promise.resolve();
-    await nextTick();
+    await flushBackendInvokes();
 
     const detail1 = getRefValue<TranscodeJob | null>(vm.jobDetailJob);
     expect(detail1?.runs?.length).toBe(2);

@@ -16,6 +16,7 @@ import zhCN from "@/locales/zh-CN";
 import type { TranscodeJob, QueueState, AppSettings } from "@/types";
 import MainApp from "@/MainApp.vue";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 const invokeMock = vi.fn<(cmd: string, payload?: Record<string, unknown>) => Promise<unknown>>();
 const listenMock = vi.fn<(event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void>>();
@@ -127,7 +128,7 @@ describe("MainApp rapid pause/resume race condition handling", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 
@@ -189,7 +190,7 @@ describe("MainApp rapid pause/resume race condition handling", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await vm.refreshQueueFromBackend();
     await nextTick();
 

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 let dragDropHandler: ((event: { payload: { paths: string[] } }) => void) | null = null;
 
@@ -93,7 +94,7 @@ describe("MainApp media inspect in Tauri mode", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     expect(listenMock).toHaveBeenCalled();

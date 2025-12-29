@@ -2,6 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
@@ -44,7 +45,7 @@ describe("MainApp media inspect in non-Tauri (web) mode", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "media";
 
     const file = new File(["dummy"], "sample.mp4", { type: "video/mp4" });

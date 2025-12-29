@@ -5,6 +5,7 @@ import { nextTick } from "vue";
 import type { AppSettings, FFmpegPreset } from "@/types";
 import { buildBatchCompressDefaults } from "./helpers/batchCompressDefaults";
 import { i18n, invokeMock, useBackendMock } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 
 const flushTimers = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -62,7 +63,7 @@ describe("MainApp preset sort mode persistence (before AppSettings load)", () =>
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // Change sort mode before get_app_settings resolves.
     vm.presetSortMode = "name";

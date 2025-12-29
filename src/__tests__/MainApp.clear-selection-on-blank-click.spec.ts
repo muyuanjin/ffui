@@ -5,6 +5,7 @@ import { nextTick } from "vue";
 
 import { i18n, useBackendMock, setQueueJobs, getQueueJobs, defaultAppSettings } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import type { TranscodeJob } from "@/types";
 
 describe("MainApp clears queue selection on blank click", () => {
@@ -37,7 +38,7 @@ describe("MainApp clears queue selection on blank click", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     await nextTick();
 

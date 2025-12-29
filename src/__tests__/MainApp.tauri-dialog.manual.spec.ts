@@ -14,6 +14,7 @@ import {
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
@@ -77,7 +78,7 @@ describe("MainApp Tauri manual job flow", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
     vm.manualJobPresetId = "p2";
 
@@ -138,7 +139,7 @@ describe("MainApp Tauri manual job flow", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
     vm.manualJobPresetId = "p2";
 
@@ -178,7 +179,7 @@ describe("MainApp Tauri manual job flow", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     await nextTick();
     vm.manualJobPresetId = "p2";
 
@@ -282,7 +283,7 @@ describe("MainApp Tauri manual job flow", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     if (typeof vm.refreshQueueFromBackend === "function") {
       await vm.refreshQueueFromBackend();
     }

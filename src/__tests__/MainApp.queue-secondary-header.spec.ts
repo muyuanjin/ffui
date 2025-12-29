@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 import { nextTick } from "vue";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
@@ -41,7 +42,7 @@ describe("MainApp queue secondary header", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const jobs: TranscodeJob[] = [
@@ -83,7 +84,7 @@ describe("MainApp queue secondary header", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const jobs: TranscodeJob[] = [
@@ -121,7 +122,7 @@ describe("MainApp queue secondary header", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     const jobs: TranscodeJob[] = [
@@ -187,7 +188,7 @@ describe("MainApp queue secondary header", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) {
       vm.queueModeModel = "display";
@@ -256,7 +257,7 @@ describe("MainApp queue secondary header", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
     if ("queueModeModel" in vm) {
       vm.queueModeModel = "display";

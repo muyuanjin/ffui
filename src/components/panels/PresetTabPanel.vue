@@ -1,11 +1,35 @@
 <script setup lang="ts">
-import type { MainAppSetup } from "@/composables/main-app/useMainAppSetup";
+import type { Ref } from "vue";
+import type { useDialogManager } from "@/composables";
+import type { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
+import type { FFmpegPreset, PresetSortMode, PresetViewMode } from "@/types";
 
-type MainApp = MainAppSetup["mainApp"];
+type DialogManager = ReturnType<typeof useDialogManager>;
+type PresetsModule = ReturnType<typeof useMainAppPresets>;
+
+type PresetsTabMainApp = {
+  presets: Ref<FFmpegPreset[]>;
+  presetSortMode: Ref<PresetSortMode>;
+  presetViewMode: Ref<PresetViewMode>;
+  presetSelectionBarPinned: Ref<boolean>;
+  setPresetSelectionBarPinned: (pinned: boolean) => void;
+  openPresetEditor: PresetsModule["openPresetEditor"];
+  duplicatePreset: PresetsModule["duplicatePreset"];
+  requestDeletePreset: PresetsModule["requestDeletePreset"];
+  requestBatchDeletePresets: PresetsModule["requestBatchDeletePresets"];
+  exportSelectedPresetsBundleToFile: PresetsModule["exportSelectedPresetsBundleToFile"];
+  exportSelectedPresetsBundleToClipboard: PresetsModule["exportSelectedPresetsBundleToClipboard"];
+  exportSelectedPresetsTemplateCommandsToClipboard: PresetsModule["exportSelectedPresetsTemplateCommandsToClipboard"];
+  exportPresetToFile: PresetsModule["exportPresetToFile"];
+  handleReorderPresets: PresetsModule["handleReorderPresets"];
+  importPresetsBundleFromFile: PresetsModule["importPresetsBundleFromFile"];
+  importPresetsBundleFromClipboard: PresetsModule["importPresetsBundleFromClipboard"];
+  dialogManager: DialogManager;
+};
 
 const props = defineProps<{
-  mainApp: MainApp;
+  mainApp: PresetsTabMainApp;
 }>();
 
 const {

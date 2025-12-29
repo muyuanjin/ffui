@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 import zhCN from "@/locales/zh-CN";
 import en from "@/locales/en";
@@ -66,7 +67,7 @@ describe("MainApp sidebar primary actions", () => {
 
   it("shows a New Preset CTA on the presets tab and opens the preset wizard when clicked", async () => {
     const { wrapper } = makeWrapper("zh-CN");
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     // Switch to presets tab so the header CTA becomes visible.
     vm.activeTab = "presets";

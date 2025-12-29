@@ -10,6 +10,7 @@ import {
   defaultAppSettings,
 } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
@@ -47,7 +48,7 @@ describe("MainApp queue delete behaviour", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -130,7 +131,7 @@ describe("MainApp queue delete behaviour", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -208,7 +209,7 @@ describe("MainApp queue delete behaviour", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -301,7 +302,7 @@ describe("MainApp queue delete behaviour", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -336,12 +337,10 @@ describe("MainApp queue delete behaviour", () => {
     const cancelCall = invokeMock.mock.calls.find(([cmd]) => cmd === "cancel_transcode_jobs_bulk");
     const cancelPayload = cancelCall?.[1] as any;
     expect(cancelPayload?.jobIds).toEqual(["job-processing"]);
-    expect(cancelPayload?.job_ids).toEqual(["job-processing"]);
 
     const deleteCall = invokeMock.mock.calls.find(([cmd]) => cmd === "delete_transcode_jobs_bulk");
     const deletePayload = deleteCall?.[1] as any;
     expect(deletePayload?.jobIds).toEqual(["job-completed", "job-processing"]);
-    expect(deletePayload?.job_ids).toEqual(["job-completed", "job-processing"]);
 
     expect(cancelledIds).toEqual(["job-processing"]);
     expect(new Set(deletedIds)).toEqual(new Set(["job-completed", "job-processing"]));

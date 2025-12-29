@@ -9,6 +9,7 @@ import {
   setQueueJobs,
   useBackendMock,
 } from "./helpers/mainAppTauriDialog";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import MainApp from "@/MainApp.vue";
 import type { TranscodeJob } from "@/types";
@@ -38,7 +39,7 @@ describe("MainApp queue event handling", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     if (typeof vm.refreshQueueFromBackend === "function") {
@@ -108,7 +109,7 @@ describe("MainApp queue event handling", () => {
     });
 
     const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     await nextTick();
     if (typeof vm.refreshQueueFromBackend === "function") {

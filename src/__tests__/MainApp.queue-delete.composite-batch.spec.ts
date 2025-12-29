@@ -16,6 +16,7 @@ import {
   defaultAppSettings,
 } from "./helpers/mainAppTauriDialog";
 import { setSelectedJobIds } from "./helpers/queueSelection";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import MainApp from "@/MainApp.vue";
@@ -91,7 +92,7 @@ describe("MainApp 复合任务删除", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();
@@ -120,7 +121,6 @@ describe("MainApp 复合任务删除", () => {
     const singlePayload = deleteBatchCalls[0]?.[1] as any;
     expect(singlePayload).toMatchObject({
       batchIds: [batchId],
-      batch_ids: [batchId],
     });
 
     // 验证：不应该有错误
@@ -165,7 +165,7 @@ describe("MainApp 复合任务删除", () => {
       global: { plugins: [i18n] },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.activeTab = "queue";
 
     await nextTick();

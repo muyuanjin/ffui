@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
+import { withMainAppVmCompat } from "./helpers/mainAppVmCompat";
 import MainApp from "@/MainApp.vue";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
@@ -23,7 +24,7 @@ describe("MainApp drag & drop state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
 
     expect(vm.isDragging).toBe(false);
 
@@ -46,7 +47,7 @@ describe("MainApp drag & drop state", () => {
       },
     });
 
-    const vm: any = wrapper.vm;
+    const vm: any = withMainAppVmCompat(wrapper);
     vm.isDragging = true;
 
     const dropEvent = {
