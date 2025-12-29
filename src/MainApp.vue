@@ -7,10 +7,11 @@ import Sidebar from "@/components/Sidebar.vue";
 import PresetTabPanel from "@/components/panels/PresetTabPanel.vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
-import { MonitorPanelPro, SettingsPanel } from "@/components/main/lazyTabs";
+import { MonitorPanelPro } from "@/components/main/lazyTabs";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
 import MainDialogsStackHost from "@/components/main/MainDialogsStackHost.vue";
 import MainMediaTabHost from "@/components/main/MainMediaTabHost.vue";
+import MainSettingsTabHost from "@/components/main/MainSettingsTabHost.vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
@@ -97,9 +98,6 @@ const media = setup.media;
 
 const {
   appSettings,
-  toolStatuses,
-  toolStatusesFresh,
-  isSavingSettings,
   settingsSaveError,
   progressUpdateIntervalMs,
   headerProgressPercent,
@@ -109,22 +107,8 @@ const {
 
 const settings = setup.settings;
 
-const {
-  updaterConfigured,
-  updateAvailable,
-  availableVersion,
-  availableBody,
-  currentVersion,
-  lastCheckedAtMs,
-  downloadedBytes,
-  totalBytes,
-  isCheckingForUpdate,
-  isInstallingUpdate,
-  updateCheckError,
-  autoCheckDefault,
-  checkForAppUpdate,
-  downloadAndInstallUpdate,
-} = setup.updater;
+const updater = setup.updater;
+const { updateAvailable, currentVersion } = updater;
 
 const {
   isDragging,
@@ -322,34 +306,12 @@ const clearMediaInspectError = () => {
             />
             <MainMediaTabHost v-else-if="activeTab === 'media'" :media="media" />
             <MonitorPanelPro v-else-if="activeTab === 'monitor'" />
-            <SettingsPanel
+            <MainSettingsTabHost
               v-else-if="activeTab === 'settings'"
-              :app-settings="appSettings"
-              :tool-statuses="toolStatuses"
-              :tool-statuses-fresh="toolStatusesFresh"
-              :refresh-tool-statuses="settings.refreshToolStatuses"
-              :is-saving-settings="isSavingSettings"
-              :settings-save-error="settingsSaveError"
+              :settings="settings"
+              :updater="updater"
               :reload-presets="reloadPresets"
-              :app-update="{
-                configured: updaterConfigured,
-                autoCheckDefault,
-                available: updateAvailable,
-                checking: isCheckingForUpdate,
-                installing: isInstallingUpdate,
-                availableVersion,
-                availableBody,
-                currentVersion,
-                lastCheckedAtMs,
-                downloadedBytes,
-                totalBytes,
-                error: updateCheckError,
-              }"
-              :check-for-app-update="checkForAppUpdate"
-              :install-app-update="downloadAndInstallUpdate"
-              :fetch-tool-candidates="settings.fetchToolCandidates"
-              @update:app-settings="handleUpdateAppSettings"
-              @download-tool="settings.downloadToolNow"
+              :update-app-settings="handleUpdateAppSettings"
             />
           </div>
         </ScrollArea>
