@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type {
   AppSettings,
   AutoCompressResult,
@@ -21,6 +21,7 @@ import type {
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 import { hasTauri } from "./backend.core";
+import { invokeWithAliases } from "./backend/invokeWithAliases";
 import { normalizeQueueStateLiteWaitMetadata } from "./backend.queue-state-lite-normalize";
 import { appendQueryParam } from "./url";
 export type {
@@ -63,57 +64,45 @@ export {
   ensureJobPreviewVariant,
 } from "./backend/queue";
 export const loadAppSettings = async (): Promise<AppSettings> => {
-  return invoke<AppSettings>("get_app_settings");
+  return invokeWithAliases<AppSettings>("get_app_settings");
 };
 
 export const saveAppSettings = async (settings: AppSettings): Promise<AppSettings> => {
-  return invoke<AppSettings>("save_app_settings", { settings });
+  return invokeWithAliases<AppSettings>("save_app_settings", { settings });
 };
 
 export const fetchSystemFontFamilies = async (): Promise<SystemFontFamily[]> => {
   if (!hasTauri()) return [];
-  return invoke<SystemFontFamily[]>("get_system_font_families");
+  return invokeWithAliases<SystemFontFamily[]>("get_system_font_families");
 };
 
 export const listOpenSourceFonts = async (): Promise<OpenSourceFontInfo[]> => {
   if (!hasTauri()) return [];
-  return invoke<OpenSourceFontInfo[]>("list_open_source_fonts");
+  return invokeWithAliases<OpenSourceFontInfo[]>("list_open_source_fonts");
 };
 
 export const startOpenSourceFontDownload = async (fontId: string): Promise<UiFontDownloadSnapshot> => {
   if (!hasTauri()) {
     throw new Error("startOpenSourceFontDownload requires Tauri");
   }
-  return invoke<UiFontDownloadSnapshot>("start_open_source_font_download", {
-    fontId,
-    font_id: fontId,
-  });
+  return invokeWithAliases<UiFontDownloadSnapshot>("start_open_source_font_download", { fontId });
 };
 
 export const fetchOpenSourceFontDownloadSnapshot = async (fontId: string): Promise<UiFontDownloadSnapshot | null> => {
   if (!hasTauri()) return null;
-  return invoke<UiFontDownloadSnapshot | null>("get_open_source_font_download_snapshot", {
-    fontId,
-    font_id: fontId,
-  });
+  return invokeWithAliases<UiFontDownloadSnapshot | null>("get_open_source_font_download_snapshot", { fontId });
 };
 
 export const cancelOpenSourceFontDownload = async (fontId: string): Promise<boolean> => {
   if (!hasTauri()) return false;
-  return invoke<boolean>("cancel_open_source_font_download", {
-    fontId,
-    font_id: fontId,
-  });
+  return invokeWithAliases<boolean>("cancel_open_source_font_download", { fontId });
 };
 
 export const ensureOpenSourceFontDownloaded = async (fontId: string): Promise<DownloadedFontInfo> => {
   if (!hasTauri()) {
     throw new Error("ensureOpenSourceFontDownloaded requires Tauri");
   }
-  return invoke<DownloadedFontInfo>("ensure_open_source_font_downloaded", {
-    fontId,
-    font_id: fontId,
-  });
+  return invokeWithAliases<DownloadedFontInfo>("ensure_open_source_font_downloaded", { fontId });
 };
 
 export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFontInfo> => {
@@ -124,64 +113,57 @@ export const importUiFontFile = async (sourcePath: string): Promise<DownloadedFo
   if (!normalized) {
     throw new Error("font file path is empty");
   }
-  return invoke<DownloadedFontInfo>("import_ui_font_file", {
-    sourcePath: normalized,
-    source_path: normalized,
-  });
+  return invokeWithAliases<DownloadedFontInfo>("import_ui_font_file", { sourcePath: normalized });
 };
 
 export const loadBatchCompressDefaults = async (): Promise<BatchCompressConfig> => {
-  return invoke<BatchCompressConfig>("get_batch_compress_defaults");
+  return invokeWithAliases<BatchCompressConfig>("get_batch_compress_defaults");
 };
 
 export const saveBatchCompressDefaults = async (config: BatchCompressConfig): Promise<BatchCompressConfig> => {
-  return invoke<BatchCompressConfig>("save_batch_compress_defaults", { config });
+  return invokeWithAliases<BatchCompressConfig>("save_batch_compress_defaults", { config });
 };
 
 export const runAutoCompress = async (rootPath: string, config: BatchCompressConfig): Promise<AutoCompressResult> => {
-  return invoke<AutoCompressResult>("run_auto_compress", {
-    rootPath,
-    root_path: rootPath,
-    config,
-  });
+  return invokeWithAliases<AutoCompressResult>("run_auto_compress", { rootPath, config });
 };
 
 export const fetchCpuUsage = async (): Promise<CpuUsageSnapshot> => {
-  return invoke<CpuUsageSnapshot>("get_cpu_usage");
+  return invokeWithAliases<CpuUsageSnapshot>("get_cpu_usage");
 };
 
 export const fetchGpuUsage = async (): Promise<GpuUsageSnapshot> => {
-  return invoke<GpuUsageSnapshot>("get_gpu_usage");
+  return invokeWithAliases<GpuUsageSnapshot>("get_gpu_usage");
 };
 
 export const metricsSubscribe = async (): Promise<void> => {
   if (!hasTauri()) return;
-  await invoke<void>("metrics_subscribe");
+  await invokeWithAliases<void>("metrics_subscribe");
 };
 
 export const metricsUnsubscribe = async (): Promise<void> => {
   if (!hasTauri()) return;
-  await invoke<void>("metrics_unsubscribe");
+  await invokeWithAliases<void>("metrics_unsubscribe");
 };
 
 export const fetchMetricsHistory = async (): Promise<SystemMetricsSnapshot[]> => {
   if (!hasTauri()) return [];
-  return invoke<SystemMetricsSnapshot[]>("get_metrics_history");
+  return invokeWithAliases<SystemMetricsSnapshot[]>("get_metrics_history");
 };
 
 export const fetchTranscodeActivityToday = async (): Promise<TranscodeActivityToday> => {
   if (!hasTauri()) {
     return { date: "1970-01-01", activeHours: Array.from({ length: 24 }, () => false) };
   }
-  return invoke<TranscodeActivityToday>("get_transcode_activity_today");
+  return invokeWithAliases<TranscodeActivityToday>("get_transcode_activity_today");
 };
 
 export const fetchExternalToolStatuses = async (): Promise<ExternalToolStatus[]> => {
-  return invoke<ExternalToolStatus[]>("get_external_tool_statuses");
+  return invokeWithAliases<ExternalToolStatus[]>("get_external_tool_statuses");
 };
 
 export const fetchExternalToolStatusesCached = async (): Promise<ExternalToolStatus[]> => {
-  return invoke<ExternalToolStatus[]>("get_external_tool_statuses_cached");
+  return invokeWithAliases<ExternalToolStatus[]>("get_external_tool_statuses_cached");
 };
 
 export const refreshExternalToolStatusesAsync = async (options?: {
@@ -192,67 +174,63 @@ export const refreshExternalToolStatusesAsync = async (options?: {
   const remoteCheck = options?.remoteCheck ?? false;
   const manualRemoteCheck = options?.manualRemoteCheck ?? false;
   const remoteCheckKind = options?.remoteCheckKind;
-  return invoke<boolean>("refresh_external_tool_statuses_async", {
+  return invokeWithAliases<boolean>("refresh_external_tool_statuses_async", {
     remoteCheck,
-    remote_check: remoteCheck,
     manualRemoteCheck,
-    manual_remote_check: manualRemoteCheck,
     remoteCheckKind,
-    remote_check_kind: remoteCheckKind,
   });
 };
 
 export const fetchExternalToolCandidates = async (kind: ExternalToolKind): Promise<ExternalToolCandidate[]> => {
-  return invoke<ExternalToolCandidate[]>("get_external_tool_candidates", { kind });
+  return invokeWithAliases<ExternalToolCandidate[]>("get_external_tool_candidates", { kind });
 };
 
 export const downloadExternalToolNow = async (kind: ExternalToolKind): Promise<ExternalToolStatus[]> => {
-  return invoke<ExternalToolStatus[]>("download_external_tool_now", { kind });
+  return invokeWithAliases<ExternalToolStatus[]>("download_external_tool_now", { kind });
 };
 
 export const acknowledgeTaskbarProgress = async (): Promise<void> => {
   // Best-effort; errors are surfaced to the console by the caller.
-  await invoke<void>("ack_taskbar_progress");
+  await invokeWithAliases<void>("ack_taskbar_progress");
 };
 
 export const revealPathInFolder = async (path: string): Promise<void> => {
   const normalized = path.trim();
   if (!normalized) return;
   if (!hasTauri()) return;
-  await invoke<void>("reveal_path_in_folder", { path: normalized });
+  await invokeWithAliases<void>("reveal_path_in_folder", { path: normalized });
 };
 
 export const openDevtools = async (): Promise<void> => {
-  await invoke<void>("open_devtools");
+  await invokeWithAliases<void>("open_devtools");
 };
 
 export const loadPresets = async (): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("get_presets");
+  return invokeWithAliases<FFmpegPreset[]>("get_presets");
 };
 
 export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("get_smart_default_presets");
+  return invokeWithAliases<FFmpegPreset[]>("get_smart_default_presets");
 };
 
 export const savePresetOnBackend = async (preset: FFmpegPreset): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("save_preset", { preset });
+  return invokeWithAliases<FFmpegPreset[]>("save_preset", { preset });
 };
 
 export const deletePresetOnBackend = async (presetId: string): Promise<FFmpegPreset[]> => {
-  return invoke<FFmpegPreset[]>("delete_preset", { presetId, preset_id: presetId });
+  return invokeWithAliases<FFmpegPreset[]>("delete_preset", { presetId });
 };
 
 export const reorderPresetsOnBackend = async (orderedIds: string[]): Promise<FFmpegPreset[]> => {
-  // Accept both camelCase and snake_case to stay resilient to Rust-side param names.
-  return invoke<FFmpegPreset[]>("reorder_presets", { orderedIds, ordered_ids: orderedIds });
+  return invokeWithAliases<FFmpegPreset[]>("reorder_presets", { orderedIds });
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {
-  return invoke<QueueState>("get_queue_state");
+  return invokeWithAliases<QueueState>("get_queue_state");
 };
 
 export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
-  const state = await invoke<QueueStateLite>("get_queue_state_lite");
+  const state = await invokeWithAliases<QueueStateLite>("get_queue_state_lite");
   return normalizeQueueStateLiteWaitMetadata(state);
 };
 
@@ -262,12 +240,9 @@ export const expandManualJobInputs = async (paths: string[], options?: { recursi
   if (normalized.length === 0) return [];
 
   const recursive = options?.recursive ?? true;
-  return invoke<string[]>("expand_manual_job_inputs", {
+  return invokeWithAliases<string[]>("expand_manual_job_inputs", {
     paths: normalized,
     recursive,
-    // Resilience to backend param naming changes.
-    inputPaths: normalized,
-    input_paths: normalized,
   });
 };
 
@@ -280,14 +255,7 @@ export const previewOutputPath = async (params: {
   const inputPath = params.inputPath;
   const presetId = params.presetId ?? null;
   const outputPolicy = params.outputPolicy;
-  return invoke<string | null>("preview_output_path", {
-    inputPath,
-    input_path: inputPath,
-    presetId,
-    preset_id: presetId,
-    outputPolicy,
-    output_policy: outputPolicy,
-  });
+  return invokeWithAliases<string | null>("preview_output_path", { inputPath, presetId, outputPolicy });
 };
 
 export const enqueueTranscodeJob = async (params: {
@@ -299,18 +267,13 @@ export const enqueueTranscodeJob = async (params: {
   presetId: string;
 }): Promise<TranscodeJob> => {
   const { filename, jobType, source, originalSizeMb, originalCodec, presetId } = params;
-  return invoke<TranscodeJob>("enqueue_transcode_job", {
-    // Accept both camelCase and snake_case keys to align with the Rust command
+  return invokeWithAliases<TranscodeJob>("enqueue_transcode_job", {
     filename,
     jobType,
-    job_type: jobType,
     source,
     originalSizeMb,
-    original_size_mb: originalSizeMb,
     originalCodec,
-    original_codec: originalCodec,
     presetId,
-    preset_id: presetId,
   });
 };
 
@@ -323,19 +286,14 @@ export const enqueueTranscodeJobs = async (params: {
   presetId: string;
 }): Promise<TranscodeJob[]> => {
   const { filenames, jobType, source, originalSizeMb, originalCodec, presetId } = params;
-  return invoke<TranscodeJob[]>("enqueue_transcode_jobs", {
-    // Accept both camelCase and snake_case keys to align with the Rust command
+  return invokeWithAliases<TranscodeJob[]>("enqueue_transcode_jobs", {
     filenames,
     fileNames: filenames,
     jobType,
-    job_type: jobType,
     source,
     originalSizeMb,
-    original_size_mb: originalSizeMb,
     originalCodec,
-    original_codec: originalCodec,
     presetId,
-    preset_id: presetId,
   });
 };
 
@@ -350,7 +308,7 @@ export {
 export { cleanupPreviewCachesAsync } from "./backend/previewCache";
 
 export const inspectMedia = async (path: string): Promise<string> => {
-  return invoke<string>("inspect_media", {
+  return invokeWithAliases<string>("inspect_media", {
     path,
   });
 };
@@ -371,11 +329,7 @@ export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise
     return filtered[0] ?? null;
   }
   try {
-    const selected = await invoke<string | null>("select_playable_media_path", {
-      // Accept both camelCase and snake_case to stay resilient to Rust-side renames.
-      candidatePaths: filtered,
-      candidate_paths: filtered,
-    });
+    const selected = await invokeWithAliases<string | null>("select_playable_media_path", { candidatePaths: filtered });
     // 后端可能因为路径过长/权限问题返回 null，这里回退到首个候选，避免上层拿到空值后出现“无可播放视频”。
     return selected ?? filtered[0] ?? null;
   } catch (error) {

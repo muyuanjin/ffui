@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeWithAliases } from "./invokeWithAliases";
 
 export const cleanupPreviewCachesAsync = async (): Promise<boolean> => {
-  return invoke<boolean>("cleanup_preview_caches_async");
+  return invokeWithAliases<boolean>("cleanup_preview_caches_async");
 };
