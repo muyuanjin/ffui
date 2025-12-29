@@ -133,6 +133,30 @@ pub struct QueueStateLiteDelta {
     pub patches: Vec<TranscodeJobLiteDeltaPatch>,
 }
 
+/// Grouped progress telemetry patch applied onto `TranscodeJob.waitMetadata`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeJobLiteTelemetryDelta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_epoch: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_progress_out_time_seconds: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_progress_speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_progress_updated_at_ms: Option<u64>,
+}
+
+/// Grouped preview patch applied onto `TranscodeJob.previewPath` / `previewRevision`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscodeJobLitePreviewDelta {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview_revision: Option<u64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLiteDeltaPatch {
@@ -141,6 +165,9 @@ pub struct TranscodeJobLiteDeltaPatch {
     pub status: Option<JobStatus>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<f64>,
+    /// Optional grouped progress telemetry applied onto `waitMetadata`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<TranscodeJobLiteTelemetryDelta>,
     /// Optional progress telemetry for smoother frontend rendering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_out_time_seconds: Option<f64>,
@@ -152,6 +179,9 @@ pub struct TranscodeJobLiteDeltaPatch {
     pub progress_epoch: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub elapsed_ms: Option<u64>,
+    /// Optional grouped preview patch applied onto `previewPath` / `previewRevision`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preview: Option<TranscodeJobLitePreviewDelta>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -200,6 +200,9 @@ fn merge_queue_state_lite_delta_patch(
     if newer.progress.is_some() {
         into.progress = newer.progress;
     }
+    if newer.telemetry.is_some() {
+        into.telemetry = newer.telemetry;
+    }
     if newer.progress_out_time_seconds.is_some() {
         into.progress_out_time_seconds = newer.progress_out_time_seconds;
     }
@@ -214,6 +217,9 @@ fn merge_queue_state_lite_delta_patch(
     }
     if newer.elapsed_ms.is_some() {
         into.elapsed_ms = newer.elapsed_ms;
+    }
+    if newer.preview.is_some() {
+        into.preview = newer.preview;
     }
     if newer.preview_path.is_some() {
         into.preview_path = newer.preview_path;

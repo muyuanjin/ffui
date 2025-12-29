@@ -36,34 +36,39 @@ export function applyDeltaPatchToJob(
     }
   }
 
-  const hasProgressTelemetry =
-    (typeof patch.progressOutTimeSeconds === "number" && Number.isFinite(patch.progressOutTimeSeconds)) ||
-    (typeof patch.progressSpeed === "number" && Number.isFinite(patch.progressSpeed)) ||
-    (typeof patch.progressUpdatedAtMs === "number" && Number.isFinite(patch.progressUpdatedAtMs)) ||
-    (typeof patch.progressEpoch === "number" && Number.isFinite(patch.progressEpoch));
-
-  if (hasProgressTelemetry) {
+  if (patch.telemetry && typeof patch.telemetry === "object") {
     const meta = (job.waitMetadata ??= {});
+    Object.assign(meta, patch.telemetry);
+  } else {
+    const hasProgressTelemetry =
+      (typeof patch.progressOutTimeSeconds === "number" && Number.isFinite(patch.progressOutTimeSeconds)) ||
+      (typeof patch.progressSpeed === "number" && Number.isFinite(patch.progressSpeed)) ||
+      (typeof patch.progressUpdatedAtMs === "number" && Number.isFinite(patch.progressUpdatedAtMs)) ||
+      (typeof patch.progressEpoch === "number" && Number.isFinite(patch.progressEpoch));
 
-    if (
-      typeof patch.progressOutTimeSeconds === "number" &&
-      Number.isFinite(patch.progressOutTimeSeconds) &&
-      patch.progressOutTimeSeconds >= 0
-    ) {
-      meta.lastProgressOutTimeSeconds = patch.progressOutTimeSeconds;
-    }
-    if (typeof patch.progressSpeed === "number" && Number.isFinite(patch.progressSpeed) && patch.progressSpeed > 0) {
-      meta.lastProgressSpeed = patch.progressSpeed;
-    }
-    if (
-      typeof patch.progressUpdatedAtMs === "number" &&
-      Number.isFinite(patch.progressUpdatedAtMs) &&
-      patch.progressUpdatedAtMs >= 0
-    ) {
-      meta.lastProgressUpdatedAtMs = patch.progressUpdatedAtMs;
-    }
-    if (typeof patch.progressEpoch === "number" && Number.isFinite(patch.progressEpoch) && patch.progressEpoch >= 0) {
-      meta.progressEpoch = patch.progressEpoch;
+    if (hasProgressTelemetry) {
+      const meta = (job.waitMetadata ??= {});
+
+      if (
+        typeof patch.progressOutTimeSeconds === "number" &&
+        Number.isFinite(patch.progressOutTimeSeconds) &&
+        patch.progressOutTimeSeconds >= 0
+      ) {
+        meta.lastProgressOutTimeSeconds = patch.progressOutTimeSeconds;
+      }
+      if (typeof patch.progressSpeed === "number" && Number.isFinite(patch.progressSpeed) && patch.progressSpeed > 0) {
+        meta.lastProgressSpeed = patch.progressSpeed;
+      }
+      if (
+        typeof patch.progressUpdatedAtMs === "number" &&
+        Number.isFinite(patch.progressUpdatedAtMs) &&
+        patch.progressUpdatedAtMs >= 0
+      ) {
+        meta.lastProgressUpdatedAtMs = patch.progressUpdatedAtMs;
+      }
+      if (typeof patch.progressEpoch === "number" && Number.isFinite(patch.progressEpoch) && patch.progressEpoch >= 0) {
+        meta.progressEpoch = patch.progressEpoch;
+      }
     }
   }
 
@@ -74,19 +79,23 @@ export function applyDeltaPatchToJob(
     }
   }
 
-  if (typeof patch.previewPath === "string") {
-    if (job.previewPath !== patch.previewPath) {
-      job.previewPath = patch.previewPath;
+  if (patch.preview && typeof patch.preview === "object") {
+    Object.assign(job, patch.preview);
+  } else {
+    if (typeof patch.previewPath === "string") {
+      if (job.previewPath !== patch.previewPath) {
+        job.previewPath = patch.previewPath;
+      }
     }
-  }
 
-  if (
-    typeof patch.previewRevision === "number" &&
-    Number.isFinite(patch.previewRevision) &&
-    patch.previewRevision >= 0
-  ) {
-    if (job.previewRevision !== patch.previewRevision) {
-      job.previewRevision = patch.previewRevision;
+    if (
+      typeof patch.previewRevision === "number" &&
+      Number.isFinite(patch.previewRevision) &&
+      patch.previewRevision >= 0
+    ) {
+      if (job.previewRevision !== patch.previewRevision) {
+        job.previewRevision = patch.previewRevision;
+      }
     }
   }
 

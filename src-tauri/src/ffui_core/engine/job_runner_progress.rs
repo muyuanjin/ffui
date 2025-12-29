@@ -5,7 +5,9 @@
 use super::transcode_activity;
 use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
 use super::worker_utils::{append_job_log_line, should_record_job_log_line};
-use crate::ffui_core::{QueueStateLiteDelta, TranscodeJobLiteDeltaPatch};
+use crate::ffui_core::{
+    QueueStateLiteDelta, TranscodeJobLiteDeltaPatch, TranscodeJobLiteTelemetryDelta,
+};
 
 const PROGRESS_PERSIST_MIN_INTERVAL_MS: u64 = 1000;
 
@@ -167,24 +169,34 @@ pub(super) fn update_job_progress(
             }
 
             if should_notify {
-                let (progress_out_time_seconds, progress_speed, progress_updated_at_ms, progress_epoch) =
-                    job.wait_metadata.as_ref().map_or((None, None, None, None), |m| {
-                        (
-                            m.last_progress_out_time_seconds,
-                            m.last_progress_speed,
-                            m.last_progress_updated_at_ms,
-                            m.progress_epoch,
-                        )
-                    });
+                let telemetry = job.wait_metadata.as_ref().and_then(|m| {
+                    let delta = TranscodeJobLiteTelemetryDelta {
+                        progress_epoch: m.progress_epoch,
+                        last_progress_out_time_seconds: m.last_progress_out_time_seconds,
+                        last_progress_speed: m.last_progress_speed,
+                        last_progress_updated_at_ms: m.last_progress_updated_at_ms,
+                    };
+                    if delta.progress_epoch.is_none()
+                        && delta.last_progress_out_time_seconds.is_none()
+                        && delta.last_progress_speed.is_none()
+                        && delta.last_progress_updated_at_ms.is_none()
+                    {
+                        None
+                    } else {
+                        Some(delta)
+                    }
+                });
                 pending_patch = Some(TranscodeJobLiteDeltaPatch {
                     id: job.id.clone(),
                     status: Some(job.status),
                     progress: progress_changed.then_some(job.progress),
-                    progress_out_time_seconds,
-                    progress_speed,
-                    progress_updated_at_ms,
-                    progress_epoch,
+                    telemetry,
+                    progress_out_time_seconds: None,
+                    progress_speed: None,
+                    progress_updated_at_ms: None,
+                    progress_epoch: None,
                     elapsed_ms: progress_changed.then_some(job.elapsed_ms).flatten(),
+                    preview: None,
                     preview_path: None,
                     preview_revision: None,
                 });
