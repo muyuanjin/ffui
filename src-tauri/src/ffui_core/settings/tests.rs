@@ -50,6 +50,22 @@ fn app_settings_default_uses_preview_capture_percent_25() {
         "default taskbar_progress_scope must keep legacy behaviour of including completed jobs"
     );
 }
+
+#[test]
+fn app_settings_normalize_entry_point_trims_locale_and_recovers_invalid_numbers() {
+    let settings = AppSettings {
+        locale: Some("  en  ".to_string()),
+        exit_auto_wait_timeout_seconds: f64::NAN,
+        ..AppSettings::default()
+    };
+
+    let normalized = super::app_settings::normalize_settings(settings);
+    assert_eq!(normalized.locale.as_deref(), Some("en"));
+    assert_eq!(
+        normalized.exit_auto_wait_timeout_seconds,
+        DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS
+    );
+}
 #[test]
 fn app_settings_serializes_preview_capture_percent_as_camel_case() {
     let settings = AppSettings::default();
