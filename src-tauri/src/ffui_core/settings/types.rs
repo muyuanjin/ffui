@@ -300,6 +300,12 @@ pub struct AppSettings {
     /// keep their previous behaviour.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress_update_interval_ms: Option<u16>,
+    /// When true (default), show the in-app custom titlebar progress bar.
+    #[serde(
+        default = "types_helpers::default_titlebar_progress_enabled",
+        skip_serializing_if = "types_helpers::is_true"
+    )]
+    pub titlebar_progress_enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resume_backtrack_seconds: Option<f64>,
     /// When true (default), closing/exiting the app while jobs are running will
@@ -337,10 +343,12 @@ pub struct AppSettings {
     /// tools onboarding flow will not auto-run again on startup.
     #[serde(default, skip_serializing_if = "types_helpers::is_false")]
     pub onboarding_completed: bool,
-    /// Whether the queue selection toolbar should remain visible even when no
-    /// jobs are selected. This powers the "Pin toolbar" UI toggle.
+    /// Whether the queue selection toolbar should remain visible even when no jobs are selected.
     #[serde(default, skip_serializing_if = "types_helpers::is_false")]
     pub selection_bar_pinned: bool,
+    /// Whether the preset selection toolbar should remain visible even when no presets are selected.
+    #[serde(default, skip_serializing_if = "types_helpers::is_false")]
+    pub preset_selection_bar_pinned: bool,
     /// Output policy for manual queue enqueues (container/dir/name/timestamps).
     #[serde(
         default,
@@ -348,7 +356,6 @@ pub struct AppSettings {
     )]
     pub queue_output_policy: OutputPolicy,
 }
-
 impl AppSettings {
     pub fn normalize(&mut self) {
         self.max_parallel_jobs = types_helpers::normalize_parallel_limit(self.max_parallel_jobs);
@@ -475,6 +482,7 @@ impl Default for AppSettings {
             max_parallel_cpu_jobs: None,
             max_parallel_hw_jobs: None,
             progress_update_interval_ms: None,
+            titlebar_progress_enabled: types_helpers::default_titlebar_progress_enabled(),
             resume_backtrack_seconds: None,
             exit_auto_wait_enabled: types_helpers::default_exit_auto_wait_enabled(),
             exit_auto_wait_timeout_seconds: types_helpers::default_exit_auto_wait_timeout_seconds(),
@@ -485,6 +493,7 @@ impl Default for AppSettings {
             crash_recovery_log_retention: None,
             onboarding_completed: false,
             selection_bar_pinned: false,
+            preset_selection_bar_pinned: false,
             queue_output_policy: OutputPolicy::default(),
         }
     }

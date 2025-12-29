@@ -7,7 +7,8 @@ import { copyToClipboard } from "@/lib/copyToClipboard";
 import { getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset } from "@/types";
-import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download } from "lucide-vue-next";
+import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download, CircleHelp } from "lucide-vue-next";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   getAudioSummary,
   getFiltersSummary,
@@ -222,9 +223,33 @@ const handleCardClick = (event: MouseEvent) => {
 
         <div class="space-y-1">
           <div class="flex items-center justify-between">
-            <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{
-              t("presets.commandPreviewLabel")
-            }}</span>
+            <div class="flex items-center gap-1">
+              <span class="text-[9px] text-muted-foreground uppercase tracking-wide font-semibold">{{
+                t("presets.commandPreviewLabel")
+              }}</span>
+              <TooltipProvider :delay-duration="120">
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      class="h-4 w-4 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      :title="t('presets.commandPreviewHint')"
+                      :aria-label="t('presets.commandPreviewHint')"
+                      data-no-select-toggle
+                      @click.stop
+                      @mousedown.stop
+                    >
+                      <CircleHelp class="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" :side-offset="6" class="max-w-[320px] text-[10px] leading-snug">
+                    {{ t("presets.commandPreviewHint") }}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Button
               variant="ghost"
               size="sm"
@@ -236,9 +261,6 @@ const handleCardClick = (event: MouseEvent) => {
               {{ t("presetEditor.advanced.copyButton") }}
             </Button>
           </div>
-          <p class="text-[9px] text-muted-foreground">
-            {{ t("presets.commandPreviewHint") }}
-          </p>
           <pre
             class="rounded bg-background/90 border border-border/40 px-2 py-1 text-[9px] font-mono text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all max-h-16 overflow-y-auto select-text scrollbar-thin"
           ><span

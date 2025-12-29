@@ -242,6 +242,22 @@ export function useMainAppSetup() {
     settings.appSettings.value = nextSettings;
   };
 
+  // 预设选择操作栏固定状态（从 AppSettings 读取）
+  const presetSelectionBarPinned = computed(() => settings.appSettings.value?.presetSelectionBarPinned ?? false);
+  // 更新预设选择操作栏固定状态
+  const setPresetSelectionBarPinned = (pinned: boolean) => {
+    // 即使 appSettings 尚未加载，也允许更新（会在内存中创建临时设置）
+    const current = settings.appSettings.value;
+    if (current?.presetSelectionBarPinned === pinned) return;
+
+    const nextSettings: AppSettings = {
+      ...(current ?? ({ tools: {}, batchCompressDefaults: {}, previewCapturePercent: 50 } as AppSettings)),
+      presetSelectionBarPinned: pinned,
+    };
+    // 直接更新 appSettings，useAppSettings 的 watch 会自动触发持久化
+    settings.appSettings.value = nextSettings;
+  };
+
   const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(settings.appSettings);
   const { dialogManager, selectedJobForDetail } = dialogs;
   // Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
@@ -402,6 +418,8 @@ export function useMainAppSetup() {
     presetViewMode,
     selectionBarPinned,
     setSelectionBarPinned,
+    presetSelectionBarPinned,
+    setPresetSelectionBarPinned,
     queueOutputPolicy,
     setQueueOutputPolicy,
     queuePanelProps,

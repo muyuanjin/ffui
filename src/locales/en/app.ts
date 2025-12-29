@@ -222,6 +222,9 @@ const app = {
     uiAppearancePreview: "Preview:",
     resetUiAppearanceButton: "Reset",
     progressDisplayTitle: "Progress display",
+    titlebarProgressEnabledLabel: "Titlebar progress",
+    titlebarProgressEnabledHelp:
+      "When disabled, the top titlebar no longer shows queue progress (does not affect the Windows taskbar progress bar).",
     devtoolsSectionTitle: "Developer tools",
     devtoolsSectionDescription: "Open Devtools from the desktop app to help with debugging and issue diagnosis.",
     devtoolsWindowHint: "Open Devtools.",

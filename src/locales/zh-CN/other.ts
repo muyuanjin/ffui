@@ -338,6 +338,8 @@ const other = {
     selectedCount: "已选 {count} 个",
     clearSelection: "清空选择",
     batchDelete: "删除已选",
+    pinSelectionBar: "固定操作栏",
+    unpinSelectionBar: "取消固定",
     importCommandsTitle: "导入 ffmpeg 命令",
     importCommandsDescription:
       "每行一条命令。FFUI 会逐行分析，并允许以“可编辑预设（严格）”或“自定义命令预设（高级模板）”方式导入。",

@@ -49,6 +49,7 @@ const makeAppSettings = (): AppSettings => ({
   maxParallelCpuJobs: 3,
   maxParallelHwJobs: 1,
   selectionBarPinned: true,
+  presetSelectionBarPinned: true,
   taskbarProgressMode: "byEstimatedTime",
   queueOutputPolicy: {
     container: { mode: "force", format: "mkv" },
@@ -107,6 +108,7 @@ describe("backend settings contract", () => {
         maxParallelCpuJobs: 3,
         maxParallelHwJobs: 1,
         selectionBarPinned: true,
+        presetSelectionBarPinned: true,
         queueOutputPolicy: {
           container: { mode: "force", format: "mkv" },
           directory: { mode: "fixed", directory: "D:/outputs" },

@@ -212,6 +212,8 @@ const app = {
     uiAppearancePreview: "预览：",
     resetUiAppearanceButton: "重置",
     progressDisplayTitle: "进度显示",
+    titlebarProgressEnabledLabel: "标题栏进度条",
+    titlebarProgressEnabledHelp: "关闭后顶部标题栏不再显示队列进度条（不影响 Windows 任务栏进度条）。",
     devtoolsSectionTitle: "开发工具",
     devtoolsSectionDescription: "一键打开 Devtools，便于调试与问题排查。",
     devtoolsWindowHint: "打开Devtools。",
