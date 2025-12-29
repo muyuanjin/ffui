@@ -29,13 +29,8 @@ const {
   queueError,
   presetSortMode,
   presetViewMode,
-  selectionBarPinned,
-  setSelectionBarPinned,
   presetSelectionBarPinned,
   setPresetSelectionBarPinned,
-  queueOutputPolicy,
-  setQueueOutputPolicy,
-  queuePanelProps,
   handleUpdateAppSettings,
   manualJobPresetId: manualJobPresetIdRef,
 } = setup;
@@ -57,8 +52,14 @@ const {
   hasActiveFilters,
   hasSelection,
   selectedJobIds,
+  selectionBarPinned,
+  setSelectionBarPinned,
   queueMode,
+  queueTotalCount,
   queueJobsForDisplay,
+  queueOutputPolicy,
+  setQueueOutputPolicy,
+  queuePanelProps,
   setQueueMode,
   toggleStatusFilter,
   toggleTypeFilter,
@@ -253,7 +254,7 @@ const manualJobPresetId = computed<string | null>({
           :selected-count="selectedJobIds.size"
           :queue-mode="queueMode"
           :visible-count="queueJobsForDisplay.length"
-          :total-count="jobs.length"
+          :total-count="queueTotalCount"
           :selection-bar-pinned="selectionBarPinned"
           :bulk-action-in-progress="bulkActionInProgress"
           @update:queueMode="setQueueMode"
