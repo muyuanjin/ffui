@@ -70,6 +70,13 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - For Rust, add unit tests in the same module and run them with `cargo test` from `src-tauri`.
 - Aim for meaningful coverage around transcoding logic and platform-specific behavior, especially any file or process handling.
 
+## Project Skills（项目级技能指引）
+
+- 本仓库的项目级 skills 放在 `skills/project/`；每个 skill 是一个独立目录，至少包含 `SKILL.md`。
+- 当项目行为/约定发生变化（尤其是“持久化/设置/契约”相关），必须同步更新对应的 `skills/project/*/SKILL.md`，保证步骤、关键文件路径、测试门禁仍然准确；后续新增更多项目级 skills 时，也在此处登记。
+- 已有 skills：
+  - `app-settings-persistence`：新增/修改 `AppSettings`（settings.json）字段的端到端持久化清单与测试要求（`skills/project/app-settings-persistence/SKILL.md`）。
+
 ---
 
 - DATE: 2025-12-02
