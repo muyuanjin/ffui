@@ -1,5 +1,5 @@
-import { invokeWithAliases } from "./invokeWithAliases";
+import { invokeCommand } from "./invokeCommand";
 
 export const cleanupPreviewCachesAsync = async (): Promise<boolean> => {
-  return invokeWithAliases<boolean>("cleanup_preview_caches_async");
+  return invokeCommand<boolean>("cleanup_preview_caches_async");
 };

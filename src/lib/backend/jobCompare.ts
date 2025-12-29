@@ -1,11 +1,11 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeCommand } from "./invokeCommand";
 import type { JobCompareSources } from "@/types";
 import type { FallbackFrameQuality } from "./fallbackPreview";
 
 export const getJobCompareSources = async (jobId: string): Promise<JobCompareSources | null> => {
   const normalized = jobId.trim();
   if (!normalized) return null;
-  return invoke<JobCompareSources | null>("get_job_compare_sources", {
+  return invokeCommand<JobCompareSources | null>("get_job_compare_sources", {
     args: {
       jobId: normalized,
     },
@@ -19,7 +19,7 @@ export const extractJobCompareFrame = async (args: {
   durationSeconds?: number | null;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return invoke<string>("extract_job_compare_frame", {
+  return invokeCommand<string>("extract_job_compare_frame", {
     args: {
       jobId: args.jobId,
       sourcePath: args.sourcePath,
@@ -36,7 +36,7 @@ export const extractJobCompareOutputFrame = async (args: {
   durationSeconds?: number | null;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return invoke<string>("extract_job_compare_output_frame", {
+  return invokeCommand<string>("extract_job_compare_output_frame", {
     args: {
       jobId: args.jobId,
       positionSeconds: args.positionSeconds,
@@ -52,7 +52,7 @@ export const extractJobCompareConcatFrame = async (args: {
   positionSeconds: number;
   quality: FallbackFrameQuality;
 }): Promise<string> => {
-  return invoke<string>("extract_job_compare_concat_frame", {
+  return invokeCommand<string>("extract_job_compare_concat_frame", {
     args: {
       jobId: args.jobId,
       segmentPaths: args.segmentPaths,

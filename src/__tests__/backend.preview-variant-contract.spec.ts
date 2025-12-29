@@ -28,9 +28,7 @@ describe("backend preview variant contract", () => {
     expect(cmd).toBe("ensure_job_preview_variant");
     expect(payload).toMatchObject({
       jobId: "job-1",
-      job_id: "job-1",
       heightPx: 720,
-      height_px: 720,
     });
   });
 });

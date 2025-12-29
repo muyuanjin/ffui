@@ -79,8 +79,8 @@ describe("backend ui fonts contract", () => {
     const loaded = await startOpenSourceFontDownload(" inter ");
     expect(invokeMock).toHaveBeenCalledWith("start_open_source_font_download", {
       fontId: " inter ",
-      font_id: " inter ",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("font_id");
     expect(loaded).toEqual(snapshot);
   });
 
@@ -91,8 +91,8 @@ describe("backend ui fonts contract", () => {
     const loaded = await fetchOpenSourceFontDownloadSnapshot("inter");
     expect(invokeMock).toHaveBeenCalledWith("get_open_source_font_download_snapshot", {
       fontId: "inter",
-      font_id: "inter",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("font_id");
     expect(loaded).toEqual(snapshot);
   });
 
@@ -102,8 +102,8 @@ describe("backend ui fonts contract", () => {
     const ok = await cancelOpenSourceFontDownload("inter");
     expect(invokeMock).toHaveBeenCalledWith("cancel_open_source_font_download", {
       fontId: "inter",
-      font_id: "inter",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("font_id");
     expect(ok).toBe(true);
   });
 
@@ -114,8 +114,8 @@ describe("backend ui fonts contract", () => {
     const loaded = await ensureOpenSourceFontDownloaded("inter");
     expect(invokeMock).toHaveBeenCalledWith("ensure_open_source_font_downloaded", {
       fontId: "inter",
-      font_id: "inter",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("font_id");
     expect(loaded).toEqual(font);
   });
 
@@ -126,8 +126,8 @@ describe("backend ui fonts contract", () => {
     const loaded = await importUiFontFile(" /tmp/inter.ttf ");
     expect(invokeMock).toHaveBeenCalledWith("import_ui_font_file", {
       sourcePath: "/tmp/inter.ttf",
-      source_path: "/tmp/inter.ttf",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("source_path");
     expect(loaded).toEqual(font);
   });
 });

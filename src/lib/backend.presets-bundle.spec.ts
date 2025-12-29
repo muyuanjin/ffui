@@ -20,7 +20,7 @@ describe("backend contract - preset bundle", () => {
     w.window.__TAURI_IPC__ = {};
   });
 
-  it("exportPresetsBundle calls export_presets_bundle with both camelCase and snake_case keys", async () => {
+  it("exportPresetsBundle calls export_presets_bundle with canonical camelCase keys", async () => {
     const result: PresetBundleExportResult = {
       path: "/tmp/presets.json",
       schemaVersion: 1,
@@ -35,14 +35,14 @@ describe("backend contract - preset bundle", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenCalledWith("export_presets_bundle", {
       targetPath: "/tmp/presets.json",
-      target_path: "/tmp/presets.json",
       presetIds: ["p1", "p2"],
-      preset_ids: ["p1", "p2"],
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("target_path");
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("preset_ids");
     expect(out).toEqual(result);
   });
 
-  it("readPresetsBundle calls read_presets_bundle with both camelCase and snake_case keys", async () => {
+  it("readPresetsBundle calls read_presets_bundle with canonical camelCase keys", async () => {
     const bundle: PresetBundle = {
       schemaVersion: 1,
       appVersion: "0.2.1",
@@ -56,8 +56,8 @@ describe("backend contract - preset bundle", () => {
     expect(invokeMock).toHaveBeenCalledTimes(1);
     expect(invokeMock).toHaveBeenCalledWith("read_presets_bundle", {
       sourcePath: "/tmp/in.json",
-      source_path: "/tmp/in.json",
     });
+    expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("source_path");
     expect(loaded).toEqual(bundle);
   });
 });

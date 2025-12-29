@@ -20,7 +20,6 @@ describe("backend resume transcode job contract", () => {
     await resumeTranscodeJob("job-1");
     expect(invokeMock).toHaveBeenCalledWith("resume_transcode_job", {
       jobId: "job-1",
-      job_id: "job-1",
     });
   });
 });
