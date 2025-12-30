@@ -5,15 +5,15 @@ import TitleBar from "@/components/TitleBar.vue";
 import { deriveProgressTransitionMs } from "@/lib/progressTransition";
 import Sidebar from "@/components/Sidebar.vue";
 import PresetTabPanel from "@/components/panels/PresetTabPanel.vue";
-import QueuePanel from "@/components/panels/QueuePanel.vue";
-import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
 import { MonitorPanelPro } from "@/components/main/lazyTabs";
-import MainContentHeader from "@/components/main/MainContentHeader.vue";
+import MainContentHeaderHost from "@/components/main/MainContentHeaderHost.vue";
 import MainDialogsStackHost from "@/components/main/MainDialogsStackHost.vue";
 import MainMediaTabHost from "@/components/main/MainMediaTabHost.vue";
+import MainQueueContextMenuHost from "@/components/main/MainQueueContextMenuHost.vue";
+import MainQueueFiltersBarHost from "@/components/main/MainQueueFiltersBarHost.vue";
+import MainQueuePanelHost from "@/components/main/MainQueuePanelHost.vue";
 import MainSettingsTabHost from "@/components/main/MainSettingsTabHost.vue";
-import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
-import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
+import MainWaitingJobContextMenuHost from "@/components/main/MainWaitingJobContextMenuHost.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
 import { createMainAppContext, provideMainAppContext } from "@/MainApp.setup";
@@ -27,7 +27,6 @@ const app = proxyRefs(setup);
 
 const shell = proxyRefs(setup.shell);
 const dialogs = setup.dialogs;
-const queue = proxyRefs(setup.queue);
 const batchCompress = setup.batchCompress;
 const presetsModule = setup.presetsModule;
 const media = setup.media;
@@ -36,8 +35,6 @@ const settingsVm = proxyRefs(settings);
 const updater = setup.updater;
 const updaterVm = proxyRefs(updater);
 const dnd = proxyRefs(setup.dnd);
-const queueContextMenu = proxyRefs(setup.queueContextMenu);
-const preview = setup.preview;
 
 useQueueBlankClickClearSelection({
   activeTab: setup.shell.activeTab,
@@ -89,66 +86,8 @@ const clearMediaInspectError = () => {
         @batch-compress="batchCompress.startBatchCompress"
       />
       <main class="flex-1 flex min-h-0 min-w-0 flex-col bg-background">
-        <MainContentHeader
-          :active-tab="shell.activeTab"
-          :current-title="app.currentTitle"
-          :current-subtitle="app.currentSubtitle"
-          :jobs-length="app.jobs.length"
-          :completed-count="app.completedCount"
-          :manual-job-preset-id="app.manualJobPresetId"
-          :presets="app.presets"
-          :queue-view-mode-model="queue.queueViewModeModel"
-          :preset-sort-mode="app.presetSortMode"
-          :queue-output-policy="queue.queueOutputPolicy"
-          :carousel-auto-rotation-speed="queue.carouselAutoRotationSpeed"
-          @update:manualJobPresetId="(v) => (app.manualJobPresetId = v)"
-          @update:queueViewModeModel="(v) => (queue.queueViewModeModel = v)"
-          @update:queueOutputPolicy="(v) => queue.setQueueOutputPolicy(v)"
-          @update:carouselAutoRotationSpeed="(v) => queue.setCarouselAutoRotationSpeed(v)"
-          @openPresetWizard="dialogs.dialogManager.openWizard()"
-        />
-        <QueueFiltersBar
-          v-if="shell.activeTab === 'queue'"
-          :active-status-filters="queue.activeStatusFilters"
-          :active-type-filters="queue.activeTypeFilters"
-          :filter-text="queue.filterText"
-          :filter-use-regex="queue.filterUseRegex"
-          :filter-regex-error="queue.filterRegexError"
-          :sort-primary="queue.sortPrimary"
-          :sort-primary-direction="queue.sortPrimaryDirection"
-          :sort-secondary="queue.sortSecondary"
-          :sort-secondary-direction="queue.sortSecondaryDirection"
-          :has-primary-sort-ties="queue.hasPrimarySortTies"
-          :has-active-filters="queue.hasActiveFilters"
-          :has-selection="queue.hasSelection"
-          :selected-count="queue.selectedJobIds.size"
-          :queue-mode="queue.queueMode"
-          :visible-count="queue.queueJobsForDisplay.length"
-          :total-count="queue.queueTotalCount"
-          :selection-bar-pinned="queue.selectionBarPinned"
-          :bulk-action-in-progress="queue.bulkActionInProgress"
-          @update:queueMode="queue.setQueueMode"
-          @toggle-status-filter="queue.toggleStatusFilter"
-          @toggle-type-filter="queue.toggleTypeFilter"
-          @update:filterText="(v) => (queue.filterText = v)"
-          @toggle-filter-regex-mode="queue.toggleFilterRegexMode"
-          @reset-queue-filters="queue.resetQueueFilters"
-          @update:sortPrimary="(v) => (queue.sortPrimary = v)"
-          @update:sortPrimaryDirection="(v) => (queue.sortPrimaryDirection = v)"
-          @update:sortSecondary="(v) => (queue.sortSecondary = v)"
-          @update:sortSecondaryDirection="(v) => (queue.sortSecondaryDirection = v)"
-          @select-all-visible-jobs="queue.selectAllVisibleJobs"
-          @invert-selection="queue.invertSelection"
-          @clear-selection="queue.clearSelection"
-          @bulk-cancel="queue.bulkCancel"
-          @bulk-wait="queue.bulkWait"
-          @bulk-resume="queue.bulkResume"
-          @bulk-restart="queue.bulkRestart"
-          @bulk-move-to-top="queue.bulkMoveToTop"
-          @bulk-move-to-bottom="queue.bulkMoveToBottom"
-          @bulk-delete="queue.bulkDelete"
-          @update:selectionBarPinned="queue.setSelectionBarPinned"
-        />
+        <MainContentHeaderHost />
+        <MainQueueFiltersBarHost />
         <MainGlobalAlerts
           :queue-error="app.queueError"
           :media-inspect-error="media.mediaInspectError.value"
@@ -157,31 +96,8 @@ const clearMediaInspectError = () => {
           @clearMediaInspectError="clearMediaInspectError"
           @clearSettingsSaveError="settingsVm.settingsSaveError = null"
         />
-        <div v-if="shell.activeTab === 'queue'" class="flex-1 min-h-0 flex flex-col">
-          <div class="p-4 flex-1 min-h-0 flex flex-col">
-            <QueuePanel
-              v-bind="queue.queuePanelProps"
-              @update:queue-view-mode="queue.setQueueViewMode"
-              @update:queue-mode="queue.setQueueMode"
-              @update:queue-progress-style="queue.setQueueProgressStyle"
-              @add-job-files="addManualJobsFromFiles"
-              @add-job-folder="addManualJobsFromFolder"
-              @cancel-job="queue.handleCancelJob"
-              @wait-job="queue.handleWaitJob"
-              @resume-job="queue.handleResumeJob"
-              @restart-job="queue.handleRestartJob"
-              @toggle-job-selected="queue.toggleJobSelected"
-              @inspect-job="dialogs.dialogManager.openJobDetail"
-              @preview-job="preview.openJobPreviewFromQueue"
-              @compare-job="dialogs.dialogManager.openJobCompare"
-              @toggle-batch-expanded="batchCompress.toggleBatchExpanded"
-              @open-batch-detail="preview.openBatchDetail"
-              @open-job-context-menu="queueContextMenu.openQueueContextMenuForJob"
-              @open-bulk-context-menu="queueContextMenu.openQueueContextMenuForBulk"
-            />
-          </div>
-        </div>
-        <ScrollArea v-else class="flex-1 min-h-0">
+        <MainQueuePanelHost />
+        <ScrollArea v-if="shell.activeTab !== 'queue'" class="flex-1 min-h-0">
           <div class="min-h-full flex flex-col" :class="shell.activeTab === 'presets' ? undefined : 'p-4'">
             <PresetTabPanel
               v-if="shell.activeTab === 'presets'"
@@ -208,38 +124,8 @@ const clearMediaInspectError = () => {
         </ScrollArea>
       </main>
     </div>
-    <WaitingJobContextMenu
-      :visible="dnd.waitingJobContextMenuVisible"
-      @move-to-top="dnd.handleWaitingJobContextMoveToTop"
-      @close="dnd.closeWaitingJobContextMenu"
-    />
-    <QueueContextMenu
-      :visible="queueContextMenu.queueContextMenuVisible"
-      :x="queueContextMenu.queueContextMenuX"
-      :y="queueContextMenu.queueContextMenuY"
-      :mode="queueContextMenu.queueContextMenuMode"
-      :job-status="queueContextMenu.queueContextMenuJobStatus"
-      :job-type="queueContextMenu.queueContextMenuJob?.type"
-      :queue-mode="queue.queueMode"
-      :has-selection="queue.hasSelection"
-      :bulk-action-in-progress="queue.bulkActionInProgress"
-      :can-reveal-input-path="queueContextMenu.queueContextMenuCanRevealInputPath"
-      :can-reveal-output-path="queueContextMenu.queueContextMenuCanRevealOutputPath"
-      @inspect="queueContextMenu.handleQueueContextInspect"
-      @compare="queueContextMenu.handleQueueContextCompare"
-      @wait="queueContextMenu.handleQueueContextWait"
-      @resume="queueContextMenu.handleQueueContextResume"
-      @restart="queueContextMenu.handleQueueContextRestart"
-      @cancel="queueContextMenu.handleQueueContextCancel"
-      @move-to-top="queueContextMenu.handleQueueContextMoveToTop"
-      @move-to-bottom="queueContextMenu.handleQueueContextMoveToBottom"
-      @remove="queueContextMenu.handleQueueContextDelete"
-      @open-input-folder="queueContextMenu.handleQueueContextOpenInputFolder"
-      @open-output-folder="queueContextMenu.handleQueueContextOpenOutputFolder"
-      @copy-input-path="queueContextMenu.handleQueueContextCopyInputPath"
-      @copy-output-path="queueContextMenu.handleQueueContextCopyOutputPath"
-      @close="queueContextMenu.closeQueueContextMenu"
-    />
+    <MainWaitingJobContextMenuHost />
+    <MainQueueContextMenuHost />
     <MainDialogsStackHost :setup="setup" @openToolsSettings="shell.activeTab = 'settings'" />
   </div>
 </template>
