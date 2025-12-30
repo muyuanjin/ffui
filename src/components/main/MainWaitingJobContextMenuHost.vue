@@ -1,16 +1,10 @@
 <script setup lang="ts">
-import { proxyRefs } from "vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
-import { useQueueDomain } from "@/MainApp.setup";
+import { useMainWaitingJobContextMenuOrchestrator } from "@/composables/main-app/orchestrators/useMainWaitingJobContextMenuOrchestrator";
 
-const queue = useQueueDomain();
-const dnd = proxyRefs(queue.dnd);
+const { menuProps, menuListeners } = useMainWaitingJobContextMenuOrchestrator();
 </script>
 
 <template>
-  <WaitingJobContextMenu
-    :visible="dnd.waitingJobContextMenuVisible"
-    @move-to-top="dnd.handleWaitingJobContextMoveToTop"
-    @close="dnd.closeWaitingJobContextMenu"
-  />
+  <WaitingJobContextMenu v-bind="menuProps" v-on="menuListeners" />
 </template>

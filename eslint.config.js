@@ -173,6 +173,38 @@ export default [
     },
   },
   {
+    files: ["src/components/main/**/*Host.vue"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tauri-apps/api/core",
+              importNames: ["invoke"],
+              message:
+                "Use invokeCommand() from src/lib/backend/invokeCommand.ts instead of importing invoke directly.",
+            },
+            {
+              name: "@/MainApp.setup",
+              importNames: [
+                "useMainAppContext",
+                "useShellDomain",
+                "useDialogsDomain",
+                "useQueueDomain",
+                "usePresetsDomain",
+                "useSettingsDomain",
+                "useMediaDomain",
+                "usePreviewDomain",
+              ],
+              message: "Do not import domain hooks from Host components; use orchestrators instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/lib/backend/invokeCommand.ts"],
     rules: {
       "no-restricted-imports": "off",
