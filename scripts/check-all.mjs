@@ -5,6 +5,7 @@ import path from "node:path";
 
 const PROBE_TIMEOUT_MS = 30_000;
 const STEP_CLOSE_GRACE_MS = 5_000;
+let stepLogSequence = 0;
 
 function parseArgs(argv) {
   const out = {
@@ -93,6 +94,46 @@ function parseArgs(argv) {
   return out;
 }
 
+function sanitizeFilenameSegment(input) {
+  const s = String(input)
+    .trim()
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9._-]+/g, "_")
+    .replace(/^_+/, "")
+    .replace(/_+$/, "");
+  return s || "step";
+}
+
+function formatRunTimestamp(date) {
+  const yyyy = String(date.getFullYear());
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mi = String(date.getMinutes()).padStart(2, "0");
+  const ss = String(date.getSeconds()).padStart(2, "0");
+  return `${yyyy}${mm}${dd}-${hh}${mi}${ss}`;
+}
+
+function createCheckAllLogDir() {
+  const logsRoot = path.join(process.cwd(), ".cache", "check-all", "logs");
+  fs.mkdirSync(logsRoot, { recursive: true });
+
+  const base = `${formatRunTimestamp(new Date())}-${process.pid}`;
+  for (let i = 0; i < 100; i += 1) {
+    const name = i === 0 ? base : `${base}-${i}`;
+    const dir = path.join(logsRoot, name);
+    try {
+      fs.mkdirSync(dir, { recursive: false });
+      return dir;
+    } catch (err) {
+      if (err && typeof err === "object" && "code" in err && err.code === "EEXIST") continue;
+      throw err;
+    }
+  }
+
+  throw new Error("Could not create a unique check-all log directory.");
+}
+
 const liveChildren = new Set();
 function bestEffortKillLiveChildren() {
   for (const child of liveChildren) {
@@ -139,60 +180,19 @@ function createLinePrefixer(prefix, write) {
 async function runStep(label, command, args, options = {}) {
   process.stdout.write(`\n==> ${label}\n`);
 
-  const { outputPrefix, ...spawnOptions } = options;
-
-  const child = spawn(command, args, {
-    ...spawnOptions,
-    env: {
-      ...process.env,
-      ...spawnOptions.env,
-    },
-    stdio: ["inherit", "pipe", "pipe"],
-  });
-  liveChildren.add(child);
-  child.once("close", () => liveChildren.delete(child));
-
-  child.on("error", (err) => {
-    process.stderr.write(String(err));
-    process.stderr.write("\n");
-    process.exit(1);
-  });
-
-  const closePromise = new Promise((resolve) => child.once("close", resolve));
-
-  const stdoutPrefixer = outputPrefix ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
-  const stderrPrefixer = outputPrefix ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
-
-  child.stdout.on("data", (chunk) => (stdoutPrefixer ? stdoutPrefixer.push(chunk) : process.stdout.write(chunk)));
-  child.stderr.on("data", (chunk) => (stderrPrefixer ? stderrPrefixer.push(chunk) : process.stderr.write(chunk)));
-
-  const code = await new Promise((resolve) => child.once("exit", resolve));
-  const closed = await Promise.race([
-    closePromise.then(() => true),
-    new Promise((resolve) => setTimeout(() => resolve(false), STEP_CLOSE_GRACE_MS)),
-  ]);
-
-  stdoutPrefixer?.flush();
-  stderrPrefixer?.flush();
-
-  if (!closed) {
-    process.stderr.write(`\nERROR: "${label}" exited but its stdio did not close within ${STEP_CLOSE_GRACE_MS}ms.\n`);
-    process.stderr.write(
-      "Hint: A background process likely kept stdout/stderr open. Run the command standalone to find the process that does not exit.\n",
-    );
-    process.exit(1);
+  const { outputPrefix, logDir, silent, ...spawnOptions } = options;
+  const logPath = logDir
+    ? path.join(
+        logDir,
+        `${String((stepLogSequence += 1)).padStart(2, "0")}_${sanitizeFilenameSegment(label).slice(0, 96)}.log`,
+      )
+    : null;
+  const logStream = logPath ? fs.createWriteStream(logPath, { flags: "wx" }) : null;
+  if (logStream) {
+    logStream.write(`label: ${label}\n`);
+    logStream.write(`command: ${command}\n`);
+    logStream.write(`args: ${JSON.stringify(args)}\n\n`);
   }
-
-  if (code !== 0) {
-    process.stderr.write(`\nERROR: "${label}" failed with exit code ${code}.\n`);
-    process.exit(code ?? 1);
-  }
-}
-
-async function runStepCaptureStdout(label, command, args, options = {}) {
-  process.stdout.write(`\n==> ${label}\n`);
-
-  const { outputPrefix, quiet, ...spawnOptions } = options;
 
   const child = spawn(command, args, {
     ...spawnOptions,
@@ -214,21 +214,19 @@ async function runStepCaptureStdout(label, command, args, options = {}) {
   const closePromise = new Promise((resolve) => child.once("close", resolve));
 
   const stdoutPrefixer =
-    outputPrefix && !quiet ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
+    outputPrefix && !silent ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
   const stderrPrefixer =
-    outputPrefix && !quiet ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
+    outputPrefix && !silent ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
 
-  let capturedStdout = "";
-  let capturedStderr = "";
   child.stdout.on("data", (chunk) => {
-    capturedStdout += chunk.toString("utf8");
-    if (quiet) return;
+    logStream?.write(chunk);
+    if (silent) return;
     if (stdoutPrefixer) stdoutPrefixer.push(chunk);
     else process.stdout.write(chunk);
   });
   child.stderr.on("data", (chunk) => {
-    capturedStderr += chunk.toString("utf8");
-    if (quiet) return;
+    logStream?.write(chunk);
+    if (silent) return;
     if (stderrPrefixer) stderrPrefixer.push(chunk);
     else process.stderr.write(chunk);
   });
@@ -247,6 +245,95 @@ async function runStepCaptureStdout(label, command, args, options = {}) {
     process.stderr.write(
       "Hint: A background process likely kept stdout/stderr open. Run the command standalone to find the process that does not exit.\n",
     );
+    logStream?.end();
+    process.exit(1);
+  }
+
+  if (code !== 0) {
+    if (silent && logPath) {
+      process.stderr.write(`\n(See log) ${logPath}\n`);
+    }
+    logStream?.end();
+    process.stderr.write(`\nERROR: "${label}" failed with exit code ${code}.\n`);
+    process.exit(code ?? 1);
+  }
+
+  logStream?.end();
+}
+
+async function runStepCaptureStdout(label, command, args, options = {}) {
+  process.stdout.write(`\n==> ${label}\n`);
+
+  const { outputPrefix, quiet, logDir, silent, ...spawnOptions } = options;
+  const logPath = logDir
+    ? path.join(
+        logDir,
+        `${String((stepLogSequence += 1)).padStart(2, "0")}_${sanitizeFilenameSegment(label).slice(0, 96)}.log`,
+      )
+    : null;
+  const logStream = logPath ? fs.createWriteStream(logPath, { flags: "wx" }) : null;
+  if (logStream) {
+    logStream.write(`label: ${label}\n`);
+    logStream.write(`command: ${command}\n`);
+    logStream.write(`args: ${JSON.stringify(args)}\n\n`);
+  }
+
+  const child = spawn(command, args, {
+    ...spawnOptions,
+    env: {
+      ...process.env,
+      ...spawnOptions.env,
+    },
+    stdio: ["inherit", "pipe", "pipe"],
+  });
+  liveChildren.add(child);
+  child.once("close", () => liveChildren.delete(child));
+
+  child.on("error", (err) => {
+    process.stderr.write(String(err));
+    process.stderr.write("\n");
+    process.exit(1);
+  });
+
+  const closePromise = new Promise((resolve) => child.once("close", resolve));
+
+  const stdoutPrefixer =
+    outputPrefix && !quiet && !silent ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
+  const stderrPrefixer =
+    outputPrefix && !quiet && !silent ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
+
+  let capturedStdout = "";
+  let capturedStderr = "";
+  child.stdout.on("data", (chunk) => {
+    logStream?.write(chunk);
+    capturedStdout += chunk.toString("utf8");
+    if (quiet || silent) return;
+    if (stdoutPrefixer) stdoutPrefixer.push(chunk);
+    else process.stdout.write(chunk);
+  });
+  child.stderr.on("data", (chunk) => {
+    logStream?.write(chunk);
+    capturedStderr += chunk.toString("utf8");
+    if (quiet || silent) return;
+    if (stderrPrefixer) stderrPrefixer.push(chunk);
+    else process.stderr.write(chunk);
+  });
+
+  const code = await new Promise((resolve) => child.once("exit", resolve));
+  const closed = await Promise.race([
+    closePromise.then(() => true),
+    new Promise((resolve) => setTimeout(() => resolve(false), STEP_CLOSE_GRACE_MS)),
+  ]);
+
+  stdoutPrefixer?.flush();
+  stderrPrefixer?.flush();
+
+  if (!closed) {
+    process.stderr.write(`\nERROR: "${label}" exited but its stdio did not close within ${STEP_CLOSE_GRACE_MS}ms.\n`);
+    process.stderr.write(
+      "Hint: A background process likely kept stdout/stderr open. Run the command standalone to find the process that does not exit.\n",
+    );
+    logStream?.end();
     process.exit(1);
   }
 
@@ -255,10 +342,15 @@ async function runStepCaptureStdout(label, command, args, options = {}) {
       if (capturedStdout.trim()) process.stdout.write(capturedStdout);
       if (capturedStderr.trim()) process.stderr.write(capturedStderr);
     }
+    if (silent && logPath) {
+      process.stderr.write(`\n(See log) ${logPath}\n`);
+    }
+    logStream?.end();
     process.stderr.write(`\nERROR: "${label}" failed with exit code ${code}.\n`);
     process.exit(code ?? 1);
   }
 
+  logStream?.end();
   return { stdout: capturedStdout, stderr: capturedStderr };
 }
 
@@ -934,24 +1026,29 @@ async function runRustClippyForPlatform(platform, rustRootDir, opts, runOptions 
           "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
         );
       }
-      await runStep("Rust clippy (Linux/WSL, deny warnings)", "wsl.exe", [
-        "-e",
-        "env",
-        "CARGO_INCREMENTAL=0",
-        "CARGO_TERM_COLOR=never",
-        wslCargo,
-        "clippy",
-        "--profile",
-        "check-all",
-        "--target-dir",
-        wslTargetDir,
-        "--manifest-path",
-        wslCargoToml,
-        "--no-deps",
-        "--",
-        "-D",
-        "warnings",
-      ]);
+      await runStep(
+        "Rust clippy (Linux/WSL, deny warnings)",
+        "wsl.exe",
+        [
+          "-e",
+          "env",
+          "CARGO_INCREMENTAL=0",
+          "CARGO_TERM_COLOR=never",
+          wslCargo,
+          "clippy",
+          "--profile",
+          "check-all",
+          "--target-dir",
+          wslTargetDir,
+          "--manifest-path",
+          wslCargoToml,
+          "--no-deps",
+          "--",
+          "-D",
+          "warnings",
+        ],
+        runOptions,
+      );
       return;
     }
 
@@ -1020,21 +1117,26 @@ async function runRustTestNoRunForPlatform(platform, rustRootDir, opts, runOptio
           "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
         );
       }
-      await runStep("Rust tests (Linux/WSL, no-run)", "wsl.exe", [
-        "-e",
-        "env",
-        "CARGO_INCREMENTAL=0",
-        "CARGO_TERM_COLOR=never",
-        wslCargo,
-        "test",
-        "--profile",
-        "check-all",
-        "--target-dir",
-        wslTargetDir,
-        "--manifest-path",
-        wslCargoToml,
-        "--no-run",
-      ]);
+      await runStep(
+        "Rust tests (Linux/WSL, no-run)",
+        "wsl.exe",
+        [
+          "-e",
+          "env",
+          "CARGO_INCREMENTAL=0",
+          "CARGO_TERM_COLOR=never",
+          wslCargo,
+          "test",
+          "--profile",
+          "check-all",
+          "--target-dir",
+          wslTargetDir,
+          "--manifest-path",
+          wslCargoToml,
+          "--no-run",
+        ],
+        runOptions,
+      );
       return;
     }
 
@@ -1381,22 +1483,71 @@ async function runPlatformOnlyLinuxTestsBySkippingCommon(rustRootDir, opts, comm
       );
     }
 
-    await runStep("Rust platform-only tests (Linux/WSL via --skip common)", "wsl.exe", [
-      "-e",
-      "env",
-      "CARGO_INCREMENTAL=0",
-      "CARGO_TERM_COLOR=never",
-      wslCargo,
-      "test",
-      "--profile",
-      "check-all",
-      "--target-dir",
-      wslTargetDir,
-      "--manifest-path",
-      wslCargoToml,
-      "--",
-      ...libtestArgs,
-    ]);
+    if (sortedCommon.length === 0) {
+      await runStep(
+        "Rust platform-only tests (Linux/WSL via --skip common)",
+        "wsl.exe",
+        [
+          "-e",
+          "env",
+          "CARGO_INCREMENTAL=0",
+          "CARGO_TERM_COLOR=never",
+          wslCargo,
+          "test",
+          "--profile",
+          "check-all",
+          "--target-dir",
+          wslTargetDir,
+          "--manifest-path",
+          wslCargoToml,
+          "--",
+          ...libtestArgs,
+        ],
+        runOptions,
+      );
+      return;
+    }
+
+    // Passing hundreds of `--skip` arguments through `wsl.exe` can exceed Windows CreateProcess
+    // command line limits and fail with ENAMETOOLONG. Build the skip list inside WSL instead.
+    const tmpRoot = runOptions.logDir ?? path.join(process.cwd(), ".cache", "check-all", "tmp");
+    fs.mkdirSync(tmpRoot, { recursive: true });
+
+    const skipFileAbs = path.join(tmpRoot, "linux-skip-common.txt");
+    fs.writeFileSync(skipFileAbs, `${sortedCommon.join("\n")}\n`, { flag: "wx" });
+
+    const wslSkipFileAbs = windowsPathToWslPath(skipFileAbs);
+    const script = [
+      "set -euo pipefail",
+      'cargo="$1"; target="$2"; manifest="$3"; threads="$4"; skipfile="$5"',
+      "skip=()",
+      "while IFS= read -r name; do",
+      '  [ -z "$name" ] && continue',
+      '  skip+=(--skip "$name")',
+      'done < "$skipfile"',
+      'exec "$cargo" test --profile check-all --target-dir "$target" --manifest-path "$manifest" -- --exact "--test-threads=$threads" "${skip[@]}"',
+    ].join("\n");
+
+    await runStep(
+      "Rust platform-only tests (Linux/WSL via --skip common)",
+      "wsl.exe",
+      [
+        "-e",
+        "env",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_TERM_COLOR=never",
+        "bash",
+        "-c",
+        script,
+        "_",
+        wslCargo,
+        wslTargetDir,
+        wslCargoToml,
+        String(libtestThreadCount),
+        wslSkipFileAbs,
+      ],
+      runOptions,
+    );
     return;
   }
 
@@ -1465,34 +1616,44 @@ async function runParallel(tasks) {
   await Promise.all(tasks.map((t) => t()));
 }
 
+const logDir = createCheckAllLogDir();
+process.stdout.write(`\n==> Logs: ${path.relative(process.cwd(), logDir)}\n`);
+
 await runParallel([
   () =>
     runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "format:check:frontend"], opts, {
-      outputPrefix: "[prettier] ",
+      logDir,
+      silent: true,
     }),
   () =>
     runFrontendPnpmStep("Frontend lint (eslint)", ["run", "lint"], opts, {
-      outputPrefix: "[eslint] ",
+      logDir,
+      silent: true,
     }),
   () =>
     runFrontendPnpmStep("i18n key check", ["run", "check:i18n"], opts, {
-      outputPrefix: "[i18n] ",
+      logDir,
+      silent: true,
     }),
   () =>
     runFrontendPnpmStep("Duplicate check (frontend, jscpd)", ["run", "dup:frontend"], opts, {
-      outputPrefix: "[jscpd:fe] ",
+      logDir,
+      silent: true,
     }),
   () =>
     runFrontendPnpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts, {
-      outputPrefix: "[jscpd:rs] ",
+      logDir,
+      silent: true,
     }),
+  async () => {
+    await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts, { logDir, silent: true });
+    await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts, { logDir, silent: true });
+  },
+  async () => {
+    await runRustFmtCheck(rustFmtPlatform, rustRootDir, { logDir, silent: true });
+    await runRustChecks(selected, rustRootDir, opts, { logDir, silent: true });
+  },
 ]);
-
-await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
-await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
-
-await runRustFmtCheck(rustFmtPlatform, rustRootDir);
-await runRustChecks(selected, rustRootDir, opts);
 
 await runFrontendPnpmStep("Queue perf benches (vitest perf suite)", ["run", "bench:queue"], opts);
 
