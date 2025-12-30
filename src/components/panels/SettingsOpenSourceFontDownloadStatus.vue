@@ -3,7 +3,6 @@ import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { listen } from "@tauri-apps/api/event";
 import {
   cancelOpenSourceFontDownload,
   fetchOpenSourceFontDownloadSnapshot,
@@ -11,6 +10,7 @@ import {
   startOpenSourceFontDownload,
   type UiFontDownloadSnapshot,
 } from "@/lib/backend";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 const props = defineProps<{
   fontId: string | null;
@@ -21,7 +21,7 @@ const { t, locale } = useI18n();
 const download = ref<UiFontDownloadSnapshot | null>(null);
 const cancelling = ref(false);
 let sessionId = 0;
-let unlisten: null | (() => void) = null;
+let unlisten: UnsubscribeFn | null = null;
 
 const formatBytes = (value?: number | null): string => {
   const n = typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -115,16 +115,19 @@ const cancel = async () => {
 
 onMounted(async () => {
   if (!hasTauri()) return;
-  unlisten = await listen<UiFontDownloadSnapshot>("ui_font_download", (event) => {
-    const payload = event.payload;
-    const currentId = props.fontId?.trim() ?? "";
-    if (!currentId || payload.fontId !== currentId) return;
-    if (sessionId && payload.sessionId !== sessionId) return;
-    download.value = payload;
-    if (payload.status === "canceled" || payload.status === "ready" || payload.status === "error") {
-      cancelling.value = false;
-    }
-  });
+  unlisten = await subscribeTauriEvent<UiFontDownloadSnapshot>(
+    "ui_font_download",
+    (payload) => {
+      const currentId = props.fontId?.trim() ?? "";
+      if (!currentId || payload.fontId !== currentId) return;
+      if (sessionId && payload.sessionId !== sessionId) return;
+      download.value = payload;
+      if (payload.status === "canceled" || payload.status === "ready" || payload.status === "error") {
+        cancelling.value = false;
+      }
+    },
+    { debugLabel: "ui_font_download" },
+  );
 });
 
 onUnmounted(() => {

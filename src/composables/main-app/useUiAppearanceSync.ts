@@ -1,9 +1,9 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import type { AppSettings } from "@/types";
 import { applyUiAppearanceToDocument } from "@/lib/uiAppearance";
 import { applyDownloadedUiFont, applyUiFontFilePath, startOpenSourceFontDownload } from "@/lib/uiFonts";
 import { cancelOpenSourceFontDownload, hasTauri, type UiFontDownloadSnapshot } from "@/lib/backend";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 export function useUiAppearanceSync(appSettings: Ref<AppSettings | null>) {
   watch(
@@ -22,28 +22,33 @@ export function useUiAppearanceSync(appSettings: Ref<AppSettings | null>) {
   let requestId = 0;
   let currentSessionId = 0;
   let currentFontId: string | null = null;
-  let unlistenFontDownload: null | (() => void) = null;
+  let unsubscribeFontDownload: UnsubscribeFn | null = null;
 
   onMounted(async () => {
     if (!hasTauri()) return;
-    unlistenFontDownload = await listen<UiFontDownloadSnapshot>("ui_font_download", async (event) => {
-      const payload = event.payload;
-      const desired = currentFontId;
-      if (!desired || payload.fontId !== desired) return;
-      if (currentSessionId && payload.sessionId !== currentSessionId) return;
-      if (payload.status !== "ready" || !payload.path) return;
-      await applyDownloadedUiFont({
-        id: payload.fontId,
-        familyName: payload.familyName,
-        path: payload.path,
-        format: payload.format,
-      });
-    });
+    unsubscribeFontDownload = await subscribeTauriEvent<UiFontDownloadSnapshot>(
+      "ui_font_download",
+      (payload) => {
+        const desired = currentFontId;
+        if (!desired || payload.fontId !== desired) return;
+        if (currentSessionId && payload.sessionId !== currentSessionId) return;
+        if (payload.status !== "ready" || !payload.path) return;
+        void applyDownloadedUiFont({
+          id: payload.fontId,
+          familyName: payload.familyName,
+          path: payload.path,
+          format: payload.format,
+        }).catch((error) => {
+          console.error("Failed to apply downloaded UI font", error);
+        });
+      },
+      { debugLabel: "ui_font_download" },
+    );
   });
 
   onUnmounted(() => {
-    unlistenFontDownload?.();
-    unlistenFontDownload = null;
+    unsubscribeFontDownload?.();
+    unsubscribeFontDownload = null;
   });
 
   watch(

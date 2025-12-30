@@ -1,8 +1,7 @@
 import { onMounted, onUnmounted, ref, type Ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
 import { hasTauri, metricsSubscribe, metricsUnsubscribe, fetchMetricsHistory } from "@/lib/backend";
 import type { SystemMetricsSnapshot } from "@/types";
-import { createUnlistenHandle } from "@/lib/tauriUnlisten";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 export interface UseSystemMetricsOptions {
   /** Maximum number of snapshots kept in memory for charting. */
@@ -78,7 +77,7 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
 
   const isActive = ref(false);
 
-  const metricsListener = createUnlistenHandle(METRICS_EVENT_NAME);
+  let unsubscribeMetricsEvent: UnsubscribeFn | null = null;
   let mockTimer: number | null = null;
   let mockBootAtMs: number | null = null;
   let lastPushedAt = 0;
@@ -288,17 +287,20 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
 
       try {
         const throttleMs = viewUpdateMinIntervalMs;
-        const unlisten = await listen<SystemMetricsSnapshot>(METRICS_EVENT_NAME, (event) => {
-          const now = Date.now();
-          if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
-            lastPushedAt = now;
-            pushSnapshot(event.payload);
-          }
-        });
-        metricsListener.replace(unlisten);
+        unsubscribeMetricsEvent = await subscribeTauriEvent<SystemMetricsSnapshot>(
+          METRICS_EVENT_NAME,
+          (payload) => {
+            const now = Date.now();
+            if (!lastPushedAt || throttleMs === 0 || now - lastPushedAt >= throttleMs) {
+              lastPushedAt = now;
+              pushSnapshot(payload);
+            }
+          },
+          { debugLabel: METRICS_EVENT_NAME },
+        );
       } catch (error) {
         console.error("Failed to listen for system metrics events:", error);
-        metricsListener.replace(null);
+        unsubscribeMetricsEvent = null;
       }
 
       try {
@@ -321,7 +323,8 @@ export function useSystemMetrics(options: UseSystemMetricsOptions = {}): UseSyst
   const stop = async () => {
     if (!isActive.value) return;
     isActive.value = false;
-    metricsListener.clear();
+    unsubscribeMetricsEvent?.();
+    unsubscribeMetricsEvent = null;
 
     if (hasTauri()) {
       try {

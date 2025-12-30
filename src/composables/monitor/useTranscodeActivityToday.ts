@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, ref, type Ref } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 import { fetchTranscodeActivityToday, hasTauri } from "@/lib/backend";
 import type { TranscodeActivityToday } from "@/types";
@@ -13,7 +13,7 @@ export interface UseTranscodeActivityTodayReturn {
 
 export function useTranscodeActivityToday(): UseTranscodeActivityTodayReturn {
   const activity = ref<TranscodeActivityToday | null>(null);
-  let unlisten: UnlistenFn | null = null;
+  let unsubscribe: UnsubscribeFn | null = null;
 
   const refresh = async () => {
     try {
@@ -29,9 +29,13 @@ export function useTranscodeActivityToday(): UseTranscodeActivityTodayReturn {
     if (!hasTauri()) return;
     void (async () => {
       try {
-        unlisten = await listen<TranscodeActivityToday>(EVENT_NAME, (event) => {
-          activity.value = event.payload;
-        });
+        unsubscribe = await subscribeTauriEvent<TranscodeActivityToday>(
+          EVENT_NAME,
+          (payload) => {
+            activity.value = payload;
+          },
+          { debugLabel: EVENT_NAME },
+        );
       } catch (error) {
         console.error("Failed to listen transcode activity events:", error);
       }
@@ -39,15 +43,8 @@ export function useTranscodeActivityToday(): UseTranscodeActivityTodayReturn {
   });
 
   onUnmounted(() => {
-    if (unlisten) {
-      try {
-        unlisten();
-      } catch (error) {
-        console.error("Failed to unlisten transcode activity events:", error);
-      } finally {
-        unlisten = null;
-      }
-    }
+    unsubscribe?.();
+    unsubscribe = null;
   });
 
   return { activity, refresh };

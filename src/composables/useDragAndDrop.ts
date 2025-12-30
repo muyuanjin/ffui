@@ -1,7 +1,6 @@
-import { ref, onMounted, onUnmounted } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { ref } from "vue";
 import { hasTauri } from "@/lib/backend";
-import { createUnlistenHandle } from "@/lib/tauriUnlisten";
+import { subscribeTauriEventInCurrentScope } from "@/lib/tauriSubscriptions";
 
 /**
  * 拖放处理 Composable 配置选项
@@ -31,7 +30,6 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
   const { onFilesDropped } = options;
 
   const isDragging = ref(false);
-  const dragDropListener = createUnlistenHandle("tauri://drag-drop");
 
   const isFileDragEvent = (e: DragEvent): boolean => {
     // In browsers, dataTransfer.types contains 'Files' when dragging files from OS.
@@ -86,29 +84,20 @@ export function useDragAndDrop(options: UseDragAndDropOptions = {}) {
     }
   };
 
-  onMounted(async () => {
-    if (hasTauri()) {
-      // Tauri 拖放监听
-      try {
-        const unlisten = await listen<{ paths: string[] }>("tauri://drag-drop", (event) => {
-          const paths = event.payload.paths;
-          if (paths && paths.length > 0 && onFilesDropped) {
-            void Promise.resolve(onFilesDropped(paths)).catch((error) => {
-              console.error("Failed to handle tauri drag-drop payload:", error);
-            });
-          }
-        });
-        dragDropListener.replace(unlisten);
-      } catch (error) {
-        console.error("Failed to listen for tauri drag-drop events:", error);
-        dragDropListener.replace(null);
-      }
-    }
-  });
-
-  onUnmounted(() => {
-    dragDropListener.clear();
-  });
+  if (hasTauri()) {
+    subscribeTauriEventInCurrentScope<{ paths: string[] }>(
+      "tauri://drag-drop",
+      (payload) => {
+        const paths = payload?.paths ?? [];
+        if (paths.length > 0 && onFilesDropped) {
+          void Promise.resolve(onFilesDropped(paths)).catch((error) => {
+            console.error("Failed to handle tauri drag-drop payload:", error);
+          });
+        }
+      },
+      { debugLabel: "tauri://drag-drop" },
+    );
+  }
 
   return {
     isDragging,
