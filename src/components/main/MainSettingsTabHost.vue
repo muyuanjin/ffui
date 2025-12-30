@@ -1,19 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { AppSettings } from "@/types";
-import type { UseMainAppSettingsReturn } from "@/composables/main-app/useMainAppSettings";
-import type { UseMainAppUpdaterReturn } from "@/composables/main-app/useMainAppUpdater";
 import { SettingsPanel } from "@/components/main/lazyTabs";
+import { useMainAppContext } from "@/MainApp.setup";
 
-const props = defineProps<{
-  settings: UseMainAppSettingsReturn;
-  updater: UseMainAppUpdaterReturn;
-  reloadPresets?: () => Promise<void>;
-  updateAppSettings: (next: AppSettings) => void;
-}>();
-
-const settings = props.settings;
-const updater = props.updater;
+const context = useMainAppContext();
+const settings = context.settings;
+const updater = context.updater;
+const reloadPresets = context.presetsModule.reloadPresets;
+const updateAppSettings = context.handleUpdateAppSettings;
 
 const appUpdate = computed(() => {
   return {

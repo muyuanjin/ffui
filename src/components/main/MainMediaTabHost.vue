@@ -1,12 +1,8 @@
 <script setup lang="ts">
-import type { UseMainAppMediaReturn } from "@/composables/main-app/useMainAppMedia";
 import { MediaPanel } from "@/components/main/lazyTabs";
+import { useMediaDomain } from "@/MainApp.setup";
 
-const props = defineProps<{
-  media: UseMainAppMediaReturn;
-}>();
-
-const media = props.media;
+const media = useMediaDomain();
 </script>
 
 <template>

@@ -4,7 +4,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import TitleBar from "@/components/TitleBar.vue";
 import { deriveProgressTransitionMs } from "@/lib/progressTransition";
 import Sidebar from "@/components/Sidebar.vue";
-import PresetTabPanel from "@/components/panels/PresetTabPanel.vue";
 import { MonitorPanelPro } from "@/components/main/lazyTabs";
 import MainContentHeaderHost from "@/components/main/MainContentHeaderHost.vue";
 import MainDialogsStackHost from "@/components/main/MainDialogsStackHost.vue";
@@ -12,6 +11,7 @@ import MainMediaTabHost from "@/components/main/MainMediaTabHost.vue";
 import MainQueueContextMenuHost from "@/components/main/MainQueueContextMenuHost.vue";
 import MainQueueFiltersBarHost from "@/components/main/MainQueueFiltersBarHost.vue";
 import MainQueuePanelHost from "@/components/main/MainQueuePanelHost.vue";
+import MainPresetsTabHost from "@/components/main/MainPresetsTabHost.vue";
 import MainSettingsTabHost from "@/components/main/MainSettingsTabHost.vue";
 import MainWaitingJobContextMenuHost from "@/components/main/MainWaitingJobContextMenuHost.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
@@ -26,7 +26,6 @@ provideMainAppContext(setup);
 const app = proxyRefs(setup);
 
 const shell = proxyRefs(setup.shell);
-const dialogs = setup.dialogs;
 const batchCompress = setup.batchCompress;
 const presetsModule = setup.presetsModule;
 const media = setup.media;
@@ -99,33 +98,16 @@ const clearMediaInspectError = () => {
         <MainQueuePanelHost />
         <ScrollArea v-if="shell.activeTab !== 'queue'" class="flex-1 min-h-0">
           <div class="min-h-full flex flex-col" :class="shell.activeTab === 'presets' ? undefined : 'p-4'">
-            <PresetTabPanel
-              v-if="shell.activeTab === 'presets'"
-              :presets="app.presets"
-              :preset-sort-mode="app.presetSortMode"
-              :preset-view-mode="app.presetViewMode"
-              :preset-selection-bar-pinned="app.presetSelectionBarPinned"
-              :set-preset-selection-bar-pinned="app.setPresetSelectionBarPinned"
-              :set-preset-sort-mode="(v) => (app.presetSortMode = v)"
-              :set-preset-view-mode="(v) => (app.presetViewMode = v)"
-              :dialog-manager="dialogs.dialogManager"
-              :presets-module="presetsModule"
-            />
-            <MainMediaTabHost v-else-if="shell.activeTab === 'media'" :media="media" />
+            <MainPresetsTabHost v-if="shell.activeTab === 'presets'" />
+            <MainMediaTabHost v-else-if="shell.activeTab === 'media'" />
             <MonitorPanelPro v-else-if="shell.activeTab === 'monitor'" />
-            <MainSettingsTabHost
-              v-else-if="shell.activeTab === 'settings'"
-              :settings="settings"
-              :updater="updater"
-              :reload-presets="presetsModule.reloadPresets"
-              :update-app-settings="app.handleUpdateAppSettings"
-            />
+            <MainSettingsTabHost v-else-if="shell.activeTab === 'settings'" />
           </div>
         </ScrollArea>
       </main>
     </div>
     <MainWaitingJobContextMenuHost />
     <MainQueueContextMenuHost />
-    <MainDialogsStackHost :setup="setup" @openToolsSettings="shell.activeTab = 'settings'" />
+    <MainDialogsStackHost @openToolsSettings="shell.activeTab = 'settings'" />
   </div>
 </template>
