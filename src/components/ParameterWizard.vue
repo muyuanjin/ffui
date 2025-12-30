@@ -71,16 +71,14 @@ const isCustomFlow = computed(() => !isEditing.value && presetKind.value === "cu
 
 const displayTotalSteps = computed<number>(() => {
   if (isEditing.value) return 5;
-  if (isCustomFlow.value) return 3;
+  if (isCustomFlow.value) return 2;
   return 6;
 });
 
 const displayStepIndex = computed<number>(() => {
   if (isEditing.value) return Math.max(1, step.value - 1);
   if (!isCustomFlow.value) return step.value;
-  if (step.value === 1) return 1;
-  if (step.value === 2) return 2;
-  return 3;
+  return step.value === 1 ? 1 : 2;
 });
 
 const canGoBack = computed<boolean>(() => {
@@ -90,7 +88,7 @@ const canGoBack = computed<boolean>(() => {
 });
 
 const canGoNext = computed<boolean>(() => {
-  if (isCustomFlow.value) return step.value === 1 || step.value === 2;
+  if (isCustomFlow.value) return step.value === 1;
   return step.value < 6;
 });
 
@@ -219,20 +217,12 @@ const goNext = () => {
       step.value = 2;
       return;
     }
-    if (step.value === 2) {
-      step.value = 6;
-      return;
-    }
   }
   if (step.value < 6) step.value += 1;
 };
 
 const goBack = () => {
   if (isCustomFlow.value) {
-    if (step.value === 6) {
-      step.value = 2;
-      return;
-    }
     if (step.value === 2) {
       step.value = 1;
       return;
@@ -395,14 +385,34 @@ const handleParseTemplateFromCommand = () => {
           @update:kind="handleKindChange"
         />
 
-        <WizardStepBasics
-          v-else-if="step === 2"
-          v-model:name="name"
-          v-model:description="description"
-          :show-recipes="presetKind !== 'custom'"
-          :t="t"
-          @select-recipe="handleRecipeSelect"
-        />
+        <template v-else-if="step === 2">
+          <WizardStepBasics
+            v-model:name="name"
+            v-model:description="description"
+            :show-recipes="presetKind !== 'custom'"
+            :t="t"
+            @select-recipe="handleRecipeSelect"
+          />
+          <div v-if="isCustomFlow" class="pt-6">
+            <WizardStepAdvanced
+              :video="video"
+              :audio="audio"
+              :filters="filters"
+              :advanced-enabled="advancedEnabled"
+              :ffmpeg-template="ffmpegTemplate"
+              :highlighted-command-tokens="highlightedCommandTokens"
+              :parse-hint="parseHint"
+              :parse-hint-class="parseHintClass"
+              :t="t"
+              :show-summary="false"
+              :show-toggle="false"
+              @update-advanced-enabled="(value) => (advancedEnabled = value)"
+              @update-template="(value) => (ffmpegTemplate = value)"
+              @parse-template="handleParseTemplateFromCommand"
+              @copy-preview="handleCopyPreview"
+            />
+          </div>
+        </template>
 
         <WizardStepVideo
           v-else-if="step === 3"

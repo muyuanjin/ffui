@@ -163,11 +163,6 @@ describe("ParameterWizard", () => {
     expect(nextFromKind).toBeTruthy();
     await nextFromKind!.trigger("click");
 
-    // Jump to the advanced command step.
-    const nextFromBasics = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
-    expect(nextFromBasics).toBeTruthy();
-    await nextFromBasics!.trigger("click");
-
     const saveLabel = t("presetEditor.actions.save");
     const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(saveLabel));
     expect(saveButton).toBeTruthy();

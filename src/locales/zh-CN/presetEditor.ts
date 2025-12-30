@@ -162,6 +162,7 @@ const presetEditor = {
   panel: {
     title: "参数详情",
     subtitle: "按分区完整调整 FFmpeg 参数，右侧实时预览最终命令。",
+    commandTab: "自定义命令",
     globalTab: "全局与日志",
     inputTab: "输入与时间轴",
     mappingTab: "映射与元数据",

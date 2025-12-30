@@ -171,6 +171,7 @@ const presetEditor = {
   panel: {
     title: "Preset details",
     subtitle: "Tweak FFmpeg parameters by section, with a live command preview on the right.",
+    commandTab: "Custom Command",
     globalTab: "Global & logs",
     inputTab: "Input & timeline",
     mappingTab: "Mapping & metadata",
