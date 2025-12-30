@@ -25,7 +25,7 @@ const emit = defineEmits<{
   (e: "run", value: BatchCompressConfig): void;
   (e: "cancel"): void;
 }>();
-const { t } = useI18n();
+const { t, locale } = useI18n();
 // 深拷贝初始配置
 const config = ref<BatchCompressConfig>(
   buildBatchCompressConfig({
@@ -51,6 +51,15 @@ const audioPresetSelectValue = computed<string>({
       config.value.audioPresetId = value;
     }
   },
+});
+
+const audioPresetSelectedLabel = computed(() => {
+  void locale.value;
+  if (audioPresetSelectValue.value === AUDIO_PRESET_DEFAULT_VALUE) {
+    return t("batchCompress.audioDefaultCompress");
+  }
+  const preset = props.presets.find((p) => p.id === audioPresetSelectValue.value) ?? null;
+  return preset?.name ?? "";
 });
 
 // 监听 initialConfig 变化
@@ -403,8 +412,10 @@ const handleRun = () => {
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.audioPreset") }}</Label>
                 <Select v-model="audioPresetSelectValue">
-                  <SelectTrigger class="h-7 text-xs">
-                    <SelectValue :placeholder="t('batchCompress.audioPresetPlaceholder') as string" />
+                  <SelectTrigger class="h-7 text-xs" data-testid="batch-compress-audio-preset-trigger">
+                    <SelectValue :placeholder="t('batchCompress.audioPresetPlaceholder') as string">
+                      <template v-if="audioPresetSelectedLabel">{{ audioPresetSelectedLabel }}</template>
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem :value="AUDIO_PRESET_DEFAULT_VALUE">
