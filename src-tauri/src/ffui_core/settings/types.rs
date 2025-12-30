@@ -1,99 +1,34 @@
 use serde::{Deserialize, Serialize};
 
+mod performance;
 mod preset_panel_modes;
+mod queue;
 mod tool_custom_path_sanitize;
+mod tools;
 mod types_helpers;
+mod ui;
+
+pub use performance::{
+    DEFAULT_MAX_PARALLEL_CPU_JOBS, DEFAULT_MAX_PARALLEL_HW_JOBS, DEFAULT_MAX_PARALLEL_JOBS,
+    MAX_PARALLEL_JOBS_LIMIT, TranscodeParallelismMode,
+};
+pub use queue::{
+    CrashRecoveryLogRetention, QueuePersistenceMode, TaskbarProgressMode, TaskbarProgressScope,
+};
+pub use tools::{
+    DownloadedToolInfo, DownloadedToolState, ExternalToolSettings, RemoteToolVersionCache,
+    RemoteToolVersionInfo,
+};
+pub use ui::{DEFAULT_UI_FONT_SIZE_PERCENT, DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 
 pub use super::monitor_updater_types::{AppUpdaterSettings, MonitorSettings, TranscodeActivityDay};
 use super::proxy::NetworkProxySettings;
-pub use super::tool_probe_cache::{
-    ExternalToolBinaryFingerprint, ExternalToolProbeCache, ExternalToolProbeCacheEntry,
-};
+pub use super::tool_probe_cache::{ExternalToolBinaryFingerprint, ExternalToolProbeCacheEntry};
+pub type ExternalToolProbeCache = super::tool_probe_cache::ExternalToolProbeCache;
 use crate::ffui_core::domain::{
     BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
 };
 pub use preset_panel_modes::{PresetSortMode, PresetViewMode};
-
-/// Human-readable metadata for a downloaded tool binary.
-/// All fields are optional so existing settings.json files remain valid and minimal.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct DownloadedToolInfo {
-    /// Human-readable version string for the downloaded tool, e.g. "6.0".
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    /// Optional tag or build identifier, e.g. "b6.0" for ffmpeg-static.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
-    /// Source URL used to download this binary.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_url: Option<String>,
-    /// Unix epoch timestamp in milliseconds when the download completed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub downloaded_at: Option<u64>,
-}
-
-/// Per-tool metadata for auto-downloaded binaries. All fields are optional so
-/// existing settings.json files remain valid and minimal.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct DownloadedToolState {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ffmpeg: Option<DownloadedToolInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ffprobe: Option<DownloadedToolInfo>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub avifenc: Option<DownloadedToolInfo>,
-}
-
-/// Cached remote tool version metadata (for update hints) persisted across restarts.
-///
-/// All fields are optional so existing settings.json files remain valid and minimal.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct RemoteToolVersionInfo {
-    /// Unix epoch timestamp in milliseconds when the remote check completed successfully.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub checked_at_ms: Option<u64>,
-    /// Latest known remote version string, e.g. "6.1.1".
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub version: Option<String>,
-    /// Optional upstream tag/build identifier, e.g. "b6.1.1".
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tag: Option<String>,
-}
-
-/// Remote version caches for tools that support remote update hints.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct RemoteToolVersionCache {
-    /// Cached remote release metadata for the ffmpeg-static upstream used by ffmpeg/ffprobe.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ffmpeg_static: Option<RemoteToolVersionInfo>,
-    /// Cached remote release metadata for libavif upstream used by avifenc.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub libavif: Option<RemoteToolVersionInfo>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct ExternalToolSettings {
-    pub ffmpeg_path: Option<String>,
-    pub ffprobe_path: Option<String>,
-    pub avifenc_path: Option<String>,
-    pub auto_download: bool,
-    pub auto_update: bool,
-    /// Optional metadata about binaries that were auto-downloaded by the app.
-    /// When absent, the app infers availability only from the filesystem.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub downloaded: Option<DownloadedToolState>,
-    /// Optional cached remote-version metadata (TTL-based) for update hints.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub remote_version_cache: Option<RemoteToolVersionCache>,
-    /// Optional persisted probe cache used to avoid spawning tools on every startup.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub probe_cache: Option<ExternalToolProbeCache>,
-}
 
 pub const fn default_preview_capture_percent() -> u8 {
     25
@@ -109,110 +44,6 @@ pub const DEFAULT_METRICS_INTERVAL_MS: u16 = 1_000;
 
 /// Default timeout (in seconds) for the "pause jobs on exit" graceful shutdown flow.
 pub const DEFAULT_EXIT_AUTO_WAIT_TIMEOUT_SECONDS: f64 = 5.0;
-
-/// Default max number of concurrent transcoding jobs when using unified scheduling.
-pub const DEFAULT_MAX_PARALLEL_JOBS: u8 = 2;
-/// Default max number of concurrent CPU/software-encoded jobs when using split scheduling.
-pub const DEFAULT_MAX_PARALLEL_CPU_JOBS: u8 = 2;
-/// Default max number of concurrent hardware-encoded jobs when using split scheduling.
-pub const DEFAULT_MAX_PARALLEL_HW_JOBS: u8 = 1;
-/// Hard upper bound to avoid spawning an unreasonable number of worker threads.
-pub const MAX_PARALLEL_JOBS_LIMIT: u8 = 32;
-
-/// Default UI scale in percent (e.g. 100 = normal).
-pub const DEFAULT_UI_SCALE_PERCENT: u16 = 100;
-
-/// Default UI font size in percent (e.g. 100 = normal).
-pub const DEFAULT_UI_FONT_SIZE_PERCENT: u16 = 100;
-
-/// Aggregation modes for computing a single queue-level progress value that
-/// is surfaced to the Windows taskbar. This is configured via `AppSettings` and
-/// determines how individual jobs contribute to the overall progress bar.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-#[allow(clippy::enum_variant_names)]
-pub enum TaskbarProgressMode {
-    /// Weight jobs by their input size in megabytes. Simple and robust.
-    BySize,
-    /// Weight jobs by media duration in seconds when available.
-    ByDuration,
-    /// Weight jobs by an estimated processing time derived from historical
-    /// preset statistics, falling back to duration/size heuristics.
-    #[default]
-    ByEstimatedTime,
-}
-
-/// 控制任务栏进度计算时纳入哪些任务。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum TaskbarProgressScope {
-    /// 与现有行为一致：所有任务（含已结束）都会参与聚合。
-    #[default]
-    AllJobs,
-    /// 仅统计仍在排队或进行中的任务；若队列全部终态则回退为全部任务以显示 100%。
-    ActiveAndQueued,
-}
-
-/// Global UI font family preference.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum UiFontFamily {
-    /// Use platform default UI font stack.
-    #[default]
-    System,
-    /// Prefer sans-serif stack (still falls back to system defaults).
-    Sans,
-    /// Prefer monospace stack (useful for logs/commands).
-    Mono,
-}
-
-/// Queue persistence mode for crash-recovery. This controls whether the
-/// engine writes queue-state snapshots to disk and attempts to restore them
-/// on startup.
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub enum QueuePersistenceMode {
-    /// Do not persist or restore the queue at all. This is the default and
-    /// treats the queue as an in-memory session without crash recovery.
-    #[default]
-    None,
-    /// Persist lightweight queue snapshots (no full logs) for crash recovery.
-    #[serde(alias = "crashRecovery")]
-    CrashRecoveryLite,
-    /// Persist lightweight queue snapshots plus per-job full logs for terminal
-    /// jobs, so users can still inspect full logs after a restart.
-    CrashRecoveryFull,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CrashRecoveryLogRetention {
-    /// Maximum number of per-job terminal log files to keep on disk. When None,
-    /// a conservative default will be applied.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_files: Option<u16>,
-    /// Maximum total size in megabytes for all terminal log files. When None,
-    /// a conservative default will be applied.
-    #[serde(skip_serializing_if = "Option::is_none", alias = "maxTotalMB")]
-    pub max_total_mb: Option<u16>,
-}
-
-impl Default for CrashRecoveryLogRetention {
-    fn default() -> Self {
-        Self {
-            max_files: Some(200),
-            max_total_mb: Some(512),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum TranscodeParallelismMode {
-    #[default]
-    Unified,
-    Split,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

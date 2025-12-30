@@ -41,15 +41,17 @@ export interface NetworkProxySettings {
   fallbackToDirectOnError?: boolean;
 }
 
-export interface AppSettings {
+export interface SettingsToolsDomain {
   tools: ExternalToolSettings;
+}
+
+export interface SettingsBatchCompressDomain {
   batchCompressDefaults: BatchCompressConfig;
+}
+
+export interface SettingsUiDomain {
   /** Preferred UI locale (e.g. "en", "zh-CN"). */
   locale?: string;
-  /** Optional app updater settings and cached metadata. */
-  updater?: AppUpdaterSettings;
-  /** Optional network proxy settings. When omitted, behaves like "system". */
-  networkProxy?: NetworkProxySettings;
   /** Global UI scale in percent (e.g. 100 = default, 110 = larger). */
   uiScalePercent?: number;
   /** Global base UI font size in percent (e.g. 100 = default, 110 = larger). */
@@ -68,12 +70,20 @@ export interface AppSettings {
   previewCapturePercent: number;
   /** When true, enable developer features such as opening devtools from the UI. */
   developerModeEnabled?: boolean;
+}
+
+export interface SettingsPresetsDomain {
   /** Optional default preset id used for manual queue jobs. */
   defaultQueuePresetId?: string;
   /** Optional preset sort mode for the presets panel and dropdown. */
   presetSortMode?: PresetSortMode;
   /** Optional preset view mode for the presets panel (grid or compact). */
   presetViewMode?: PresetViewMode;
+  /** Whether the preset selection actions bar should remain visible even when no presets are selected. */
+  presetSelectionBarPinned?: boolean;
+}
+
+export interface SettingsPerformanceDomain {
   /** Concurrency strategy for transcoding workers (unified cap or CPU/HW split). */
   parallelismMode?: TranscodeParallelismMode;
   /** Optional upper bound for concurrent ffmpeg jobs; must be >= 1 when set (unified mode). */
@@ -84,6 +94,11 @@ export interface AppSettings {
   maxParallelHwJobs?: number;
   /** Optional interval in milliseconds between backend progress updates for ffmpeg jobs (bundled binary only). */
   progressUpdateIntervalMs?: number;
+  /** Optional interval in milliseconds between system metrics samples for the performance monitor. */
+  metricsIntervalMs?: number;
+}
+
+export interface SettingsQueueDomain {
   /** When true (default), show the in-app custom titlebar progress bar. */
   titlebarProgressEnabled?: boolean;
   /**
@@ -93,8 +108,6 @@ export interface AppSettings {
   exitAutoWaitEnabled?: boolean;
   /** Timeout (seconds) for the "pause on exit" flow before giving up and allowing the app to close. */
   exitAutoWaitTimeoutSeconds?: number;
-  /** Optional interval in milliseconds between system metrics samples for the performance monitor. */
-  metricsIntervalMs?: number;
   /** Aggregation mode for computing Windows taskbar progress from the queue. */
   taskbarProgressMode?: TaskbarProgressMode;
   /** Aggregation scope for Windows taskbar progress. */
@@ -107,8 +120,27 @@ export interface AppSettings {
   onboardingCompleted?: boolean;
   /** Whether the queue selection bar should remain visible even when no jobs are selected. */
   selectionBarPinned?: boolean;
-  /** Whether the preset selection actions bar should remain visible even when no presets are selected. */
-  presetSelectionBarPinned?: boolean;
   /** Output policy for manual queue enqueues (container/dir/name/timestamps). */
   queueOutputPolicy?: OutputPolicy;
 }
+
+export interface SettingsNetworkDomain {
+  /** Optional network proxy settings. When omitted, behaves like "system". */
+  networkProxy?: NetworkProxySettings;
+}
+
+export interface SettingsUpdaterDomain {
+  /** Optional app updater settings and cached metadata. */
+  updater?: AppUpdaterSettings;
+}
+
+export interface AppSettings
+  extends
+    SettingsToolsDomain,
+    SettingsBatchCompressDomain,
+    SettingsUiDomain,
+    SettingsPresetsDomain,
+    SettingsPerformanceDomain,
+    SettingsQueueDomain,
+    SettingsNetworkDomain,
+    SettingsUpdaterDomain {}
