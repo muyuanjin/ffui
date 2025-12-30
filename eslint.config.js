@@ -205,6 +205,39 @@ export default [
     },
   },
   {
+    files: ["src/components/main/**/*Shell.vue"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tauri-apps/api/core",
+              importNames: ["invoke"],
+              message:
+                "Use invokeCommand() from src/lib/backend/invokeCommand.ts instead of importing invoke directly.",
+            },
+            {
+              name: "@/MainApp.setup",
+              importNames: [
+                "useMainAppContext",
+                "useShellDomain",
+                "useDialogsDomain",
+                "useQueueDomain",
+                "usePresetsDomain",
+                "useSettingsDomain",
+                "useMediaDomain",
+                "usePreviewDomain",
+              ],
+              message:
+                "Do not import MainApp domain hooks from Shell components; use orchestrators instead to keep the shell assembly-only.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/lib/backend/invokeCommand.ts"],
     rules: {
       "no-restricted-imports": "off",
