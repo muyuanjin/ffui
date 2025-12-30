@@ -1,31 +1,31 @@
 <script setup lang="ts">
 import { proxyRefs } from "vue";
 import MainContentHeader from "@/components/main/MainContentHeader.vue";
-import { useMainAppContext } from "@/MainApp.setup";
+import { useDialogsDomain, usePresetsDomain, useQueueDomain, useShellDomain } from "@/MainApp.setup";
 
-const context = useMainAppContext();
-const app = proxyRefs(context);
-const shell = proxyRefs(context.shell);
-const queue = proxyRefs(context.queue);
+const dialogs = useDialogsDomain();
+const shell = proxyRefs(useShellDomain());
+const queue = proxyRefs(useQueueDomain());
+const presets = proxyRefs(usePresetsDomain());
 </script>
 
 <template>
   <MainContentHeader
     :active-tab="shell.activeTab"
-    :current-title="app.currentTitle"
-    :current-subtitle="app.currentSubtitle"
-    :jobs-length="app.jobs.length"
-    :completed-count="app.completedCount"
-    :manual-job-preset-id="app.manualJobPresetId"
-    :presets="app.presets"
+    :current-title="shell.currentTitle"
+    :current-subtitle="shell.currentSubtitle"
+    :jobs-length="queue.jobs.length"
+    :completed-count="queue.completedCount"
+    :manual-job-preset-id="presets.manualJobPresetId"
+    :presets="presets.presets"
     :queue-view-mode-model="queue.queueViewModeModel"
-    :preset-sort-mode="app.presetSortMode"
+    :preset-sort-mode="presets.presetSortMode"
     :queue-output-policy="queue.queueOutputPolicy"
     :carousel-auto-rotation-speed="queue.carouselAutoRotationSpeed"
-    @update:manualJobPresetId="(v) => (app.manualJobPresetId = v)"
+    @update:manualJobPresetId="(v) => (presets.manualJobPresetId = v)"
     @update:queueViewModeModel="(v) => (queue.queueViewModeModel = v)"
     @update:queueOutputPolicy="(v) => queue.setQueueOutputPolicy(v)"
     @update:carouselAutoRotationSpeed="(v) => queue.setCarouselAutoRotationSpeed(v)"
-    @openPresetWizard="context.dialogs.dialogManager.openWizard()"
+    @openPresetWizard="dialogs.dialogManager.openWizard()"
   />
 </template>

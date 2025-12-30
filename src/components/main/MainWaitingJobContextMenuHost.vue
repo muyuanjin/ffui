@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { proxyRefs } from "vue";
 import WaitingJobContextMenu from "@/components/main/WaitingJobContextMenu.vue";
-import { useMainAppContext } from "@/MainApp.setup";
+import { useQueueDomain } from "@/MainApp.setup";
 
-const context = useMainAppContext();
-const dnd = proxyRefs(context.dnd);
+const queue = useQueueDomain();
+const dnd = proxyRefs(queue.dnd);
 </script>
 
 <template>

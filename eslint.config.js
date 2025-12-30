@@ -149,6 +149,30 @@ export default [
     },
   },
   {
+    files: ["src/components/**/*.{ts,tsx,vue}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tauri-apps/api/core",
+              importNames: ["invoke"],
+              message:
+                "Use invokeCommand() from src/lib/backend/invokeCommand.ts instead of importing invoke directly.",
+            },
+            {
+              name: "@/MainApp.setup",
+              importNames: ["useMainAppContext"],
+              message:
+                "Do not access the global MainAppContext bag from UI components; use domain hooks (useQueueDomain/usePresetsDomain/...) and explicit orchestrators.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/lib/backend/invokeCommand.ts"],
     rules: {
       "no-restricted-imports": "off",
