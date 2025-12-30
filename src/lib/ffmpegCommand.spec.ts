@@ -131,7 +131,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
   });
 
   it("never mixes CRF/CQ flags with bitrate/two-pass flags across encoder/rateControl matrix", () => {
-    const encoders: EncoderType[] = ["libx264", "hevc_nvenc", "libsvtav1"];
+    const encoders: EncoderType[] = ["libx264", "hevc_nvenc", "hevc_qsv", "libsvtav1"];
     const modes: RateControlMode[] = ["crf", "cq", "cbr", "vbr"];
 
     for (const encoder of encoders) {
@@ -151,11 +151,13 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
         );
         const args = splitArgs(cmd);
         const hasCrf = args.includes("-crf");
-        const hasCq = args.includes("-cq");
+        const hasCq = args.includes("-cq") || args.includes("-global_quality");
         const hasBitrate = args.includes("-b:v");
         const hasMaxrate = args.includes("-maxrate");
         const hasBufsize = args.includes("-bufsize");
         const hasPass = args.includes("-pass");
+        const hasCqFlagForQsv = args.includes("-global_quality");
+        const hasCqFlagForNonQsv = args.includes("-cq");
 
         if (mode === "crf") {
           expect(hasCrf).toBe(true);
@@ -165,6 +167,13 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
           expect(hasCq).toBe(true);
           expect(hasCrf).toBe(false);
           expect(hasBitrate || hasMaxrate || hasBufsize || hasPass).toBe(false);
+          if (String(encoder).includes("_qsv")) {
+            expect(hasCqFlagForQsv).toBe(true);
+            expect(hasCqFlagForNonQsv).toBe(false);
+          } else {
+            expect(hasCqFlagForNonQsv).toBe(true);
+            expect(hasCqFlagForQsv).toBe(false);
+          }
         } else {
           // CBR/VBR/2-pass: bitrate-related flags allowed, CRF/CQ not allowed.
           expect(hasCrf).toBe(false);

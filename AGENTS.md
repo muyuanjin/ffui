@@ -28,6 +28,18 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Tauri (Rust) backend lives in `src-tauri/src`, with configuration in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
 - Static files such as the base HTML shell are in `public` and `index.html`.
 
+## Main App 架构硬纪律（必须长期保持）
+
+- `src/MainApp.vue` 只允许做薄别名入口（兼容层），不得承载领域装配或大规模透传。
+- `src/MainApp.impl.vue` 只负责创建并 `provide` AppContext，然后挂载 `src/components/main/MainAppRootShell.vue`；不得在此处做跨域业务协调。
+- `src/components/main/MainAppRootShell.vue` / `src/components/main/**/*Host.vue` / `src/components/main/**/*Shell.vue` 必须是装配层：只 `v-bind/v-on`，不得直接拼装跨域业务逻辑。
+- Host/Shell 组件不得直接导入 MainApp 域 hooks 或 `useMainAppContext()`；跨域协调必须收敛到 `src/composables/main-app/orchestrators/**`。
+- UI 层（`src/components/**`）不得直接消费“全局 context bag”（禁止直接 `useMainAppContext()`）；必须使用域 hooks 或 orchestrators。
+- Tauri `invoke` 不得在业务代码中直接使用；必须通过 `src/lib/backend/invokeCommand.ts` 统一封装（契约/校验/测试集中在此边界）。
+- 上述纪律必须由门禁固化（例如 `eslint.config.js` 的 `no-restricted-imports`、以及对应回归测试），禁止仅靠口头约定。
+
+**维护要求**：若项目结构/文件路径/门禁策略/装配方式发生变动（例如 RootShell/Host 命名调整、域 hooks 入口迁移、orchestrators 目录重组），必须在同一改动中同步更新本节文字与对应的 ESLint/测试门禁，保证记录与实际一致。
+
 ## Build, Test, and Development Commands
 
 - `corepack enable && pnpm install` — install all JavaScript and Tauri CLI dependencies.

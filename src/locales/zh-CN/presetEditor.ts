@@ -28,6 +28,8 @@ const presetEditor = {
   video: {
     encoder: "视频编码器",
     encoderPlaceholder: "选择编码器",
+    unknownOption: "未知（{value}）",
+    unknownValueWarning: "未知 {field}：{value}。不改参数直接保存会原样保留。",
     copyWarning: "复制模式下无法使用缩放/裁剪等滤镜。",
     crfLabel: "恒定质量因子 (CRF)",
     cqLabel: "恒定质量 (CQ)",
