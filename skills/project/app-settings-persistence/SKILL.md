@@ -24,17 +24,18 @@ description: 在 FFUI 项目里新增/修改任何需要“跨重启保存”的
   - `bool` 默认 `false`：`#[serde(default, skip_serializing_if = "types_helpers::is_false")]`
   - `Option<T>`：`#[serde(skip_serializing_if = "Option::is_none")]`
 - 同步更新 `impl Default for AppSettings`，保证默认值明确且不会触发序列化噪音。
+- `settings.json` 采用版本化 envelope：`{ "version": 1, "settings": { ...AppSettings } }`（实现：`src-tauri/src/ffui_core/settings/app_settings.rs`）。新增字段通常不需要 bump 版本，但必须保证 legacy 文件缺字段时的默认值稳定。
 
 3. 契约与回归测试（必须同时有前后端）
 
 - 前端契约：更新 `src/__tests__/backend.settings-contract.spec.ts`，确保 `save_app_settings` payload 中包含该字段，并能从 `get_app_settings` 读回。
-- 后端 round-trip：在 `src-tauri/src/ffui_core/settings/tests/` 新增/更新一个 decode→encode 测试，确保 JSON 字段不被丢弃（参考 `tests_selection_bar_pinned.rs` 的写法）。
+- 后端 round-trip：在 `src-tauri/src/ffui_core/settings/tests.rs` 或 `src-tauri/src/ffui_core/settings/tests/*.rs` 新增/更新 decode→encode 测试，确保字段不被丢弃，并保持 `version: 1` 的稳定输出。
 - 注意 `src-tauri` 有后端行数门禁：单个源码文件阈值 500 行；加字段时优先压缩注释/避免多余空行。
 
 4. 运行验证
 
-- 运行 `pnpm test`
-- 运行 `cargo test`（在 `src-tauri` 下）
+- 运行 `pnpm run check:all`（包含 prettier/eslint/vitest + Rust gates）
+- 或分别运行 `pnpm test` 与 `cargo test`（在 `src-tauri` 下）
 
 ## 典型故障定位（“看起来写了，但没保存”）
 
@@ -45,4 +46,4 @@ description: 在 FFUI 项目里新增/修改任何需要“跨重启保存”的
 
 - TS：`src/types/settings.ts` 加 `myFlag?: boolean`
 - Rust：`src-tauri/src/ffui_core/settings/types.rs` 加 `my_flag: bool` + `#[serde(default, skip_serializing_if = "types_helpers::is_false")]`
-- Tests：各加一个“能保存能读回”的断言（前端契约 + 后端 round-trip）
+- Tests：各加一个“能保存能读回”的断言（前端契约 + 后端 round-trip + legacy envelope decode 覆盖）
