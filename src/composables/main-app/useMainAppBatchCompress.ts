@@ -1,10 +1,10 @@
 import { computed, onMounted, onUnmounted } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { AutoCompressProgress, FFmpegPreset, BatchCompressConfig, TranscodeJob } from "@/types";
 import { hasTauri } from "@/lib/backend";
 import { useBatchCompress, type UseBatchCompressReturn } from "@/composables";
 import type { MainAppTab } from "./useMainAppShell";
 import type { Ref, ComputedRef } from "vue";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 interface BatchCompressDialogManager {
   openBatchCompress: () => void;
@@ -104,27 +104,36 @@ export function useMainAppBatchCompress(options: UseMainAppBatchCompressOptions)
     expandedBatchIds.value = next;
   };
 
-  let batchCompressProgressUnlisten: UnlistenFn | null = null;
+  let unsubscribeBatchCompressProgress: UnsubscribeFn | null = null;
+  let disposed = false;
 
   // Wire auto-compress progress events from backend into Batch Compress batch meta.
   onMounted(() => {
     if (!hasTauri()) return;
 
-    void listen<AutoCompressProgress>("auto-compress://progress", (event) => {
-      const { batchId, totalFilesScanned, totalCandidates, totalProcessed, rootPath, completedAtMs } = event.payload;
-      if (!batchId) return;
+    void subscribeTauriEvent<AutoCompressProgress>(
+      "auto-compress://progress",
+      (payload) => {
+        const { batchId, totalFilesScanned, totalCandidates, totalProcessed, rootPath, completedAtMs } = payload;
+        if (!batchId) return;
 
-      applyBatchCompressBatchMetaSnapshot({
-        batchId,
-        rootPath: rootPath ?? "",
-        totalFilesScanned: totalFilesScanned ?? 0,
-        totalCandidates: totalCandidates ?? 0,
-        totalProcessed: totalProcessed ?? 0,
-        completedAtMs: completedAtMs ?? undefined,
-      });
-    })
-      .then((unlisten) => {
-        batchCompressProgressUnlisten = unlisten;
+        applyBatchCompressBatchMetaSnapshot({
+          batchId,
+          rootPath: rootPath ?? "",
+          totalFilesScanned: totalFilesScanned ?? 0,
+          totalCandidates: totalCandidates ?? 0,
+          totalProcessed: totalProcessed ?? 0,
+          completedAtMs: completedAtMs ?? undefined,
+        });
+      },
+      { debugLabel: "auto-compress://progress" },
+    )
+      .then((unsubscribe) => {
+        if (disposed) {
+          unsubscribe();
+          return;
+        }
+        unsubscribeBatchCompressProgress = unsubscribe;
       })
       .catch((err) => {
         console.error("Failed to register batch compress progress listener:", err);
@@ -132,15 +141,9 @@ export function useMainAppBatchCompress(options: UseMainAppBatchCompressOptions)
   });
 
   onUnmounted(() => {
-    if (batchCompressProgressUnlisten) {
-      try {
-        batchCompressProgressUnlisten();
-      } catch (err) {
-        console.error("Failed to unlisten batch compress progress event:", err);
-      } finally {
-        batchCompressProgressUnlisten = null;
-      }
-    }
+    disposed = true;
+    unsubscribeBatchCompressProgress?.();
+    unsubscribeBatchCompressProgress = null;
   });
 
   // Expose Batch Compress batch metadata on the instance for tests.

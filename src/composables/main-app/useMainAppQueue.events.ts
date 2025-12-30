@@ -1,8 +1,8 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { hasTauri } from "@/lib/backend";
 import type { QueueStateLite, QueueStateLiteDelta, TranscodeJob } from "@/types";
 import { recordQueueEvent } from "@/lib/queuePerf";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 
 interface QueueEventDeps {
   jobs: Ref<TranscodeJob[]>;
@@ -44,8 +44,9 @@ export function useQueueEventListeners({
     }
   };
 
-  let queueUnlisten: UnlistenFn | null = null;
-  let queueDeltaUnlisten: UnlistenFn | null = null;
+  let unsubscribeQueueSnapshot: UnsubscribeFn | null = null;
+  let unsubscribeQueueDelta: UnsubscribeFn | null = null;
+  let disposed = false;
   let queueTimer: number | undefined;
   let initialQueuePollScheduled = false;
   let initialQueuePollCancelled = false;
@@ -236,165 +237,179 @@ export function useQueueEventListeners({
       return;
     }
 
-    void listen<QueueStateLite>("ffui://queue-state-lite", (event) => {
-      const payload = event.payload;
-      recordQueueEvent("snapshot", payload);
-      const revision = payload?.snapshotRevision;
-      const currentRevision = lastQueueSnapshotRevision.value;
-      if (
-        typeof revision === "number" &&
-        Number.isFinite(revision) &&
-        typeof currentRevision === "number" &&
-        Number.isFinite(currentRevision) &&
-        revision < currentRevision
-      ) {
-        return;
-      }
-
-      if (pendingQueueState) {
-        const prev = pendingQueueState.snapshotRevision;
+    void subscribeTauriEvent<QueueStateLite>(
+      "ffui://queue-state-lite",
+      (payload) => {
+        recordQueueEvent("snapshot", payload);
+        const revision = payload?.snapshotRevision;
+        const currentRevision = lastQueueSnapshotRevision.value;
         if (
           typeof revision === "number" &&
           Number.isFinite(revision) &&
-          typeof prev === "number" &&
-          Number.isFinite(prev)
+          typeof currentRevision === "number" &&
+          Number.isFinite(currentRevision) &&
+          revision < currentRevision
         ) {
-          if (revision >= prev) {
+          return;
+        }
+
+        if (pendingQueueState) {
+          const prev = pendingQueueState.snapshotRevision;
+          if (
+            typeof revision === "number" &&
+            Number.isFinite(revision) &&
+            typeof prev === "number" &&
+            Number.isFinite(prev)
+          ) {
+            if (revision >= prev) {
+              pendingQueueState = payload;
+            }
+          } else {
             pendingQueueState = payload;
           }
         } else {
           pendingQueueState = payload;
         }
-      } else {
-        pendingQueueState = payload;
-      }
 
-      if (typeof window === "undefined") {
-        flushPendingQueueState();
-      } else if (pendingApplyHandle == null && pendingApplyDeadlineHandle == null) {
-        if (typeof window.requestAnimationFrame === "function") {
-          pendingApplyHandle = window.requestAnimationFrame(flushPendingQueueState);
-          pendingApplyDeadlineHandle = window.setTimeout(() => {
-            pendingApplyDeadlineHandle = null;
-            flushPendingQueueState();
-          }, UI_FLUSH_DEADLINE_MS);
-        } else {
-          pendingApplyHandle = window.setTimeout(flushPendingQueueState, 0);
+        if (typeof window === "undefined") {
+          flushPendingQueueState();
+        } else if (pendingApplyHandle == null && pendingApplyDeadlineHandle == null) {
+          if (typeof window.requestAnimationFrame === "function") {
+            pendingApplyHandle = window.requestAnimationFrame(flushPendingQueueState);
+            pendingApplyDeadlineHandle = window.setTimeout(() => {
+              pendingApplyDeadlineHandle = null;
+              flushPendingQueueState();
+            }, UI_FLUSH_DEADLINE_MS);
+          } else {
+            pendingApplyHandle = window.setTimeout(flushPendingQueueState, 0);
+          }
         }
-      }
-      // Any push-style queue event cancels the deferred initial poll so we
-      // avoid issuing a redundant full snapshot request on startup.
-      initialQueuePollCancelled = true;
-    })
-      .then((unlisten) => {
-        queueUnlisten = unlisten;
+        // Any push-style queue event cancels the deferred initial poll so we
+        // avoid issuing a redundant full snapshot request on startup.
+        initialQueuePollCancelled = true;
+      },
+      { debugLabel: "ffui://queue-state-lite" },
+    )
+      .then((unsubscribe) => {
+        if (disposed) {
+          unsubscribe();
+          return;
+        }
+        unsubscribeQueueSnapshot = unsubscribe;
       })
       .catch((err) => {
         console.error("Failed to register queue_state listener:", err);
       });
 
-    void listen<QueueStateLiteDelta>("ffui://queue-state-lite-delta", (event) => {
-      const payload = event.payload;
-      recordQueueEvent("delta", payload, payload?.patches?.length ?? 0);
-      const base = payload?.baseSnapshotRevision;
-      const rev = payload?.deltaRevision;
+    void subscribeTauriEvent<QueueStateLiteDelta>(
+      "ffui://queue-state-lite-delta",
+      (payload) => {
+        recordQueueEvent("delta", payload, payload?.patches?.length ?? 0);
+        const base = payload?.baseSnapshotRevision;
+        const rev = payload?.deltaRevision;
 
-      if (typeof base !== "number" || !Number.isFinite(base)) return;
-      if (typeof rev !== "number" || !Number.isFinite(rev)) return;
+        if (typeof base !== "number" || !Number.isFinite(base)) return;
+        if (typeof rev !== "number" || !Number.isFinite(rev)) return;
 
-      const currentSnapshotRevision = lastQueueSnapshotRevision.value;
-      const hasCurrentRevision =
-        typeof currentSnapshotRevision === "number" && Number.isFinite(currentSnapshotRevision);
-      if (hasCurrentRevision && base < currentSnapshotRevision) {
-        return;
-      }
-      if (!hasCurrentRevision || base > currentSnapshotRevision) {
-        if (pendingAheadDeltaBaseRevision !== base) {
-          pendingAheadDeltaBaseRevision = base;
-          pendingAheadDeltaMaxRevision = rev;
-          pendingAheadDeltaPatchesById = new Map();
+        const currentSnapshotRevision = lastQueueSnapshotRevision.value;
+        const hasCurrentRevision =
+          typeof currentSnapshotRevision === "number" && Number.isFinite(currentSnapshotRevision);
+        if (hasCurrentRevision && base < currentSnapshotRevision) {
+          return;
+        }
+        if (!hasCurrentRevision || base > currentSnapshotRevision) {
+          if (pendingAheadDeltaBaseRevision !== base) {
+            pendingAheadDeltaBaseRevision = base;
+            pendingAheadDeltaMaxRevision = rev;
+            pendingAheadDeltaPatchesById = new Map();
+          } else {
+            pendingAheadDeltaMaxRevision =
+              pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
+          }
+
+          const patches = payload?.patches ?? [];
+          if (Array.isArray(patches) && pendingAheadDeltaPatchesById) {
+            for (const patch of patches) {
+              const id = patch?.id;
+              if (!id) continue;
+              const existing = pendingAheadDeltaPatchesById.get(id);
+              if (!existing) {
+                pendingAheadDeltaPatchesById.set(id, { rev, patch });
+                continue;
+              }
+              if (rev < existing.rev) continue;
+              mergeDeltaPatchInto(existing.patch, patch);
+              if (rev > existing.rev) {
+                existing.rev = rev;
+                pendingAheadDeltaMaxRevision =
+                  pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
+              }
+            }
+          }
+
+          scheduleAheadRefresh();
+          return;
+        }
+
+        if (lastAppliedDeltaBaseRevision !== base) {
+          lastAppliedDeltaBaseRevision = base;
+          lastAppliedDeltaRevision = null;
+        }
+        if (typeof lastAppliedDeltaRevision === "number" && rev < lastAppliedDeltaRevision) {
+          return;
+        }
+
+        if (pendingDeltaBaseRevision !== base) {
+          pendingDeltaBaseRevision = base;
+          pendingDeltaMaxRevision = rev;
+          pendingDeltaPatchesById = new Map();
         } else {
-          pendingAheadDeltaMaxRevision =
-            pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
+          pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
         }
 
         const patches = payload?.patches ?? [];
-        if (Array.isArray(patches) && pendingAheadDeltaPatchesById) {
+        if (Array.isArray(patches) && pendingDeltaPatchesById) {
           for (const patch of patches) {
             const id = patch?.id;
             if (!id) continue;
-            const existing = pendingAheadDeltaPatchesById.get(id);
+            const existing = pendingDeltaPatchesById.get(id);
             if (!existing) {
-              pendingAheadDeltaPatchesById.set(id, { rev, patch });
+              pendingDeltaPatchesById.set(id, { rev, patch });
               continue;
             }
             if (rev < existing.rev) continue;
             mergeDeltaPatchInto(existing.patch, patch);
             if (rev > existing.rev) {
               existing.rev = rev;
-              pendingAheadDeltaMaxRevision =
-                pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
+              pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
             }
           }
         }
 
-        scheduleAheadRefresh();
-        return;
-      }
-
-      if (lastAppliedDeltaBaseRevision !== base) {
-        lastAppliedDeltaBaseRevision = base;
-        lastAppliedDeltaRevision = null;
-      }
-      if (typeof lastAppliedDeltaRevision === "number" && rev < lastAppliedDeltaRevision) {
-        return;
-      }
-
-      if (pendingDeltaBaseRevision !== base) {
-        pendingDeltaBaseRevision = base;
-        pendingDeltaMaxRevision = rev;
-        pendingDeltaPatchesById = new Map();
-      } else {
-        pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
-      }
-
-      const patches = payload?.patches ?? [];
-      if (Array.isArray(patches) && pendingDeltaPatchesById) {
-        for (const patch of patches) {
-          const id = patch?.id;
-          if (!id) continue;
-          const existing = pendingDeltaPatchesById.get(id);
-          if (!existing) {
-            pendingDeltaPatchesById.set(id, { rev, patch });
-            continue;
-          }
-          if (rev < existing.rev) continue;
-          mergeDeltaPatchInto(existing.patch, patch);
-          if (rev > existing.rev) {
-            existing.rev = rev;
-            pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
+        if (typeof window === "undefined") {
+          flushPendingQueueDelta();
+        } else if (pendingDeltaApplyHandle == null && pendingDeltaApplyDeadlineHandle == null) {
+          if (typeof window.requestAnimationFrame === "function") {
+            pendingDeltaApplyHandle = window.requestAnimationFrame(flushPendingQueueDelta);
+            pendingDeltaApplyDeadlineHandle = window.setTimeout(() => {
+              pendingDeltaApplyDeadlineHandle = null;
+              flushPendingQueueDelta();
+            }, UI_FLUSH_DEADLINE_MS);
+          } else {
+            pendingDeltaApplyHandle = window.setTimeout(flushPendingQueueDelta, 0);
           }
         }
-      }
 
-      if (typeof window === "undefined") {
-        flushPendingQueueDelta();
-      } else if (pendingDeltaApplyHandle == null && pendingDeltaApplyDeadlineHandle == null) {
-        if (typeof window.requestAnimationFrame === "function") {
-          pendingDeltaApplyHandle = window.requestAnimationFrame(flushPendingQueueDelta);
-          pendingDeltaApplyDeadlineHandle = window.setTimeout(() => {
-            pendingDeltaApplyDeadlineHandle = null;
-            flushPendingQueueDelta();
-          }, UI_FLUSH_DEADLINE_MS);
-        } else {
-          pendingDeltaApplyHandle = window.setTimeout(flushPendingQueueDelta, 0);
+        initialQueuePollCancelled = true;
+      },
+      { debugLabel: "ffui://queue-state-lite-delta" },
+    )
+      .then((unsubscribe) => {
+        if (disposed) {
+          unsubscribe();
+          return;
         }
-      }
-
-      initialQueuePollCancelled = true;
-    })
-      .then((unlisten) => {
-        queueDeltaUnlisten = unlisten;
+        unsubscribeQueueDelta = unsubscribe;
       })
       .catch((err) => {
         console.error("Failed to register queue_state_delta listener:", err);
@@ -426,24 +441,11 @@ export function useQueueEventListeners({
   });
 
   onUnmounted(() => {
-    if (queueUnlisten) {
-      try {
-        queueUnlisten();
-      } catch (err) {
-        console.error("Failed to unlisten queue_state event:", err);
-      } finally {
-        queueUnlisten = null;
-      }
-    }
-    if (queueDeltaUnlisten) {
-      try {
-        queueDeltaUnlisten();
-      } catch (err) {
-        console.error("Failed to unlisten queue_state_delta event:", err);
-      } finally {
-        queueDeltaUnlisten = null;
-      }
-    }
+    disposed = true;
+    unsubscribeQueueSnapshot?.();
+    unsubscribeQueueSnapshot = null;
+    unsubscribeQueueDelta?.();
+    unsubscribeQueueDelta = null;
 
     if (pendingApplyHandle != null && typeof window !== "undefined") {
       if (typeof window.cancelAnimationFrame === "function") {

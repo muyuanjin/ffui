@@ -18,7 +18,7 @@ import {
 } from "@/lib/backend";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
-import { listen } from "@tauri-apps/api/event";
+import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { stringifyJsonAsync } from "@/lib/asyncJson";
 import { buildWebFallbackAppSettings } from "./appSettingsWebFallback";
@@ -150,7 +150,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   const toolStatusesFresh = ref(false);
   let settingsSaveTimer: number | undefined;
   let settingsSaveIdleHandle: number | undefined;
-  let toolStatusUnlisten: (() => void) | undefined;
+  let toolStatusUnlisten: UnsubscribeFn | null = null;
   let lastSavedSettingsSnapshot: string | null = null;
   let awaitingToolsRefreshEvent = false;
 
@@ -370,19 +370,23 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     }
 
     try {
-      toolStatusUnlisten = await listen<ExternalToolStatus[]>("ffui://external-tool-status", (event) => {
-        if (Array.isArray(event.payload)) {
-          toolStatuses.value = event.payload;
-          toolStatusesFresh.value = true;
-          if (awaitingToolsRefreshEvent) {
-            awaitingToolsRefreshEvent = false;
-            updateStartupMetrics({ toolsRefreshReceivedAtMs: startupNowMs() });
-            if (typeof performance !== "undefined" && "mark" in performance) {
-              performance.mark("tools_refresh_received");
+      toolStatusUnlisten = await subscribeTauriEvent<ExternalToolStatus[]>(
+        "ffui://external-tool-status",
+        (payload) => {
+          if (Array.isArray(payload)) {
+            toolStatuses.value = payload;
+            toolStatusesFresh.value = true;
+            if (awaitingToolsRefreshEvent) {
+              awaitingToolsRefreshEvent = false;
+              updateStartupMetrics({ toolsRefreshReceivedAtMs: startupNowMs() });
+              if (typeof performance !== "undefined" && "mark" in performance) {
+                performance.mark("tools_refresh_received");
+              }
             }
           }
-        }
-      });
+        },
+        { debugLabel: "ffui://external-tool-status" },
+      );
     } catch (error) {
       console.error("Failed to subscribe to external tool status events", error);
     }
@@ -434,10 +438,8 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
 
   const cleanup = () => {
     cancelScheduledSave();
-    if (toolStatusUnlisten) {
-      toolStatusUnlisten();
-      toolStatusUnlisten = undefined;
-    }
+    toolStatusUnlisten?.();
+    toolStatusUnlisten = null;
   };
 
   onUnmounted(() => {
