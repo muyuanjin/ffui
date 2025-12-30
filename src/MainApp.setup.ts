@@ -1,11 +1,11 @@
-import { computed, inject, provide, ref, watch, type ComputedRef, type InjectionKey } from "vue";
+import { computed, inject, provide, ref, watch, type InjectionKey } from "vue";
 import { useI18n } from "vue-i18n";
 import type { AppSettings, FFmpegPreset, PresetSortMode, PresetViewMode, TranscodeJob } from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
 import { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
 import { useMainAppPresets } from "@/composables/main-app/useMainAppPresets";
-import { useMainAppQueue, type UseMainAppQueueReturn } from "@/composables/main-app/useMainAppQueue";
+import { useMainAppQueue } from "@/composables/main-app/useMainAppQueue";
 import { useMainAppSettings } from "@/composables/main-app/useMainAppSettings";
 import { useMainAppMedia } from "@/composables/main-app/useMainAppMedia";
 import { useMainAppPreview } from "@/composables/main-app/useMainAppPreview";
@@ -16,7 +16,6 @@ import { useQueueOutputPolicy } from "@/composables/main-app/useQueueOutputPolic
 import { useJobLog } from "@/composables";
 import { useMainAppExitConfirm } from "@/composables/main-app/useMainAppExitConfirm";
 import { createQueuePanelProps } from "@/composables/main-app/queuePanelBindings";
-import { copyToClipboard } from "@/lib/copyToClipboard";
 import { hasTauri } from "@/lib/backend";
 import { scheduleStartupIdle } from "@/composables/main-app/startupIdle";
 import { useUiAppearanceSync } from "@/composables/main-app/useUiAppearanceSync";
@@ -24,15 +23,8 @@ import { useBatchCompressQueueRefresh } from "@/composables/main-app/useBatchCom
 import { useQueueStartupToast } from "@/composables/main-app/useQueueStartupToast";
 import { useBodyPointerEventsFailsafe } from "@/composables/main-app/useBodyPointerEventsFailsafe";
 import { usePresetPanelModePersistence } from "@/composables/main-app/usePresetPanelModePersistence";
+import type { MainAppQueueTabModule } from "@/MainApp.types";
 
-type MainAppQueueTabModule = UseMainAppQueueReturn & {
-  selectionBarPinned: ComputedRef<boolean>;
-  setSelectionBarPinned: (pinned: boolean) => void;
-  queueOutputPolicy: ReturnType<typeof useQueueOutputPolicy>["queueOutputPolicy"];
-  setQueueOutputPolicy: ReturnType<typeof useQueueOutputPolicy>["setQueueOutputPolicy"];
-  queuePanelProps: ReturnType<typeof createQueuePanelProps>;
-  queueTotalCount: ComputedRef<number>;
-};
 export function createMainAppContext() {
   const { t, locale } = useI18n();
   const jobs = ref<TranscodeJob[]>([]);
@@ -197,6 +189,13 @@ export function createMainAppContext() {
   const currentTitle = computed(() => titleForTab[shell.activeTab.value]?.() ?? titleForTab.queue());
   const currentSubtitle = computed(() => subtitleForTab[shell.activeTab.value]?.() ?? "");
 
+  const shellDomain = shell as ReturnType<typeof useMainAppShell> & {
+    currentTitle: typeof currentTitle;
+    currentSubtitle: typeof currentSubtitle;
+  };
+  shellDomain.currentTitle = currentTitle;
+  shellDomain.currentSubtitle = currentSubtitle;
+
   // One-time smart preset onboarding: when AppSettings are loaded in a Tauri
   // environment and onboardingCompleted is false/undefined, automatically
   // open the smart preset import dialog once.
@@ -269,7 +268,7 @@ export function createMainAppContext() {
 
   const { queueOutputPolicy, setQueueOutputPolicy } = useQueueOutputPolicy(settings.appSettings);
   const queueTotalCount = computed(() => jobs.value.length);
-  const { dialogManager, selectedJobForDetail } = dialogs;
+  const { dialogManager } = dialogs;
   // Best-effort resolution of concrete ffmpeg/ffprobe paths for UI display.
   // Prefer the backend-probed resolvedPath (which already accounts for
   // auto-download and PATH lookup) and fall back to the custom path stored in
@@ -342,6 +341,13 @@ export function createMainAppContext() {
 
   const { queueContextMenuVisible } = queueContextMenu;
 
+  queue.jobs = jobs;
+  queue.queueError = queueError;
+  queue.completedCount = completedCount;
+  queue.lastDroppedRoot = lastDroppedRoot;
+  queue.dnd = dnd;
+  queue.queueContextMenu = queueContextMenu;
+
   const hasBlockingOverlay = computed(() => {
     const dm = dialogs.dialogManager;
     return (
@@ -372,45 +378,57 @@ export function createMainAppContext() {
     pollIntervalMs: settings.progressUpdateIntervalMs,
   });
 
+  const dialogsDomain = dialogs as ReturnType<typeof useMainAppDialogs> & {
+    batchCompress: typeof batchCompress;
+    jobDetailJob: typeof jobDetailJob;
+    jobDetailLogText: typeof jobDetailLogText;
+    highlightedLogHtml: typeof highlightedLogHtml;
+  };
+  dialogsDomain.batchCompress = batchCompress;
+  dialogsDomain.jobDetailJob = jobDetailJob;
+  dialogsDomain.jobDetailLogText = jobDetailLogText;
+  dialogsDomain.highlightedLogHtml = highlightedLogHtml;
+
   const handleUpdateAppSettings = (next: AppSettings) => {
     settings.appSettings.value = next;
   };
 
+  const settingsDomain = settings as ReturnType<typeof useMainAppSettings> & {
+    updater: typeof updater;
+    handleUpdateAppSettings: typeof handleUpdateAppSettings;
+    ffmpegResolvedPath: typeof ffmpegResolvedPath;
+  };
+  settingsDomain.updater = updater;
+  settingsDomain.handleUpdateAppSettings = handleUpdateAppSettings;
+  settingsDomain.ffmpegResolvedPath = ffmpegResolvedPath;
+
+  const presetsDomain = presetsModule as ReturnType<typeof useMainAppPresets> & {
+    presets: typeof presets;
+    presetsLoadedFromBackend: typeof presetsLoadedFromBackend;
+    manualJobPresetId: typeof manualJobPresetId;
+    presetSortMode: typeof presetSortMode;
+    presetViewMode: typeof presetViewMode;
+    presetSelectionBarPinned: typeof presetSelectionBarPinned;
+    setPresetSelectionBarPinned: typeof setPresetSelectionBarPinned;
+    handleImportSmartPackConfirmedWithOnboarding: typeof handleImportSmartPackConfirmed;
+  };
+  presetsDomain.presets = presets;
+  presetsDomain.presetsLoadedFromBackend = presetsLoadedFromBackend;
+  presetsDomain.manualJobPresetId = manualJobPresetId;
+  presetsDomain.presetSortMode = presetSortMode;
+  presetsDomain.presetViewMode = presetViewMode;
+  presetsDomain.presetSelectionBarPinned = presetSelectionBarPinned;
+  presetsDomain.setPresetSelectionBarPinned = setPresetSelectionBarPinned;
+  presetsDomain.handleImportSmartPackConfirmedWithOnboarding = handleImportSmartPackConfirmed;
+
   return {
-    shell,
-    dialogs,
-    batchCompress,
-    presetsModule,
+    shell: shellDomain,
+    dialogs: dialogsDomain,
+    presetsModule: presetsDomain,
     queue,
     media,
     preview,
-    dnd,
-    settings,
-    updater,
-    queueContextMenu,
-
-    jobs,
-    queueError,
-    lastDroppedRoot,
-    presets,
-    presetsLoadedFromBackend,
-    manualJobPresetId,
-
-    currentTitle,
-    currentSubtitle,
-    completedCount,
-    presetSortMode,
-    presetViewMode,
-    presetSelectionBarPinned,
-    setPresetSelectionBarPinned,
-    selectedJobForDetail,
-    jobDetailJob,
-    jobDetailLogText,
-    highlightedLogHtml,
-    handleImportSmartPackConfirmed,
-    ffmpegResolvedPath,
-    handleUpdateAppSettings,
-    copyToClipboard,
+    settings: settingsDomain,
   };
 }
 
@@ -428,30 +446,21 @@ export function useMainAppContext() {
   return context;
 }
 
-export function useShellDomain() {
-  return useMainAppContext().shell;
-}
-
-export function useDialogsDomain() {
-  return useMainAppContext().dialogs;
-}
-
-export function useQueueDomain() {
-  return useMainAppContext().queue;
-}
-
-export function usePresetsDomain() {
-  return useMainAppContext().presetsModule;
-}
-
-export function useSettingsDomain() {
-  return useMainAppContext().settings;
-}
-
-export function useMediaDomain() {
-  return useMainAppContext().media;
-}
-
-export function usePreviewDomain() {
-  return useMainAppContext().preview;
-}
+export type {
+  DialogsDomain,
+  MediaDomain,
+  PresetsDomain,
+  PreviewDomain,
+  QueueDomain,
+  SettingsDomain,
+  ShellDomain,
+} from "./MainApp.domains";
+export {
+  useDialogsDomain,
+  useMediaDomain,
+  usePresetsDomain,
+  usePreviewDomain,
+  useQueueDomain,
+  useSettingsDomain,
+  useShellDomain,
+} from "./MainApp.domains";

@@ -18,6 +18,13 @@ const MODULE_KEYS = [
   "queueContextMenu",
 ] as const;
 
+const NESTED_MODULE_RESOLVERS = [
+  (setup: AnyRecord | undefined) => setup?.dialogs?.batchCompress,
+  (setup: AnyRecord | undefined) => setup?.settings?.updater,
+  (setup: AnyRecord | undefined) => setup?.queue?.dnd,
+  (setup: AnyRecord | undefined) => setup?.queue?.queueContextMenu,
+] as const;
+
 function unwrapIfRef(value: unknown) {
   return isRef(value) ? value.value : value;
 }
@@ -62,6 +69,12 @@ export function withMainAppVmCompat<T extends VueWrapper<any>>(wrapper: T) {
         if (fromModule.found) return fromModule.value;
       }
 
+      for (const resolve of NESTED_MODULE_RESOLVERS) {
+        const container = resolve(setup);
+        const fromNested = tryResolveFromContainer(container, prop);
+        if (fromNested.found) return fromNested.value;
+      }
+
       return undefined;
     },
     has(target, prop) {
@@ -73,6 +86,11 @@ export function withMainAppVmCompat<T extends VueWrapper<any>>(wrapper: T) {
 
       for (const key of MODULE_KEYS) {
         if (canResolveFromContainer(setup?.[key], prop)) return true;
+      }
+
+      for (const resolve of NESTED_MODULE_RESOLVERS) {
+        const container = resolve(setup);
+        if (canResolveFromContainer(container, prop)) return true;
       }
 
       return false;
@@ -96,6 +114,18 @@ export function withMainAppVmCompat<T extends VueWrapper<any>>(wrapper: T) {
 
         for (const key of MODULE_KEYS) {
           const mod = setup[key] as AnyRecord | undefined;
+          if (!mod || !(prop in mod)) continue;
+          const current = mod[prop];
+          if (isRef(current)) {
+            current.value = value;
+          } else {
+            mod[prop] = value;
+          }
+          return true;
+        }
+
+        for (const resolve of NESTED_MODULE_RESOLVERS) {
+          const mod = resolve(setup) as AnyRecord | undefined;
           if (!mod || !(prop in mod)) continue;
           const current = mod[prop];
           if (isRef(current)) {

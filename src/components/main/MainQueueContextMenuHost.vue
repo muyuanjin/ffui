@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { proxyRefs } from "vue";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
-import { useMainAppContext } from "@/MainApp.setup";
+import { useQueueDomain } from "@/MainApp.setup";
 
-const context = useMainAppContext();
-const queue = proxyRefs(context.queue);
-const queueContextMenu = proxyRefs(context.queueContextMenu);
+const queue = proxyRefs(useQueueDomain());
+const queueContextMenu = proxyRefs(queue.queueContextMenu);
 </script>
 
 <template>

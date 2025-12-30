@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { SettingsPanel } from "@/components/main/lazyTabs";
-import { useMainAppContext } from "@/MainApp.setup";
+import { usePresetsDomain, useSettingsDomain } from "@/MainApp.setup";
 
-const context = useMainAppContext();
-const settings = context.settings;
-const updater = context.updater;
-const reloadPresets = context.presetsModule.reloadPresets;
-const updateAppSettings = context.handleUpdateAppSettings;
+const presets = usePresetsDomain();
+const settings = useSettingsDomain();
+const updater = settings.updater;
+const reloadPresets = presets.reloadPresets;
+const updateAppSettings = settings.handleUpdateAppSettings;
 
 const appUpdate = computed(() => {
   return {

@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { proxyRefs } from "vue";
 import QueueFiltersBar from "@/components/panels/queue/QueueFiltersBar.vue";
-import { useMainAppContext } from "@/MainApp.setup";
+import { useQueueDomain, useShellDomain } from "@/MainApp.setup";
 
-const context = useMainAppContext();
-const shell = proxyRefs(context.shell);
-const queue = proxyRefs(context.queue);
+const shell = proxyRefs(useShellDomain());
+const queue = proxyRefs(useQueueDomain());
 </script>
 
 <template>

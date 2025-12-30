@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { proxyRefs } from "vue";
 import QueuePanel from "@/components/panels/QueuePanel.vue";
-import { useMainAppContext } from "@/MainApp.setup";
+import { useQueueDomain, useShellDomain } from "@/MainApp.setup";
+import { useQueuePanelOrchestrator } from "@/composables/main-app/orchestrators/useQueuePanelOrchestrator";
 
-const context = useMainAppContext();
-const shell = proxyRefs(context.shell);
-const queue = proxyRefs(context.queue);
+const shell = proxyRefs(useShellDomain());
+const queue = proxyRefs(useQueueDomain());
+const orchestrator = useQueuePanelOrchestrator();
 </script>
 
 <template>
@@ -16,20 +17,20 @@ const queue = proxyRefs(context.queue);
         @update:queue-view-mode="queue.setQueueViewMode"
         @update:queue-mode="queue.setQueueMode"
         @update:queue-progress-style="queue.setQueueProgressStyle"
-        @add-job-files="context.presetsModule.addManualJob('files')"
-        @add-job-folder="context.presetsModule.addManualJob('folder')"
+        @add-job-files="orchestrator.addManualJobsFromFiles"
+        @add-job-folder="orchestrator.addManualJobsFromFolder"
         @cancel-job="queue.handleCancelJob"
         @wait-job="queue.handleWaitJob"
         @resume-job="queue.handleResumeJob"
         @restart-job="queue.handleRestartJob"
         @toggle-job-selected="queue.toggleJobSelected"
-        @inspect-job="context.dialogs.dialogManager.openJobDetail"
-        @preview-job="context.preview.openJobPreviewFromQueue"
-        @compare-job="context.dialogs.dialogManager.openJobCompare"
-        @toggle-batch-expanded="context.batchCompress.toggleBatchExpanded"
-        @open-batch-detail="context.preview.openBatchDetail"
-        @open-job-context-menu="context.queueContextMenu.openQueueContextMenuForJob"
-        @open-bulk-context-menu="context.queueContextMenu.openQueueContextMenuForBulk"
+        @inspect-job="orchestrator.inspectJob"
+        @preview-job="orchestrator.previewJob"
+        @compare-job="orchestrator.compareJob"
+        @toggle-batch-expanded="orchestrator.toggleBatchExpanded"
+        @open-batch-detail="orchestrator.openBatchDetail"
+        @open-job-context-menu="orchestrator.openJobContextMenu"
+        @open-bulk-context-menu="orchestrator.openBulkContextMenu"
       />
     </div>
   </div>
