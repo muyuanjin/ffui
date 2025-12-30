@@ -273,7 +273,7 @@ describe("MainApp queue sorting basics", () => {
       global: { plugins: [i18n], stubs: { QueueItem: queueItemStub } },
     });
 
-    const vm2: any = wrapper2.vm;
+    const vm2: any = withMainAppVmCompat(wrapper2);
     vm2.activeTab = "queue";
     if ("queueModeModel" in vm2) vm2.queueModeModel = "display";
 
