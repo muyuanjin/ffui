@@ -1,20 +1,10 @@
 <script setup lang="ts">
 import { MediaPanel } from "@/components/main/lazyTabs";
-import { useMediaDomain } from "@/MainApp.setup";
+import { useMainMediaTabOrchestrator } from "@/composables/main-app/orchestrators/useMainMediaTabOrchestrator";
 
-const media = useMediaDomain();
+const { panelProps, panelListeners } = useMainMediaTabOrchestrator();
 </script>
 
 <template>
-  <MediaPanel
-    :inspecting="media.isInspectingMedia.value"
-    :error="media.mediaInspectError.value"
-    :inspected-path="media.inspectedMediaPath.value"
-    :preview-url="media.inspectedPreviewUrl.value"
-    :is-image="media.inspectedIsImage.value"
-    :analysis="media.inspectedAnalysis.value"
-    :raw-json="media.inspectedRawJson.value"
-    @inspect-requested="media.openMediaFileDialog"
-    @clear="media.clearInspectedMedia"
-  />
+  <MediaPanel v-bind="panelProps" v-on="panelListeners" />
 </template>
