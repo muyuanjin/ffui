@@ -5,9 +5,12 @@ use std::sync::atomic::Ordering;
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::ffui_core::domain::{JobStatus, QueueState, QueueStateLite, TranscodeJobLite};
+use crate::ffui_core::domain::{
+    JobRecord, JobStatus, QueueState, QueueStateLite, TranscodeJobLite,
+};
 use crate::sync_ext::{CondvarExt, MutexExt};
 
+mod persisted_queue_state;
 #[cfg(test)]
 #[path = "state_persist_test_support.rs"]
 mod state_persist_test_support;
@@ -62,70 +65,9 @@ pub(super) fn persisted_queue_state_exists_on_disk() -> bool {
     queue_state_sidecar_path().is_some_and(|path| path.exists())
 }
 
-enum DecodedPersistedQueueState {
-    Full(QueueState),
-    Lite(QueueStateLite),
-}
-
-fn contains_legacy_waiting_status(data: &[u8]) -> bool {
-    const PATTERN_COMPACT: &[u8] = br#""status":"waiting""#;
-    const PATTERN_SPACED: &[u8] = br#""status": "waiting""#;
-    data.windows(PATTERN_COMPACT.len())
-        .any(|w| w == PATTERN_COMPACT)
-        || data
-            .windows(PATTERN_SPACED.len())
-            .any(|w| w == PATTERN_SPACED)
-}
-
-fn contains_queue_state_lite_marker(data: &[u8]) -> bool {
-    const PATTERN_CAMEL: &[u8] = br#""snapshotRevision""#;
-    const PATTERN_SNAKE: &[u8] = br#""snapshot_revision""#;
-    const PATTERN_FIRST_RUN: &[u8] = br#""firstRunCommand""#;
-    data.windows(PATTERN_CAMEL.len())
-        .any(|w| w == PATTERN_CAMEL)
-        || data
-            .windows(PATTERN_SNAKE.len())
-            .any(|w| w == PATTERN_SNAKE)
-        || data
-            .windows(PATTERN_FIRST_RUN.len())
-            .any(|w| w == PATTERN_FIRST_RUN)
-}
-
-fn contains_queue_state_full_marker(data: &[u8]) -> bool {
-    const PATTERN_LOGS: &[u8] = br#""logs""#;
-    const PATTERN_RUNS: &[u8] = br#""runs""#;
-    data.windows(PATTERN_LOGS.len()).any(|w| w == PATTERN_LOGS)
-        || data.windows(PATTERN_RUNS.len()).any(|w| w == PATTERN_RUNS)
-}
-
-fn decode_persisted_queue_state_bytes(data: &[u8]) -> Option<DecodedPersistedQueueState> {
-    // Backward-compatibility: older versions persisted the full QueueState
-    // including logs. Newer versions may persist QueueStateLite to avoid
-    // heavy log cloning on hot paths.
-    if contains_queue_state_lite_marker(data) {
-        if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(data) {
-            return Some(DecodedPersistedQueueState::Lite(lite));
-        }
-    } else if contains_queue_state_full_marker(data)
-        && let Ok(full) = serde_json::from_slice::<QueueState>(data)
-    {
-        return Some(DecodedPersistedQueueState::Full(full));
-    }
-    if let Ok(lite) = serde_json::from_slice::<QueueStateLite>(data) {
-        return Some(DecodedPersistedQueueState::Lite(lite));
-    }
-    if let Ok(full) = serde_json::from_slice::<QueueState>(data) {
-        return Some(DecodedPersistedQueueState::Full(full));
-    }
-    None
-}
-
 #[cfg(feature = "bench")]
 pub(super) fn decode_persisted_queue_state_bytes_for_bench(data: &[u8]) -> Option<QueueState> {
-    match decode_persisted_queue_state_bytes(data)? {
-        DecodedPersistedQueueState::Full(full) => Some(full),
-        DecodedPersistedQueueState::Lite(lite) => Some(QueueState::from(lite)),
-    }
+    persisted_queue_state::decode_persisted_queue_state_bytes_for_bench(data)
 }
 
 pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
@@ -144,34 +86,62 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
             return None;
         }
     };
-
-    let contains_legacy_waiting_status = contains_legacy_waiting_status(&data);
-
-    match decode_persisted_queue_state_bytes(&data) {
-        Some(DecodedPersistedQueueState::Full(full)) => {
-            if contains_legacy_waiting_status {
-                let migrated = QueueStateLite {
-                    snapshot_revision: 0,
-                    jobs: full.jobs.iter().map(TranscodeJobLite::from).collect(),
-                };
-                persist_queue_state_lite_immediate(&migrated);
+    let mut rewrite = false;
+    let lite = match persisted_queue_state::decode_persisted_queue_state_bytes(&data) {
+        Some(persisted_queue_state::DecodedPersistedQueueState::V1(mut v1)) => {
+            if v1.version != persisted_queue_state::PERSISTED_QUEUE_STATE_VERSION {
+                v1.version = persisted_queue_state::PERSISTED_QUEUE_STATE_VERSION;
+                rewrite = true;
             }
-            Some(full)
+
+            let mut records = v1.jobs;
+            for record in &mut records {
+                if record.canonicalize_and_upgrade_for_persistence() {
+                    rewrite = true;
+                }
+            }
+
+            QueueStateLite {
+                snapshot_revision: v1.snapshot_revision,
+                jobs: records.into_iter().map(TranscodeJobLite::from).collect(),
+            }
         }
-        Some(DecodedPersistedQueueState::Lite(lite)) => {
-            if contains_legacy_waiting_status {
-                persist_queue_state_lite_immediate(&lite);
+        Some(persisted_queue_state::DecodedPersistedQueueState::Lite(lite)) => {
+            rewrite = true;
+            lite
+        }
+        Some(persisted_queue_state::DecodedPersistedQueueState::Full(full)) => {
+            rewrite = true;
+            let mut full = full;
+            for job in &mut full.jobs {
+                if job.log_tail.is_none() {
+                    super::worker_utils::recompute_log_tail(job);
+                }
+                job.ensure_run_history_from_legacy();
             }
-            Some(QueueState::from(lite))
+            QueueStateLite {
+                snapshot_revision: 0,
+                jobs: full.jobs.iter().map(TranscodeJobLite::from).collect(),
+            }
         }
         None => {
             crate::debug_eprintln!(
-                "failed to parse persisted queue state from {}: unable to decode as full or lite schema",
+                "failed to parse persisted queue state from {}: unable to decode as v1, full, or lite schema",
                 path.display()
             );
-            None
+            return None;
         }
+    };
+
+    if rewrite {
+        persist_queue_state_lite_immediate(&lite);
     }
+
+    let mut snapshot = QueueState::from(lite);
+    for job in &mut snapshot.jobs {
+        job.ensure_run_history_from_legacy();
+    }
+    Some(snapshot)
 }
 
 /// Actual on-disk writer for queue state snapshots. This performs a single
@@ -201,7 +171,12 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
     let tmp_path = path.with_extension("tmp");
     match fs::File::create(&tmp_path) {
         Ok(file) => {
-            if let Err(err) = serde_json::to_writer(&file, snapshot) {
+            let persisted = persisted_queue_state::PersistedQueueStateFile {
+                version: persisted_queue_state::PERSISTED_QUEUE_STATE_VERSION,
+                snapshot_revision: snapshot.snapshot_revision,
+                jobs: snapshot.jobs.iter().cloned().map(JobRecord::from).collect(),
+            };
+            if let Err(err) = serde_json::to_writer(&file, &persisted) {
                 crate::debug_eprintln!(
                     "failed to write queue state to {}: {err:#}",
                     tmp_path.display()

@@ -13,6 +13,9 @@ pub use job::{
     TranscodeJob, WaitMetadata,
 };
 
+mod job_record;
+pub use job_record::*;
+
 mod job_lite;
 pub use job_lite::*;
 

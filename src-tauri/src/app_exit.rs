@@ -111,7 +111,6 @@ pub fn pause_processing_jobs_for_exit(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ffui_core::QueueStateLite;
     use crate::ffui_core::{JobSource, JobType, QueuePersistenceMode, TranscodeJob};
     use crate::sync_ext::MutexExt;
     use std::sync::Arc;
@@ -380,15 +379,19 @@ mod tests {
 
         let raw =
             std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable");
-        let parsed: QueueStateLite =
-            serde_json::from_str(&raw).expect("expected persisted snapshot to be lite schema");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&raw).expect("expected persisted snapshot to be readable JSON");
+        let jobs = parsed["jobs"]
+            .as_array()
+            .expect("expected persisted snapshot to contain jobs array");
         assert_eq!(
-            parsed.jobs.len(),
+            jobs.len(),
             1,
             "expected only resumable jobs to be persisted"
         );
         assert_eq!(
-            parsed.jobs[0].id, "job-paused",
+            jobs[0]["id"].as_str().unwrap_or_default(),
+            "job-paused",
             "expected persisted resumable job to be the paused one"
         );
     }

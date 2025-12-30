@@ -26,7 +26,7 @@ describe("backend queue state contract", () => {
           source: "manual",
           originalSizeMB: 10,
           presetId: "preset-1",
-          status: "waiting",
+          status: "queued",
           queueOrder: 3,
           progress: 0,
           logs: [],
@@ -79,8 +79,6 @@ describe("backend queue state contract", () => {
             progressEpoch: 3,
             lastProgressFrame: 12345,
             tmpOutputPath: "C:/tmp/seg0.mkv",
-            segments: ["C:/tmp/seg0.mkv"],
-            segmentEndTargets: [36.223129],
           },
         },
       ],
@@ -103,7 +101,7 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.waitMetadata?.segmentEndTargets).toBeUndefined();
   });
 
-  it("loadQueueStateLite drops crash-recovery segment arrays even when backend provides them", async () => {
+  it("loadQueueStateLite does not synthesize crash-recovery segment arrays", async () => {
     const fake = {
       jobs: [
         {
@@ -121,8 +119,6 @@ describe("backend queue state contract", () => {
             processedSeconds: 73.873,
             targetSeconds: 73.873,
             tmpOutputPath: "C:/tmp/seg1.mkv",
-            segments: ["C:/tmp/seg0.mkv", "C:/tmp/seg1.mkv"],
-            segmentEndTargets: [36.223129, 73.873],
           },
         },
       ],
