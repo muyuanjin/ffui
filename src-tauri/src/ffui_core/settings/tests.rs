@@ -1,4 +1,7 @@
+use std::fs;
+
 use serde_json::{Value, json};
+use tempfile::tempdir;
 
 use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
@@ -211,6 +214,88 @@ fn app_settings_round_trips_locale_when_present() {
         "locale should round-trip through JSON"
     );
 }
+
+#[test]
+fn load_settings_migrates_legacy_unversioned_file_to_versioned_envelope() {
+    let data_dir = tempdir().expect("temp data dir");
+    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_dir.path().to_path_buf(),
+    );
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
+
+    let legacy = json!({
+        "locale": "  en  ",
+        "queuePersistenceMode": "crashRecovery"
+    });
+    fs::write(&path, legacy.to_string()).expect("write legacy settings");
+
+    let loaded = load_settings().expect("load_settings migrates legacy settings");
+    assert_eq!(
+        loaded.locale.as_deref(),
+        Some("en"),
+        "load_settings must normalize legacy locale on read"
+    );
+    assert_eq!(
+        loaded.queue_persistence_mode,
+        QueuePersistenceMode::CrashRecoveryLite,
+        "legacy crashRecovery alias must map to CrashRecoveryLite"
+    );
+
+    let rewritten: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("read rewritten settings"))
+            .expect("parse rewritten settings JSON");
+    assert_eq!(
+        rewritten.get("version").and_then(Value::as_u64),
+        Some(1),
+        "settings file must be rewritten with a version envelope"
+    );
+    assert!(
+        rewritten.get("settings").is_some(),
+        "settings file must be rewritten with a top-level settings object"
+    );
+    assert_eq!(
+        rewritten
+            .get("settings")
+            .and_then(Value::as_object)
+            .and_then(|settings| settings.get("locale"))
+            .and_then(Value::as_str),
+        Some("en"),
+        "rewritten settings must persist normalized locale"
+    );
+}
+
+#[test]
+fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope() {
+    let data_dir = tempdir().expect("temp data dir");
+    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_dir.path().to_path_buf(),
+    );
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
+
+    let legacy = json!({
+        "settings": {
+            "locale": "zh-CN"
+        }
+    });
+    fs::write(&path, legacy.to_string()).expect("write legacy wrapped settings");
+
+    let loaded = load_settings().expect("load_settings migrates legacy wrapper");
+    assert_eq!(loaded.locale.as_deref(), Some("zh-CN"));
+
+    let rewritten: Value =
+        serde_json::from_str(&fs::read_to_string(&path).expect("read rewritten settings"))
+            .expect("parse rewritten settings JSON");
+    assert_eq!(
+        rewritten.get("version").and_then(Value::as_u64),
+        Some(1),
+        "legacy wrapper must be rewritten with version 1 envelope"
+    );
+    assert!(
+        rewritten.get("settings").is_some(),
+        "legacy wrapper must be rewritten with a top-level settings object"
+    );
+}
+
 #[test]
 fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
     // Simulate legacy JSON without the new previewCapturePercent field.
