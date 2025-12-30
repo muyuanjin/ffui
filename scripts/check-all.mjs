@@ -192,7 +192,7 @@ async function runStep(label, command, args, options = {}) {
 async function runStepCaptureStdout(label, command, args, options = {}) {
   process.stdout.write(`\n==> ${label}\n`);
 
-  const { outputPrefix, ...spawnOptions } = options;
+  const { outputPrefix, quiet, ...spawnOptions } = options;
 
   const child = spawn(command, args, {
     ...spawnOptions,
@@ -213,16 +213,22 @@ async function runStepCaptureStdout(label, command, args, options = {}) {
 
   const closePromise = new Promise((resolve) => child.once("close", resolve));
 
-  const stdoutPrefixer = outputPrefix ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
-  const stderrPrefixer = outputPrefix ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
+  const stdoutPrefixer =
+    outputPrefix && !quiet ? createLinePrefixer(outputPrefix, (s) => process.stdout.write(s)) : null;
+  const stderrPrefixer =
+    outputPrefix && !quiet ? createLinePrefixer(outputPrefix, (s) => process.stderr.write(s)) : null;
 
-  let captured = "";
+  let capturedStdout = "";
+  let capturedStderr = "";
   child.stdout.on("data", (chunk) => {
-    captured += chunk.toString("utf8");
+    capturedStdout += chunk.toString("utf8");
+    if (quiet) return;
     if (stdoutPrefixer) stdoutPrefixer.push(chunk);
     else process.stdout.write(chunk);
   });
   child.stderr.on("data", (chunk) => {
+    capturedStderr += chunk.toString("utf8");
+    if (quiet) return;
     if (stderrPrefixer) stderrPrefixer.push(chunk);
     else process.stderr.write(chunk);
   });
@@ -245,11 +251,15 @@ async function runStepCaptureStdout(label, command, args, options = {}) {
   }
 
   if (code !== 0) {
+    if (quiet) {
+      if (capturedStdout.trim()) process.stdout.write(capturedStdout);
+      if (capturedStderr.trim()) process.stderr.write(capturedStderr);
+    }
     process.stderr.write(`\nERROR: "${label}" failed with exit code ${code}.\n`);
     process.exit(code ?? 1);
   }
 
-  return captured;
+  return { stdout: capturedStdout, stderr: capturedStderr };
 }
 
 async function runPnpmStep(label, pnpmArgs, options = {}) {
@@ -473,16 +483,31 @@ function stripAnsi(text) {
   return String(text).replaceAll(/\u001b\[[0-9;]*m/g, "");
 }
 
-function parseLibtestListOutput(stdoutText) {
-  const names = new Set();
-  const lines = stripAnsi(stdoutText).replaceAll("\r", "").split("\n");
+function parseCargoTestListOutput(outputText) {
+  const binaries = [];
+  let current = null;
+  const allTests = new Set();
+
+  const lines = stripAnsi(outputText).replaceAll("\r", "").split("\n");
   for (const rawLine of lines) {
     const line = rawLine.trimEnd();
-    const m = line.match(/^(.+): (test|benchmark)$/);
-    if (!m) continue;
-    names.add(m[1].trim());
+    const trimmed = line.trimStart();
+
+    const header = trimmed.match(/^Running\s+(?:unittests|tests[\\/][^ ]+).* \(([^)]+)\)$/);
+    if (header) {
+      current = { execPath: header[1].trim(), tests: new Set() };
+      binaries.push(current);
+      continue;
+    }
+
+    const testLine = trimmed.match(/^(.+): (test|benchmark)$/);
+    if (!testLine) continue;
+    const name = testLine[1].trim();
+    allTests.add(name);
+    current?.tests.add(name);
   }
-  return names;
+
+  return { allTests, binaries };
 }
 
 async function runRustFmtCheck(platform, rustRootDir, runOptions = {}) {
@@ -1024,13 +1049,13 @@ async function runRustTestListForPlatform(platform, rustRootDir, opts, runOption
 
   if (platform === "windows") {
     if (process.platform === "win32") {
-      const stdout = await runStepCaptureStdout(
+      const out = await runStepCaptureStdout(
         "Rust tests list (Windows)",
         "cargo",
         ["test", "--profile", "check-all", "--target-dir", "target/win", "--", "--list"],
-        { cwd: rustRootDir, env: resolveCargoEnv(), ...runOptions },
+        { cwd: rustRootDir, env: resolveCargoEnv(), quiet: true, ...runOptions },
       );
-      return parseLibtestListOutput(stdout);
+      return parseCargoTestListOutput(`${out.stdout}\n${out.stderr}`);
     }
 
     if (process.platform === "linux") {
@@ -1044,7 +1069,7 @@ async function runRustTestListForPlatform(platform, rustRootDir, opts, runOption
       const winCargoToml = wslPathToWindowsPath(rustCargoToml);
       const winTargetDir = path.win32.join(path.win32.dirname(winCargoToml), "target", "win");
       const wslenv = appendWslenvToken(process.env.WSLENV, "CARGO_INCREMENTAL");
-      const stdout = await runStepCaptureStdout(
+      const out = await runStepCaptureStdout(
         "Rust tests list (Windows via cargo.exe)",
         cargoExe,
         [
@@ -1058,9 +1083,9 @@ async function runRustTestListForPlatform(platform, rustRootDir, opts, runOption
           "--",
           "--list",
         ],
-        { env: resolveCargoEnv({ WSLENV: wslenv }), ...runOptions },
+        { env: resolveCargoEnv({ WSLENV: wslenv }), quiet: true, ...runOptions },
       );
-      return parseLibtestListOutput(stdout);
+      return parseCargoTestListOutput(`${out.stdout}\n${out.stderr}`);
     }
 
     throw new Error(`Unsupported host for windows rust checks: ${process.platform}`);
@@ -1069,13 +1094,13 @@ async function runRustTestListForPlatform(platform, rustRootDir, opts, runOption
   if (platform === "linux") {
     if (process.platform === "linux") {
       const cargo = resolveLocalCargoPath() ?? "cargo";
-      const stdout = await runStepCaptureStdout(
+      const out = await runStepCaptureStdout(
         "Rust tests list (Linux)",
         cargo,
         ["test", "--profile", "check-all", "--target-dir", "target/linux", "--", "--list"],
-        { cwd: rustRootDir, env: resolveCargoEnv(), ...runOptions },
+        { cwd: rustRootDir, env: resolveCargoEnv(), quiet: true, ...runOptions },
       );
-      return parseLibtestListOutput(stdout);
+      return parseCargoTestListOutput(`${out.stdout}\n${out.stderr}`);
     }
 
     if (process.platform === "win32") {
@@ -1088,23 +1113,28 @@ async function runRustTestListForPlatform(platform, rustRootDir, opts, runOption
           "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
         );
       }
-      const stdout = await runStepCaptureStdout("Rust tests list (Linux/WSL)", "wsl.exe", [
-        "-e",
-        "env",
-        "CARGO_INCREMENTAL=0",
-        "CARGO_TERM_COLOR=never",
-        wslCargo,
-        "test",
-        "--profile",
-        "check-all",
-        "--target-dir",
-        wslTargetDir,
-        "--manifest-path",
-        wslCargoToml,
-        "--",
-        "--list",
-      ]);
-      return parseLibtestListOutput(stdout);
+      const out = await runStepCaptureStdout(
+        "Rust tests list (Linux/WSL)",
+        "wsl.exe",
+        [
+          "-e",
+          "env",
+          "CARGO_INCREMENTAL=0",
+          "CARGO_TERM_COLOR=never",
+          wslCargo,
+          "test",
+          "--profile",
+          "check-all",
+          "--target-dir",
+          wslTargetDir,
+          "--manifest-path",
+          wslCargoToml,
+          "--",
+          "--list",
+        ],
+        { quiet: true, ...runOptions },
+      );
+      return parseCargoTestListOutput(`${out.stdout}\n${out.stderr}`);
     }
 
     throw new Error(`Unsupported host for linux rust checks: ${process.platform}`);
@@ -1302,6 +1332,77 @@ function setDifference(a, b) {
   return out;
 }
 
+function setIntersection(a, b) {
+  const out = new Set();
+  for (const item of a) {
+    if (b.has(item)) out.add(item);
+  }
+  return out;
+}
+
+function resolveLibtestThreadCount(opts) {
+  if (opts.rustTestThreads === "auto") return 1;
+  return Number(opts.rustTestThreads);
+}
+
+async function runPlatformOnlyLinuxTestsBySkippingCommon(rustRootDir, opts, commonTests, runOptions = {}) {
+  const libtestThreadCount = resolveLibtestThreadCount(opts);
+  const sortedCommon = Array.from(commonTests).sort((a, b) => a.localeCompare(b));
+
+  const libtestArgs = ["--exact", `--test-threads=${libtestThreadCount}`];
+  for (const name of sortedCommon) {
+    libtestArgs.push("--skip", name);
+  }
+
+  const rustCargoToml = path.join(process.cwd(), rustRootDir, "Cargo.toml");
+
+  if (process.platform === "linux") {
+    const cargo = resolveLocalCargoPath() ?? "cargo";
+    await runStep(
+      "Rust platform-only tests (Linux via --skip common)",
+      cargo,
+      ["test", "--profile", "check-all", "--target-dir", "target/linux", "--", ...libtestArgs],
+      { cwd: rustRootDir, env: resolveCargoEnv(), ...runOptions },
+    );
+    return;
+  }
+
+  if (process.platform === "win32") {
+    if (!wslIsUsableOnWindowsHost()) {
+      throw new Error("Linux Rust checks on Windows require WSL (wsl.exe).");
+    }
+
+    const wslCargoToml = windowsPathToWslPath(rustCargoToml);
+    const wslTargetDir = resolveWslLinuxTargetDirOnWindowsHost(wslCargoToml, opts);
+    const wslCargo = resolveWslCargoPathOnWindowsHost();
+    if (!wslCargo) {
+      throw new Error(
+        "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
+      );
+    }
+
+    await runStep("Rust platform-only tests (Linux/WSL via --skip common)", "wsl.exe", [
+      "-e",
+      "env",
+      "CARGO_INCREMENTAL=0",
+      "CARGO_TERM_COLOR=never",
+      wslCargo,
+      "test",
+      "--profile",
+      "check-all",
+      "--target-dir",
+      wslTargetDir,
+      "--manifest-path",
+      wslCargoToml,
+      "--",
+      ...libtestArgs,
+    ]);
+    return;
+  }
+
+  throw new Error(`Unsupported host for linux platform-only test run: ${process.platform}`);
+}
+
 async function runRustChecksDedup(selectedPlatforms, rustRootDir, opts, runOptions = {}) {
   const primary = resolvePrimaryRustRuntimePlatform(selectedPlatforms);
   const nonPrimary = selectedPlatforms.find((p) => p !== primary);
@@ -1312,21 +1413,24 @@ async function runRustChecksDedup(selectedPlatforms, rustRootDir, opts, runOptio
     return;
   }
 
-  const [windowsList, linuxList] = await Promise.all([
-    runRustTestListForPlatform("windows", rustRootDir, opts, runOptions),
-    runRustTestListForPlatform("linux", rustRootDir, opts, runOptions),
-  ]);
+  const windowsList = await runRustTestListForPlatform("windows", rustRootDir, opts, runOptions);
+  const linuxList = await runRustTestListForPlatform("linux", rustRootDir, opts, runOptions);
 
-  const windowsOnly = setDifference(windowsList, linuxList);
-  const linuxOnly = setDifference(linuxList, windowsList);
+  const windowsOnly = setDifference(windowsList.allTests, linuxList.allTests);
+  const linuxOnly = setDifference(linuxList.allTests, windowsList.allTests);
 
   await runRustTestFullForPlatform(primary, rustRootDir, opts, runOptions);
   await runRustTestNoRunForPlatform(nonPrimary, rustRootDir, opts, runOptions);
 
   const onlyToRun = nonPrimary === "windows" ? windowsOnly : linuxOnly;
-  const onlySorted = Array.from(onlyToRun).sort((a, b) => a.localeCompare(b));
-  for (const testName of onlySorted) {
-    await runRustTestExactForPlatform(nonPrimary, rustRootDir, opts, testName, runOptions);
+  if (nonPrimary === "linux") {
+    const common = setIntersection(windowsList.allTests, linuxList.allTests);
+    await runPlatformOnlyLinuxTestsBySkippingCommon(rustRootDir, opts, common, runOptions);
+  } else {
+    const onlySorted = Array.from(onlyToRun).sort((a, b) => a.localeCompare(b));
+    for (const testName of onlySorted) {
+      await runRustTestExactForPlatform(nonPrimary, rustRootDir, opts, testName, runOptions);
+    }
   }
 
   await runRustClippyForPlatform("windows", rustRootDir, opts, runOptions);
@@ -1337,8 +1441,8 @@ async function runRustChecksDedup(selectedPlatforms, rustRootDir, opts, runOptio
       "",
       "Rust summary:",
       `- mode=dedup primary=${primary}`,
-      `- windows tests=${windowsList.size} windows-only=${windowsOnly.size}`,
-      `- linux tests=${linuxList.size} linux-only=${linuxOnly.size}`,
+      `- windows tests=${windowsList.allTests.size} windows-only=${windowsOnly.size}`,
+      `- linux tests=${linuxList.allTests.size} linux-only=${linuxOnly.size}`,
       `- non-primary executed=${onlyToRun.size} (${nonPrimary})`,
       "",
     ].join("\n"),
@@ -1361,7 +1465,7 @@ async function runParallel(tasks) {
   await Promise.all(tasks.map((t) => t()));
 }
 
-const parallel = [
+await runParallel([
   () =>
     runFrontendPnpmStep("Frontend formatting (prettier --check)", ["run", "format:check:frontend"], opts, {
       outputPrefix: "[prettier] ",
@@ -1382,17 +1486,13 @@ const parallel = [
     runFrontendPnpmStep("Duplicate check (Rust, jscpd)", ["run", "dup:rust"], opts, {
       outputPrefix: "[jscpd:rs] ",
     }),
-  async () => {
-    await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts, { outputPrefix: "[build] " });
-    await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts, { outputPrefix: "[vitest] " });
-  },
-  async () => {
-    await runRustFmtCheck(rustFmtPlatform, rustRootDir, { outputPrefix: "[rustfmt] " });
-    await runRustChecks(selected, rustRootDir, opts, { outputPrefix: "[rust] " });
-  },
-];
+]);
 
-await runParallel(parallel);
+await runFrontendPnpmStep("Frontend build (vue-tsc + vite)", ["run", "build"], opts);
+await runFrontendPnpmStep("Frontend tests (vitest run)", ["run", "test"], opts);
+
+await runRustFmtCheck(rustFmtPlatform, rustRootDir);
+await runRustChecks(selected, rustRootDir, opts);
 
 await runFrontendPnpmStep("Queue perf benches (vitest perf suite)", ["run", "bench:queue"], opts);
 
