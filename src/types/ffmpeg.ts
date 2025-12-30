@@ -1,4 +1,4 @@
-export type EncoderType =
+export type KnownEncoderType =
   | "libx264"
   | "libx265"
   | "hevc_nvenc"
@@ -10,8 +10,10 @@ export type EncoderType =
   | "av1_amf"
   | "libsvtav1"
   | "copy";
+export type EncoderType = KnownEncoderType | string;
 export type AudioCodecType = "copy" | "aac";
-export type RateControlMode = "crf" | "cq" | "constqp" | "cbr" | "vbr";
+export type KnownRateControlMode = "crf" | "cq" | "constqp" | "cbr" | "vbr";
+export type RateControlMode = KnownRateControlMode | string;
 export type AudioLoudnessProfile = "none" | "cnBroadcast" | "ebuR128";
 
 // ----- Global / input / mapping / container / hardware parameter groups -----

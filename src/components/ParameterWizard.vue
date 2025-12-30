@@ -5,6 +5,8 @@ import { ENCODER_OPTIONS, PRESET_OPTIONS } from "../constants";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import { highlightFfmpegCommandTokens, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
+import { applyEncoderChangePatch, normalizeVideoForSave } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
+import { normalizePreset } from "@/lib/presetEditorContract/presetDerivation";
 import WizardStepBasics from "@/components/parameter-wizard/WizardStepBasics.vue";
 import WizardStepVideo from "@/components/parameter-wizard/WizardStepVideo.vue";
 import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.vue";
@@ -44,7 +46,7 @@ const defaultVideo: VideoConfig = {
 };
 
 const video = reactive<VideoConfig>({
-  ...(props.initialPreset?.video ?? defaultVideo),
+  ...(props.initialPreset ? normalizePreset(props.initialPreset).preset.video : defaultVideo),
 });
 const audio = reactive<AudioConfig>({
   ...(props.initialPreset?.audio ?? {
@@ -106,48 +108,10 @@ const canSave = computed<boolean>(() => {
 });
 
 const handleEncoderChange = (newEncoder: EncoderType) => {
-  let defaults: Partial<VideoConfig> = {};
-
-  if (newEncoder === "libx264") {
-    defaults = {
-      rateControl: "crf",
-      qualityValue: 23,
-      preset: "medium",
-      tune: "film",
-      profile: undefined,
-    };
-  } else if (newEncoder === "hevc_nvenc") {
-    // NVENC 不支持 x264 的 -tune film 等参数，切换编码器时清理 tune / profile。
-    defaults = {
-      rateControl: "cq",
-      qualityValue: 28,
-      preset: "p5",
-      tune: undefined,
-      profile: undefined,
-    };
-  } else if (newEncoder === "libsvtav1") {
-    defaults = {
-      rateControl: "crf",
-      qualityValue: 34,
-      preset: "5",
-      tune: undefined,
-      profile: undefined,
-    };
-  } else if (newEncoder === "copy") {
+  if (newEncoder === "copy") {
     Object.assign(audio, { codec: "copy" });
-    defaults = {
-      rateControl: "cbr",
-      qualityValue: 0,
-      preset: "",
-      tune: undefined,
-      profile: undefined,
-    };
   }
-
-  Object.assign(video, {
-    encoder: newEncoder,
-    ...defaults,
-  });
+  Object.assign(video, applyEncoderChangePatch(video as VideoConfig, newEncoder));
 };
 
 const applyVideoPatch = (patch: Partial<VideoConfig>) => {
@@ -163,11 +127,8 @@ const applyFiltersPatch = (patch: Partial<FilterConfig>) => {
 };
 
 const buildPresetFromState = (): FFmpegPreset => {
-  // 防止把 x264 的 tune 选项带到 NVENC/AV1 预设里，从而生成非法 ffmpeg 参数。
-  const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
-  if (normalizedVideo.encoder !== "libx264") {
-    delete normalizedVideo.tune;
-  }
+  const normalizedVideo = normalizeVideoForSave({ ...(video as VideoConfig) });
+  if (normalizedVideo.tune === undefined) delete (normalizedVideo as any).tune;
 
   const newPreset: FFmpegPreset = {
     id: props.initialPreset?.id ?? Date.now().toString(),
@@ -271,7 +232,8 @@ const handleRecipeSelect = ({
 const isCopyEncoder = computed(() => video.encoder === "copy");
 
 const rateControlLabel = computed(() => {
-  if (video.encoder === "hevc_nvenc") {
+  const enc = String(video.encoder ?? "").toLowerCase();
+  if (enc.includes("nvenc") || enc.includes("_qsv") || enc.includes("_amf")) {
     return t("presetEditor.video.cqLabel");
   }
   return t("presetEditor.video.crfLabel");

@@ -10,6 +10,7 @@ import type {
   SubtitlesConfig,
   VideoConfig,
 } from "@/types";
+import { getCqArgumentForEncoder } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 
 export interface FfmpegCommandPreviewInput {
   video: VideoConfig;
@@ -180,7 +181,11 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     if (v.rateControl === "constqp") {
       args.push("-rc", "constqp", "-qp", String(v.qualityValue));
     } else if (v.rateControl === "crf" || v.rateControl === "cq") {
-      args.push(v.rateControl === "crf" ? "-crf" : "-cq", String(v.qualityValue));
+      if (v.rateControl === "crf") {
+        args.push("-crf", String(v.qualityValue));
+      } else {
+        args.push(getCqArgumentForEncoder(v.encoder), String(v.qualityValue));
+      }
     } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
       if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
         args.push("-b:v", `${v.bitrateKbps}k`);

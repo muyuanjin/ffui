@@ -73,6 +73,111 @@ describe("ParameterWizard", () => {
     expect("tune" in preset.video).toBe(false);
   });
 
+  it("preserves NVENC/AV1 smart preset HQ tuning when updating via the wizard without parameter changes", async () => {
+    const emitted: FFmpegPreset[] = [];
+
+    const smartPreset: FFmpegPreset = {
+      id: "smart-av1-nvenc-hq-constqp18",
+      name: "AV1 NVENC HQ ConstQP18",
+      description: "RTX 40+/Ada near-lossless AV1 NVENC preset",
+      video: {
+        encoder: "av1_nvenc",
+        rateControl: "constqp",
+        qualityValue: 18,
+        preset: "p7",
+        tune: "hq",
+        pixFmt: "p010le",
+        bRefMode: "each",
+        rcLookahead: 32,
+        bf: 3,
+        spatialAq: true,
+        temporalAq: true,
+      } as any,
+      audio: {
+        codec: "aac",
+        bitrate: 320,
+        loudnessProfile: "ebuR128",
+        truePeakDb: -1.0,
+      } as any,
+      filters: {},
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+      isSmartPreset: true,
+    };
+
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: smartPreset,
+        onSave: (preset: FFmpegPreset) => emitted.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const nextLabel = t("common.next");
+    for (let i = 0; i < 4; i += 1) {
+      const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+      expect(nextButton).toBeTruthy();
+      await nextButton!.trigger("click");
+    }
+
+    const updateLabel = t("presetEditor.actions.update");
+    const updateButton = wrapper.findAll("button").find((btn) => btn.text().includes(updateLabel));
+    expect(updateButton).toBeTruthy();
+    await updateButton!.trigger("click");
+
+    expect(emitted.length).toBe(1);
+    const saved = emitted[0];
+    expect(saved.video.encoder).toBe("av1_nvenc");
+    expect(saved.video.rateControl).toBe("constqp");
+    expect(saved.video.preset).toBe("p7");
+    expect((saved.video as any).tune).toBe("hq");
+    expect((saved.video as any).bRefMode).toBe("each");
+    expect((saved.video as any).rcLookahead).toBe(32);
+    expect((saved.video as any).spatialAq).toBe(true);
+    expect((saved.video as any).temporalAq).toBe(true);
+  });
+
+  it("keeps the AV1 visually-lossless recipe encoder consistent with its NVENC template", async () => {
+    const emitted: FFmpegPreset[] = [];
+
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: null,
+        onSave: (preset: FFmpegPreset) => emitted.push(preset),
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const nextLabel = t("common.next");
+    const nextFromKind = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+    expect(nextFromKind).toBeTruthy();
+    await nextFromKind!.trigger("click");
+
+    const recipeLabel = t("presetEditor.recipes.av1VisuallyLossless");
+    const recipeButton = wrapper.findAll("button").find((btn) => btn.text().includes(recipeLabel));
+    expect(recipeButton).toBeTruthy();
+    await recipeButton!.trigger("click");
+
+    const saveLabel = t("presetEditor.actions.save");
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(saveLabel));
+    expect(saveButton).toBeTruthy();
+    await saveButton!.trigger("click");
+
+    expect(emitted.length).toBe(1);
+    const preset = emitted[0];
+    expect(preset.advancedEnabled).toBe(true);
+    expect(preset.ffmpegTemplate?.includes("-c:v av1_nvenc")).toBe(true);
+    expect(preset.video.encoder).toBe("av1_nvenc");
+  });
+
   it("defaults AAC audio to 320k with EBU loudness profile when selected in the wizard", async () => {
     const emitted: FFmpegPreset[] = [];
 

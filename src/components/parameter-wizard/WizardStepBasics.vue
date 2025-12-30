@@ -169,7 +169,7 @@ const applyRecipe = (payload: {
               description:
                 'AV1 NVENC constqp QP 18, 10‑bit, tuned for visually lossless archival with excellent size/quality ratio.',
               video: {
-                encoder: 'libsvtav1',
+                encoder: 'av1_nvenc',
               },
               advancedEnabled: true,
               ffmpegTemplate:

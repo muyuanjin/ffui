@@ -30,6 +30,8 @@ const presetEditor = {
   video: {
     encoder: "Video Encoder",
     encoderPlaceholder: "Choose encoder",
+    unknownOption: "Unknown ({value})",
+    unknownValueWarning: "Unknown {field}: {value}. Saving without edits preserves it.",
     copyWarning: "Filters (Scale/Crop) will be disabled in Copy mode.",
     crfLabel: "Constant Rate Factor (CRF)",
     cqLabel: "Constant Quality (CQ)",

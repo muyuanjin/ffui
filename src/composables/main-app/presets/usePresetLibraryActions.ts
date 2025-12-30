@@ -12,6 +12,7 @@ import {
 } from "@/lib/backend";
 import { getPresetCommandPreview, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import type { FFmpegPreset } from "@/types";
+import { quarantinePresetIfInvalid } from "@/lib/presetEditorContract/presetValidator";
 import type { UseMainAppShellReturn } from "../useMainAppShell";
 
 export interface PresetLibraryActionsOptions {
@@ -212,8 +213,9 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       );
       existingNames.add(newName);
       const basePreset = preset as FFmpegPreset;
+      const validated = quarantinePresetIfInvalid(basePreset as FFmpegPreset);
       normalizedPresets.push({
-        ...basePreset,
+        ...validated.preset,
         id: newId,
         name: newName,
         stats: makeZeroStats(),

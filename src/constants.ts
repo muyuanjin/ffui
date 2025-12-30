@@ -1,18 +1,10 @@
 import type { EncoderType, BatchCompressConfig } from "./types";
 import { DEFAULT_OUTPUT_POLICY } from "./types/output-policy";
+import { getEncoderOptions, getPresetOptionsByEncoder } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 
-export const ENCODER_OPTIONS: { value: EncoderType; label: string; hardware: boolean }[] = [
-  { value: "libx264", label: "H.264 Software (libx264) - Best Compatibility", hardware: false },
-  { value: "hevc_nvenc", label: "H.265 NVIDIA (hevc_nvenc) - High Speed", hardware: true },
-  { value: "libsvtav1", label: "AV1 (libsvtav1) - High Efficiency", hardware: false },
-  { value: "copy", label: "Stream Copy (No Transcoding) - Instant", hardware: false },
-];
+export const ENCODER_OPTIONS: { value: EncoderType; label: string; hardware: boolean }[] = getEncoderOptions();
 
-export const PRESET_OPTIONS: Record<string, string[]> = {
-  libx264: ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"],
-  hevc_nvenc: ["p1", "p2", "p3", "p4", "p5", "p6", "p7"],
-  libsvtav1: ["13", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1", "0"],
-};
+export const PRESET_OPTIONS: Record<string, string[]> = getPresetOptionsByEncoder();
 
 export const GUIDE_TIPS = {
   crf_x264: "Constant Rate Factor (0-51). Lower is better quality. Recommended: 18-22 for Archive, 23-24 for Balance.",

@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { DeepWritable, VideoConfig } from "@/types";
-import { ENCODER_OPTIONS, PRESET_OPTIONS } from "@/constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useI18n } from "vue-i18n";
+import {
+  applyEncoderChangePatch,
+  applyRateControlChangePatch,
+} from "@/lib/presetEditorContract/encoderCapabilityRegistry";
+import { usePresetVideoTabOptions } from "./usePresetVideoTabOptions";
 
 const props = defineProps<{
   video: VideoConfig;
@@ -55,6 +59,17 @@ const bRefModeLabel = computed(() => {
 const tuneLabel = computed(() => {
   return video.tune ? String(video.tune) : t("presetEditor.video.autoOption");
 });
+
+const {
+  toUnknownLabel,
+  encoderOptionsWithUnknown,
+  currentEncoderLabel,
+  rateControlOptionsForEncoder,
+  knownRateControlSet,
+  presetOptionsForEncoder,
+  knownPresetSet,
+  qualityRange,
+} = usePresetVideoTabOptions(video, t);
 </script>
 
 <template>
@@ -66,34 +81,22 @@ const tuneLabel = computed(() => {
         @update:model-value="
           (value) => {
             const next = value as VideoConfig['encoder'];
-            video.encoder = next;
-
-            if (next === 'hevc_nvenc') {
-              if (!['cq', 'vbr', 'cbr'].includes(video.rateControl)) {
-                video.rateControl = 'cq';
-              }
-            } else if (next === 'copy') {
-              video.bitrateKbps = undefined;
-              video.maxBitrateKbps = undefined;
-              video.bufferSizeKbits = undefined;
-              video.pass = undefined;
-            } else {
-              if (video.rateControl === 'cq') {
-                video.rateControl = 'crf';
-              }
-            }
+            Object.assign(video, applyEncoderChangePatch(video as VideoConfig, next));
           }
         "
       >
         <SelectTrigger class="h-9">
-          <SelectValue :placeholder="t('presetEditor.video.encoderPlaceholder')" />
+          <SelectValue>{{ currentEncoderLabel }}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="opt in ENCODER_OPTIONS" :key="opt.value" :value="opt.value">
+          <SelectItem v-for="opt in encoderOptionsWithUnknown" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </SelectItem>
         </SelectContent>
       </Select>
+      <p v-if="encoderOptionsWithUnknown[0]?.unknown" class="text-[10px] text-amber-400 mt-1">
+        {{ t("presetEditor.video.unknownValueWarning", { field: "encoder", value: String(video.encoder) }) }}
+      </p>
     </div>
 
     <div v-if="!props.isCopyEncoder" class="space-y-3">
@@ -103,8 +106,8 @@ const tuneLabel = computed(() => {
           <span class="text-primary font-bold text-xl">{{ video.qualityValue }}</span>
         </div>
         <Slider
-          :min="0"
-          :max="video.encoder === 'libsvtav1' ? 63 : 51"
+          :min="qualityRange.min"
+          :max="qualityRange.max"
           :step="1"
           :model-value="[video.qualityValue]"
           class="w-full"
@@ -121,7 +124,7 @@ const tuneLabel = computed(() => {
           <span v-if="video.encoder === 'libx264'">
             {{ t("presetEditor.tips.crf_x264") }}
           </span>
-          <span v-else-if="video.encoder === 'hevc_nvenc'">
+          <span v-else-if="isNvencEncoder">
             {{ t("presetEditor.tips.cq_nvenc") }}
           </span>
           <span v-else-if="video.encoder === 'libsvtav1'">
@@ -137,13 +140,8 @@ const tuneLabel = computed(() => {
             :model-value="video.rateControl"
             @update:model-value="
               (value) => {
-                video.rateControl = value as VideoConfig['rateControl'];
-                if (video.rateControl === 'crf' || video.rateControl === 'cq') {
-                  video.bitrateKbps = undefined;
-                  video.maxBitrateKbps = undefined;
-                  video.bufferSizeKbits = undefined;
-                  video.pass = undefined;
-                }
+                const next = value as VideoConfig['rateControl'];
+                Object.assign(video, applyRateControlChangePatch(next));
               }
             "
           >
@@ -151,12 +149,16 @@ const tuneLabel = computed(() => {
               <SelectValue>{{ rateControlModeLabel }}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem v-if="video.encoder !== 'hevc_nvenc'" value="crf"> CRF </SelectItem>
-              <SelectItem v-else value="cq"> CQ </SelectItem>
-              <SelectItem value="vbr"> VBR </SelectItem>
-              <SelectItem value="cbr"> CBR </SelectItem>
+              <SelectItem v-for="m in rateControlOptionsForEncoder" :key="m" :value="m">
+                {{ knownRateControlSet.has(m) ? String(m).toUpperCase() : toUnknownLabel(String(m).toUpperCase()) }}
+              </SelectItem>
             </SelectContent>
           </Select>
+          <p v-if="!knownRateControlSet.has(String(video.rateControl))" class="text-[10px] text-amber-400 mt-1">
+            {{
+              t("presetEditor.video.unknownValueWarning", { field: "rateControl", value: String(video.rateControl) })
+            }}
+          </p>
         </div>
 
         <div>
@@ -239,11 +241,17 @@ const tuneLabel = computed(() => {
             <SelectValue>{{ video.preset }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="p in PRESET_OPTIONS[video.encoder]" :key="p" :value="p">
-              {{ p }}
+            <SelectItem v-for="p in presetOptionsForEncoder" :key="p" :value="p">
+              {{ knownPresetSet.has(p) ? p : toUnknownLabel(p) }}
             </SelectItem>
           </SelectContent>
         </Select>
+        <p
+          v-if="video.encoder !== 'copy' && !knownPresetSet.has(String(video.preset))"
+          class="text-[10px] text-amber-400 mt-1"
+        >
+          {{ t("presetEditor.video.unknownValueWarning", { field: "preset", value: String(video.preset) }) }}
+        </p>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">

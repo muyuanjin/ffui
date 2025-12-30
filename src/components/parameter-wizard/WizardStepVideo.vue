@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed } from "vue";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import type { EncoderType, VideoConfig, Translate } from "@/types";
+import { getQualityRangeForEncoder } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 
 const { video, encoderOptions, presetOptions, rateControlLabel, isCopyEncoder, t } = defineProps<{
   video: VideoConfig;
@@ -17,6 +19,34 @@ const emit = defineEmits<{
   (e: "change-encoder", value: EncoderType): void;
   (e: "update-video", payload: Partial<VideoConfig>): void;
 }>();
+
+const encoderOptionsWithUnknown = computed(() => {
+  const current = String(video.encoder ?? "").trim();
+  if (!current) return encoderOptions;
+  if (encoderOptions.some((opt) => opt.value === current)) return encoderOptions;
+  return [
+    { value: current as EncoderType, label: t("presetEditor.video.unknownOption", { value: current }) },
+    ...encoderOptions,
+  ];
+});
+
+const currentEncoderLabel = computed(() => {
+  const current = String(video.encoder ?? "").trim();
+  const match = encoderOptionsWithUnknown.value.find((opt) => String(opt.value) === current);
+  return match?.label ?? (current ? t("presetEditor.video.unknownOption", { value: current }) : "");
+});
+
+const presetOptionsForEncoder = computed(() => {
+  const base = presetOptions[String(video.encoder ?? "")] ?? [];
+  const current = String(video.preset ?? "").trim();
+  if (!current || base.includes(current)) return base;
+  return [current, ...base];
+});
+
+const knownPresetSet = computed(() => new Set(presetOptions[String(video.encoder ?? "")] ?? []));
+const isUnknownPreset = (value: string) => value && !knownPresetSet.value.has(value);
+
+const qualityRange = computed(() => getQualityRangeForEncoder(video.encoder));
 </script>
 
 <template>
@@ -28,10 +58,10 @@ const emit = defineEmits<{
         @update:model-value="(value) => emit('change-encoder', value as EncoderType)"
       >
         <SelectTrigger>
-          <SelectValue :placeholder="t('presetEditor.video.encoderPlaceholder')" />
+          <SelectValue>{{ currentEncoderLabel }}</SelectValue>
         </SelectTrigger>
         <SelectContent>
-          <SelectItem v-for="opt in encoderOptions" :key="opt.value" :value="opt.value">
+          <SelectItem v-for="opt in encoderOptionsWithUnknown" :key="opt.value" :value="opt.value">
             {{ opt.label }}
           </SelectItem>
         </SelectContent>
@@ -52,8 +82,8 @@ const emit = defineEmits<{
           </span>
         </div>
         <Slider
-          :min="0"
-          :max="video.encoder === 'libsvtav1' ? 63 : 51"
+          :min="qualityRange.min"
+          :max="qualityRange.max"
           :step="1"
           :model-value="[video.qualityValue]"
           class="mt-3"
@@ -90,8 +120,8 @@ const emit = defineEmits<{
             <SelectValue>{{ video.preset }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem v-for="p in presetOptions[video.encoder]" :key="p" :value="p">
-              {{ p }}
+            <SelectItem v-for="p in presetOptionsForEncoder" :key="p" :value="p">
+              {{ isUnknownPreset(p) ? t("presetEditor.video.unknownOption", { value: p }) : p }}
             </SelectItem>
           </SelectContent>
         </Select>

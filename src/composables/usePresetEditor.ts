@@ -18,6 +18,8 @@ import {
   getFfmpegCommandPreview,
 } from "@/lib/ffmpegCommand";
 import type { HighlightToken } from "@/lib/highlightTokens";
+import { normalizeVideoForSave } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
+import { normalizePreset } from "@/lib/presetEditorContract/presetDerivation";
 
 // ----- Types -----
 
@@ -93,7 +95,8 @@ export interface UsePresetEditorReturn {
  * Manages form state, command preview, and template parsing.
  */
 export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEditorReturn {
-  const { initialPreset, t } = options;
+  const { initialPreset: rawInitialPreset, t } = options;
+  const initialPreset = normalizePreset(rawInitialPreset).preset;
 
   // ----- State -----
   const name = ref(initialPreset.name);
@@ -119,7 +122,8 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
   const isCopyEncoder = computed(() => video.encoder === "copy");
 
   const rateControlLabel = computed(() => {
-    if (video.encoder === "hevc_nvenc") {
+    const enc = String(video.encoder ?? "").toLowerCase();
+    if (enc.includes("nvenc") || enc.includes("_qsv") || enc.includes("_amf")) {
       return t?.("presetEditor.video.cqLabel") ?? "CQ";
     }
     return t?.("presetEditor.video.crfLabel") ?? "CRF";
@@ -181,20 +185,8 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
   };
 
   const buildPresetFromState = (): FFmpegPreset => {
-    const normalizedVideo: VideoConfig = { ...(video as VideoConfig) };
-    // 只在可以确定是 x264 专用取值时，才在非 x264 编码器上清理 tune，避免误删 NVENC/AV1 的 hq 等合法调优参数。
-    if (normalizedVideo.encoder !== "libx264") {
-      const rawTune = normalizedVideo.tune;
-      if (typeof rawTune === "string" && rawTune.trim().length > 0) {
-        const x264OnlyTunes = ["film", "animation", "grain", "stillimage", "psnr", "ssim", "fastdecode", "zerolatency"];
-        if (x264OnlyTunes.includes(rawTune)) {
-          delete normalizedVideo.tune;
-        }
-      } else if (rawTune === undefined) {
-        // 避免把 value 为 undefined 的 tune 透传给后端，保持结构简洁。
-        delete normalizedVideo.tune;
-      }
-    }
+    const normalizedVideo = normalizeVideoForSave({ ...(video as VideoConfig) });
+    if (normalizedVideo.tune === undefined) delete (normalizedVideo as any).tune;
 
     // 判断是否保留智能推荐标记：
     // - 如果原始预设是智能预设且参数未被修改，保留标记 (true)
