@@ -1,5 +1,6 @@
 import type { VueWrapper } from "@vue/test-utils";
 import { isRef } from "vue";
+import MainAppImpl from "@/MainApp.impl.vue";
 
 type AnyRecord = Record<PropertyKey, any>;
 
@@ -41,8 +42,12 @@ function canResolveFromContainer(container: AnyRecord | null | undefined, prop: 
  */
 export function withMainAppVmCompat<T extends VueWrapper<any>>(wrapper: T) {
   const rawVm: AnyRecord = wrapper.vm as any;
+  const resolvedVm: AnyRecord =
+    rawVm && typeof rawVm === "object" && "setup" in rawVm
+      ? rawVm
+      : ((wrapper.findComponent(MainAppImpl as any).vm as any) ?? rawVm);
 
-  return new Proxy(rawVm, {
+  return new Proxy(resolvedVm, {
     get(target, prop, receiver) {
       if (typeof prop === "symbol") return Reflect.get(target, prop, receiver);
 
