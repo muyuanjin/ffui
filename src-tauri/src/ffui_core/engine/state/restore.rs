@@ -160,7 +160,6 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
         let mut state = inner.state.lock_unpoisoned();
 
         for mut job in snapshot.jobs {
-            job.ensure_run_history_from_legacy();
             let id = job.id.clone();
             let processing_on_auto_wait_exit = auto_wait_processing_ids.contains(&id);
 

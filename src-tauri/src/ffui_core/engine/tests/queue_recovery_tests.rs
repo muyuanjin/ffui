@@ -117,9 +117,14 @@ fn crash_recovery_disabled_persists_resumable_jobs_for_forced_kill_recovery() {
     );
 
     let raw = std::fs::read_to_string(&sidecar_path).expect("read persisted snapshot");
-    let parsed: crate::ffui_core::QueueStateLite =
-        serde_json::from_str(&raw).expect("persisted snapshot should be lite schema");
-    let ids: Vec<String> = parsed.jobs.into_iter().map(|j| j.id).collect();
+    let parsed: serde_json::Value =
+        serde_json::from_str(&raw).expect("persisted snapshot should be readable JSON");
+    let ids: Vec<String> = parsed["jobs"]
+        .as_array()
+        .expect("persisted snapshot should contain jobs array")
+        .iter()
+        .filter_map(|job| job["id"].as_str().map(ToString::to_string))
+        .collect();
     assert!(
         ids.contains(&paused.id),
         "paused job should be persisted in none mode"

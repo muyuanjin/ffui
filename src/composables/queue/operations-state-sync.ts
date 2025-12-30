@@ -59,15 +59,6 @@ const shallowEqualRecord = (a: Record<string, unknown>, b: Record<string, unknow
 
 const JOB_KEYS_OPTIONALLY_OMITTED_BY_BACKEND = ["outputPolicy", "runs", "warnings", "previewRevision"] as const;
 
-const normalizeLegacyJobStatuses = (jobs: TranscodeJob[]) => {
-  for (const job of jobs) {
-    const status = (job as unknown as { status?: unknown }).status;
-    if (status === "waiting") {
-      (job as unknown as { status: unknown }).status = "queued";
-    }
-  }
-};
-
 const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
 const jobIndexCacheByJobsRef = new WeakMap<object, { array: TranscodeJob[]; byId: Map<string, TranscodeJob> }>();
 const deltaOrderCacheByJobsRef = new WeakMap<object, { baseSnapshotRevision: number; deltaRevision: number }>();
@@ -300,7 +291,6 @@ export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, d
     }
 
     const backendJobs = state.jobs ?? [];
-    normalizeLegacyJobStatuses(backendJobs);
 
     if (!firstQueueStateLiteApplied) {
       firstQueueStateLiteApplied = true;

@@ -201,6 +201,14 @@ fn load_persisted_queue_state_accepts_lite_schema() {
         "lite persistence must load into full QueueState with empty logs"
     );
 
+    let rewritten = fs::read_to_string(&tmp).expect("read migrated state");
+    assert!(
+        rewritten.contains(r#""version":1"#),
+        "expected migrated snapshot to use versioned JobRecord format"
+    );
+    assert!(rewritten.contains(r#""config":{"#));
+    assert!(rewritten.contains(r#""runtime":{"#));
+
     let _ = fs::remove_file(tmp);
 }
 
@@ -223,6 +231,10 @@ fn load_persisted_queue_state_migrates_legacy_waiting_status_to_queued() {
 
     let rewritten = fs::read_to_string(&tmp).expect("read migrated state");
     assert!(
+        rewritten.contains(r#""version":1"#),
+        "expected migrated snapshot to use versioned JobRecord format"
+    );
+    assert!(
         rewritten.contains(r#""status":"queued""#),
         "expected migrated snapshot to write queued status"
     );
@@ -230,6 +242,34 @@ fn load_persisted_queue_state_migrates_legacy_waiting_status_to_queued() {
         !rewritten.contains(r#""status":"waiting""#),
         "expected migrated snapshot to remove waiting status"
     );
+
+    let _ = fs::remove_file(tmp);
+}
+
+#[test]
+fn load_persisted_queue_state_backfills_first_run_command_from_ffmpeg_command() {
+    let _guard = lock_persist_test_mutex_for_tests();
+
+    let tmp = std::env::temp_dir().join(format!(
+        "ffui-test-queue-state-load-legacy-first-run-{}.json",
+        std::process::id()
+    ));
+    let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
+
+    let legacy = br#"{"snapshotRevision":0,"jobs":[{"id":"job-1","filename":"C:/videos/legacy.mp4","type":"video","source":"manual","originalSizeMB":1.0,"presetId":"preset-1","status":"paused","progress":10,"ffmpegCommand":"ffmpeg -i in.mp4 out.mp4"}]}"#;
+    fs::write(&tmp, legacy).expect("write persisted legacy lite state");
+
+    let loaded = load_persisted_queue_state().expect("expected to load persisted legacy state");
+    assert_eq!(loaded.jobs.len(), 1);
+    assert!(
+        !loaded.jobs[0].runs.is_empty(),
+        "expected legacy persisted job to synthesize run history from ffmpegCommand"
+    );
+    assert_eq!(loaded.jobs[0].runs[0].command, "ffmpeg -i in.mp4 out.mp4");
+
+    let rewritten = fs::read_to_string(&tmp).expect("read migrated state");
+    assert!(rewritten.contains(r#""version":1"#));
+    assert!(rewritten.contains(r#""firstRunCommand":"ffmpeg -i in.mp4 out.mp4""#));
 
     let _ = fs::remove_file(tmp);
 }
