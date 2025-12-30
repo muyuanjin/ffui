@@ -289,6 +289,112 @@ mod domain_contract_tests {
     }
 
     #[test]
+    fn job_request_uses_enqueue_field_names() {
+        let request = JobRequest {
+            filename: "video.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            original_size_mb: 12.5,
+            original_codec: None,
+            preset_id: "preset-1".to_string(),
+        };
+
+        let value = serde_json::to_value(&request).expect("serialize JobRequest");
+        assert_eq!(
+            value
+                .get("filename")
+                .and_then(Value::as_str)
+                .expect("filename present"),
+            "video.mp4"
+        );
+        assert_eq!(
+            value.get("jobType").and_then(Value::as_str).unwrap(),
+            "video"
+        );
+        assert_eq!(
+            value
+                .get("originalSizeMb")
+                .and_then(Value::as_f64)
+                .expect("originalSizeMb present"),
+            12.5
+        );
+        assert!(value.get("originalSizeMB").is_none());
+        assert_eq!(
+            value.get("presetId").and_then(Value::as_str).unwrap(),
+            "preset-1"
+        );
+
+        let decoded: JobRequest =
+            serde_json::from_value(value).expect("deserialize JobRequest from canonical JSON");
+        assert_eq!(decoded.original_size_mb, 12.5);
+
+        let decoded_legacy: JobRequest = serde_json::from_value(json!({
+            "filename": "legacy.mp4",
+            "jobType": "video",
+            "source": "manual",
+            "originalSizeMB": 25.0,
+            "presetId": "preset-2",
+        }))
+        .expect("deserialize JobRequest from legacy originalSizeMB JSON");
+        assert_eq!(decoded_legacy.original_size_mb, 25.0);
+    }
+
+    #[test]
+    fn job_config_extracts_persistable_fields_only() {
+        let job = TranscodeJob {
+            id: "job-1".to_string(),
+            filename: "video.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: Some(1),
+            original_size_mb: 123.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Processing,
+            progress: 12.0,
+            start_time: Some(1),
+            end_time: None,
+            processing_started_ms: Some(10),
+            elapsed_ms: Some(123),
+            output_size_mb: None,
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: Some("C:/videos/input.mp4".to_string()),
+            created_time_ms: Some(111),
+            modified_time_ms: Some(222),
+            output_path: Some("C:/videos/output.mp4".to_string()),
+            output_policy: None,
+            ffmpeg_command: None,
+            runs: Vec::new(),
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            preview_revision: 0,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: Some("batch-1".to_string()),
+            wait_metadata: None,
+        };
+
+        let config = JobConfig::from(&job);
+        let value = serde_json::to_value(&config).expect("serialize JobConfig");
+
+        assert_eq!(value.get("type").and_then(Value::as_str).unwrap(), "video");
+        assert_eq!(
+            value.get("originalSizeMB").and_then(Value::as_f64).unwrap(),
+            123.0
+        );
+        assert!(value.get("originalSizeMb").is_none());
+
+        assert!(value.get("status").is_none());
+        assert!(value.get("progress").is_none());
+        assert!(value.get("logs").is_none());
+        assert!(value.get("runs").is_none());
+    }
+
+    #[test]
     fn transcode_job_can_upgrade_legacy_logs_into_run_history() {
         let legacy_json = json!({
             "id": "legacy-runs",

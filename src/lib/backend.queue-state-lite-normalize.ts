@@ -1,6 +1,6 @@
-import type { QueueStateLite } from "@/types/queue";
+import type { QueueStateUiLite } from "@/types/queue";
 
-export const normalizeQueueStateLiteWaitMetadata = (state: QueueStateLite): QueueStateLite => {
+export const normalizeQueueStateLiteWaitMetadata = (state: QueueStateUiLite): QueueStateUiLite => {
   for (const job of state.jobs ?? []) {
     const status = (job as unknown as { status?: unknown }).status;
     if (status === "waiting") {
@@ -10,7 +10,7 @@ export const normalizeQueueStateLiteWaitMetadata = (state: QueueStateLite): Queu
     const meta = job.waitMetadata;
     if (!meta) continue;
 
-    // QueueStateLite is a UI-facing snapshot. Crash-recovery internals such as
+    // QueueStateUiLite is a UI-facing snapshot. Crash-recovery internals such as
     // segment paths are intentionally excluded to keep startup payloads small
     // and avoid retaining large arrays in the renderer process.
     meta.segments = undefined;

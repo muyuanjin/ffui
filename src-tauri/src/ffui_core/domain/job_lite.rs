@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use super::job::{
-    JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo, QueueState, TranscodeJob,
-    WaitMetadata,
+    JobConfig, JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo, QueueState,
+    TranscodeJob, WaitMetadata,
 };
 use super::output_policy::OutputPolicy;
 
@@ -179,6 +179,7 @@ pub struct TranscodeJobLiteDeltaPatch {
 
 impl From<&TranscodeJob> for TranscodeJobLite {
     fn from(job: &TranscodeJob) -> Self {
+        let config = JobConfig::from(job);
         const LOG_HEAD_LINES: usize = 20;
         let log_head = if job.logs.is_empty() {
             None
@@ -198,13 +199,13 @@ impl From<&TranscodeJob> for TranscodeJobLite {
 
         Self {
             id: job.id.clone(),
-            filename: job.filename.clone(),
-            job_type: job.job_type,
-            source: job.source,
+            filename: config.filename,
+            job_type: config.job_type,
+            source: config.source,
             queue_order: job.queue_order,
-            original_size_mb: job.original_size_mb,
-            original_codec: job.original_codec.clone(),
-            preset_id: job.preset_id.clone(),
+            original_size_mb: config.original_size_mb,
+            original_codec: config.original_codec,
+            preset_id: config.preset_id,
             status: job.status,
             progress: job.progress,
             start_time: job.start_time,
@@ -212,11 +213,11 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             processing_started_ms: job.processing_started_ms,
             elapsed_ms: job.elapsed_ms,
             output_size_mb: job.output_size_mb,
-            input_path: job.input_path.clone(),
-            created_time_ms: job.created_time_ms,
-            modified_time_ms: job.modified_time_ms,
-            output_path: job.output_path.clone(),
-            output_policy: job.output_policy.clone(),
+            input_path: config.input_path,
+            created_time_ms: config.created_time_ms,
+            modified_time_ms: config.modified_time_ms,
+            output_path: config.output_path,
+            output_policy: config.output_policy,
             ffmpeg_command: job.ffmpeg_command.clone(),
             first_run_command,
             first_run_started_at_ms,
@@ -229,7 +230,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             log_head,
             failure_reason: job.failure_reason.clone(),
             warnings: job.warnings.clone(),
-            batch_id: job.batch_id.clone(),
+            batch_id: config.batch_id,
             wait_metadata: job.wait_metadata.clone(),
         }
     }
