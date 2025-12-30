@@ -39,6 +39,9 @@ dist-ssr
 
 # Duplicate-code reports (local)
 /.jscpd/
+
+# Tool caches (local)
+/.cache/
 /recovery/
 
 # Local backup scripts (developer-specific)
