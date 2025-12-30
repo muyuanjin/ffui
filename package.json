@@ -25,7 +25,7 @@
     "dup:frontend": "jscpd -c .jscpd.frontend.json src",
     "dup:rust": "jscpd -c .jscpd.backend.json src-tauri/src",
     "dup:all": "jscpd -c .jscpd.frontend.json src && jscpd -c .jscpd.backend.json src-tauri/src",
-    "lint": "eslint --max-warnings 0 .",
+    "lint": "eslint --max-warnings 0 --cache --cache-strategy content --cache-location .cache/eslint/.eslintcache .",
     "lint:fix": "eslint --fix .",
     "format": "prettier --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
     "format:check": "prettier --check . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check",
