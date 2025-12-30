@@ -249,7 +249,7 @@ updateSortableDisabled();
 
 <template>
   <div class="w-full overflow-x-hidden" data-testid="preset-panel">
-    <header class="shrink-0 border-b border-border bg-card/60 backdrop-blur" data-testid="preset-toolbar">
+    <header class="relative z-40 shrink-0 border-b border-border bg-card/60 backdrop-blur" data-testid="preset-toolbar">
       <div class="px-3 py-1.5 overflow-x-auto">
         <div class="flex items-center justify-between gap-3 min-w-max">
           <div class="flex items-center gap-2 min-w-0 shrink-0 text-xs text-muted-foreground">
