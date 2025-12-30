@@ -224,32 +224,68 @@ export interface TranscodeJob {
 }
 
 /**
- * Lightweight job snapshot used by `QueueStateLite`.
+ * UI-facing lightweight job snapshot.
  *
- * The backend intentionally omits heavyweight fields (full logs) on the hot
- * path to keep startup and high-frequency queue updates cheap, but it may
- * still carry bounded log head/tail snippets for crash recovery UX.
+ * This is intentionally a standalone type (not derived from `TranscodeJob`)
+ * so queue/read models can evolve without implicitly pulling in unrelated
+ * detail-only fields.
  */
-export type TranscodeJobLite = Omit<TranscodeJob, "logs" | "runs"> & {
-  /** Optional head snippet of logs (bounded) for crash recovery UX. */
-  logHead?: string[];
-};
+export interface TranscodeJobUiLite {
+  id: string;
+  filename: string;
+  type: JobType;
+  source: JobSource;
+  queueOrder?: number;
+  originalSizeMB: number;
+  originalCodec?: string;
+  presetId: string;
+  status: JobStatus;
+  waitRequestPending?: boolean;
+  progress: number;
+  startTime?: number;
+  endTime?: number;
+  processingStartedMs?: number;
+  elapsedMs?: number;
+  outputSizeMB?: number;
+  inputPath?: string;
+  createdTimeMs?: number;
+  modifiedTimeMs?: number;
+  outputPath?: string;
+  outputPolicy?: OutputPolicy;
+  ffmpegCommand?: string;
+  firstRunCommand?: string;
+  firstRunStartedAtMs?: number;
+  skipReason?: string;
+  mediaInfo?: MediaInfo;
+  estimatedSeconds?: number;
+  previewPath?: string;
+  previewRevision?: number;
+  logTail?: string;
+  failureReason?: string;
+  warnings?: JobWarning[];
+  batchId?: string;
+  waitMetadata?: WaitMetadata;
+}
+
+export type TranscodeJobLite = TranscodeJobUiLite;
 
 export interface QueueState {
   jobs: TranscodeJob[];
 }
 
 /**
- * Lightweight queue snapshot shape used by startup and high-frequency updates.
+ * UI-facing lightweight queue snapshot used by startup and high-frequency updates.
  *
  * Note: `QueueStateLite` intentionally does NOT include per-job `logs` so UI
  * code does not accidentally treat lite events as a source of full log history.
  */
-export interface QueueStateLite {
+export interface QueueStateUiLite {
   /** Monotonic snapshot revision for ordering / de-duping. */
   snapshotRevision?: number;
   jobs: TranscodeJobLite[];
 }
+
+export type QueueStateLite = QueueStateUiLite;
 
 export interface TranscodeJobLiteTelemetryDelta {
   progressEpoch?: number;

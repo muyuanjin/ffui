@@ -11,7 +11,7 @@ use tauri::State;
 use super::wait_for_queue_recovery;
 use crate::ffui_core::input_expand::expand_manual_job_inputs as expand_manual_job_inputs_impl;
 use crate::ffui_core::{
-    JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
+    JobRequest, JobSource, JobType, QueueStartupHint, QueueState, QueueStateUiLite, TranscodeJob,
     TranscodingEngine,
 };
 
@@ -156,14 +156,22 @@ pub async fn enqueue_transcode_job(
     preset_id: String,
 ) -> Result<TranscodeJob, String> {
     let engine = engine.inner().clone();
+    let request = JobRequest {
+        filename,
+        job_type,
+        source,
+        original_size_mb,
+        original_codec,
+        preset_id,
+    };
     tauri::async_runtime::spawn_blocking(move || {
         engine.enqueue_transcode_job(
-            filename,
-            job_type,
-            source,
-            original_size_mb,
-            original_codec,
-            preset_id,
+            request.filename,
+            request.job_type,
+            request.source,
+            request.original_size_mb,
+            request.original_codec,
+            request.preset_id,
         )
     })
     .await

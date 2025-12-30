@@ -42,11 +42,13 @@ export type {
   JobCompareOutput,
   JobCompareSources,
   TranscodeJob,
+  TranscodeJobUiLite,
   TranscodeJobLite,
   QueueState,
   // Lightweight queue snapshot shape used for startup and high-frequency updates.
   // Kept as a separate alias so existing imports remain valid while sharing the
   // same underlying structure as QueueState.
+  QueueStateUiLite,
   QueueStateLite,
   QueueStateLiteDelta,
   TranscodeJobLiteDeltaPatch,

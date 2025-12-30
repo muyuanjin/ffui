@@ -91,6 +91,53 @@ pub enum JobSource {
     BatchCompress,
 }
 
+/// Enqueue API payload for creating a new job.
+///
+/// This is intentionally separate from read models so enqueue/config inputs can
+/// evolve without inflating queue snapshots or job detail payloads.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobRequest {
+    pub filename: String,
+    #[serde(rename = "jobType")]
+    pub job_type: JobType,
+    pub source: JobSource,
+    #[serde(rename = "originalSizeMb", alias = "originalSizeMB")]
+    pub original_size_mb: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_codec: Option<String>,
+    pub preset_id: String,
+}
+
+/// Persistable job intent/config snapshot.
+///
+/// This intentionally excludes runtime-only state (progress, logs, etc.).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JobConfig {
+    pub filename: String,
+    #[serde(rename = "type")]
+    pub job_type: JobType,
+    pub source: JobSource,
+    #[serde(rename = "originalSizeMB", alias = "originalSizeMb")]
+    pub original_size_mb: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub original_codec: Option<String>,
+    pub preset_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_time_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modified_time_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_policy: Option<OutputPolicy>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaInfo {
@@ -231,6 +278,25 @@ pub struct TranscodeJob {
     /// core `TranscodeJob` shape stable while allowing future resume/crash-
     /// recovery strategies to evolve.
     pub wait_metadata: Option<WaitMetadata>,
+}
+
+impl From<&TranscodeJob> for JobConfig {
+    fn from(job: &TranscodeJob) -> Self {
+        Self {
+            filename: job.filename.clone(),
+            job_type: job.job_type,
+            source: job.source,
+            original_size_mb: job.original_size_mb,
+            original_codec: job.original_codec.clone(),
+            preset_id: job.preset_id.clone(),
+            input_path: job.input_path.clone(),
+            created_time_ms: job.created_time_ms,
+            modified_time_ms: job.modified_time_ms,
+            output_path: job.output_path.clone(),
+            output_policy: job.output_policy.clone(),
+            batch_id: job.batch_id.clone(),
+        }
+    }
 }
 
 impl TranscodeJob {
