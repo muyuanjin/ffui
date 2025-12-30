@@ -18,12 +18,15 @@ class ResizeObserverMock {
 
 (globalThis as any).ResizeObserver = (globalThis as any).ResizeObserver || ResizeObserverMock;
 
-const i18n = createI18n({
+// 注意：vue-i18n 的类型推导对大型 messages 对象会产生“Type instantiation is excessively deep”。
+// 在测试里使用宽松 schema，避免在类型检查阶段耗尽推导深度（vue-tsc 会检查测试文件）。
+const i18n = (createI18n as any)({
   legacy: false,
   locale: "en",
   // 使用真实的英文文案，避免测试过程中出现多条 i18n 缺失 key 的告警。
   messages: { en: en as any },
 });
+const t = (key: string) => String(i18n.global.t(key));
 
 const makeBasePreset = (): FFmpegPreset => ({
   id: "p-test",
@@ -48,6 +51,35 @@ const makeBasePreset = (): FFmpegPreset => ({
 });
 
 describe("UltimateParameterPanel", () => {
+  it("opens custom command presets on the command tab and disables structured tabs", () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      advancedEnabled: true,
+      ffmpegTemplate: "ffmpeg -hide_banner -i INPUT -c:v libx264 -crf 23 -c:a copy OUTPUT",
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.find("[data-testid='preset-command-template']").exists()).toBe(true);
+
+    const commandTabLabel = t("presetEditor.panel.commandTab");
+    const commandTabButton = wrapper.findAll("button").find((btn) => btn.text().includes(commandTabLabel));
+    expect(commandTabButton).toBeTruthy();
+    expect(commandTabButton!.attributes("disabled")).toBeUndefined();
+
+    const videoTabLabel = t("presetEditor.panel.videoTab");
+    const videoTabButton = wrapper.findAll("button").find((btn) => btn.text().includes(videoTabLabel));
+    expect(videoTabButton).toBeTruthy();
+    expect(videoTabButton!.attributes("disabled")).toBeDefined();
+  });
+
   it("renders a CRF-based preview command for a simple x264 preset", () => {
     const preset = makeBasePreset();
 

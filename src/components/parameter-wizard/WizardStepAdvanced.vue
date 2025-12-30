@@ -16,6 +16,8 @@ const {
   parseHint,
   parseHintClass,
   t,
+  showSummary = true,
+  showToggle = true,
 } = defineProps<{
   video: VideoConfig;
   audio: AudioConfig;
@@ -26,6 +28,8 @@ const {
   parseHint: string | null;
   parseHintClass: string;
   t: Translate;
+  showSummary?: boolean;
+  showToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +42,7 @@ const emit = defineEmits<{
 
 <template>
   <div class="space-y-6">
-    <div class="bg-muted/40 p-4 rounded-md border border-border/60">
+    <div v-if="showSummary" class="bg-muted/40 p-4 rounded-md border border-border/60">
       <h3 class="font-semibold mb-3 border-b border-border/60 pb-2">
         {{ t("presetEditor.summary.title") }}
       </h3>
@@ -84,7 +88,7 @@ const emit = defineEmits<{
             {{ t("presetEditor.advanced.customPresetHint") }}
           </p>
         </div>
-        <Label class="inline-flex items-center gap-2 text-xs text-muted-foreground">
+        <Label v-if="showToggle" class="inline-flex items-center gap-2 text-xs text-muted-foreground">
           <Checkbox
             :checked="advancedEnabled"
             @update:checked="(value) => emit('update-advanced-enabled', Boolean(value))"

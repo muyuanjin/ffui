@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import type { FFmpegPreset } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,9 +34,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const activeTab = ref<"global" | "input" | "mapping" | "video" | "audio" | "filters" | "container" | "hardware">(
-  "video",
+const initialCustomCommandPreset = Boolean(
+  props.initialPreset.advancedEnabled && (props.initialPreset.ffmpegTemplate ?? "").trim().length > 0,
 );
+const activeTab = ref<
+  "command" | "global" | "input" | "mapping" | "video" | "audio" | "filters" | "container" | "hardware"
+>(initialCustomCommandPreset ? "command" : "video");
 
 // Use preset editor composable
 const {
@@ -61,6 +64,11 @@ const {
   buildPresetFromState,
   handleParseTemplateFromCommand,
 } = usePresetEditor({ initialPreset: props.initialPreset, t });
+
+const isCustomCommandPreset = computed<boolean>(() => advancedEnabled.value && ffmpegTemplate.value.trim().length > 0);
+watch(isCustomCommandPreset, (isCustom) => {
+  if (isCustom) activeTab.value = "command";
+});
 
 // name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
 
@@ -131,28 +139,31 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
       <Tabs v-model="activeTab" class="flex-1 flex min-h-0">
         <div class="w-52 border-r border-border/60 bg-muted/40 p-4">
           <TabsList class="flex flex-col items-stretch gap-1 bg-transparent p-0">
-            <TabsTrigger value="global" class="justify-start w-full text-xs">
+            <TabsTrigger value="command" class="justify-start w-full text-xs">
+              {{ t("presetEditor.panel.commandTab") }}
+            </TabsTrigger>
+            <TabsTrigger value="global" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.globalTab") }}
             </TabsTrigger>
-            <TabsTrigger value="input" class="justify-start w-full text-xs">
+            <TabsTrigger value="input" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.inputTab") }}
             </TabsTrigger>
-            <TabsTrigger value="mapping" class="justify-start w-full text-xs">
+            <TabsTrigger value="mapping" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.mappingTab") }}
             </TabsTrigger>
-            <TabsTrigger value="video" class="justify-start w-full text-xs">
+            <TabsTrigger value="video" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.videoTab") }}
             </TabsTrigger>
-            <TabsTrigger value="audio" class="justify-start w-full text-xs">
+            <TabsTrigger value="audio" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.audioTab") }}
             </TabsTrigger>
-            <TabsTrigger value="filters" class="justify-start w-full text-xs">
+            <TabsTrigger value="filters" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.filtersTab") }}
             </TabsTrigger>
-            <TabsTrigger value="container" class="justify-start w-full text-xs">
+            <TabsTrigger value="container" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.containerTab") }}
             </TabsTrigger>
-            <TabsTrigger value="hardware" class="justify-start w-full text-xs">
+            <TabsTrigger value="hardware" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
               {{ t("presetEditor.panel.hardwareTab") }}
             </TabsTrigger>
           </TabsList>
@@ -160,6 +171,53 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
 
         <div class="flex-1 flex min-h-0">
           <div class="flex-1 p-6 overflow-y-auto space-y-4">
+            <TabsContent value="command" class="mt-0 space-y-4">
+              <div class="rounded-md border border-border/60 bg-muted/40 p-4 space-y-3">
+                <div class="flex items-start justify-between gap-4">
+                  <div class="min-w-0">
+                    <h3 class="text-sm font-semibold text-foreground">
+                      {{ t("presetEditor.advanced.title") }}
+                    </h3>
+                    <p class="text-xs text-muted-foreground mt-1">
+                      {{ t("presetEditor.advanced.description") }}
+                    </p>
+                    <p v-if="isCustomCommandPreset" class="text-xs text-amber-400 mt-2">
+                      {{ t("presetEditor.advanced.customPresetHint") }}
+                    </p>
+                  </div>
+                  <Label class="inline-flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                    <Checkbox v-model:checked="advancedEnabled" />
+                    <span>{{ t("presetEditor.advanced.enabledLabel") }}</span>
+                  </Label>
+                </div>
+
+                <div class="space-y-2">
+                  <Label class="text-xs">
+                    {{ t("presetEditor.advanced.templateLabel") }}
+                  </Label>
+                  <Textarea
+                    v-model="ffmpegTemplate"
+                    data-testid="preset-command-template"
+                    :placeholder="t('presetEditor.advanced.templatePlaceholder')"
+                    class="min-h-[160px] text-xs font-mono"
+                  />
+                  <div class="flex items-center justify-between gap-3">
+                    <p :class="parseHintClass" class="text-xs">
+                      {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                      @click="handleParseTemplateFromCommand"
+                    >
+                      {{ t("presetEditor.advanced.parseButton") }}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </TabsContent>
+
             <TabsContent value="global" class="mt-0 space-y-4">
               <PresetGlobalTab :global-config="globalConfig" />
             </TabsContent>
@@ -252,7 +310,7 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
             >
               {{ t("presetEditor.advanced.customPresetHint") }}
             </p>
-            <div class="space-y-1 mt-2 flex-shrink-0">
+            <div v-if="activeTab !== 'command'" class="space-y-1 mt-2 flex-shrink-0">
               <Label class="text-[11px]">
                 {{ t("presetEditor.advanced.templateLabel") }}
               </Label>
