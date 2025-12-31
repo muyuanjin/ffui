@@ -17,6 +17,7 @@ const makePreset = (): FFmpegPreset => ({
     totalInputSizeMB: 0,
     totalOutputSizeMB: 0,
     totalTimeSeconds: 0,
+    totalFrames: 0,
   },
 });
 
@@ -55,13 +56,14 @@ describe("useMainAppPresets stats aggregation", () => {
     const { updatePresetStats } = composable;
 
     const targetId = presets.value[0].id;
-    updatePresetStats(targetId, 100, 40, 20);
+    updatePresetStats(targetId, 100, 40, 20, 600);
 
     const updated = presets.value[0];
     expect(updated.stats.usageCount).toBe(1);
     expect(updated.stats.totalInputSizeMB).toBeCloseTo(100);
     expect(updated.stats.totalOutputSizeMB).toBeCloseTo(40);
     expect(updated.stats.totalTimeSeconds).toBeCloseTo(20);
+    expect(updated.stats.totalFrames ?? 0).toBeCloseTo(600);
     wrapper.unmount();
   });
 });

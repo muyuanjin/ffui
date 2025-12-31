@@ -44,6 +44,7 @@ const fn zero_stats() -> PresetStats {
         total_input_size_mb: 0.0,
         total_output_size_mb: 0.0,
         total_time_seconds: 0.0,
+        total_frames: 0.0,
     }
 }
 
@@ -159,6 +160,7 @@ mod tests {
                 total_input_size_mb: 12.5,
                 total_output_size_mb: 3.5,
                 total_time_seconds: 42.0,
+                total_frames: 0.0,
             },
             advanced_enabled: Some(false),
             ffmpeg_template: None,
@@ -188,6 +190,7 @@ mod tests {
         assert!(preset.stats.total_input_size_mb.abs() < f64::EPSILON);
         assert!(preset.stats.total_output_size_mb.abs() < f64::EPSILON);
         assert!(preset.stats.total_time_seconds.abs() < f64::EPSILON);
+        assert!(preset.stats.total_frames.abs() < f64::EPSILON);
     }
 
     #[test]

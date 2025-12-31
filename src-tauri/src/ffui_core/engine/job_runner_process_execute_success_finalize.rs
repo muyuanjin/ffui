@@ -28,6 +28,7 @@ fn finalize_successful_transcode_job(
     let mut final_output_path = output_path.to_path_buf();
 
     let mut presets_to_persist: Option<std::sync::Arc<Vec<_>>> = None;
+    let mut frames_processed: f64 = 0.0;
     {
         let mut state = inner.state.lock_unpoisoned();
 
@@ -79,6 +80,28 @@ fn finalize_successful_transcode_job(
             if original_size_bytes > 0 && final_output_size_bytes > 0 {
                 job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
             }
+
+            if matches!(job.job_type, crate::ffui_core::domain::JobType::Video) {
+                if let Some(frame) = job
+                    .wait_metadata
+                    .as_ref()
+                    .and_then(|meta| meta.last_progress_frame)
+                    && frame > 0
+                {
+                    frames_processed = frame as f64;
+                }
+
+                if frames_processed <= 0.0
+                    && let Some(info) = job.media_info.as_ref()
+                    && let (Some(duration), Some(frame_rate)) =
+                        (info.duration_seconds, info.frame_rate)
+                    && duration > 0.0
+                    && frame_rate > 0.0
+                {
+                    frames_processed = duration * frame_rate;
+                }
+            }
+
             job.wait_metadata = None;
 
             if let Some((input_path_buf, output_path_buf)) = replace_plan {
@@ -109,6 +132,9 @@ fn finalize_successful_transcode_job(
                 preset.stats.total_input_size_mb += input_mb;
                 preset.stats.total_output_size_mb += output_mb;
                 preset.stats.total_time_seconds += elapsed;
+                if frames_processed > 0.0 {
+                    preset.stats.total_frames += frames_processed;
+                }
             }
             presets_to_persist = Some(state.presets.clone());
         }

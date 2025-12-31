@@ -13,6 +13,7 @@ export const INITIAL_PRESETS: FFmpegPreset[] = [
       totalInputSizeMB: 0,
       totalOutputSizeMB: 0,
       totalTimeSeconds: 0,
+      totalFrames: 0,
     },
   },
   {
@@ -27,6 +28,7 @@ export const INITIAL_PRESETS: FFmpegPreset[] = [
       totalInputSizeMB: 0,
       totalOutputSizeMB: 0,
       totalTimeSeconds: 0,
+      totalFrames: 0,
     },
   },
 ];

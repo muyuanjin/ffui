@@ -46,6 +46,20 @@ export interface InputTimelineConfig {
   /** Raw time expression for `-ss`, e.g. `00:01:23.000` or `90`. */
   seekPosition?: string;
   /**
+   * Loop the input stream N times via `-stream_loop`.
+   * - 0 means no loop
+   * - -1 means infinite loop
+   * - N>0 means loop N times
+   */
+  streamLoop?: number;
+  /**
+   * Input timestamp offset applied via `-itsoffset` (time duration syntax).
+   * Positive delays streams; negative advances them.
+   *
+   * This option must appear before `-i` to affect the input.
+   */
+  inputTimeOffset?: string;
+  /**
    * Whether to express clipping by duration (`-t`) or absolute end time (`-to`).
    * Undefined means no explicit clip limit.
    */
@@ -62,6 +76,23 @@ export interface MappingConfig {
    * in the generated ffmpeg command.
    */
   maps?: string[];
+  /**
+   * Control chapter copying via `-map_chapters`.
+   * - undefined: ffmpeg default behaviour (copy from first input that has chapters)
+   * - -1: disable any chapter copying
+   * - >=0: copy chapters from the specified input file index
+   */
+  mapChaptersFromInputFileIndex?: number;
+  /**
+   * Control metadata copying via `-map_metadata`.
+   * - undefined: ffmpeg default behaviour (auto copy globals + per-stream/per-chapter)
+   * - -1: disable automatic metadata copying
+   * - >=0: copy global metadata from the specified input file index
+   *
+   * Note: advanced per-stream/per-chapter specifiers like `-map_metadata:s:a 0:g`
+   * are not yet represented in structured mode.
+   */
+  mapMetadataFromInputFileIndex?: number;
   /** Raw `-metadata` key/value pairs expressed as `key=value` strings. */
   metadata?: string[];
   /** Raw `-disposition` arguments, e.g. `0:v:0 default`. */
@@ -197,6 +228,7 @@ export interface PresetStats {
   totalInputSizeMB: number;
   totalOutputSizeMB: number;
   totalTimeSeconds: number;
+  totalFrames?: number;
 }
 
 export interface FFmpegPreset {

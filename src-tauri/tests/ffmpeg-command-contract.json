@@ -344,6 +344,64 @@
       "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -i INPUT -map 0 -c:v hevc_nvenc -rc constqp -qp 19 -preset p7 -tune hq -g 120 -bf 3 -pix_fmt yuv420p10le -b_ref_mode each -rc-lookahead 32 -spatial-aq 1 -temporal-aq 1 -c:a copy OUTPUT"
     },
     {
+      "id": "hevc-amf-qp28-balanced",
+      "preset": {
+        "id": "contract-hevc-amf-qp28-balanced",
+        "name": "Contract HEVC AMF QP28 Balanced",
+        "description": "HEVC AMF QP28 preset balanced used for TS/Rust command contract tests.",
+        "global": null,
+        "input": null,
+        "mapping": null,
+        "video": {
+          "encoder": "hevc_amf",
+          "rateControl": "cq",
+          "qualityValue": 28,
+          "preset": "balanced",
+          "tune": null,
+          "profile": null,
+          "bitrateKbps": null,
+          "maxBitrateKbps": null,
+          "bufferSizeKbits": null,
+          "pass": null,
+          "level": null,
+          "gopSize": null,
+          "bf": null,
+          "pixFmt": null
+        },
+        "audio": {
+          "codec": "copy",
+          "bitrate": null,
+          "sampleRateHz": null,
+          "channels": null,
+          "channelLayout": null,
+          "loudnessProfile": "none",
+          "targetLufs": null,
+          "loudnessRange": null,
+          "truePeakDb": null
+        },
+        "filters": {
+          "scale": null,
+          "crop": null,
+          "fps": null,
+          "vfChain": null,
+          "afChain": null,
+          "filterComplex": null
+        },
+        "subtitles": null,
+        "container": null,
+        "hardware": null,
+        "stats": {
+          "usageCount": 0,
+          "totalInputSizeMB": 0,
+          "totalOutputSizeMB": 0,
+          "totalTimeSeconds": 0
+        },
+        "advancedEnabled": false,
+        "ffmpegTemplate": null
+      },
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -i INPUT -map 0 -c:v hevc_amf -qp_i 28 -qp_p 28 -preset balanced -c:a copy OUTPUT"
+    },
+    {
       "id": "stream-copy-remux",
       "preset": {
         "id": "contract-stream-copy-remux",

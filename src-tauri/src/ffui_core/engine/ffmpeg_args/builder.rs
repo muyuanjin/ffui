@@ -191,13 +191,21 @@ pub(crate) fn build_ffmpeg_args(
                     args.push(preset.video.quality_value.to_string());
                 }
                 RateControlMode::Cq => {
-                    let arg = if matches!(enc, EncoderType::HevcQsv | EncoderType::Av1Qsv) {
-                        "-global_quality"
+                    if matches!(enc, EncoderType::HevcAmf | EncoderType::Av1Amf) {
+                        // AMF uses QP fields rather than CQ/global_quality in ffmpeg.
+                        args.push("-qp_i".to_string());
+                        args.push(preset.video.quality_value.to_string());
+                        args.push("-qp_p".to_string());
+                        args.push(preset.video.quality_value.to_string());
                     } else {
-                        "-cq"
-                    };
-                    args.push(arg.to_string());
-                    args.push(preset.video.quality_value.to_string());
+                        let arg = if matches!(enc, EncoderType::HevcQsv | EncoderType::Av1Qsv) {
+                            "-global_quality"
+                        } else {
+                            "-cq"
+                        };
+                        args.push(arg.to_string());
+                        args.push(preset.video.quality_value.to_string());
+                    }
                 }
                 RateControlMode::Cbr | RateControlMode::Vbr => {
                     if let Some(bitrate) = preset.video.bitrate_kbps {

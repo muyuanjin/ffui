@@ -76,5 +76,7 @@ mod queue_segment_cleanup;
 mod queue_selection_input_lock;
 mod queue_wait_and_restart;
 mod queue_worker_handoff;
+mod settings_migration_startup;
+mod settings_onboarding_inference;
 mod tools_download_metadata;
 mod transcode_activity_tests;

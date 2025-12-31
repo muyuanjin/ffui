@@ -108,6 +108,12 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
   }
 
   // Input-level options that must appear before the first `-i`.
+  if (timeline && typeof timeline.streamLoop === "number" && Number.isFinite(timeline.streamLoop)) {
+    args.push("-stream_loop", String(timeline.streamLoop));
+  }
+  if (timeline && typeof timeline.inputTimeOffset === "string" && timeline.inputTimeOffset.trim().length > 0) {
+    args.push("-itsoffset", timeline.inputTimeOffset.trim());
+  }
   if (timeline && timeline.seekMode === "input" && timeline.seekPosition) {
     args.push("-ss", timeline.seekPosition);
     if (timeline.accurateSeek) {
@@ -145,6 +151,18 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
           args.push("-map", trimmed);
         }
       }
+    }
+    if (
+      typeof mapping.mapMetadataFromInputFileIndex === "number" &&
+      Number.isFinite(mapping.mapMetadataFromInputFileIndex)
+    ) {
+      args.push("-map_metadata", String(mapping.mapMetadataFromInputFileIndex));
+    }
+    if (
+      typeof mapping.mapChaptersFromInputFileIndex === "number" &&
+      Number.isFinite(mapping.mapChaptersFromInputFileIndex)
+    ) {
+      args.push("-map_chapters", String(mapping.mapChaptersFromInputFileIndex));
     }
     if (Array.isArray(mapping.dispositions)) {
       for (const d of mapping.dispositions) {
@@ -184,7 +202,14 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
       if (v.rateControl === "crf") {
         args.push("-crf", String(v.qualityValue));
       } else {
-        args.push(getCqArgumentForEncoder(v.encoder), String(v.qualityValue));
+        const encLower = String(v.encoder ?? "").toLowerCase();
+        // AMF uses QP fields rather than CQ/global_quality in ffmpeg.
+        if (encLower.includes("_amf")) {
+          args.push("-qp_i", String(v.qualityValue));
+          args.push("-qp_p", String(v.qualityValue));
+        } else {
+          args.push(getCqArgumentForEncoder(v.encoder), String(v.qualityValue));
+        }
       }
     } else if (v.rateControl === "cbr" || v.rateControl === "vbr") {
       if (typeof v.bitrateKbps === "number" && v.bitrateKbps > 0) {
