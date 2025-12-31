@@ -100,8 +100,15 @@ pub fn load_settings() -> Result<AppSettings> {
     let normalized = normalize_settings(settings);
 
     if needs_rewrite {
-        write_json_file(&path, &encode_settings_file_v1(normalized.clone()))
-            .with_context(|| format!("failed to rewrite settings file {}", path.display()))?;
+        // Best-effort migration: the app must not lose the user's settings just
+        // because rewriting the legacy file fails (e.g. due to transient file
+        // locks, permissions, or unusual filesystem conditions).
+        if let Err(err) = write_json_file(&path, &encode_settings_file_v1(normalized.clone())) {
+            crate::debug_eprintln!(
+                "failed to rewrite settings file {}: {err:#}",
+                path.display()
+            );
+        }
     }
 
     Ok(normalized)

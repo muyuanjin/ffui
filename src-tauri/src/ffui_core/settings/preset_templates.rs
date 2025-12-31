@@ -9,6 +9,7 @@ pub(super) const fn empty_stats() -> PresetStats {
         total_input_size_mb: 0.0,
         total_output_size_mb: 0.0,
         total_time_seconds: 0.0,
+        total_frames: 0.0,
     }
 }
 

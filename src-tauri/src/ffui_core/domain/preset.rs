@@ -19,6 +19,8 @@ pub struct PresetStats {
     #[serde(rename = "totalOutputSizeMB", alias = "totalOutputSizeMb")]
     pub total_output_size_mb: f64,
     pub total_time_seconds: f64,
+    #[serde(default)]
+    pub total_frames: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -438,6 +438,7 @@ mod domain_contract_tests {
             total_input_size_mb: 100.0,
             total_output_size_mb: 50.0,
             total_time_seconds: 10.0,
+            total_frames: 1234.0,
         };
 
         let value = serde_json::to_value(&stats).expect("serialize PresetStats");
@@ -459,6 +460,11 @@ mod domain_contract_tests {
         );
         assert!(value.get("totalOutputSizeMb").is_none());
 
+        assert_eq!(
+            value.get("totalFrames").and_then(Value::as_f64).unwrap(),
+            1234.0
+        );
+
         let legacy_json = json!({
             "usageCount": 2,
             "totalInputSizeMb": 200.0,
@@ -471,6 +477,7 @@ mod domain_contract_tests {
         assert_eq!(decoded.total_output_size_mb, 80.0);
         assert_eq!(decoded.usage_count, 2);
         assert_eq!(decoded.total_time_seconds, 20.0);
+        assert!(decoded.total_frames.abs() < f64::EPSILON);
     }
 
     #[test]

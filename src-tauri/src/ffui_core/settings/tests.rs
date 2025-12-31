@@ -297,6 +297,41 @@ fn load_settings_migrates_legacy_wrapper_without_version_to_versioned_envelope()
 }
 
 #[test]
+fn load_settings_keeps_loaded_settings_when_rewrite_fails() {
+    use std::fs;
+
+    let data_dir = tempdir().expect("temp data dir");
+    let _guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_dir.path().to_path_buf(),
+    );
+    let path = crate::ffui_core::data_root::settings_path().expect("settings path");
+
+    // Legacy unversioned settings that require a rewrite/migration on read.
+    let legacy = json!({
+        "locale": "  en  ",
+        "onboardingCompleted": true
+    });
+    fs::write(&path, legacy.to_string()).expect("write legacy settings");
+
+    // Force the atomic temp file creation to fail by pre-creating a directory at
+    // the tmp path. This simulates unusual filesystem conditions without
+    // relying on platform-specific permission bits.
+    let tmp_path = path.with_extension("tmp");
+    fs::create_dir_all(&tmp_path).expect("create tmp path as directory");
+
+    let loaded = load_settings().expect("load_settings should not fail if rewrite fails");
+    assert_eq!(
+        loaded.locale.as_deref(),
+        Some("en"),
+        "settings must still load and normalize even if rewrite fails"
+    );
+    assert!(
+        loaded.onboarding_completed,
+        "settings must preserve onboardingCompleted even if rewrite fails"
+    );
+}
+
+#[test]
 fn app_settings_deserializes_missing_preview_capture_percent_with_default() {
     // Simulate legacy JSON without the new previewCapturePercent field.
     let legacy = json!({

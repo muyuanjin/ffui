@@ -59,6 +59,7 @@ fn make_test_preset(keep_subtitles: bool) -> FFmpegPreset {
             total_input_size_mb: 0.0,
             total_output_size_mb: 0.0,
             total_time_seconds: 0.0,
+            total_frames: 0.0,
         },
         advanced_enabled: Some(false),
         ffmpeg_template: None,

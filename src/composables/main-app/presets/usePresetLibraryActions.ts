@@ -12,6 +12,7 @@ import {
 } from "@/lib/backend";
 import { getPresetCommandPreview, normalizeFfmpegTemplate } from "@/lib/ffmpegCommand";
 import type { FFmpegPreset } from "@/types";
+import { makeZeroPresetStats } from "@/lib/presetStats";
 import { quarantinePresetIfInvalid } from "@/lib/presetEditorContract/presetValidator";
 import type { UseMainAppShellReturn } from "../useMainAppShell";
 
@@ -36,13 +37,6 @@ export interface PresetLibraryActionsReturn {
   exportSelectedPresetsTemplateCommandsToClipboard: (presetIdsInDisplayOrder: string[]) => Promise<void>;
   exportPresetToFile: (preset: FFmpegPreset) => Promise<void>;
 }
-
-const makeZeroStats = (): FFmpegPreset["stats"] => ({
-  usageCount: 0,
-  totalInputSizeMB: 0,
-  totalOutputSizeMB: 0,
-  totalTimeSeconds: 0,
-});
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null;
@@ -174,7 +168,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       ...sourcePreset,
       id: generateUniquePresetId(existingIds),
       name: generateCopyName(sourcePreset.name, existingNames, locale.value),
-      stats: makeZeroStats(),
+      stats: { ...sourcePreset.stats },
       isSmartPreset: false,
     };
 
@@ -218,7 +212,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
         ...validated.preset,
         id: newId,
         name: newName,
-        stats: makeZeroStats(),
+        stats: makeZeroPresetStats(),
         isSmartPreset: false,
       });
     }
@@ -315,7 +309,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       .filter((preset) => selected.has(preset.id))
       .map((preset) => ({
         ...preset,
-        stats: makeZeroStats(),
+        stats: makeZeroPresetStats(),
       }));
     if (presetsToExport.length === 0) return;
 

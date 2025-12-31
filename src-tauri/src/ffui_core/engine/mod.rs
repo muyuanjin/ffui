@@ -70,7 +70,23 @@ impl TranscodingEngine {
         let _guard = test_mutex::ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
-        let settings = settings::load_settings().unwrap_or_default();
+        let mut settings = match settings::load_settings() {
+            Ok(settings) => settings,
+            Err(err) => {
+                crate::debug_eprintln!("failed to load settings: {err:#}");
+                AppSettings::default()
+            }
+        };
+        if !settings.onboarding_completed
+            && presets
+                .iter()
+                .any(|p| matches!(p.is_smart_preset, Some(true)))
+        {
+            settings.onboarding_completed = true;
+            if let Err(err) = settings::save_settings(&settings) {
+                crate::debug_eprintln!("failed to persist onboardingCompleted marker: {err:#}");
+            }
+        }
         crate::ffui_core::network_proxy::apply_settings(settings.network_proxy.as_ref());
         hydrate_last_tool_download_from_settings(&settings.tools);
         hydrate_remote_version_cache_from_settings(&settings.tools);

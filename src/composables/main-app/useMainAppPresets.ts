@@ -11,7 +11,7 @@ import {
   expandManualJobInputs,
 } from "@/lib/backend";
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
-import { applyPresetStatsDelta, getPresetStatsDeltaFromJob } from "@/lib/presetStats";
+import { applyPresetStatsDelta, getPresetStatsDeltaFromJob, makeZeroPresetStats } from "@/lib/presetStats";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -45,7 +45,7 @@ export interface UseMainAppPresetsReturn extends PresetLibraryActionsReturn {
     options?: { replaceExisting?: boolean },
   ) => Promise<void>;
   reloadPresets: () => Promise<void>;
-  updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
+  updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
   requestDeletePreset: (preset: FFmpegPreset) => void;
   confirmDeletePreset: () => Promise<void>;
@@ -86,14 +86,46 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     shell,
   });
 
-  const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
-    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds);
+  const stableStringify = (value: unknown): string => {
+    if (value === null) return "null";
+    const t = typeof value;
+    if (t === "string" || t === "number" || t === "boolean") return JSON.stringify(value);
+    if (t !== "object") return JSON.stringify(null);
+    if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+    const record = value as Record<string, unknown>;
+    const keys = Object.keys(record).sort((a, b) => a.localeCompare(b));
+    const body = keys.map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`).join(",");
+    return `{${body}}`;
+  };
+
+  const transcodeConfigSignature = (preset: FFmpegPreset): string => {
+    return stableStringify({
+      global: preset.global ?? null,
+      input: preset.input ?? null,
+      mapping: preset.mapping ?? null,
+      video: preset.video ?? null,
+      audio: preset.audio ?? null,
+      filters: preset.filters ?? null,
+      subtitles: preset.subtitles ?? null,
+      container: preset.container ?? null,
+      hardware: preset.hardware ?? null,
+      advancedEnabled: preset.advancedEnabled ?? false,
+      ffmpegTemplate: preset.ffmpegTemplate ?? null,
+    });
+  };
+
+  const shouldResetPresetStats = (prev: FFmpegPreset, next: FFmpegPreset): boolean => {
+    return transcodeConfigSignature(prev) !== transcodeConfigSignature(next);
+  };
+
+  const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => {
+    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds, frames);
   };
 
   const applyLocalStatsUpdateFromJob = (job: TranscodeJob) => {
     const delta = getPresetStatsDeltaFromJob(job);
     if (!delta) return;
-    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds);
+    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds, delta.frames);
   };
 
   const handleCompletedJobFromBackend = (job: TranscodeJob) => {
@@ -137,10 +169,18 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
 
   const handleSavePreset = async (preset: FFmpegPreset) => {
     const idx = presets.value.findIndex((p) => p.id === preset.id);
+    const existing = idx >= 0 ? presets.value[idx] : null;
+    const nextStats =
+      existing == null
+        ? preset.stats
+        : shouldResetPresetStats(existing, preset)
+          ? makeZeroPresetStats()
+          : existing.stats;
+    const normalizedPreset: FFmpegPreset = { ...preset, stats: nextStats };
     if (idx >= 0) {
-      presets.value.splice(idx, 1, preset);
+      presets.value.splice(idx, 1, normalizedPreset);
     } else {
-      presets.value.push(preset);
+      presets.value.push(normalizedPreset);
     }
     ensureManualPresetIdLocal();
 
@@ -149,7 +189,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
 
     if (hasTauri()) {
       try {
-        await savePresetOnBackend(preset);
+        await savePresetOnBackend(normalizedPreset);
       } catch (e) {
         console.error("Failed to save preset to backend:", e);
       }

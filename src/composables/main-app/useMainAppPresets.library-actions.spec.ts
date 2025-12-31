@@ -102,7 +102,7 @@ describe("useMainAppPresets library actions", () => {
     copyToClipboard.mockReset();
   });
 
-  it("duplicatePreset generates a new id, auto-renames, zeros stats, and persists to backend", async () => {
+  it("duplicatePreset generates a new id, auto-renames, preserves stats, and persists to backend", async () => {
     const original = makePreset({ id: "p1", name: "Preset A" });
     const presets = ref<FFmpegPreset[]>([original]);
     const presetsLoadedFromBackend = ref(true);
@@ -131,13 +131,57 @@ describe("useMainAppPresets library actions", () => {
     const saved = savePresetOnBackend.mock.calls[0][0] as FFmpegPreset;
     expect(saved.id).not.toBe("p1");
     expect(saved.name).toBe("Preset A (Copy)");
-    expect(saved.stats).toEqual({
+    expect(saved.stats).toEqual(original.stats);
+    expect(presets.value).toHaveLength(2);
+    wrapper.unmount();
+  });
+
+  it("handleSavePreset keeps stats on rename but resets on transcode config change", async () => {
+    const original = makePreset({ id: "p1", name: "Preset A" });
+    const presets = ref<FFmpegPreset[]>([original]);
+    const presetsLoadedFromBackend = ref(true);
+    const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
+
+    savePresetOnBackend.mockResolvedValue([original]);
+
+    const { composable, wrapper } = mountComposable({
+      t: (key: string) => key,
+      locale,
+      presets,
+      presetsLoadedFromBackend,
+      manualJobPresetId,
+      dialogManager: {
+        openParameterPanel: () => {},
+        closeParameterPanel: () => {},
+        closeWizard: () => {},
+      } as any,
+      shell: undefined,
+    });
+
+    await composable.handleSavePreset({
+      ...original,
+      name: "Preset A (Renamed)",
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+    });
+
+    const savedRename = savePresetOnBackend.mock.calls[0][0] as FFmpegPreset;
+    expect(savedRename.stats).toEqual(original.stats);
+
+    await composable.handleSavePreset({
+      ...original,
+      video: { ...original.video, qualityValue: 24 },
+    });
+
+    const savedChanged = savePresetOnBackend.mock.calls[1][0] as FFmpegPreset;
+    expect(savedChanged.stats).toEqual({
       usageCount: 0,
       totalInputSizeMB: 0,
       totalOutputSizeMB: 0,
       totalTimeSeconds: 0,
+      totalFrames: 0,
     });
-    expect(presets.value).toHaveLength(2);
+
     wrapper.unmount();
   });
 

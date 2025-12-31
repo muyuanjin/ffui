@@ -60,7 +60,7 @@ export interface UsePresetManagementReturn {
   /** Get average speed for a preset. */
   getPresetAvgSpeed: (preset: FFmpegPreset) => number | null;
   /** Update preset stats after job completion. */
-  updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number) => void;
+  updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => void;
   /** Handle completed job (update preset stats). */
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
 }
@@ -243,14 +243,14 @@ export function usePresetManagement(options: UsePresetManagementOptions): UsePre
     return input / time;
   };
 
-  const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number) => {
-    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds);
+  const updatePresetStats = (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => {
+    presets.value = applyPresetStatsDelta(presets.value, presetId, input, output, timeSeconds, frames);
   };
 
   const handleCompletedJobFromBackend = (job: TranscodeJob) => {
     const delta = getPresetStatsDeltaFromJob(job);
     if (!delta) return;
-    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds);
+    updatePresetStats(delta.presetId, delta.inputSizeMB, delta.outputSizeMB, delta.timeSeconds, delta.frames);
   };
 
   return {
