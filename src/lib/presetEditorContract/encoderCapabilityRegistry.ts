@@ -223,6 +223,8 @@ export const normalizeVideoForSave = (video: VideoConfig): VideoConfig => {
   }
 
   if (normalized.encoder === "copy") {
+    normalized.preset = "";
+    normalized.qualityValue = 0;
     normalized.bitrateKbps = undefined;
     normalized.maxBitrateKbps = undefined;
     normalized.bufferSizeKbits = undefined;
@@ -275,25 +277,11 @@ export const applyEncoderChangePatch = (current: VideoConfig, nextEncoder: Encod
     patch.maxBitrateKbps = undefined;
     patch.bufferSizeKbits = undefined;
     patch.pass = undefined;
-  } else if (rateControl === "crf" || rateControl === "cq" || rateControl === "constqp") {
-    patch.bitrateKbps = undefined;
-    patch.maxBitrateKbps = undefined;
-    patch.bufferSizeKbits = undefined;
-    patch.pass = undefined;
   }
 
   return patch;
 };
 
 export const applyRateControlChangePatch = (nextRateControl: RateControlMode): Partial<VideoConfig> => {
-  if (nextRateControl === "crf" || nextRateControl === "cq" || nextRateControl === "constqp") {
-    return {
-      rateControl: nextRateControl,
-      bitrateKbps: undefined,
-      maxBitrateKbps: undefined,
-      bufferSizeKbits: undefined,
-      pass: undefined,
-    };
-  }
   return { rateControl: nextRateControl };
 };

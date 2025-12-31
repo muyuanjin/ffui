@@ -23,6 +23,8 @@ import PresetRadarChart from "@/components/preset-editor/PresetRadarChart.vue";
 const props = defineProps<{
   /** Preset being edited in the full parameter panel. */
   initialPreset: FFmpegPreset;
+  /** All presets for cross-preset calibration (best-effort). */
+  presets?: FFmpegPreset[];
 }>();
 
 const emit = defineEmits<{
@@ -254,7 +256,11 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
           <div class="w-80 border-l border-border/60 bg-muted/40 p-4 flex flex-col gap-3 min-h-0 overflow-y-auto">
             <!-- 效果雷达图 + 简要说明 -->
             <div class="space-y-2 flex-shrink-0">
-              <PresetRadarChart :metrics="currentInsights.radar" :has-stats="currentInsights.hasStats" />
+              <PresetRadarChart
+                :metrics="currentInsights.radar"
+                :has-stats="currentInsights.hasStats"
+                :preset="currentPresetSnapshot"
+              />
               <div class="text-[11px] text-muted-foreground space-y-1">
                 <div>
                   <span class="font-medium text-foreground"> {{ t("presetEditor.panel.scenarioLabel") }}: </span>

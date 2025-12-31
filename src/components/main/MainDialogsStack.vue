@@ -132,6 +132,7 @@ const openCompareFromJobDetail = () => {
   <UltimateParameterPanel
     v-if="dialogManager.parameterPanelOpen.value && dialogManager.editingPreset.value"
     :initial-preset="dialogManager.editingPreset.value"
+    :presets="presets"
     @save="emit('savePreset', $event)"
     @switchToWizard="dialogManager.switchParameterPanelToWizard($event)"
     @cancel="emit('closeParameterPanel')"

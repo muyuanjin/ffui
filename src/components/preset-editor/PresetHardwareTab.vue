@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   hardware: HardwareConfig;
@@ -23,9 +24,12 @@ const { t } = useI18n();
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.hwaccelLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.hwaccelLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.hwaccelHelp')" />
+        </div>
         <Select
           :model-value="hardware.hwaccel ?? ''"
           @update:model-value="
@@ -47,9 +51,12 @@ const { t } = useI18n();
       </div>
 
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.hwaccelDeviceLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.hwaccelDeviceLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.hwaccelDeviceHelp')" />
+        </div>
         <Input
           :model-value="hardware.hwaccelDevice ?? ''"
           :placeholder="t('presetEditor.panel.hwaccelDevicePlaceholder')"
@@ -66,9 +73,12 @@ const { t } = useI18n();
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.hwaccelOutputFormatLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.hwaccelOutputFormatLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.hwaccelOutputFormatHelp')" />
+        </div>
         <Input
           :model-value="hardware.hwaccelOutputFormat ?? ''"
           :placeholder="t('presetEditor.panel.hwaccelOutputFormatPlaceholder')"
@@ -83,9 +93,12 @@ const { t } = useI18n();
       </div>
 
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.bitstreamFiltersLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.bitstreamFiltersLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.bitstreamFiltersHelp')" />
+        </div>
         <Textarea
           :model-value="(hardware.bitstreamFilters ?? []).join('\n')"
           :placeholder="t('presetEditor.panel.bitstreamFiltersPlaceholder')"

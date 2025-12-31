@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { FFmpegPreset } from "@/types";
-import { computePresetInsights } from "./presetInsights";
+import { computePresetInsights, computePresetRadarHeuristic } from "./presetInsights";
 
 const baseStats = {
   usageCount: 0,
@@ -130,6 +130,28 @@ describe("computePresetInsights", () => {
     const insights = computePresetInsights(preset);
 
     expect(insights.encoderFamily).toBe("nvenc-h264");
+  });
+
+  it("computes heuristic radar without consuming job stats", () => {
+    const preset = makePreset({
+      id: "nvenc-with-slow-stats",
+      video: { encoder: "av1_nvenc", rateControl: "cq", qualityValue: 36, preset: "p7" },
+      stats: {
+        usageCount: 3,
+        totalInputSizeMB: 300,
+        totalOutputSizeMB: 120,
+        totalTimeSeconds: 200, // 1.5 MB/s (slow in practice)
+      },
+    });
+
+    const insights = computePresetInsights(preset);
+    expect(insights.hasStats).toBe(true);
+
+    const heuristic = computePresetRadarHeuristic(preset);
+    // The heuristic speed estimate must not be derived from preset.stats.
+    expect(heuristic.speed).toBeGreaterThan(insights.radar.speed);
+    // The heuristic function must not read preset.stats to "learn" from it.
+    expect(heuristic.speed).not.toBeCloseTo(insights.radar.speed, 6);
   });
 
   it("marks experimental AMF AV1 presets as experimental scenario", () => {

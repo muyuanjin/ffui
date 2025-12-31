@@ -89,6 +89,17 @@ export const normalizeForComparison = (tokens: string[]): string[] => {
       continue;
     }
 
+    // Normalize common option aliases so structured import can accept them
+    // without changing the effective command semantics.
+    if (lower === "-filter:v") {
+      normalized.push("-vf");
+      continue;
+    }
+    if (lower === "-filter:a") {
+      normalized.push("-af");
+      continue;
+    }
+
     normalized.push(token);
   }
   return dropRuntimeOnlyTokens(normalized);

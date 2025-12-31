@@ -33,7 +33,7 @@ function loadLocale(localeDir) {
    */
   let appModule = null;
 
-  const modules = ["app", "media", "presetEditor", "queue", "other"];
+  const modules = ["app", "media", "presetEditor", "queue", "vqResults", "other"];
   for (const name of modules) {
     const file = path.join(baseDir, `${name}.ts`);
     const obj = evalTsModule(file);

@@ -590,6 +590,188 @@
       "priority": 54,
       "defaultSelected": false,
       "expose": false
+    },
+    {
+      "id": "smart-av1-cpu-svt-p8-crf34",
+      "name": "AV1 CPU Balanced (SVT)",
+      "description": "CPU：AV1 (libsvtav1) CRF34 preset8，优先高压缩/日常平衡。",
+      "descriptionI18n": {
+        "zh-CN": "CPU：AV1 (libsvtav1) CRF34 preset8，优先高压缩/日常平衡。",
+        "en": "CPU: AV1 (libsvtav1) CRF34 preset8, high-compression daily balance."
+      },
+      "video": { "encoder": "libsvtav1", "rateControl": "crf", "qualityValue": 34, "preset": "8" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 53,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-av1-nvenc-fast-p1-cq36",
+      "name": "AV1 NVENC Fast (CQ36 p1)",
+      "description": "NVIDIA RTX40+：AV1 NVENC CQ36 preset p1，速度优先。",
+      "descriptionI18n": {
+        "zh-CN": "NVIDIA RTX40+：AV1 NVENC CQ36 preset p1，速度优先。",
+        "en": "NVIDIA RTX40+: AV1 NVENC CQ36 preset p1, speed-first."
+      },
+      "video": { "encoder": "av1_nvenc", "rateControl": "cq", "qualityValue": 36, "preset": "p1" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "match": { "gpu": { "available": true, "vendor": "nvidia" } },
+      "priority": 52,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-av1-qsv-medium-gq34",
+      "name": "AV1 QSV Balanced (global_quality 34)",
+      "description": "Intel 核显/ARC：AV1 QSV global_quality 34 preset medium，日常平衡。",
+      "descriptionI18n": {
+        "zh-CN": "Intel 核显/ARC：AV1 QSV global_quality 34 preset medium，日常平衡。",
+        "en": "Intel iGPU/ARC: AV1 QSV global_quality 34 preset medium, daily balance."
+      },
+      "video": { "encoder": "av1_qsv", "rateControl": "cq", "qualityValue": 34, "preset": "medium" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 51,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-hevc-cpu-x265-medium-crf25",
+      "name": "H.265 CPU (CRF25 medium)",
+      "description": "CPU：H.265/HEVC (libx265) CRF25 preset medium，主流高效率。",
+      "descriptionI18n": {
+        "zh-CN": "CPU：H.265/HEVC (libx265) CRF25 preset medium，主流高效率。",
+        "en": "CPU: H.265/HEVC (libx265) CRF25 preset medium, mainstream efficiency."
+      },
+      "video": { "encoder": "libx265", "rateControl": "crf", "qualityValue": 25, "preset": "medium" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 50,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-hevc-nvenc-balanced-p4-cq29",
+      "name": "H.265 NVENC Balanced (CQ29 p4)",
+      "description": "NVIDIA：HEVC NVENC CQ29 preset p4，质量/体积/速度折中。",
+      "descriptionI18n": {
+        "zh-CN": "NVIDIA：HEVC NVENC CQ29 preset p4，质量/体积/速度折中。",
+        "en": "NVIDIA: HEVC NVENC CQ29 preset p4, balanced quality/size/speed."
+      },
+      "video": { "encoder": "hevc_nvenc", "rateControl": "cq", "qualityValue": 29, "preset": "p4" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "match": { "gpu": { "available": true, "vendor": "nvidia" } },
+      "priority": 49,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-hevc-qsv-medium-gq24",
+      "name": "H.265 QSV Balanced (global_quality 24)",
+      "description": "Intel 核显/ARC：HEVC QSV global_quality 24 preset medium，日常平衡。",
+      "descriptionI18n": {
+        "zh-CN": "Intel 核显/ARC：HEVC QSV global_quality 24 preset medium，日常平衡。",
+        "en": "Intel iGPU/ARC: HEVC QSV global_quality 24 preset medium, daily balance."
+      },
+      "video": { "encoder": "hevc_qsv", "rateControl": "cq", "qualityValue": 24, "preset": "medium" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 48,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-hevc-amf-balanced-qp28",
+      "name": "H.265 AMF Balanced (QP28)",
+      "description": "AMD：HEVC AMF QP28 preset balanced（等价 qp_i=28/qp_p=28）。",
+      "descriptionI18n": {
+        "zh-CN": "AMD：HEVC AMF QP28 preset balanced（等价 qp_i=28/qp_p=28）。",
+        "en": "AMD: HEVC AMF QP28 preset balanced (equiv. qp_i=28/qp_p=28)."
+      },
+      "video": { "encoder": "hevc_amf", "rateControl": "cq", "qualityValue": 28, "preset": "balanced" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 47,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-h264-cpu-x264-medium-crf24",
+      "name": "H.264 CPU (CRF24 medium)",
+      "description": "CPU：H.264/AVC (libx264) CRF24 preset medium，兼容性保底。",
+      "descriptionI18n": {
+        "zh-CN": "CPU：H.264/AVC (libx264) CRF24 preset medium，兼容性保底。",
+        "en": "CPU: H.264/AVC (libx264) CRF24 preset medium, compatibility fallback."
+      },
+      "video": { "encoder": "libx264", "rateControl": "crf", "qualityValue": 24, "preset": "medium" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": false,
+      "ffmpegTemplate": null,
+      "priority": 46,
+      "defaultSelected": false,
+      "expose": true
+    },
+    {
+      "id": "smart-hevc-cpu-x265-advanced-x265params",
+      "name": "H.265 CPU Advanced (x265-params)",
+      "description": "CPU：libx265 高级 x265-params（模板）。适合极致画质/研究用途。",
+      "descriptionI18n": {
+        "zh-CN": "CPU：libx265 高级 x265-params（模板）。适合极致画质/研究用途。",
+        "en": "CPU: libx265 advanced x265-params (template). For maximum quality / research."
+      },
+      "video": { "encoder": "libx265", "rateControl": "crf", "qualityValue": 14, "preset": "veryslow" },
+      "audio": { "codec": "copy" },
+      "filters": {},
+      "container": null,
+      "subtitles": null,
+      "hardware": null,
+      "advancedEnabled": true,
+      "ffmpegTemplate": "ffmpeg -i INPUT -c:v libx265 -x265-params \"preset=veryslow:crf=14:qcomp=0.72:qg-size=16:rect=1:amp=1:ctu=32:rskip=0:limit-tu=0:tu-intra-depth=4:tu-inter-depth=4:me=star:subme=5:rc-grain=0:b-intra=1:merange=32:open-gop=0:min-keyint=1:ref=5:keyint=240:ipratio=1.2:pbratio=1.3:bframes=8:aq-mode=3:aq-strength=0.7:rd=5:deblock=-1,-1:colormatrix=bt709:rc-lookahead=80:range=limited:psy-rdoq=0.5:rdoq-level=1:psy-rd=2.0:cbqpoffs=-3:crqpoffs=-3:strong-intra-smoothing=0:sao=0\" -c:a copy OUTPUT",
+      "priority": 45,
+      "defaultSelected": false,
+      "expose": true
     }
   ]
 }

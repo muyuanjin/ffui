@@ -4,6 +4,7 @@ const other = {
     cancel: "取消",
     loading: "加载中…",
     next: "下一步",
+    recommended: "推荐",
     stepOf: "第 {step} 步，共 {total} 步",
   },
   formatSelect: {
@@ -283,6 +284,7 @@ const other = {
     audioAacLoudnormCn: "AAC {kbps}k + 广电响度",
     avgRatio: "平均大小：{percent}%",
     avgSpeed: "速度：{mbps} MB/s",
+    avgFps: "FPS：{fps}",
     commandPreviewLabel: "命令预览",
     commandPreviewHint:
       "基于预设字段生成，并使用 INPUT/OUTPUT 占位符，仅展示参数与策略；每个任务实际执行的完整命令可在对应的任务详情中查看。",

@@ -53,6 +53,21 @@ export interface PresetInsights {
 
 const clamp = (value: number, min: number, max: number): number => (value < min ? min : value > max ? max : value);
 
+export const computePresetRadarHeuristic = (preset: FFmpegPreset): PresetRadar => {
+  const radarQuality = computeQualityScore(preset);
+  const { score: radarSizeSaving } = computeSizeSavingScore(preset, null);
+  const radarSpeed = computeSpeedScore(preset, null);
+  const radarCompatibility = computeCompatibilityScore(preset);
+  const radarPopularity = computePopularityScore(preset);
+  return {
+    quality: radarQuality,
+    sizeSaving: radarSizeSaving,
+    speed: radarSpeed,
+    compatibility: radarCompatibility,
+    popularity: radarPopularity,
+  };
+};
+
 const encoderFamilyOf = (preset: FFmpegPreset): PresetEncoderFamily => {
   const enc = String(preset.video?.encoder ?? "").toLowerCase();
   if (enc === "copy") return "copy";
@@ -228,18 +243,18 @@ const computeSizeSavingScore = (
 
   // 无统计数据时的经验规则：先按编码器压缩能力给基准，再按质量值微调
   let base = 3;
-  if (family === "cpu-av1" || family === "nvenc-av1") base = 5;
-  else if (family === "cpu-x265" || family === "nvenc-hevc") base = 4;
+  if (family === "cpu-av1" || family === "nvenc-av1") base = 4;
+  else if (family === "cpu-x265" || family === "nvenc-hevc") base = 3.5;
   else if (family === "cpu-x264" || family === "nvenc-h264") base = 3;
   else if (family === "copy") base = 1;
 
   // 质量越高（q 越小）体积越大，压缩率评分应下降；反之略微升高
   let score = base;
   if (rc === "crf" || rc === "cq" || rc === "constqp") {
-    if (q <= 18) score -= 1.5;
-    else if (q <= 22) score -= 0.5;
-    else if (q >= 36) score += 1;
-    else if (q >= 30) score += 0.5;
+    if (q <= 18) score -= 1.2;
+    else if (q <= 22) score -= 0.6;
+    else if (q >= 36) score += 0.6;
+    else if (q >= 30) score += 0.3;
   }
 
   const mayIncrease = (rc === "constqp" && q <= 22) || (rc === "crf" && q <= 18) || (rc === "cq" && q <= 20);
@@ -265,8 +280,20 @@ const computeSpeedScore = (preset: FFmpegPreset, speedMbPerSec: number | null): 
   const presetName = String(preset.video?.preset ?? "").toLowerCase();
 
   // 无统计数据时根据编码器和 preset 粗略估算速度
+  if (family === "copy") return 5;
   if (family === "nvenc-h264" || family === "nvenc-hevc" || family === "nvenc-av1") {
-    return 5;
+    const match = presetName.match(/\bp([1-7])\b/);
+    if (match) {
+      const p = Number(match[1]);
+      if (p === 1) return 5;
+      if (p === 2) return 4.5;
+      if (p === 3) return 4;
+      if (p === 4) return 3.5;
+      if (p === 5) return 3;
+      if (p === 6) return 2.5;
+      if (p === 7) return 2;
+    }
+    return 3.5;
   }
   if (family === "qsv" || family === "amf") {
     return 4;

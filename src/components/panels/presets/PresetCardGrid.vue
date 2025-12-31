@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
-import { getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
+import { getPresetAvgFps, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download, CircleHelp } from "lucide-vue-next";
@@ -290,6 +290,9 @@ const handleCardClick = (event: MouseEvent) => {
           </span>
           <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
             {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
+          </span>
+          <span v-if="getPresetAvgFps(preset) !== null" class="truncate">
+            {{ t("presets.avgFps", { fps: getPresetAvgFps(preset)?.toFixed(0) ?? "0" }) }}
           </span>
         </div>
       </div>

@@ -19,7 +19,8 @@ export const tryParseStructuredPreset = (tokensWithProgram: string[]): { preset?
 
   for (const token of tokens) {
     const raw = stripQuotes(token);
-    if (raw.startsWith("-") && !isKnownOption(token)) {
+    const looksLikeDashedValue = /^-[0-9.]/.test(raw);
+    if (raw.startsWith("-") && !looksLikeDashedValue && !isKnownOption(token)) {
       reasons.push(`不支持的参数：${raw}`);
       return { reasons };
     }

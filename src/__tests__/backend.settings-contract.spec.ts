@@ -69,6 +69,7 @@ const makeAppSettings = (): AppSettings => ({
     maxFiles: 10,
     maxTotalMb: 123,
   },
+  onboardingCompleted: true,
 });
 
 describe("backend settings contract", () => {
@@ -132,6 +133,7 @@ describe("backend settings contract", () => {
           maxFiles: 10,
           maxTotalMb: 123,
         },
+        onboardingCompleted: true,
       },
     });
     expect(saved).toEqual(settings);

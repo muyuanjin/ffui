@@ -200,12 +200,14 @@ export function createMainAppContext() {
   // environment and onboardingCompleted is false/undefined, automatically
   // open the smart preset import dialog once.
   const autoOnboardingTriggered = ref(false);
+  const autoOnboardingReplaceExisting = ref(false);
 
   const markOnboardingCompleted = async () => {
     if (!hasTauri()) return;
     const current = settings.appSettings.value;
     if (!current || current.onboardingCompleted) return;
 
+    console.info("[onboarding] marking onboardingCompleted=true");
     const next: AppSettings = { ...current, onboardingCompleted: true };
     settings.appSettings.value = next;
     // Persist immediately and sync the internal saved snapshot to avoid
@@ -214,12 +216,22 @@ export function createMainAppContext() {
   };
 
   const handleImportSmartPackConfirmed = async (presetsToImport: FFmpegPreset[]) => {
-    const shouldReplaceExisting = !settings.appSettings.value?.onboardingCompleted;
+    const shouldReplaceExisting =
+      autoOnboardingReplaceExisting.value || !settings.appSettings.value?.onboardingCompleted;
+    autoOnboardingReplaceExisting.value = false;
     await presetsModule.handleImportSmartPackConfirmed(presetsToImport, {
       replaceExisting: shouldReplaceExisting,
     });
     await markOnboardingCompleted();
   };
+
+  watch(
+    () => dialogs.dialogManager.smartPresetImportOpen.value,
+    (open) => {
+      if (open) return;
+      autoOnboardingReplaceExisting.value = false;
+    },
+  );
 
   watch(
     () => settings.appSettings.value,
@@ -229,7 +241,10 @@ export function createMainAppContext() {
 
       if (!value.onboardingCompleted && !autoOnboardingTriggered.value) {
         autoOnboardingTriggered.value = true;
+        autoOnboardingReplaceExisting.value = true;
+        console.info("[onboarding] auto-opening smart preset onboarding");
         dialogs.dialogManager.openSmartPresetImport();
+        void markOnboardingCompleted();
       }
     },
     { flush: "post" },
