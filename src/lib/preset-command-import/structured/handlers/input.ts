@@ -20,6 +20,32 @@ export const applyInputToken = (
     state.input.accurateSeek = true;
     return { consumed: 0 };
   }
+  if (token === "-stream_loop") {
+    if (!state.beforeInput) {
+      state.reasons.push("-stream_loop 必须出现在 -i INPUT 之前");
+      return { consumed: 0, stop: true };
+    }
+    const v = readValue(tokens, i, "-stream_loop", state.reasons);
+    if (!v) return { consumed: 0 };
+    const raw = stripQuotes(v);
+    const n = Number(raw);
+    if (!Number.isInteger(n)) {
+      state.reasons.push(`不支持的 -stream_loop 值：${raw}`);
+      return { consumed: 0, stop: true };
+    }
+    state.input.streamLoop = n;
+    return { consumed: 1 };
+  }
+  if (token === "-itsoffset") {
+    if (!state.beforeInput) {
+      state.reasons.push("-itsoffset 必须出现在 -i INPUT 之前");
+      return { consumed: 0, stop: true };
+    }
+    const v = readValue(tokens, i, "-itsoffset", state.reasons);
+    if (!v) return { consumed: 0 };
+    state.input.inputTimeOffset = stripQuotes(v);
+    return { consumed: 1 };
+  }
   if (token === "-t") {
     const v = readValue(tokens, i, "-t", state.reasons);
     if (!v) return { consumed: 0 };

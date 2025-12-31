@@ -19,6 +19,9 @@ pub struct CpuUsageSnapshot {
 #[serde(rename_all = "camelCase")]
 pub struct GpuUsageSnapshot {
     pub available: bool,
+    /// Best-effort device model name (e.g. "NVIDIA GeForce RTX 2070").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     pub gpu_percent: Option<u32>,
     pub memory_percent: Option<u32>,
     pub error: Option<String>,
@@ -69,6 +72,7 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
     if device_count == 0 {
         return Ok(GpuUsageSnapshot {
             available: false,
+            model: None,
             gpu_percent: None,
             memory_percent: None,
             error: Some("No NVIDIA GPUs detected".to_string()),
@@ -76,6 +80,7 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
     }
 
     let device = nvml.device_by_index(0)?;
+    let model = device.name().ok();
     let util = device.utilization_rates()?;
     let memory = device.memory_info()?;
     let memory_percent = if memory.total > 0 {
@@ -89,6 +94,7 @@ fn try_sample_gpu_usage() -> Result<GpuUsageSnapshot, NvmlError> {
 
     Ok(GpuUsageSnapshot {
         available: true,
+        model,
         gpu_percent: Some(util.gpu),
         memory_percent,
         error: None,
@@ -100,6 +106,7 @@ pub fn sample_gpu_usage() -> GpuUsageSnapshot {
         Ok(snapshot) => snapshot,
         Err(e) => GpuUsageSnapshot {
             available: false,
+            model: None,
             gpu_percent: None,
             memory_percent: None,
             error: Some(format!("{e}")),

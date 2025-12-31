@@ -155,6 +155,7 @@ fn metrics_snapshot_json_contract_matches_spec() {
         },
         gpu: Some(GpuUsageSnapshot {
             available: true,
+            model: Some("NVIDIA GeForce RTX 2070".to_string()),
             gpu_percent: Some(42),
             memory_percent: Some(55),
             error: None,
@@ -233,6 +234,10 @@ fn metrics_snapshot_json_contract_matches_spec() {
     assert!(
         value["gpu"]["memoryPercent"].is_number(),
         "gpu.memoryPercent must be a number when available"
+    );
+    assert!(
+        value["gpu"]["model"].is_string(),
+        "gpu.model must be string when present"
     );
 }
 

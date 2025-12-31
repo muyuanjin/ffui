@@ -102,6 +102,47 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("OUTPUT");
   });
 
+  it("hides bitrate inputs for CRF presets and shows the quality slider", () => {
+    const preset = makeBasePreset();
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.find("[data-testid='preset-video-bitrate-input']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='preset-video-quality-card']").exists()).toBe(true);
+  });
+
+  it("shows bitrate inputs for CBR/VBR presets and hides the quality slider", () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      video: {
+        encoder: "libx264",
+        rateControl: "cbr",
+        qualityValue: 23,
+        preset: "medium",
+        bitrateKbps: 3000,
+      },
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.find("[data-testid='preset-video-bitrate-input']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='preset-video-quality-card']").exists()).toBe(false);
+  });
+
   it("emits bitrate-based ffmpeg flags when using VBR + two-pass fields", () => {
     const preset: FFmpegPreset = {
       ...makeBasePreset(),
@@ -149,12 +190,16 @@ describe("UltimateParameterPanel", () => {
       input: {
         seekMode: "input",
         seekPosition: "00:00:10",
+        streamLoop: -1,
+        inputTimeOffset: "0.5",
         durationMode: "duration",
         duration: "5",
         accurateSeek: true,
       },
       mapping: {
         maps: ["0:v:0", "0:a:0"],
+        mapMetadataFromInputFileIndex: -1,
+        mapChaptersFromInputFileIndex: -1,
         metadata: ["title=Test"],
         dispositions: ["0:v:0 default"],
       },
@@ -189,9 +234,13 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-hide_banner");
     expect(text).toContain("-report");
     expect(text).toContain("-ss 00:00:10");
+    expect(text).toContain("-stream_loop -1");
+    expect(text).toContain("-itsoffset 0.5");
     expect(text).toContain("-t 5");
     expect(text).toContain("-map 0:v:0");
     expect(text).toContain("-map 0:a:0");
+    expect(text).toContain("-map_metadata -1");
+    expect(text).toContain("-map_chapters -1");
     expect(text).toContain("-metadata title=Test");
     expect(text).toContain("-disposition 0:v:0 default");
     expect(text).toContain("-sn");

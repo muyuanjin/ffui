@@ -26,7 +26,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost asset: https://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost asset: https://asset.localhost blob: data:; font-src 'self' asset: http://asset.localhost asset: https://asset.localhost data:",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' ipc: http://ipc.localhost https://rigaya.github.io; style-src 'self' 'unsafe-inline'; img-src 'self' asset: http://asset.localhost asset: https://asset.localhost blob: data:; media-src 'self' asset: http://asset.localhost asset: https://asset.localhost blob: data:; font-src 'self' asset: http://asset.localhost asset: https://asset.localhost data:",
       "dangerousDisableAssetCspModification": ["style-src"],
       "assetProtocol": {
         "enable": true,

@@ -123,7 +123,13 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
 
   const rateControlLabel = computed(() => {
     const enc = String(video.encoder ?? "").toLowerCase();
-    if (enc.includes("nvenc") || enc.includes("_qsv") || enc.includes("_amf")) {
+    if (enc.includes("_amf")) {
+      return (t?.("presetEditor.video.qpLabel") as string | undefined) ?? "QP";
+    }
+    if (enc.includes("_qsv")) {
+      return (t?.("presetEditor.video.globalQualityLabel") as string | undefined) ?? "global_quality";
+    }
+    if (enc.includes("nvenc")) {
       return t?.("presetEditor.video.cqLabel") ?? "CQ";
     }
     return t?.("presetEditor.video.crfLabel") ?? "CRF";

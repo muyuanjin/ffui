@@ -5,6 +5,8 @@ export interface CpuUsageSnapshot {
 
 export interface GpuUsageSnapshot {
   available: boolean;
+  /** Best-effort device model name (e.g. "NVIDIA GeForce RTX 2070"). */
+  model?: string;
   gpuPercent?: number;
   memoryPercent?: number;
   error?: string;

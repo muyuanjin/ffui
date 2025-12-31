@@ -40,9 +40,13 @@ export const analyzeImportCommandLine = (raw: string): ImportCommandLineAnalysis
     for (const r of structuredAttempt.reasons) reasons.push(r);
   }
 
-  const unknownOptions = splitCommandLine(trimmed)
-    .filter((t) => stripQuotes(t).startsWith("-"))
-    .filter((t) => !isKnownOption(t));
+  const unknownOptions = splitCommandLine(trimmed).filter((t) => {
+    const raw = stripQuotes(t);
+    if (!raw.startsWith("-")) return false;
+    const looksLikeDashedValue = /^-[0-9.]/.test(raw);
+    if (looksLikeDashedValue) return false;
+    return !isKnownOption(t);
+  });
   if (unknownOptions.length > 0 && custom) {
     editable = false;
   }

@@ -4,6 +4,7 @@ const other = {
     cancel: "Cancel",
     loading: "Loading…",
     next: "Next",
+    recommended: "Recommended",
     stepOf: "Step {step} of {total}",
   },
   formatSelect: {
@@ -294,6 +295,7 @@ const other = {
     audioAacLoudnormCn: "AAC {kbps}k + CN broadcast loudness",
     avgRatio: "Ratio: {percent}%",
     avgSpeed: "Speed: {mbps} MB/s",
+    avgFps: "FPS: {fps}",
     commandPreviewLabel: "Command preview",
     commandPreviewHint:
       "Generated from preset fields with INPUT/OUTPUT placeholders. The actual running command for each job is available in its task details.",

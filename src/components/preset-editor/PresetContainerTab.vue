@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useI18n } from "vue-i18n";
 import FormatSelect from "@/components/formats/FormatSelect.vue";
 import { FORMAT_CATALOG } from "@/lib/formatCatalog";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   container: ContainerConfig;
@@ -25,9 +26,12 @@ const AUTO_FORMAT_VALUE = "__auto__";
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.formatLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.formatLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.formatHelp')" />
+        </div>
         <FormatSelect
           :model-value="container.format ?? AUTO_FORMAT_VALUE"
           :entries="FORMAT_CATALOG"
@@ -46,9 +50,12 @@ const AUTO_FORMAT_VALUE = "__auto__";
       </div>
 
       <div class="space-y-1">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.movflagsLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.movflagsLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.movflagsHelp')" />
+        </div>
         <Input
           :model-value="(container.movflags ?? []).join('+')"
           :placeholder="t('presetEditor.panel.movflagsPlaceholder')"

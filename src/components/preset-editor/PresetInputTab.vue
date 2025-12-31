@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   inputTimeline: InputTimelineConfig;
@@ -39,6 +40,19 @@ const durationModeLabel = computed(() => {
   if (value === "to") return t("presetEditor.panel.durationModeTo");
   return "";
 });
+
+const AUTO_VALUE = "__auto__";
+
+const streamLoopValue = computed<string>(() => {
+  const v = inputTimeline.streamLoop;
+  return typeof v === "number" && Number.isFinite(v) ? String(v) : AUTO_VALUE;
+});
+const streamLoopLabel = computed<string>(() => {
+  if (!streamLoopValue.value || streamLoopValue.value === AUTO_VALUE) return t("presetEditor.panel.streamLoopModeAuto");
+  if (streamLoopValue.value === "0") return t("presetEditor.panel.streamLoopModeNoLoop");
+  if (streamLoopValue.value === "-1") return t("presetEditor.panel.streamLoopModeInfinite");
+  return t("presetEditor.panel.streamLoopModeTimes", { times: streamLoopValue.value });
+});
 </script>
 
 <template>
@@ -49,9 +63,12 @@ const durationModeLabel = computed(() => {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.seekModeLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.seekModeLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.seekModeHelp')" />
+        </div>
         <Select
           :model-value="inputTimeline.seekMode ?? 'output'"
           @update:model-value="
@@ -75,9 +92,12 @@ const durationModeLabel = computed(() => {
       </div>
 
       <div class="">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.seekPositionLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.seekPositionLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.seekPositionHelp')" />
+        </div>
         <Input
           :model-value="inputTimeline.seekPosition ?? ''"
           :placeholder="t('presetEditor.panel.seekPositionPlaceholder')"
@@ -96,9 +116,78 @@ const durationModeLabel = computed(() => {
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div class="">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.durationModeLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.streamLoopLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.streamLoopHelp')" />
+        </div>
+        <Select
+          :model-value="streamLoopValue"
+          @update:model-value="
+            (value) => {
+              const raw = value == null ? '' : String(value);
+              if (!raw || raw === AUTO_VALUE) {
+                inputTimeline.streamLoop = undefined;
+                return;
+              }
+              const n = Number(raw);
+              inputTimeline.streamLoop = Number.isFinite(n) ? n : undefined;
+            }
+          "
+        >
+          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-stream-loop-trigger">
+            <SelectValue>{{ streamLoopLabel }}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem :value="AUTO_VALUE">
+              {{ t("presetEditor.panel.streamLoopModeAuto") }}
+            </SelectItem>
+            <SelectItem value="0">
+              {{ t("presetEditor.panel.streamLoopModeNoLoop") }}
+            </SelectItem>
+            <SelectItem value="-1">
+              {{ t("presetEditor.panel.streamLoopModeInfinite") }}
+            </SelectItem>
+            <SelectItem value="1">
+              {{ t("presetEditor.panel.streamLoopModeTimes", { times: 1 }) }}
+            </SelectItem>
+            <SelectItem value="2">
+              {{ t("presetEditor.panel.streamLoopModeTimes", { times: 2 }) }}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div class="">
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.itsoffsetLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.itsoffsetHelp')" />
+        </div>
+        <Input
+          :model-value="inputTimeline.inputTimeOffset ?? ''"
+          :placeholder="t('presetEditor.panel.itsoffsetPlaceholder')"
+          class="text-xs font-mono"
+          @update:model-value="
+            (value) => {
+              const v = String(value ?? '').trim();
+              inputTimeline.inputTimeOffset = v || undefined;
+            }
+          "
+        />
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="">
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.durationModeLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.durationModeHelp')" />
+        </div>
         <Select
           :model-value="inputTimeline.durationMode ?? ''"
           @update:model-value="
@@ -123,9 +212,12 @@ const durationModeLabel = computed(() => {
       </div>
 
       <div class="">
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.durationLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.durationLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.durationHelp')" />
+        </div>
         <Input
           :model-value="inputTimeline.duration ?? ''"
           :placeholder="t('presetEditor.panel.durationPlaceholder')"
@@ -144,6 +236,7 @@ const durationModeLabel = computed(() => {
       <span>
         {{ t("presetEditor.panel.accurateSeekLabel") }}
       </span>
+      <HelpTooltipIcon :text="t('presetEditor.panel.accurateSeekHelp')" />
     </label>
 
     <p class="text-[11px] text-muted-foreground">

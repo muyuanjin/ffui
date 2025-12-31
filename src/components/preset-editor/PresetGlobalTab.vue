@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   globalConfig: GlobalConfig;
@@ -54,9 +55,12 @@ const overwriteBehaviorTitle = computed(() => {
 
     <div class="grid grid-cols-2 gap-3">
       <div>
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.overwriteBehaviorLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.overwriteBehaviorLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.overwriteHelp')" />
+        </div>
         <Select
           :model-value="globalConfig.overwriteBehavior ?? 'ask'"
           @update:model-value="
@@ -87,9 +91,12 @@ const overwriteBehaviorTitle = computed(() => {
       </div>
 
       <div>
-        <Label class="text-[10px] mb-1 block">
-          {{ t("presetEditor.panel.logLevelLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="text-[10px] mb-1 block">
+            {{ t("presetEditor.panel.logLevelLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.panel.logLevelHelp')" />
+        </div>
         <Select
           :model-value="globalConfig.logLevel ?? ''"
           @update:model-value="
@@ -127,12 +134,14 @@ const overwriteBehaviorTitle = computed(() => {
         <span>
           {{ t("presetEditor.panel.hideBannerLabel") }}
         </span>
+        <HelpTooltipIcon :text="t('presetEditor.panel.hideBannerHelp')" />
       </label>
       <label class="inline-flex items-center gap-2 text-[10px]">
         <Checkbox v-model:checked="enableReportChecked" class="h-3 w-3 border-border bg-background" />
         <span>
           {{ t("presetEditor.panel.enableReportLabel") }}
         </span>
+        <HelpTooltipIcon :text="t('presetEditor.panel.enableReportHelp')" />
       </label>
     </div>
   </div>

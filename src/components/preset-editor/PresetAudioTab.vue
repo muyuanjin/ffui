@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   audio: AudioConfig;
@@ -91,9 +92,12 @@ const subtitlesStrategyLabel = computed(() => {
         <div v-if="audio.codec === 'aac'" class="">
           <div class="grid grid-cols-3 gap-2">
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.bitrateLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.bitrateLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.bitrateHelp')" />
+              </div>
               <Select
                 :model-value="audio.bitrate != null ? String(audio.bitrate) : ''"
                 @update:model-value="
@@ -121,9 +125,12 @@ const subtitlesStrategyLabel = computed(() => {
             </div>
 
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.sampleRateLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.sampleRateLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.sampleRateHelp')" />
+              </div>
               <Select
                 :model-value="audio.sampleRateHz ? String(audio.sampleRateHz) : ''"
                 @update:model-value="
@@ -144,9 +151,12 @@ const subtitlesStrategyLabel = computed(() => {
             </div>
 
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.channelsLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.channelsLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.channelsHelp')" />
+              </div>
               <Select
                 :model-value="audio.channels ? String(audio.channels) : ''"
                 @update:model-value="
@@ -169,9 +179,12 @@ const subtitlesStrategyLabel = computed(() => {
           </div>
 
           <div>
-            <Label class="text-[10px] mb-1 block">
-              {{ t("presetEditor.audio.loudnessProfileLabel") }}
-            </Label>
+            <div class="flex items-center gap-1">
+              <Label class="text-[10px] mb-1 block">
+                {{ t("presetEditor.audio.loudnessProfileLabel") }}
+              </Label>
+              <HelpTooltipIcon :text="t('presetEditor.audio.loudnessHelp')" />
+            </div>
             <div class="grid grid-cols-3 gap-2">
               <Button
                 :variant="!audio.loudnessProfile || audio.loudnessProfile === 'none' ? 'default' : 'outline'"
@@ -199,9 +212,12 @@ const subtitlesStrategyLabel = computed(() => {
 
           <div class="grid grid-cols-3 gap-2">
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.targetLufsLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.targetLufsLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.targetLufsHelp')" />
+              </div>
               <Input
                 type="number"
                 step="0.1"
@@ -220,9 +236,12 @@ const subtitlesStrategyLabel = computed(() => {
             </div>
 
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.loudnessRangeLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.loudnessRangeLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.loudnessRangeHelp')" />
+              </div>
               <Input
                 type="number"
                 step="0.1"
@@ -239,9 +258,12 @@ const subtitlesStrategyLabel = computed(() => {
             </div>
 
             <div>
-              <Label class="text-[10px] mb-1 block">
-                {{ t("presetEditor.audio.truePeakDbLabel") }}
-              </Label>
+              <div class="flex items-center gap-1">
+                <Label class="text-[10px] mb-1 block">
+                  {{ t("presetEditor.audio.truePeakDbLabel") }}
+                </Label>
+                <HelpTooltipIcon :text="t('presetEditor.audio.truePeakDbHelp')" />
+              </div>
               <Input
                 type="number"
                 step="0.1"
@@ -261,9 +283,12 @@ const subtitlesStrategyLabel = computed(() => {
           </div>
 
           <div>
-            <Label class="text-[10px] mb-1 block">
-              {{ t("presetEditor.audio.layoutLabel") }}
-            </Label>
+            <div class="flex items-center gap-1">
+              <Label class="text-[10px] mb-1 block">
+                {{ t("presetEditor.audio.layoutLabel") }}
+              </Label>
+              <HelpTooltipIcon :text="t('presetEditor.audio.layoutHelp')" />
+            </div>
             <Input
               :model-value="audio.channelLayout ?? ''"
               :placeholder="t('presetEditor.audio.layoutPlaceholder')"
@@ -287,9 +312,12 @@ const subtitlesStrategyLabel = computed(() => {
       </h3>
       <div class="">
         <div>
-          <Label class="text-[10px] mb-1 block">
-            {{ t("presetEditor.panel.subtitlesStrategyLabel") }}
-          </Label>
+          <div class="flex items-center gap-1">
+            <Label class="text-[10px] mb-1 block">
+              {{ t("presetEditor.panel.subtitlesStrategyLabel") }}
+            </Label>
+            <HelpTooltipIcon :text="t('presetEditor.panel.subtitlesStrategyHelp')" />
+          </div>
           <Select
             :model-value="subtitles.strategy ?? 'keep'"
             @update:model-value="
@@ -316,9 +344,12 @@ const subtitlesStrategyLabel = computed(() => {
         </div>
 
         <div v-if="subtitles.strategy === 'burn_in'">
-          <Label class="text-[10px] mb-1 block">
-            {{ t("presetEditor.panel.subtitlesBurnInFilterLabel") }}
-          </Label>
+          <div class="flex items-center gap-1">
+            <Label class="text-[10px] mb-1 block">
+              {{ t("presetEditor.panel.subtitlesBurnInFilterLabel") }}
+            </Label>
+            <HelpTooltipIcon :text="t('presetEditor.panel.subtitlesBurnInFilterHelp')" />
+          </div>
           <Input
             :model-value="subtitles.burnInFilter ?? ''"
             :placeholder="t('presetEditor.panel.subtitlesBurnInFilterPlaceholder')"
@@ -330,6 +361,9 @@ const subtitlesStrategyLabel = computed(() => {
               }
             "
           />
+          <p class="text-[11px] text-muted-foreground mt-1">
+            {{ t("presetEditor.panel.subtitlesBurnInHelp") }}
+          </p>
         </div>
       </div>
     </div>

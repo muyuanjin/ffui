@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "vue-i18n";
+import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 
 const props = defineProps<{
   filters: FilterConfig;
@@ -21,9 +22,12 @@ const { t } = useI18n();
     </h3>
     <div class="space-y-3">
       <div>
-        <Label class="block text-sm mb-1">
-          {{ t("presetEditor.filters.scaleLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="block text-sm mb-1">
+            {{ t("presetEditor.filters.scaleLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.filters.scaleHelp')" />
+        </div>
         <Input
           :placeholder="t('presetEditor.filters.scalePlaceholder')"
           :model-value="filters.scale ?? ''"
@@ -41,9 +45,12 @@ const { t } = useI18n();
 
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <Label class="block text-xs mb-1">
-            {{ t("presetEditor.filters.cropLabel") }}
-          </Label>
+          <div class="flex items-center gap-1">
+            <Label class="block text-xs mb-1">
+              {{ t("presetEditor.filters.cropLabel") }}
+            </Label>
+            <HelpTooltipIcon :text="t('presetEditor.filters.cropHelp')" />
+          </div>
           <Input
             :model-value="filters.crop ?? ''"
             :placeholder="t('presetEditor.filters.cropPlaceholder')"
@@ -57,9 +64,12 @@ const { t } = useI18n();
           />
         </div>
         <div>
-          <Label class="block text-xs mb-1">
-            {{ t("presetEditor.filters.fpsLabel") }}
-          </Label>
+          <div class="flex items-center gap-1">
+            <Label class="block text-xs mb-1">
+              {{ t("presetEditor.filters.fpsLabel") }}
+            </Label>
+            <HelpTooltipIcon :text="t('presetEditor.filters.fpsHelp')" />
+          </div>
           <Input
             :model-value="filters.fps != null ? String(filters.fps) : ''"
             :placeholder="t('presetEditor.filters.fpsPlaceholder')"
@@ -76,9 +86,12 @@ const { t } = useI18n();
       </div>
 
       <div class="">
-        <Label class="block text-xs">
-          {{ t("presetEditor.filters.vfChainLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="block text-xs">
+            {{ t("presetEditor.filters.vfChainLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.filters.vfChainHelp')" />
+        </div>
         <Textarea
           :model-value="filters.vfChain ?? ''"
           :placeholder="t('presetEditor.filters.vfChainPlaceholder')"
@@ -93,9 +106,12 @@ const { t } = useI18n();
       </div>
 
       <div class="">
-        <Label class="block text-xs">
-          {{ t("presetEditor.filters.afChainLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="block text-xs">
+            {{ t("presetEditor.filters.afChainLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.filters.afChainHelp')" />
+        </div>
         <Textarea
           :model-value="filters.afChain ?? ''"
           :placeholder="t('presetEditor.filters.afChainPlaceholder')"
@@ -110,9 +126,12 @@ const { t } = useI18n();
       </div>
 
       <div class="">
-        <Label class="block text-xs">
-          {{ t("presetEditor.filters.filterComplexLabel") }}
-        </Label>
+        <div class="flex items-center gap-1">
+          <Label class="block text-xs">
+            {{ t("presetEditor.filters.filterComplexLabel") }}
+          </Label>
+          <HelpTooltipIcon :text="t('presetEditor.filters.filterComplexHelp')" />
+        </div>
         <Textarea
           :model-value="filters.filterComplex ?? ''"
           :placeholder="t('presetEditor.filters.filterComplexPlaceholder')"

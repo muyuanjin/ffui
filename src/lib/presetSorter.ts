@@ -27,6 +27,16 @@ export function getPresetAvgSpeed(preset: FFmpegPreset): number | null {
 }
 
 /**
+ * 计算预设的平均处理 FPS (frames/s)
+ */
+export function getPresetAvgFps(preset: FFmpegPreset): number | null {
+  const frames = preset.stats.totalFrames ?? 0;
+  const time = preset.stats.totalTimeSeconds;
+  if (!frames || !time || time <= 0) return null;
+  return frames / time;
+}
+
+/**
  * 根据排序模式对预设列表进行排序
  * @param presets 原始预设列表
  * @param sortMode 排序模式

@@ -47,6 +47,11 @@ const StubUltimateParameterPanel = defineComponent({
       type: Object,
       required: true,
     },
+    presets: {
+      type: Array,
+      required: false,
+      default: () => [],
+    },
   },
   emits: ["switchToWizard"],
   template: `<button data-testid="stub-panel-switch-to-wizard" @click="$emit('switchToWizard', initialPreset)">back</button>`,

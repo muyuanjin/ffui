@@ -231,14 +231,6 @@ const handleRecipeSelect = ({
 
 const isCopyEncoder = computed(() => video.encoder === "copy");
 
-const rateControlLabel = computed(() => {
-  const enc = String(video.encoder ?? "").toLowerCase();
-  if (enc.includes("nvenc") || enc.includes("_qsv") || enc.includes("_amf")) {
-    return t("presetEditor.video.cqLabel");
-  }
-  return t("presetEditor.video.crfLabel");
-});
-
 const commandPreview = computed(() => {
   return getFfmpegCommandPreview({
     video: video as VideoConfig,
@@ -381,7 +373,6 @@ const handleParseTemplateFromCommand = () => {
           :video="video"
           :encoder-options="ENCODER_OPTIONS"
           :preset-options="PRESET_OPTIONS"
-          :rate-control-label="rateControlLabel"
           :is-copy-encoder="isCopyEncoder"
           :t="t"
           @change-encoder="handleEncoderChange"

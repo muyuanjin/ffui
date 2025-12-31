@@ -9,8 +9,8 @@ export const applyFiltersToken = (
 ): TokenHandlerResult | null => {
   const token = stripQuotes(tokens[i]);
 
-  if (token === "-vf") {
-    const v = readValue(tokens, i, "-vf", state.reasons);
+  if (token === "-vf" || token === "-filter:v") {
+    const v = readValue(tokens, i, token, state.reasons);
     if (!v) return { consumed: 0 };
     const raw = stripQuotes(v);
     const parts = raw
@@ -44,9 +44,11 @@ export const applyFiltersToken = (
     return { consumed: 1 };
   }
 
-  if (token === "-af") {
-    state.reasons.push("结构化导入暂不支持 -af（请使用“自定义命令预设”导入）");
-    return { consumed: 0, stop: true };
+  if (token === "-af" || token === "-filter:a") {
+    const v = readValue(tokens, i, token, state.reasons);
+    if (!v) return { consumed: 0 };
+    state.filters.afChain = stripQuotes(v);
+    return { consumed: 1 };
   }
   if (token === "-filter_complex") {
     const v = readValue(tokens, i, "-filter_complex", state.reasons);
