@@ -91,9 +91,8 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ---
 
-- DATE: 2025-12-02
-- CONTEXT: 在 FFUI 项目中多次出现“添加任务/拖拽后崩溃”这类低级回归，修复时没有配套前端/后端/接口测试，导致相同类型问题反复出现，用户明确要求把测试纪律写入 AGENTS。
-- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 `cargo test`，如果某一侧当前无法覆盖，需在答复中说明原因和人工验证步骤。
+- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 `cargo test`；
+- 每次功能完成或提交前必须保证 `pnpm run check:all` 通过。
 - ANTI-PATTERN: 不允许“只修代码不写测试”，也不允许在测试失败或尚未运行时就宣布本次问题已解决；更不允许把针对同一接口或字段的不一致问题留到以后再修。
 
 ## Commit & Pull Request Guidelines
