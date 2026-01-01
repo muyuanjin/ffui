@@ -2,10 +2,12 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useElementSize } from "@vueuse/core";
-import type { FFmpegPreset, PresetCardFooterItemKey, PresetCardFooterLayout, PresetCardFooterSettings } from "@/types";
+import type { FFmpegPreset, PresetCardFooterItemKey, PresetCardFooterSettings } from "@/types";
 import { getPresetAvgFps, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
+import { toFixedDisplay } from "@/lib/numberDisplay";
 import { getRatioColorClass } from "../presetHelpers";
-import PresetCardFooterPrimaryStats from "./PresetCardFooterPrimaryStats.vue";
+import PresetCardFooterVmafStat from "./PresetCardFooterVmafStat.vue";
+import { normalizePresetCardFooterSettings } from "./presetCardFooterSettings";
 
 const props = defineProps<{
   preset: FFmpegPreset;
@@ -14,48 +16,8 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
-
-const DEFAULT_FOOTER_SETTINGS: Required<PresetCardFooterSettings> = {
-  layout: "twoRows",
-  order: ["avgSize", "fps", "vmaf", "usedCount", "dataAmount", "throughput"],
-  showAvgSize: true,
-  showFps: true,
-  showVmaf: true,
-  showUsedCount: true,
-  showDataAmount: true,
-  showThroughput: true,
-};
-
 const effectiveFooterSettings = computed<Required<PresetCardFooterSettings>>(() => {
-  const raw = props.footerSettings ?? null;
-  const layout: PresetCardFooterLayout =
-    raw?.layout === "oneRow" || raw?.layout === "twoRows" ? raw.layout : DEFAULT_FOOTER_SETTINGS.layout;
-
-  const normalizeOrder = (order: PresetCardFooterItemKey[] | undefined): PresetCardFooterItemKey[] => {
-    const defaults = DEFAULT_FOOTER_SETTINGS.order;
-    const rawOrder = Array.isArray(order) ? order : [];
-    const seen = new Set<PresetCardFooterItemKey>();
-    const out: PresetCardFooterItemKey[] = [];
-    for (const k of rawOrder) {
-      if (!defaults.includes(k)) continue;
-      if (seen.has(k)) continue;
-      seen.add(k);
-      out.push(k);
-    }
-    for (const k of defaults) if (!seen.has(k)) out.push(k);
-    return out;
-  };
-
-  return {
-    layout,
-    order: normalizeOrder(raw?.order),
-    showAvgSize: raw?.showAvgSize ?? DEFAULT_FOOTER_SETTINGS.showAvgSize,
-    showFps: raw?.showFps ?? DEFAULT_FOOTER_SETTINGS.showFps,
-    showVmaf: raw?.showVmaf ?? DEFAULT_FOOTER_SETTINGS.showVmaf,
-    showUsedCount: raw?.showUsedCount ?? DEFAULT_FOOTER_SETTINGS.showUsedCount,
-    showDataAmount: raw?.showDataAmount ?? DEFAULT_FOOTER_SETTINGS.showDataAmount,
-    showThroughput: raw?.showThroughput ?? DEFAULT_FOOTER_SETTINGS.showThroughput,
-  };
+  return normalizePresetCardFooterSettings(props.footerSettings);
 });
 
 const footerEnabledCount = computed(() => {
@@ -97,14 +59,18 @@ const footerLabelThroughput = computed(() =>
 
 const inputGbText = computed(() => (props.preset.stats.totalInputSizeMB / 1024).toFixed(1));
 const avgRatioValue = computed(() => getPresetAvgRatio(props.preset));
-const avgRatioText = computed(() => avgRatioValue.value?.toFixed(0) ?? "—");
+const avgRatioDisplayValue = computed<number | null>(() => {
+  const v = avgRatioValue.value;
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  return toFixedDisplay(v, 0)?.value ?? null;
+});
+const avgRatioText = computed(() => (avgRatioDisplayValue.value == null ? "—" : String(avgRatioDisplayValue.value)));
 const avgSpeedText = computed(() => getPresetAvgSpeed(props.preset)?.toFixed(1) ?? "—");
 const avgFpsText = computed(() => getPresetAvgFps(props.preset)?.toFixed(0) ?? "—");
 
 const predictedVmafText = computed(() => {
   const v = props.predictedVmaf;
-  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
-  return v.toFixed(1);
+  return toFixedDisplay(v, 2)?.text ?? "—";
 });
 
 const measuredVmaf = computed(() => {
@@ -119,7 +85,7 @@ const measuredVmaf = computed(() => {
 const measuredVmafText = computed(() => {
   const v = measuredVmaf.value;
   if (v == null || !Number.isFinite(v)) return null;
-  return v.toFixed(1);
+  return toFixedDisplay(v, 2)?.text ?? null;
 });
 
 const measuredVmafCount = computed(() => {
@@ -128,12 +94,20 @@ const measuredVmafCount = computed(() => {
   return Math.floor(c);
 });
 
-const vmaf95Plus = computed(() => {
+const vmafDisplayValue = computed<number | null>(() => {
   const measured = measuredVmaf.value;
+  if (typeof measured === "number" && Number.isFinite(measured)) {
+    return toFixedDisplay(measured, 2)?.value ?? null;
+  }
   const predicted = props.predictedVmaf;
-  const v =
-    (typeof measured === "number" && Number.isFinite(measured) ? measured : null) ??
-    (typeof predicted === "number" && Number.isFinite(predicted) ? predicted : null);
+  if (typeof predicted === "number" && Number.isFinite(predicted)) {
+    return toFixedDisplay(predicted, 2)?.value ?? null;
+  }
+  return null;
+});
+
+const vmaf95Plus = computed(() => {
+  const v = vmafDisplayValue.value;
   return typeof v === "number" && Number.isFinite(v) && v >= 95;
 });
 
@@ -141,12 +115,17 @@ const vmafTitle = computed(() => {
   const parts: string[] = [];
   const mean = measuredVmafText.value;
   if (mean) {
-    parts.push(`meas=${mean}`);
+    const c = measuredVmafCount.value;
+    parts.push(
+      c
+        ? (t("presets.vmafTooltipMeasuredWithCount", { value: mean, count: c }) as string)
+        : (t("presets.vmafTooltipMeasured", { value: mean }) as string),
+    );
   } else if (predictedVmafText.value !== "—") {
-    parts.push(`pred=${predictedVmafText.value}`);
+    parts.push(t("presets.vmafTooltipPredicted", { value: predictedVmafText.value }) as string);
   }
-  if (vmaf95Plus.value) parts.push(t("presets.vmafHint95"));
-  return parts.join(" / ") || "VMAF";
+  if (vmaf95Plus.value) parts.push(t("presets.vmafHint95") as string);
+  return parts.join(" · ") || "VMAF";
 });
 
 const vmafStatProps = computed(() => ({
@@ -158,22 +137,9 @@ const vmafStatProps = computed(() => ({
   measuredVmafCount: measuredVmafCount.value,
 }));
 
-const primaryStatsProps = computed(() => ({
-  showAvgSize: effectiveFooterSettings.value.showAvgSize,
-  showFps: effectiveFooterSettings.value.showFps,
-  showVmaf: effectiveFooterSettings.value.showVmaf,
-  avgSizeLabel: footerLabelAvgSize.value,
-  fpsLabel: t("presets.footerLabels.fps") as string,
-  avgRatioText: avgRatioText.value,
-  avgRatioTitle: t("presets.avgRatio", { percent: avgRatioText.value }) as string,
-  ratioColorClass: getRatioColorClass(avgRatioValue.value),
-  avgFpsText: avgFpsText.value,
-  avgFpsTitle: t("presets.avgFps", { fps: avgFpsText.value }) as string,
-  orderAvgSize: orderStyle("avgSize"),
-  orderFps: orderStyle("fps"),
-  orderVmaf: orderStyle("vmaf"),
-  vmafStatProps: vmafStatProps.value,
-}));
+const avgRatioTitle = computed(() => t("presets.avgRatio", { percent: avgRatioText.value }) as string);
+const avgFpsTitle = computed(() => t("presets.avgFps", { fps: avgFpsText.value }) as string);
+const ratioColorClass = computed(() => getRatioColorClass(avgRatioDisplayValue.value));
 
 const isShown = (k: PresetCardFooterItemKey): boolean => {
   const s = effectiveFooterSettings.value;
@@ -191,26 +157,25 @@ const isShown = (k: PresetCardFooterItemKey): boolean => {
     case "throughput":
       return s.showThroughput;
   }
+  return false;
 };
 
 const visibleKeysOrdered = computed(() => effectiveFooterSettings.value.order.filter((k) => isShown(k)));
 
-const orderIndex = computed(() => {
-  const map = new Map<PresetCardFooterItemKey, number>();
-  for (const [idx, key] of visibleKeysOrdered.value.entries()) map.set(key, idx);
-  return map;
-});
-
-// Use even step orders so we can insert "break" elements between items using an odd integer order.
-// Note: CSS `order` is an integer; fractional values may be ignored by some engines.
-const orderStyle = (k: PresetCardFooterItemKey) => ({ order: (orderIndex.value.get(k) ?? 999) * 2 });
-
-const twoRowsBreakOrder = computed(() => {
+const twoRowsBreakAfterIndex = computed<number | null>(() => {
+  if (effectiveFooterSettings.value.layout !== "twoRows") return null;
   const n = visibleKeysOrdered.value.length;
   if (n <= 3) return null;
-  const breakAfter = Math.ceil(n / 2);
-  return breakAfter * 2 - 1;
+  return Math.ceil(n / 2);
 });
+
+const shouldShowSeparatorBeforeIndex = (idx: number): boolean => {
+  if (idx <= 0) return false;
+  const breakIdx = twoRowsBreakAfterIndex.value;
+  return !(effectiveFooterSettings.value.layout === "twoRows" && breakIdx != null && idx === breakIdx);
+};
+
+const separatorProbe = computed(() => shouldShowSeparatorBeforeIndex(1));
 
 const footerOuterRef = ref<HTMLElement | null>(null);
 const footerInnerRef = ref<HTMLElement | null>(null);
@@ -325,9 +290,14 @@ watch(
     avgRatioText,
     avgSpeedText,
     avgFpsText,
+    avgRatioTitle,
+    avgFpsTitle,
+    ratioColorClass,
     predictedVmafText,
     measuredVmafText,
     measuredVmafCount,
+    vmafStatProps,
+    separatorProbe,
   ],
   recalcFooterFont,
 );
@@ -345,117 +315,141 @@ onMounted(() => {
     class="text-muted-foreground pt-1.5 pb-1 border-t border-border/30 mt-auto"
     data-testid="preset-card-footer-stats"
   >
-    <template v-if="effectiveFooterSettings.layout === 'oneRow'">
-      <div ref="footerOuterRef" class="w-full">
-        <div
-          ref="footerInnerRef"
-          :class="
-            oneRowWrapFallback
+    <div
+      ref="footerOuterRef"
+      :class="effectiveFooterSettings.layout === 'oneRow' ? 'w-full' : '[container-type:inline-size]'"
+    >
+      <div
+        ref="footerInnerRef"
+        :class="
+          effectiveFooterSettings.layout === 'oneRow'
+            ? oneRowWrapFallback
               ? 'flex flex-wrap items-center justify-center tabular-nums leading-none'
               : 'inline-flex items-center justify-center whitespace-nowrap tabular-nums leading-none'
-          "
-          :style="{ fontSize: `${footerFontPx}px`, gap: `${footerGapPx}px` }"
-        >
-          <PresetCardFooterPrimaryStats v-bind="primaryStatsProps" />
+            : 'flex flex-wrap items-center justify-center tabular-nums leading-none tracking-tight text-[clamp(12px,2.6cqw,14px)] gap-x-[clamp(8px,2cqw,12px)] gap-y-1'
+        "
+        data-testid="preset-card-footer-items"
+        :style="
+          effectiveFooterSettings.layout === 'oneRow'
+            ? { fontSize: `${footerFontPx}px`, gap: `${footerGapPx}px` }
+            : undefined
+        "
+      >
+        <template v-for="(k, idx) in visibleKeysOrdered" :key="k">
           <span
-            v-if="effectiveFooterSettings.showUsedCount"
-            class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('usedCount')"
-            :title="t('presets.usedTimes', { count: preset.stats.usageCount })"
-            data-footer-item="usedCount"
-          >
-            <span v-if="footerLabelUsedCount" class="text-muted-foreground">{{ footerLabelUsedCount }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ preset.stats.usageCount }}</span>
-              <span class="text-muted-foreground">次</span>
-            </span>
-          </span>
-          <span
-            v-if="effectiveFooterSettings.showDataAmount"
-            class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('dataAmount')"
-            :title="t('presets.totalIn', { gb: inputGbText })"
-            data-footer-item="dataAmount"
-          >
-            <span v-if="footerLabelDataAmount" class="text-muted-foreground">{{ footerLabelDataAmount }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ inputGbText }}</span>
-              <span class="text-muted-foreground">G</span>
-            </span>
-          </span>
-          <span
-            v-if="effectiveFooterSettings.showThroughput"
-            class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('throughput')"
-            :title="t('presets.avgSpeed', { mbps: avgSpeedText })"
-            data-footer-item="throughput"
-          >
-            <span v-if="footerLabelThroughput" class="text-muted-foreground">{{ footerLabelThroughput }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ avgSpeedText }}</span>
-              <span class="text-muted-foreground">MB/s</span>
-            </span>
-          </span>
-        </div>
-      </div>
-    </template>
-
-    <template v-else>
-      <div class="[container-type:inline-size]">
-        <div
-          class="flex flex-wrap items-center justify-center tabular-nums leading-none tracking-tight text-[clamp(10px,1.8cqw,14px)] gap-x-[clamp(8px,2cqw,12px)] gap-y-1"
-        >
-          <PresetCardFooterPrimaryStats v-bind="primaryStatsProps" />
-
-          <span
-            v-if="twoRowsBreakOrder != null"
+            v-if="
+              effectiveFooterSettings.layout === 'twoRows' &&
+              twoRowsBreakAfterIndex != null &&
+              idx === twoRowsBreakAfterIndex
+            "
             class="basis-full h-0"
-            :style="{ order: twoRowsBreakOrder }"
             aria-hidden="true"
             data-testid="preset-card-footer-break"
           />
 
           <span
-            v-if="effectiveFooterSettings.showUsedCount"
+            v-if="k === 'avgSize'"
             class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('usedCount')"
+            :title="avgRatioTitle"
+            data-footer-item="avgSize"
+          >
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <span v-if="footerLabelAvgSize" class="text-muted-foreground">{{ footerLabelAvgSize }}</span>
+            <span class="ml-1 inline-flex items-baseline gap-1">
+              <span :class="ratioColorClass">{{ avgRatioText }}</span>
+              <span class="text-muted-foreground">%</span>
+            </span>
+          </span>
+
+          <span
+            v-else-if="k === 'fps'"
+            class="flex flex-wrap items-center max-w-full"
+            :title="avgFpsTitle"
+            data-footer-item="fps"
+          >
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <span class="text-muted-foreground">{{ t("presets.footerLabels.fps") }}</span>
+            <span class="ml-1 text-foreground">{{ avgFpsText }}</span>
+          </span>
+
+          <span v-else-if="k === 'vmaf'" class="flex flex-wrap items-center max-w-full" data-footer-item="vmaf">
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <PresetCardFooterVmafStat v-bind="vmafStatProps" />
+          </span>
+
+          <span
+            v-else-if="k === 'usedCount'"
+            class="flex flex-wrap items-center max-w-full"
             :title="t('presets.usedTimes', { count: preset.stats.usageCount })"
             data-footer-item="usedCount"
           >
-            <span class="text-muted-foreground">{{ t("presets.footerLabels.usedCountFull") }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ preset.stats.usageCount }}</span>
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <span v-if="footerLabelUsedCount" class="text-muted-foreground">{{ footerLabelUsedCount }}</span>
+            <span class="ml-1 inline-flex items-baseline gap-1">
+              <span class="text-foreground">{{ preset.stats.usageCount }}</span>
               <span class="text-muted-foreground">次</span>
             </span>
           </span>
+
           <span
-            v-if="effectiveFooterSettings.showDataAmount"
+            v-else-if="k === 'dataAmount'"
             class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('dataAmount')"
             :title="t('presets.totalIn', { gb: inputGbText })"
             data-footer-item="dataAmount"
           >
-            <span class="text-muted-foreground">{{ t("presets.footerLabels.dataAmountFull") }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ inputGbText }}</span>
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <span v-if="footerLabelDataAmount" class="text-muted-foreground">{{ footerLabelDataAmount }}</span>
+            <span class="ml-1 inline-flex items-baseline gap-1">
+              <span class="text-foreground">{{ inputGbText }}</span>
               <span class="text-muted-foreground">G</span>
             </span>
           </span>
+
           <span
-            v-if="effectiveFooterSettings.showThroughput"
+            v-else-if="k === 'throughput'"
             class="flex flex-wrap items-center max-w-full"
-            :style="orderStyle('throughput')"
             :title="t('presets.avgSpeed', { mbps: avgSpeedText })"
             data-footer-item="throughput"
           >
-            <span class="text-muted-foreground">{{ t("presets.footerLabels.throughputFull") }}</span>
-            <span>
-              <span class="text-foreground mx-0.5">{{ avgSpeedText }}</span>
+            <span
+              v-if="shouldShowSeparatorBeforeIndex(idx)"
+              aria-hidden="true"
+              class="mx-1.5 inline-block h-[0.9em] w-px shrink-0 bg-border/60"
+              data-testid="preset-card-footer-separator"
+            />
+            <span v-if="footerLabelThroughput" class="text-muted-foreground">{{ footerLabelThroughput }}</span>
+            <span class="ml-1 inline-flex items-baseline gap-1">
+              <span class="text-foreground">{{ avgSpeedText }}</span>
               <span class="text-muted-foreground">MB/s</span>
             </span>
           </span>
-        </div>
+        </template>
       </div>
-    </template>
+    </div>
   </div>
 </template>

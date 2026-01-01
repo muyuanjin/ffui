@@ -25,6 +25,7 @@ export const applyPresetStatsDelta = (
       ? {
           ...preset,
           stats: {
+            ...preset.stats,
             usageCount: preset.stats.usageCount + 1,
             totalInputSizeMB: preset.stats.totalInputSizeMB + inputSizeMB,
             totalOutputSizeMB: preset.stats.totalOutputSizeMB + outputSizeMB,

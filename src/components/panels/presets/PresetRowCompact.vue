@@ -4,6 +4,7 @@ import { computed } from "vue";
 import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
 import { getPresetAvgRatio } from "@/lib/presetSorter";
+import { toFixedDisplay } from "@/lib/numberDisplay";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download } from "lucide-vue-next";
@@ -35,10 +36,19 @@ const { t, locale } = useI18n();
 const commandPreview = computed(() => getPresetCommandPreview(props.preset));
 const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
 
+const avgRatioValue = computed(() => getPresetAvgRatio(props.preset));
+const avgRatioDisplayValue = computed<number | null>(() => {
+  const v = avgRatioValue.value;
+  if (typeof v !== "number" || !Number.isFinite(v)) return null;
+  return toFixedDisplay(v, 0)?.value ?? null;
+});
+const avgRatioText = computed(() => (avgRatioDisplayValue.value == null ? null : `${avgRatioDisplayValue.value}%`));
+const avgRatioColorClass = computed(() => getRatioColorClass(avgRatioDisplayValue.value));
+
 const predictedVmafText = computed(() => {
   const v = props.predictedVmaf;
   if (typeof v !== "number" || !Number.isFinite(v)) return "—";
-  return v.toFixed(1);
+  return toFixedDisplay(v, 2)?.text ?? "—";
 });
 
 const measuredVmafText = computed(() => {
@@ -46,18 +56,29 @@ const measuredVmafText = computed(() => {
   const sum = Number(props.preset.stats.vmafSum ?? 0);
   if (!Number.isFinite(c) || c <= 0) return null;
   if (!Number.isFinite(sum)) return null;
-  return (sum / c).toFixed(1);
+  return toFixedDisplay(sum / c, 2)?.text ?? null;
+});
+
+const measuredVmafCount = computed(() => {
+  const c = Number(props.preset.stats.vmafCount ?? 0);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  return Math.floor(c);
 });
 
 const _vmafTitle = computed(() => {
   const parts: string[] = [];
   const mean = measuredVmafText.value;
   if (mean) {
-    parts.push(`meas=${mean}`);
+    const c = measuredVmafCount.value;
+    parts.push(
+      c
+        ? (t("presets.vmafTooltipMeasuredWithCount", { value: mean, count: c }) as string)
+        : (t("presets.vmafTooltipMeasured", { value: mean }) as string),
+    );
   } else if (predictedVmafText.value !== "—") {
-    parts.push(`pred=${predictedVmafText.value}`);
+    parts.push(t("presets.vmafTooltipPredicted", { value: predictedVmafText.value }) as string);
   }
-  return parts.join(" / ") || "VMAF";
+  return parts.join(" · ") || "VMAF";
 });
 
 const handleRowClick = (event: MouseEvent) => {
@@ -152,12 +173,8 @@ const handleRowClick = (event: MouseEvent) => {
       <div class="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground flex-shrink-0 w-40">
         <div class="flex items-center justify-end gap-2">
           <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
-          <span
-            v-if="getPresetAvgRatio(preset) !== null"
-            class="font-medium"
-            :class="getRatioColorClass(getPresetAvgRatio(preset))"
-          >
-            {{ getPresetAvgRatio(preset)?.toFixed(0) }}%
+          <span v-if="avgRatioText" class="font-medium" :class="avgRatioColorClass">
+            {{ avgRatioText }}
           </span>
         </div>
         <div class="text-[9px] leading-none" :title="_vmafTitle" data-testid="preset-row-vmaf">

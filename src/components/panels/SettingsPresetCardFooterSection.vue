@@ -133,7 +133,14 @@ const updateFooter = (patch: Partial<PresetCardFooterSettings>) => {
           :disabled="!props.appSettings"
           @click="updateFooter({ layout: effective.layout === 'twoRows' ? 'oneRow' : 'twoRows' })"
         >
-          {{ t("app.settings.presetCardFooterLayoutToggle") }}
+          {{
+            t("app.settings.presetCardFooterLayoutButton", {
+              layout:
+                effective.layout === "twoRows"
+                  ? t("app.settings.presetCardFooterLayoutTwoRows")
+                  : t("app.settings.presetCardFooterLayoutOneRow"),
+            })
+          }}
         </Button>
         <Button
           type="button"
