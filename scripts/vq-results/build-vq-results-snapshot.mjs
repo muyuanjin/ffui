@@ -131,6 +131,28 @@ const dedupeConsecutivePoints = (points) => {
   return out;
 };
 
+const collapseSameXPoints = (points) => {
+  if (points.length <= 1) return points;
+  const out = [];
+  let curX = points[0].x;
+  let sum = points[0].y;
+  let count = 1;
+  for (let i = 1; i < points.length; i += 1) {
+    const p = points[i];
+    if (p.x === curX) {
+      sum += p.y;
+      count += 1;
+      continue;
+    }
+    out.push({ x: curX, y: sum / count });
+    curX = p.x;
+    sum = p.y;
+    count = 1;
+  }
+  out.push({ x: curX, y: sum / count });
+  return out;
+};
+
 const parseVqResultsDataJs = (source) => {
   const text = source ?? "";
   if (!text.trim()) return [];
@@ -166,7 +188,7 @@ const parseVqResultsDataJs = (source) => {
     }
     if (points.length === 0) continue;
     sortByBitrateAsc(points);
-    const deduped = dedupeConsecutivePoints(points);
+    const deduped = collapseSameXPoints(dedupeConsecutivePoints(points));
 
     out.push({ set, metric, key, label, points: deduped });
   }

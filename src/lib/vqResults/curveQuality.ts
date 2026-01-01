@@ -53,6 +53,13 @@ const sliceQualityAxisForPoints = (spec: Pick<CurveQualitySpec, "axis" | "direct
   return spec.direction === "lower_is_better" ? axis.slice(axis.length - count) : axis.slice(0, count);
 };
 
+export const getQualityAxisForPointsCount = (
+  spec: Pick<CurveQualitySpec, "axis" | "direction">,
+  count: number,
+): number[] => {
+  return sliceQualityAxisForPoints(spec, count);
+};
+
 export const estimateCurveQualityValue = (
   preset: FFmpegPreset,
   spec: CurveQualitySpec,
@@ -184,10 +191,32 @@ const computeValueByCurveQuality = (
     return out;
   })();
 
-  const axis = sliceQualityAxisForPoints(spec, deduped.length);
-  if (axis.length !== deduped.length || axis.length === 0) return null;
+  const collapsed = (() => {
+    if (deduped.length <= 1) return deduped;
+    const out: { x: number; y: number }[] = [];
+    let curX = deduped[0]!.x;
+    let sum = deduped[0]!.y;
+    let count = 1;
+    for (let i = 1; i < deduped.length; i += 1) {
+      const p = deduped[i]!;
+      if (p.x === curX) {
+        sum += p.y;
+        count += 1;
+        continue;
+      }
+      out.push({ x: curX, y: sum / count });
+      curX = p.x;
+      sum = p.y;
+      count = 1;
+    }
+    out.push({ x: curX, y: sum / count });
+    return out;
+  })();
 
-  const points = deduped.slice().sort((a, b) => {
+  const axis = sliceQualityAxisForPoints(spec, collapsed.length);
+  if (axis.length !== collapsed.length || axis.length === 0) return null;
+
+  const points = collapsed.slice().sort((a, b) => {
     // Preserve the original vq_results "quality sweep" direction:
     // - lower-is-better: bitrate decreases as axis increases => pair axis asc with bitrate desc
     // - higher-is-better: bitrate increases as axis increases => pair axis asc with bitrate asc

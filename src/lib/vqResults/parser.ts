@@ -1,4 +1,5 @@
 import type { VqDataset, VqMetric, VqPoint } from "./types";
+import { collapseSameXPointsByAverage } from "./interpolation";
 
 // vq_results uses two naming variants:
 // - data_1__bitrate_vmaf__x264_medium_crf  (extra '_' before key)
@@ -66,7 +67,7 @@ export const parseVqResultsDataJs = (source: string): VqDataset[] => {
 
     if (points.length === 0) continue;
     sortByBitrateAsc(points);
-    const deduped = dedupeConsecutivePoints(points);
+    const deduped = collapseSameXPointsByAverage(dedupeConsecutivePoints(points));
 
     out.push({ set, metric, key, label, points: deduped });
   }

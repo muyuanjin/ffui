@@ -1,14 +1,23 @@
+import { collapseSameXPointsByAverage } from "./points";
+
+export { collapseSameXPointsByAverage };
+
 export const clamp = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v);
 
 export const interpolateY = (points: { x: number; y: number }[], x: number): number => {
   if (points.length === 0) return NaN;
-  if (points.length === 1) return points[0]!.y;
-  if (x <= points[0]!.x) return points[0]!.y;
-  if (x >= points[points.length - 1]!.x) return points[points.length - 1]!.y;
+  // vq_results data occasionally contains duplicate bitrate points (same x),
+  // sometimes even with duplicate (x,y) entries. Collapse consecutive same-x
+  // points by averaging y to keep interpolation stable.
+  const collapsed = collapseSameXPointsByAverage(points);
 
-  for (let i = 1; i < points.length; i += 1) {
-    const left = points[i - 1]!;
-    const right = points[i]!;
+  if (collapsed.length === 1) return collapsed[0]!.y;
+  if (x <= collapsed[0]!.x) return collapsed[0]!.y;
+  if (x >= collapsed[collapsed.length - 1]!.x) return collapsed[collapsed.length - 1]!.y;
+
+  for (let i = 1; i < collapsed.length; i += 1) {
+    const left = collapsed[i - 1]!;
+    const right = collapsed[i]!;
     if (x <= right.x) {
       const span = right.x - left.x;
       if (span <= 0) return right.y;
@@ -16,5 +25,5 @@ export const interpolateY = (points: { x: number; y: number }[], x: number): num
       return left.y + (right.y - left.y) * t;
     }
   }
-  return points[points.length - 1]!.y;
+  return collapsed[collapsed.length - 1]!.y;
 };

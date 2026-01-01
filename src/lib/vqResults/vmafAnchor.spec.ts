@@ -114,4 +114,41 @@ describe("vq_results predictor vs measured VMAF anchor", () => {
 
     expect(failures).toEqual([]);
   });
+
+  it("keeps absolute error bounded for the shipped anchor fixture", () => {
+    const fixturePath = resolve(
+      process.cwd(),
+      "src/lib/vqResults/__fixtures__/vmafAnchor.bbb1080p30s.defaultSelected.json",
+    );
+
+    const anchor = loadFixture(fixturePath);
+    const snapshotPath = resolve(process.cwd(), anchor.inputs.snapshotPath);
+    const snapshot = loadSnapshot(snapshotPath);
+
+    const presetsPath = resolve(process.cwd(), anchor.inputs.presetsPath);
+    const presets = loadSmartPresets(presetsPath).presets ?? [];
+
+    const errors = anchor.results
+      .map((r) => {
+        const preset = findPreset(presets, r.presetId, r.encoder);
+        const predicted = predictFromVqResults(snapshot, preset);
+        const predictedVmaf = predicted?.vmaf?.value ?? null;
+        if (typeof predictedVmaf !== "number" || !Number.isFinite(predictedVmaf)) return null;
+        const measuredVmaf = Number(r.vmafMean);
+        if (!Number.isFinite(measuredVmaf)) return null;
+        const error = predictedVmaf - measuredVmaf;
+        return { error, absError: Math.abs(error) };
+      })
+      .filter((v): v is { error: number; absError: number } => !!v);
+
+    expect(errors.length).toBeGreaterThanOrEqual(5);
+
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const mae = mean(errors.map((e) => e.absError));
+    const maxAbs = Math.max(...errors.map((e) => e.absError));
+
+    // Coarse bounds to catch regressions without hard-coding exact scores.
+    expect(mae).toBeLessThanOrEqual(1.0);
+    expect(maxAbs).toBeLessThanOrEqual(2.5);
+  });
 });

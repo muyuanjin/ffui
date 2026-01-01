@@ -46,4 +46,24 @@ const data_1__bitrate_vmaf_rtx4080_NVEncC_HEVC_quality = {
     const nvenc = datasets.find((d) => d.key === "rtx4080_NVEncC_HEVC_quality");
     expect(nvenc?.metric).toBe("vmaf");
   });
+
+  it("collapses duplicate bitrate points (same x) to keep curves well-formed", () => {
+    const input = `
+const data_1__bitrate_vmaf_rtx4080_NVEncC_AV1_normal = {
+  label: " rtx4080 NVENC AV1 normal",
+  data: [
+    { x: 1000.0, y: 90.0 },
+    { x: 1000.0, y: 92.0 },
+    { x: 2000.0, y: 95.0 },
+    { x: 2000.0, y: 95.0 }
+  ]
+};
+`;
+    const datasets = parseVqResultsDataJs(input);
+    expect(datasets.length).toBe(1);
+    expect(datasets[0]?.points).toEqual([
+      { x: 1000, y: 91 },
+      { x: 2000, y: 95 },
+    ]);
+  });
 });

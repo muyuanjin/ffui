@@ -10,6 +10,7 @@
     "version:set": "node scripts/set-version.mjs",
     "check:all": "node scripts/check-all.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "vq:snapshot:rebuild": "node scripts/vq-results/build-quality-snapshot.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "bench:queue": "vitest run --config tools/perf/vitest.perf.config.ts",
