@@ -1,7 +1,7 @@
 const vqResults = {
   title: "画质预测",
   loading: "正在加载曲线数据…",
-  unavailable: "未加载曲线数据（需要联网或内置快照）",
+  unavailable: "未加载曲线快照（内置快照缺失或加载失败）",
   notApplicable: "当前预设未编码视频，因此不适用画质预测。",
   noPreset: "当前命令未解析为预设，因此无法给出画质预测。",
   noMatch: "已加载曲线数据，但当前预设未找到匹配曲线（请在下方选择数据集）。",
