@@ -13,7 +13,7 @@ const props = withDefaults(
   {
     side: "top",
     sideOffset: 6,
-    contentClass: "max-w-[360px] text-[10px] leading-snug",
+    contentClass: "max-w-[360px] text-[10px] leading-snug whitespace-pre-line",
   },
 );
 </script>

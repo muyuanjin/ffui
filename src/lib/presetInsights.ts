@@ -264,7 +264,8 @@ const computeSizeSavingScore = (
     score = 2;
   }
 
-  return { score: clamp(score, 1, 5), mayIncreaseSize: mayIncrease };
+  // 无统计数据时该轴只是经验估计：避免出现“满格”造成误导，把上限收紧到 4.5
+  return { score: clamp(score, 1, 4.5), mayIncreaseSize: mayIncrease };
 };
 
 const computeSpeedScore = (preset: FFmpegPreset, speedMbPerSec: number | null): number => {
@@ -285,7 +286,7 @@ const computeSpeedScore = (preset: FFmpegPreset, speedMbPerSec: number | null): 
     const match = presetName.match(/\bp([1-7])\b/);
     if (match) {
       const p = Number(match[1]);
-      if (p === 1) return 5;
+      if (p === 1) return 4.5;
       if (p === 2) return 4.5;
       if (p === 3) return 4;
       if (p === 4) return 3.5;
@@ -300,7 +301,7 @@ const computeSpeedScore = (preset: FFmpegPreset, speedMbPerSec: number | null): 
   }
 
   if (family === "cpu-x264") {
-    if (presetName.includes("ultrafast") || presetName.includes("superfast")) return 5;
+    if (presetName.includes("ultrafast") || presetName.includes("superfast")) return 4.5;
     if (presetName.includes("veryfast") || presetName.includes("faster")) return 4;
     if (presetName.includes("medium") || presetName.includes("fast")) return 3;
     if (presetName.includes("slow")) return 2;
@@ -315,7 +316,8 @@ const computeSpeedScore = (preset: FFmpegPreset, speedMbPerSec: number | null): 
     return 2;
   }
 
-  return 3;
+  // 无统计数据时该轴只是经验估计：避免出现“满格”造成误导，把上限收紧到 4.5
+  return clamp(3, 1, 4.5);
 };
 
 const computeCompatibilityScore = (preset: FFmpegPreset): number => {

@@ -84,13 +84,16 @@ export const assignCommandTokenGroups = (tokens: CommandToken[]): CommandToken[]
       if (opt === "-map") {
         group = "mapping";
         field = "map";
-      } else if (opt === "-map_metadata" || opt === "-map_chapters") {
+      } else if (opt === "-map_metadata") {
         group = "mapping";
-        field = "mapMeta";
+        field = "mapMetadata";
+      } else if (opt === "-map_chapters") {
+        group = "mapping";
+        field = "mapChapters";
       } else if (opt === "-metadata") {
         group = "mapping";
         field = "metadata";
-      } else if (opt === "-disposition") {
+      } else if (opt === "-disposition" || opt.startsWith("-disposition:")) {
         group = "mapping";
         field = "disposition";
       } else if (opt === "-attach" || opt === "-dump_attachment") {
@@ -107,9 +110,15 @@ export const assignCommandTokenGroups = (tokens: CommandToken[]): CommandToken[]
       } else if (opt === "-crf" || opt === "-cq") {
         group = "video";
         field = "quality";
-      } else if (opt === "-b:v" || opt === "-maxrate" || opt === "-bufsize" || opt === "-pass") {
+      } else if (opt === "-b:v" || opt === "-pass" || opt === "-passlogfile") {
         group = "video";
-        field = "bitrate";
+        field = opt === "-b:v" ? "bitrate" : "pass";
+      } else if (opt === "-maxrate") {
+        group = "video";
+        field = "maxrate";
+      } else if (opt === "-bufsize") {
+        group = "video";
+        field = "bufsize";
       } else if (opt === "-preset" || opt === "-tune" || opt === "-profile:v") {
         group = "video";
         field = "preset";
@@ -132,12 +141,15 @@ export const assignCommandTokenGroups = (tokens: CommandToken[]): CommandToken[]
 
     // Filters (video/audio/complex).
     if (!group) {
-      if (opt === "-vf" || opt === "-filter_complex") {
+      if (opt === "-vf") {
         group = "filters";
-        field = "videoFilters";
+        field = "vf";
+      } else if (opt === "-filter_complex") {
+        group = "filters";
+        field = "filterComplex";
       } else if (opt === "-af") {
         group = "filters";
-        field = "audioFilters";
+        field = "af";
       }
     }
 
@@ -157,9 +169,15 @@ export const assignCommandTokenGroups = (tokens: CommandToken[]): CommandToken[]
 
     // Hardware & bitstream filters.
     if (!group) {
-      if (opt === "-hwaccel" || opt === "-hwaccel_device" || opt === "-hwaccel_output_format") {
+      if (opt === "-hwaccel") {
         group = "hardware";
         field = "hwaccel";
+      } else if (opt === "-hwaccel_device") {
+        group = "hardware";
+        field = "hwaccel_device";
+      } else if (opt === "-hwaccel_output_format") {
+        group = "hardware";
+        field = "hwaccel_output_format";
       } else if (opt === "-bsf") {
         group = "hardware";
         field = "bitstreamFilters";

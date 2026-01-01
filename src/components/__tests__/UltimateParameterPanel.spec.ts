@@ -173,6 +173,7 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-b:v 3000k");
     expect(text).toContain("-maxrate 4000k");
     expect(text).toContain("-bufsize 6000k");
+    expect(text).toContain("-passlogfile OUTPUT.ffui2pass");
     expect(text).toContain("-pass 2");
     expect(text).not.toContain("-crf ");
     expect(text).not.toContain("-cq ");
@@ -201,7 +202,7 @@ describe("UltimateParameterPanel", () => {
         mapMetadataFromInputFileIndex: -1,
         mapChaptersFromInputFileIndex: -1,
         metadata: ["title=Test"],
-        dispositions: ["0:v:0 default"],
+        dispositions: ["v:0 default"],
       },
       subtitles: {
         strategy: "drop",
@@ -242,7 +243,7 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-map_metadata -1");
     expect(text).toContain("-map_chapters -1");
     expect(text).toContain("-metadata title=Test");
-    expect(text).toContain("-disposition 0:v:0 default");
+    expect(text).toContain("-disposition:v:0 default");
     expect(text).toContain("-sn");
     expect(text).toContain("-f mp4");
     expect(text).toContain("-movflags faststart+frag_keyframe");
@@ -250,6 +251,36 @@ describe("UltimateParameterPanel", () => {
     expect(text).toContain("-hwaccel_device cuda:0");
     expect(text).toContain("-hwaccel_output_format cuda");
     expect(text).toContain("-bsf h264_mp4toannexb");
+  });
+
+  it("jumps to the matching tab when clicking a grouped preview token", async () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      mapping: {
+        maps: ["0:v:0", "0:a:0"],
+        mapMetadataFromInputFileIndex: -1,
+        mapChaptersFromInputFileIndex: -1,
+      },
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const token = wrapper.find('span[data-group="mapping"][data-field="mapMetadata"]');
+    expect(token.exists()).toBe(true);
+
+    await token.trigger("click");
+    await nextTick();
+    await nextTick();
+
+    const preview = wrapper.find("pre");
+    expect(preview.attributes("data-active-group")).toBe("mapping");
   });
 
   it("allows resetting container format back to auto inference", async () => {

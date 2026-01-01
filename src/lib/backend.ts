@@ -8,6 +8,7 @@ import type {
   ExternalToolStatus,
   GpuUsageSnapshot,
   FFmpegPreset,
+  PresetTemplateValidationResult,
   OutputPolicy,
   BatchCompressConfig,
   QueueState,
@@ -222,6 +223,14 @@ export const deletePresetOnBackend = async (presetId: string): Promise<FFmpegPre
 
 export const reorderPresetsOnBackend = async (orderedIds: string[]): Promise<FFmpegPreset[]> => {
   return invokeCommand<FFmpegPreset[]>("reorder_presets", { orderedIds });
+};
+
+export const validatePresetTemplate = async (
+  preset: FFmpegPreset,
+  options?: { timeoutMs?: number },
+): Promise<PresetTemplateValidationResult> => {
+  const timeoutMs = options?.timeoutMs;
+  return invokeCommand<PresetTemplateValidationResult>("validate_preset_template", { preset, timeoutMs });
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {

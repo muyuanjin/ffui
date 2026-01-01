@@ -46,10 +46,16 @@ export const applyMappingToken = (
     state.metadata.push(stripQuotes(v));
     return { consumed: 1 };
   }
-  if (token === "-disposition") {
+  if (token === "-disposition" || token.startsWith("-disposition:")) {
+    const spec = token.startsWith("-disposition:") ? token.slice("-disposition:".length) : "";
     const v = readValue(tokens, i, "-disposition", state.reasons);
     if (!v) return { consumed: 0 };
-    state.dispositions.push(stripQuotes(v));
+    const value = stripQuotes(v);
+    if (spec) {
+      state.dispositions.push(`${spec} ${value}`);
+    } else {
+      state.dispositions.push(value);
+    }
     return { consumed: 1 };
   }
 

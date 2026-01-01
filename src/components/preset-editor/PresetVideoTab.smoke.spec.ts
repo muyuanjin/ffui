@@ -41,7 +41,7 @@ describe("PresetVideoTab (smoke)", () => {
     });
 
     const text = wrapper.text();
-    expect(text).toContain("av1_nvenc");
+    expect(text).toContain("AV1 NVENC");
     expect(text).toContain("p7");
   });
 });

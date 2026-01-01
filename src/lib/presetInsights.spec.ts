@@ -40,6 +40,20 @@ const makePreset = (partial: Partial<FFmpegPreset>): FFmpegPreset => {
 };
 
 describe("computePresetInsights", () => {
+  it("does not saturate speed at 5 without stats (estimate only)", () => {
+    const nvencFast = makePreset({
+      id: "nvenc-p1-no-stats",
+      video: { encoder: "av1_nvenc", rateControl: "cq", qualityValue: 28, preset: "p1" },
+    });
+    const x264Ultra = makePreset({
+      id: "x264-ultrafast-no-stats",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "ultrafast" },
+    });
+
+    expect(computePresetInsights(nvencFast).radar.speed).toBeLessThanOrEqual(4.5);
+    expect(computePresetInsights(x264Ultra).radar.speed).toBeLessThanOrEqual(4.5);
+  });
+
   it("marks AV1 NVENC constqp18 as lossless, not beginner-friendly, and likely to increase size", () => {
     const preset = makePreset({
       id: "smart-av1-nvenc-hq-constqp18",

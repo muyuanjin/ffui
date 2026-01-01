@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
-import type { FFmpegPreset } from "@/types";
+import { computed, nextTick, ref, watch } from "vue";
+import type { FFmpegPreset, PresetTemplateValidationResult } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useI18n } from "vue-i18n";
+import { validatePresetTemplate } from "@/lib/backend";
 import { usePresetEditor } from "@/composables";
 import { computePresetInsights } from "@/lib/presetInsights";
+import { validatePresetEditorState, type PresetEditorGroup } from "@/lib/presetEditorContract/presetValidator";
 import PresetGlobalTab from "@/components/preset-editor/PresetGlobalTab.vue";
 import PresetInputTab from "@/components/preset-editor/PresetInputTab.vue";
 import PresetMappingTab from "@/components/preset-editor/PresetMappingTab.vue";
@@ -18,7 +20,10 @@ import PresetAudioTab from "@/components/preset-editor/PresetAudioTab.vue";
 import PresetFiltersTab from "@/components/preset-editor/PresetFiltersTab.vue";
 import PresetContainerTab from "@/components/preset-editor/PresetContainerTab.vue";
 import PresetHardwareTab from "@/components/preset-editor/PresetHardwareTab.vue";
-import PresetRadarChart from "@/components/preset-editor/PresetRadarChart.vue";
+import UltimateParameterPanelPreviewPane from "@/components/parameter-panel/UltimateParameterPanelPreviewPane.vue";
+import UltimateParameterPanelSidebar from "@/components/parameter-panel/UltimateParameterPanelSidebar.vue";
+import PresetEditorGroupSummaryBanner from "@/components/parameter-panel/PresetEditorGroupSummaryBanner.vue";
+import PresetTemplateValidationStatus from "@/components/preset-template/PresetTemplateValidationStatus.vue";
 
 const props = defineProps<{
   /** Preset being edited in the full parameter panel. */
@@ -61,6 +66,7 @@ const {
   parseHint,
   isCopyEncoder,
   rateControlLabel,
+  commandPreview,
   highlightedCommandTokens,
   parseHintClass,
   buildPresetFromState,
@@ -70,6 +76,12 @@ const {
 const isCustomCommandPreset = computed<boolean>(() => advancedEnabled.value && ffmpegTemplate.value.trim().length > 0);
 watch(isCustomCommandPreset, (isCustom) => {
   if (isCustom) activeTab.value = "command";
+});
+
+const quickValidateBusy = ref(false);
+const quickValidateResult = ref<PresetTemplateValidationResult | null>(null);
+watch([advancedEnabled, ffmpegTemplate], () => {
+  quickValidateResult.value = null;
 });
 
 // name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
@@ -85,6 +97,137 @@ const handleSwitchToWizard = () => {
 // 基于当前编辑状态构建洞察数据（雷达图 + 用途标签等）
 const currentPresetSnapshot = computed<FFmpegPreset>(() => buildPresetFromState());
 const currentInsights = computed(() => computePresetInsights(currentPresetSnapshot.value));
+
+const validationState = {
+  global: globalConfig,
+  input: inputTimeline,
+  mapping,
+  video,
+  audio,
+  filters,
+  subtitles,
+  container,
+  hardware,
+  advancedEnabled,
+  ffmpegTemplate,
+};
+const validation = computed(() => validatePresetEditorState(validationState as any));
+const groupSummary = computed(() => validation.value.byGroup);
+const activeGroup = computed(() => activeTab.value as PresetEditorGroup);
+const activeGroupSummary = computed(() => groupSummary.value[activeGroup.value]);
+const activeGroupIssues = computed(() => validation.value.issues.filter((i) => i.group === activeGroup.value));
+const activeGroupFixes = computed(() => groupSummary.value[activeGroup.value]?.fixes ?? []);
+const applyActiveGroupFixes = () => applyGroupFixes(activeGroup.value);
+
+const applyGroupFixes = (group: PresetEditorGroup) => {
+  const fixes = groupSummary.value[group]?.fixes ?? [];
+  for (const fix of fixes) {
+    fix.apply(validationState as any);
+  }
+};
+const applyFixById = (fixId: string) => {
+  const fix = activeGroupFixes.value.find((f) => f.id === fixId) ?? validation.value.fixes.find((f) => f.id === fixId);
+  if (!fix) return;
+  fix.apply(validationState as any);
+};
+
+const focusedTarget = ref<{ group: string; field?: string } | null>(null);
+
+const isTokenFocused = (token: any) => {
+  const target = focusedTarget.value;
+  if (!target) return false;
+  const group = String(token?.group ?? "");
+  if (!group || group !== target.group) return false;
+  const field = String(token?.field ?? "");
+  if (!target.field) return true;
+  return field === target.field;
+};
+
+const cssEscape = (value: string) => {
+  const fn = (globalThis as any).CSS?.escape;
+  if (typeof fn === "function") return fn(value);
+  return String(value).replace(/"/g, '\\"');
+};
+
+const focusEditorField = async (group: string, field?: string) => {
+  const nextGroup = group as any;
+  if (nextGroup) activeTab.value = nextGroup;
+  await nextTick();
+
+  const preferred = field
+    ? `[data-command-group="${cssEscape(group)}"][data-command-field="${cssEscape(field)}"]`
+    : null;
+  const fallback = `[data-command-group="${cssEscape(group)}"]`;
+
+  const el =
+    (preferred ? (document.querySelector(preferred) as HTMLElement | null) : null) ??
+    (document.querySelector(fallback) as HTMLElement | null);
+  if (el) {
+    if (typeof el.scrollIntoView === "function") {
+      el.scrollIntoView({ block: "center" });
+    }
+    if (typeof (el as any).focus === "function") (el as any).focus();
+  }
+};
+const onValidationFocus = async (payload: { group: string; field?: string }) => {
+  focusedTarget.value = { group: payload.group, field: payload.field };
+  await focusEditorField(payload.group, payload.field);
+};
+
+const onPreviewTokenClick = async (token: any) => {
+  const group = String(token?.group ?? "").trim();
+  if (!group) return;
+  const field = String(token?.field ?? "").trim() || undefined;
+  focusedTarget.value = { group, field };
+  await focusEditorField(group, field);
+};
+
+const onEditorFocusIn = (event: FocusEvent) => {
+  const raw = event.target as HTMLElement | null;
+  const el = raw?.closest?.("[data-command-group]") as HTMLElement | null;
+  if (!el) return;
+  const group = el.dataset.commandGroup;
+  const field = el.dataset.commandField;
+  if (!group) return;
+  focusedTarget.value = { group, field: field || undefined };
+};
+
+const copyHint = ref<string | null>(null);
+let copyHintTimer: number | null = null;
+const setCopyHint = (msg: string) => {
+  copyHint.value = msg;
+  if (copyHintTimer != null) window.clearTimeout(copyHintTimer);
+  copyHintTimer = window.setTimeout(() => {
+    copyHint.value = null;
+  }, 1500);
+};
+const copyToClipboard = async (text: string) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    setCopyHint(t("presetEditor.advanced.copiedToast"));
+  } catch {
+    setCopyHint(t("presetEditor.advanced.copyFailedToast"));
+  }
+};
+const handleCopyCommand = async () => {
+  await copyToClipboard(commandPreview.value);
+};
+const handleCopyTemplate = async () => {
+  const tpl = ffmpegTemplate.value.trim();
+  if (!tpl) return;
+  await copyToClipboard(tpl);
+};
+
+const handleQuickValidate = async () => {
+  if (quickValidateBusy.value) return;
+  if (!isCustomCommandPreset.value) return;
+  quickValidateBusy.value = true;
+  try {
+    quickValidateResult.value = await validatePresetTemplate(buildPresetFromState());
+  } finally {
+    quickValidateBusy.value = false;
+  }
+};
 </script>
 
 <template>
@@ -139,40 +282,23 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
       </div>
 
       <Tabs v-model="activeTab" class="flex-1 flex min-h-0">
-        <div class="w-52 border-r border-border/60 bg-muted/40 p-4">
-          <TabsList class="flex flex-col items-stretch gap-1 bg-transparent p-0">
-            <TabsTrigger value="command" class="justify-start w-full text-xs">
-              {{ t("presetEditor.panel.commandTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="global" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.globalTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="input" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.inputTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="mapping" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.mappingTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="video" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.videoTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="audio" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.audioTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="filters" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.filtersTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="container" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.containerTab") }}
-            </TabsTrigger>
-            <TabsTrigger value="hardware" class="justify-start w-full text-xs" :disabled="isCustomCommandPreset">
-              {{ t("presetEditor.panel.hardwareTab") }}
-            </TabsTrigger>
-          </TabsList>
-        </div>
+        <UltimateParameterPanelSidebar
+          :group-summary="groupSummary"
+          :is-custom-command-preset="isCustomCommandPreset"
+        />
 
         <div class="flex-1 flex min-h-0">
-          <div class="flex-1 p-6 overflow-y-auto space-y-4">
+          <div class="flex-1 p-6 overflow-y-auto space-y-4" @focusin.capture="onEditorFocusIn">
+            <PresetEditorGroupSummaryBanner
+              :group="activeGroup"
+              :errors="activeGroupSummary.errors"
+              :warnings="activeGroupSummary.warnings"
+              :issues="activeGroupIssues"
+              :fixes="activeGroupFixes"
+              @fix="applyActiveGroupFixes"
+              @fix-one="applyFixById"
+              @focus="onValidationFocus"
+            />
             <TabsContent value="command" class="mt-0 space-y-4">
               <div class="rounded-md border border-border/60 bg-muted/40 p-4 space-y-3">
                 <div class="flex items-start justify-between gap-4">
@@ -204,17 +330,34 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
                     class="min-h-[160px] text-xs font-mono"
                   />
                   <div class="flex items-center justify-between gap-3">
-                    <p :class="parseHintClass" class="text-xs">
-                      {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
-                    </p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
-                      @click="handleParseTemplateFromCommand"
-                    >
-                      {{ t("presetEditor.advanced.parseButton") }}
-                    </Button>
+                    <div class="min-w-0">
+                      <p :class="parseHintClass" class="text-xs">
+                        {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
+                      </p>
+                      <p class="mt-1 text-[10px] text-muted-foreground">
+                        {{ t("presetEditor.advanced.quickValidateScope") }}
+                      </p>
+                      <PresetTemplateValidationStatus :busy="quickValidateBusy" :result="quickValidateResult" />
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        @click="handleParseTemplateFromCommand"
+                      >
+                        {{ t("presetEditor.advanced.parseButton") }}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        :disabled="quickValidateBusy || !isCustomCommandPreset"
+                        @click="handleQuickValidate"
+                      >
+                        {{ t("presetEditor.advanced.quickValidateButton") }}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -253,92 +396,22 @@ const currentInsights = computed(() => computePresetInsights(currentPresetSnapsh
             </TabsContent>
           </div>
 
-          <div class="w-80 border-l border-border/60 bg-muted/40 p-4 flex flex-col gap-3 min-h-0 overflow-y-auto">
-            <!-- 效果雷达图 + 简要说明 -->
-            <div class="space-y-2 flex-shrink-0">
-              <PresetRadarChart
-                :metrics="currentInsights.radar"
-                :has-stats="currentInsights.hasStats"
-                :preset="currentPresetSnapshot"
-              />
-              <div class="text-[11px] text-muted-foreground space-y-1">
-                <div>
-                  <span class="font-medium text-foreground"> {{ t("presetEditor.panel.scenarioLabel") }}: </span>
-                  <span class="ml-1">
-                    {{ t(`presetEditor.panel.scenario.${currentInsights.scenario}`) }}
-                  </span>
-                </div>
-                <div>
-                  <span class="font-medium text-foreground"> {{ t("presetEditor.panel.encoderFamilyLabel") }}: </span>
-                  <span class="ml-1">
-                    {{ t(`presetEditor.panel.encoderFamily.${currentInsights.encoderFamily}`) }}
-                  </span>
-                </div>
-                <div>
-                  <span class="font-medium text-foreground">
-                    {{ t("presetEditor.panel.beginnerFriendlyLabel") }}:
-                  </span>
-                  <span class="ml-1">
-                    {{
-                      currentInsights.isBeginnerFriendly
-                        ? t("presetEditor.panel.beginnerFriendlyYes")
-                        : t("presetEditor.panel.beginnerFriendlyNo")
-                    }}
-                  </span>
-                </div>
-                <p v-if="currentInsights.mayIncreaseSize" class="text-[11px] text-amber-400">
-                  {{ t("presetEditor.panel.mayIncreaseSizeWarning") }}
-                </p>
-              </div>
-            </div>
-
-            <h3 class="text-xs font-semibold text-foreground border-b border-border/60 pb-2 mt-2 flex-shrink-0">
-              {{ t("presetEditor.advanced.previewTitle") }}
-            </h3>
-            <pre
-              class="flex-1 min-h-[80px] rounded-md bg-background/90 border border-border/60 px-2 py-2 text-[12px] md:text-[13px] font-mono text-muted-foreground overflow-y-auto whitespace-pre-wrap break-all select-text"
-              :data-active-group="activeTab"
-            ><span
-              v-for="(token, idx) in highlightedCommandTokens"
-              :key="idx"
-              :class="token.className"
-              :title="token.title"
-              :data-group="token.group"
-              :data-field="token.field"
-              v-text="token.text"
-            ></span></pre>
-            <p :class="[parseHintClass, 'flex-shrink-0']">
-              {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
-            </p>
-            <p
-              v-if="advancedEnabled && ffmpegTemplate.trim().length > 0"
-              class="text-[11px] text-amber-400 flex-shrink-0"
-            >
-              {{ t("presetEditor.advanced.customPresetHint") }}
-            </p>
-            <div v-if="activeTab !== 'command'" class="space-y-1 mt-2 flex-shrink-0">
-              <Label class="text-[11px]">
-                {{ t("presetEditor.advanced.templateLabel") }}
-              </Label>
-              <Textarea
-                v-model="ffmpegTemplate"
-                :placeholder="t('presetEditor.advanced.templatePlaceholder')"
-                class="min-h-[60px] text-[11px] font-mono"
-              />
-              <Label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground mt-1">
-                <Checkbox v-model:checked="advancedEnabled" />
-                <span>{{ t("presetEditor.advanced.enabledLabel") }}</span>
-              </Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                class="mt-1 h-6 px-0 justify-start text-[10px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
-                @click="handleParseTemplateFromCommand"
-              >
-                {{ t("presetEditor.advanced.parseButton") }}
-              </Button>
-            </div>
-          </div>
+          <UltimateParameterPanelPreviewPane
+            :active-tab="activeTab"
+            :current-insights="currentInsights"
+            :current-preset-snapshot="currentPresetSnapshot"
+            :all-presets="props.presets"
+            :highlighted-command-tokens="highlightedCommandTokens"
+            :parse-hint="parseHint"
+            :parse-hint-class="parseHintClass"
+            :copy-hint="copyHint"
+            :advanced-enabled="advancedEnabled"
+            :ffmpeg-template="ffmpegTemplate"
+            :is-token-focused="isTokenFocused"
+            :on-preview-token-click="onPreviewTokenClick"
+            :on-copy-command="handleCopyCommand"
+            :on-copy-template="handleCopyTemplate"
+          />
         </div>
       </Tabs>
 

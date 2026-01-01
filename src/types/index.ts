@@ -119,6 +119,9 @@ export type { DataRootMode, DataRootInfo, ConfigBundleExportResult, ConfigBundle
 // Preset-only bundle types
 export type { PresetBundle, PresetBundleExportResult } from "./preset-bundle";
 
+// Preset template validation
+export type { PresetTemplateValidationOutcome, PresetTemplateValidationResult } from "./preset-template-validation";
+
 // Shared type utilities (type-only).
 export type { DeepWritable } from "./typeUtils";
 

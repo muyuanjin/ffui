@@ -155,6 +155,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
         const hasBitrate = args.includes("-b:v");
         const hasMaxrate = args.includes("-maxrate");
         const hasBufsize = args.includes("-bufsize");
+        const hasPasslogfile = args.includes("-passlogfile");
         const hasPass = args.includes("-pass");
         const hasCqFlagForQsv = args.includes("-global_quality");
         const hasCqFlagForNonQsv = args.includes("-cq");
@@ -162,10 +163,12 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
         if (mode === "crf") {
           expect(hasCrf).toBe(true);
           expect(hasCq).toBe(false);
+          expect(hasPasslogfile).toBe(false);
           expect(hasBitrate || hasMaxrate || hasBufsize || hasPass).toBe(false);
         } else if (mode === "cq") {
           expect(hasCq).toBe(true);
           expect(hasCrf).toBe(false);
+          expect(hasPasslogfile).toBe(false);
           expect(hasBitrate || hasMaxrate || hasBufsize || hasPass).toBe(false);
           if (String(encoder).includes("_qsv")) {
             expect(hasCqFlagForQsv).toBe(true);
@@ -178,6 +181,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
           // CBR/VBR/2-pass: bitrate-related flags allowed, CRF/CQ not allowed.
           expect(hasCrf).toBe(false);
           expect(hasCq).toBe(false);
+          expect(hasPasslogfile).toBe(hasPass);
           expect(hasBitrate || hasMaxrate || hasBufsize || hasPass).toBe(true);
         }
       }
@@ -209,6 +213,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     expect(args).not.toContain("-b:v");
     expect(args).not.toContain("-maxrate");
     expect(args).not.toContain("-bufsize");
+    expect(args).not.toContain("-passlogfile");
     expect(args).not.toContain("-pass");
   });
 

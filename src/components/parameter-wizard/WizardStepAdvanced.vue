@@ -3,8 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import PresetTemplateValidationStatus from "@/components/preset-template/PresetTemplateValidationStatus.vue";
 import type { HighlightToken } from "@/lib/highlightTokens";
 import type { AudioConfig, FilterConfig, VideoConfig, Translate } from "@/types";
+import type { PresetTemplateValidationResult } from "@/types";
 
 const {
   video,
@@ -18,6 +20,9 @@ const {
   t,
   showSummary = true,
   showToggle = true,
+  quickValidateBusy = false,
+  quickValidateResult = null,
+  showQuickValidate = true,
 } = defineProps<{
   video: VideoConfig;
   audio: AudioConfig;
@@ -30,6 +35,9 @@ const {
   t: Translate;
   showSummary?: boolean;
   showToggle?: boolean;
+  quickValidateBusy?: boolean;
+  quickValidateResult?: PresetTemplateValidationResult | null;
+  showQuickValidate?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -37,6 +45,7 @@ const emit = defineEmits<{
   (e: "update-template", value: string): void;
   (e: "parse-template"): void;
   (e: "copy-preview"): void;
+  (e: "quick-validate"): void;
 }>();
 </script>
 
@@ -131,6 +140,16 @@ const emit = defineEmits<{
             >
               {{ t("presetEditor.advanced.copyButton") }}
             </Button>
+            <Button
+              v-if="showQuickValidate"
+              variant="ghost"
+              size="icon-sm"
+              class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              :disabled="quickValidateBusy || !advancedEnabled || ffmpegTemplate.trim().length === 0"
+              @click="emit('quick-validate')"
+            >
+              {{ t("presetEditor.advanced.quickValidateButton") }}
+            </Button>
           </div>
         </div>
         <pre
@@ -145,6 +164,14 @@ const emit = defineEmits<{
         <p :class="parseHintClass" class="mt-1">
           {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
         </p>
+        <p v-if="showQuickValidate" class="mt-1 text-[10px] text-muted-foreground">
+          {{ t("presetEditor.advanced.quickValidateScope") }}
+        </p>
+        <PresetTemplateValidationStatus
+          v-if="showQuickValidate"
+          :busy="quickValidateBusy"
+          :result="quickValidateResult"
+        />
       </div>
     </div>
   </div>

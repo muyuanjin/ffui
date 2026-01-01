@@ -95,7 +95,7 @@ export interface MappingConfig {
   mapMetadataFromInputFileIndex?: number;
   /** Raw `-metadata` key/value pairs expressed as `key=value` strings. */
   metadata?: string[];
-  /** Raw `-disposition` arguments, e.g. `0:v:0 default`. */
+  /** Raw `-disposition` rules, e.g. `a:1 default` or `s:0 0`. */
   dispositions?: string[];
 }
 

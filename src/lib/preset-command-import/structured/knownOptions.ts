@@ -29,6 +29,7 @@ const KNOWN_OPTION_SET = new Set([
   "-b:v",
   "-maxrate",
   "-bufsize",
+  "-passlogfile",
   "-pass",
   "-preset",
   "-tune",
@@ -63,5 +64,7 @@ const KNOWN_OPTION_SET = new Set([
 export const isKnownOption = (token: string): boolean => {
   const raw = stripQuotes(token);
   if (!raw.startsWith("-")) return false;
+  if (raw.startsWith("-disposition:")) return true;
+  if (raw.startsWith("-passlogfile:")) return true;
   return KNOWN_OPTION_SET.has(raw);
 };

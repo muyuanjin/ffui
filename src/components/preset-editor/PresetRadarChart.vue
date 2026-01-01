@@ -7,15 +7,24 @@ import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 import type { FFmpegPreset } from "@/types";
 import type { PresetRadar } from "@/lib/presetInsights";
 import type { VqPredictedMetrics } from "@/lib/vqResults/predict";
+import { computeMeasuredRadarOverrides } from "@/lib/presetRadarCalibration";
 import { fetchGpuUsage, hasTauri } from "@/lib/backend";
 import { loadVqResultsSnapshot } from "@/lib/vqResults/client";
 import { predictFromVqResults } from "@/lib/vqResults/predict";
 import type { VqResultsSnapshot } from "@/lib/vqResults/types";
+import {
+  computePresetStatsSummary,
+  computeQualityFromVq,
+  formatInputSize,
+  formatMbPerSec,
+  formatPercent,
+} from "./presetRadarHelpers";
 
 const props = defineProps<{
   metrics: PresetRadar;
   hasStats: boolean;
   preset?: FFmpegPreset;
+  allPresets?: FFmpegPreset[];
 }>();
 
 const { t } = useI18n();
@@ -27,38 +36,32 @@ const centerX = 64;
 const centerY = 64;
 const maxRadius = 40;
 
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const clamp05 = (v: number) => (v < 0 ? 0 : v > 5 ? 5 : v);
-
-const computeQualityFromVq = (predicted: VqPredictedMetrics): number | null => {
-  const vmaf = predicted.vmaf?.value;
-  const ssim = predicted.ssim?.value;
-
-  const parts: number[] = [];
-  if (typeof vmaf === "number" && Number.isFinite(vmaf)) {
-    // 80–100 mapped to 0–1
-    parts.push(clamp01((vmaf - 80) / 20));
-  }
-  if (typeof ssim === "number" && Number.isFinite(ssim)) {
-    // 0.95–1.00 mapped to 0–1
-    parts.push(clamp01((ssim - 0.95) / 0.05));
-  }
-  if (parts.length === 0) return null;
-
-  const n = parts.reduce((a, b) => a + b, 0) / parts.length;
-  // Map to 1–5 to keep the radar semantics consistent with the existing UI.
-  return clamp05(1 + 4 * n);
-};
-
 const radarMetrics = computed<PresetRadar>(() => {
   const base = props.metrics;
-  if (!props.preset) return base;
-  if (props.hasStats) return base;
+  const merged: PresetRadar = { ...base };
+
+  const preset = props.preset;
+  const allPresets = props.allPresets ?? [];
+  if (preset && allPresets.length > 0) {
+    const overrides = computeMeasuredRadarOverrides(preset, allPresets);
+    if (typeof overrides.speed === "number") merged.speed = overrides.speed;
+    if (typeof overrides.sizeSaving === "number") merged.sizeSaving = overrides.sizeSaving;
+    if (typeof overrides.popularity === "number") merged.popularity = overrides.popularity;
+  }
+
   const predicted = vqPredicted.value;
-  if (!predicted) return base;
-  const q = computeQualityFromVq(predicted);
-  if (q == null) return base;
-  return { ...base, quality: q };
+  if (predicted) {
+    const q = computeQualityFromVq(predicted);
+    if (q != null) merged.quality = q;
+  }
+
+  return merged;
+});
+
+const statsSummary = computed(() => {
+  const preset = props.preset;
+  if (!preset || !props.hasStats) return null;
+  return computePresetStatsSummary(preset);
 });
 
 const toPolygonPoints = (radar: PresetRadar): string => {
@@ -186,7 +189,7 @@ const ensureHardwareModelName = async (): Promise<string | null> => {
   return vqHardwareModelName.value;
 };
 
-const recomputePrediction = async (options?: { refresh?: boolean }) => {
+const recomputePrediction = async () => {
   if (!props.preset) {
     vqPredicted.value = null;
     return;
@@ -201,7 +204,7 @@ const recomputePrediction = async (options?: { refresh?: boolean }) => {
   vqLoading.value = true;
   vqError.value = null;
   try {
-    const snapshot = await loadVqResultsSnapshot({ refresh: options?.refresh === true });
+    const snapshot = await loadVqResultsSnapshot();
     vqSnapshot.value = snapshot;
     vqSnapshotTitle.value = snapshot.source.title;
     vqSnapshotCachedAt.value = snapshot.source.fetchedAtIso;
@@ -214,7 +217,7 @@ const recomputePrediction = async (options?: { refresh?: boolean }) => {
         hardwareModelNameHint,
       }) ?? null;
   } catch (err: unknown) {
-    console.error("failed to load vq_results data", err);
+    console.error("failed to load quality snapshot data", err);
     vqError.value = err instanceof Error ? err.message : String(err ?? "Unknown error");
     vqPredicted.value = null;
   } finally {
@@ -332,6 +335,33 @@ watch(vqDatasetKeyOverride, (value) => {
       <span>{{ t("presetEditor.panel.radarHigh") }}</span>
     </div>
 
+    <div
+      v-if="statsSummary"
+      class="rounded-md border border-border/60 bg-muted/40 p-2 grid grid-cols-2 gap-x-2 gap-y-1 text-[10px] text-muted-foreground"
+    >
+      <div class="flex items-center gap-1">
+        <span class="font-medium text-foreground">{{ t("presetEditor.panel.radarStatsSpeedLabel") }}</span>
+      </div>
+      <div class="text-right font-mono text-foreground">
+        {{ formatMbPerSec(statsSummary.speed) }}
+      </div>
+
+      <div class="flex items-center gap-1">
+        <span class="font-medium text-foreground">{{ t("presetEditor.panel.radarStatsSizeLabel") }}</span>
+      </div>
+      <div class="text-right font-mono text-foreground">
+        {{ formatPercent(statsSummary.ratio) }}
+      </div>
+
+      <div class="flex items-center gap-1">
+        <span class="font-medium text-foreground">{{ t("presetEditor.panel.radarStatsSampleLabel") }}</span>
+      </div>
+      <div class="text-right font-mono text-foreground">
+        {{ statsSummary.usageCount }} · {{ formatInputSize(statsSummary.totalInputSizeMB) }} ·
+        {{ formatNumber(statsSummary.totalTimeSeconds, 1) }}s
+      </div>
+    </div>
+
     <div class="rounded-md border border-border/60 bg-muted/40 p-2 space-y-2">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1 min-w-0">
@@ -343,7 +373,7 @@ watch(vqDatasetKeyOverride, (value) => {
           size="sm"
           class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
           :disabled="vqLoading"
-          @click="() => recomputePrediction({ refresh: true })"
+          @click="() => recomputePrediction()"
         >
           {{ t("vqResults.refresh") }}
         </Button>
