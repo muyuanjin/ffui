@@ -439,6 +439,10 @@ mod domain_contract_tests {
             total_output_size_mb: 50.0,
             total_time_seconds: 10.0,
             total_frames: 1234.0,
+            vmaf_count: 0,
+            vmaf_sum: 0.0,
+            vmaf_min: 0.0,
+            vmaf_max: 0.0,
         };
 
         let value = serde_json::to_value(&stats).expect("serialize PresetStats");
@@ -478,6 +482,10 @@ mod domain_contract_tests {
         assert_eq!(decoded.usage_count, 2);
         assert_eq!(decoded.total_time_seconds, 20.0);
         assert!(decoded.total_frames.abs() < f64::EPSILON);
+        assert_eq!(decoded.vmaf_count, 0);
+        assert!(decoded.vmaf_sum.abs() < f64::EPSILON);
+        assert!(decoded.vmaf_min.abs() < f64::EPSILON);
+        assert!(decoded.vmaf_max.abs() < f64::EPSILON);
     }
 
     #[test]

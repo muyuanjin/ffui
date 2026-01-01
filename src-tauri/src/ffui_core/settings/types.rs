@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 mod performance;
+pub(crate) mod preset_card_footer;
 mod preset_panel_modes;
 mod queue;
 mod tool_custom_path_sanitize;
@@ -28,6 +29,7 @@ pub type ExternalToolProbeCache = super::tool_probe_cache::ExternalToolProbeCach
 use crate::ffui_core::domain::{
     BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
 };
+pub use preset_card_footer::PresetCardFooterSettings;
 pub use preset_panel_modes::{PresetSortMode, PresetViewMode};
 
 pub const fn default_preview_capture_percent() -> u8 {
@@ -110,6 +112,12 @@ pub struct AppSettings {
     /// Optional preset view mode for the presets panel.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset_view_mode: Option<PresetViewMode>,
+    /// Preset card footer stats layout + visibility controls.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset_card_footer: Option<PresetCardFooterSettings>,
+    /// Last used reference video path for preset VMAF measurement dialog.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vmaf_measure_reference_path: Option<String>,
     /// Concurrency strategy for transcoding workers (unified cap or CPU/HW split).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parallelism_mode: Option<TranscodeParallelismMode>,
@@ -195,11 +203,18 @@ impl AppSettings {
         self.max_parallel_hw_jobs =
             types_helpers::normalize_parallel_limit(self.max_parallel_hw_jobs);
         types_helpers::normalize_string_option(&mut self.locale);
+        types_helpers::normalize_string_option(&mut self.vmaf_measure_reference_path);
         if matches!(self.preset_sort_mode, Some(PresetSortMode::Unknown)) {
             self.preset_sort_mode = None;
         }
         if matches!(self.preset_view_mode, Some(PresetViewMode::Unknown)) {
             self.preset_view_mode = None;
+        }
+        if let Some(footer) = self.preset_card_footer.as_mut() {
+            footer.normalize();
+            if footer.is_effectively_default() {
+                self.preset_card_footer = None;
+            }
         }
         self.tools
             .sanitize_custom_paths_for_auto_managed_downloads();
@@ -308,6 +323,8 @@ impl Default for AppSettings {
             default_queue_preset_id: None,
             preset_sort_mode: None,
             preset_view_mode: None,
+            preset_card_footer: None,
+            vmaf_measure_reference_path: None,
             parallelism_mode: None,
             max_parallel_jobs: None,
             max_parallel_cpu_jobs: None,

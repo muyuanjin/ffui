@@ -198,6 +198,10 @@ const fn empty_stats() -> PresetStats {
         total_output_size_mb: 0.0,
         total_time_seconds: 0.0,
         total_frames: 0.0,
+        vmaf_count: 0,
+        vmaf_sum: 0.0,
+        vmaf_min: 0.0,
+        vmaf_max: 0.0,
     }
 }
 

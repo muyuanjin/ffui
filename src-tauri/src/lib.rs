@@ -20,6 +20,7 @@ macro_rules! debug_eprintln {
 mod app_exit;
 mod commands;
 mod ffui_core;
+mod process_ext;
 mod queue_events;
 mod single_instance;
 mod sync_ext;
@@ -164,6 +165,7 @@ pub fn run() {
             commands::queue::delete_batch_compress_batches_bulk,
             commands::queue::reorder_queue,
             commands::queue::get_job_detail,
+            commands::queue::measure_job_vmaf,
             commands::job_compare::get_job_compare_sources,
             commands::job_compare::extract_job_compare_frame,
             commands::job_compare::extract_job_compare_output_frame,
@@ -177,6 +179,8 @@ pub fn run() {
             commands::presets::validate_preset_template,
             commands::presets::export_presets_bundle,
             commands::presets::read_presets_bundle,
+            commands::presets::download_vmaf_sample_video,
+            commands::presets::measure_preset_vmaf,
             commands::settings::get_app_settings,
             commands::settings::save_app_settings,
             commands::settings::get_batch_compress_defaults,

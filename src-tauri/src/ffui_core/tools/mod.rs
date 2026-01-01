@@ -1,6 +1,7 @@
 mod candidates;
 mod discover;
 mod download;
+mod ffmpeg_capabilities;
 mod probe;
 mod resolve;
 mod runtime_state;
@@ -24,6 +25,9 @@ mod types;
 // Re-export API
 pub(crate) use candidates::tool_candidates;
 pub(crate) use download::{ensure_tool_available, force_download_tool_binary};
+pub(crate) use ffmpeg_capabilities::{
+    ensure_ffmpeg_filter_help_available, ensure_ffmpeg_video_encoder_usable,
+};
 pub(crate) use probe::verify_tool_binary;
 pub(crate) use resolve::resolve_tool_path;
 pub(crate) use runtime_state::{

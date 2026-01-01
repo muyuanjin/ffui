@@ -21,6 +21,15 @@ pub struct PresetStats {
     pub total_time_seconds: f64,
     #[serde(default)]
     pub total_frames: f64,
+    /// Aggregated VMAF measurements (content-dependent empirical stats).
+    #[serde(default)]
+    pub vmaf_count: u64,
+    #[serde(default)]
+    pub vmaf_sum: f64,
+    #[serde(default)]
+    pub vmaf_min: f64,
+    #[serde(default)]
+    pub vmaf_max: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

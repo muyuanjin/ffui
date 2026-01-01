@@ -25,6 +25,7 @@ mod tests;
 mod tools_refresh;
 mod transcode_activity;
 mod ui_lite;
+mod vmaf;
 mod worker;
 mod worker_utils;
 pub(crate) use batch_compress::is_video_file;
@@ -49,6 +50,7 @@ use crate::ffui_core::{ShutdownMarkerKind, read_shutdown_marker, write_shutdown_
 use crate::sync_ext::MutexExt;
 use anyhow::Result;
 pub(crate) use ffmpeg_args::build_ffmpeg_args;
+pub(crate) use ffmpeg_args::configure_background_command;
 pub use ffmpeg_args::init_child_process_job;
 use state::{
     Inner, restore_jobs_from_persisted_queue, snapshot_queue_state, snapshot_queue_state_lite,

@@ -1,3 +1,4 @@
+use super::template_validation_sample_mp4::SAMPLE_MP4_BYTES;
 use super::{PresetTemplateValidationOutcome, validate_preset_template_with_program};
 
 use crate::ffui_core::domain::FFmpegPreset;
@@ -139,11 +140,29 @@ fn make_preset(template: &str) -> FFmpegPreset {
             total_output_size_mb: 0.0,
             total_time_seconds: 0.0,
             total_frames: 0.0,
+            vmaf_count: 0,
+            vmaf_sum: 0.0,
+            vmaf_min: 0.0,
+            vmaf_max: 0.0,
         },
         advanced_enabled: Some(true),
         ffmpeg_template: Some(template.to_string()),
         is_smart_preset: None,
     }
+}
+
+#[test]
+fn bundled_sample_mp4_contains_required_atoms() {
+    let bytes = SAMPLE_MP4_BYTES.as_slice();
+    assert!(bytes.len() >= 128, "sample mp4 is unexpectedly small");
+    assert!(
+        bytes.windows(4).any(|w| w == b"ftyp"),
+        "sample mp4 missing ftyp"
+    );
+    assert!(
+        bytes.windows(4).any(|w| w == b"moov"),
+        "sample mp4 missing moov"
+    );
 }
 
 #[test]
