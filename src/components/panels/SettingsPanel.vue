@@ -16,6 +16,7 @@ import SettingsPreviewSection from "@/components/panels/SettingsPreviewSection.v
 import SettingsDataStorageSection from "@/components/panels/SettingsDataStorageSection.vue";
 import SettingsTaskbarProgressSection from "@/components/panels/SettingsTaskbarProgressSection.vue";
 import SettingsCommunitySection from "@/components/panels/SettingsCommunitySection.vue";
+import SettingsPresetCardFooterSection from "@/components/panels/SettingsPresetCardFooterSection.vue";
 import type { AppSettings, ExternalToolCandidate, ExternalToolKind, ExternalToolStatus } from "@/types";
 type AppUpdateUiState = {
   configured?: boolean | null;
@@ -152,6 +153,11 @@ const systemStatus = computed(() => {
         />
 
         <SettingsAppearanceSection
+          :app-settings="appSettings"
+          @update:app-settings="(settings) => emit('update:appSettings', settings)"
+        />
+
+        <SettingsPresetCardFooterSection
           :app-settings="appSettings"
           @update:app-settings="(settings) => emit('update:appSettings', settings)"
         />

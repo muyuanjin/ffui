@@ -277,11 +277,11 @@ const presetEditor = {
     copyButton: "复制",
     copiedToast: "命令已复制",
     copyFailedToast: "复制失败",
-    quickValidateButton: "快速验证",
+    quickValidateButton: "验证命令",
     quickValidateScope: "尽力而为：检查该命令是否能在当前 ffmpeg 环境下跑起来；不保证语义完全正确。",
     quickValidate: {
       running: "验证中…",
-      ok: "通过",
+      ok: "验证通过",
       failed: "失败",
       timedOut: "超时",
       toolMissing: "已跳过（未找到可用的 ffmpeg）",

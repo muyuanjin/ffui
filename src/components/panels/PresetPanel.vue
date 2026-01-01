@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
-import type { FFmpegPreset, PresetSortMode } from "@/types";
+import type { FFmpegPreset, PresetCardFooterSettings, PresetSortMode } from "@/types";
 import {
   GripVertical,
   Trash2,
@@ -28,10 +28,8 @@ import type { AcceptableValue } from "@/components/ui/select";
 import type { SortableEvent } from "sortablejs";
 import PresetRowCompact from "./presets/PresetRowCompact.vue";
 import PresetCardGrid from "./presets/PresetCardGrid.vue";
-
-// 视图模式：grid（卡片）或 compact（紧凑列表）
+import { usePredictedVmafByPresetId } from "./presets/usePredictedVmafByPresetId";
 type ViewMode = "grid" | "compact";
-
 const props = withDefaults(
   defineProps<{
     presets: FFmpegPreset[];
@@ -39,14 +37,16 @@ const props = withDefaults(
     viewMode?: ViewMode;
     /** 是否固定选择操作栏（即使没有选中项也显示） */
     selectionBarPinned?: boolean;
+    /** 预设卡片底栏配置（来自 AppSettings 持久化）。 */
+    presetCardFooter?: PresetCardFooterSettings | null;
   }>(),
   {
     sortMode: "manual",
     viewMode: "grid",
     selectionBarPinned: false,
+    presetCardFooter: null,
   },
 );
-
 const emit = defineEmits<{
   edit: [preset: FFmpegPreset];
   delete: [preset: FFmpegPreset];
@@ -65,7 +65,6 @@ const emit = defineEmits<{
   "update:viewMode": [mode: ViewMode];
   "update:selectionBarPinned": [value: boolean];
 }>();
-
 const { t, locale } = useI18n();
 const containerRef = ref<HTMLElement | null>(null);
 const localPresets = ref<FFmpegPreset[]>([...props.presets]);
@@ -76,8 +75,7 @@ const selectionBarPinned = computed(() => props.selectionBarPinned ?? false);
 const toggleSelectionBarPinned = () => {
   emit("update:selectionBarPinned", !selectionBarPinned.value);
 };
-
-// 监听 viewMode prop 变化
+const { predictedVmafByPresetId } = usePredictedVmafByPresetId(localPresets);
 watch(
   () => props.viewMode,
   (newMode) => {
@@ -260,6 +258,7 @@ updateSortableDisabled();
           </div>
 
           <div class="flex items-center gap-2 shrink-0">
+            <slot name="toolbar-actions" />
             <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
               <SelectTrigger
                 class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]"
@@ -461,7 +460,6 @@ updateSortableDisabled();
         </div>
       </div>
     </div>
-
     <div class="p-4">
       <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
         <PresetRowCompact
@@ -469,6 +467,7 @@ updateSortableDisabled();
           :key="preset.id"
           :preset="preset"
           :selected="isSelected(preset.id)"
+          :predicted-vmaf="predictedVmafByPresetId.get(preset.id) ?? null"
           @toggle-select="toggleSelected"
           @duplicate="emit('duplicate', $event)"
           @exportPresetToFile="emit('exportPresetToFile', $event)"
@@ -476,13 +475,14 @@ updateSortableDisabled();
           @delete="emit('delete', $event)"
         />
       </div>
-
       <div v-else ref="containerRef" class="grid grid-cols-[repeat(auto-fit,minmax(340px,1fr))] gap-4 items-stretch">
         <PresetCardGrid
           v-for="preset in sortedPresets"
           :key="preset.id"
           :preset="preset"
           :selected="isSelected(preset.id)"
+          :predicted-vmaf="predictedVmafByPresetId.get(preset.id) ?? null"
+          :footer-settings="props.presetCardFooter"
           @toggle-select="toggleSelected"
           @duplicate="emit('duplicate', $event)"
           @exportPresetToFile="emit('exportPresetToFile', $event)"
@@ -493,5 +493,4 @@ updateSortableDisabled();
     </div>
   </div>
 </template>
-
 <style scoped src="./PresetPanel.css"></style>

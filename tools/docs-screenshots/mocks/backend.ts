@@ -1319,3 +1319,33 @@ export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
   smartDefaultPresetsSnapshot = Array.from(byId.values()).map(toSmartDefaultPreset);
   return smartDefaultPresetsSnapshot;
 };
+
+export const downloadVmafSampleVideo = async (sampleId: string): Promise<string> => {
+  const normalized = String(sampleId ?? "").trim();
+  if (!normalized) {
+    throw new Error("sampleId is empty");
+  }
+  return `C:/docs-screenshots/vmaf-samples/${normalized}.mp4`;
+};
+
+export const measurePresetVmaf = async (
+  presetId: string,
+  referencePath: string,
+  _options?: { trimSeconds?: number | null },
+): Promise<number> => {
+  const id = String(presetId ?? "").trim();
+  if (!id) {
+    throw new Error("presetId is empty");
+  }
+  const ref = String(referencePath ?? "").trim();
+  if (!ref) {
+    throw new Error("referencePath is empty");
+  }
+  // Deterministic value for docs screenshots; not a real measurement.
+  return 95.3;
+};
+
+export const measureJobVmaf = async (_jobId: string, _options?: { trimSeconds?: number | null }): Promise<number> => {
+  // Deterministic value for docs screenshots; not a real measurement.
+  return 95.3;
+};

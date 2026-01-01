@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref } from "vue";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,32 @@ const emit = defineEmits<{
   (e: "copy-preview"): void;
   (e: "quick-validate"): void;
 }>();
+
+const quickValidateHover = ref(false);
+const quickValidateButtonLabel = computed(() => {
+  if (!showQuickValidate) return "";
+  if (quickValidateHover.value) return t("presetEditor.advanced.quickValidateButton") as string;
+  if (quickValidateBusy) return t("presetEditor.advanced.quickValidate.running") as string;
+
+  const outcome = quickValidateResult?.outcome ?? null;
+  if (!outcome) return t("presetEditor.advanced.quickValidateButton") as string;
+  if (outcome === "ok") return t("presetEditor.advanced.quickValidate.ok") as string;
+  if (outcome === "failed") return t("presetEditor.advanced.quickValidate.failed") as string;
+  if (outcome === "timedOut") return t("presetEditor.advanced.quickValidate.timedOut") as string;
+  if (outcome === "skippedToolUnavailable") return t("presetEditor.advanced.quickValidate.toolMissing") as string;
+  if (outcome === "templateInvalid") return t("presetEditor.advanced.quickValidate.templateInvalid") as string;
+  return t("presetEditor.advanced.quickValidate.failed") as string;
+});
+
+const quickValidateButtonToneClass = computed(() => {
+  if (quickValidateHover.value) return "";
+  if (quickValidateBusy) return "";
+  const outcome = quickValidateResult?.outcome ?? null;
+  if (!outcome) return "";
+  if (outcome === "ok") return "text-emerald-400";
+  if (outcome === "skippedToolUnavailable" || outcome === "templateInvalid") return "text-amber-400";
+  return "text-destructive";
+});
 </script>
 
 <template>
@@ -123,32 +150,35 @@ const emit = defineEmits<{
           <span class="text-xs text-muted-foreground">
             {{ t("presetEditor.advanced.previewTitle") }}
           </span>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <Button
-              variant="ghost"
-              size="icon-sm"
-              class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              variant="outline"
+              size="xs"
+              class="text-[11px] whitespace-normal h-auto leading-snug"
               @click="emit('parse-template')"
             >
               {{ t("presetEditor.advanced.parseButton") }}
             </Button>
             <Button
-              variant="ghost"
-              size="icon-sm"
-              class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              variant="outline"
+              size="xs"
+              class="text-[11px] whitespace-normal h-auto leading-snug"
               @click="emit('copy-preview')"
             >
               {{ t("presetEditor.advanced.copyButton") }}
             </Button>
             <Button
               v-if="showQuickValidate"
-              variant="ghost"
-              size="icon-sm"
-              class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
+              variant="outline"
+              size="xs"
+              class="text-[11px] whitespace-normal h-auto leading-snug"
+              :class="quickValidateButtonToneClass"
               :disabled="quickValidateBusy || !advancedEnabled || ffmpegTemplate.trim().length === 0"
+              @mouseenter="quickValidateHover = true"
+              @mouseleave="quickValidateHover = false"
               @click="emit('quick-validate')"
             >
-              {{ t("presetEditor.advanced.quickValidateButton") }}
+              {{ quickValidateButtonLabel }}
             </Button>
           </div>
         </div>
@@ -168,7 +198,7 @@ const emit = defineEmits<{
           {{ t("presetEditor.advanced.quickValidateScope") }}
         </p>
         <PresetTemplateValidationStatus
-          v-if="showQuickValidate"
+          v-if="showQuickValidate && quickValidateResult && quickValidateResult.outcome !== 'ok'"
           :busy="quickValidateBusy"
           :result="quickValidateResult"
         />

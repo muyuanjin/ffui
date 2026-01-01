@@ -19,6 +19,7 @@ import {
 const props = defineProps<{
   preset: FFmpegPreset;
   selected: boolean;
+  predictedVmaf?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -33,6 +34,31 @@ const { t, locale } = useI18n();
 
 const commandPreview = computed(() => getPresetCommandPreview(props.preset));
 const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
+
+const predictedVmafText = computed(() => {
+  const v = props.predictedVmaf;
+  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
+  return v.toFixed(1);
+});
+
+const measuredVmafText = computed(() => {
+  const c = Number(props.preset.stats.vmafCount ?? 0);
+  const sum = Number(props.preset.stats.vmafSum ?? 0);
+  if (!Number.isFinite(c) || c <= 0) return null;
+  if (!Number.isFinite(sum)) return null;
+  return (sum / c).toFixed(1);
+});
+
+const _vmafTitle = computed(() => {
+  const parts: string[] = [];
+  const mean = measuredVmafText.value;
+  if (mean) {
+    parts.push(`meas=${mean}`);
+  } else if (predictedVmafText.value !== "—") {
+    parts.push(`pred=${predictedVmafText.value}`);
+  }
+  return parts.join(" / ") || "VMAF";
+});
 
 const handleRowClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -123,15 +149,22 @@ const handleRowClick = (event: MouseEvent) => {
         </div>
       </div>
 
-      <div class="flex items-center justify-end gap-2 text-[10px] text-muted-foreground flex-shrink-0 w-32">
-        <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
-        <span
-          v-if="getPresetAvgRatio(preset) !== null"
-          class="font-medium"
-          :class="getRatioColorClass(getPresetAvgRatio(preset))"
-        >
-          {{ getPresetAvgRatio(preset)?.toFixed(0) }}%
-        </span>
+      <div class="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground flex-shrink-0 w-40">
+        <div class="flex items-center justify-end gap-2">
+          <span>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</span>
+          <span
+            v-if="getPresetAvgRatio(preset) !== null"
+            class="font-medium"
+            :class="getRatioColorClass(getPresetAvgRatio(preset))"
+          >
+            {{ getPresetAvgRatio(preset)?.toFixed(0) }}%
+          </span>
+        </div>
+        <div class="text-[9px] leading-none" :title="_vmafTitle" data-testid="preset-row-vmaf">
+          <span class="text-muted-foreground">VMAF</span>
+          <span v-if="measuredVmafText" class="tabular-nums mx-1 text-emerald-400">{{ measuredVmafText }}</span>
+          <span v-else class="tabular-nums mx-1 text-sky-400">{{ predictedVmafText }}</span>
+        </div>
       </div>
     </div>
 

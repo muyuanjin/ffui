@@ -263,12 +263,12 @@ const presetEditor = {
     copyButton: "Copy",
     copiedToast: "Command copied",
     copyFailedToast: "Copy failed",
-    quickValidateButton: "Quick validate",
+    quickValidateButton: "Validate command",
     quickValidateScope:
       "Best-effort: checks whether this command can run with your currently configured ffmpeg. It does not prove semantic correctness.",
     quickValidate: {
       running: "Validating…",
-      ok: "Passed",
+      ok: "Validated",
       failed: "Failed",
       timedOut: "Timed out",
       toolMissing: "Skipped (ffmpeg not available)",

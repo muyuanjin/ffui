@@ -96,6 +96,7 @@ const emit = defineEmits<{
   (e: "cancelQueueDelete"): void;
   (e: "closeJobDetail"): void;
   (e: "handleJobDetailExpandPreview"): void;
+  (e: "measureJobVmaf", payload: { jobId: string; trimSeconds: number | null }): void;
   (e: "copyToClipboard", value: string): void;
   (e: "openJobPreviewFromQueue", job: TranscodeJob): void;
   (e: "handleCancelJob", jobId: string): void;
@@ -189,6 +190,7 @@ const openCompareFromJobDetail = () => {
     @expand-preview="emit('handleJobDetailExpandPreview')"
     @compare="openCompareFromJobDetail"
     @copy-command="emit('copyToClipboard', dialogManager.selectedJob.value?.ffmpegCommand || '')"
+    @measure-vmaf="emit('measureJobVmaf', $event)"
   />
 
   <BatchDetailDialog
