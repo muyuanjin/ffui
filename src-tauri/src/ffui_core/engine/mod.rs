@@ -74,14 +74,15 @@ impl TranscodingEngine {
         let _guard = test_mutex::ENGINE_TEST_MUTEX.lock_unpoisoned();
 
         let presets = settings::load_presets().unwrap_or_default();
-        let mut settings = match settings::load_settings() {
-            Ok(settings) => settings,
+        let (mut settings, settings_loaded) = match settings::load_settings() {
+            Ok(settings) => (settings, true),
             Err(err) => {
                 crate::debug_eprintln!("failed to load settings: {err:#}");
-                AppSettings::default()
+                (AppSettings::default(), false)
             }
         };
-        if !settings.onboarding_completed
+        if settings_loaded
+            && !settings.onboarding_completed
             && presets
                 .iter()
                 .any(|p| matches!(p.is_smart_preset, Some(true)))

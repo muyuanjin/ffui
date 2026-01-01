@@ -6,6 +6,7 @@ use tempfile::tempdir;
 use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 
+mod corrupt_settings_recovery;
 mod network_proxy;
 mod preset_card_footer;
 mod preset_panel_modes;

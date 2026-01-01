@@ -4,6 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
+use tempfile::Builder;
 
 /// Reads and deserializes a JSON file into the specified type.
 ///
@@ -36,28 +37,33 @@ pub(crate) fn read_json_file<T: for<'de> Deserialize<'de>>(path: &Path) -> Resul
 ///
 /// A `Result<()>` indicating success or an error if any step fails.
 pub(crate) fn write_json_file<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<()> {
-    let tmp_path = path.with_extension("tmp");
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
             .with_context(|| format!("failed to create directory {}", parent.display()))?;
     }
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let mut tmp = Builder::new()
+        .prefix(".ffui-json-")
+        .suffix(".tmp")
+        .tempfile_in(parent)
+        .with_context(|| format!("failed to create temp file in {}", parent.display()))?;
+    let tmp_path = tmp.path().to_path_buf();
     {
-        let file = fs::File::create(&tmp_path)
-            .with_context(|| format!("failed to create temp file {}", tmp_path.display()))?;
-        let mut writer = std::io::BufWriter::new(&file);
+        let mut writer = std::io::BufWriter::new(tmp.as_file_mut());
         serde_json::to_writer_pretty(&mut writer, value)
             .with_context(|| format!("failed to write JSON to {}", tmp_path.display()))?;
         writer
             .flush()
             .with_context(|| format!("failed to flush {}", tmp_path.display()))?;
-        file.sync_all()
-            .with_context(|| format!("failed to sync {}", tmp_path.display()))?;
     }
-    fs::rename(&tmp_path, path).with_context(|| {
-        format!(
-            "failed to atomically rename {} -> {}",
-            tmp_path.display(),
-            path.display()
+    tmp.as_file()
+        .sync_all()
+        .with_context(|| format!("failed to sync {}", tmp_path.display()))?;
+    tmp.persist(path).map_err(|err| {
+        anyhow::anyhow!(
+            "failed to atomically replace {}: {}",
+            path.display(),
+            err.error
         )
     })?;
     Ok(())
