@@ -29,9 +29,11 @@ export default [
   {
     ignores: [
       "**/.jscpd/**",
+      "**/.cache/**",
       "**/dist/**",
       "**/dist-perf-audit-*/**",
       "**/node_modules/**",
+      "**/recovery/**",
       "target/**",
       "target-perf-audit-*/**",
       "src-tauri/target/**",

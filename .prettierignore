@@ -1,5 +1,9 @@
 dist
 dist-perf-audit-*
+.cache/
+.cachevmaf-*
+.jscpd/
+recovery/
 node_modules
 target
 target-perf-audit-*

@@ -82,12 +82,6 @@ const DATASETS = [
     checks: [
       {
         kind: "textContains",
-        url: "https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1-hdr/",
-        requiredSubstrings: ["objective_scores", "subjective_scores"],
-        byteLimit: 64_000,
-      },
-      {
-        kind: "textContains",
         url: "https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1-hdr/objective_scores/vmaf_scores/",
         requiredSubstrings: [".json"],
         byteLimit: 64_000,
@@ -97,6 +91,87 @@ const DATASETS = [
         url: "https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1-hdr/objective_scores/vmaf_scores/1280_720_500K_av1_Center_Panorama.json",
         requiredSubstrings: ['"frames"', '"vmaf"'],
         byteLimit: 64_000,
+      },
+    ],
+  },
+  {
+    id: "avt-vqdb-uhd-1-appeal",
+    name: "AVT-VQDB-UHD-1-Appeal (TU Ilmenau)",
+    expectedUsable: true,
+    checks: [
+      {
+        kind: "httpOk",
+        url: "https://raw.githubusercontent.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1-Appeal/main/README.md",
+      },
+      {
+        kind: "textContains",
+        url: "https://raw.githubusercontent.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1-Appeal/main/README.md",
+        requiredSubstrings: ["vmaf_scores"],
+      },
+      {
+        kind: "textContains",
+        url: "https://raw.githubusercontent.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1-Appeal/main/vmaf_scores/BunnyAnimation_1000k_1080_av1.json",
+        requiredSubstrings: ['"frames"', '"vmaf"'],
+        byteLimit: 64_000,
+      },
+    ],
+  },
+  {
+    id: "xiph-awcy",
+    name: "Xiph AWCY (arewecompressedyet.com)",
+    expectedUsable: true,
+    checks: [
+      {
+        kind: "httpOk",
+        url: "https://arewecompressedyet.com/list.json",
+      },
+      {
+        kind: "textContains",
+        url: "https://arewecompressedyet.com/list.json",
+        requiredSubstrings: ["run_id", "tasks"],
+        byteLimit: 64_000,
+      },
+      {
+        kind: "textContains",
+        url: "https://arewecompressedyet.com/runs/x264-medium@2022-10-31T21:19:39.857Z/csv_export.csv",
+        requiredSubstrings: ["Bitrate(kbps)", "VMAF_Y", "SSIM_Y(dB)"],
+        byteLimit: 64_000,
+      },
+    ],
+  },
+  {
+    id: "dash-features-quality-figshare",
+    name: "Features+Quality metrics for video coding in DASH (Figshare collection)",
+    expectedUsable: true,
+    checks: [
+      {
+        kind: "textContains",
+        url: "https://raw.githubusercontent.com/cloudmedialab-uv/VideoCodingFeaturesQualityDataset/main/README.md",
+        requiredSubstrings: ["figshare", "10.6084/m9.figshare.c.6764328.v1"],
+      },
+      {
+        kind: "csvHeader",
+        url: "https://springernature.figshare.com/ndownloader/files/41742810",
+        headers: { "User-Agent": "Mozilla/5.0" },
+        requiredColumns: ["file", "chunk", "crf", "res", "vmafmean", "psnrmean", "ssimmean"],
+      },
+    ],
+  },
+  {
+    id: "mendeley-35735kfjnm",
+    name: "Mendeley Data 10.17632/35735kfjnm.1 (objective+subjective tables)",
+    expectedUsable: true,
+    checks: [
+      {
+        kind: "httpOk",
+        url: "https://data.mendeley.com/datasets/35735kfjnm/1",
+        headers: { "User-Agent": "Mozilla/5.0" },
+      },
+      {
+        kind: "mendeleyRootDownloadProbe",
+        datasetId: "35735kfjnm",
+        version: 1,
+        folderId: "root",
       },
     ],
   },
@@ -133,7 +208,7 @@ const DATASETS = [
   {
     id: "mcl-jcv-hf",
     name: "MCL-JCV Dataset (Hugging Face: uscmcl/MCL-JCV_Dataset)",
-    expectedUsable: true,
+    expectedUsable: false,
     checks: [
       {
         kind: "httpJson",
@@ -186,17 +261,30 @@ function formatBytes(bytes) {
 let timeoutMs = DEFAULT_TIMEOUT_MS;
 
 async function fetchWithTimeout(url, init = {}) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal, redirect: init.redirect ?? "follow" });
-  } finally {
-    clearTimeout(timeout);
+  const attempt = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal, redirect: init.redirect ?? "follow" });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  let lastErr;
+  for (let i = 0; i < 3; i += 1) {
+    try {
+      return await attempt();
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+    }
   }
+  throw lastErr;
 }
 
-async function fetchTextPrefix(url, byteLimit = 16_384) {
-  const res = await fetchWithTimeout(url, { headers: { Range: `bytes=0-${byteLimit - 1}` } });
+async function fetchTextPrefix(url, byteLimit = 16_384, headers = {}) {
+  const res = await fetchWithTimeout(url, { headers: { ...headers, Range: `bytes=0-${byteLimit - 1}` } });
   const body = await res.text();
   return { res, body };
 }
@@ -213,14 +301,14 @@ function parseCsvHeaderLine(text) {
 async function runCheck(check) {
   switch (check.kind) {
     case "httpOk": {
-      const res = await fetchWithTimeout(check.url, { headers: { Range: "bytes=0-0" } });
+      const res = await fetchWithTimeout(check.url, { headers: { ...(check.headers ?? {}), Range: "bytes=0-0" } });
       return {
         ok: res.status >= 200 && res.status < 400,
         evidence: [`${check.url} -> HTTP ${res.status}`],
       };
     }
     case "csvHeader": {
-      const { res, body } = await fetchTextPrefix(check.url);
+      const { res, body } = await fetchTextPrefix(check.url, 16_384, check.headers ?? {});
       const cols = parseCsvHeaderLine(body);
       const missing = check.requiredColumns.filter((c) => !cols.includes(c));
       return {
@@ -233,7 +321,7 @@ async function runCheck(check) {
       };
     }
     case "jsonArraySample": {
-      const { res, body } = await fetchTextPrefix(check.url, 64_000);
+      const { res, body } = await fetchTextPrefix(check.url, 64_000, check.headers ?? {});
       let json;
       try {
         json = JSON.parse(body);
@@ -261,7 +349,7 @@ async function runCheck(check) {
       };
     }
     case "segmentRange": {
-      const { res, body } = await fetchTextPrefix(check.manifestUrl, 64_000);
+      const { res, body } = await fetchTextPrefix(check.manifestUrl, 64_000, check.headers ?? {});
       let json;
       try {
         json = JSON.parse(body);
@@ -276,7 +364,7 @@ async function runCheck(check) {
         return { ok: false, evidence: ["manifest contains no string entries"] };
       }
       const url = new URL(first, check.baseUrl).toString();
-      const segRes = await fetchWithTimeout(url, { headers: { Range: "bytes=0-0" } });
+      const segRes = await fetchWithTimeout(url, { headers: { ...(check.headers ?? {}), Range: "bytes=0-0" } });
       const contentType = segRes.headers.get("content-type") ?? "unknown";
       return {
         ok: segRes.status >= 200 && segRes.status < 400,
@@ -284,7 +372,7 @@ async function runCheck(check) {
       };
     }
     case "textContains": {
-      const { res, body } = await fetchTextPrefix(check.url, check.byteLimit ?? 128_000);
+      const { res, body } = await fetchTextPrefix(check.url, check.byteLimit ?? 128_000, check.headers ?? {});
       const missing = check.requiredSubstrings.filter((s) => !body.includes(s));
       return {
         ok: res.ok && missing.length === 0,
@@ -371,6 +459,46 @@ async function runCheck(check) {
           `size: ${size == null ? "unknown" : formatBytes(size)} (${size ?? "?"} bytes)`,
         ],
         data: { sizeBytes: size },
+      };
+    }
+    case "mendeleyRootDownloadProbe": {
+      const listUrl = `https://data.mendeley.com/public-api/datasets/${encodeURIComponent(
+        check.datasetId,
+      )}/files?folder_id=${encodeURIComponent(check.folderId)}&version=${encodeURIComponent(check.version)}`;
+      const listRes = await fetchWithTimeout(listUrl, {
+        headers: { Accept: "application/vnd.mendeley-public-dataset.1+json", "User-Agent": "Mozilla/5.0" },
+      });
+      const listText = await listRes.text();
+      let list;
+      try {
+        list = JSON.parse(listText);
+      } catch (e) {
+        return { ok: false, evidence: [`${listUrl} -> HTTP ${listRes.status}`, `JSON parse failed: ${String(e)}`] };
+      }
+      if (!Array.isArray(list)) {
+        return { ok: false, evidence: [`${listUrl} -> HTTP ${listRes.status}`, `expected array, got ${typeof list}`] };
+      }
+      const xlsx = list.find(
+        (f) =>
+          String(f?.filename ?? "")
+            .toLowerCase()
+            .endsWith(".xlsx") && f?.content_details,
+      );
+      const downloadUrl = String(xlsx?.content_details?.download_url ?? "");
+      if (!downloadUrl) {
+        return { ok: false, evidence: [`${listUrl} -> HTTP ${listRes.status}`, "no .xlsx download_url found"] };
+      }
+      const dlRes = await fetchWithTimeout(downloadUrl, {
+        headers: { Range: "bytes=0-0", "User-Agent": "Mozilla/5.0" },
+      });
+      const ct = dlRes.headers.get("content-type") ?? "unknown";
+      return {
+        ok: listRes.ok && dlRes.status >= 200 && dlRes.status < 400,
+        evidence: [
+          `${listUrl} -> HTTP ${listRes.status} (items=${list.length})`,
+          `sample: ${String(xlsx?.filename ?? "(unknown)")}`,
+          `${downloadUrl} -> HTTP ${dlRes.status} (${ct})`,
+        ],
       };
     }
     default:

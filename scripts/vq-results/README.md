@@ -47,6 +47,45 @@ Run:
 node scripts/vq-results/build-avt-vqdb-uhd-1-hdr-curves.mjs --out .cache/vq-results-datasets/avt-vqdb-uhd-1-hdr/<stamp>/avt-vqdb-uhd-1-hdr.snapshot.json
 ```
 
+## Build AVT-VQDB-UHD-1-Appeal curves (no videos)
+
+This script downloads only VMAF JSON reports from the AVT-VQDB-UHD-1-Appeal repository and produces a compact, monotonic bitrate→quality curve snapshot.
+
+Run:
+
+```bash
+node scripts/vq-results/build-avt-vqdb-uhd-1-appeal-curves.mjs --out .cache/vq-results-datasets/avt-vqdb-uhd-1-appeal/<stamp>/avt-vqdb-uhd-1-appeal.snapshot.json
+```
+
+## Build AWCY curves (no videos)
+
+This script downloads only `csv_export.csv` result files from `arewecompressedyet.com` and produces compact bitrate→quality curves (median-by-QP) for multiple encoders.
+
+Run:
+
+```bash
+node scripts/vq-results/build-awcy-csv-export-curves.mjs --out .cache/vq-results-datasets/awcy/<stamp>/awcy.snapshot.json
+```
+
+Auto-select recent runs (recommended for diversity):
+
+```bash
+node scripts/vq-results/build-awcy-csv-export-curves.mjs --out .cache/vq-results-datasets/awcy/<stamp>/awcy.snapshot.json --auto --auto-max-runs 40 --auto-max-per-family 12
+```
+
+## Build Mendeley 35735kfjnm curves (no videos)
+
+This script downloads only the XLSX result tables (subjective MOS + objective VMAF/SSIM) from the dataset root and derives compact bitrate→quality curves. No video files are downloaded.
+
+- Dataset: `https://data.mendeley.com/datasets/35735kfjnm/1` (CC BY 4.0)
+- Outputs: `VqResultsSnapshot`-shaped JSON (for merging)
+
+Run:
+
+```bash
+node scripts/vq-results/build-mendeley-35735kfjnm-curves.mjs --out .cache/vq-results-datasets/mendeley-35735kfjnm/<stamp>/mendeley-35735kfjnm.snapshot.json
+```
+
 ### Use in app (optional)
 
 If you place a built snapshot at `public/vq/quality_snapshot.json`, the app will prefer it over live fetching.

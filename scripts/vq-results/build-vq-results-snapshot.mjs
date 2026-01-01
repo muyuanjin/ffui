@@ -119,6 +119,18 @@ const POINT_RE = /\{\s*x:\s*([0-9]+(?:\.[0-9]+)?)\s*,\s*y:\s*([0-9]+(?:\.[0-9]+)
 
 const sortByBitrateAsc = (points) => points.sort((a, b) => a.x - b.x);
 
+const dedupeConsecutivePoints = (points) => {
+  if (points.length <= 1) return points;
+  const out = [points[0]];
+  for (let i = 1; i < points.length; i += 1) {
+    const prev = out[out.length - 1];
+    const cur = points[i];
+    if (cur.x === prev.x && cur.y === prev.y) continue;
+    out.push(cur);
+  }
+  return out;
+};
+
 const parseVqResultsDataJs = (source) => {
   const text = source ?? "";
   if (!text.trim()) return [];
@@ -154,8 +166,9 @@ const parseVqResultsDataJs = (source) => {
     }
     if (points.length === 0) continue;
     sortByBitrateAsc(points);
+    const deduped = dedupeConsecutivePoints(points);
 
-    out.push({ set, metric, key, label, points });
+    out.push({ set, metric, key, label, points: deduped });
   }
 
   return out;
