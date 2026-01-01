@@ -107,6 +107,9 @@ const estimateBitrateFromQuality = (preset: FFmpegPreset, vmafCurve: VqDataset):
       ? capRange
       : { min: 0, max: 51 };
 
+  const qRaw = preset.video?.qualityValue;
+  const hasExplicitQualityValue = typeof qRaw === "number" && Number.isFinite(qRaw);
+
   const rc = String(preset.video?.rateControl ?? "").toLowerCase();
   // vq_results curves do not encode a direct mapping between ffmpeg's CQ/QP/CRF
   // and bitrate points. We therefore:
@@ -120,11 +123,15 @@ const estimateBitrateFromQuality = (preset: FFmpegPreset, vmafCurve: VqDataset):
     Number.isFinite(rec.range.max) &&
     rec.range.max > rec.range.min;
 
-  const normRange = shouldUseRecommendedBand ? rec!.range : fallbackRange;
+  // IMPORTANT: `rec.range` is a *recommended* daily-use band, not the scale's
+  // full domain. When users explicitly provide a qualityValue (e.g. CQ 20),
+  // do not clamp it into the tiny recommended band (e.g. 28–30), otherwise
+  // values outside the band saturate and break monotonicity.
+  const normRange = !hasExplicitQualityValue && shouldUseRecommendedBand ? rec!.range : fallbackRange;
 
   // Map quality param onto a stable 0..1 position across the curve's bitrate span.
   // Lower qualityValue => higher bitrate (better quality), higher qualityValue => lower bitrate.
-  const q = Number(preset.video?.qualityValue ?? rec?.target ?? 28);
+  const q = hasExplicitQualityValue ? Number(qRaw) : Number(rec?.target ?? 28);
   const t = clamp((q - normRange.min) / (normRange.max - normRange.min), 0, 1);
   // Do not stretch the full encoder range to the curve extremes; keep a
   // conservative band to reduce "wild" predictions for presets with no stats yet.
@@ -251,20 +258,41 @@ export const predictFromVqResults = (
         ? ["u7_258v"]
         : ["rx7900xt", "rx5500xt"];
 
-    // vq_results provides 10bit variants for NVEncC/QSVEncC HEVC/AV1, but not for H.264.
+    // vq_results provides "10bit" variants for NVEncC/QSVEncC HEVC/AV1. In
+    // practice, the 10-bit AV1 curves are more representative for common
+    // ffmpeg AV1 NVENC presets, while HEVC/H.264 are often mixed across 8/10-bit
+    // outputs and should stay comparable within the same encoder family.
+    const use10bitCurveKey = codec === "AV1" && is10bit;
     // VCEEncC keys in vq_results currently do not encode bit depth in the dataset key.
-    const bitSuffix = family === "VCEEncC" || codec === "H_264" ? "" : is10bit ? "_10bit" : "";
+    const bitSuffix = family === "VCEEncC" || codec === "H_264" ? "" : use10bitCurveKey ? "_10bit" : "";
 
-    const tryModel = (model: string) => {
-      const base = `${model}_${family}_${codec}${bitSuffix}`;
+    const shouldPreferQuality = (() => {
+      const tune = String(preset.video?.tune ?? "")
+        .trim()
+        .toLowerCase();
+      if (tune === "hq") return true;
+      if (preset.video?.rcLookahead) return true;
+      if (preset.video?.spatialAq === true) return true;
+      if (preset.video?.temporalAq === true) return true;
+      if (preset.video?.bRefMode) return true;
+      return false;
+    })();
+
+    const tryBase = (base: string) => {
       const normal = `${base}_normal`;
       const quality = `${base}_quality`;
       const keys: string[] = [];
       if (hasAnyMetric(normal)) keys.push(normal);
       if (hasAnyMetric(quality)) keys.push(quality);
       if (keys.length === 0) return null;
-      const primary = keys.includes(normal) ? normal : keys[0]!;
+      const primary =
+        shouldPreferQuality && keys.includes(quality) ? quality : keys.includes(normal) ? normal : keys[0]!;
       return { primary, keys };
+    };
+
+    const tryModel = (model: string) => {
+      const base = `${model}_${family}_${codec}${bitSuffix}`;
+      return tryBase(base);
     };
 
     for (const model of models) {
@@ -279,7 +307,7 @@ export const predictFromVqResults = (
     const filtered =
       family === "VCEEncC" || codec === "H_264"
         ? all
-        : is10bit
+        : use10bitCurveKey
           ? all.filter((k) => k.includes("_10bit"))
           : all.filter((k) => !k.includes("_10bit"));
     const keys = (filtered.length > 0 ? filtered : all).sort((a, b) => a.localeCompare(b));
@@ -310,7 +338,8 @@ export const predictFromVqResults = (
         if (keys.length === 0) return null;
 
         const p = presetValue || "medium";
-        const isSlowFamily = p.includes("veryslow") || p.includes("slower") || p.includes("placebo");
+        const isSlowFamily =
+          p.includes("slow") || p.includes("slower") || p.includes("veryslow") || p.includes("placebo");
         const candidates = [`x264_${p}_crf`, isSlowFamily ? "x264_veryslow_crf" : "", "x264_medium_crf"].filter(
           Boolean,
         );
@@ -324,7 +353,8 @@ export const predictFromVqResults = (
 
         const p = presetValue || "medium";
         const bitKey = (base: string) => (is10bit ? `${base}_10bit_crf` : `${base}_crf`);
-        const isSlowFamily = p.includes("veryslow") || p.includes("slower") || p.includes("placebo");
+        const isSlowFamily =
+          p.includes("slow") || p.includes("slower") || p.includes("veryslow") || p.includes("placebo");
         const candidates = [
           bitKey(`x265_${p}`),
           isSlowFamily ? bitKey("x265_veryslow") : "",
@@ -385,7 +415,9 @@ export const predictFromVqResults = (
     return clamp(bitrateKbps, minX, maxX);
   };
 
-  const qCurve = spec ? estimateCurveQualityValue(preset, spec) : NaN;
+  const qCurve = spec
+    ? estimateCurveQualityValue(preset, spec, { pointsCount: vmafCurve?.points.length ?? null })
+    : NaN;
 
   const useQualityPath =
     !!spec &&

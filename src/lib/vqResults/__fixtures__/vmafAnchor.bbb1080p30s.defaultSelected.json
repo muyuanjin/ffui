@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "name": "Big Buck Bunny 1080p 30s",
+    "sourceUrl": "https://raw.githubusercontent.com/bower-media-samples/big-buck-bunny-1080p-30s/master/video.mp4",
+    "sha256": "07b756a4c7b481829776645c153167ca14c9df802ddbea7dffda3d817aa5261a",
+    "notes": [
+      "Measured via ffmpeg libvmaf on a single reference video.",
+      "Comparison normalizes both streams to yuv420p inside the VMAF filter.",
+      "This fixture contains only measured VMAF means (no video files, no encoding in tests)."
+    ]
+  },
+  "inputs": {
+    "snapshotPath": "public/vq/quality_snapshot.json",
+    "presetsPath": "src-tauri/assets/smart-presets.json",
+    "subset": "defaultSelected"
+  },
+  "results": [
+    { "presetId": "smart-hevc-fast", "encoder": "hevc_nvenc", "vmafMean": 94.61778 },
+    { "presetId": "smart-av1-nvenc-hq-constqp18", "encoder": "av1_nvenc", "vmafMean": 99.080037 },
+    { "presetId": "smart-hevc-nvenc-hq-constqp19", "encoder": "hevc_nvenc", "vmafMean": 96.832817 },
+    { "presetId": "smart-hevc-balanced", "encoder": "hevc_nvenc", "vmafMean": 96.193134 },
+    { "presetId": "smart-hevc-archive", "encoder": "hevc_nvenc", "vmafMean": 97.629401 },
+    { "presetId": "smart-h264-nvenc-hq", "encoder": "h264_nvenc", "vmafMean": 94.176842 },
+    { "presetId": "smart-av1-nvenc-fast", "encoder": "av1_nvenc", "vmafMean": 94.367319 },
+    { "presetId": "smart-hevc-fast", "encoder": "libx264", "vmafMean": 96.018132 },
+    { "presetId": "smart-hevc-balanced", "encoder": "libx264", "vmafMean": 96.043683 },
+    { "presetId": "smart-hevc-archive", "encoder": "libx264", "vmafMean": 97.976605 },
+    { "presetId": "smart-x265-balanced", "encoder": "libx265", "vmafMean": 96.551666 },
+    { "presetId": "smart-x265-archive", "encoder": "libx265", "vmafMean": 97.278581 },
+    { "presetId": "smart-av1-fast", "encoder": "libsvtav1", "vmafMean": 94.667925 },
+    { "presetId": "smart-av1-balanced", "encoder": "libsvtav1", "vmafMean": 95.639943 },
+    { "presetId": "smart-av1-archive", "encoder": "libsvtav1", "vmafMean": 96.909496 }
+  ]
+}

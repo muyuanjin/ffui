@@ -53,16 +53,32 @@ const sliceQualityAxisForPoints = (spec: Pick<CurveQualitySpec, "axis" | "direct
   return spec.direction === "lower_is_better" ? axis.slice(axis.length - count) : axis.slice(0, count);
 };
 
-export const estimateCurveQualityValue = (preset: FFmpegPreset, spec: CurveQualitySpec): number => {
-  const axis = spec.axis;
+export const estimateCurveQualityValue = (
+  preset: FFmpegPreset,
+  spec: CurveQualitySpec,
+  options?: { pointsCount?: number | null },
+): number => {
+  const axis =
+    typeof options?.pointsCount === "number" && Number.isFinite(options.pointsCount) && options.pointsCount > 0
+      ? sliceQualityAxisForPoints(spec, options.pointsCount)
+      : spec.axis;
   if (axis.length === 0) return NaN;
 
-  const q = Number(preset.video?.qualityValue);
+  const qRaw = preset.video?.qualityValue;
+  const hasExplicitQualityValue = typeof qRaw === "number" && Number.isFinite(qRaw);
+  const q = Number(qRaw);
 
   // If the dataset uses CRF and the preset is already CRF-driven, we can map
   // 1:1 (clamped to the known upstream quality axis).
   const rc = String(preset.video?.rateControl ?? "").toLowerCase();
   if ((spec.domain === "crf" || spec.domain === "svt_crf") && rc === "crf" && Number.isFinite(q)) {
+    return clamp(q, axis[0]!, axis[axis.length - 1]!);
+  }
+  // vq_results' HW curves are driven by a QVBR-like quality parameter. For
+  // ffmpeg constqp presets, treating `qualityValue` as QP-like and clamping
+  // directly onto the (possibly truncated) axis avoids "mid-range" mapping
+  // that severely underestimates near-lossless presets.
+  if (spec.domain === "qvbr" && rc === "constqp" && Number.isFinite(q)) {
     return clamp(q, axis[0]!, axis[axis.length - 1]!);
   }
 
@@ -81,14 +97,65 @@ export const estimateCurveQualityValue = (preset: FFmpegPreset, spec: CurveQuali
     Number.isFinite(rec.range.max) &&
     rec.range.max > rec.range.min;
 
-  const normRange = shouldUseRecommendedBand ? rec!.range : fallbackRange;
+  // IMPORTANT: `rec.range` is a *recommended* daily-use band, not the scale's
+  // full domain. When users explicitly provide a qualityValue (e.g. CQ 20),
+  // do not clamp it into the tiny recommended band (e.g. 28–30), otherwise
+  // values outside the band saturate and break monotonicity.
+  const normRange = !hasExplicitQualityValue && shouldUseRecommendedBand ? rec!.range : fallbackRange;
 
-  const qPreset = Number.isFinite(q) ? q : Number(rec?.target ?? 28);
-  const t = clamp((qPreset - normRange.min) / (normRange.max - normRange.min), 0, 1); // 0=best, 1=worst
+  const qPreset = hasExplicitQualityValue ? q : Number(rec?.target ?? 28);
+  const t = (() => {
+    const span = normRange.max - normRange.min;
+    if (!Number.isFinite(span) || span <= 0) return 0.5;
 
-  // Keep a conservative band (avoid curve extremes).
-  const hi = 0.75;
-  const lo = 0.35;
+    // Hardware CQ scales often behave non-linearly: values much better than the
+    // typical target (e.g. CQ20 vs CQ29) should move closer to the curve's best
+    // end, while values near the target should remain stable.
+    if (
+      spec.domain === "qvbr" &&
+      rc === "cq" &&
+      hasExplicitQualityValue &&
+      rec &&
+      Number.isFinite(rec.target) &&
+      Math.abs(qPreset - rec.target) >= 3
+    ) {
+      const scale = 6;
+      const z = (qPreset - rec.target) / scale;
+      const logistic = 1 / (1 + Math.exp(-z));
+      return clamp(logistic, 0, 1);
+    }
+
+    return clamp((qPreset - normRange.min) / span, 0, 1);
+  })(); // 0=best, 1=worst
+
+  // Map quality into a conservative band (avoid curve extremes), but allow
+  // explicit large deltas (e.g. CQ20) to move closer to the best end.
+  const { hi, lo } = (() => {
+    let hiOut = 0.75;
+    let loOut = 0.35;
+
+    if (
+      spec.domain === "qvbr" &&
+      rc === "cq" &&
+      hasExplicitQualityValue &&
+      rec &&
+      Number.isFinite(rec.target) &&
+      Number.isFinite(qPreset)
+    ) {
+      const delta = rec.target - qPreset; // + = better
+      if (delta >= 8) hiOut = 0.95;
+      else if (delta >= 4) hiOut = 0.85;
+      if (delta <= -8) loOut = 0.2;
+      else if (delta <= -4) loOut = 0.28;
+    }
+
+    // Ensure a valid band.
+    if (!(hiOut > loOut)) {
+      hiOut = 0.75;
+      loOut = 0.35;
+    }
+    return { hi: hiOut, lo: loOut };
+  })();
   const pos = hi - (hi - lo) * t; // 0(best) => hi, 1(worst) => lo
 
   const minQ = axis[0]!;
@@ -104,10 +171,23 @@ const computeValueByCurveQuality = (
   spec: Pick<CurveQualitySpec, "axis" | "direction">,
   qCurve: number,
 ): { metricY: number; bitrateKbps: number } | null => {
-  const axis = sliceQualityAxisForPoints(spec, dataset.points.length);
-  if (axis.length !== dataset.points.length || axis.length === 0) return null;
+  const sorted = dataset.points.slice().sort((a, b) => a.x - b.x);
+  const deduped = (() => {
+    if (sorted.length <= 1) return sorted;
+    const out = [sorted[0]!];
+    for (let i = 1; i < sorted.length; i += 1) {
+      const prev = out[out.length - 1]!;
+      const cur = sorted[i]!;
+      if (cur.x === prev.x && cur.y === prev.y) continue;
+      out.push(cur);
+    }
+    return out;
+  })();
 
-  const points = dataset.points.slice().sort((a, b) => {
+  const axis = sliceQualityAxisForPoints(spec, deduped.length);
+  if (axis.length !== deduped.length || axis.length === 0) return null;
+
+  const points = deduped.slice().sort((a, b) => {
     // Preserve the original vq_results "quality sweep" direction:
     // - lower-is-better: bitrate decreases as axis increases => pair axis asc with bitrate desc
     // - higher-is-better: bitrate increases as axis increases => pair axis asc with bitrate asc
