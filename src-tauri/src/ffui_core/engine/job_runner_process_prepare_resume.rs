@@ -101,6 +101,8 @@ pub(super) fn build_effective_preset_for_resume(
             let timeline = InputTimelineConfig {
                 seek_mode: Some(SeekMode::Input),
                 seek_position: Some(format!("{seek:.6}")),
+                stream_loop: None,
+                input_time_offset: None,
                 duration_mode: None,
                 duration: None,
                 accurate_seek: Some(true),
@@ -113,6 +115,8 @@ pub(super) fn build_effective_preset_for_resume(
         use crate::ffui_core::domain::MappingConfig;
         let mapping = effective_preset.mapping.get_or_insert(MappingConfig {
             maps: None,
+            map_metadata_from_input_file_index: None,
+            map_chapters_from_input_file_index: None,
             metadata: None,
             dispositions: None,
         });

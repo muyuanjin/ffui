@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_emits_scan_progress_updates_for_small_dirs_and_final_count() {

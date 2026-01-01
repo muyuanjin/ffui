@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_video_enqueue_keeps_batch_children_consecutive_even_when_manual_interleaves() {

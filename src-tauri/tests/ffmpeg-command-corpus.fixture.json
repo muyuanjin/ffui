@@ -2935,7 +2935,7 @@
       "analysis": {
         "customEligible": true,
         "editableEligible": false,
-        "reasonsTop": ["不支持的参数：-map_metadata"]
+        "reasonsTop": ["结构化导入要求显式 -map（例如 -map 0）"]
       },
       "argsOnlyTemplate": "-i INPUT -map_metadata -1 -c:v copy -c:a copy OUTPUT"
     },
@@ -7799,7 +7799,7 @@
       "analysis": {
         "customEligible": true,
         "editableEligible": false,
-        "reasonsTop": ["不支持的参数：-stream_loop"]
+        "reasonsTop": ["不支持的参数：-c"]
       },
       "argsOnlyTemplate": "-stream_loop 3 -i INPUT -c copy OUTPUT"
     },

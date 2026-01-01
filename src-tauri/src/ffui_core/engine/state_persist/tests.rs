@@ -113,6 +113,12 @@ fn debounced_persistence_flushes_after_burst_ends() {
     let _guard = lock_persist_test_mutex_for_tests();
     reset_queue_persist_state_for_tests();
 
+    // Wait for any in-flight writer (started before the epoch bump) to finish so
+    // this test can assert on write counts deterministically.
+    {
+        let _write_guard = QUEUE_PERSIST_WRITE_MUTEX.lock_unpoisoned();
+    }
+
     let tmp =
         std::env::temp_dir().join(format!("ffui-test-queue-state-{}.json", std::process::id()));
     let _path_guard = override_queue_state_sidecar_path_for_tests(tmp.clone());
@@ -129,7 +135,9 @@ fn debounced_persistence_flushes_after_burst_ends() {
     assert_eq!(QUEUE_PERSIST_WRITE_COUNT.load(Ordering::SeqCst), 1);
 
     // After debounce, background thread should flush without needing a third call.
-    let deadline = Instant::now() + Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS + 200);
+    // The persistence worker runs on a background thread. Under heavy CI load,
+    // allow a generous grace window to avoid flaky timing-based failures.
+    let deadline = Instant::now() + Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS + 1500);
     while Instant::now() < deadline {
         if QUEUE_PERSIST_WRITE_COUNT.load(Ordering::SeqCst) >= 2 {
             break;

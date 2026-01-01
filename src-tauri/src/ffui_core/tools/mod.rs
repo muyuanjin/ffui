@@ -25,6 +25,7 @@ mod types;
 pub(crate) use candidates::tool_candidates;
 pub(crate) use download::{ensure_tool_available, force_download_tool_binary};
 pub(crate) use probe::verify_tool_binary;
+pub(crate) use resolve::resolve_tool_path;
 pub(crate) use runtime_state::{
     cached_ffmpeg_release_version, cached_libavif_release_version, cached_tool_status_snapshot,
     clear_tool_remote_check_state, clear_tool_runtime_error, finish_tool_status_refresh,
@@ -37,6 +38,11 @@ pub(crate) use status::tool_status;
 pub use types::{
     ExternalToolCandidate, ExternalToolKind, ExternalToolStatus, ExternalToolUpdateCheckResult,
 };
+
+#[cfg(test)]
+pub(crate) fn reset_tool_probe_cache_for_tests() {
+    probe::reset_probe_cache_for_tests();
+}
 
 pub(crate) fn hydrate_probe_cache_from_settings(
     settings: &crate::ffui_core::settings::ExternalToolSettings,

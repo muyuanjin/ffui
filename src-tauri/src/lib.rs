@@ -174,6 +174,7 @@ pub fn run() {
             commands::presets::save_preset,
             commands::presets::delete_preset,
             commands::presets::reorder_presets,
+            commands::presets::validate_preset_template,
             commands::presets::export_presets_bundle,
             commands::presets::read_presets_bundle,
             commands::settings::get_app_settings,

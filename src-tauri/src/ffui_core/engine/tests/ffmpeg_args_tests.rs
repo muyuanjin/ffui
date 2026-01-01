@@ -97,12 +97,16 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
     preset.input = Some(InputTimelineConfig {
         seek_mode: Some(SeekMode::Input),
         seek_position: Some("00:00:10".to_string()),
+        stream_loop: Some(-1),
+        input_time_offset: Some("-0.5".to_string()),
         duration_mode: Some(DurationMode::Duration),
         duration: Some("5".to_string()),
         accurate_seek: Some(true),
     });
     preset.mapping = Some(MappingConfig {
         maps: Some(vec!["0:v:0".to_string(), "0:a:0".to_string()]),
+        map_metadata_from_input_file_index: Some(-1),
+        map_chapters_from_input_file_index: Some(0),
         metadata: Some(vec!["title=Test".to_string()]),
         dispositions: Some(vec!["0:v:0 default".to_string()]),
     });
@@ -147,6 +151,14 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
         "structured preset with seek_position must emit -ss, got: {joined}"
     );
     assert!(
+        joined.contains("-stream_loop -1"),
+        "structured preset with stream_loop must emit -stream_loop, got: {joined}"
+    );
+    assert!(
+        joined.contains("-itsoffset -0.5"),
+        "structured preset with input_time_offset must emit -itsoffset, got: {joined}"
+    );
+    assert!(
         joined.contains("-t 5"),
         "structured preset with duration_mode=Duration must emit -t, got: {joined}"
     );
@@ -159,7 +171,15 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
         "structured preset with metadata must emit -metadata pairs, got: {joined}"
     );
     assert!(
-        joined.contains("-disposition 0:v:0 default"),
+        joined.contains("-map_metadata -1"),
+        "structured preset with map_metadata_from_input_file_index must emit -map_metadata, got: {joined}"
+    );
+    assert!(
+        joined.contains("-map_chapters 0"),
+        "structured preset with map_chapters_from_input_file_index must emit -map_chapters, got: {joined}"
+    );
+    assert!(
+        joined.contains("-disposition:v:0 default"),
         "structured preset with dispositions must emit -disposition, got: {joined}"
     );
     assert!(
@@ -183,6 +203,27 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
     assert!(
         joined.contains("-bsf h264_mp4toannexb"),
         "structured preset with bitstreamFilters must emit -bsf flags, got: {joined}"
+    );
+
+    let idx_i = args
+        .iter()
+        .position(|a| a == "-i")
+        .expect("structured args must include -i");
+    let idx_stream_loop = args
+        .iter()
+        .position(|a| a == "-stream_loop")
+        .expect("structured args must include -stream_loop");
+    let idx_itsoffset = args
+        .iter()
+        .position(|a| a == "-itsoffset")
+        .expect("structured args must include -itsoffset");
+    assert!(
+        idx_stream_loop < idx_i,
+        "-stream_loop must appear before -i to affect the input, got: {joined}"
+    );
+    assert!(
+        idx_itsoffset < idx_i,
+        "-itsoffset must appear before -i to affect the input, got: {joined}"
     );
 }
 
@@ -358,13 +399,19 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
             let has_bitrate = joined.contains(" -b:v ");
             let has_maxrate = joined.contains(" -maxrate ");
             let has_bufsize = joined.contains(" -bufsize ");
+            let has_passlogfile = joined.contains(" -passlogfile ");
             let has_pass = joined.contains(" -pass ");
 
             match mode {
                 RateControlMode::Crf => {
                     assert!(has_crf, "Crf mode must emit -crf, got: {joined}");
                     assert!(
-                        !has_cq && !has_bitrate && !has_maxrate && !has_bufsize && !has_pass,
+                        !has_cq
+                            && !has_bitrate
+                            && !has_maxrate
+                            && !has_bufsize
+                            && !has_passlogfile
+                            && !has_pass,
                         "Crf mode must not emit CQ/bitrate/two-pass flags, got: {joined}"
                     );
                 }
@@ -376,6 +423,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
                             && !has_bitrate
                             && !has_maxrate
                             && !has_bufsize
+                            && !has_passlogfile
                             && !has_pass,
                         "Cq mode must not emit CRF/bitrate/two-pass flags, got: {joined}"
                     );
@@ -391,6 +439,7 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
                             && !has_bitrate
                             && !has_maxrate
                             && !has_bufsize
+                            && !has_passlogfile
                             && !has_pass,
                         "Constqp mode must not emit CRF/CQ/bitrate/two-pass flags, got: {joined}"
                     );
@@ -403,6 +452,10 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
                     assert!(
                         has_bitrate || has_maxrate || has_bufsize || has_pass,
                         "CBR/VBR modes must emit at least one bitrate-related flag, got: {joined}"
+                    );
+                    assert!(
+                        !has_pass || has_passlogfile,
+                        "two-pass must emit -passlogfile alongside -pass, got: {joined}"
                     );
                 }
             }

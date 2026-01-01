@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_keeps_compressed_named_files_as_candidates() {

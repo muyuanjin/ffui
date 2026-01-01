@@ -19,6 +19,7 @@ use crate::sync_ext::MutexExt;
 
 #[cfg(feature = "bench")]
 pub mod bench;
+mod preset_processing_activity;
 mod restore;
 pub(in crate::ffui_core::engine) mod restore_segment_probe;
 #[cfg(test)]
@@ -82,6 +83,8 @@ pub(crate) struct EngineState {
     pub(crate) known_batch_compress_outputs: HashSet<String>,
     // Cache of ffmpeg feature probes keyed by executable path.
     pub(crate) ffmpeg_supports_stats_period: HashMap<String, bool>,
+    pub(crate) preset_processing_activity:
+        HashMap<String, preset_processing_activity::PresetProcessingActivity>,
 }
 
 impl EngineState {
@@ -105,6 +108,7 @@ impl EngineState {
             batch_compress_batches: HashMap::new(),
             known_batch_compress_outputs: HashSet::new(),
             ffmpeg_supports_stats_period: HashMap::new(),
+            preset_processing_activity: HashMap::new(),
         }
     }
 }

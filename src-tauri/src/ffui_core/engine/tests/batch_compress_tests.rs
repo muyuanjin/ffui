@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 #[test]
 fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
     let dir = env::temp_dir().join("ffui_batch_compress_progress");

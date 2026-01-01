@@ -1,4 +1,3 @@
-#[cfg(test)]
 use std::sync::Mutex;
 
 use anyhow::Result;
@@ -7,17 +6,15 @@ use super::io::{read_json_file, write_json_file};
 use super::preset_templates::{base_preset, filters_empty, filters_scale, video_x264_crf};
 use crate::ffui_core::data_root::presets_path;
 use crate::ffui_core::domain::FFmpegPreset;
-#[cfg(test)]
 use crate::sync_ext::MutexExt;
 
-// Many unit tests (and some integration-style tests) touch the same
-// shared presets file path. Guard this path under `cfg(test)` so
-// unrelated tests cannot race and accidentally overwrite or observe a
-// partially-updated file.
-#[cfg(test)]
+// The presets sidecar uses a fixed `*.tmp` path during atomic writes, so
+// concurrent writers can clobber each other's temp file and/or reorder final
+// renames. Guard all preset sidecar IO (load/save) with a single process-wide
+// mutex to avoid corruption and lost updates when multiple jobs complete in
+// parallel.
 static PRESETS_SIDECAR_MUTEX: Mutex<()> = Mutex::new(());
 
-#[cfg(test)]
 pub(super) fn with_presets_sidecar_lock<T>(f: impl FnOnce() -> T) -> T {
     use std::cell::Cell;
 
@@ -42,11 +39,6 @@ pub(super) fn with_presets_sidecar_lock<T>(f: impl FnOnce() -> T) -> T {
     let _guard = PRESETS_SIDECAR_MUTEX.lock_unpoisoned();
     HELD.with(|flag| flag.set(true));
     let _reset = Reset;
-    f()
-}
-
-#[cfg(not(test))]
-fn with_presets_sidecar_lock<T>(f: impl FnOnce() -> T) -> T {
     f()
 }
 
@@ -107,10 +99,173 @@ pub fn load_presets() -> Result<Vec<FFmpegPreset>> {
 }
 
 pub fn save_presets(presets: &[FFmpegPreset]) -> Result<()> {
-    with_presets_sidecar_lock(|| {
-        let path = presets_path()?;
-        write_json_file(&path, presets)
+    let path = presets_path()?;
+    #[cfg(test)]
+    maybe_block_first_save_presets_for_tests(&path);
+    with_presets_sidecar_lock(|| write_json_file(&path, presets))
+}
+
+#[cfg(test)]
+pub(crate) struct BlockFirstSavePresetsGuard {
+    target_path: std::path::PathBuf,
+}
+
+#[cfg(test)]
+struct SavePresetsGateState {
+    active: bool,
+    target_path: std::path::PathBuf,
+    call_count: usize,
+    first_entered: bool,
+    allow_first: bool,
+}
+
+#[cfg(test)]
+struct SavePresetsGate {
+    state: std::sync::Mutex<SavePresetsGateState>,
+    cv: std::sync::Condvar,
+}
+
+#[cfg(test)]
+fn save_presets_gate() -> &'static SavePresetsGate {
+    use std::sync::OnceLock;
+    static GATE: OnceLock<SavePresetsGate> = OnceLock::new();
+    GATE.get_or_init(|| SavePresetsGate {
+        state: std::sync::Mutex::new(SavePresetsGateState {
+            active: false,
+            target_path: std::path::PathBuf::new(),
+            call_count: 0,
+            first_entered: false,
+            allow_first: true,
+        }),
+        cv: std::sync::Condvar::new(),
     })
+}
+
+#[cfg(test)]
+fn maybe_block_first_save_presets_for_tests(path: &std::path::Path) {
+    use std::time::Duration;
+
+    let gate = save_presets_gate();
+    let mut guard = gate
+        .state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    if !guard.active || guard.target_path != path {
+        return;
+    }
+
+    let call_index = guard.call_count;
+    guard.call_count += 1;
+    gate.cv.notify_all();
+
+    if call_index != 0 {
+        return;
+    }
+
+    guard.first_entered = true;
+    gate.cv.notify_all();
+
+    while !guard.allow_first {
+        let (next, _timeout) = gate
+            .cv
+            .wait_timeout(
+                guard,
+                // Avoid hanging forever if a test crashes mid-flight.
+                Duration::from_secs(10),
+            )
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard = next;
+    }
+}
+
+#[cfg(test)]
+impl BlockFirstSavePresetsGuard {
+    pub(crate) fn new(target_path: std::path::PathBuf) -> Self {
+        let gate = save_presets_gate();
+        let mut guard = gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.active = true;
+        guard.target_path = target_path.clone();
+        guard.call_count = 0;
+        guard.first_entered = false;
+        guard.allow_first = false;
+        gate.cv.notify_all();
+        Self { target_path }
+    }
+
+    pub(crate) fn wait_first_entered(&self, timeout: std::time::Duration) -> bool {
+        let gate = save_presets_gate();
+        let mut guard = gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            if guard.active && guard.target_path == self.target_path && guard.first_entered {
+                return true;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let (next, _timeout_res) = gate
+                .cv
+                .wait_timeout(guard, remaining)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard = next;
+        }
+        false
+    }
+
+    pub(crate) fn wait_call_count_at_least(&self, n: usize, timeout: std::time::Duration) -> bool {
+        let gate = save_presets_gate();
+        let mut guard = gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            if guard.active && guard.target_path == self.target_path && guard.call_count >= n {
+                return true;
+            }
+            let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+            let (next, _timeout_res) = gate
+                .cv
+                .wait_timeout(guard, remaining)
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            guard = next;
+        }
+        false
+    }
+
+    pub(crate) fn unblock_first(&self) {
+        let gate = save_presets_gate();
+        let mut guard = gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !guard.active || guard.target_path != self.target_path {
+            return;
+        }
+        guard.allow_first = true;
+        gate.cv.notify_all();
+    }
+}
+
+#[cfg(test)]
+impl Drop for BlockFirstSavePresetsGuard {
+    fn drop(&mut self) {
+        let gate = save_presets_gate();
+        let mut guard = gate
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if guard.active && guard.target_path == self.target_path {
+            guard.active = false;
+            guard.allow_first = true;
+            gate.cv.notify_all();
+        }
+    }
 }
 
 #[cfg(test)]

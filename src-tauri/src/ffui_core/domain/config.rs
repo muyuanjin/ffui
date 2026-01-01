@@ -155,6 +155,10 @@ pub enum DurationMode {
 pub struct InputTimelineConfig {
     pub seek_mode: Option<SeekMode>,
     pub seek_position: Option<String>,
+    /// Loop input N times via -stream_loop. 0 = no loop, -1 = infinite.
+    pub stream_loop: Option<i32>,
+    /// Apply input timestamp offset via -itsoffset (time duration syntax).
+    pub input_time_offset: Option<String>,
     pub duration_mode: Option<DurationMode>,
     pub duration: Option<String>,
     pub accurate_seek: Option<bool>,
@@ -164,6 +168,10 @@ pub struct InputTimelineConfig {
 #[serde(rename_all = "camelCase")]
 pub struct MappingConfig {
     pub maps: Option<Vec<String>>,
+    /// Control metadata copying via -map_metadata. -1 disables automatic copy.
+    pub map_metadata_from_input_file_index: Option<i32>,
+    /// Control chapter copying via -map_chapters. -1 disables chapter copy.
+    pub map_chapters_from_input_file_index: Option<i32>,
     pub metadata: Option<Vec<String>>,
     pub dispositions: Option<Vec<String>>,
 }

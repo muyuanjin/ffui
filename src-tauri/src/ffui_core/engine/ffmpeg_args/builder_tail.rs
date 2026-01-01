@@ -188,12 +188,45 @@ pub(in crate::ffui_core::engine) fn apply_mapping_disposition_and_metadata_args(
     preset: &FFmpegPreset,
 ) {
     if let Some(mapping) = preset.mapping.as_ref() {
+        if let Some(index) = mapping.map_metadata_from_input_file_index {
+            args.push("-map_metadata".to_string());
+            args.push(index.to_string());
+        }
+        if let Some(index) = mapping.map_chapters_from_input_file_index {
+            args.push("-map_chapters".to_string());
+            args.push(index.to_string());
+        }
         if let Some(dispositions) = &mapping.dispositions {
             for d in dispositions {
-                if !d.is_empty() {
-                    args.push("-disposition".to_string());
-                    args.push(d.clone());
+                let trimmed = d.trim();
+                if trimmed.is_empty() {
+                    continue;
                 }
+
+                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    let raw_spec = parts[0].trim();
+                    let value = parts[1..].join(" ");
+                    let spec = if raw_spec.chars().next().is_some_and(|c| c.is_ascii_digit())
+                        && raw_spec.split_once(':').is_some_and(|(_, rest)| {
+                            matches!(rest.chars().next(), Some('v' | 'a' | 's' | 'd'))
+                        }) {
+                        raw_spec
+                            .split_once(':')
+                            .map(|(_, rest)| rest)
+                            .unwrap_or(raw_spec)
+                    } else {
+                        raw_spec
+                    };
+                    if !spec.is_empty() && !value.is_empty() {
+                        args.push(format!("-disposition:{spec}"));
+                        args.push(value);
+                        continue;
+                    }
+                }
+
+                args.push("-disposition".to_string());
+                args.push(trimmed.to_string());
             }
         }
         if let Some(metadata) = &mapping.metadata {

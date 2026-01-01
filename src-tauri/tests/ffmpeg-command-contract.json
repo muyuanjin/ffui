@@ -88,7 +88,7 @@
         "mapping": {
           "maps": ["0:v:0", "0:a:0"],
           "metadata": ["title=NVENC CQ Fast"],
-          "dispositions": ["0:v:0 default"]
+          "dispositions": ["v:0 default"]
         },
         "video": {
           "encoder": "hevc_nvenc",
@@ -148,7 +148,7 @@
         "advancedEnabled": false,
         "ffmpegTemplate": null
       },
-      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -ss 00:00:10 -accurate_seek -i INPUT -t 5 -map 0:v:0 -map 0:a:0 -disposition 0:v:0 default -metadata title=NVENC CQ Fast -c:v hevc_nvenc -cq 28 -preset p5 -g 120 -bf 3 -pix_fmt yuv420p -c:a copy -vf scale=1280:-2,fps=60 -sn -f mp4 -movflags faststart+frag_keyframe -hwaccel cuda -hwaccel_device cuda:0 -hwaccel_output_format cuda -bsf h264_mp4toannexb OUTPUT"
+      "expectedCommand": "ffmpeg -progress pipe:2 -nostdin -y -loglevel info -hide_banner -ss 00:00:10 -accurate_seek -i INPUT -t 5 -map 0:v:0 -map 0:a:0 -disposition:v:0 default -metadata title=NVENC CQ Fast -c:v hevc_nvenc -cq 28 -preset p5 -g 120 -bf 3 -pix_fmt yuv420p -c:a copy -vf scale=1280:-2,fps=60 -sn -f mp4 -movflags faststart+frag_keyframe -hwaccel cuda -hwaccel_device cuda:0 -hwaccel_output_format cuda -bsf h264_mp4toannexb OUTPUT"
     },
     {
       "id": "av1-crf-high-compression",
