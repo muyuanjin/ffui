@@ -21,6 +21,26 @@ const makePreset = (id: string, name: string): FFmpegPreset => ({
 });
 
 describe("PresetPanel library actions", () => {
+  it("renders selection actions right slot before pin button", () => {
+    const presets = [makePreset("p1", "One")];
+    const wrapper = mount(PresetPanel, {
+      props: {
+        presets,
+        selectionBarPinned: true,
+      },
+      slots: {
+        "selection-actions-right": '<button type="button" data-testid="slot-action">slot</button>',
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const slotEl = wrapper.get('[data-testid="slot-action"]').element as HTMLElement;
+    const pinEl = wrapper.get('[data-testid="preset-selection-pin"]').element as HTMLElement;
+    expect(slotEl.compareDocumentPosition(pinEl) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    wrapper.unmount();
+  });
+
   it("pins selection actions bar and keeps it visible with no selection", async () => {
     const presets = [makePreset("p1", "One")];
     const wrapper = mount(PresetPanel, {
