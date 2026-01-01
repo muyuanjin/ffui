@@ -229,6 +229,45 @@ export const validatePresetTemplate = async (
   preset: FFmpegPreset,
   options?: { timeoutMs?: number },
 ): Promise<PresetTemplateValidationResult> => {
+  if (!hasTauri()) {
+    const template = String(preset.ffmpegTemplate ?? "").trim();
+    const url = typeof window === "undefined" ? null : new URL(window.location.href);
+    const rawOutcome = url?.searchParams.get("ffuiMockPresetTemplateValidation")?.trim() ?? "";
+    const outcome = (() => {
+      if (rawOutcome === "failed") return "failed";
+      if (rawOutcome === "templateInvalid") return "templateInvalid";
+      if (rawOutcome === "timedOut") return "timedOut";
+      if (rawOutcome === "skippedToolUnavailable") return "skippedToolUnavailable";
+      if (rawOutcome === "ok") return "ok";
+      if (template.includes("FFUI_MOCK_TEMPLATE_INVALID")) return "templateInvalid";
+      if (template.includes("FFUI_MOCK_TIMED_OUT")) return "timedOut";
+      if (template.includes("FFUI_MOCK_TOOL_MISSING")) return "skippedToolUnavailable";
+      if (template.includes("FFUI_MOCK_FAILED")) return "failed";
+      return "ok";
+    })() satisfies PresetTemplateValidationResult["outcome"];
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    if (outcome === "ok") return { outcome };
+    if (outcome === "templateInvalid") {
+      return {
+        outcome,
+        message: template ? "mock: template invalid" : "mock: template is empty",
+      };
+    }
+    if (outcome === "timedOut") {
+      const timeoutMs = options?.timeoutMs;
+      return {
+        outcome,
+        message: timeoutMs ? `mock: timed out after ${timeoutMs}ms` : "mock: timed out",
+      };
+    }
+    if (outcome === "skippedToolUnavailable") {
+      return { outcome, message: "mock: tool unavailable" };
+    }
+    return { outcome: "failed", exitCode: 1, stderrSummary: "mock: validate_preset_template failed" };
+  }
+
   const timeoutMs = options?.timeoutMs;
   return invokeCommand<PresetTemplateValidationResult>("validate_preset_template", { preset, timeoutMs });
 };

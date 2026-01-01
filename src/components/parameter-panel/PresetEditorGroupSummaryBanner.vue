@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { Button } from "@/components/ui/button";
 import type { PresetEditorFix, PresetEditorGroup, PresetEditorIssue } from "@/lib/presetEditorContract/presetValidator";
@@ -22,6 +22,7 @@ const { t } = useI18n();
 
 const fixCount = computed(() => props.fixes.length);
 const shouldShow = computed(() => props.errors > 0 || props.warnings > 0 || fixCount.value > 0);
+const detailsOpen = ref<boolean>(props.errors > 0);
 
 const issueTitle = computed(() => t("presetEditor.validation.issuesTitle"));
 const fixTitle = computed(() => t("presetEditor.validation.fixesTitle"));
@@ -38,21 +39,53 @@ const focus = (group: PresetEditorGroup, field?: string) => {
 const applyFix = (fixId: string) => {
   emit("fixOne", fixId);
 };
+
+watch(
+  () => props.errors,
+  (next, prev) => {
+    if (next > 0 && (prev ?? 0) === 0) {
+      detailsOpen.value = true;
+      return;
+    }
+    if (next === 0 && (prev ?? 0) > 0) {
+      detailsOpen.value = false;
+    }
+  },
+);
+
+const handleDetailsToggle = (event: Event) => {
+  detailsOpen.value = (event.target as HTMLDetailsElement).open;
+};
 </script>
 
 <template>
-  <div v-if="shouldShow" class="rounded-md border border-border/60 bg-muted/40 p-3">
+  <div v-if="shouldShow" class="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
     <div class="flex items-start justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-[11px] text-muted-foreground">
-          {{
-            t("presetEditor.validation.groupSummary", {
-              errors: props.errors,
-              warnings: props.warnings,
-            })
-          }}
-        </p>
-        <details class="mt-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[11px] text-muted-foreground">
+            {{
+              t("presetEditor.validation.groupSummary", {
+                errors: props.errors,
+                warnings: props.warnings,
+              })
+            }}
+          </p>
+          <div class="shrink-0 flex items-center gap-1">
+            <Button
+              v-if="fixCount > 0"
+              type="button"
+              variant="ghost"
+              size="sm"
+              class="h-6 px-2 text-[11px]"
+              @click="emit('fix')"
+            >
+              {{ t("presetEditor.validation.fixGroup") }}
+            </Button>
+          </div>
+        </div>
+
+        <details class="mt-1" :open="detailsOpen" @toggle="handleDetailsToggle">
           <summary class="cursor-pointer select-none text-[11px] text-muted-foreground hover:text-foreground">
             {{ t("presetEditor.validation.details") }}
           </summary>
@@ -148,16 +181,6 @@ const applyFix = (fixId: string) => {
           </div>
         </details>
       </div>
-      <Button
-        v-if="fixCount > 0"
-        type="button"
-        variant="secondary"
-        size="sm"
-        class="h-7 px-2 text-[11px]"
-        @click="emit('fix')"
-      >
-        {{ t("presetEditor.validation.fixGroup") }}
-      </Button>
     </div>
   </div>
 </template>
