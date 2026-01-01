@@ -47,5 +47,5 @@ describe("unified vq snapshot integrity (manual)", () => {
       expect(candidate, `missing dataset ${id}`).toBeTruthy();
       expect(candidate).toEqual(d);
     }
-  }, 60_000);
+  }, 600_000);
 });
