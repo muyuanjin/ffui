@@ -83,13 +83,21 @@ export const applyVideoToken = (
     }
     return { consumed: 1 };
   }
+  if (token === "-passlogfile" || token.startsWith("-passlogfile:")) {
+    const v = readValue(tokens, i, token, state.reasons);
+    if (!v) return { consumed: 0 };
+    const prefix = stripQuotes(v).trim();
+    if (prefix !== "OUTPUT.ffui2pass") {
+      state.reasons.push("结构化模式不支持自定义 -passlogfile（FFUI 会自动生成以避免冲突）");
+      return { consumed: 0, stop: true };
+    }
+    return { consumed: 1 };
+  }
   if (token === "-pass") {
     const v = readValue(tokens, i, "-pass", state.reasons);
     if (!v) return { consumed: 0 };
     const pass = Number(stripQuotes(v));
-    if (pass === 1 || pass === 2) {
-      state.video.pass = pass;
-    }
+    if (pass === 1 || pass === 2) state.video.pass = 2;
     return { consumed: 1 };
   }
   if (token === "-preset") {

@@ -14,6 +14,7 @@ import type {
   GpuUsageSnapshot,
   JobCompareSources,
   OutputPolicy,
+  PresetTemplateValidationResult,
   PresetBundle,
   PresetBundleExportResult,
   QueueStateLite,
@@ -466,6 +467,25 @@ export const reorderPresetsOnBackend = async (orderedIds: string[]): Promise<FFm
   }
   presetsSnapshot = ordered;
   return ordered;
+};
+
+export const validatePresetTemplate = async (
+  preset: FFmpegPreset,
+  _options?: { timeoutMs?: number },
+): Promise<PresetTemplateValidationResult> => {
+  const template = String(preset.ffmpegTemplate ?? "").trim();
+  const enabled = preset.advancedEnabled === true;
+  if (!enabled || template.length === 0) {
+    return {
+      outcome: "templateInvalid",
+      message: "Preset template is empty or advanced mode is disabled.",
+    };
+  }
+  return {
+    outcome: "ok",
+    ffmpegPath: "docs-screenshot-mock",
+    ffmpegSource: "mock",
+  };
 };
 
 const resolveMediaEnv = (key: string, fallback: string): string => {

@@ -2,6 +2,8 @@ const other = {
   common: {
     back: "上一步",
     cancel: "取消",
+    add: "添加",
+    remove: "移除",
     loading: "加载中…",
     next: "下一步",
     recommended: "推荐",
@@ -274,6 +276,13 @@ const other = {
     openInSystemPlayer: "用系统播放器打开",
   },
   presets: {
+    cardStats: {
+      used: "用{count}次",
+      input: "输入{gb}G",
+      size: "大小{percent}%",
+      throughput: "吞吐{mbps}MB/s",
+      fps: "FPS{fps}",
+    },
     usedTimes: "已使用 {count} 次",
     totalIn: "输入：{gb} GB",
     videoLabel: "视频",
@@ -283,7 +292,7 @@ const other = {
     audioAacLoudnormEbu: "AAC {kbps}k + EBU 响度",
     audioAacLoudnormCn: "AAC {kbps}k + 广电响度",
     avgRatio: "平均大小：{percent}%",
-    avgSpeed: "速度：{mbps} MB/s",
+    avgSpeed: "吞吐量：{mbps} MB/s",
     avgFps: "FPS：{fps}",
     commandPreviewLabel: "命令预览",
     commandPreviewHint:
@@ -351,6 +360,7 @@ const other = {
     importCommandsEligibleSummary: "可编辑：{editable} · 自定义：{custom}",
     importCommandsAnalysisTitle: "逐行分析",
     importCommandsUntitled: "未命名",
+    importCommandsValidateSelected: "验证已选（{count}）",
     importCommandsStatusEmpty: "空行",
     importCommandsStatusEditable: "可编辑",
     importCommandsStatusCustom: "自定义",

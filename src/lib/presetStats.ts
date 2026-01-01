@@ -40,20 +40,23 @@ export const getPresetStatsDeltaFromJob = (
   if (!inputSizeMB || !outputSizeMB || inputSizeMB <= 0 || outputSizeMB <= 0) {
     return null;
   }
-  if (!job.startTime || !job.endTime || job.endTime <= job.startTime) {
-    return null;
-  }
-  const timeSeconds = (job.endTime - job.startTime) / 1000;
+  const timeSeconds =
+    typeof job.elapsedMs === "number" && Number.isFinite(job.elapsedMs) && job.elapsedMs > 0
+      ? job.elapsedMs / 1000
+      : job.startTime && job.endTime && job.endTime > job.startTime
+        ? (job.endTime - job.startTime) / 1000
+        : null;
+  if (!timeSeconds || timeSeconds <= 0) return null;
   const frames =
-    typeof job.waitMetadata?.lastProgressFrame === "number" && Number.isFinite(job.waitMetadata.lastProgressFrame)
-      ? job.waitMetadata.lastProgressFrame
-      : typeof job.mediaInfo?.durationSeconds === "number" &&
-          typeof job.mediaInfo?.frameRate === "number" &&
-          Number.isFinite(job.mediaInfo.durationSeconds) &&
-          Number.isFinite(job.mediaInfo.frameRate)
-        ? job.mediaInfo.durationSeconds > 0 && job.mediaInfo.frameRate > 0
-          ? job.mediaInfo.durationSeconds * job.mediaInfo.frameRate
-          : 0
+    typeof job.mediaInfo?.durationSeconds === "number" &&
+    typeof job.mediaInfo?.frameRate === "number" &&
+    Number.isFinite(job.mediaInfo.durationSeconds) &&
+    Number.isFinite(job.mediaInfo.frameRate) &&
+    job.mediaInfo.durationSeconds > 0 &&
+    job.mediaInfo.frameRate > 0
+      ? job.mediaInfo.durationSeconds * job.mediaInfo.frameRate
+      : typeof job.waitMetadata?.lastProgressFrame === "number" && Number.isFinite(job.waitMetadata.lastProgressFrame)
+        ? job.waitMetadata.lastProgressFrame
         : 0;
   return { presetId: job.presetId, inputSizeMB, outputSizeMB, timeSeconds, frames };
 };

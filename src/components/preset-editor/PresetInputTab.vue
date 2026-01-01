@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
+import PresetSchemaField from "@/components/preset-editor/PresetSchemaField.vue";
+import type { LoopCountFieldDef, TimeExpressionFieldDef } from "@/lib/presetEditorContract/parameterSchema";
 
 const props = defineProps<{
   inputTimeline: InputTimelineConfig;
@@ -41,18 +43,49 @@ const durationModeLabel = computed(() => {
   return "";
 });
 
-const AUTO_VALUE = "__auto__";
+const streamLoopField: LoopCountFieldDef<DeepWritable<InputTimelineConfig>> = {
+  id: "preset-stream-loop",
+  kind: "loopCount",
+  width: "half",
+  labelKey: "presetEditor.panel.streamLoopLabel",
+  helpKey: "presetEditor.panel.streamLoopHelp",
+  commandField: "streamLoop",
+  autoLabelKey: "presetEditor.panel.streamLoopModeAuto",
+  noLoopLabelKey: "presetEditor.panel.streamLoopModeNoLoop",
+  infiniteLabelKey: "presetEditor.panel.streamLoopModeInfinite",
+  timesLabelKey: "presetEditor.panel.streamLoopModeTimes",
+  getCount: (model) => model.streamLoop,
+  setCount: (model, value) => {
+    model.streamLoop = value;
+  },
+  defaultTimes: 1,
+  quickTimes: [1, 2],
+  testId: "preset-input-stream-loop-trigger",
+};
 
-const streamLoopValue = computed<string>(() => {
-  const v = inputTimeline.streamLoop;
-  return typeof v === "number" && Number.isFinite(v) ? String(v) : AUTO_VALUE;
-});
-const streamLoopLabel = computed<string>(() => {
-  if (!streamLoopValue.value || streamLoopValue.value === AUTO_VALUE) return t("presetEditor.panel.streamLoopModeAuto");
-  if (streamLoopValue.value === "0") return t("presetEditor.panel.streamLoopModeNoLoop");
-  if (streamLoopValue.value === "-1") return t("presetEditor.panel.streamLoopModeInfinite");
-  return t("presetEditor.panel.streamLoopModeTimes", { times: streamLoopValue.value });
-});
+const inputTimeOffsetField: TimeExpressionFieldDef<DeepWritable<InputTimelineConfig>> = {
+  id: "preset-itsoffset",
+  kind: "timeExpression",
+  width: "half",
+  labelKey: "presetEditor.panel.itsoffsetLabel",
+  helpKey: "presetEditor.panel.itsoffsetHelp",
+  placeholderKey: "presetEditor.panel.itsoffsetPlaceholder",
+  commandField: "itsoffset",
+  customOptionLabelKey: "presetEditor.panel.timeExpressionCustom",
+  presets: [
+    { value: "0", labelKey: "presetEditor.panel.timePreset.zero" },
+    { value: "-0.5", labelKey: "presetEditor.panel.timePreset.minusHalfSecond" },
+    { value: "0.5", labelKey: "presetEditor.panel.timePreset.plusHalfSecond" },
+    { value: "-1", labelKey: "presetEditor.panel.timePreset.minusOneSecond" },
+    { value: "1", labelKey: "presetEditor.panel.timePreset.plusOneSecond" },
+  ],
+  defaultCustomValue: "0.5",
+  getValue: (model) => model.inputTimeOffset,
+  setValue: (model, value) => {
+    model.inputTimeOffset = value;
+  },
+  testId: "preset-input-itsoffset-trigger",
+};
 </script>
 
 <template>
@@ -77,7 +110,12 @@ const streamLoopLabel = computed<string>(() => {
             }
           "
         >
-          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-seek-mode-trigger">
+          <SelectTrigger
+            class="h-9 text-xs"
+            data-testid="preset-input-seek-mode-trigger"
+            data-command-group="input"
+            data-command-field="timeline"
+          >
             <SelectValue>{{ seekModeLabel }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -101,6 +139,8 @@ const streamLoopLabel = computed<string>(() => {
         <Input
           :model-value="inputTimeline.seekPosition ?? ''"
           :placeholder="t('presetEditor.panel.seekPositionPlaceholder')"
+          data-command-group="input"
+          data-command-field="timeline"
           @update:model-value="
             (value) => {
               const v = String(value ?? '');
@@ -115,69 +155,8 @@ const streamLoopLabel = computed<string>(() => {
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div class="">
-        <div class="flex items-center gap-1">
-          <Label class="text-[10px] mb-1 block">
-            {{ t("presetEditor.panel.streamLoopLabel") }}
-          </Label>
-          <HelpTooltipIcon :text="t('presetEditor.panel.streamLoopHelp')" />
-        </div>
-        <Select
-          :model-value="streamLoopValue"
-          @update:model-value="
-            (value) => {
-              const raw = value == null ? '' : String(value);
-              if (!raw || raw === AUTO_VALUE) {
-                inputTimeline.streamLoop = undefined;
-                return;
-              }
-              const n = Number(raw);
-              inputTimeline.streamLoop = Number.isFinite(n) ? n : undefined;
-            }
-          "
-        >
-          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-stream-loop-trigger">
-            <SelectValue>{{ streamLoopLabel }}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="AUTO_VALUE">
-              {{ t("presetEditor.panel.streamLoopModeAuto") }}
-            </SelectItem>
-            <SelectItem value="0">
-              {{ t("presetEditor.panel.streamLoopModeNoLoop") }}
-            </SelectItem>
-            <SelectItem value="-1">
-              {{ t("presetEditor.panel.streamLoopModeInfinite") }}
-            </SelectItem>
-            <SelectItem value="1">
-              {{ t("presetEditor.panel.streamLoopModeTimes", { times: 1 }) }}
-            </SelectItem>
-            <SelectItem value="2">
-              {{ t("presetEditor.panel.streamLoopModeTimes", { times: 2 }) }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div class="">
-        <div class="flex items-center gap-1">
-          <Label class="text-[10px] mb-1 block">
-            {{ t("presetEditor.panel.itsoffsetLabel") }}
-          </Label>
-          <HelpTooltipIcon :text="t('presetEditor.panel.itsoffsetHelp')" />
-        </div>
-        <Input
-          :model-value="inputTimeline.inputTimeOffset ?? ''"
-          :placeholder="t('presetEditor.panel.itsoffsetPlaceholder')"
-          class="text-xs font-mono"
-          @update:model-value="
-            (value) => {
-              const v = String(value ?? '').trim();
-              inputTimeline.inputTimeOffset = v || undefined;
-            }
-          "
-        />
-      </div>
+      <PresetSchemaField :field="streamLoopField" :model="inputTimeline" command-group="input" />
+      <PresetSchemaField :field="inputTimeOffsetField" :model="inputTimeline" command-group="input" />
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -197,7 +176,12 @@ const streamLoopLabel = computed<string>(() => {
             }
           "
         >
-          <SelectTrigger class="h-9 text-xs" data-testid="preset-input-duration-mode-trigger">
+          <SelectTrigger
+            class="h-9 text-xs"
+            data-testid="preset-input-duration-mode-trigger"
+            data-command-group="input"
+            data-command-field="timeline"
+          >
             <SelectValue>{{ durationModeLabel || t("presetEditor.panel.durationModePlaceholder") }}</SelectValue>
           </SelectTrigger>
           <SelectContent>
@@ -221,6 +205,8 @@ const streamLoopLabel = computed<string>(() => {
         <Input
           :model-value="inputTimeline.duration ?? ''"
           :placeholder="t('presetEditor.panel.durationPlaceholder')"
+          data-command-group="input"
+          data-command-field="timeline"
           @update:model-value="
             (value) => {
               const v = String(value ?? '');
@@ -232,7 +218,12 @@ const streamLoopLabel = computed<string>(() => {
     </div>
 
     <label class="inline-flex items-center gap-2 text-[11px] text-muted-foreground">
-      <Checkbox v-model:checked="accurateSeekChecked" class="h-3 w-3 border-border bg-background" />
+      <Checkbox
+        v-model:checked="accurateSeekChecked"
+        class="h-3 w-3 border-border bg-background"
+        data-command-group="input"
+        data-command-field="accurateSeek"
+      />
       <span>
         {{ t("presetEditor.panel.accurateSeekLabel") }}
       </span>

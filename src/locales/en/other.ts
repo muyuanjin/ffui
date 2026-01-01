@@ -2,6 +2,8 @@ const other = {
   common: {
     back: "Back",
     cancel: "Cancel",
+    add: "Add",
+    remove: "Remove",
     loading: "Loading…",
     next: "Next",
     recommended: "Recommended",
@@ -285,6 +287,13 @@ const other = {
     openInSystemPlayer: "Open in system player",
   },
   presets: {
+    cardStats: {
+      used: "Used{count}×",
+      input: "In{gb}G",
+      size: "Size{percent}%",
+      throughput: "MB/s{mbps}",
+      fps: "FPS{fps}",
+    },
     usedTimes: "Used {count} times",
     totalIn: "Input: {gb} GB",
     videoLabel: "Video",
@@ -293,8 +302,8 @@ const other = {
     audioAac: "AAC {kbps}k",
     audioAacLoudnormEbu: "AAC {kbps}k + EBU loudness",
     audioAacLoudnormCn: "AAC {kbps}k + CN broadcast loudness",
-    avgRatio: "Ratio: {percent}%",
-    avgSpeed: "Speed: {mbps} MB/s",
+    avgRatio: "Avg size: {percent}%",
+    avgSpeed: "Throughput: {mbps} MB/s",
     avgFps: "FPS: {fps}",
     commandPreviewLabel: "Command preview",
     commandPreviewHint:
@@ -362,6 +371,7 @@ const other = {
     importCommandsEligibleSummary: "Editable: {editable} · Custom: {custom}",
     importCommandsAnalysisTitle: "Per-line analysis",
     importCommandsUntitled: "Untitled",
+    importCommandsValidateSelected: "Validate selected ({count})",
     importCommandsStatusEmpty: "Empty",
     importCommandsStatusEditable: "Editable",
     importCommandsStatusCustom: "Custom",

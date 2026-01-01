@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import type { FFmpegPreset } from "@/types";
+import type { PresetTemplateValidationResult } from "@/types";
+import PresetTemplateValidationStatus from "@/components/preset-template/PresetTemplateValidationStatus.vue";
+import { validatePresetTemplate } from "@/lib/backend";
 import {
   analyzeImportCommandLine,
   createCustomTemplatePresetFromAnalysis,
@@ -36,6 +39,8 @@ const lines = computed(() => inputText.value.split(/\r?\n/));
 const analyses = computed<ImportCommandLineAnalysis[]>(() => lines.value.map((line) => analyzeImportCommandLine(line)));
 
 const included = ref<boolean[]>([]);
+const validationBusy = ref<boolean[]>([]);
+const validationResults = ref<(PresetTemplateValidationResult | null)[]>([]);
 watch(
   lines,
   (nextLines, prevLines) => {
@@ -54,6 +59,21 @@ watch(
       next.length = nextLines.length;
     }
     included.value = next;
+
+    const prevBusy = validationBusy.value;
+    const prevResults = validationResults.value;
+    const nextBusy: boolean[] = [];
+    const nextResults: (PresetTemplateValidationResult | null)[] = [];
+    for (let i = 0; i < nextLines.length; i += 1) {
+      nextBusy.push(Boolean(prevBusy[i]));
+      nextResults.push(prevResults[i] ?? null);
+    }
+    if (prevLines && nextLines.length < prevLines.length) {
+      nextBusy.length = nextLines.length;
+      nextResults.length = nextLines.length;
+    }
+    validationBusy.value = nextBusy;
+    validationResults.value = nextResults;
   },
   { immediate: true },
 );
@@ -66,6 +86,33 @@ const structuredEligibleCount = computed(
 const customEligibleCount = computed(
   () => analyses.value.filter((a, idx) => included.value[idx] && a.eligibility.custom && !!a.argsOnlyTemplate).length,
 );
+
+const customValidatableSelectedCount = computed(() => customEligibleCount.value);
+
+const anyValidationBusy = computed(() => validationBusy.value.some(Boolean));
+
+const validateSelected = async () => {
+  if (anyValidationBusy.value) return;
+
+  const indices = analyses.value
+    .map((a, idx) => ({ a, idx }))
+    .filter(({ a, idx }) => included.value[idx] && a.eligibility.custom && !!a.argsOnlyTemplate)
+    .map(({ idx }) => idx);
+
+  for (const idx of indices) {
+    const analysis = analyses.value[idx];
+    const preset = createCustomTemplatePresetFromAnalysis(analysis);
+    if (!preset) continue;
+
+    validationBusy.value[idx] = true;
+    validationResults.value[idx] = null;
+    try {
+      validationResults.value[idx] = await validatePresetTemplate(preset);
+    } finally {
+      validationBusy.value[idx] = false;
+    }
+  }
+};
 
 const importStructured = () => {
   const presetsToImport: FFmpegPreset[] = [];
@@ -175,8 +222,16 @@ const statusClass = (analysis: ImportCommandLineAnalysis): string => {
                       {{ analysis.normalizedTemplate || analysis.trimmed }}
                     </div>
                   </div>
-                  <div class="flex-shrink-0 text-[10px] font-medium" :class="statusClass(analysis)">
-                    {{ statusLabel(analysis) }}
+                  <div class="flex-shrink-0 flex flex-col items-end gap-1">
+                    <div class="text-[10px] font-medium" :class="statusClass(analysis)">
+                      {{ statusLabel(analysis) }}
+                    </div>
+                    <PresetTemplateValidationStatus
+                      v-if="analysis.eligibility.custom"
+                      variant="badge"
+                      :busy="validationBusy[idx]"
+                      :result="validationResults[idx]"
+                    />
                   </div>
                 </div>
 
@@ -193,6 +248,14 @@ const statusClass = (analysis: ImportCommandLineAnalysis): string => {
 
       <DialogFooter class="gap-2">
         <Button variant="outline" @click="emit('update:open', false)">{{ t("app.actions.cancel") }}</Button>
+        <Button
+          variant="secondary"
+          :disabled="customValidatableSelectedCount === 0 || anyValidationBusy"
+          data-testid="import-commands-validate-selected"
+          @click="validateSelected"
+        >
+          {{ t("presets.importCommandsValidateSelected", { count: customValidatableSelectedCount }) }}
+        </Button>
         <Button
           variant="secondary"
           class="bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-600"

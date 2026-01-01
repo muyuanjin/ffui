@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { ContainerConfig, DeepWritable } from "@/types";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useI18n } from "vue-i18n";
 import FormatSelect from "@/components/formats/FormatSelect.vue";
 import { FORMAT_CATALOG } from "@/lib/formatCatalog";
 import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
+import MovflagsEditor from "@/components/preset-editor/MovflagsEditor.vue";
 
 const props = defineProps<{
   container: ContainerConfig;
@@ -25,7 +25,7 @@ const AUTO_FORMAT_VALUE = "__auto__";
     </h3>
 
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div class="space-y-1">
+      <div class="space-y-1" data-command-group="container" data-command-field="format">
         <div class="flex items-center gap-1">
           <Label class="text-[10px] mb-1 block">
             {{ t("presetEditor.panel.formatLabel") }}
@@ -49,28 +49,8 @@ const AUTO_FORMAT_VALUE = "__auto__";
         />
       </div>
 
-      <div class="space-y-1">
-        <div class="flex items-center gap-1">
-          <Label class="text-[10px] mb-1 block">
-            {{ t("presetEditor.panel.movflagsLabel") }}
-          </Label>
-          <HelpTooltipIcon :text="t('presetEditor.panel.movflagsHelp')" />
-        </div>
-        <Input
-          :model-value="(container.movflags ?? []).join('+')"
-          :placeholder="t('presetEditor.panel.movflagsPlaceholder')"
-          class="h-8 text-xs font-mono"
-          @update:model-value="
-            (value) => {
-              const text = String(value ?? '');
-              const flags = text
-                .split(/[+,]/)
-                .map((v) => v.trim())
-                .filter((v) => v.length > 0);
-              container.movflags = flags.length > 0 ? flags : undefined;
-            }
-          "
-        />
+      <div data-command-group="container" data-command-field="movflags">
+        <MovflagsEditor :container="container" />
       </div>
     </div>
 

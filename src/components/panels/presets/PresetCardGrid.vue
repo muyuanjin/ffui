@@ -41,6 +41,11 @@ const { t, locale } = useI18n();
 
 const commandPreview = computed(() => getPresetCommandPreview(preset.value));
 const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
+const inputGbText = computed(() => (preset.value.stats.totalInputSizeMB / 1024).toFixed(1));
+const avgRatioValue = computed(() => getPresetAvgRatio(preset.value));
+const avgRatioText = computed(() => avgRatioValue.value?.toFixed(0) ?? "—");
+const avgSpeedText = computed(() => getPresetAvgSpeed(preset.value)?.toFixed(1) ?? "—");
+const avgFpsText = computed(() => getPresetAvgFps(preset.value)?.toFixed(0) ?? "—");
 
 const handleCardClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -273,27 +278,47 @@ const handleCardClick = (event: MouseEvent) => {
         </div>
       </div>
 
-      <div
-        class="flex items-center justify-between text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto"
-      >
-        <div>{{ t("presets.usedTimes", { count: preset.stats.usageCount }) }}</div>
-        <div class="flex gap-2 items-center min-w-0 justify-end whitespace-nowrap overflow-hidden">
-          <span class="truncate">
-            {{ t("presets.totalIn", { gb: (preset.stats.totalInputSizeMB / 1024).toFixed(1) }) }}
-          </span>
-          <span
-            v-if="getPresetAvgRatio(preset) !== null"
-            class="font-medium truncate"
-            :class="getRatioColorClass(getPresetAvgRatio(preset))"
-          >
-            {{ t("presets.avgRatio", { percent: getPresetAvgRatio(preset)?.toFixed(1) ?? "0.0" }) }}
-          </span>
-          <span v-if="getPresetAvgSpeed(preset) !== null" class="truncate">
-            {{ t("presets.avgSpeed", { mbps: getPresetAvgSpeed(preset)?.toFixed(1) ?? "0.0" }) }}
-          </span>
-          <span v-if="getPresetAvgFps(preset) !== null" class="truncate">
-            {{ t("presets.avgFps", { fps: getPresetAvgFps(preset)?.toFixed(0) ?? "0" }) }}
-          </span>
+      <div class="text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto">
+        <div
+          class="grid grid-cols-5 items-center whitespace-nowrap text-[9px] leading-none tracking-tight divide-x divide-border/25"
+        >
+          <div class="text-center px-1">
+            <i18n-t keypath="presets.cardStats.used" scope="global" :count="preset.stats.usageCount" tag="span">
+              <template #count>
+                <span class="text-foreground tabular-nums mx-1">{{ preset.stats.usageCount }}</span>
+              </template>
+            </i18n-t>
+          </div>
+          <div class="text-center px-1">
+            <i18n-t keypath="presets.cardStats.input" scope="global" :gb="inputGbText" tag="span">
+              <template #gb>
+                <span class="text-foreground tabular-nums mx-1">{{ inputGbText }}</span>
+              </template>
+            </i18n-t>
+          </div>
+          <div class="text-center px-1">
+            <i18n-t keypath="presets.cardStats.size" scope="global" :percent="avgRatioText" tag="span">
+              <template #percent>
+                <span class="tabular-nums mx-1" :class="getRatioColorClass(avgRatioValue)">
+                  {{ avgRatioText }}
+                </span>
+              </template>
+            </i18n-t>
+          </div>
+          <div class="text-center px-1">
+            <i18n-t keypath="presets.cardStats.throughput" scope="global" :mbps="avgSpeedText" tag="span">
+              <template #mbps>
+                <span class="text-foreground tabular-nums mx-1">{{ avgSpeedText }}</span>
+              </template>
+            </i18n-t>
+          </div>
+          <div class="text-center px-1">
+            <i18n-t keypath="presets.cardStats.fps" scope="global" :fps="avgFpsText" tag="span">
+              <template #fps>
+                <span class="text-foreground tabular-nums mx-1">{{ avgFpsText }}</span>
+              </template>
+            </i18n-t>
+          </div>
         </div>
       </div>
     </CardContent>

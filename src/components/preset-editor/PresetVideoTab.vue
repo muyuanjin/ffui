@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { DeepWritable, VideoConfig } from "@/types";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
@@ -15,6 +14,7 @@ import { getQualityRecommendation } from "@/lib/presetEditorContract/qualityReco
 import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 import PresetVideoAdvancedFields from "@/components/preset-editor/PresetVideoAdvancedFields.vue";
 import PresetVideoEncoderSelect from "./PresetVideoEncoderSelect.vue";
+import VideoBitrateEditor from "@/components/preset-editor/VideoBitrateEditor.vue";
 import { usePresetVideoTabOptions } from "./usePresetVideoTabOptions";
 import { getNvencPresetHintClass, getNvencPresetHintId, isNvencPresetValue } from "./nvencPresetHints";
 const props = defineProps<{
@@ -38,15 +38,6 @@ const rateControlDisplayLabel = (mode: string) => {
   if (raw === "constqp") return "ConstQP";
   return raw.toUpperCase();
 };
-const passModeLabel = computed(() => {
-  const raw = video.pass ? String(video.pass) : "single";
-  const map: Record<string, string> = {
-    single: t("presetEditor.video.passSingle"),
-    "1": t("presetEditor.video.passFirst"),
-    "2": t("presetEditor.video.passSecond"),
-  };
-  return map[raw] ?? raw;
-});
 const normalizedRateControl = computed(() =>
   String(video.rateControl ?? "")
     .trim()
@@ -109,19 +100,28 @@ const encoderUnknownWarning = computed(() => {
   return t("presetEditor.video.unknownValueWarning", { field: "encoder", value: String(video.encoder) });
 });
 
-const recommendedRateControl = computed(() => getEncoderCapability(video.encoder)?.defaultRateControl ?? "crf");
+const recommendedRateControl = computed(() => {
+  const cap = getEncoderCapability(video.encoder);
+  const encoder = String(video.encoder ?? "").toLowerCase();
+  const modes = (cap?.rateControlModes ?? []).map((m) => String(m).toLowerCase());
+  if (encoder.includes("nvenc") && modes.includes("cq")) return "cq";
+  return String(cap?.defaultRateControl ?? "crf").toLowerCase();
+});
 const isRecommendedRateControl = (mode: string) =>
   String(mode ?? "")
     .trim()
     .toLowerCase() === String(recommendedRateControl.value).trim().toLowerCase();
-const rateControlValueClass = computed(() => (isRecommendedRateControl(video.rateControl) ? "text-emerald-300" : ""));
+const rateControlValueClass = computed(() => {
+  const mode = normalizedRateControl.value;
+  if (isRecommendedRateControl(mode)) return "px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-200";
+  return "";
+});
 const rateControlItemClass = (mode: string) => {
   const raw = String(mode ?? "")
     .trim()
     .toLowerCase();
   if (!knownRateControlSet.value.has(raw as any)) return "";
-  if (isRecommendedRateControl(raw)) return "text-emerald-300";
-  if (raw === "constqp") return "text-amber-300";
+  if (isRecommendedRateControl(raw)) return "bg-emerald-500/10";
   return "";
 };
 
@@ -178,6 +178,8 @@ const presetLegendText = computed(() => {
         v-if="isQualityMode"
         class="bg-muted/40 p-3 rounded-md border border-border/60"
         data-testid="preset-video-quality-card"
+        data-command-group="video"
+        data-command-field="quality"
       >
         <div class="flex justify-between items-center mb-2">
           <span class="font-medium text-sm">{{ qualityModeLabel }}</span>
@@ -189,6 +191,8 @@ const presetLegendText = computed(() => {
           :step="1"
           :model-value="[video.qualityValue]"
           class="w-full"
+          data-command-group="video"
+          data-command-field="quality"
           @update:model-value="
             (value) => {
               const v = (value as number[])[0];
@@ -265,100 +269,9 @@ const presetLegendText = computed(() => {
             }}
           </p>
         </div>
-
-        <div v-if="isBitrateMode">
-          <div class="flex items-center gap-1">
-            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.bitrateKbpsLabel") }}</Label>
-            <HelpTooltipIcon :text="t('presetEditor.video.bitrateHelp')" />
-          </div>
-          <Input
-            type="number"
-            min="0"
-            class="h-9 text-xs"
-            data-testid="preset-video-bitrate-input"
-            :model-value="video.bitrateKbps ?? ''"
-            @update:model-value="
-              (value) => {
-                const n = Number(value ?? '');
-                video.bitrateKbps = Number.isFinite(n) && n > 0 ? n : undefined;
-              }
-            "
-          />
-        </div>
       </div>
 
-      <div v-if="isBitrateMode" class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <div>
-          <div class="flex items-center gap-1">
-            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.maxBitrateKbpsLabel") }}</Label>
-            <HelpTooltipIcon :text="t('presetEditor.video.maxBitrateKbpsHelp')" />
-          </div>
-          <Input
-            type="number"
-            min="0"
-            class="h-9 text-xs"
-            :model-value="video.maxBitrateKbps ?? ''"
-            @update:model-value="
-              (value) => {
-                const n = Number(value ?? '');
-                video.maxBitrateKbps = Number.isFinite(n) && n > 0 ? n : undefined;
-              }
-            "
-          />
-        </div>
-        <div>
-          <div class="flex items-center gap-1">
-            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.bufferSizeKbitsLabel") }}</Label>
-            <HelpTooltipIcon :text="t('presetEditor.video.bufferSizeKbitsHelp')" />
-          </div>
-          <Input
-            type="number"
-            min="0"
-            class="h-9 text-xs"
-            :model-value="video.bufferSizeKbits ?? ''"
-            @update:model-value="
-              (value) => {
-                const n = Number(value ?? '');
-                video.bufferSizeKbits = Number.isFinite(n) && n > 0 ? n : undefined;
-              }
-            "
-          />
-        </div>
-        <div>
-          <div class="flex items-center gap-1">
-            <Label class="text-xs mb-1 block">{{ t("presetEditor.video.passLabel") }}</Label>
-            <HelpTooltipIcon :text="t('presetEditor.video.passHelp')" />
-          </div>
-          <Select
-            :model-value="video.pass ? String(video.pass) : 'single'"
-            @update:model-value="
-              (value) => {
-                const n = Number(value ?? '');
-                if (value === 'single') {
-                  video.pass = undefined;
-                } else {
-                  video.pass = n === 1 || n === 2 ? (n as 1 | 2) : undefined;
-                }
-              }
-            "
-          >
-            <SelectTrigger class="h-9" data-testid="preset-video-pass-trigger">
-              <SelectValue>{{ passModeLabel }}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single">
-                {{ t("presetEditor.video.passSingle") }}
-              </SelectItem>
-              <SelectItem value="1">
-                {{ t("presetEditor.video.passFirst") }}
-              </SelectItem>
-              <SelectItem value="2">
-                {{ t("presetEditor.video.passSecond") }}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <VideoBitrateEditor v-if="isBitrateMode" :video="video" />
 
       <div>
         <div class="flex items-center gap-1">
@@ -373,7 +286,12 @@ const presetLegendText = computed(() => {
             }
           "
         >
-          <SelectTrigger class="h-9" data-testid="preset-video-preset-trigger">
+          <SelectTrigger
+            class="h-9"
+            data-testid="preset-video-preset-trigger"
+            data-command-group="video"
+            data-command-field="preset"
+          >
             <SelectValue>
               <span :class="presetValueClass">{{ presetValueLabel(video.preset) }}</span>
             </SelectValue>

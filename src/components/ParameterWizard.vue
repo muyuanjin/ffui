@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import type { AudioConfig, EncoderType, FFmpegPreset, FilterConfig, VideoConfig } from "../types";
 import { ENCODER_OPTIONS, PRESET_OPTIONS } from "../constants";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "vue-i18n";
 import { highlightFfmpegCommandTokens, normalizeFfmpegTemplate, getFfmpegCommandPreview } from "@/lib/ffmpegCommand";
+import { validatePresetTemplate } from "@/lib/backend";
 import { applyEncoderChangePatch, normalizeVideoForSave } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 import { normalizePreset } from "@/lib/presetEditorContract/presetDerivation";
 import WizardStepBasics from "@/components/parameter-wizard/WizardStepBasics.vue";
@@ -13,6 +14,7 @@ import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.v
 import WizardStepAudio from "@/components/parameter-wizard/WizardStepAudio.vue";
 import WizardStepAdvanced from "@/components/parameter-wizard/WizardStepAdvanced.vue";
 import WizardStepPresetKind, { type PresetKind } from "@/components/parameter-wizard/WizardStepPresetKind.vue";
+import type { PresetTemplateValidationResult } from "@/types";
 
 const props = defineProps<{
   initialPreset?: FFmpegPreset | null;
@@ -151,6 +153,22 @@ const buildPresetFromState = (): FFmpegPreset => {
   };
 
   return newPreset;
+};
+
+const quickValidateBusy = ref(false);
+const quickValidateResult = ref<PresetTemplateValidationResult | null>(null);
+watch([advancedEnabled, ffmpegTemplate], () => {
+  quickValidateResult.value = null;
+});
+
+const handleQuickValidate = async () => {
+  if (quickValidateBusy.value) return;
+  quickValidateBusy.value = true;
+  try {
+    quickValidateResult.value = await validatePresetTemplate(buildPresetFromState());
+  } finally {
+    quickValidateBusy.value = false;
+  }
 };
 
 const handleSave = () => {
@@ -360,10 +378,13 @@ const handleParseTemplateFromCommand = () => {
               :t="t"
               :show-summary="false"
               :show-toggle="false"
+              :quick-validate-busy="quickValidateBusy"
+              :quick-validate-result="quickValidateResult"
               @update-advanced-enabled="(value) => (advancedEnabled = value)"
               @update-template="(value) => (ffmpegTemplate = value)"
               @parse-template="handleParseTemplateFromCommand"
               @copy-preview="handleCopyPreview"
+              @quick-validate="handleQuickValidate"
             />
           </div>
         </template>
@@ -406,10 +427,13 @@ const handleParseTemplateFromCommand = () => {
           :parse-hint="parseHint"
           :parse-hint-class="parseHintClass"
           :t="t"
+          :quick-validate-busy="quickValidateBusy"
+          :quick-validate-result="quickValidateResult"
           @update-advanced-enabled="(value) => (advancedEnabled = value)"
           @update-template="(value) => (ffmpegTemplate = value)"
           @parse-template="handleParseTemplateFromCommand"
           @copy-preview="handleCopyPreview"
+          @quick-validate="handleQuickValidate"
         />
       </div>
 

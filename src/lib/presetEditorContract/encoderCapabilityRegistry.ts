@@ -283,5 +283,16 @@ export const applyEncoderChangePatch = (current: VideoConfig, nextEncoder: Encod
 };
 
 export const applyRateControlChangePatch = (nextRateControl: RateControlMode): Partial<VideoConfig> => {
-  return { rateControl: nextRateControl };
+  const mode = String(nextRateControl ?? "")
+    .trim()
+    .toLowerCase();
+  const patch: Partial<VideoConfig> = { rateControl: nextRateControl };
+  const isQuality = mode === "crf" || mode === "cq" || mode === "constqp";
+  if (isQuality) {
+    patch.bitrateKbps = undefined;
+    patch.maxBitrateKbps = undefined;
+    patch.bufferSizeKbits = undefined;
+    patch.pass = undefined;
+  }
+  return patch;
 };

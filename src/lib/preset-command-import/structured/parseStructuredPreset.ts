@@ -167,6 +167,20 @@ export const tryParseStructuredPreset = (tokensWithProgram: string[]): { preset?
   });
   const canonicalTokens = normalizeForComparison(splitCommandLine(canonical));
   const inputTokens = normalizeForComparison(tokensWithProgram);
+  // FFUI always injects a unique `-passlogfile` prefix for two-pass runs to
+  // avoid collisions across concurrent jobs. Allow importing two-pass commands
+  // that omit it, as it is a safe, non-lossy normalization.
+  {
+    const passIndex = inputTokens.findIndex((t) => stripQuotes(t) === "-pass");
+    const hasPass = passIndex >= 0;
+    const hasPasslogfile = inputTokens.some((t) => {
+      const raw = stripQuotes(t);
+      return raw === "-passlogfile" || raw.startsWith("-passlogfile:");
+    });
+    if (hasPass && !hasPasslogfile) {
+      inputTokens.splice(passIndex, 0, "-passlogfile", "OUTPUT.ffui2pass");
+    }
+  }
   if (canonicalTokens.join(" ") !== inputTokens.join(" ")) {
     state.reasons.push("命令与 FFUI 可编辑预设的规范格式不完全一致（为保证不丢字段需要完全一致）");
     return { reasons: state.reasons };

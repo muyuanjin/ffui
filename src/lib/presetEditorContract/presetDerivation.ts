@@ -42,6 +42,11 @@ export const normalizePreset = (
   const warnings: string[] = [];
   const normalizedVideo: VideoConfig = { ...(preset.video as VideoConfig) };
 
+  if ((normalizedVideo as any).pass === 1) {
+    normalizedVideo.pass = 2;
+    warnings.push("video.pass=1 is not supported; normalized to 2");
+  }
+
   const rawEncoder = String((normalizedVideo as any).encoder ?? "").trim();
   if (!rawEncoder) {
     (normalizedVideo as any).encoder = "libx264";

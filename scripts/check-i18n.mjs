@@ -2,25 +2,108 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-// Simple TS-to-JS evaluator for our locale files.
-function evalTsModule(filePath) {
-  let code = fs.readFileSync(filePath, "utf8");
+// Simple TS-to-JS evaluator for our locale files (no TS types, minimal ESM support).
+// It supports:
+// - export default ...
+// - export const ...
+// - import default / named from relative locale modules
+const LOCALE_MODULE_CACHE = new Map();
+
+function resolveLocaleImport(fromFilePath, spec) {
+  const base = path.resolve(path.dirname(fromFilePath), spec);
+  const ext = path.extname(base);
+  const hasRealExt = ext === ".ts" || ext === ".js" || ext === ".mjs" || ext === ".cjs";
+  const candidates = hasRealExt
+    ? [base]
+    : [base, `${base}.ts`, `${base}.js`, path.join(base, "index.ts"), path.join(base, "index.js")];
+  for (const c of candidates) {
+    if (fs.existsSync(c) && fs.statSync(c).isFile()) return c;
+  }
+  throw new Error(`Cannot resolve import '${spec}' from ${fromFilePath}`);
+}
+
+function parseImportLine(line) {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("import ")) return null;
+  if (trimmed.startsWith("import type ")) return null;
+
+  // import foo from "./bar";
+  let m = trimmed.match(/^import\s+([A-Za-z_$][\w$]*)\s+from\s+["']([^"']+)["']\s*;?\s*$/);
+  if (m) return { kind: "default", local: m[1], spec: m[2] };
+
+  // import { a, b as c } from "./bar";
+  m = trimmed.match(/^import\s+\{\s*([^}]+)\s*\}\s+from\s+["']([^"']+)["']\s*;?\s*$/);
+  if (m) return { kind: "named", bindings: m[1], spec: m[2] };
+
+  // import * as ns from "./bar";
+  m = trimmed.match(/^import\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s+["']([^"']+)["']\s*;?\s*$/);
+  if (m) return { kind: "namespace", local: m[1], spec: m[2] };
+
+  return null;
+}
+
+function loadTsLocaleModule(filePath) {
+  const abs = path.resolve(filePath);
+  if (LOCALE_MODULE_CACHE.has(abs)) return LOCALE_MODULE_CACHE.get(abs);
+
+  let code = fs.readFileSync(abs, "utf8");
   // Drop `as const` so the code becomes valid JS.
   code = code.replace(/ as const;/g, ";");
 
-  const match = code.match(/export default (\w+);?/);
-  if (!match) {
-    throw new Error(`No default export found in ${filePath}`);
+  const imports = [];
+  const lines = code.split(/\r?\n/g);
+  const kept = [];
+  for (const line of lines) {
+    const parsed = parseImportLine(line);
+    if (parsed) {
+      imports.push(parsed);
+      continue;
+    }
+    kept.push(line);
   }
+  code = kept.join("\n");
 
-  const exported = match[1];
-  code = code.replace(/export default (\w+);?/g, "");
-  code += `\nmodule.exports = ${exported};\n`;
+  // Transform exports to a simple "exports.*" object.
+  code = code.replace(/\bexport\s+default\s+/g, "exports.default = ");
+  code = code.replace(/\bexport\s+const\s+([A-Za-z_$][\w$]*)\s*=/g, "exports.$1 =");
 
-  const module = { exports: {} };
-  const fn = new Function("module", "exports", code);
-  fn(module, module.exports);
-  return module.exports;
+  const exports = {};
+  LOCALE_MODULE_CACHE.set(abs, exports);
+
+  const importPrelude = imports
+    .map((imp) => {
+      if (imp.kind === "default") {
+        return `const ${imp.local} = __import(${JSON.stringify(imp.spec)}).default;`;
+      }
+      if (imp.kind === "namespace") {
+        return `const ${imp.local} = __import(${JSON.stringify(imp.spec)});`;
+      }
+      // named
+      const parts = String(imp.bindings)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((b) => {
+          const m = b.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+          if (!m) throw new Error(`Unsupported named import binding '${b}' in ${abs}`);
+          const imported = m[1];
+          const local = m[2] || m[1];
+          return `${imported}: ${local}`;
+        })
+        .join(", ");
+      return `const { ${parts} } = __import(${JSON.stringify(imp.spec)});`;
+    })
+    .join("\n");
+
+  const fn = new Function("__import", "exports", `${importPrelude}\n${code}\n//# sourceURL=${abs.replace(/\\/g, "/")}`);
+
+  const __import = (spec) => {
+    const nextPath = resolveLocaleImport(abs, spec);
+    return loadTsLocaleModule(nextPath);
+  };
+
+  fn(__import, exports);
+  return exports;
 }
 
 function loadLocale(localeDir) {
@@ -36,7 +119,9 @@ function loadLocale(localeDir) {
   const modules = ["app", "media", "presetEditor", "queue", "vqResults", "other"];
   for (const name of modules) {
     const file = path.join(baseDir, `${name}.ts`);
-    const obj = evalTsModule(file);
+    const mod = loadTsLocaleModule(file);
+    const obj = mod.default;
+    if (!obj) throw new Error(`No default export found in ${file}`);
     if (name === "other") {
       Object.assign(result, obj);
     } else {

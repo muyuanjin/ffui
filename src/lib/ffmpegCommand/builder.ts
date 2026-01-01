@@ -168,6 +168,16 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
       for (const d of mapping.dispositions) {
         const trimmed = (d ?? "").trim();
         if (trimmed) {
+          const parts = trimmed.split(/\s+/);
+          if (parts.length >= 2) {
+            const rawSpec = String(parts[0] ?? "").trim();
+            const value = parts.slice(1).join(" ");
+            const spec = /^\d+:(v|a|s|d)(:|$)/.test(rawSpec) ? rawSpec.replace(/^\d+:/, "") : rawSpec;
+            if (spec && value) {
+              args.push(`-disposition:${spec}`, value);
+              continue;
+            }
+          }
           args.push("-disposition", trimmed);
         }
       }
@@ -221,8 +231,10 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
       if (typeof v.bufferSizeKbits === "number" && v.bufferSizeKbits > 0) {
         args.push("-bufsize", `${v.bufferSizeKbits}k`);
       }
-      if (v.pass === 1 || v.pass === 2) {
-        args.push("-pass", String(v.pass));
+      const passEnabled = (v.pass === 1 || v.pass === 2) && typeof v.bitrateKbps === "number" && v.bitrateKbps > 0;
+      if (passEnabled) {
+        args.push("-passlogfile", `${outputPlaceholder}.ffui2pass`);
+        args.push("-pass", "2");
       }
     }
 
