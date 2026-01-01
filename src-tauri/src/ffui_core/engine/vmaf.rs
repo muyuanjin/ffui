@@ -9,7 +9,9 @@ const STDERR_CAPTURE_LIMIT: usize = 4 * 1024 * 1024;
 fn parse_vmaf_mean_from_stderr(stderr: &str) -> Option<f64> {
     // ffmpeg prints: "[Parsed_libvmaf_4 @ ...] VMAF score: 94.617780"
     for line in stderr.lines().rev() {
-        let idx = line.rfind("VMAF score:")?;
+        let Some(idx) = line.rfind("VMAF score:") else {
+            continue;
+        };
         let tail = line[(idx + "VMAF score:".len())..].trim();
         if tail.is_empty() {
             continue;
@@ -145,5 +147,18 @@ mod tests {
         let stderr = "\nfoo\n[Parsed_libvmaf_0 @ 0] VMAF score: 91.234\nbar\n[Parsed_libvmaf_1 @ 0] VMAF score: 94.617780\n";
         let v = parse_vmaf_mean_from_stderr(stderr).expect("vmaf");
         assert!((v - 94.617780).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_vmaf_mean_from_stderr_ignores_trailing_lines_after_score() {
+        let stderr = "\nfoo\n[Parsed_libvmaf_0 @ 0] VMAF score: 94.999\nframe=  900 fps=0.0 q=-0.0 Lsize=N/A time=00:00:30.00 bitrate=N/A speed=1.0x\nbar\n";
+        let v = parse_vmaf_mean_from_stderr(stderr).expect("vmaf");
+        assert!((v - 94.999).abs() < 1e-9);
+    }
+
+    #[test]
+    fn parse_vmaf_mean_from_stderr_returns_none_when_no_score_present() {
+        let stderr = "\nfoo\nbar\n";
+        assert!(parse_vmaf_mean_from_stderr(stderr).is_none());
     }
 }

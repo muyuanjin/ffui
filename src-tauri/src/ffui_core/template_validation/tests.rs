@@ -209,7 +209,7 @@ fn success_path_with_mock_ffmpeg() {
         &preset,
         mock_exe.to_string_lossy().as_ref(),
         Some("custom".to_string()),
-        Some(800),
+        Some(2_000),
     );
     assert_eq!(out.outcome, PresetTemplateValidationOutcome::Ok);
 }
