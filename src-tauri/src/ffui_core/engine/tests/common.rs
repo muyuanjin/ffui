@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn make_test_preset() -> FFmpegPreset {
+pub(crate) fn make_test_preset() -> FFmpegPreset {
     FFmpegPreset {
         id: "preset-1".to_string(),
         name: "Test Preset".to_string(),

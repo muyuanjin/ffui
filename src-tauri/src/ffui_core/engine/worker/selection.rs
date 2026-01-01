@@ -66,11 +66,16 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         state.queue.remove(index)?
     };
 
+    let now_ms = current_time_millis();
+    let preset_id = state.jobs.get(&job_id).map(|job| job.preset_id.clone());
+    if let Some(preset_id) = preset_id {
+        state.note_preset_processing_started(&preset_id, now_ms);
+    }
+
     if let Some(job) = state.jobs.get_mut(&job_id) {
         state.active_jobs.insert(job_id.clone());
         state.active_inputs.insert(job.filename.clone());
         job.status = JobStatus::Processing;
-        let now_ms = current_time_millis();
         if job.start_time.is_none() {
             job.start_time = Some(now_ms);
         }

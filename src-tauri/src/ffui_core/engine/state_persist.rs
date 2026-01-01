@@ -206,7 +206,14 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
     }
 
     #[cfg(test)]
-    QUEUE_PERSIST_WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
+    {
+        // Only count writes that target an explicit test sidecar path override.
+        // This keeps the debouncer tests stable even when other engine tests
+        // happen to persist queue state to the real app location.
+        if state_persist_test_support::queue_state_sidecar_path_overridden_for_tests() {
+            QUEUE_PERSIST_WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
+        }
+    }
 }
 
 /// Debounce window for queue persistence writes. This reduces disk I/O on
@@ -244,6 +251,10 @@ struct QueuePersistState {
     // Most recent snapshot observed since the last write. When the debounce
     // window elapses, this is the snapshot that will be persisted.
     last_snapshot: Option<QueueStateLite>,
+    // Epoch associated with `last_snapshot`. In tests, this lets us abort any
+    // pending background flushes after `reset_queue_persist_state_for_tests()`
+    // so a later test's override path cannot be overwritten by an older flush.
+    last_snapshot_epoch: u64,
     dirty_since_write: bool,
     next_flush_at: Option<Instant>,
     worker_started: bool,
@@ -260,6 +271,7 @@ impl QueuePersistCoordinator {
             state: Mutex::new(QueuePersistState {
                 last_write_at: None,
                 last_snapshot: None,
+                last_snapshot_epoch: 0,
                 dirty_since_write: false,
                 next_flush_at: None,
                 worker_started: false,
@@ -278,6 +290,7 @@ pub(super) fn reset_queue_persist_state_for_tests() {
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     state.last_write_at = None;
     state.last_snapshot = None;
+    state.last_snapshot_epoch = 0;
     state.dirty_since_write = false;
     state.next_flush_at = None;
     // Keep worker_started as-is; stopping/spawning threads is intentionally
@@ -353,7 +366,7 @@ fn ensure_worker_thread_started() {
 
                     if state.dirty_since_write {
                         let snapshot = state.last_snapshot.clone();
-                        let epoch = current_queue_persist_epoch();
+                        let epoch = state.last_snapshot_epoch;
                         state.last_write_at = Some(Instant::now());
                         state.dirty_since_write = false;
                         state.next_flush_at = None;
@@ -395,6 +408,7 @@ pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
     let mut state = QUEUE_PERSIST.state.lock_unpoisoned();
     let epoch = current_queue_persist_epoch();
     state.last_snapshot = Some(snapshot.clone());
+    state.last_snapshot_epoch = epoch;
     state.last_write_at = Some(Instant::now());
     state.dirty_since_write = false;
     state.next_flush_at = None;
@@ -419,6 +433,7 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
     let epoch = current_queue_persist_epoch();
     let has_newly_terminal = has_newly_terminal_jobs(state.last_snapshot.as_ref(), snapshot);
     state.last_snapshot = Some(snapshot.clone());
+    state.last_snapshot_epoch = epoch;
     state.dirty_since_write = true;
 
     match state.last_write_at {

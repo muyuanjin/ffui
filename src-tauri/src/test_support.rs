@@ -56,6 +56,78 @@ pub fn make_transcode_job_for_tests(
     /* jscpd:ignore-end */
 }
 
+#[must_use]
+pub fn make_ffmpeg_preset_for_tests(id: &str) -> crate::ffui_core::FFmpegPreset {
+    use crate::ffui_core::{
+        AudioCodecType, AudioConfig, EncoderType, FFmpegPreset, FilterConfig, PresetStats,
+        RateControlMode, VideoConfig,
+    };
+
+    /* jscpd:ignore-start */
+    FFmpegPreset {
+        id: id.to_string(),
+        name: "Test Preset".to_string(),
+        description: "Preset used for unit tests".to_string(),
+        description_i18n: None,
+        global: None,
+        input: None,
+        mapping: None,
+        video: VideoConfig {
+            encoder: EncoderType::Libx264,
+            rate_control: RateControlMode::Crf,
+            quality_value: 23,
+            preset: "medium".to_string(),
+            tune: None,
+            profile: None,
+            bitrate_kbps: None,
+            max_bitrate_kbps: None,
+            buffer_size_kbits: None,
+            pass: None,
+            level: None,
+            gop_size: None,
+            bf: None,
+            pix_fmt: None,
+            b_ref_mode: None,
+            rc_lookahead: None,
+            spatial_aq: None,
+            temporal_aq: None,
+        },
+        audio: AudioConfig {
+            codec: AudioCodecType::Copy,
+            bitrate: None,
+            sample_rate_hz: None,
+            channels: None,
+            channel_layout: None,
+            loudness_profile: None,
+            target_lufs: None,
+            loudness_range: None,
+            true_peak_db: None,
+        },
+        filters: FilterConfig {
+            scale: None,
+            crop: None,
+            fps: None,
+            vf_chain: None,
+            af_chain: None,
+            filter_complex: None,
+        },
+        subtitles: None,
+        container: None,
+        hardware: None,
+        stats: PresetStats {
+            usage_count: 0,
+            total_input_size_mb: 0.0,
+            total_output_size_mb: 0.0,
+            total_time_seconds: 0.0,
+            total_frames: 0.0,
+        },
+        advanced_enabled: Some(false),
+        ffmpeg_template: None,
+        is_smart_preset: None,
+    }
+    /* jscpd:ignore-end */
+}
+
 pub fn env_lock() -> MutexGuard<'static, ()> {
     ENV_MUTEX.lock_unpoisoned()
 }

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 use serde::Serialize;
@@ -51,7 +51,7 @@ fn main() {
         || env::var("FFUI_MOCK_FFMPEG_TOUCH_OUTPUT")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false)
-        || argv.last().is_some_and(|p| p.starts_with('/'));
+        || argv.last().is_some_and(|p| Path::new(p).is_absolute());
     if should_touch_output
         && argv.iter().any(|a| a == "-i")
         && let Some(last) = argv.last()
@@ -62,7 +62,42 @@ fn main() {
         if let Some(parent) = out.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let _ = fs::write(&out, b"");
+        let mut write_result = fs::write(&out, b"");
+        if write_result.is_err()
+            && let Some(parent) = out.parent()
+        {
+            let _ = fs::create_dir_all(parent);
+            write_result = fs::write(&out, b"");
+        }
+
+        if env::var("FFUI_MOCK_FFMPEG_CAPTURE_APPEND")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+            && let Ok(capture_path) = env::var("FFUI_MOCK_FFMPEG_CAPTURE_PATH")
+            && let Err(err) = write_result
+        {
+            if let Some(parent) = Path::new(&capture_path).parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            if let Ok(mut f) = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&capture_path)
+            {
+                use std::io::Write as IoWrite;
+                let out_s = out.to_string_lossy();
+                let _ = writeln!(
+                    f,
+                    "{}",
+                    serde_json::json!({
+                        "touchOutput": {
+                            "out": out_s,
+                            "error": err.to_string(),
+                        }
+                    })
+                );
+            }
+        }
     }
 
     let mut stdout_payload: Option<String> = None;
@@ -195,6 +230,15 @@ fn main() {
             drop(stderr.flush());
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    // Tool verification probes (ensure_tool_available) should remain stable
+    // across the entire test suite. Some tests intentionally set non-zero
+    // exit codes to simulate ffmpeg failures; those must not poison the
+    // global tool verification cache keyed by path.
+    if argv.iter().any(|a| a == "-version" || a == "--version") {
+        println!("ffui-mock-ffmpeg version 0.0.0");
+        std::process::exit(0);
     }
 
     let exit_code: i32 = env::var("FFUI_MOCK_FFMPEG_EXIT_CODE")

@@ -191,6 +191,7 @@ fn ensure_job_preview_works_with_mock_ffmpeg_for_waiting_jobs() {
 #[test]
 fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
     let _env_lock = crate::test_support::env_lock();
+    crate::ffui_core::tools::reset_tool_probe_cache_for_tests();
     let _env_guard = crate::test_support::EnvVarGuard::capture([
         "FFUI_MOCK_FFMPEG_ENGINE_TOUCH_OUTPUT",
         "FFUI_MOCK_FFMPEG_EXIT_CODE",
@@ -217,7 +218,15 @@ fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
     let engine = make_engine_with_preset();
     let mock_exe = locate_mock_ffmpeg_exe();
 
-    let input = data_root.path().join("input-missing-duration.mp4");
+    let nonce = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let input = data_root.path().join(format!(
+        "input-missing-duration-{}-{nonce}.mp4",
+        std::process::id()
+    ));
+    let input_str = input.to_string_lossy().into_owned();
     {
         let mut state = engine.inner.state.lock_unpoisoned();
         state.settings.preview_capture_percent = 50;
@@ -231,8 +240,8 @@ fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
             0.0,
             Some(1),
         );
-        job.filename = input.to_string_lossy().into_owned();
-        job.input_path = Some(input.to_string_lossy().into_owned());
+        job.filename = input_str.clone();
+        job.input_path = Some(input_str.clone());
         if let Some(info) = job.media_info.as_mut() {
             info.duration_seconds = None;
         }
@@ -258,7 +267,10 @@ fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
             .iter()
             .filter_map(|v| v.as_str().map(|s| s.to_string()))
             .collect();
-        if !argv.iter().any(|a| a == "-i") {
+        let Some(i_pos) = argv.iter().position(|a| a == "-i") else {
+            continue;
+        };
+        if argv.get(i_pos + 1).map(String::as_str) != Some(input_str.as_str()) {
             continue;
         }
         if let Some(pos) = argv.iter().position(|a| a == "-ss") {
@@ -284,10 +296,10 @@ fn ensure_job_preview_honours_capture_percent_when_duration_is_missing() {
                 .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
-            if !argv.iter().any(|a| a == "-i") {
+            let i_pos = argv.iter().position(|a| a == "-i")?;
+            if argv.get(i_pos + 1).map(String::as_str) != Some(input_str.as_str()) {
                 return None;
             }
-            let i_pos = argv.iter().position(|a| a == "-i")?;
             let ss_pos = argv.iter().position(|a| a == "-ss")?;
             Some((i_pos, ss_pos))
         })

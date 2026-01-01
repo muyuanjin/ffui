@@ -1,10 +1,11 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Condvar, Mutex};
+use std::thread::ThreadId;
 
 use once_cell::sync::Lazy;
 
-use crate::sync_ext::MutexExt;
+use crate::sync_ext::{CondvarExt, MutexExt};
 
 static QUEUE_STATE_SIDECAR_PATH_OVERRIDE: Lazy<Mutex<Option<PathBuf>>> =
     Lazy::new(|| Mutex::new(None));
@@ -40,41 +41,64 @@ pub(crate) fn queue_state_sidecar_path_overridden_for_tests() -> bool {
 
 pub(crate) static QUEUE_PERSIST_WRITE_COUNT: AtomicU64 = AtomicU64::new(0);
 
-static PERSIST_TEST_MUTEX: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
-
-thread_local! {
-    static PERSIST_TEST_MUTEX_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+#[derive(Clone, Copy)]
+struct PersistTestLockState {
+    owner: Option<ThreadId>,
+    depth: u32,
 }
+
+static PERSIST_TEST_LOCK: Lazy<(Mutex<PersistTestLockState>, Condvar)> = Lazy::new(|| {
+    (
+        Mutex::new(PersistTestLockState {
+            owner: None,
+            depth: 0,
+        }),
+        Condvar::new(),
+    )
+});
 
 pub(crate) struct PersistTestMutexGuard {
-    _guard: Option<MutexGuard<'static, ()>>,
-    _reset: Option<PersistTestMutexReset>,
+    owner: ThreadId,
 }
 
-struct PersistTestMutexReset;
-
-impl Drop for PersistTestMutexReset {
+impl Drop for PersistTestMutexGuard {
     fn drop(&mut self) {
-        PERSIST_TEST_MUTEX_HELD.with(|flag| flag.set(false));
+        let (lock, cv) = &*PERSIST_TEST_LOCK;
+        let mut state = lock.lock_unpoisoned();
+        if state.owner != Some(self.owner) || state.depth == 0 {
+            return;
+        }
+        state.depth -= 1;
+        if state.depth == 0 {
+            state.owner = None;
+            cv.notify_all();
+        }
     }
 }
 
 pub(crate) fn lock_persist_test_mutex_for_tests() -> PersistTestMutexGuard {
-    use std::cell::Cell;
-
-    if PERSIST_TEST_MUTEX_HELD.with(Cell::get) {
-        return PersistTestMutexGuard {
-            _guard: None,
-            _reset: None,
-        };
+    let owner = std::thread::current().id();
+    let (lock, cv) = &*PERSIST_TEST_LOCK;
+    let mut state = lock.lock_unpoisoned();
+    loop {
+        match state.owner {
+            None => {
+                state.owner = Some(owner);
+                state.depth = 1;
+                bump_queue_persist_epoch_for_tests();
+                break;
+            }
+            Some(current) if current == owner => {
+                state.depth = state.depth.saturating_add(1);
+                break;
+            }
+            _ => {
+                state = cv.wait_unpoisoned(state);
+            }
+        }
     }
-
-    let guard = PERSIST_TEST_MUTEX.lock_unpoisoned();
-    PERSIST_TEST_MUTEX_HELD.with(|flag| flag.set(true));
-    PersistTestMutexGuard {
-        _guard: Some(guard),
-        _reset: Some(PersistTestMutexReset),
-    }
+    drop(state);
+    PersistTestMutexGuard { owner }
 }
 
 static QUEUE_PERSIST_EPOCH: AtomicU64 = AtomicU64::new(0);

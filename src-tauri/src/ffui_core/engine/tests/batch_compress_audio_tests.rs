@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 #[test]
 fn batch_compress_enqueues_audio_candidates_when_enabled() {

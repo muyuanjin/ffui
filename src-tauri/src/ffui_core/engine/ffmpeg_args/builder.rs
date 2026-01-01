@@ -13,6 +13,12 @@ use crate::ffui_core::domain::{
 };
 use crate::ffui_core::engine::template_args::{split_template_args, strip_leading_ffmpeg_program};
 
+fn derive_two_pass_log_prefix(output: &Path) -> String {
+    let mut s = output.to_string_lossy().into_owned();
+    s.push_str(".ffui2pass");
+    s
+}
+
 /// 构建 ffmpeg 参数列表。
 ///
 /// `non_interactive=true` 时自动注入 `-nostdin`，用于一次性非交互转码/扫描；
@@ -93,6 +99,20 @@ pub(crate) fn build_ffmpeg_args(
     }
 
     apply_global_args(&mut args, preset);
+
+    // Input-level options that must appear before the first `-i`.
+    if let Some(timeline) = &preset.input {
+        if let Some(loop_count) = timeline.stream_loop {
+            args.push("-stream_loop".to_string());
+            args.push(loop_count.to_string());
+        }
+        if let Some(offset) = &timeline.input_time_offset
+            && !offset.trim().is_empty()
+        {
+            args.push("-itsoffset".to_string());
+            args.push(offset.trim().to_string());
+        }
+    }
 
     if let Some(timeline) = &preset.input
         && matches!(timeline.seek_mode, Some(SeekMode::Input))
@@ -223,6 +243,8 @@ pub(crate) fn build_ffmpeg_args(
                     if let Some(pass) = preset.video.pass
                         && (pass == 1 || pass == 2)
                     {
+                        args.push("-passlogfile".to_string());
+                        args.push(derive_two_pass_log_prefix(output));
                         args.push("-pass".to_string());
                         args.push(pass.to_string());
                     }

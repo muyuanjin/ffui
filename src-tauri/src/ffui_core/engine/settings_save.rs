@@ -1,7 +1,5 @@
-use super::{
-    AppSettings, ExternalToolKind, Result, TranscodingEngine, clear_tool_runtime_error, settings,
-    state, worker,
-};
+use super::{AppSettings, Result, TranscodingEngine, settings, state, worker};
+use crate::ffui_core::tools::{ExternalToolKind, clear_tool_runtime_error};
 use crate::sync_ext::MutexExt;
 
 fn merge_backend_owned_tool_state(

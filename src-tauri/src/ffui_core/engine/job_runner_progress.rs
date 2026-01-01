@@ -208,6 +208,10 @@ pub(super) fn update_job_progress(
             state.active_jobs.insert(job_id_owned.clone());
             state.active_inputs.insert(filename);
             state.queue.retain(|id| id != &job_id_owned);
+            let preset_id = state.jobs.get(&job_id_owned).map(|job| job.preset_id.clone());
+            if let Some(preset_id) = preset_id {
+                state.note_preset_processing_started(&preset_id, now_ms);
+            }
         }
 
         if let Some(next) = next_persist_snapshot_at_ms {

@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 /// 当 Batch Compress 配置中的 `video_preset_id` 在预设列表中不存在时，后台会将匹配到的
 /// 视频视为“已统计候选并立即处理完成”，但不会入队任何子任务。此时批次应当被视为

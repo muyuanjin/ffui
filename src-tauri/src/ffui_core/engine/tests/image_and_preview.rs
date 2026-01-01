@@ -1,6 +1,7 @@
 use tempfile::tempdir;
 
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 #[test]
 fn build_preview_output_path_is_stable_for_same_input() {
     let dir = env::temp_dir();

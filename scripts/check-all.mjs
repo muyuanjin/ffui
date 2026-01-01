@@ -1252,6 +1252,12 @@ async function runRustTestFullForPlatform(platform, rustRootDir, opts, runOption
   if (platform === "windows") {
     if (process.platform === "win32") {
       await runStep(
+        "Rust mock ffmpeg (Windows, no-run)",
+        "cargo",
+        ["test", "--profile", "check-all", "--target-dir", "target/win", "--test", "ffui_mock_ffmpeg", "--no-run"],
+        { cwd: rustRootDir, env: resolveCargoEnv(), ...runOptions },
+      );
+      await runStep(
         "Rust tests (Windows)",
         "cargo",
         ["test", "--profile", "check-all", "--target-dir", "target/win", ...testArgs],
@@ -1272,6 +1278,23 @@ async function runRustTestFullForPlatform(platform, rustRootDir, opts, runOption
       const winTargetDir = path.win32.join(path.win32.dirname(winCargoToml), "target", "win");
       const wslenv = appendWslenvToken(process.env.WSLENV, "CARGO_INCREMENTAL");
       await runStep(
+        "Rust mock ffmpeg (Windows via cargo.exe, no-run)",
+        cargoExe,
+        [
+          "test",
+          "--profile",
+          "check-all",
+          "--target-dir",
+          winTargetDir,
+          "--manifest-path",
+          winCargoToml,
+          "--test",
+          "ffui_mock_ffmpeg",
+          "--no-run",
+        ],
+        { env: resolveCargoEnv({ WSLENV: wslenv }), ...runOptions },
+      );
+      await runStep(
         "Rust tests (Windows via cargo.exe)",
         cargoExe,
         ["test", "--profile", "check-all", "--target-dir", winTargetDir, "--manifest-path", winCargoToml, ...testArgs],
@@ -1286,6 +1309,12 @@ async function runRustTestFullForPlatform(platform, rustRootDir, opts, runOption
   if (platform === "linux") {
     if (process.platform === "linux") {
       const cargo = resolveLocalCargoPath() ?? "cargo";
+      await runStep(
+        "Rust mock ffmpeg (Linux, no-run)",
+        cargo,
+        ["test", "--profile", "check-all", "--target-dir", "target/linux", "--test", "ffui_mock_ffmpeg", "--no-run"],
+        { cwd: rustRootDir, env: resolveCargoEnv(), ...runOptions },
+      );
       await runStep(
         "Rust tests (Linux)",
         cargo,
@@ -1305,6 +1334,23 @@ async function runRustTestFullForPlatform(platform, rustRootDir, opts, runOption
           "Could not resolve a usable WSL cargo. Install rustup inside WSL (recommended) so $HOME/.cargo/bin/cargo exists.",
         );
       }
+      await runStep("Rust mock ffmpeg (Linux/WSL, no-run)", "wsl.exe", [
+        "-e",
+        "env",
+        "CARGO_INCREMENTAL=0",
+        "CARGO_TERM_COLOR=never",
+        wslCargo,
+        "test",
+        "--profile",
+        "check-all",
+        "--target-dir",
+        wslTargetDir,
+        "--manifest-path",
+        wslCargoToml,
+        "--test",
+        "ffui_mock_ffmpeg",
+        "--no-run",
+      ]);
       await runStep("Rust tests (Linux/WSL)", "wsl.exe", [
         "-e",
         "env",

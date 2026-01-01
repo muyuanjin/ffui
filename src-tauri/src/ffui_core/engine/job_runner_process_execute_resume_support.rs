@@ -274,7 +274,7 @@ impl PauseLatencyDebug {
 }
 
 	#[cfg(all(test, unix))]
-	mod tests {
+	mod execute_resume_support_tests_unix {
 	    use super::*;
 	    use std::fs;
 

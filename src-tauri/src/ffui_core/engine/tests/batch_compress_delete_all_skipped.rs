@@ -1,4 +1,5 @@
 use super::*;
+use crate::ffui_core::BatchCompressConfig;
 
 /// 回归测试：当 Batch Compress 批次里所有子任务都在入队时被直接判定为终态（Skipped）
 /// 时，批次也必须被标记为 Completed，并允许 `delete_batch_compress_batch` 成功删除。

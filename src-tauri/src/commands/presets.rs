@@ -12,9 +12,10 @@ use std::sync::Arc;
 use tauri::{AppHandle, State};
 
 use crate::ffui_core::{
-    FFmpegPreset, PresetBundle, PresetBundleExportResult, TranscodingEngine,
-    export_presets_bundle as export_presets_bundle_impl, hardware_smart_default_presets,
-    read_presets_bundle as read_presets_bundle_impl,
+    FFmpegPreset, PresetBundle, PresetBundleExportResult, PresetTemplateValidationResult,
+    TranscodingEngine, export_presets_bundle as export_presets_bundle_impl,
+    hardware_smart_default_presets, read_presets_bundle as read_presets_bundle_impl,
+    validate_preset_template as validate_preset_template_impl,
 };
 
 /// Get all available `FFmpeg` presets.
@@ -119,4 +120,19 @@ pub async fn read_presets_bundle(source_path: String) -> Result<PresetBundle, St
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Quick-validate an advanced/template preset by running ffmpeg once against a tiny built-in input.
+#[tauri::command]
+pub async fn validate_preset_template(
+    engine: State<'_, TranscodingEngine>,
+    preset: FFmpegPreset,
+    timeout_ms: Option<u64>,
+) -> Result<PresetTemplateValidationResult, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(validate_preset_template_impl(&engine, preset, timeout_ms))
+    })
+    .await
+    .map_err(|err| err.to_string())?
 }

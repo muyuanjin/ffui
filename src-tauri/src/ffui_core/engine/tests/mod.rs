@@ -23,6 +23,7 @@ pub(super) use crate::sync_ext::MutexExt;
 
 mod common;
 
+pub(super) use common::make_test_preset;
 use common::*;
 
 mod batch_compress_audio_tests;
