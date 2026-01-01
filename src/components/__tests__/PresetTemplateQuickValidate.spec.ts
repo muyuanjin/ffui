@@ -36,6 +36,7 @@ const flushPromises = async () => {
 
 describe("Preset template quick validation", () => {
   it("invokes validate_preset_template from the preset wizard custom command surface", async () => {
+    (window as any).__TAURI_INTERNALS__ = (window as any).__TAURI_INTERNALS__ ?? {};
     let resolveInvoke: (value: PresetTemplateValidationResult) => void;
     const deferred = new Promise<PresetTemplateValidationResult>((resolve) => {
       resolveInvoke = resolve;
@@ -81,6 +82,7 @@ describe("Preset template quick validation", () => {
   });
 
   it("invokes validate_preset_template from the ultimate parameter panel template tab", async () => {
+    (window as any).__TAURI_INTERNALS__ = (window as any).__TAURI_INTERNALS__ ?? {};
     tauriCoreMock.invoke.mockReset();
     tauriCoreMock.invoke.mockResolvedValueOnce({ outcome: "ok" } satisfies PresetTemplateValidationResult);
 
@@ -115,5 +117,95 @@ describe("Preset template quick validation", () => {
     );
     await flushPromises();
     expect(wrapper.text()).toContain(t("presetEditor.advanced.quickValidate.ok"));
+  });
+
+  it("supports web mock outcomes (templateInvalid) when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "?ffuiMockPresetTemplateValidation=templateInvalid");
+
+    const preset: FFmpegPreset = {
+      id: "p-test",
+      name: "Test Preset",
+      description: "",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      advancedEnabled: true,
+      ffmpegTemplate: "-hide_banner -i INPUT -c:v libx264 -c:a copy OUTPUT",
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: { initialPreset: preset },
+      global: { plugins: [i18n] },
+    });
+
+    const validateLabel = t("presetEditor.advanced.quickValidateButton");
+    const validateButton = wrapper.findAll("button").find((btn) => btn.text().includes(validateLabel));
+    expect(validateButton).toBeTruthy();
+    await validateButton!.trigger("click");
+
+    await flushPromises();
+    expect(wrapper.text()).toContain(t("presetEditor.advanced.quickValidate.templateInvalid"));
+  });
+
+  it("supports web mock outcomes (timedOut) when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "?ffuiMockPresetTemplateValidation=timedOut");
+
+    const preset: FFmpegPreset = {
+      id: "p-test",
+      name: "Test Preset",
+      description: "",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      advancedEnabled: true,
+      ffmpegTemplate: "-hide_banner -i INPUT -c:v libx264 -c:a copy OUTPUT",
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: { initialPreset: preset },
+      global: { plugins: [i18n] },
+    });
+
+    const validateLabel = t("presetEditor.advanced.quickValidateButton");
+    const validateButton = wrapper.findAll("button").find((btn) => btn.text().includes(validateLabel));
+    expect(validateButton).toBeTruthy();
+    await validateButton!.trigger("click");
+
+    await flushPromises();
+    expect(wrapper.text()).toContain(t("presetEditor.advanced.quickValidate.timedOut"));
+  });
+
+  it("supports web mock outcomes (failed) when Tauri is unavailable", async () => {
+    delete (window as any).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "?ffuiMockPresetTemplateValidation=failed");
+
+    const preset: FFmpegPreset = {
+      id: "p-test",
+      name: "Test Preset",
+      description: "",
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+      advancedEnabled: true,
+      ffmpegTemplate: "-hide_banner -i INPUT -c:v libx264 -c:a copy OUTPUT",
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: { initialPreset: preset },
+      global: { plugins: [i18n] },
+    });
+
+    const validateLabel = t("presetEditor.advanced.quickValidateButton");
+    const validateButton = wrapper.findAll("button").find((btn) => btn.text().includes(validateLabel));
+    expect(validateButton).toBeTruthy();
+    await validateButton!.trigger("click");
+
+    await flushPromises();
+    expect(wrapper.text()).toContain(t("presetEditor.advanced.quickValidate.failed"));
   });
 });
