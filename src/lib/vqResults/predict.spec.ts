@@ -275,6 +275,101 @@ describe("predictFromVqResults", () => {
     expect(a?.vmaf?.value).toBeGreaterThan(b?.vmaf?.value ?? 0);
   });
 
+  it("does not clamp explicit CQ into the tiny recommended band (keeps monotonicity outside rec.range)", () => {
+    const snapshot: VqResultsSnapshot = {
+      source: {
+        homepageUrl: "https://example.invalid",
+        dataUrl: "https://example.invalid/data.js",
+        title: "Test",
+        fetchedAtIso: new Date().toISOString(),
+      },
+      datasets: [
+        {
+          set: 1,
+          metric: "vmaf",
+          key: "rtx4090_NVEncC_HEVC_quality",
+          label: "NVENC HEVC quality",
+          points: [
+            { x: 1000, y: 90 },
+            { x: 2000, y: 94 },
+          ],
+        },
+      ],
+    };
+
+    const worseQuality: FFmpegPreset = {
+      id: "p1",
+      name: "p1",
+      description: "",
+      video: { encoder: "hevc_nvenc", rateControl: "cq", qualityValue: 28, preset: "p5", pixFmt: "yuv420p" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+    };
+
+    const betterQuality: FFmpegPreset = {
+      ...worseQuality,
+      id: "p2",
+      name: "p2",
+      video: { ...worseQuality.video, qualityValue: 20 },
+    };
+
+    const a = predictFromVqResults(snapshot, betterQuality);
+    const b = predictFromVqResults(snapshot, worseQuality);
+    expect(a?.datasetKey).toBe("rtx4090_NVEncC_HEVC_quality");
+    expect(a?.bitrateKbps).toBeGreaterThan(b?.bitrateKbps ?? 0);
+    expect(a?.vmaf?.value).toBeGreaterThan(b?.vmaf?.value ?? 0);
+  });
+
+  it("keeps CQ/QP monotonic when using the curve-quality (qvbr) path for hardware encoders", () => {
+    const snapshot: VqResultsSnapshot = {
+      source: {
+        homepageUrl: "https://example.invalid",
+        dataUrl: "https://example.invalid/data.js",
+        title: "Test",
+        fetchedAtIso: new Date().toISOString(),
+      },
+      datasets: [
+        {
+          set: 1,
+          metric: "vmaf",
+          key: "rtx4090_NVEncC_HEVC_quality",
+          label: "NVENC HEVC quality",
+          points: [
+            { x: 1000, y: 85 },
+            { x: 2000, y: 90 },
+            { x: 3000, y: 93 },
+            { x: 4000, y: 95 },
+            { x: 6000, y: 97 },
+          ],
+        },
+      ],
+    };
+
+    const worseQuality: FFmpegPreset = {
+      id: "p1",
+      name: "p1",
+      description: "",
+      video: { encoder: "hevc_nvenc", rateControl: "cq", qualityValue: 28, preset: "p5", pixFmt: "yuv420p" },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+    };
+
+    const betterQuality: FFmpegPreset = {
+      ...worseQuality,
+      id: "p2",
+      name: "p2",
+      video: { ...worseQuality.video, qualityValue: 20 },
+    };
+
+    const a = predictFromVqResults(snapshot, betterQuality);
+    const b = predictFromVqResults(snapshot, worseQuality);
+    expect(a?.datasetKey).toBe("rtx4090_NVEncC_HEVC_quality");
+    expect(a?.bitrateKbps).toBeGreaterThan(b?.bitrateKbps ?? 0);
+    expect(a?.vmaf?.value).toBeGreaterThan(b?.vmaf?.value ?? 0);
+  });
+
   it("keeps monotonic direction for VCEEncC (AMF) curves where higher vq_results quality means better", () => {
     const snapshot: VqResultsSnapshot = {
       source: {
