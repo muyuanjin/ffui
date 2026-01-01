@@ -25,5 +25,17 @@ export interface VqResultsSnapshot {
     title: string | null;
     fetchedAtIso: string;
   };
+  /**
+   * Optional provenance list for merged snapshots.
+   * Not required by predictors; provided for debugging/attribution.
+   */
+  sources?: Array<{
+    id: string;
+    path?: string;
+    homepageUrl?: string;
+    dataUrl?: string;
+    title?: string | null;
+    fetchedAtIso?: string;
+  }>;
   datasets: VqDataset[];
 }

@@ -57,6 +57,8 @@ const collectCandidateDatasetKeys = (snapshot: VqResultsSnapshot, filter: string
   return Array.from(keys);
 };
 
+const sortKeysLex = (keys: string[]) => keys.slice().sort((a, b) => a.localeCompare(b));
+
 const chooseVqDatasetKey = (preset: FFmpegPreset): string | null => {
   const enc = String(preset.video?.encoder ?? "").toLowerCase();
   const presetValue = String(preset.video?.preset ?? "")
@@ -296,18 +298,61 @@ export const predictFromVqResults = (
     datasetKeys = picked?.keys ?? [];
   } else {
     const inferredKey = chooseVqDatasetKey(preset);
+
+    // Prefer a dataset key that exists in the snapshot and matches the user's preset more closely.
+    const tryChooseFromSnapshot = (): string | null => {
+      const presetValue = String(preset.video?.preset ?? "")
+        .trim()
+        .toLowerCase();
+
+      if (enc === "libx264") {
+        const keys = sortKeysLex(collectCandidateDatasetKeys(snapshot, "x264_").filter(hasAnyMetric));
+        if (keys.length === 0) return null;
+
+        const p = presetValue || "medium";
+        const isSlowFamily = p.includes("veryslow") || p.includes("slower") || p.includes("placebo");
+        const candidates = [`x264_${p}_crf`, isSlowFamily ? "x264_veryslow_crf" : "", "x264_medium_crf"].filter(
+          Boolean,
+        );
+        for (const c of candidates) if (hasAnyMetric(c)) return c;
+        return keys.includes("x264_medium_crf") ? "x264_medium_crf" : keys[0]!;
+      }
+
+      if (enc === "libx265") {
+        const keys = sortKeysLex(collectCandidateDatasetKeys(snapshot, "x265_").filter(hasAnyMetric));
+        if (keys.length === 0) return null;
+
+        const p = presetValue || "medium";
+        const bitKey = (base: string) => (is10bit ? `${base}_10bit_crf` : `${base}_crf`);
+        const isSlowFamily = p.includes("veryslow") || p.includes("slower") || p.includes("placebo");
+        const candidates = [
+          bitKey(`x265_${p}`),
+          isSlowFamily ? bitKey("x265_veryslow") : "",
+          bitKey("x265_medium"),
+          is10bit ? "x265_medium_10bit_crf" : "x265_medium_crf",
+        ].filter(Boolean);
+        for (const c of candidates) if (hasAnyMetric(c)) return c;
+
+        const medium = is10bit ? "x265_medium_10bit_crf" : "x265_medium_crf";
+        return keys.includes(medium) ? medium : keys[0]!;
+      }
+
+      if (enc === "libsvtav1") {
+        const keys = sortKeysLex(collectCandidateDatasetKeys(snapshot, "svtav1_").filter(hasAnyMetric));
+        if (keys.length === 0) return null;
+        const bit = is10bit ? "10bit" : "8bit";
+        const p = nearestSvtPreset(String(preset.video?.preset ?? ""));
+        const exact = `svtav1_${bit}_preset_${p}`;
+        if (hasAnyMetric(exact)) return exact;
+        return keys[0]!;
+      }
+
+      return null;
+    };
+
     const inferredKeyOk = inferredKey && hasAnyMetric(inferredKey) ? inferredKey : null;
-    if (inferredKeyOk) {
-      datasetKey = inferredKeyOk;
-      datasetKeys = [inferredKeyOk];
-    } else {
-      // Fallback: pick any available curve for this encoder family so built-in
-      // presets still get predictions even when upstream keys change.
-      const filter = enc === "libx264" ? "x264_" : enc === "libx265" ? "x265_" : enc === "libsvtav1" ? "svtav1_" : "";
-      const keys = filter ? collectCandidateDatasetKeys(snapshot, filter).filter(hasAnyMetric) : [];
-      datasetKey = keys.length > 0 ? keys[0]! : null;
-      datasetKeys = datasetKey ? [datasetKey] : [];
-    }
+    datasetKey = tryChooseFromSnapshot() ?? inferredKeyOk ?? null;
+    datasetKeys = datasetKey ? [datasetKey] : [];
   }
 
   if (!datasetKey || datasetKeys.length === 0) return null;
@@ -324,10 +369,27 @@ export const predictFromVqResults = (
 
   const vmafCurve = pickBaselineDataset("vmaf");
 
+  const baselineCurveForBitrateDomain = vmafCurve ?? pickBaselineDataset("ssim") ?? pickBaselineDataset("fps");
+
+  const bitrateFromPreset = (() => {
+    const raw = Number(preset.video?.bitrateKbps);
+    if (!Number.isFinite(raw) || raw <= 0) return null;
+    return raw;
+  })();
+
+  const clampBitrateToCurve = (bitrateKbps: number): number => {
+    const curve = baselineCurveForBitrateDomain;
+    if (!curve) return bitrateKbps;
+    const minX = curve.points[0]!.x;
+    const maxX = curve.points[curve.points.length - 1]!.x;
+    return clamp(bitrateKbps, minX, maxX);
+  };
+
   const qCurve = spec ? estimateCurveQualityValue(preset, spec) : NaN;
 
   const useQualityPath =
     !!spec &&
+    bitrateFromPreset == null &&
     Number.isFinite(qCurve) &&
     // Require at least one baseline dataset so we can align the axis length.
     !!vmafCurve &&
@@ -349,8 +411,9 @@ export const predictFromVqResults = (
     : null;
 
   const bitrateKbps = (() => {
+    if (bitrateFromPreset != null) return clampBitrateToCurve(bitrateFromPreset);
     if (predictedByQuality?.bitrateKbpsPred) return predictedByQuality.bitrateKbpsPred.value;
-    return vmafCurve ? estimateBitrateFromQuality(preset, vmafCurve) : 2000;
+    return baselineCurveForBitrateDomain ? estimateBitrateFromQuality(preset, baselineCurveForBitrateDomain) : 2000;
   })();
 
   const vmaf =
