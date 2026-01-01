@@ -132,7 +132,9 @@ struct InnerMetricsState {
     history: Mutex<VecDeque<MetricsSnapshot>>,
     config: MetricsConfig,
     subscribers: AtomicUsize,
-    wake_lock: Mutex<()>,
+    // A monotonic wake sequence guarded by the same mutex as the condvar, so
+    // wake-ups are never lost even if notify happens before the waiter blocks.
+    wake_lock: Mutex<u64>,
     wake_cv: Condvar,
 }
 
@@ -150,7 +152,7 @@ impl MetricsState {
                 history: Mutex::new(VecDeque::with_capacity(capacity)),
                 config,
                 subscribers: AtomicUsize::new(0),
-                wake_lock: Mutex::new(()),
+                wake_lock: Mutex::new(0),
                 wake_cv: Condvar::new(),
             }),
         }
@@ -178,6 +180,8 @@ impl MetricsState {
         self.inner.subscribers.fetch_add(1, Ordering::Relaxed);
         // Wake the sampler so that a newly opened monitor tab starts receiving
         // snapshots immediately instead of waiting for the idle sleep timeout.
+        let mut seq = self.inner.wake_lock.lock_unpoisoned();
+        *seq = seq.wrapping_add(1);
         self.inner.wake_cv.notify_all();
     }
 
@@ -193,8 +197,24 @@ impl MetricsState {
     }
 
     pub(crate) fn wait_for_wakeup_or_timeout(&self, timeout: Duration) {
-        let guard = self.inner.wake_lock.lock_unpoisoned();
-        drop(self.inner.wake_cv.wait_timeout_unpoisoned(guard, timeout));
+        let mut guard = self.inner.wake_lock.lock_unpoisoned();
+        let observed = *guard;
+        let started = Instant::now();
+
+        loop {
+            if *guard != observed {
+                return;
+            }
+            let remaining = timeout.saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return;
+            }
+            let (next, result) = self.inner.wake_cv.wait_timeout_unpoisoned(guard, remaining);
+            guard = next;
+            if result.timed_out() {
+                return;
+            }
+        }
     }
 
     #[allow(dead_code)]
