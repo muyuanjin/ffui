@@ -266,14 +266,16 @@ const capturePresetCard = async (page, outPath) => {
 
 const gotoPresetsTab = async (page) => {
   await page.getByTestId("ffui-tab-presets").click({ force: true });
-  await waitFor(async () => (await page.locator("[data-testid='preset-panel']").count()) > 0);
-  await waitFor(async () => (await page.getByTestId("preset-card-root").count()) > 0);
+  await waitFor(async () => (await page.locator("[data-testid='preset-panel']").count()) > 0, { timeoutMs: 120_000 });
+  await waitFor(async () => (await page.getByTestId("preset-card-root").count()) > 0, { timeoutMs: 120_000 });
 };
 
 const gotoSettingsTab = async (page) => {
   await page.getByTestId("ffui-tab-settings").click({ force: true });
-  await waitFor(async () => (await page.getByTestId("settings-panel").count()) > 0);
-  await waitFor(async () => (await page.getByTestId("settings-preset-card-footer").count()) > 0);
+  await waitFor(async () => (await page.getByTestId("settings-panel").count()) > 0, { timeoutMs: 120_000 });
+  await waitFor(async () => (await page.getByTestId("settings-preset-card-footer").count()) > 0, {
+    timeoutMs: 120_000,
+  });
 };
 
 const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }) => {
@@ -285,7 +287,7 @@ const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }
     const url = `${ensureTrailingSlash(baseUrl)}?ffuiLocale=${encodeURIComponent(locale)}`;
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 120_000 });
 
-    await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 120_000 });
 
     if (typeof cardWidth === "number" && Number.isFinite(cardWidth) && cardWidth > 0) {
       await page.addStyleTag({
@@ -302,12 +304,15 @@ const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }
 
     await capturePresetCard(page, path.join(outDir, `twoRows-all-${locale}.png`));
 
+    const footerSection = () => page.getByTestId("settings-preset-card-footer");
+    const footerToggle = () => footerSection().locator("button").nth(0);
+    const footerDetails = () => footerSection().locator("button").nth(1);
+
     await gotoSettingsTab(page);
-    const footerSection = page.getByTestId("settings-preset-card-footer");
-    await footerSection.waitFor({ state: "visible", timeout: 30_000 });
+    await footerSection().waitFor({ state: "visible", timeout: 120_000 });
 
     // Switch to oneRow.
-    await footerSection.getByRole("button", { name: "一栏 ↔ 两栏" }).click({ force: true });
+    await footerToggle().click({ force: true, timeout: 60_000 });
     await sleep(250);
 
     await gotoPresetsTab(page);
@@ -315,7 +320,8 @@ const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }
 
     // Configure a 4-item layout (avgSize + vmaf + data + throughput).
     await gotoSettingsTab(page);
-    await footerSection.getByRole("button", { name: "详细设置…" }).click({ force: true });
+    await footerSection().waitFor({ state: "visible", timeout: 120_000 });
+    await footerDetails().click({ force: true, timeout: 60_000 });
     const dialog = page.getByRole("dialog");
     await dialog.waitFor({ state: "visible", timeout: 30_000 });
 
@@ -324,9 +330,21 @@ const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }
     await ensureSwitchState(dialog, "平均大小", true);
     await ensureSwitchState(dialog, "VMAF", true);
     await ensureSwitchState(dialog, "数据量", true);
-    await ensureSwitchState(dialog, "吞吐量", true);
+    await ensureSwitchState(dialog, "处理速度", true);
 
-    await dialog.getByRole("button", { name: "关闭" }).click({ force: true });
+    const closeTextButton = dialog
+      .locator("button")
+      .filter({ hasText: /^关闭$/ })
+      .first();
+    if ((await closeTextButton.count()) > 0) {
+      await closeTextButton.click({ force: true });
+    } else {
+      await dialog
+        .locator("button")
+        .filter({ hasText: /^close$/i })
+        .first()
+        .click({ force: true });
+    }
     await dialog.waitFor({ state: "hidden", timeout: 30_000 });
 
     // Capture 4-item layout in oneRow.
@@ -335,7 +353,8 @@ const captureFlow = async ({ baseUrl, outDir, locale, width, height, cardWidth }
 
     // Switch back to twoRows and capture 4-item layout.
     await gotoSettingsTab(page);
-    await footerSection.getByRole("button", { name: "一栏 ↔ 两栏" }).click({ force: true });
+    await footerSection().waitFor({ state: "visible", timeout: 120_000 });
+    await footerToggle().click({ force: true, timeout: 60_000 });
     await sleep(250);
     await gotoPresetsTab(page);
     await capturePresetCard(page, path.join(outDir, `twoRows-4items-${locale}.png`));

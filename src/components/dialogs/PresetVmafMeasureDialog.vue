@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { ChevronDown } from "lucide-vue-next";
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Progress, type ProgressVariant } from "@/components/ui/progress";
 import type { FFmpegPreset } from "@/types";
 import { downloadVmafSampleVideo, hasTauri, measurePresetVmaf } from "@/lib/backend";
+import { parseVmafMeasureError, type ParsedVmafMeasureError } from "@/lib/vmafMeasureError";
+import PresetVmafMeasureAboutPanel from "./PresetVmafMeasureAboutPanel.vue";
 
 const props = defineProps<{
   open: boolean;
@@ -34,6 +38,11 @@ const referencePath = ref<string>("");
 const trimSecondsText = ref<string>("30");
 const busy = ref<boolean>(false);
 const statusText = ref<string>("");
+const runTotal = ref<number>(0);
+const runDone = ref<number>(0);
+const runFailed = ref<boolean>(false);
+const runError = ref<ParsedVmafMeasureError | null>(null);
+const runErrorDetailsOpen = ref<boolean>(false);
 
 const selectedIds = ref<Set<string>>(new Set());
 watch(
@@ -44,6 +53,11 @@ watch(
       await props.ensureAppSettingsLoaded();
       referencePath.value = String(props.vmafMeasureReferencePath ?? "").trim();
       statusText.value = "";
+      runTotal.value = 0;
+      runDone.value = 0;
+      runFailed.value = false;
+      runError.value = null;
+      runErrorDetailsOpen.value = false;
 
       // Default selection: "smart" presets when available; otherwise select all.
       const smart = props.presets.filter((p) => p.isSmartPreset === true).map((p) => p.id);
@@ -83,6 +97,110 @@ const normalizedTrimSeconds = computed(() => {
   return raw;
 });
 
+const runProgressPercent = computed(() => {
+  const total = runTotal.value;
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  const done = runDone.value;
+  const clamped = Math.max(0, Math.min(done, total));
+  return Math.round((clamped / total) * 100);
+});
+
+const runProgressVariant = computed<ProgressVariant>(() => {
+  if (runFailed.value) return "error";
+  if (runTotal.value > 0 && runDone.value >= runTotal.value && !busy.value) return "success";
+  return "default";
+});
+
+const showRunProgress = computed(() => runTotal.value > 0);
+
+const runErrorUi = computed(() => {
+  if (!runError.value) return null;
+  const err = runError.value;
+  if (err.kind === "missing_encoder") {
+    const lines: string[] = [];
+    lines.push(t("presets.vmafMeasureErrorMissingEncoderLine1", { encoder: err.encoder }) as string);
+    if (err.presetId) {
+      lines.push(t("presets.vmafMeasureErrorMissingEncoderLinePreset", { presetId: err.presetId }) as string);
+    }
+    if (err.ffmpegPath) {
+      lines.push(t("presets.vmafMeasureErrorMissingEncoderLineFfmpeg", { ffmpegPath: err.ffmpegPath }) as string);
+    }
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: lines.join("\n"),
+      actions: [
+        t("presets.vmafMeasureErrorActionSwitchFfmpeg") as string,
+        t("presets.vmafMeasureErrorActionUnselectPreset") as string,
+      ],
+      details: err.raw,
+    };
+  }
+  if (err.kind === "missing_filter") {
+    const lines: string[] = [];
+    if (err.filter === "libvmaf") {
+      lines.push(t("presets.vmafMeasureErrorMissingFilterLine1", { filter: err.filter }) as string);
+    } else {
+      lines.push(t("presets.vmafMeasureErrorMissingFilterGenericLine1", { filter: err.filter }) as string);
+    }
+    if (err.ffmpegPath) {
+      lines.push(t("presets.vmafMeasureErrorMissingEncoderLineFfmpeg", { ffmpegPath: err.ffmpegPath }) as string);
+    }
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: lines.join("\n"),
+      actions: [
+        err.filter === "libvmaf"
+          ? (t("presets.vmafMeasureErrorActionSwitchFfmpegWithVmaf") as string)
+          : (t("presets.vmafMeasureErrorActionSwitchFfmpeg") as string),
+      ],
+      details: err.raw,
+    };
+  }
+  if (err.kind === "missing_decoder") {
+    const lines: string[] = [];
+    lines.push(t("presets.vmafMeasureErrorMissingDecoderLine1", { decoder: err.decoder }) as string);
+    if (err.ffmpegPath) {
+      lines.push(t("presets.vmafMeasureErrorMissingEncoderLineFfmpeg", { ffmpegPath: err.ffmpegPath }) as string);
+    }
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: lines.join("\n"),
+      actions: [t("presets.vmafMeasureErrorActionSwitchFfmpeg") as string],
+      details: err.raw,
+    };
+  }
+  if (err.kind === "missing_library") {
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: t("presets.vmafMeasureErrorMissingLibraryLine1", { library: err.library }) as string,
+      actions: [t("presets.vmafMeasureErrorActionSwitchFfmpeg") as string],
+      details: err.raw,
+    };
+  }
+  if (err.kind === "input_not_found") {
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: t("presets.vmafMeasureErrorInputNotFound") as string,
+      actions: [t("presets.vmafMeasureErrorActionCheckPaths") as string],
+      details: err.raw,
+    };
+  }
+  if (err.kind === "permission_denied") {
+    return {
+      title: t("presets.vmafMeasureFailed") as string,
+      summary: t("presets.vmafMeasureErrorPermissionDenied") as string,
+      actions: [t("presets.vmafMeasureErrorActionCheckPaths") as string],
+      details: err.raw,
+    };
+  }
+  return {
+    title: t("presets.vmafMeasureFailed") as string,
+    summary: t("presets.vmafMeasureErrorUnknown") as string,
+    actions: [t("presets.vmafMeasureErrorActionCheckDetails") as string],
+    details: err.raw,
+  };
+});
+
 const pickVideo = async () => {
   if (!hasTauri()) return;
   const picked = await openDialog({
@@ -119,18 +237,26 @@ const run = async () => {
   if (selectedIds.value.size === 0) return;
 
   busy.value = true;
+  runFailed.value = false;
+  runError.value = null;
+  runErrorDetailsOpen.value = false;
   try {
     const ids = Array.from(selectedIds.value);
+    runTotal.value = ids.length;
+    runDone.value = 0;
     for (let i = 0; i < ids.length; i += 1) {
       const id = ids[i]!;
       statusText.value = t("presets.vmafMeasureRunningProgress", { n: i + 1, total: ids.length }) as string;
       await measurePresetVmaf(id, refPath, { trimSeconds: normalizedTrimSeconds.value });
       await props.reloadPresets();
+      runDone.value = i + 1;
     }
     statusText.value = t("presets.vmafMeasureDone") as string;
   } catch (e) {
+    runFailed.value = true;
     const message = e instanceof Error ? e.message : String(e ?? "Unknown error");
-    statusText.value = `${t("presets.vmafMeasureFailed")}: ${message}`;
+    statusText.value = t("presets.vmafMeasureFailed") as string;
+    runError.value = parseVmafMeasureError(message);
   } finally {
     busy.value = false;
   }
@@ -139,7 +265,11 @@ const run = async () => {
 
 <template>
   <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-    <DialogContent class="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+    <DialogContent
+      :portal-disabled="true"
+      :portal-force-mount="true"
+      class="sm:max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+    >
       <DialogHeader class="pb-2">
         <DialogTitle>{{ t("presets.vmafMeasureTitle") }}</DialogTitle>
         <DialogDescription class="text-xs text-muted-foreground">
@@ -148,6 +278,8 @@ const run = async () => {
       </DialogHeader>
 
       <div class="flex-1 min-h-0 space-y-3 overflow-y-auto pr-1">
+        <PresetVmafMeasureAboutPanel :dialog-open="props.open" />
+
         <div class="rounded-md border border-border/50 bg-card/50 p-3 space-y-2">
           <div class="flex items-center justify-between gap-2">
             <div class="text-[11px] font-medium">{{ t("presets.vmafMeasureVideoLabel") }}</div>
@@ -219,8 +351,62 @@ const run = async () => {
           </div>
         </div>
 
-        <div v-if="statusText" class="text-[11px] text-muted-foreground break-all">
-          {{ statusText }}
+        <div v-if="statusText || showRunProgress || runErrorUi" class="space-y-2">
+          <div v-if="statusText" class="text-[11px] text-muted-foreground whitespace-pre-wrap break-words">
+            {{ statusText }}
+          </div>
+          <Progress
+            v-if="showRunProgress"
+            :model-value="runProgressPercent"
+            :variant="runProgressVariant"
+            class="relative z-10"
+            data-testid="preset-vmaf-measure-progress-bar"
+          />
+
+          <div v-if="runErrorUi" class="rounded-md border border-border/50 bg-card/50 p-3 space-y-2">
+            <div class="text-[11px] font-medium text-destructive">{{ runErrorUi.title }}</div>
+            <div class="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed select-text">
+              {{ runErrorUi.summary }}
+            </div>
+            <ul v-if="runErrorUi.actions.length > 0" class="list-disc pl-5 space-y-1">
+              <li
+                v-for="(a, i) in runErrorUi.actions"
+                :key="i"
+                class="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed"
+              >
+                {{ a }}
+              </li>
+            </ul>
+            <button
+              type="button"
+              class="w-full flex items-center justify-between gap-2 rounded px-2 py-1 text-left hover:bg-accent/20"
+              :aria-expanded="runErrorDetailsOpen"
+              aria-controls="preset-vmaf-measure-error-details"
+              @click="runErrorDetailsOpen = !runErrorDetailsOpen"
+            >
+              <span class="text-[11px] font-medium text-foreground">
+                {{
+                  runErrorDetailsOpen
+                    ? t("presets.vmafMeasureErrorHideDetails")
+                    : t("presets.vmafMeasureErrorShowDetails")
+                }}
+              </span>
+              <ChevronDown
+                class="h-4 w-4 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none"
+                :class="runErrorDetailsOpen ? 'rotate-180' : ''"
+              />
+            </button>
+            <div
+              id="preset-vmaf-measure-error-details"
+              class="grid px-2 transition-[grid-template-rows,opacity,padding-bottom] duration-200 ease-in-out motion-reduce:transition-none"
+              :class="runErrorDetailsOpen ? 'grid-rows-[1fr] opacity-100 pb-2' : 'grid-rows-[0fr] opacity-0 pb-0'"
+            >
+              <pre
+                class="overflow-hidden text-[10px] text-muted-foreground whitespace-pre-wrap break-words select-text"
+                >{{ runErrorUi.details }}</pre
+              >
+            </div>
+          </div>
         </div>
       </div>
 

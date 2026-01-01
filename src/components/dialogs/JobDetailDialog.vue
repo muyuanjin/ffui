@@ -9,6 +9,7 @@ import { useI18n } from "vue-i18n";
 import { isJobCompareEligible } from "@/lib/jobCompare";
 import { hasTauri } from "@/lib/backend";
 import { useJobDetailDialogState, type JobDetailDialogProps } from "./useJobDetailDialogState";
+import JobFailureReasonCard from "./JobFailureReasonCard.vue";
 
 const props = defineProps<JobDetailDialogProps>();
 
@@ -444,9 +445,12 @@ const requestMeasureVmaf = () => {
                   </div>
                 </div>
               </div>
-              <p v-if="job.status === 'failed' && job.failureReason" class="text-[11px] text-destructive font-medium">
-                {{ t("taskDetail.failureReasonPrefix") }} {{ job.failureReason }}
-              </p>
+              <JobFailureReasonCard
+                :job="props.job"
+                :preset="props.preset"
+                :ffmpeg-resolved-path="props.ffmpegResolvedPath"
+                :log-text="displayedLogText"
+              />
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mount } from "@vue/test-utils";
 import type { FFmpegPreset } from "@/types";
 import { i18n } from "@/__tests__/helpers/mainAppTauriDialog";
@@ -29,6 +29,14 @@ const makePreset = (overrides?: Partial<FFmpegPreset>): FFmpegPreset => ({
 });
 
 describe("Preset VMAF display (measured-only)", () => {
+  const originalLocale = i18n.global.locale.value;
+  beforeEach(() => {
+    i18n.global.locale.value = "zh-CN";
+  });
+  afterEach(() => {
+    i18n.global.locale.value = originalLocale;
+  });
+
   it("PresetCardFooterVmafStat: measured hides predicted", () => {
     const wrapper = mount(PresetCardFooterVmafStat, {
       props: {
@@ -67,10 +75,13 @@ describe("Preset VMAF display (measured-only)", () => {
     });
 
     const vmaf = wrapper.get('[data-testid="preset-row-vmaf"]');
-    expect(vmaf.text()).toContain("93.2");
+    expect(vmaf.text()).toContain("93.20");
     expect(vmaf.text()).not.toContain("88.8");
-    expect(String(vmaf.attributes("title") ?? "")).toContain("meas=93.2");
-    expect(String(vmaf.attributes("title") ?? "")).not.toContain("pred=88.8");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("实测均值");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("93.20");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("5");
+    expect(String(vmaf.attributes("title") ?? "")).not.toContain("预测");
+    expect(String(vmaf.attributes("title") ?? "")).not.toContain("88.8");
     wrapper.unmount();
   });
 
@@ -94,10 +105,13 @@ describe("Preset VMAF display (measured-only)", () => {
     });
 
     const vmaf = wrapper.get('[data-testid="preset-footer-vmaf-stat"]');
-    expect(vmaf.text()).toContain("93.2");
+    expect(vmaf.text()).toContain("93.20");
     expect(vmaf.text()).not.toContain("88.8");
-    expect(String(vmaf.attributes("title") ?? "")).toContain("meas=93.2");
-    expect(String(vmaf.attributes("title") ?? "")).not.toContain("pred=88.8");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("实测均值");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("93.20");
+    expect(String(vmaf.attributes("title") ?? "")).toContain("5");
+    expect(String(vmaf.attributes("title") ?? "")).not.toContain("预测");
+    expect(String(vmaf.attributes("title") ?? "")).not.toContain("88.8");
     wrapper.unmount();
   });
 });

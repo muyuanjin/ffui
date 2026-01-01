@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, watch, computed, useSlots } from "vue";
 import { useSortable } from "@vueuse/integrations/useSortable";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,23 +12,13 @@ import {
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetCardFooterSettings, PresetSortMode } from "@/types";
-import {
-  GripVertical,
-  Trash2,
-  Copy,
-  Download,
-  Upload,
-  ChevronDown,
-  LayoutGrid,
-  LayoutList,
-  Pin,
-  PinOff,
-} from "lucide-vue-next";
+import { GripVertical, Copy, Download, Upload, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "@/components/ui/select";
 import type { SortableEvent } from "sortablejs";
 import PresetRowCompact from "./presets/PresetRowCompact.vue";
 import PresetCardGrid from "./presets/PresetCardGrid.vue";
 import { usePredictedVmafByPresetId } from "./presets/usePredictedVmafByPresetId";
+import PresetPanelSelectionActionsBar from "./presets/PresetPanelSelectionActionsBar.vue";
 type ViewMode = "grid" | "compact";
 const props = withDefaults(
   defineProps<{
@@ -72,6 +62,10 @@ const localViewMode = ref<ViewMode>(props.viewMode);
 const selectedIds = ref<Set<string>>(new Set());
 const selectedCount = computed(() => selectedIds.value.size);
 const selectionBarPinned = computed(() => props.selectionBarPinned ?? false);
+const slots = useSlots();
+const showSelectionActionsBar = computed(
+  () => selectedCount.value > 0 || selectionBarPinned.value || Boolean(slots["selection-actions-right"]),
+);
 const toggleSelectionBarPinned = () => {
   emit("update:selectionBarPinned", !selectionBarPinned.value);
 };
@@ -404,63 +398,19 @@ updateSortableDisabled();
       </div>
     </header>
 
-    <div
-      v-if="selectedCount > 0 || selectionBarPinned"
-      class="border-b border-border/60 px-3 py-1.5 bg-accent/5 text-xs"
-      data-testid="preset-selection-actions"
+    <PresetPanelSelectionActionsBar
+      :show="showSelectionActionsBar"
+      :selected-count="selectedCount"
+      :pinned="selectionBarPinned"
+      @batch-export="emitExportSelectedToFile"
+      @batch-delete="emitBatchDelete"
+      @clear-selection="clearSelection"
+      @toggle-pinned="toggleSelectionBarPinned"
     >
-      <div class="flex items-center justify-between gap-2 min-w-max">
-        <div class="text-muted-foreground">{{ t("presets.selectedCount", { count: selectedCount }) }}</div>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 px-2 text-[11px]"
-            data-testid="preset-batch-export"
-            :disabled="selectedCount === 0"
-            @click="emitExportSelectedToFile"
-          >
-            <Download class="h-3 w-3 mr-1" />
-            {{ t("presets.export") }}
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            class="h-7 px-2 text-[11px]"
-            data-testid="preset-batch-delete"
-            :disabled="selectedCount === 0"
-            @click="emitBatchDelete"
-          >
-            <Trash2 class="h-3 w-3 mr-1" />
-            {{ t("presets.batchDelete") }}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            class="h-7 px-2 text-[11px]"
-            :disabled="selectedCount === 0"
-            @click="clearSelection"
-          >
-            {{ t("presets.clearSelection") }}
-          </Button>
-          <slot name="selection-actions-right" />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            class="h-7 w-7 p-0"
-            data-testid="preset-selection-pin"
-            :class="selectionBarPinned ? 'text-primary' : undefined"
-            :title="selectionBarPinned ? t('presets.unpinSelectionBar') : t('presets.pinSelectionBar')"
-            :aria-label="selectionBarPinned ? t('presets.unpinSelectionBar') : t('presets.pinSelectionBar')"
-            @click="toggleSelectionBarPinned"
-          >
-            <PinOff v-if="selectionBarPinned" class="h-3 w-3 text-primary" />
-            <Pin v-else class="h-3 w-3 text-muted-foreground" />
-          </Button>
-        </div>
-      </div>
-    </div>
+      <template #right>
+        <slot name="selection-actions-right" />
+      </template>
+    </PresetPanelSelectionActionsBar>
     <div class="p-4">
       <div v-if="localViewMode === 'compact'" ref="containerRef" class="space-y-1.5 overflow-hidden">
         <PresetRowCompact

@@ -59,7 +59,7 @@ describe("PresetCardFooterStats labels", () => {
     expect(text).toContain("大小");
     expect(text).toContain("已用");
     expect(text).toContain("输入");
-    expect(text).toContain("吞吐");
+    expect(text).toContain("速度");
   });
 
   it("uses full labels in oneRow when enabled items <= 3", () => {
@@ -85,7 +85,7 @@ describe("PresetCardFooterStats labels", () => {
     const text = wrapper.text();
     expect(text).toContain("已用次数");
     expect(text).toContain("数据量");
-    expect(text).toContain("吞吐量");
+    expect(text).toContain("处理速度");
   });
 
   it("balances break order in twoRows (4 items -> 2+2)", () => {
@@ -110,6 +110,36 @@ describe("PresetCardFooterStats labels", () => {
 
     const br = wrapper.find("[data-testid='preset-card-footer-break']");
     expect(br.exists()).toBe(true);
-    expect((br.element as HTMLElement).style.order).toBe("3");
+    const container = wrapper.get("[data-testid='preset-card-footer-items']");
+    const children = Array.from(container.element.children);
+    const breakIndex = children.findIndex((el) => el.getAttribute("data-testid") === "preset-card-footer-break");
+    expect(breakIndex).toBeGreaterThan(0);
+    const beforeBreakItems = children.slice(0, breakIndex).filter((el) => el.hasAttribute("data-footer-item")).length;
+    expect(beforeBreakItems).toBe(2);
+  });
+
+  it("does not render a leading separator after reordering items", () => {
+    const footerSettings: PresetCardFooterSettings = {
+      layout: "oneRow",
+      order: ["usedCount", "avgSize", "fps", "vmaf", "dataAmount", "throughput"],
+      showAvgSize: true,
+      showFps: true,
+      showVmaf: true,
+      showUsedCount: true,
+      showDataAmount: true,
+      showThroughput: true,
+    };
+
+    const wrapper = mount(PresetCardFooterStats, {
+      props: {
+        preset: makePreset(),
+        predictedVmaf: 95.3,
+        footerSettings,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    const firstItem = wrapper.get("[data-footer-item]");
+    expect(firstItem.find("[data-testid='preset-card-footer-separator']").exists()).toBe(false);
   });
 });
