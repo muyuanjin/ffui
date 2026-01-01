@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import HelpTooltipIcon from "@/components/preset-editor/HelpTooltipIcon.vue";
 import type { FFmpegPreset } from "@/types";
@@ -28,6 +27,8 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+
+const showVqAdvancedControls = import.meta.env.DEV;
 
 const axisKeys = ["quality", "sizeSaving", "speed", "compatibility", "popularity"] as const;
 
@@ -368,15 +369,6 @@ watch(vqDatasetKeyOverride, (value) => {
           <span class="text-[10px] font-semibold text-foreground">{{ t("vqResults.title") }}</span>
           <HelpTooltipIcon :text="t('vqResults.note')" side="top" />
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          class="h-6 px-2 text-[10px] text-muted-foreground hover:text-foreground"
-          :disabled="vqLoading"
-          @click="() => recomputePrediction()"
-        >
-          {{ t("vqResults.refresh") }}
-        </Button>
       </div>
 
       <div v-if="vqLoading" class="text-[10px] text-muted-foreground">
@@ -422,7 +414,7 @@ watch(vqDatasetKeyOverride, (value) => {
       </div>
 
       <div v-if="vqSnapshotTitle || vqSnapshotCachedAt" class="text-[10px] text-muted-foreground space-y-0.5">
-        <div v-if="candidateDatasetKeys.length > 0" class="space-y-1">
+        <div v-if="showVqAdvancedControls && candidateDatasetKeys.length > 0" class="space-y-1">
           <div class="flex items-center gap-1">
             <span class="font-medium text-foreground">{{ t("vqResults.dataset") }}:</span>
           </div>

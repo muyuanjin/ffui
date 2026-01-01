@@ -1,7 +1,7 @@
 const vqResults = {
   title: "Quality prediction",
   loading: "Loading curve data…",
-  unavailable: "Curve data not loaded (network or bundled snapshot required)",
+  unavailable: "Curve snapshot not loaded (bundled snapshot missing or failed to load)",
   notApplicable: "This preset does not encode video, so quality prediction is not applicable.",
   noPreset: "Current command is not parsed as a preset, so quality prediction is unavailable.",
   noMatch: "Curve data loaded, but no matching curve for the current preset (pick a dataset below).",
