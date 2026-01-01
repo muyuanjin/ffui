@@ -79,3 +79,13 @@ export const ensureJobPreviewVariant = async (jobId: string, heightPx: number): 
   const normalized = Math.max(0, Math.floor(Number(heightPx)));
   return invokeCommand<string | null>("ensure_job_preview_variant", { jobId, heightPx: normalized });
 };
+
+export const measureJobVmaf = async (jobId: string, options?: { trimSeconds?: number | null }): Promise<number> => {
+  if (!hasTauri()) {
+    throw new Error("measureJobVmaf requires Tauri");
+  }
+  const trimSecondsRaw = options?.trimSeconds;
+  const trimSeconds =
+    typeof trimSecondsRaw === "number" && Number.isFinite(trimSecondsRaw) && trimSecondsRaw > 0 ? trimSecondsRaw : null;
+  return invokeCommand<number>("measure_job_vmaf", { jobId, trimSeconds });
+};

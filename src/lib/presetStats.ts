@@ -6,6 +6,10 @@ export const makeZeroPresetStats = (): FFmpegPreset["stats"] => ({
   totalOutputSizeMB: 0,
   totalTimeSeconds: 0,
   totalFrames: 0,
+  vmafCount: 0,
+  vmafSum: 0,
+  vmafMin: 0,
+  vmafMax: 0,
 });
 
 export const applyPresetStatsDelta = (

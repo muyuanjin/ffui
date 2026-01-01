@@ -62,6 +62,7 @@ export {
   loadPreviewDataUrl,
   ensureJobPreview,
   ensureJobPreviewVariant,
+  measureJobVmaf,
 } from "./backend/queue";
 export const loadAppSettings = async (): Promise<AppSettings> => {
   return invokeCommand<AppSettings>("get_app_settings");
@@ -213,6 +214,39 @@ export const loadSmartDefaultPresets = async (): Promise<FFmpegPreset[]> => {
   return invokeCommand<FFmpegPreset[]>("get_smart_default_presets");
 };
 
+export const downloadVmafSampleVideo = async (sampleId: string): Promise<string> => {
+  if (!hasTauri()) {
+    throw new Error("downloadVmafSampleVideo requires Tauri");
+  }
+  const normalized = String(sampleId ?? "").trim();
+  if (!normalized) {
+    throw new Error("sampleId is empty");
+  }
+  return invokeCommand<string>("download_vmaf_sample_video", { sampleId: normalized });
+};
+
+export const measurePresetVmaf = async (
+  presetId: string,
+  referencePath: string,
+  options?: { trimSeconds?: number | null },
+): Promise<number> => {
+  if (!hasTauri()) {
+    throw new Error("measurePresetVmaf requires Tauri");
+  }
+  const id = String(presetId ?? "").trim();
+  if (!id) {
+    throw new Error("presetId is empty");
+  }
+  const ref = String(referencePath ?? "").trim();
+  if (!ref) {
+    throw new Error("referencePath is empty");
+  }
+  const trimSecondsRaw = options?.trimSeconds;
+  const trimSeconds =
+    typeof trimSecondsRaw === "number" && Number.isFinite(trimSecondsRaw) && trimSecondsRaw > 0 ? trimSecondsRaw : null;
+  return invokeCommand<number>("measure_preset_vmaf", { presetId: id, referencePath: ref, trimSeconds });
+};
+
 export const savePresetOnBackend = async (preset: FFmpegPreset): Promise<FFmpegPreset[]> => {
   return invokeCommand<FFmpegPreset[]>("save_preset", { preset });
 };
@@ -269,7 +303,9 @@ export const validatePresetTemplate = async (
   }
 
   const timeoutMs = options?.timeoutMs;
-  return invokeCommand<PresetTemplateValidationResult>("validate_preset_template", { preset, timeoutMs });
+  const payload: { preset: FFmpegPreset; timeoutMs?: number } = { preset };
+  if (typeof timeoutMs === "number") payload.timeoutMs = timeoutMs;
+  return invokeCommand<PresetTemplateValidationResult>("validate_preset_template", payload);
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {

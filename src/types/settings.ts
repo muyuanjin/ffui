@@ -26,6 +26,29 @@ export type PresetSortMode = "manual" | "usage" | "inputSize" | "ratio" | "speed
 /** 预设面板视图模式 */
 export type PresetViewMode = "grid" | "compact";
 
+export type PresetCardFooterLayout = "twoRows" | "oneRow";
+
+export type PresetCardFooterItemKey = "avgSize" | "fps" | "vmaf" | "usedCount" | "dataAmount" | "throughput";
+
+export interface PresetCardFooterSettings {
+  /** Layout style for the preset card footer stats. */
+  layout?: PresetCardFooterLayout;
+  /** Display order for footer items (unknown/missing items fall back to default order). */
+  order?: PresetCardFooterItemKey[];
+  /** Avg size ratio (output/input). */
+  showAvgSize?: boolean;
+  /** Average FPS. */
+  showFps?: boolean;
+  /** VMAF (predicted/measured). */
+  showVmaf?: boolean;
+  /** Usage count. */
+  showUsedCount?: boolean;
+  /** Total input data amount. */
+  showDataAmount?: boolean;
+  /** Average throughput. */
+  showThroughput?: boolean;
+}
+
 /** UI font family preference (applies globally). */
 export type UiFontFamily = "system" | "sans" | "mono";
 
@@ -81,6 +104,10 @@ export interface SettingsPresetsDomain {
   presetViewMode?: PresetViewMode;
   /** Whether the preset selection actions bar should remain visible even when no presets are selected. */
   presetSelectionBarPinned?: boolean;
+  /** Last used reference video path for preset VMAF measurement dialog. */
+  vmafMeasureReferencePath?: string;
+  /** Preset card footer stats layout + visibility controls. */
+  presetCardFooter?: PresetCardFooterSettings;
 }
 
 export interface SettingsPerformanceDomain {

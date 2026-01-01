@@ -84,6 +84,31 @@ watch([advancedEnabled, ffmpegTemplate], () => {
   quickValidateResult.value = null;
 });
 
+const quickValidateHover = ref(false);
+const quickValidateButtonLabel = computed(() => {
+  if (quickValidateHover.value) return t("presetEditor.advanced.quickValidateButton") as string;
+  if (quickValidateBusy.value) return t("presetEditor.advanced.quickValidate.running") as string;
+
+  const outcome = quickValidateResult.value?.outcome ?? null;
+  if (!outcome) return t("presetEditor.advanced.quickValidateButton") as string;
+  if (outcome === "ok") return t("presetEditor.advanced.quickValidate.ok") as string;
+  if (outcome === "failed") return t("presetEditor.advanced.quickValidate.failed") as string;
+  if (outcome === "timedOut") return t("presetEditor.advanced.quickValidate.timedOut") as string;
+  if (outcome === "skippedToolUnavailable") return t("presetEditor.advanced.quickValidate.toolMissing") as string;
+  if (outcome === "templateInvalid") return t("presetEditor.advanced.quickValidate.templateInvalid") as string;
+  return t("presetEditor.advanced.quickValidate.failed") as string;
+});
+
+const quickValidateButtonToneClass = computed(() => {
+  if (quickValidateHover.value) return "";
+  if (quickValidateBusy.value) return "";
+  const outcome = quickValidateResult.value?.outcome ?? null;
+  if (!outcome) return "";
+  if (outcome === "ok") return "text-emerald-400";
+  if (outcome === "skippedToolUnavailable" || outcome === "templateInvalid") return "text-amber-400";
+  return "text-destructive";
+});
+
 // name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
 
 const handleSave = () => {
@@ -329,33 +354,40 @@ const handleQuickValidate = async () => {
                     :placeholder="t('presetEditor.advanced.templatePlaceholder')"
                     class="min-h-[160px] text-xs font-mono"
                   />
-                  <div class="flex items-center justify-between gap-3">
+                  <div class="flex flex-col gap-2">
                     <div class="min-w-0">
                       <p :class="parseHintClass" class="text-xs">
                         {{ parseHint || (t("presetEditor.advanced.templateHint") as string) }}
                       </p>
-                      <p class="mt-1 text-[10px] text-muted-foreground">
+                      <p class="mt-1 text-[10px] text-muted-foreground leading-snug">
                         {{ t("presetEditor.advanced.quickValidateScope") }}
                       </p>
-                      <PresetTemplateValidationStatus :busy="quickValidateBusy" :result="quickValidateResult" />
+                      <PresetTemplateValidationStatus
+                        v-if="quickValidateResult && quickValidateResult.outcome !== 'ok'"
+                        :busy="quickValidateBusy"
+                        :result="quickValidateResult"
+                      />
                     </div>
-                    <div class="flex items-center gap-2 shrink-0">
+                    <div class="flex flex-wrap items-center justify-end gap-2">
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        variant="outline"
+                        size="xs"
+                        class="text-[11px] whitespace-normal h-auto leading-snug"
                         @click="handleParseTemplateFromCommand"
                       >
                         {{ t("presetEditor.advanced.parseButton") }}
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        class="h-7 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                        variant="outline"
+                        size="xs"
+                        class="text-[11px]"
+                        :class="quickValidateButtonToneClass"
                         :disabled="quickValidateBusy || !isCustomCommandPreset"
+                        @mouseenter="quickValidateHover = true"
+                        @mouseleave="quickValidateHover = false"
                         @click="handleQuickValidate"
                       >
-                        {{ t("presetEditor.advanced.quickValidateButton") }}
+                        {{ quickValidateButtonLabel }}
                       </Button>
                     </div>
                   </div>

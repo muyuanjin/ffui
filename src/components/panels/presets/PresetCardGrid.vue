@@ -4,18 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
-import { getPresetAvgFps, getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
-import type { FFmpegPreset } from "@/types";
+import type { FFmpegPreset, PresetCardFooterSettings } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download, CircleHelp } from "lucide-vue-next";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import PresetCardFooterStats from "./PresetCardFooterStats.vue";
 import {
   getAudioSummary,
   getFiltersSummary,
   getPresetDescription,
   getPresetRiskBadge,
   getPresetScenarioLabel,
-  getRatioColorClass,
   getSubtitleSummary,
   getVideoRateControlSummary,
   isCustomCommandPreset,
@@ -25,6 +24,8 @@ import {
 const props = defineProps<{
   preset: FFmpegPreset;
   selected: boolean;
+  predictedVmaf?: number | null;
+  footerSettings?: PresetCardFooterSettings | null;
 }>();
 
 const { preset, selected } = toRefs(props);
@@ -41,11 +42,6 @@ const { t, locale } = useI18n();
 
 const commandPreview = computed(() => getPresetCommandPreview(preset.value));
 const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
-const inputGbText = computed(() => (preset.value.stats.totalInputSizeMB / 1024).toFixed(1));
-const avgRatioValue = computed(() => getPresetAvgRatio(preset.value));
-const avgRatioText = computed(() => avgRatioValue.value?.toFixed(0) ?? "—");
-const avgSpeedText = computed(() => getPresetAvgSpeed(preset.value)?.toFixed(1) ?? "—");
-const avgFpsText = computed(() => getPresetAvgFps(preset.value)?.toFixed(0) ?? "—");
 
 const handleCardClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -278,49 +274,11 @@ const handleCardClick = (event: MouseEvent) => {
         </div>
       </div>
 
-      <div class="text-[10px] text-muted-foreground pt-1 border-t border-border/30 mt-auto">
-        <div
-          class="grid grid-cols-5 items-center whitespace-nowrap text-[9px] leading-none tracking-tight divide-x divide-border/25"
-        >
-          <div class="text-center px-1">
-            <i18n-t keypath="presets.cardStats.used" scope="global" :count="preset.stats.usageCount" tag="span">
-              <template #count>
-                <span class="text-foreground tabular-nums mx-1">{{ preset.stats.usageCount }}</span>
-              </template>
-            </i18n-t>
-          </div>
-          <div class="text-center px-1">
-            <i18n-t keypath="presets.cardStats.input" scope="global" :gb="inputGbText" tag="span">
-              <template #gb>
-                <span class="text-foreground tabular-nums mx-1">{{ inputGbText }}</span>
-              </template>
-            </i18n-t>
-          </div>
-          <div class="text-center px-1">
-            <i18n-t keypath="presets.cardStats.size" scope="global" :percent="avgRatioText" tag="span">
-              <template #percent>
-                <span class="tabular-nums mx-1" :class="getRatioColorClass(avgRatioValue)">
-                  {{ avgRatioText }}
-                </span>
-              </template>
-            </i18n-t>
-          </div>
-          <div class="text-center px-1">
-            <i18n-t keypath="presets.cardStats.throughput" scope="global" :mbps="avgSpeedText" tag="span">
-              <template #mbps>
-                <span class="text-foreground tabular-nums mx-1">{{ avgSpeedText }}</span>
-              </template>
-            </i18n-t>
-          </div>
-          <div class="text-center px-1">
-            <i18n-t keypath="presets.cardStats.fps" scope="global" :fps="avgFpsText" tag="span">
-              <template #fps>
-                <span class="text-foreground tabular-nums mx-1">{{ avgFpsText }}</span>
-              </template>
-            </i18n-t>
-          </div>
-        </div>
-      </div>
+      <PresetCardFooterStats
+        :preset="preset"
+        :predicted-vmaf="props.predictedVmaf ?? null"
+        :footer-settings="props.footerSettings"
+      />
     </CardContent>
   </Card>
 </template>

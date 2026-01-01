@@ -229,6 +229,14 @@ export interface PresetStats {
   totalOutputSizeMB: number;
   totalTimeSeconds: number;
   totalFrames?: number;
+  /**
+   * Optional aggregated VMAF measurements collected after jobs complete.
+   * Note: VMAF is content-dependent; this is an empirical aggregate, not a universal score.
+   */
+  vmafCount?: number;
+  vmafSum?: number;
+  vmafMin?: number;
+  vmafMax?: number;
 }
 
 export interface FFmpegPreset {

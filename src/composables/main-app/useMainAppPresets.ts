@@ -3,6 +3,7 @@ import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import {
   hasTauri,
   loadPresets,
+  measureJobVmaf,
   savePresetOnBackend,
   deletePresetOnBackend,
   reorderPresetsOnBackend,
@@ -10,6 +11,7 @@ import {
   enqueueTranscodeJobs,
   expandManualJobInputs,
 } from "@/lib/backend";
+import { toast } from "vue-sonner";
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
 import { applyPresetStatsDelta, getPresetStatsDeltaFromJob, makeZeroPresetStats } from "@/lib/presetStats";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
@@ -44,6 +46,7 @@ export interface UseMainAppPresetsReturn extends PresetLibraryActionsReturn {
     presetsToImport: FFmpegPreset[],
     options?: { replaceExisting?: boolean },
   ) => Promise<void>;
+  handleMeasureJobVmaf: (payload: { jobId: string; trimSeconds: number | null }) => Promise<void>;
   reloadPresets: () => Promise<void>;
   updatePresetStats: (presetId: string, input: number, output: number, timeSeconds: number, frames: number) => void;
   handleCompletedJobFromBackend: (job: TranscodeJob) => void;
@@ -164,6 +167,20 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
       }
     } catch (error) {
       console.error("Failed to reload presets from backend:", error);
+    }
+  };
+
+  const handleMeasureJobVmaf = async (payload: { jobId: string; trimSeconds: number | null }) => {
+    if (!hasTauri()) return;
+    const jobId = String(payload.jobId ?? "").trim();
+    if (!jobId) return;
+    try {
+      const mean = await measureJobVmaf(jobId, { trimSeconds: payload.trimSeconds });
+      await reloadPresets();
+      toast.success("VMAF", { description: `mean=${mean.toFixed(3)}`, duration: 3500 });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e ?? "Unknown error");
+      toast.error("VMAF failed", { description: message, duration: 6000 });
     }
   };
 
@@ -422,6 +439,7 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
     handleSavePreset,
     handleReorderPresets,
     handleImportSmartPackConfirmed,
+    handleMeasureJobVmaf,
     reloadPresets,
     updatePresetStats,
     handleCompletedJobFromBackend,

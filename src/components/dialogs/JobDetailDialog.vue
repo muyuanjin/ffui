@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useI18n } from "vue-i18n";
 import { isJobCompareEligible } from "@/lib/jobCompare";
+import { hasTauri } from "@/lib/backend";
 import { useJobDetailDialogState, type JobDetailDialogProps } from "./useJobDetailDialogState";
 
 const props = defineProps<JobDetailDialogProps>();
@@ -16,6 +17,7 @@ const emit = defineEmits<{
   expandPreview: [];
   compare: [];
   copyCommand: [command: string];
+  measureVmaf: [payload: { jobId: string; trimSeconds: number | null }];
 }>();
 
 const { t } = useI18n();
@@ -57,6 +59,36 @@ const {
 } = useJobDetailDialogState(props, (key, params) => (params ? (t(key, params) as string) : (t(key) as string)), {
   desiredPreviewHeightPx: previewDesiredPixels,
 });
+
+const measureVmafDisabledReason = computed(() => {
+  const job = props.job;
+  if (!job) return "no-job";
+  if (!hasTauri()) return "not-tauri";
+  if (job.type !== "video") return "not-video";
+  if (job.status !== "completed") return "not-completed";
+  const input = String(job.inputPath || job.filename || "").trim();
+  const output = String(job.outputPath || "").trim();
+  if (!input) return "missing-input";
+  if (!output) return "missing-output";
+  return null;
+});
+
+const canMeasureVmaf = computed(() => measureVmafDisabledReason.value === null);
+
+const measureVmafButtonTitle = computed(() => {
+  if (canMeasureVmaf.value) return t("taskDetail.measureVmafHint") as string;
+  const reason = measureVmafDisabledReason.value;
+  if (!reason) return t("taskDetail.measureVmafHint") as string;
+  return t(`taskDetail.measureVmafDisabled.${reason}`) as string;
+});
+
+const requestMeasureVmaf = () => {
+  const job = props.job;
+  if (!job) return;
+  if (!canMeasureVmaf.value) return;
+  // Default to a representative slice to keep results comparable with predictors.
+  emit("measureVmaf", { jobId: job.id, trimSeconds: 30 });
+};
 </script>
 
 <template>
@@ -126,6 +158,18 @@ const {
                     @click.stop="emit('compare')"
                   >
                     {{ t("jobCompare.open") }}
+                  </Button>
+                  <Button
+                    v-if="hasTauri() && job.type === 'video'"
+                    size="xs"
+                    variant="outline"
+                    class="h-7 px-3"
+                    data-testid="task-detail-measure-vmaf"
+                    :disabled="!canMeasureVmaf"
+                    :title="measureVmafButtonTitle"
+                    @click.stop="requestMeasureVmaf"
+                  >
+                    {{ t("taskDetail.measureVmaf") }}
                   </Button>
                 </div>
 

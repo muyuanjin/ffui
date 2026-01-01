@@ -46,6 +46,12 @@ const normalizeLoadedAppSettings = (settings: AppSettings): AppSettings => {
     next.locale = normalized.length > 0 ? normalized : undefined;
   }
 
+  // Normalize the VMAF reference video path so we don't persist empty/whitespace values.
+  if (typeof next.vmafMeasureReferencePath === "string") {
+    const normalized = next.vmafMeasureReferencePath.trim();
+    next.vmafMeasureReferencePath = normalized.length > 0 ? normalized : undefined;
+  }
+
   // Font mode exclusivity (new UI): keep exactly one source active.
   if (typeof next.uiFontFilePath === "string" && next.uiFontFilePath.trim().length > 0) {
     next.uiFontDownloadId = undefined;

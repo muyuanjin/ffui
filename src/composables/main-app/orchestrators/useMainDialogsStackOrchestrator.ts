@@ -58,6 +58,7 @@ export function useMainDialogsStackOrchestrator() {
     cancelQueueDelete: queue.cancelQueueDeleteConfirm,
     closeJobDetail: () => dialogs.dialogManager.closeJobDetail(),
     handleJobDetailExpandPreview: preview.handleJobDetailExpandPreview,
+    measureJobVmaf: presets.handleMeasureJobVmaf,
     copyToClipboard,
     openJobPreviewFromQueue: preview.openJobPreviewFromQueue,
     handleCancelJob: queue.handleCancelJob,
