@@ -7,10 +7,12 @@ use super::types::{DEFAULT_UI_SCALE_PERCENT, UiFontFamily};
 use super::*;
 
 mod network_proxy;
+mod preset_card_footer;
 mod preset_panel_modes;
 mod presets_loading;
 mod tests_preset_selection_bar_pinned;
 mod tests_selection_bar_pinned;
+mod tests_vmaf_measure_reference_path;
 mod tools_custom_path_sanitization;
 mod updater_metadata;
 
@@ -156,6 +158,10 @@ fn app_settings_serializes_preview_capture_percent_as_camel_case() {
     assert!(
         value.get("presetSelectionBarPinned").is_none(),
         "presetSelectionBarPinned should be absent when false"
+    );
+    assert!(
+        value.get("vmafMeasureReferencePath").is_none(),
+        "vmafMeasureReferencePath should be absent when unset"
     );
     // When UI appearance values are default, they should be omitted so the
     // settings.json stays minimal.

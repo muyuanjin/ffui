@@ -25,7 +25,7 @@ pub(super) use detect::{
     detect_video_stream_last_frame_timestamp_seconds,
 };
 pub use job_object::{assign_child_to_job, init_child_process_job};
-pub(super) use platform::configure_background_command;
+pub(crate) use platform::configure_background_command;
 pub(super) use progress::parse_ffmpeg_progress_line;
 #[cfg(test)]
 pub(super) use progress::parse_ffmpeg_time_to_seconds;

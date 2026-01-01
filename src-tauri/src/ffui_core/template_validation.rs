@@ -1,6 +1,5 @@
-use std::io::Read;
-use std::process::{Command, ExitStatus, Stdio};
-use std::time::{Duration, Instant};
+use std::process::Command;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +14,7 @@ use crate::ffui_core::tools::{ExternalToolKind, resolve_tool_path};
 mod template_validation_sample_mp4;
 use template_validation_sample_mp4::SAMPLE_MP4_BYTES;
 
-const DEFAULT_TIMEOUT_MS: u64 = 800;
+const DEFAULT_TIMEOUT_MS: u64 = 20_000;
 const STDERR_CAPTURE_LIMIT: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -99,59 +98,6 @@ fn summarize_stderr(stderr: &str) -> Option<String> {
     Some(out.join("\n"))
 }
 
-fn run_with_timeout(
-    ffmpeg_program: &str,
-    args: &[String],
-    timeout: Duration,
-) -> Result<(ExitStatus, bool, Vec<u8>), std::io::Error> {
-    let mut child = Command::new(ffmpeg_program)
-        .args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()?;
-
-    let mut stderr = child.stderr.take();
-    let stderr_handle = std::thread::spawn(move || {
-        let Some(mut stderr) = stderr.take() else {
-            return Vec::<u8>::new();
-        };
-
-        let mut captured: Vec<u8> = Vec::new();
-        let mut buf = [0u8; 8192];
-        loop {
-            let n = match stderr.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => n,
-                Err(_) => break,
-            };
-            if captured.len() < STDERR_CAPTURE_LIMIT {
-                let remaining = STDERR_CAPTURE_LIMIT - captured.len();
-                let to_copy = remaining.min(n);
-                captured.extend_from_slice(&buf[..to_copy]);
-            }
-        }
-        captured
-    });
-
-    let start = Instant::now();
-    let mut timed_out = false;
-    let status = loop {
-        if let Some(status) = child.try_wait()? {
-            break status;
-        }
-        if start.elapsed() >= timeout {
-            timed_out = true;
-            drop(child.kill());
-            break child.wait()?;
-        }
-        std::thread::sleep(Duration::from_millis(10));
-    };
-
-    let stderr_bytes = stderr_handle.join().unwrap_or_default();
-    Ok((status, timed_out, stderr_bytes))
-}
-
 pub(crate) fn validate_preset_template_with_program(
     preset: &FFmpegPreset,
     ffmpeg_program: &str,
@@ -220,8 +166,15 @@ pub(crate) fn validate_preset_template_with_program(
     let output_path = dir.join("ffui-out.mp4");
     let args = build_ffmpeg_args(preset, &input_path, &output_path, true, None);
 
+    let mut cmd = Command::new(ffmpeg_program);
+    cmd.args(&args);
+    crate::ffui_core::engine::configure_background_command(&mut cmd);
     let (status, timed_out, stderr_bytes) =
-        match run_with_timeout(ffmpeg_program, &args, Duration::from_millis(timeout_ms)) {
+        match crate::process_ext::run_command_with_timeout_capture_stderr(
+            cmd,
+            Duration::from_millis(timeout_ms),
+            STDERR_CAPTURE_LIMIT,
+        ) {
             Ok(out) => out,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 return PresetTemplateValidationResult {
@@ -256,7 +209,9 @@ pub(crate) fn validate_preset_template_with_program(
             ffmpeg_source,
             exit_code,
             stderr_summary,
-            message: Some("ffmpeg did not exit before timeout".to_string()),
+            message: Some(format!(
+                "ffmpeg did not exit before timeout ({timeout_ms}ms)"
+            )),
         };
     }
 

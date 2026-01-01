@@ -333,3 +333,18 @@ pub fn get_job_detail(
 ) -> Option<TranscodeJob> {
     engine.job_detail(&job_id)
 }
+
+/// Compute VMAF mean for a completed job (input vs output) and aggregate the
+/// measurement into the preset stats.
+#[tauri::command]
+pub async fn measure_job_vmaf(
+    engine: State<'_, TranscodingEngine>,
+    job_id: String,
+    trim_seconds: Option<f64>,
+) -> Result<f64, String> {
+    let engine = engine.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || engine.measure_job_vmaf(&job_id, trim_seconds))
+        .await
+        .map_err(|e| format!("failed to join measure_job_vmaf task: {e}"))?
+        .map_err(|e| e.to_string())
+}
