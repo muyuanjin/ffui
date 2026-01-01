@@ -443,6 +443,7 @@ updateSortableDisabled();
           >
             {{ t("presets.clearSelection") }}
           </Button>
+          <slot name="selection-actions-right" />
           <Button
             type="button"
             variant="ghost"

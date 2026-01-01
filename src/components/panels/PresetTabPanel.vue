@@ -70,8 +70,15 @@ const vmafDialogOpen = ref(false);
     @update:sortMode="props.setPresetSortMode"
     @update:viewMode="props.setPresetViewMode"
   >
-    <template #toolbar-actions>
-      <Button size="sm" variant="outline" class="h-7 px-3" :disabled="!hasTauri()" @click="vmafDialogOpen = true">
+    <template #selection-actions-right>
+      <Button
+        size="sm"
+        variant="outline"
+        class="h-7 px-2 text-[11px]"
+        data-testid="preset-vmaf-measure-open"
+        :disabled="!hasTauri()"
+        @click="vmafDialogOpen = true"
+      >
         {{ t("presets.vmafMeasureOpen") }}
       </Button>
     </template>
