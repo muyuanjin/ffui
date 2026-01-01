@@ -11,3 +11,4 @@ perf-traces.local
 pnpm-lock.yaml
 docs/perf-audit-*.md
 tools/agent-screenshots/
+public/vq/quality_snapshot.json

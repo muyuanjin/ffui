@@ -322,4 +322,102 @@ describe("predictFromVqResults", () => {
     expect(a?.bitrateKbps).toBeGreaterThan(b?.bitrateKbps ?? 0);
     expect(a?.vmaf?.value).toBeGreaterThan(b?.vmaf?.value ?? 0);
   });
+
+  it("uses preset bitrateKbps (and clamps to curve span) for bitrate-driven modes", () => {
+    const snapshot: VqResultsSnapshot = {
+      source: {
+        homepageUrl: "https://example.invalid",
+        dataUrl: "https://example.invalid/data.js",
+        title: "Test",
+        fetchedAtIso: new Date().toISOString(),
+      },
+      datasets: [
+        {
+          set: 1,
+          metric: "vmaf",
+          key: "x264_medium_crf",
+          label: "x264 medium crf",
+          points: [
+            { x: 1000, y: 90 },
+            { x: 2000, y: 100 },
+          ],
+        },
+      ],
+    };
+
+    const presetA: FFmpegPreset = {
+      id: "pA",
+      name: "pA",
+      description: "",
+      video: {
+        encoder: "libx264",
+        rateControl: "cbr",
+        bitrateKbps: 1500,
+        qualityValue: 1,
+        preset: "medium",
+      },
+      audio: { codec: "copy" as any },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+    };
+
+    const presetB: FFmpegPreset = { ...presetA, id: "pB", name: "pB", video: { ...presetA.video, qualityValue: 50 } };
+
+    const a = predictFromVqResults(snapshot, presetA);
+    const b = predictFromVqResults(snapshot, presetB);
+    expect(a?.bitrateKbps).toBeCloseTo(1500, 6);
+    expect(b?.bitrateKbps).toBeCloseTo(1500, 6);
+    expect(a?.vmaf?.value).toBeCloseTo(95, 6);
+    expect(b?.vmaf?.value).toBeCloseTo(95, 6);
+
+    const clamped = predictFromVqResults(snapshot, { ...presetA, video: { ...presetA.video, bitrateKbps: 9999 } });
+    expect(clamped?.bitrateKbps).toBeCloseTo(2000, 6);
+    expect(clamped?.vmaf?.value).toBeCloseTo(100, 6);
+  });
+
+  it("prefers an available CPU dataset key that matches the preset label when present", () => {
+    const snapshot: VqResultsSnapshot = {
+      source: {
+        homepageUrl: "https://example.invalid",
+        dataUrl: "https://example.invalid/data.js",
+        title: "Test",
+        fetchedAtIso: new Date().toISOString(),
+      },
+      datasets: [
+        {
+          set: 1,
+          metric: "vmaf",
+          key: "x264_medium_crf",
+          label: "x264 medium crf",
+          points: [
+            { x: 1000, y: 90 },
+            { x: 2000, y: 95 },
+          ],
+        },
+        {
+          set: 1,
+          metric: "vmaf",
+          key: "x264_slow_crf",
+          label: "x264 slow crf",
+          points: [
+            { x: 1000, y: 91 },
+            { x: 2000, y: 96 },
+          ],
+        },
+      ],
+    };
+
+    const preset: FFmpegPreset = {
+      id: "p",
+      name: "p",
+      description: "",
+      video: { encoder: "libx264", rateControl: "crf" as any, qualityValue: 24, preset: "slow" },
+      audio: { codec: "copy" as any },
+      filters: {},
+      stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+    };
+
+    const predicted = predictFromVqResults(snapshot, preset);
+    expect(predicted?.datasetKey).toBe("x264_slow_crf");
+  });
 });
