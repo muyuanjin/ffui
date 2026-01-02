@@ -1,9 +1,25 @@
 import type { FFmpegPreset } from "@/types";
 import { getPresetAvgRatio, getPresetAvgSpeed } from "@/lib/presetSorter";
+import { toFixedDisplay } from "@/lib/numberDisplay";
 import type { VqPredictedMetrics } from "@/lib/vqResults/predict";
 
 export const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const clamp05 = (v: number) => (v < 0 ? 0 : v > 5 ? 5 : v);
+
+export const formatMetricNumber = (value: unknown, digits: number): string => {
+  return toFixedDisplay(value as any, digits)?.text ?? "—";
+};
+
+export type MetricRange = { value: number; min?: number; max?: number };
+
+export const formatMetricRange = (value: MetricRange | undefined | null, digits: number): string => {
+  if (!value) return "—";
+  const main = formatMetricNumber(value.value, digits);
+  if (value.min == null || value.max == null) return main;
+  const min = formatMetricNumber(value.min, digits);
+  const max = formatMetricNumber(value.max, digits);
+  return `${main} (${min}–${max})`;
+};
 
 export const computeQualityFromVq = (predicted: VqPredictedMetrics): number | null => {
   const vmaf = predicted.vmaf?.value;

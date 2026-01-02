@@ -14,6 +14,8 @@ import type { VqResultsSnapshot } from "@/lib/vqResults/types";
 import {
   computePresetStatsSummary,
   computeQualityFromVq,
+  formatMetricNumber,
+  formatMetricRange,
   formatInputSize,
   formatMbPerSec,
   formatPercent,
@@ -163,20 +165,6 @@ const candidateDatasetKeys = computed(() => {
   }
   return Array.from(keys).sort((a, b) => a.localeCompare(b));
 });
-
-const formatNumber = (value: number | undefined | null, digits: number) => {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return value.toFixed(digits);
-};
-
-const formatRange = (value: { value: number; min?: number; max?: number } | undefined | null, digits: number) => {
-  if (!value) return "—";
-  const main = formatNumber(value.value, digits);
-  if (value.min == null || value.max == null) return main;
-  const min = formatNumber(value.min, digits);
-  const max = formatNumber(value.max, digits);
-  return `${main} (${min}–${max})`;
-};
 
 const ensureHardwareModelName = async (): Promise<string | null> => {
   if (!hasTauri()) return null;
@@ -359,7 +347,7 @@ watch(vqDatasetKeyOverride, (value) => {
       </div>
       <div class="text-right font-mono text-foreground">
         {{ statsSummary.usageCount }} · {{ formatInputSize(statsSummary.totalInputSizeMB) }} ·
-        {{ formatNumber(statsSummary.totalTimeSeconds, 1) }}s
+        {{ formatMetricNumber(statsSummary.totalTimeSeconds, 1) }}s
       </div>
     </div>
 
@@ -395,7 +383,7 @@ watch(vqDatasetKeyOverride, (value) => {
           <HelpTooltipIcon :text="t('vqResults.metrics.vmafHelp')" side="top" />
         </div>
         <div class="text-right font-mono text-foreground">
-          {{ formatRange(vqPredicted.vmaf, 1) }}
+          {{ formatMetricRange(vqPredicted.vmaf, 2) }}
         </div>
 
         <div class="flex items-center gap-1">
@@ -403,14 +391,14 @@ watch(vqDatasetKeyOverride, (value) => {
           <HelpTooltipIcon :text="t('vqResults.metrics.ssimHelp')" side="top" />
         </div>
         <div class="text-right font-mono text-foreground">
-          {{ formatRange(vqPredicted.ssim, 4) }}
+          {{ formatMetricRange(vqPredicted.ssim, 4) }}
         </div>
 
         <div class="flex items-center gap-1 col-span-1">
           <span class="font-medium text-foreground">{{ t("vqResults.metrics.bitrateLabel") }}</span>
           <HelpTooltipIcon :text="t('vqResults.metrics.bitrateHelp')" side="top" />
         </div>
-        <div class="text-right font-mono text-foreground">{{ formatNumber(vqPredicted.bitrateKbps, 0) }}k</div>
+        <div class="text-right font-mono text-foreground">{{ formatMetricNumber(vqPredicted.bitrateKbps, 0) }}k</div>
       </div>
 
       <div v-if="vqSnapshotTitle || vqSnapshotCachedAt" class="text-[10px] text-muted-foreground space-y-0.5">
