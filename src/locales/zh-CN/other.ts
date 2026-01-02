@@ -372,6 +372,7 @@ const other = {
       throughput: "{mbps} MB/s",
       fps: "FPS {fps}",
     },
+    usageCountUnit: "次",
     usedTimes: "已使用 {count} 次",
     totalIn: "输入：{gb} GB",
     videoLabel: "视频",

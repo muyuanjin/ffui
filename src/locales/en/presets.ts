@@ -69,6 +69,7 @@ const presets = {
     throughput: "{mbps} MB/s",
     fps: "FPS {fps}",
   },
+  usageCountUnit: "×",
   usedTimes: "Used {count} times",
   totalIn: "Input: {gb} GB",
   videoLabel: "Video",
