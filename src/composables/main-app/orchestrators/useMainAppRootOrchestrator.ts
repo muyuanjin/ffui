@@ -52,6 +52,7 @@ export function useMainAppRootOrchestrator() {
     activeTab: computed(() => shell.activeTab.value),
     jobs: computed(() => queue.jobs.value),
     appUpdateAvailable: computed(() => updater.updateAvailable.value),
+    screenFxOpen: computed(() => shell.screenFxOpen.value),
   });
 
   const sidebarListeners = {
@@ -61,6 +62,7 @@ export function useMainAppRootOrchestrator() {
     addJobFiles: () => presets.addManualJob("files"),
     addJobFolder: () => presets.addManualJob("folder"),
     batchCompress: dialogs.batchCompress.startBatchCompress,
+    toggleScreenFx: shell.toggleScreenFx,
   } as const;
 
   const globalAlertsProps = proxyRefs({
@@ -94,6 +96,12 @@ export function useMainAppRootOrchestrator() {
     sidebarListeners,
     globalAlertsProps,
     globalAlertsListeners,
+    screenFxProps: proxyRefs({
+      open: computed(() => shell.screenFxOpen.value),
+      jobs: computed(() => queue.jobs.value),
+      toggleOpen: shell.toggleScreenFx,
+      toggleFullscreen: shell.toggleFullscreen,
+    }),
     openToolsSettings,
   };
 }

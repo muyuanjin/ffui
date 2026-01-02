@@ -15,6 +15,7 @@ import MainSettingsTabHost from "@/components/main/MainSettingsTabHost.vue";
 import MainWaitingJobContextMenuHost from "@/components/main/MainWaitingJobContextMenuHost.vue";
 import MainDragOverlay from "@/components/main/MainDragOverlay.vue";
 import MainGlobalAlerts from "@/components/main/MainGlobalAlerts.vue";
+import ScreenFxOverlay from "@/components/screenfx/ScreenFxOverlay.vue";
 import { useMainAppRootOrchestrator } from "@/composables/main-app/orchestrators/useMainAppRootOrchestrator";
 
 const root = useMainAppRootOrchestrator();
@@ -30,6 +31,7 @@ const dnd = proxyRefs(root.dnd);
     @dragleave="dnd.handleDragLeave"
     @drop="dnd.handleDrop"
   >
+    <ScreenFxOverlay v-bind="root.screenFxProps" />
     <MainDragOverlay :active-tab="shell.activeTab" :is-dragging="dnd.isDragging" />
     <TitleBar v-bind="root.titleBarProps" v-on="root.titleBarListeners" />
     <div class="flex flex-1 min-h-0 flex-row overflow-hidden">

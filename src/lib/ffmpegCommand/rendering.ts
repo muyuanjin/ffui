@@ -75,7 +75,7 @@ const commandTokenClass = (kind: CommandTokenKind): string => {
       // Program + path tokens can be extremely long (absolute paths). Keep the
       // underlying text intact for copy/select, but visually truncate and rely
       // on the title tooltip to reveal the full value.
-      return "text-emerald-400 font-semibold inline-block max-w-[min(60vw,260px)] overflow-hidden text-ellipsis whitespace-nowrap align-bottom cursor-help";
+      return "text-white font-semibold inline-block max-w-[min(60vw,260px)] overflow-hidden text-ellipsis whitespace-nowrap align-bottom cursor-help";
     case "option":
       return "text-blue-400";
     case "path":
@@ -83,7 +83,7 @@ const commandTokenClass = (kind: CommandTokenKind): string => {
     case "encoder":
       return "text-purple-300";
     case "placeholder":
-      return "text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 rounded px-0.5 cursor-help";
+      return "text-white bg-white/10 hover:bg-white/20 rounded px-0.5 cursor-help";
     default:
       return "";
   }
