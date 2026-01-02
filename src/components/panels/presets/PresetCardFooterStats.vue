@@ -407,7 +407,7 @@ onMounted(() => {
             <span v-if="footerLabelUsedCount" class="text-muted-foreground">{{ footerLabelUsedCount }}</span>
             <span class="ml-1 inline-flex items-baseline gap-1">
               <span class="text-foreground">{{ preset.stats.usageCount }}</span>
-              <span class="text-muted-foreground">次</span>
+              <span class="text-muted-foreground">{{ t("presets.usageCountUnit") }}</span>
             </span>
           </span>
 
