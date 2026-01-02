@@ -134,6 +134,7 @@ const buildPresetFromState = (): FFmpegPreset => {
 
   const newPreset: FFmpegPreset = {
     id: props.initialPreset?.id ?? Date.now().toString(),
+    createdTimeMs: props.initialPreset?.createdTimeMs ?? (props.initialPreset ? undefined : Date.now()),
     name: name.value || (t("presetEditor.untitled") as string),
     description: description.value,
     global: props.initialPreset?.global ?? {

@@ -193,7 +193,8 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
         : shouldResetPresetStats(existing, preset)
           ? makeZeroPresetStats()
           : existing.stats;
-    const normalizedPreset: FFmpegPreset = { ...preset, stats: nextStats };
+    const createdTimeMs = existing?.createdTimeMs ?? preset.createdTimeMs ?? (existing ? undefined : Date.now());
+    const normalizedPreset: FFmpegPreset = { ...preset, createdTimeMs, stats: nextStats };
     if (idx >= 0) {
       presets.value.splice(idx, 1, normalizedPreset);
     } else {

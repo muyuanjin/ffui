@@ -1,7 +1,17 @@
-import type { PresetSortMode, PresetViewMode } from "@/types";
+import type { PresetSortDirection, PresetSortMode, PresetViewMode } from "@/types";
 
-export const PRESET_SORT_MODES: PresetSortMode[] = ["manual", "usage", "inputSize", "ratio", "speed", "name"];
+export const PRESET_SORT_MODES: PresetSortMode[] = [
+  "manual",
+  "usage",
+  "inputSize",
+  "createdTime",
+  "ratio",
+  "vmaf",
+  "speed",
+  "name",
+];
 export const PRESET_VIEW_MODES: PresetViewMode[] = ["grid", "compact"];
+export const PRESET_SORT_DIRECTIONS: PresetSortDirection[] = ["asc", "desc"];
 
 export const normalizePresetSortMode = (value: unknown, fallback: PresetSortMode): PresetSortMode => {
   return typeof value === "string" && PRESET_SORT_MODES.includes(value as PresetSortMode)
@@ -12,5 +22,11 @@ export const normalizePresetSortMode = (value: unknown, fallback: PresetSortMode
 export const normalizePresetViewMode = (value: unknown, fallback: PresetViewMode): PresetViewMode => {
   return typeof value === "string" && PRESET_VIEW_MODES.includes(value as PresetViewMode)
     ? (value as PresetViewMode)
+    : fallback;
+};
+
+export const normalizePresetSortDirection = (value: unknown, fallback: PresetSortDirection): PresetSortDirection => {
+  return typeof value === "string" && PRESET_SORT_DIRECTIONS.includes(value as PresetSortDirection)
+    ? (value as PresetSortDirection)
     : fallback;
 };

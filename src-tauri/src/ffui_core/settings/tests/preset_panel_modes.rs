@@ -1,11 +1,14 @@
 use serde_json::{Value, json};
 
-use crate::ffui_core::settings::types::{AppSettings, PresetSortMode, PresetViewMode};
+use crate::ffui_core::settings::types::{
+    AppSettings, PresetSortDirection, PresetSortMode, PresetViewMode,
+};
 
 #[test]
 fn app_settings_round_trips_preset_panel_modes() {
     let settings = AppSettings {
-        preset_sort_mode: Some(PresetSortMode::Name),
+        preset_sort_mode: Some(PresetSortMode::CreatedTime),
+        preset_sort_direction: Some(PresetSortDirection::Desc),
         preset_view_mode: Some(PresetViewMode::Compact),
         ..AppSettings::default()
     };
@@ -14,8 +17,13 @@ fn app_settings_round_trips_preset_panel_modes() {
         serde_json::to_value(&settings).expect("serialize AppSettings with preset panel modes");
     assert_eq!(
         value.get("presetSortMode").and_then(Value::as_str),
-        Some("name"),
+        Some("createdTime"),
         "presetSortMode must serialize as camelCase string",
+    );
+    assert_eq!(
+        value.get("presetSortDirection").and_then(Value::as_str),
+        Some("desc"),
+        "presetSortDirection must serialize as camelCase string",
     );
     assert_eq!(
         value.get("presetViewMode").and_then(Value::as_str),
@@ -25,7 +33,11 @@ fn app_settings_round_trips_preset_panel_modes() {
 
     let decoded: AppSettings =
         serde_json::from_value(value).expect("deserialize AppSettings with preset panel modes");
-    assert_eq!(decoded.preset_sort_mode, Some(PresetSortMode::Name));
+    assert_eq!(decoded.preset_sort_mode, Some(PresetSortMode::CreatedTime));
+    assert_eq!(
+        decoded.preset_sort_direction,
+        Some(PresetSortDirection::Desc)
+    );
     assert_eq!(decoded.preset_view_mode, Some(PresetViewMode::Compact));
 }
 
@@ -47,6 +59,7 @@ fn app_settings_normalizes_unknown_preset_panel_modes() {
             "videoPresetId": ""
         },
         "presetSortMode": "thisIsNotARealMode",
+        "presetSortDirection": "alsoInvalid",
         "presetViewMode": "alsoInvalid"
     }))
     .expect("deserialize AppSettings with unknown preset panel modes");
@@ -57,6 +70,10 @@ fn app_settings_normalizes_unknown_preset_panel_modes() {
         "unknown presetSortMode must normalize to None"
     );
     assert!(
+        decoded.preset_sort_direction.is_none(),
+        "unknown presetSortDirection must normalize to None"
+    );
+    assert!(
         decoded.preset_view_mode.is_none(),
         "unknown presetViewMode must normalize to None"
     );
@@ -65,6 +82,10 @@ fn app_settings_normalizes_unknown_preset_panel_modes() {
     assert!(
         reserialized.get("presetSortMode").is_none(),
         "presetSortMode should be absent after normalization"
+    );
+    assert!(
+        reserialized.get("presetSortDirection").is_none(),
+        "presetSortDirection should be absent after normalization"
     );
     assert!(
         reserialized.get("presetViewMode").is_none(),

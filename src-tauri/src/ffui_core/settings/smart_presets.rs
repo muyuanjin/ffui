@@ -172,6 +172,7 @@ impl From<SerializablePreset> for FFmpegPreset {
             id: value.id,
             name: value.name,
             description: value.description,
+            created_time_ms: None,
             description_i18n: value.description_i18n,
             global: value.global,
             input: value.input,

@@ -9,9 +9,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { sortPresets } from "@/lib/presetSorter";
+import { getDefaultPresetSortDirection, sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
-import type { FFmpegPreset, PresetCardFooterSettings, PresetSortMode } from "@/types";
+import type { FFmpegPreset, PresetCardFooterSettings, PresetSortDirection, PresetSortMode } from "@/types";
 import { GripVertical, Copy, Download, Upload, ChevronDown, LayoutGrid, LayoutList } from "lucide-vue-next";
 import type { AcceptableValue } from "@/components/ui/select";
 import type { SortableEvent } from "sortablejs";
@@ -19,11 +19,14 @@ import PresetRowCompact from "./presets/PresetRowCompact.vue";
 import PresetCardGrid from "./presets/PresetCardGrid.vue";
 import { usePredictedVmafByPresetId } from "./presets/usePredictedVmafByPresetId";
 import PresetPanelSelectionActionsBar from "./presets/PresetPanelSelectionActionsBar.vue";
+import PresetSortDirectionToggle from "./presets/PresetSortDirectionToggle.vue";
+import { PRESET_SORT_OPTIONS } from "./presets/presetSortOptions";
 type ViewMode = "grid" | "compact";
 const props = withDefaults(
   defineProps<{
     presets: FFmpegPreset[];
     sortMode?: PresetSortMode;
+    sortDirection?: PresetSortDirection;
     viewMode?: ViewMode;
     /** 是否固定选择操作栏（即使没有选中项也显示） */
     selectionBarPinned?: boolean;
@@ -32,6 +35,7 @@ const props = withDefaults(
   }>(),
   {
     sortMode: "manual",
+    sortDirection: undefined,
     viewMode: "grid",
     selectionBarPinned: false,
     presetCardFooter: null,
@@ -52,6 +56,7 @@ const emit = defineEmits<{
   importBundleFromClipboard: [];
   importCommands: [];
   "update:sortMode": [mode: PresetSortMode];
+  "update:sortDirection": [direction: PresetSortDirection];
   "update:viewMode": [mode: ViewMode];
   "update:selectionBarPinned": [value: boolean];
 }>();
@@ -85,12 +90,25 @@ const handleViewModeChange = (mode: ViewMode) => {
 
 // 排序模式
 const localSortMode = ref<PresetSortMode>(props.sortMode);
+const localSortDirection = ref<PresetSortDirection>(
+  props.sortDirection ?? getDefaultPresetSortDirection(props.sortMode),
+);
 
 // 监听 prop 变化
 watch(
   () => props.sortMode,
   (newMode) => {
     localSortMode.value = newMode;
+    if (!props.sortDirection) {
+      localSortDirection.value = getDefaultPresetSortDirection(newMode);
+    }
+  },
+);
+watch(
+  () => props.sortDirection,
+  (newDirection) => {
+    if (!newDirection) return;
+    localSortDirection.value = newDirection;
   },
 );
 
@@ -100,27 +118,35 @@ const handleSortModeChange = (value: AcceptableValue) => {
   const mode = value as PresetSortMode;
   localSortMode.value = mode;
   emit("update:sortMode", mode);
+
+  const nextDirection = getDefaultPresetSortDirection(mode);
+  if (localSortDirection.value !== nextDirection) {
+    localSortDirection.value = nextDirection;
+  }
+  emit("update:sortDirection", nextDirection);
 };
 
-// 排序选项配置
-const sortOptions: { value: PresetSortMode; labelKey: string }[] = [
-  { value: "manual", labelKey: "presets.sortManual" },
-  { value: "usage", labelKey: "presets.sortUsage" },
-  { value: "inputSize", labelKey: "presets.sortInputSize" },
-  { value: "ratio", labelKey: "presets.sortRatio" },
-  { value: "speed", labelKey: "presets.sortSpeed" },
-  { value: "name", labelKey: "presets.sortName" },
-];
+const handleToggleSortDirection = () => {
+  if (localSortMode.value === "manual") return;
+  const next = localSortDirection.value === "asc" ? "desc" : "asc";
+  localSortDirection.value = next;
+  emit("update:sortDirection", next);
+};
 
 // 计算排序后的预设列表
-const sortedPresets = computed(() => sortPresets(localPresets.value, localSortMode.value));
+const sortedPresets = computed(() =>
+  sortPresets(localPresets.value, localSortMode.value, {
+    predictedVmafByPresetId: predictedVmafByPresetId.value,
+    direction: localSortDirection.value,
+  }),
+);
 
 // 当前排序方式的本地化文案（SelectValue 将使用自定义插槽展示，避免切换语言后仍显示旧文本）
 const currentSortLabel = computed(() => {
   // 读取 locale 以建立响应式依赖，切换语言后触发重算
   // eslint-disable-next-line @typescript-eslint/no-unused-expressions
   locale.value;
-  const option = sortOptions.find((o) => o.value === localSortMode.value);
+  const option = PRESET_SORT_OPTIONS.find((o) => o.value === localSortMode.value);
   return option ? t(option.labelKey) : "";
 });
 
@@ -252,7 +278,6 @@ updateSortableDisabled();
           </div>
 
           <div class="flex items-center gap-2 shrink-0">
-            <slot name="toolbar-actions" />
             <Select :model-value="localSortMode" @update:model-value="handleSortModeChange">
               <SelectTrigger
                 class="h-6 px-2 text-xs rounded-md bg-background/50 border-border/50 hover:bg-background/80 min-w-[100px]"
@@ -260,11 +285,17 @@ updateSortableDisabled();
                 <SelectValue>{{ currentSortLabel }}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem v-for="option in sortOptions" :key="option.value" :value="option.value">
+                <SelectItem v-for="option in PRESET_SORT_OPTIONS" :key="option.value" :value="option.value">
                   {{ t(option.labelKey) }}
                 </SelectItem>
               </SelectContent>
             </Select>
+
+            <PresetSortDirectionToggle
+              :direction="localSortDirection"
+              :disabled="localSortMode === 'manual'"
+              @toggle="handleToggleSortDirection"
+            />
 
             <div class="flex border rounded-md flex-shrink-0">
               <Button
@@ -298,6 +329,8 @@ updateSortableDisabled();
             >
               {{ t("presets.importSmartPack") }}
             </Button>
+
+            <slot name="toolbar-actions" />
             <div class="flex border rounded-md flex-shrink-0 overflow-hidden">
               <Button
                 variant="ghost"

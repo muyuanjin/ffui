@@ -88,6 +88,7 @@ fn make_preset(template: &str) -> FFmpegPreset {
         id: "p".to_string(),
         name: "p".to_string(),
         description: "".to_string(),
+        created_time_ms: None,
         description_i18n: None,
         global: None,
         input: None,

@@ -7,6 +7,7 @@ const makePreset = (overrides: Partial<FFmpegPreset>): FFmpegPreset => ({
   id: overrides.id ?? "preset-id",
   name: overrides.name ?? "Preset",
   description: overrides.description ?? "Desc",
+  createdTimeMs: overrides.createdTimeMs,
   video: overrides.video ?? {
     encoder: "libx264",
     rateControl: "crf",
@@ -173,5 +174,126 @@ describe("presetSorter.sortPresets", () => {
 
     // 40% < 70% < 90%，最后是没有统计数据的预设
     expect(ids).toEqual(["strong", "medium", "weak", "no-stats"]);
+  });
+
+  it("按视频质量（VMAF）排序时，VMAF 越高的预设排在前面，没有数据的排在最后", () => {
+    const high = makePreset({
+      id: "high",
+      name: "High",
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+        vmafCount: 2,
+        vmafSum: 198, // mean 99
+      },
+    });
+
+    const mid = makePreset({
+      id: "mid",
+      name: "Mid",
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+        vmafCount: 2,
+        vmafSum: 190, // mean 95
+      },
+    });
+
+    const none = makePreset({
+      id: "none",
+      name: "None",
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+        vmafCount: 0,
+        vmafSum: 0,
+      },
+    });
+
+    const sorted = sortPresets([none, mid, high], "vmaf" as PresetSortMode);
+    expect(sorted.map((p) => p.id)).toEqual(["high", "mid", "none"]);
+  });
+
+  it("按视频质量（VMAF）排序时，在缺少测量数据时可使用 predictedVmafByPresetId 兜底", () => {
+    const measured = makePreset({
+      id: "measured",
+      name: "Measured",
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+        vmafCount: 2,
+        vmafSum: 190, // mean 95
+      },
+    });
+
+    const predictedOnly = makePreset({
+      id: "predicted-only",
+      name: "PredictedOnly",
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+        vmafCount: 0,
+        vmafSum: 0,
+      },
+    });
+
+    const sorted = sortPresets([measured, predictedOnly], "vmaf" as PresetSortMode, {
+      predictedVmafByPresetId: new Map([["predicted-only", 98]]),
+    });
+    expect(sorted.map((p) => p.id)).toEqual(["predicted-only", "measured"]);
+  });
+
+  it("按创建时间排序时，默认按降序（新的在前），缺失 createdTimeMs 的预设按最旧处理", () => {
+    const oldNoTimestamp = makePreset({
+      id: "old",
+      name: "Old",
+    });
+
+    const mid = makePreset({
+      id: "mid",
+      name: "Mid",
+      createdTimeMs: 100,
+    });
+
+    const newest = makePreset({
+      id: "newest",
+      name: "Newest",
+      createdTimeMs: 200,
+    });
+
+    const sorted = sortPresets([mid, newest, oldNoTimestamp], "createdTime" as PresetSortMode);
+    expect(sorted.map((p) => p.id)).toEqual(["newest", "mid", "old"]);
+  });
+
+  it("按创建时间排序时支持升序", () => {
+    const oldNoTimestamp = makePreset({
+      id: "old",
+      name: "Old",
+    });
+
+    const mid = makePreset({
+      id: "mid",
+      name: "Mid",
+      createdTimeMs: 100,
+    });
+
+    const newest = makePreset({
+      id: "newest",
+      name: "Newest",
+      createdTimeMs: 200,
+    });
+
+    const sorted = sortPresets([mid, newest, oldNoTimestamp], "createdTime" as PresetSortMode, { direction: "asc" });
+    expect(sorted.map((p) => p.id)).toEqual(["old", "mid", "newest"]);
   });
 });

@@ -117,6 +117,7 @@ pub(super) fn base_preset(
         id: id.to_string(),
         name: name.to_string(),
         description: description.to_string(),
+        created_time_ms: None,
         description_i18n: None,
         global: None,
         input: None,

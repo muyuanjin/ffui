@@ -68,6 +68,7 @@ pub fn make_ffmpeg_preset_for_tests(id: &str) -> crate::ffui_core::FFmpegPreset 
         id: id.to_string(),
         name: "Test Preset".to_string(),
         description: "Preset used for unit tests".to_string(),
+        created_time_ms: None,
         description_i18n: None,
         global: None,
         input: None,

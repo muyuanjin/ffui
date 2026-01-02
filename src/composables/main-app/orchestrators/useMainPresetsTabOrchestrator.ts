@@ -1,6 +1,12 @@
 import { computed, proxyRefs } from "vue";
 import { useDialogsDomain, usePresetsDomain, useSettingsDomain } from "@/MainApp.setup";
-import type { AppSettings, PresetCardFooterSettings, PresetSortMode, PresetViewMode } from "@/types";
+import type {
+  AppSettings,
+  PresetCardFooterSettings,
+  PresetSortDirection,
+  PresetSortMode,
+  PresetViewMode,
+} from "@/types";
 
 export function useMainPresetsTabOrchestrator() {
   const dialogs = useDialogsDomain();
@@ -30,6 +36,7 @@ export function useMainPresetsTabOrchestrator() {
   const panelProps = proxyRefs({
     presets: computed(() => presets.presets),
     presetSortMode: computed(() => presets.presetSortMode),
+    presetSortDirection: computed(() => presets.presetSortDirection),
     presetViewMode: computed(() => presets.presetViewMode),
     presetSelectionBarPinned: computed(() => presets.presetSelectionBarPinned),
     presetCardFooter,
@@ -39,6 +46,9 @@ export function useMainPresetsTabOrchestrator() {
     setPresetSelectionBarPinned: presets.setPresetSelectionBarPinned,
     setPresetSortMode: (mode: PresetSortMode) => {
       presets.presetSortMode = mode;
+    },
+    setPresetSortDirection: (direction: PresetSortDirection) => {
+      presets.presetSortDirection = direction;
     },
     setPresetViewMode: (mode: PresetViewMode) => {
       presets.presetViewMode = mode;

@@ -5,6 +5,7 @@ fn make_test_preset(keep_subtitles: bool) -> FFmpegPreset {
         id: "preset-test".to_string(),
         name: "preset-test".to_string(),
         description: "test".to_string(),
+        created_time_ms: None,
         description_i18n: None,
         global: None,
         input: None,

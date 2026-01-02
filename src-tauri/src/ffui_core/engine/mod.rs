@@ -245,12 +245,25 @@ impl TranscodingEngine {
         state.presets.clone()
     }
     /// Save or update a preset.
-    pub fn save_preset(&self, preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
+    pub fn save_preset(&self, mut preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let now_ms = || {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .ok()
+                .and_then(|d| u64::try_from(d.as_millis()).ok())
+        };
+
         let mut state = self.inner.state.lock_unpoisoned();
         let presets = Arc::make_mut(&mut state.presets);
         if let Some(existing) = presets.iter_mut().find(|p| p.id == preset.id) {
+            preset.created_time_ms = existing.created_time_ms.or(preset.created_time_ms);
             *existing = preset;
         } else {
+            if preset.created_time_ms.is_none() {
+                preset.created_time_ms = now_ms();
+            }
             presets.push(preset);
         }
         settings::save_presets(presets)?;

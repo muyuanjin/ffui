@@ -243,6 +243,8 @@ export interface FFmpegPreset {
   id: string;
   name: string;
   description: string;
+  /** Optional creation timestamp for UI sorting. */
+  createdTimeMs?: number;
   /** Optional localized descriptions keyed by locale, e.g. { "en": "...", "zh-CN": "..." } */
   descriptionI18n?: Record<string, string>;
   /** Optional global ffmpeg options (loglevel, overwrite, banner, report). */
