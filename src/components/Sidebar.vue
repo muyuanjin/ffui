@@ -4,8 +4,6 @@ import { useI18n } from "vue-i18n";
 import type { TranscodeJob } from "@/types";
 import { computed, type Component } from "vue";
 import { Activity, Film, ListTodo, Settings2, SlidersHorizontal } from "lucide-vue-next";
-import { FFUI_GITHUB_REPO_URL } from "@/constants/community";
-import { openExternalUrl } from "@/lib/externalLinks";
 
 const { activeTab, jobs } = defineProps<{
   /** Current active tab */
@@ -14,6 +12,8 @@ const { activeTab, jobs } = defineProps<{
   jobs: TranscodeJob[];
   /** Whether an app update is currently available. */
   appUpdateAvailable?: boolean;
+  /** Whether the screen FX overlay is currently open. */
+  screenFxOpen?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -21,6 +21,7 @@ const emit = defineEmits<{
   addJobFiles: [];
   addJobFolder: [];
   batchCompress: [];
+  toggleScreenFx: [];
 }>();
 
 const { t } = useI18n();
@@ -50,8 +51,6 @@ const processingCount = computed(() => jobs.filter((j) => j.status === "processi
 const setActiveTab = (tab: "queue" | "presets" | "media" | "monitor" | "settings") => {
   emit("update:activeTab", tab);
 };
-
-const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
 </script>
 
 <template>
@@ -63,8 +62,9 @@ const openRepo = async () => openExternalUrl(FFUI_GITHUB_REPO_URL);
             type="button"
             class="h-10 w-10 rounded-lg flex items-center justify-center overflow-hidden hover:bg-sidebar-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             data-testid="ffui-sidebar-logo-link"
-            :title="t('app.openRepo')"
-            @click="openRepo"
+            :title="t('app.toggleScreenFx')"
+            :aria-pressed="screenFxOpen ? 'true' : 'false'"
+            @click="emit('toggleScreenFx')"
           >
             <img src="/ffui.svg" alt="FFUI" class="h-10 w-10" />
           </button>

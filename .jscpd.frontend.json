@@ -17,6 +17,8 @@
     "**/__tests__/**",
     "**/components/__tests__/**",
     "**/components/ui/**",
+    "**/boot/bootFx.ts",
+    "**/boot/bootFxTextStream.ts",
     "**/locales/**"
   ],
   "exitCode": 1

@@ -337,6 +337,7 @@ const app = {
   openDevtools: "Open Devtools",
   openDevtoolsUnavailable: "Running in pure web mode; use your browser's devtools instead.",
   openRepo: "Open GitHub repo",
+  toggleScreenFx: "Toggle screen FX overlay (F11 fullscreen)",
   exitConfirm: {
     title: "Exit FFUI?",
     description: "{count} job(s) are still running. How do you want to exit?",

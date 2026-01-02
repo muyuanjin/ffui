@@ -323,6 +323,7 @@ const app = {
   openDevtools: "打开开发者工具",
   openDevtoolsUnavailable: "当前运行在纯网页模式，无法通过应用内按钮打开开发者工具。",
   openRepo: "打开项目仓库（GitHub）",
+  toggleScreenFx: "切换屏保特效（F11 全屏）",
   exitConfirm: {
     title: "退出 FFUI？",
     description: "检测到 {count} 个任务仍在转码。你希望如何退出？",
