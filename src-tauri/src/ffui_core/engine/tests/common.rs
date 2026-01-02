@@ -5,6 +5,7 @@ pub(crate) fn make_test_preset() -> FFmpegPreset {
         id: "preset-1".to_string(),
         name: "Test Preset".to_string(),
         description: "Preset used for unit tests".to_string(),
+        created_time_ms: None,
         description_i18n: None,
         global: None,
         input: None,

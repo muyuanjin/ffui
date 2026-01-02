@@ -2,7 +2,7 @@
 import { computed, ref } from "vue";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import type { FFmpegPreset, OutputPolicy, PresetSortMode } from "@/types";
+import type { FFmpegPreset, OutputPolicy, PresetSortDirection, PresetSortMode } from "@/types";
 import { sortPresets } from "@/lib/presetSorter";
 import { useI18n } from "vue-i18n";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -22,6 +22,7 @@ const props = defineProps<{
   presets: FFmpegPreset[];
   queueViewModeModel: QueueViewMode;
   presetSortMode?: PresetSortMode;
+  presetSortDirection?: PresetSortDirection;
   queueOutputPolicy?: OutputPolicy;
   carouselAutoRotationSpeed?: number;
 }>();
@@ -37,7 +38,9 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 // 根据排序模式排序预设列表
-const sortedPresets = computed(() => sortPresets(props.presets, props.presetSortMode ?? "manual"));
+const sortedPresets = computed(() =>
+  sortPresets(props.presets, props.presetSortMode ?? "manual", { direction: props.presetSortDirection }),
+);
 
 const queueViewModeLabelKey = computed(() => {
   switch (props.queueViewModeModel) {

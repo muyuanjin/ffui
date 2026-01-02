@@ -18,6 +18,7 @@ export function useMainContentHeaderOrchestrator() {
     presets: computed(() => presets.presets),
     queueViewModeModel: computed(() => queue.queueViewModeModel),
     presetSortMode: computed(() => presets.presetSortMode),
+    presetSortDirection: computed(() => presets.presetSortDirection),
     queueOutputPolicy: computed(() => queue.queueOutputPolicy),
     carouselAutoRotationSpeed: computed(() => queue.carouselAutoRotationSpeed),
   });

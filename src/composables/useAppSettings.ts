@@ -172,14 +172,19 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
   );
 
   // ----- Methods -----
-  const cancelScheduledSave = () => {
+  const cancelScheduledSave = (options?: { cancelIdle?: boolean }) => {
+    const cancelIdle = options?.cancelIdle ?? true;
     if (settingsSaveTimer !== undefined) {
       window.clearTimeout(settingsSaveTimer);
       settingsSaveTimer = undefined;
     }
     if (settingsSaveIdleHandle !== undefined) {
       // requestIdleCallback is not available in all runtimes (e.g. some test envs / browsers).
-      if (typeof window.requestIdleCallback === "function" && typeof window.cancelIdleCallback === "function") {
+      if (
+        cancelIdle &&
+        typeof window.requestIdleCallback === "function" &&
+        typeof window.cancelIdleCallback === "function"
+      ) {
         window.cancelIdleCallback(settingsSaveIdleHandle);
       }
       settingsSaveIdleHandle = undefined;
@@ -304,7 +309,7 @@ export function useAppSettings(options: UseAppSettingsOptions = {}): UseAppSetti
     const current = nextSettings ?? appSettings.value;
     if (!current) return;
 
-    cancelScheduledSave();
+    cancelScheduledSave({ cancelIdle: false });
     settingsSaveError.value = null;
 
     const serialized = await stringifyJsonAsync(current);

@@ -30,7 +30,7 @@ use crate::ffui_core::domain::{
     BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
 };
 pub use preset_card_footer::PresetCardFooterSettings;
-pub use preset_panel_modes::{PresetSortMode, PresetViewMode};
+pub use preset_panel_modes::{PresetSortDirection, PresetSortMode, PresetViewMode};
 
 pub const fn default_preview_capture_percent() -> u8 {
     25
@@ -109,6 +109,9 @@ pub struct AppSettings {
     /// Optional preset sort mode for the presets panel and dropdown.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset_sort_mode: Option<PresetSortMode>,
+    /// Optional preset sort direction for the presets panel and dropdown.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub preset_sort_direction: Option<PresetSortDirection>,
     /// Optional preset view mode for the presets panel.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preset_view_mode: Option<PresetViewMode>,
@@ -206,6 +209,12 @@ impl AppSettings {
         types_helpers::normalize_string_option(&mut self.vmaf_measure_reference_path);
         if matches!(self.preset_sort_mode, Some(PresetSortMode::Unknown)) {
             self.preset_sort_mode = None;
+        }
+        if matches!(
+            self.preset_sort_direction,
+            Some(PresetSortDirection::Unknown)
+        ) {
+            self.preset_sort_direction = None;
         }
         if matches!(self.preset_view_mode, Some(PresetViewMode::Unknown)) {
             self.preset_view_mode = None;
@@ -322,6 +331,7 @@ impl Default for AppSettings {
             developer_mode_enabled: false,
             default_queue_preset_id: None,
             preset_sort_mode: None,
+            preset_sort_direction: None,
             preset_view_mode: None,
             preset_card_footer: None,
             vmaf_measure_reference_path: None,

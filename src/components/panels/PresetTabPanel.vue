@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { hasTauri } from "@/lib/backend";
 import { ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { FFmpegPreset, PresetCardFooterSettings, PresetSortMode, PresetViewMode } from "@/types";
+import type {
+  FFmpegPreset,
+  PresetCardFooterSettings,
+  PresetSortDirection,
+  PresetSortMode,
+  PresetViewMode,
+} from "@/types";
 
 type DialogManager = ReturnType<typeof useDialogManager>;
 type PresetsModule = ReturnType<typeof useMainAppPresets>;
@@ -15,6 +21,7 @@ type PresetsModule = ReturnType<typeof useMainAppPresets>;
 const props = defineProps<{
   presets: FFmpegPreset[];
   presetSortMode: PresetSortMode;
+  presetSortDirection: PresetSortDirection;
   presetViewMode: PresetViewMode;
   presetSelectionBarPinned: boolean;
   presetCardFooter: PresetCardFooterSettings | null;
@@ -23,6 +30,7 @@ const props = defineProps<{
   ensureAppSettingsLoaded: () => Promise<void>;
   setPresetSelectionBarPinned: (pinned: boolean) => void;
   setPresetSortMode: (mode: PresetSortMode) => void;
+  setPresetSortDirection: (direction: PresetSortDirection) => void;
   setPresetViewMode: (mode: PresetViewMode) => void;
   dialogManager: DialogManager;
   presetsModule: PresetsModule;
@@ -50,6 +58,7 @@ const vmafDialogOpen = ref(false);
   <PresetPanel
     :presets="props.presets"
     :sort-mode="props.presetSortMode"
+    :sort-direction="props.presetSortDirection"
     :view-mode="props.presetViewMode"
     :selection-bar-pinned="props.presetSelectionBarPinned"
     :preset-card-footer="props.presetCardFooter"
@@ -68,9 +77,10 @@ const vmafDialogOpen = ref(false);
     @importBundleFromClipboard="importPresetsBundleFromClipboard"
     @importCommands="props.dialogManager.openImportCommands()"
     @update:sortMode="props.setPresetSortMode"
+    @update:sortDirection="props.setPresetSortDirection"
     @update:viewMode="props.setPresetViewMode"
   >
-    <template #selection-actions-right>
+    <template #toolbar-actions>
       <Button
         size="sm"
         variant="outline"

@@ -38,6 +38,9 @@ pub struct FFmpegPreset {
     pub id: String,
     pub name: String,
     pub description: String,
+    /// Optional creation timestamp (Unix epoch, milliseconds) for UI sorting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_time_ms: Option<u64>,
     pub description_i18n: Option<HashMap<String, String>>,
     pub global: Option<GlobalConfig>,
     pub input: Option<InputTimelineConfig>,

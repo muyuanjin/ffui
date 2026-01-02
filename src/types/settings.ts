@@ -21,7 +21,10 @@ export interface AppUpdaterSettings {
 }
 
 /** 预设排序方式 */
-export type PresetSortMode = "manual" | "usage" | "inputSize" | "ratio" | "speed" | "name";
+export type PresetSortMode = "manual" | "usage" | "inputSize" | "createdTime" | "ratio" | "vmaf" | "speed" | "name";
+
+/** 预设排序方向 */
+export type PresetSortDirection = "asc" | "desc";
 
 /** 预设面板视图模式 */
 export type PresetViewMode = "grid" | "compact";
@@ -100,6 +103,8 @@ export interface SettingsPresetsDomain {
   defaultQueuePresetId?: string;
   /** Optional preset sort mode for the presets panel and dropdown. */
   presetSortMode?: PresetSortMode;
+  /** Optional preset sort direction for the presets panel and dropdown. */
+  presetSortDirection?: PresetSortDirection;
   /** Optional preset view mode for the presets panel (grid or compact). */
   presetViewMode?: PresetViewMode;
   /** Whether the preset selection actions bar should remain visible even when no presets are selected. */

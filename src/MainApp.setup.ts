@@ -1,6 +1,13 @@
 import { computed, inject, provide, ref, watch, type InjectionKey } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AppSettings, FFmpegPreset, PresetSortMode, PresetViewMode, TranscodeJob } from "@/types";
+import type {
+  AppSettings,
+  FFmpegPreset,
+  PresetSortDirection,
+  PresetSortMode,
+  PresetViewMode,
+  TranscodeJob,
+} from "@/types";
 import { useMainAppShell } from "@/composables/main-app/useMainAppShell";
 import { useMainAppDialogs } from "@/composables/main-app/useMainAppDialogs";
 import { useMainAppBatchCompress } from "@/composables/main-app/useMainAppBatchCompress";
@@ -24,6 +31,7 @@ import { useQueueStartupToast } from "@/composables/main-app/useQueueStartupToas
 import { useBodyPointerEventsFailsafe } from "@/composables/main-app/useBodyPointerEventsFailsafe";
 import { usePresetPanelModePersistence } from "@/composables/main-app/usePresetPanelModePersistence";
 import type { MainAppQueueTabModule } from "@/MainApp.types";
+import { getDefaultPresetSortDirection } from "@/lib/presetSorter";
 
 export function createMainAppContext() {
   const { t, locale } = useI18n();
@@ -36,6 +44,7 @@ export function createMainAppContext() {
   const presetsLoadedFromBackend = ref(false);
   const manualJobPresetId = ref<string | null>(null);
   const presetSortMode = ref<PresetSortMode>("manual");
+  const presetSortDirection = ref<PresetSortDirection>(getDefaultPresetSortDirection(presetSortMode.value));
   const presetViewMode = ref<PresetViewMode>("grid");
   const completedCount = computed(() => jobs.value.filter((job) => job.status === "completed").length);
   // Startup idle gate: defer non-critical startup calls until after first paint.
@@ -126,6 +135,7 @@ export function createMainAppContext() {
   useUiAppearanceSync(settings.appSettings);
   usePresetPanelModePersistence({
     presetSortMode,
+    presetSortDirection,
     presetViewMode,
     appSettings: settings.appSettings,
     ensureAppSettingsLoaded: settings.ensureAppSettingsLoaded,
@@ -422,6 +432,7 @@ export function createMainAppContext() {
     presetsLoadedFromBackend: typeof presetsLoadedFromBackend;
     manualJobPresetId: typeof manualJobPresetId;
     presetSortMode: typeof presetSortMode;
+    presetSortDirection: typeof presetSortDirection;
     presetViewMode: typeof presetViewMode;
     presetSelectionBarPinned: typeof presetSelectionBarPinned;
     setPresetSelectionBarPinned: typeof setPresetSelectionBarPinned;
@@ -431,6 +442,7 @@ export function createMainAppContext() {
   presetsDomain.presetsLoadedFromBackend = presetsLoadedFromBackend;
   presetsDomain.manualJobPresetId = manualJobPresetId;
   presetsDomain.presetSortMode = presetSortMode;
+  presetsDomain.presetSortDirection = presetSortDirection;
   presetsDomain.presetViewMode = presetViewMode;
   presetsDomain.presetSelectionBarPinned = presetSelectionBarPinned;
   presetsDomain.setPresetSelectionBarPinned = setPresetSelectionBarPinned;

@@ -104,6 +104,7 @@ export type {
 export type {
   AppSettings,
   PresetSortMode,
+  PresetSortDirection,
   PresetViewMode,
   PresetCardFooterLayout,
   PresetCardFooterItemKey,

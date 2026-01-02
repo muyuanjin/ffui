@@ -113,6 +113,7 @@ mod tests {
             id: id.to_string(),
             name: format!("Preset {id}"),
             description: "test".to_string(),
+            created_time_ms: None,
             description_i18n: None,
             global: None,
             input: None,

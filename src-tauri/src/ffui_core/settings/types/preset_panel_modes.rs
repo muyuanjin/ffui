@@ -8,9 +8,22 @@ pub enum PresetSortMode {
     Manual,
     Usage,
     InputSize,
+    CreatedTime,
     Ratio,
+    Vmaf,
     Speed,
     Name,
+    #[serde(other)]
+    Unknown,
+}
+
+/// Preset sort direction for the presets panel and dropdown.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum PresetSortDirection {
+    #[default]
+    Asc,
+    Desc,
     #[serde(other)]
     Unknown,
 }

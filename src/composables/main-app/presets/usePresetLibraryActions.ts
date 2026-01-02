@@ -168,6 +168,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
       ...sourcePreset,
       id: generateUniquePresetId(existingIds),
       name: generateCopyName(sourcePreset.name, existingNames, locale.value),
+      createdTimeMs: Date.now(),
       stats: { ...sourcePreset.stats },
       isSmartPreset: false,
     };
@@ -212,6 +213,7 @@ export function usePresetLibraryActions(options: PresetLibraryActionsOptions): P
         ...validated.preset,
         id: newId,
         name: newName,
+        createdTimeMs: Date.now(),
         stats: makeZeroPresetStats(),
         isSmartPreset: false,
       });
