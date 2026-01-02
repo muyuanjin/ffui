@@ -158,7 +158,6 @@ const afterAboutLeave = (el: Element) => {
           </div>
           <div class="mt-3 space-y-2">
             <div class="text-[11px] font-medium text-foreground">{{ t("presets.vmafMeasureLinksTitle") }}</div>
-            <div class="text-[10px] text-muted-foreground">{{ t("presets.vmafMeasureLinksHint") }}</div>
             <div class="space-y-1">
               <div
                 v-for="link in vqLinks"
