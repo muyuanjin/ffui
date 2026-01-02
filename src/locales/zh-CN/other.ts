@@ -315,7 +315,6 @@ const other = {
     vmafMeasureAboutBody:
       "VMAF（Video Multi-Method Assessment Fusion）是 Netflix 提出的客观画质指标，用来估计“编码后视频”与“参考原片”在主观观感上的接近程度。\n\n• 分数范围：通常 0–100，越高越接近参考视频；更适合在同一内容上做横向对比（不同片源之间不要直接比绝对值）。\n• ≥95 的意义：这是一个常见的经验阈值，通常可理解为“肉眼接近无损/很难察觉差异”，但它不是标准、也不是保证，仍取决于片源/显示设备/观看距离/噪声与颗粒等。\n• 本工具如何计算：会先用你选的预设把参考视频编码成输出，再用 ffmpeg 的 libvmaf 滤镜对比参考/输出并取均值；音频不参与。\n• 内容依赖：不同片源复杂度不同，同一个预设的 VMAF 也会变化；因此更建议用“与你常用素材相似”的参考视频。\n• 版本/模型差异：ffmpeg/libvmaf 版本或默认模型不同，分数可能有偏差；建议在同一环境下横向对比。\n• 分辨率要求：VMAF 需要参考与失真视频尺寸一致；工具会在内部做必要的对齐/缩放。\n• 截取秒数：为了速度默认只测前 30 秒；如果你需要更稳定的均值，可以适当增大截取时长。",
     vmafMeasureLinksTitle: "相关链接（VMAF / vq_results 数据来源）",
-    vmafMeasureLinksHint: "左侧可点击打开；右侧 URL 可直接选中复制。",
     vmafMeasureLinkVmafRepo: "VMAF 开源项目（Netflix/vmaf）",
     vmafMeasureLinkNetflixDatasets: "Netflix VMAF 公共数据集索引（datasets.md）",
     vmafMeasureLinkAvtVqdbHdr: "AVT-VQDB-UHD-1-HDR（含 VMAF JSON）",
