@@ -250,6 +250,7 @@ const statusClass = (analysis: ImportCommandLineAnalysis): string => {
         <Button variant="outline" @click="emit('update:open', false)">{{ t("app.actions.cancel") }}</Button>
         <Button
           variant="secondary"
+          class="border border-border/70 bg-card/70 hover:bg-card"
           :disabled="customValidatableSelectedCount === 0 || anyValidationBusy"
           data-testid="import-commands-validate-selected"
           @click="validateSelected"
