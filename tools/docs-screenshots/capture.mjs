@@ -220,7 +220,7 @@ const resolveCliArgv = () => {
 
 const docsImagesDir = path.join(repoRoot, "docs", "images");
 const tmpDir = path.join(docsImagesDir, ".tmp-screenshots");
-const tmpPublicDir = path.join(repoRoot, "public", "docs-screenshots", "__local_tmp");
+const tmpPublicDir = path.join(repoRoot, ".cache", "docs-screenshots", "__local_tmp");
 
 const SHOTS_MAIN = [
   { tab: "queue", panelTestId: "queue-panel", outBase: "main", readyTestId: "queue-item-card" },
@@ -864,8 +864,18 @@ const captureScreenshotsForLocale = async ({
   const page = await context.newPage();
 
   const url = `${baseUrl}?ffuiLocale=${encodeURIComponent(locale.value)}`;
-  await page.goto(url, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 30_000 });
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+    try {
+      await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: attempt === 3 ? 60_000 : 30_000 });
+      break;
+    } catch (error) {
+      if (attempt === 3) throw error;
+      // Vite can trigger a full reload when new deps are optimized; retry.
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(1250);
+    }
+  }
   await applyDocsScreenshotStyles(page);
 
   await forceUiAppearance(page, {
@@ -1079,9 +1089,45 @@ const captureScreenshotsForLocale = async ({
     }
   };
 
+  const openTabAndWaitPanel = async (shot) => {
+    const timeoutMs = shot?.tab === "monitor" ? 90_000 : shot?.tab === "settings" ? 60_000 : 45_000;
+
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await page.getByTestId(`ffui-tab-${shot.tab}`).click();
+        await page.getByTestId(shot.panelTestId).waitFor({
+          state: "visible",
+          timeout: attempt === 3 ? timeoutMs : 30_000,
+        });
+        return;
+      } catch (error) {
+        if (attempt === 3) throw error;
+        try {
+          await page.getByTestId("ffui-sidebar").waitFor({ state: "visible", timeout: 30_000 });
+        } catch {
+          // Ignore: we'll retry anyway.
+        }
+        // Vite may have triggered a full reload after optimizing a newly-discovered dep.
+        // eslint-disable-next-line no-await-in-loop
+        await sleep(1250);
+      }
+    }
+  };
+
+  let activeViewport = viewport;
+
   for (const shot of shots) {
-    await page.getByTestId(`ffui-tab-${shot.tab}`).click();
-    await page.getByTestId(shot.panelTestId).waitFor({ state: "visible", timeout: 30_000 });
+    const shotViewport = shot?.viewport ?? viewport;
+    if (
+      shotViewport &&
+      (shotViewport.width !== activeViewport.width || shotViewport.height !== activeViewport.height)
+    ) {
+      // eslint-disable-next-line no-await-in-loop
+      await page.setViewportSize({ width: shotViewport.width, height: shotViewport.height });
+      activeViewport = shotViewport;
+    }
+
+    await openTabAndWaitPanel(shot);
 
     // Ensure the panel has loaded its async data before capturing.
     // eslint-disable-next-line no-await-in-loop
@@ -1119,8 +1165,8 @@ const captureScreenshotsForLocale = async ({
       await convertPngToWebpWithViewport({
         pngPath,
         webpPath,
-        viewport,
-        targetSize: shot.targetSize ?? viewport,
+        viewport: activeViewport,
+        targetSize: shot.targetSize ?? activeViewport,
         deviceScaleFactor,
       });
     }
@@ -1192,67 +1238,37 @@ const main = async () => {
 
           const monitorShot = { ...SHOT_MONITOR, targetSize: outSize };
           const settingsShot = { ...SETTINGS_SHOT, targetSize: outSize };
+
+          const shots = [...SHOTS_MAIN.filter((s) => wants(s.outBase))];
+          if (wants(monitorShot.outBase)) {
+            shots.push({
+              ...monitorShot,
+              viewport: { width: outSize.width, height: monitorCaptureHeight },
+            });
+          }
+          if (wants(settingsShot.outBase)) {
+            shots.push({
+              ...settingsShot,
+              viewport: { width: outSize.width, height: settingsCaptureHeight },
+            });
+          }
+          if (wants(SHOT_ONBOARDING.outBase)) {
+            shots.push(SHOT_ONBOARDING);
+          }
+
           // eslint-disable-next-line no-await-in-loop
           await captureScreenshotsForLocale({
             chromium,
             baseUrl,
             locale,
             viewport: outSize,
-            shots: SHOTS_MAIN.filter((s) => wants(s.outBase)),
+            shots,
             expectedFontSizePercent,
             expectedUiScalePercent,
             expectedUiFontName,
             deviceScaleFactor,
             compareFormat: args.compareFormat,
           });
-
-          if (wants(monitorShot.outBase)) {
-            // eslint-disable-next-line no-await-in-loop
-            await captureScreenshotsForLocale({
-              chromium,
-              baseUrl,
-              locale,
-              viewport: { width: outSize.width, height: monitorCaptureHeight },
-              shots: [monitorShot],
-              expectedFontSizePercent,
-              expectedUiScalePercent,
-              expectedUiFontName,
-              deviceScaleFactor,
-              compareFormat: args.compareFormat,
-            });
-          }
-
-          if (wants(settingsShot.outBase)) {
-            // eslint-disable-next-line no-await-in-loop
-            await captureScreenshotsForLocale({
-              chromium,
-              baseUrl,
-              locale,
-              viewport: { width: outSize.width, height: settingsCaptureHeight },
-              shots: [settingsShot],
-              expectedFontSizePercent,
-              expectedUiScalePercent,
-              expectedUiFontName,
-              deviceScaleFactor,
-              compareFormat: args.compareFormat,
-            });
-          }
-
-          if (wants(SHOT_ONBOARDING.outBase)) {
-            // eslint-disable-next-line no-await-in-loop
-            await captureScreenshotsForLocale({
-              chromium,
-              baseUrl,
-              locale,
-              viewport: outSize,
-              shots: [SHOT_ONBOARDING],
-              expectedFontSizePercent,
-              expectedUiScalePercent,
-              expectedUiFontName,
-              deviceScaleFactor,
-              compareFormat: args.compareFormat,
-            });
-          }
         }
       },
       { ...media, port: args.port },

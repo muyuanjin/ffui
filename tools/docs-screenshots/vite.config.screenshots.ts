@@ -2,6 +2,7 @@ import { defineConfig, mergeConfig, type UserConfig, type ConfigEnv } from "vite
 import baseConfigFactory from "../../vite.config";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,6 +107,72 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
         },
       },
       {
+        name: "ffui-docs-screenshots-local-tmp",
+        configureServer(server) {
+          const localTmpDir = resolveFromRepo(".cache", "docs-screenshots", "__local_tmp");
+          const urlPrefix = "/docs-screenshots/__local_tmp/";
+
+          const contentTypeFor = (ext: string): string => {
+            switch (ext.toLowerCase()) {
+              case ".png":
+                return "image/png";
+              case ".jpg":
+              case ".jpeg":
+                return "image/jpeg";
+              case ".webp":
+                return "image/webp";
+              case ".gif":
+                return "image/gif";
+              case ".bmp":
+                return "image/bmp";
+              default:
+                return "application/octet-stream";
+            }
+          };
+
+          server.middlewares.use((req, res, next) => {
+            const rawUrl = req.url ?? "";
+            if (!rawUrl.startsWith(urlPrefix)) return next();
+
+            void (async () => {
+              const safePart = rawUrl.slice(urlPrefix.length).split("?")[0]?.split("#")[0] ?? "";
+              let rel = "";
+              try {
+                rel = decodeURIComponent(safePart);
+              } catch {
+                res.statusCode = 400;
+                res.end("Bad request");
+                return;
+              }
+              if (!rel || rel.includes("..") || rel.includes("\\") || path.posix.isAbsolute(rel)) {
+                res.statusCode = 400;
+                res.end("Bad request");
+                return;
+              }
+
+              const baseAbs = path.resolve(localTmpDir);
+              const fileAbs = path.resolve(localTmpDir, rel);
+              if (!(fileAbs === baseAbs || fileAbs.startsWith(`${baseAbs}${path.sep}`))) {
+                res.statusCode = 403;
+                res.end("Forbidden");
+                return;
+              }
+
+              if (!fs.existsSync(fileAbs) || !fs.statSync(fileAbs).isFile()) {
+                res.statusCode = 404;
+                res.end("Not found");
+                return;
+              }
+
+              res.statusCode = 200;
+              res.setHeader("Content-Type", contentTypeFor(path.extname(fileAbs)));
+              res.setHeader("Cache-Control", "no-store");
+              fs.createReadStream(fileAbs).pipe(res);
+            })().catch(next);
+          });
+        },
+      },
+      {
         name: "ffui-docs-screenshots-i18n",
         enforce: "pre",
         resolveId(source, importer) {
@@ -136,6 +203,35 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
         // Keep the project's canonical "@/" path mapping, but avoid matching
         // scoped packages like "@tauri-apps/*".
         { find: /^@\//, replacement: `${srcDir}/` },
+      ],
+    },
+    optimizeDeps: {
+      // Keep dependency scanning focused on the actual app entry; otherwise Vite
+      // may attempt to scan generated Tauri codegen HTML under src-tauri/target,
+      // which is irrelevant for docs screenshots and can cause prebundle failures.
+      entries: [resolveFromRepo("index.html")],
+      // Avoid mid-capture full reloads when panels lazily import heavy deps
+      // (e.g. monitor charts). If a dep is discovered after the first page load,
+      // Vite will optimize + trigger a full reload, breaking Playwright waits.
+      include: [
+        "vue",
+        "vue-i18n",
+        "@vueuse/core",
+        "@vueuse/integrations/useSortable",
+        "lucide-vue-next",
+        "reka-ui",
+        "virtua/vue",
+        "class-variance-authority",
+        "clsx",
+        "tailwind-merge",
+        "apexcharts",
+        "vue3-apexcharts",
+        "echarts",
+        "vue-echarts",
+        "@tauri-apps/plugin-os",
+        "@tauri-apps/plugin-dialog",
+        "@tauri-apps/plugin-updater",
+        "@tauri-apps/plugin-process",
       ],
     },
   } satisfies UserConfig);
