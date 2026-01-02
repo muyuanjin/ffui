@@ -258,7 +258,7 @@ const handleQuickValidate = async () => {
 <template>
   <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
     <div
-      class="bg-background w-full max-w-5xl rounded-xl shadow-2xl border border-border flex flex-col h-[min(640px,90vh)]"
+      class="bg-background w-full max-w-5xl rounded-xl shadow-2xl border border-border flex flex-col h-[min(820px,92vh)]"
       data-ffui-parameter-panel="root"
     >
       <div class="p-6 border-b border-border">
@@ -295,6 +295,7 @@ const handleQuickValidate = async () => {
               variant="ghost"
               size="icon"
               class="text-muted-foreground hover:text-foreground"
+              data-testid="preset-editor-close"
               @click="emit('cancel')"
             >
               ✕

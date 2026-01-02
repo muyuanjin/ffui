@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readdir, rm, stat } from "node:fs/promises";
+import crypto from "node:crypto";
+import { copyFile, mkdir, readFile, readdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import net from "node:net";
@@ -32,7 +33,7 @@ const printHelp = () => {
     "  --thumb-time <HH:MM:SS>           Frame timestamp for thumbnails (default: 00:05:00).",
     "  --compare-thumb-time <HH:MM:SS>   Frame timestamp used for compare screenshots/GIF (default: --thumb-time).",
     "  --compare-format <FMT>            Compare output format: gif or webp (default: gif).",
-    "  --shots <LIST>                    Comma-separated outBase list to capture (e.g. main,compare).",
+    "  --shots <LIST>                    Comma-separated outBase list to capture (e.g. main,compare,preset-editor).",
     "  --ui-scale <PERCENT>              UI scale percent (80-140, default: 100).",
     "  --ui-font-size-px <PX>            Base font size in px (e.g. 18/20/22).",
     "  --ui-font-size-percent <PERCENT>  Base font size percent (80-140).",
@@ -45,7 +46,7 @@ const printHelp = () => {
     "  - Use --width/--height to change the exported .webp resolution (all panels).",
     "  - If screenshots look soft, prefer --device-scale-factor 1 (avoids downscaling text).",
     '  - For consistent EN/ZH layout on text-heavy pages, use --ui-font-name (e.g. "Microsoft YaHei UI").',
-    "  - The script overwrites docs/images/*-{en,zh-CN}.webp.",
+    "  - When an output file already exists, it is moved to recovery/ffui/<stamp>/... before writing a new one.",
     "  - PowerShell tip: avoid `--%` here; use the `--` separator (or call `node ...` directly).",
   ];
   // eslint-disable-next-line no-console
@@ -219,8 +220,8 @@ const resolveCliArgv = () => {
 };
 
 const docsImagesDir = path.join(repoRoot, "docs", "images");
-const tmpDir = path.join(docsImagesDir, ".tmp-screenshots");
-const tmpPublicDir = path.join(repoRoot, ".cache", "docs-screenshots", "__local_tmp");
+const tmpRunsDir = path.join(repoRoot, ".cache", "docs-screenshots", "runs");
+const tmpPublicBaseDir = path.join(repoRoot, ".cache", "docs-screenshots", "__local_tmp");
 
 const SHOTS_MAIN = [
   { tab: "queue", panelTestId: "queue-panel", outBase: "main", readyTestId: "queue-item-card" },
@@ -233,6 +234,15 @@ const SHOTS_MAIN = [
     settleMs: 450,
   },
   { tab: "presets", panelTestId: "preset-panel", outBase: "preset", readyText: "Universal 1080p" },
+  {
+    tab: "presets",
+    panelTestId: "preset-panel",
+    outBase: "preset-editor",
+    readyText: "Universal 1080p",
+    mode: "preset-editor",
+    presetName: "Universal 1080p",
+    settleMs: 650,
+  },
 ];
 
 const SHOT_ONBOARDING = {
@@ -268,6 +278,16 @@ const LOCALES = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const pad2 = (n) => String(n).padStart(2, "0");
+const pad3 = (n) => String(n).padStart(3, "0");
+
+const recoveryStamp = () => {
+  const d = new Date();
+  return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(
+    d.getMinutes(),
+  )}${pad2(d.getSeconds())}${pad3(d.getMilliseconds())}`;
+};
+
 const run = (cmd, args, options = {}) =>
   new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
@@ -286,6 +306,15 @@ const fileExists = async (p) => {
   try {
     const s = await stat(p);
     return s.isFile();
+  } catch {
+    return false;
+  }
+};
+
+const fileNonEmpty = async (p) => {
+  try {
+    const s = await stat(p);
+    return s.isFile() && s.size > 0;
   } catch {
     return false;
   }
@@ -359,6 +388,33 @@ const ensureDir = async (dir) => {
   await mkdir(dir, { recursive: true });
 };
 
+const safeReplaceFileWithRecovery = async ({ recoveryRoot, destPath, nextPath, moved }) => {
+  const rel = path.relative(repoRoot, destPath);
+  if (!rel || rel.startsWith("..")) {
+    throw new Error(`refusing to write outside repo root: ${destPath}`);
+  }
+
+  await ensureDir(path.dirname(destPath));
+
+  const hasExisting = await fileExists(destPath);
+  if (hasExisting) {
+    const [aBuf, bBuf] = await Promise.all([readFile(destPath), readFile(nextPath)]);
+    const a = crypto.createHash("sha256").update(aBuf).digest("hex");
+    const b = crypto.createHash("sha256").update(bBuf).digest("hex");
+    if (a === b) return;
+
+    const recoveryPath = path.join(recoveryRoot, rel);
+    await ensureDir(path.dirname(recoveryPath));
+    await rename(destPath, recoveryPath);
+    moved.push({
+      from: rel.split(path.sep).join("/"),
+      to: path.relative(repoRoot, recoveryPath).split(path.sep).join("/"),
+    });
+  }
+
+  await rename(nextPath, destPath);
+};
+
 const _convertPngToWebp = async (pngPath, webpPath, targetSize) => {
   const targetWidth = Number(targetSize?.width ?? 0);
   const targetHeight = Number(targetSize?.height ?? 0);
@@ -372,7 +428,6 @@ const _convertPngToWebp = async (pngPath, webpPath, targetSize) => {
       "-hide_banner",
       "-loglevel",
       "error",
-      "-y",
       "-i",
       pngPath,
       ...(vf ? ["-vf", vf] : []),
@@ -440,7 +495,6 @@ const convertPngToWebpWithViewport = async ({ pngPath, webpPath, viewport, targe
       "-hide_banner",
       "-loglevel",
       "error",
-      "-y",
       "-i",
       pngPath,
       ...(vf ? ["-vf", vf] : []),
@@ -463,9 +517,6 @@ const applyDocsScreenshotStyles = async (page) => {
       overflow: hidden;
       border: 1px solid rgba(148, 163, 184, 0.22);
       background: rgb(2, 6, 23);
-    }
-    [data-testid="ffui-action-batch-compress"] {
-      display: none !important;
     }
   `;
   await page.addStyleTag({ content: css });
@@ -586,12 +637,25 @@ const scorePoster = (filePath) => {
   return score;
 };
 
-const prepareLocalMedia = async (args) => {
+const FALLBACK_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO1W2XwAAAAASUVORK5CYII=";
+
+const writeFallbackPng = async (dst) => {
+  await ensureDir(path.dirname(dst));
+  await writeFile(dst, Buffer.from(FALLBACK_PNG_BASE64, "base64"), { flag: "wx" });
+};
+
+const prepareLocalMedia = async (args, options) => {
   const mediaDir = args.mediaDir;
   if (!mediaDir) throw new Error("Missing required --media-dir <DIR>");
   const allowVideoThumbs = args.allowVideoThumbs === true;
   const thumbTime = args.thumbTime || "00:05:00";
   const compareThumbTime = args.compareThumbTime || thumbTime || "00:05:00";
+  const tmpPublicDir = String(options?.tmpPublicDir ?? "").trim();
+  const runStamp = String(options?.runStamp ?? "").trim();
+
+  if (!tmpPublicDir) throw new Error("Missing tmpPublicDir");
+  if (!runStamp) throw new Error("Missing runStamp");
 
   if (!(await dirExists(mediaDir))) {
     throw new Error(`Docs media directory not found: ${mediaDir}`);
@@ -614,6 +678,7 @@ const prepareLocalMedia = async (args) => {
     .slice(0, 3);
 
   await mkdir(tmpPublicDir, { recursive: true });
+  const localTmpUrlPrefix = `/docs-screenshots/__local_tmp/${runStamp}`;
 
   const posterUrls = [];
   if (images.length >= 1) {
@@ -629,7 +694,7 @@ const prepareLocalMedia = async (args) => {
       const dst = path.join(tmpPublicDir, dstName);
       // eslint-disable-next-line no-await-in-loop
       await copyFile(src, dst);
-      posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
+      posterUrls.push(`${localTmpUrlPrefix}/${dstName}`);
     }
   } else if (allowVideoThumbs) {
     console.warn(
@@ -638,53 +703,66 @@ const prepareLocalMedia = async (args) => {
 
     for (let i = 0; i < Math.min(3, pickedVideos.length); i += 1) {
       const videoPath = pickedVideos[i];
-      const dstName = `poster-${i + 1}.jpg`;
+      const dstName = `poster-${i + 1}.png`;
       const dst = path.join(tmpPublicDir, dstName);
+
+      const tryExtractPoster = async (time, attempt) => {
+        const tmp = path.join(tmpPublicDir, `poster-${i + 1}-tmp-${attempt}.png`);
+        await run(
+          "ffmpeg",
+          [
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            time,
+            "-i",
+            videoPath,
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=1280:-1:flags=lanczos",
+            tmp,
+          ],
+          { cwd: repoRoot, stdio: "inherit" },
+        );
+        if (!(await fileNonEmpty(tmp))) return false;
+        await rename(tmp, dst);
+        return true;
+      };
+
+      let ok = false;
       try {
         // eslint-disable-next-line no-await-in-loop
-        await run(
-          "ffmpeg",
-          [
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-ss",
-            thumbTime,
-            "-i",
-            videoPath,
-            "-frames:v",
-            "1",
-            "-vf",
-            "scale=1280:-1:flags=lanczos",
-            dst,
-          ],
-          { cwd: repoRoot, stdio: "inherit" },
-        );
+        ok = await tryExtractPoster(thumbTime, "t1");
       } catch (error) {
         console.warn(`[docs:screenshots] Failed to extract thumbnail at ${thumbTime}; retrying at 00:00:30`, error);
-        // eslint-disable-next-line no-await-in-loop
-        await run(
-          "ffmpeg",
-          [
-            "-hide_banner",
-            "-loglevel",
-            "error",
-            "-y",
-            "-ss",
-            "00:00:30",
-            "-i",
-            videoPath,
-            "-frames:v",
-            "1",
-            "-vf",
-            "scale=1280:-1:flags=lanczos",
-            dst,
-          ],
-          { cwd: repoRoot, stdio: "inherit" },
-        );
       }
-      posterUrls.push(`/docs-screenshots/__local_tmp/${dstName}`);
+
+      if (!ok) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          ok = await tryExtractPoster("00:00:30", "t2");
+        } catch (error) {
+          console.warn(`[docs:screenshots] Failed to extract thumbnail at 00:00:30; retrying at 00:00:01`, error);
+        }
+      }
+
+      if (!ok) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          ok = await tryExtractPoster("00:00:01", "t3");
+        } catch (error) {
+          console.warn(`[docs:screenshots] Failed to extract thumbnail at 00:00:01; using fallback PNG`, error);
+        }
+      }
+
+      if (!ok) {
+        // eslint-disable-next-line no-await-in-loop
+        await writeFallbackPng(dst);
+      }
+
+      posterUrls.push(`${localTmpUrlPrefix}/${dstName}`);
     }
   } else {
     throw new Error(
@@ -695,21 +773,21 @@ const prepareLocalMedia = async (args) => {
 
   while (posterUrls.length < 3) posterUrls.push(posterUrls[posterUrls.length - 1]);
 
-  const compareInputName = "compare-input.jpg";
-  const compareOutputName = "compare-output.jpg";
+  const compareInputName = "compare-input.png";
+  const compareOutputName = "compare-output.png";
   const compareInputPath = path.join(tmpPublicDir, compareInputName);
   const compareOutputPath = path.join(tmpPublicDir, compareOutputName);
 
   // Keep docs screenshots fast: extract a short window and let `thumbnail` pick
   // a representative frame (reduces the chance of landing on an awkward cut).
-  const extractCompareFrame = async (time) => {
+  const extractCompareFrame = async (time, attempt) => {
+    const tmp = path.join(tmpPublicDir, `compare-input-tmp-${attempt}.png`);
     await run(
       "ffmpeg",
       [
         "-hide_banner",
         "-loglevel",
         "error",
-        "-y",
         "-ss",
         time,
         "-t",
@@ -720,45 +798,65 @@ const prepareLocalMedia = async (args) => {
         "1",
         "-vf",
         "fps=12,thumbnail=n=18,scale=1280:-1:flags=lanczos",
-        "-q:v",
-        "2",
-        compareInputPath,
+        tmp,
       ],
       { cwd: repoRoot, stdio: "inherit" },
     );
+    if (!(await fileNonEmpty(tmp))) {
+      throw new Error(`compare frame not produced at ${time} (attempt=${attempt})`);
+    }
+    await rename(tmp, compareInputPath);
   };
 
   try {
-    await extractCompareFrame(compareThumbTime);
+    await extractCompareFrame(compareThumbTime, "t1");
   } catch (error) {
     console.warn(
       `[docs:screenshots] Failed to extract compare frame at ${compareThumbTime}; retrying at 00:00:30`,
       error,
     );
-    await extractCompareFrame("00:00:30");
+    try {
+      await extractCompareFrame("00:00:30", "t2");
+    } catch (error2) {
+      console.warn(`[docs:screenshots] Failed to extract compare frame at 00:00:30; retrying at 00:00:01`, error2);
+      try {
+        await extractCompareFrame("00:00:01", "t3");
+      } catch (error3) {
+        console.warn(`[docs:screenshots] Failed to extract compare frame; using fallback PNG`, error3);
+        await writeFallbackPng(compareInputPath);
+      }
+    }
   }
 
-  await run(
-    "ffmpeg",
-    [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-i",
-      compareInputPath,
-      "-frames:v",
-      "1",
-      "-vf",
-      // Keep it subtle and colored: the goal is to demonstrate the wipe UX,
-      // not to simulate an actual transcoding result.
-      "eq=contrast=1.08:brightness=0.02:saturation=1.06,unsharp=3:3:0.45:3:3:0.0",
-      "-q:v",
-      "2",
-      compareOutputPath,
-    ],
-    { cwd: repoRoot, stdio: "inherit" },
-  );
+  const compareOutputTmp = path.join(tmpPublicDir, "compare-output-tmp.png");
+  try {
+    await run(
+      "ffmpeg",
+      [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        compareInputPath,
+        "-frames:v",
+        "1",
+        "-vf",
+        // Keep it subtle and colored: the goal is to demonstrate the wipe UX,
+        // not to simulate an actual transcoding result.
+        "eq=contrast=1.08:brightness=0.02:saturation=1.06,unsharp=3:3:0.45:3:3:0.0",
+        compareOutputTmp,
+      ],
+      { cwd: repoRoot, stdio: "inherit" },
+    );
+    if (await fileNonEmpty(compareOutputTmp)) {
+      await rename(compareOutputTmp, compareOutputPath);
+    } else {
+      await copyFile(compareInputPath, compareOutputPath);
+    }
+  } catch (error) {
+    console.warn(`[docs:screenshots] Failed to derive compare output frame; falling back to input frame`, error);
+    await copyFile(compareInputPath, compareOutputPath);
+  }
 
   return {
     envPatch: {
@@ -775,12 +873,10 @@ const prepareLocalMedia = async (args) => {
       VITE_DOCS_SCREENSHOT_POSTER_1: posterUrls[0] ?? "",
       VITE_DOCS_SCREENSHOT_POSTER_2: posterUrls[1] ?? posterUrls[0] ?? "",
       VITE_DOCS_SCREENSHOT_POSTER_3: posterUrls[2] ?? posterUrls[1] ?? posterUrls[0] ?? "",
-      VITE_DOCS_SCREENSHOT_COMPARE_INPUT_FRAME: `/docs-screenshots/__local_tmp/${compareInputName}`,
-      VITE_DOCS_SCREENSHOT_COMPARE_OUTPUT_FRAME: `/docs-screenshots/__local_tmp/${compareOutputName}`,
+      VITE_DOCS_SCREENSHOT_COMPARE_INPUT_FRAME: `${localTmpUrlPrefix}/${compareInputName}`,
+      VITE_DOCS_SCREENSHOT_COMPARE_OUTPUT_FRAME: `${localTmpUrlPrefix}/${compareOutputName}`,
     },
-    cleanup: async () => {
-      await rm(tmpPublicDir, { recursive: true, force: true });
-    },
+    cleanup: async () => {},
   };
 };
 
@@ -849,6 +945,9 @@ const captureScreenshotsForLocale = async ({
   locale,
   viewport,
   shots,
+  tmpRunDir,
+  recoveryRoot,
+  moved,
   expectedFontSizePercent,
   expectedUiScalePercent,
   expectedUiFontName,
@@ -971,6 +1070,25 @@ const captureScreenshotsForLocale = async ({
     );
   };
 
+  const openPresetEditor = async (presetName) => {
+    try {
+      await page.getByTestId("preset-view-grid").click();
+    } catch {
+      // best-effort
+    }
+
+    const card = page.getByTestId("preset-card-root").filter({ hasText: presetName }).first();
+    await card.waitFor({ state: "visible", timeout: 30_000 });
+
+    const editBtn = card.getByTestId("preset-card-edit");
+    await editBtn.waitFor({ state: "visible", timeout: 30_000 });
+    await editBtn.click();
+
+    await page.getByTestId("preset-editor-close").waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("preset-vq-results").waitFor({ state: "visible", timeout: 30_000 });
+    await page.getByTestId("preset-vq-vmaf").waitFor({ state: "visible", timeout: 30_000 });
+  };
+
   const setWipePercent = async (percent) => {
     const track = page.getByTestId("job-compare-wipe-handle");
     const grip = page.locator('[data-testid="job-compare-wipe-handle"] .cursor-ew-resize > div');
@@ -1005,8 +1123,9 @@ const captureScreenshotsForLocale = async ({
     await root.waitFor({ state: "visible", timeout: 30_000 });
 
     const prefix = `compare-${localeSuffix}`;
-    const framePattern = path.join(tmpDir, `${prefix}-frame-%02d.png`);
-    const palettePath = path.join(tmpDir, `${prefix}-palette.png`);
+    const framePattern = path.join(tmpRunDir, `${prefix}-frame-%02d.png`);
+    const palettePath = path.join(tmpRunDir, `${prefix}-palette.png`);
+    const tmpGifPath = path.join(tmpRunDir, `${prefix}.gif`);
     const gifPath = path.join(docsImagesDir, `${prefix}.gif`);
 
     const start = 18;
@@ -1022,7 +1141,7 @@ const captureScreenshotsForLocale = async ({
       await setWipePercent(percents[i]);
       // eslint-disable-next-line no-await-in-loop
       await sleep(120);
-      const framePath = path.join(tmpDir, `${prefix}-frame-${String(i + 1).padStart(2, "0")}.png`);
+      const framePath = path.join(tmpRunDir, `${prefix}-frame-${String(i + 1).padStart(2, "0")}.png`);
       // eslint-disable-next-line no-await-in-loop
       await root.screenshot({ path: framePath });
     }
@@ -1033,7 +1152,6 @@ const captureScreenshotsForLocale = async ({
         "-hide_banner",
         "-loglevel",
         "error",
-        "-y",
         "-framerate",
         "10",
         "-start_number",
@@ -1053,7 +1171,6 @@ const captureScreenshotsForLocale = async ({
         "-hide_banner",
         "-loglevel",
         "error",
-        "-y",
         "-framerate",
         "10",
         "-start_number",
@@ -1066,10 +1183,11 @@ const captureScreenshotsForLocale = async ({
         "scale=1280:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=3",
         "-loop",
         "0",
-        gifPath,
+        tmpGifPath,
       ],
       { cwd: repoRoot, stdio: "inherit" },
     );
+    await safeReplaceFileWithRecovery({ recoveryRoot, destPath: gifPath, nextPath: tmpGifPath, moved });
 
     await setWipePercent(62);
     await sleep(100);
@@ -1145,6 +1263,10 @@ const captureScreenshotsForLocale = async ({
         await writeCompareGif(locale.suffix);
       }
     }
+    if (shot.mode === "preset-editor") {
+      // eslint-disable-next-line no-await-in-loop
+      await openPresetEditor(String(shot.presetName ?? "Universal 1080p"));
+    }
 
     // Let charts/components settle (best-effort).
     const settleMs = Number.isFinite(shot?.settleMs)
@@ -1157,18 +1279,20 @@ const captureScreenshotsForLocale = async ({
 
     const shouldWriteWebp = !(shot.mode === "job-compare-wipe" && compareFormat === "gif");
     if (shouldWriteWebp) {
-      const pngPath = path.join(tmpDir, `${shot.outBase}-${locale.suffix}.png`);
+      const pngPath = path.join(tmpRunDir, `${shot.outBase}-${locale.suffix}.png`);
+      const tmpWebpPath = path.join(tmpRunDir, `${shot.outBase}-${locale.suffix}.webp`);
       const webpPath = path.join(docsImagesDir, `${shot.outBase}-${locale.suffix}.webp`);
 
       await page.locator(".ffui-ui-scale-root").screenshot({ path: pngPath });
       // eslint-disable-next-line no-await-in-loop
       await convertPngToWebpWithViewport({
         pngPath,
-        webpPath,
+        webpPath: tmpWebpPath,
         viewport: activeViewport,
         targetSize: shot.targetSize ?? activeViewport,
         deviceScaleFactor,
       });
+      await safeReplaceFileWithRecovery({ recoveryRoot, destPath: webpPath, nextPath: tmpWebpPath, moved });
     }
 
     if (shot.mode === "job-compare-wipe") {
@@ -1177,6 +1301,13 @@ const captureScreenshotsForLocale = async ({
       await page.keyboard.press("Escape");
       // eslint-disable-next-line no-await-in-loop
       await page.getByTestId("job-compare-viewport").waitFor({ state: "hidden", timeout: 30_000 });
+    }
+    if (shot.mode === "preset-editor") {
+      // The full editor blocks tab navigation; close it before the next shot.
+      // eslint-disable-next-line no-await-in-loop
+      await page.getByTestId("preset-editor-close").click();
+      // eslint-disable-next-line no-await-in-loop
+      await page.getByTestId("preset-editor-close").waitFor({ state: "hidden", timeout: 30_000 });
     }
   }
 
@@ -1194,7 +1325,13 @@ const main = async () => {
     throw new Error("Missing required --media-dir <DIR>");
   }
 
-  await ensureDir(tmpDir);
+  const runStamp = recoveryStamp();
+  const tmpRunDir = path.join(tmpRunsDir, runStamp);
+  const tmpPublicDir = path.join(tmpPublicBaseDir, runStamp);
+  const recoveryRoot = path.join(repoRoot, "recovery", "ffui", runStamp);
+  const moved = [];
+
+  await ensureDir(tmpRunDir);
 
   const outSize = resolveOutputSize(args);
   const deviceScaleFactor = clampInt(args.deviceScaleFactor, 1, 3, 1);
@@ -1208,7 +1345,7 @@ const main = async () => {
     });
   }
 
-  const media = await prepareLocalMedia(args);
+  const media = await prepareLocalMedia(args, { tmpPublicDir, runStamp });
   const expectedFontSizePercent = resolveUiFontSizePercent(args);
   const expectedUiScalePercent = resolveUiScalePercent(args);
   const expectedUiFontName = args.uiFontName;
@@ -1263,6 +1400,9 @@ const main = async () => {
             locale,
             viewport: outSize,
             shots,
+            tmpRunDir,
+            recoveryRoot,
+            moved,
             expectedFontSizePercent,
             expectedUiScalePercent,
             expectedUiFontName,
@@ -1275,8 +1415,24 @@ const main = async () => {
     );
   } finally {
     await chromium.close();
-    await rm(tmpDir, { recursive: true, force: true });
     await media.cleanup?.();
+
+    if (moved.length > 0) {
+      await ensureDir(recoveryRoot);
+      const manifest = [
+        "# Recovery Manifest",
+        "",
+        `timestamp: ${runStamp}`,
+        "operator: codex",
+        "",
+        "moved:",
+        ...moved.map((m) => `- from: ${m.from}\n  to: ${m.to}`),
+        "",
+        "reason: replace docs screenshot outputs with new captures (kept recoverable copies)",
+        "",
+      ].join("\n");
+      await writeFile(path.join(recoveryRoot, "MANIFEST.md"), manifest, { encoding: "utf8", flag: "wx" });
+    }
   }
 };
 

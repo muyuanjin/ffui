@@ -351,7 +351,7 @@ watch(vqDatasetKeyOverride, (value) => {
       </div>
     </div>
 
-    <div class="rounded-md border border-border/60 bg-muted/40 p-2 space-y-2">
+    <div class="rounded-md border border-border/60 bg-muted/40 p-2 space-y-2" data-testid="preset-vq-results">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1 min-w-0">
           <span class="text-[10px] font-semibold text-foreground">{{ t("vqResults.title") }}</span>
@@ -382,7 +382,7 @@ watch(vqDatasetKeyOverride, (value) => {
           <span class="font-medium text-foreground">{{ t("vqResults.metrics.vmafLabel") }}</span>
           <HelpTooltipIcon :text="t('vqResults.metrics.vmafHelp')" side="top" />
         </div>
-        <div class="text-right font-mono text-foreground">
+        <div class="text-right font-mono text-foreground" data-testid="preset-vq-vmaf">
           {{ formatMetricRange(vqPredicted.vmaf, 2) }}
         </div>
 
@@ -390,7 +390,7 @@ watch(vqDatasetKeyOverride, (value) => {
           <span class="font-medium text-foreground">{{ t("vqResults.metrics.ssimLabel") }}</span>
           <HelpTooltipIcon :text="t('vqResults.metrics.ssimHelp')" side="top" />
         </div>
-        <div class="text-right font-mono text-foreground">
+        <div class="text-right font-mono text-foreground" data-testid="preset-vq-ssim">
           {{ formatMetricRange(vqPredicted.ssim, 4) }}
         </div>
 
@@ -398,7 +398,9 @@ watch(vqDatasetKeyOverride, (value) => {
           <span class="font-medium text-foreground">{{ t("vqResults.metrics.bitrateLabel") }}</span>
           <HelpTooltipIcon :text="t('vqResults.metrics.bitrateHelp')" side="top" />
         </div>
-        <div class="text-right font-mono text-foreground">{{ formatMetricNumber(vqPredicted.bitrateKbps, 0) }}k</div>
+        <div class="text-right font-mono text-foreground" data-testid="preset-vq-bitrate">
+          {{ formatMetricNumber(vqPredicted.bitrateKbps, 0) }}k
+        </div>
       </div>
 
       <div v-if="vqSnapshotTitle || vqSnapshotCachedAt" class="text-[10px] text-muted-foreground space-y-0.5">

@@ -30,7 +30,7 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 ## Features
 
 - Queue-first workflow: add jobs, track progress and status, and review per-job logs (with optional crash recovery).
-- Presets (with stats): manage reusable presets and see usage, average compression ratio, and speed stats.
+- Presets (with stats): manage reusable presets and see usage, average compression ratio, speed stats, plus optional VQ-based predictions and measured VMAF.
 - Input vs output compare: side-by-side playback or frame snapshots to quickly spot quality differences.
 - FFmpeg management: auto-download/auto-update FFmpeg (plus `ffprobe` / `avifenc`) or point to your own binaries.
 - Batch scan (auto-compress): scan a folder for media files that match simple size/codec rules and enqueue a batch of jobs.
@@ -38,11 +38,31 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 - System performance monitor: chart CPU, memory, disk I/O, network I/O, and optional NVIDIA GPU metrics sampled on the Rust side.
 - Settings: configure output rules, UI appearance, preview capture settings, concurrency limits, and more.
 
+## Preset quality insights (VQ) and VMAF
+
+FFUI can show two kinds of “quality” signals for presets:
+
+- **VQ-based predictions**: estimated VMAF/SSIM/fps derived from public benchmark curves. These are best-effort predictions (content/hardware/settings can differ), so treat them as guidance rather than ground truth.
+- **Measured VMAF**: run Presets → “Measure VMAF…” to encode a reference clip and compute VMAF via FFmpeg’s `libvmaf`, then aggregate the results into preset stats.
+
+Data sources used by the optional offline snapshot builder (`scripts/vq-results/`) — results/metadata only (no video downloads). Thanks to the creators and maintainers of:
+
+- `rigaya/vq_results` (curves): https://github.com/rigaya/vq_results and https://rigaya.github.io/vq_results/
+- `AVT-VQDB-UHD-1` (TU Ilmenau): https://github.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1
+- `AVT-VQDB-UHD-1-HDR` (TU Ilmenau): https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1-hdr/
+- `AVT-VQDB-UHD-1-Appeal` (TU Ilmenau): https://github.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1-Appeal
+- `Xiph AWCY` (csv exports): https://arewecompressedyet.com/
+- `Mendeley Data 10.17632/35735kfjnm.1` (CC BY 4.0): https://data.mendeley.com/datasets/35735kfjnm/1
+
+To build a unified offline snapshot at `public/vq/quality_snapshot.json`, run `pnpm run vq:snapshot:rebuild`.
+
 ## Screenshots
 
 ![Main window (English)](docs/images/main-en.webp)
 
 ![Presets panel (English)](docs/images/preset-en.webp)
+
+![Preset editor (VQ + radar, English)](docs/images/preset-editor-en.webp)
 
 ![Compare (wipe mode, English)](docs/images/compare-en.gif)
 
@@ -307,7 +327,7 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 ## 功能概览
 
 - 任务队列：添加任务或通过批量压缩扫描目录入队，查看进度、状态与日志（支持可选的崩溃恢复）。
-- 参数预设（含统计）：为视频/图片/音频管理可复用的预设，并查看使用次数、平均压缩率与速度统计。
+- 参数预设（含统计）：为视频/图片/音频管理可复用的预设，并查看使用次数、平均压缩率与速度统计（可选的 VQ 预测与 VMAF 实测）。
 - 输出对比：输入 vs 输出的同步播放/帧截图对比，快速检查画质差异。
 - FFmpeg 管理：可自动下载/自动更新 FFmpeg（以及 `ffprobe` / `avifenc`），也支持手动指定本机路径。
 - 批量压缩：按目录扫描媒体文件，基于体积和编码规则筛选候选文件并批量加入队列。
@@ -315,11 +335,31 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 - 性能监控：在“性能监控”页中查看 CPU、内存、磁盘 I/O、网络 I/O 以及可选的 NVIDIA GPU 指标。
 - 设置：可配置输出规则、外观设置（字体/缩放）、预览截帧位置、并行任务上限、采样间隔等。
 
+## 预设质量洞察（VQ）与 VMAF
+
+FFUI 提供两类与“画质”相关的信号：
+
+- **VQ 预测**：基于公开视频质量基准数据的曲线，对预设的 VMAF/SSIM/fps 做 best-effort 估算（内容/硬件/参数不同会导致偏差），用于快速筛选与对比，不应视为真实测量值。
+- **VMAF 实测**：在“预设”页使用“测量 VMAF…”对参考视频进行转码，并通过 FFmpeg 的 `libvmaf` 计算 VMAF，再把结果聚合写入预设统计。
+
+用于生成（可选的）离线统一快照的脚本位于 `scripts/vq-results/`，只下载结果/元数据（不下载视频文件）。在此引用并感谢这些开源数据集/来源的创建者与维护者：
+
+- `rigaya/vq_results`（曲线数据）：https://github.com/rigaya/vq_results 和 https://rigaya.github.io/vq_results/
+- `AVT-VQDB-UHD-1`（TU Ilmenau）：https://github.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1
+- `AVT-VQDB-UHD-1-HDR`（TU Ilmenau）：https://avtshare01.rz.tu-ilmenau.de/avt-vqdb-uhd-1-hdr/
+- `AVT-VQDB-UHD-1-Appeal`（TU Ilmenau）：https://github.com/Telecommunication-Telemedia-Assessment/AVT-VQDB-UHD-1-Appeal
+- `Xiph AWCY`（csv 导出）：https://arewecompressedyet.com/
+- `Mendeley Data 10.17632/35735kfjnm.1`（CC BY 4.0）：https://data.mendeley.com/datasets/35735kfjnm/1
+
+如需在 `public/vq/quality_snapshot.json` 生成统一离线快照，可运行 `pnpm run vq:snapshot:rebuild`。
+
 ## 界面截图
 
 ![主界面（中文）](docs/images/main-zh-CN.webp)
 
 ![预设面板（中文）](docs/images/preset-zh-CN.webp)
+
+![参数编辑（VQ + 雷达图，中文）](docs/images/preset-editor-zh-CN.webp)
 
 ![对比（滑动对比，中文）](docs/images/compare-zh-CN.gif)
 
