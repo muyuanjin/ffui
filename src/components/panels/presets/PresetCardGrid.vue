@@ -140,6 +140,7 @@ const handleCardClick = (event: MouseEvent) => {
               variant="ghost"
               size="icon"
               class="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              data-testid="preset-card-edit"
               :title="t('presetEditor.actions.edit')"
               @click="emit('edit', preset)"
             >
