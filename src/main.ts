@@ -8,12 +8,10 @@ import { hasTauri, loadAppSettings, saveAppSettings } from "@/lib/backend";
 import { bootstrapAppLocale } from "@/lib/bootstrapAppLocale";
 import { perfLog } from "@/lib/perfLog";
 import { installNativeContextMenuGuard } from "@/lib/nativeContextMenuGuard";
-import { signalAppReady, startBootFx } from "@/boot/bootFx";
 
 // Force dark theme to match design
 document.documentElement.classList.add("dark");
 installNativeContextMenuGuard();
-startBootFx();
 
 const mountStartMark = "app_mount_start";
 const mountEndMark = "app_mount_end";
@@ -47,7 +45,6 @@ const run = async () => {
   app.use(i18n);
   app.use(VueApexCharts);
   app.mount("#app");
-  signalAppReady();
 
   // Tauri drag regions + modal pointer-event locks can occasionally leave the app
   // in an unclickable state if an overlay fails to clean up; run a small watchdog
