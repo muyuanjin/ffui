@@ -37,7 +37,7 @@
     "docs:screenshots:queue-large": "node tools/docs-screenshots/capture-queue-large-list-scroll-verification.mjs --jobs 2000 --processing-jobs 2",
     "docs:screenshots:preview-fallback": "node tools/docs-screenshots/capture-preview-fallback-layout-verification.mjs",
     "tauri": "tauri",
-    "tauri:dev": "vite build && tauri dev",
+    "tauri:dev": "tauri dev",
     "build:exe": "tauri build --no-bundle",
     "prepare": "husky"
   },
