@@ -66,10 +66,12 @@ describe("ScreenFxOverlay", () => {
       },
     });
 
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "F11" }));
+    const event = new KeyboardEvent("keydown", { key: "F11", cancelable: true });
+    window.dispatchEvent(event);
     await wrapper.vm.$nextTick();
 
     expect(toggleFullscreen).toHaveBeenCalledTimes(1);
+    expect(event.defaultPrevented).toBe(true);
   });
 
   it("does not call toggleFullscreen when not open", async () => {
@@ -90,9 +92,11 @@ describe("ScreenFxOverlay", () => {
       },
     });
 
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "F11" }));
+    const event = new KeyboardEvent("keydown", { key: "F11", cancelable: true });
+    window.dispatchEvent(event);
     await wrapper.vm.$nextTick();
 
     expect(toggleFullscreen).toHaveBeenCalledTimes(0);
+    expect(event.defaultPrevented).toBe(true);
   });
 });

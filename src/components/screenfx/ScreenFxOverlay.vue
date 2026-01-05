@@ -15,9 +15,9 @@ const processingJobs = computed(() => props.jobs.filter((job) => job.status === 
 const hasProcessing = computed(() => processingJobs.value.length > 0);
 
 const handleKeydown = async (event: KeyboardEvent) => {
-  if (!props.open) return;
   if (event.key !== "F11") return;
   event.preventDefault();
+  if (!props.open) return;
   await props.toggleFullscreen();
 };
 

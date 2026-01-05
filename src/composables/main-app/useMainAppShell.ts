@@ -66,13 +66,13 @@ export function useMainAppShell(): UseMainAppShellReturn {
     size: { width: number; height: number };
   } = null;
 
-  const toggleFullscreen = async () => {
+  const setFullscreen = async (wantFullscreen: boolean) => {
     if (hasTauri()) {
       const w = ensureWindowHandle();
       if (!w) return;
       try {
         const isFullscreen = await w.isFullscreen();
-        const wantFullscreen = !isFullscreen;
+        if (wantFullscreen === isFullscreen) return;
 
         if (wantFullscreen) {
           const [maximized, alwaysOnTop, position, size] = await Promise.all([
@@ -142,22 +142,66 @@ export function useMainAppShell(): UseMainAppShellReturn {
     const el = document.documentElement as HTMLElement & { requestFullscreen?: () => Promise<void> };
 
     try {
-      if (doc.fullscreenElement) {
-        await doc.exitFullscreen?.();
-      } else {
+      if (wantFullscreen) {
         await el.requestFullscreen?.();
+      } else if (doc.fullscreenElement) {
+        await doc.exitFullscreen?.();
       }
     } catch {
       // Best-effort only.
     }
   };
 
+  const toggleFullscreen = async () => {
+    if (hasTauri()) {
+      const w = ensureWindowHandle();
+      if (!w) return;
+      try {
+        const isFullscreen = await w.isFullscreen();
+        await setFullscreen(!isFullscreen);
+      } catch (error) {
+        console.error("Failed to toggle Tauri fullscreen:", error);
+      }
+      return;
+    }
+
+    if (typeof document === "undefined") return;
+    const doc = document as Document & { fullscreenElement?: Element | null };
+    await setFullscreen(!doc.fullscreenElement);
+  };
+
+  const exitFullscreen = async () => {
+    if (hasTauri()) {
+      const w = ensureWindowHandle();
+      if (!w) return;
+      try {
+        const isFullscreen = await w.isFullscreen();
+        if (!isFullscreen) return;
+        await setFullscreen(false);
+      } catch (error) {
+        console.error("Failed to exit Tauri fullscreen:", error);
+      }
+      return;
+    }
+
+    if (typeof document === "undefined") return;
+    const doc = document as Document & { fullscreenElement?: Element | null };
+    if (!doc.fullscreenElement) return;
+    await setFullscreen(false);
+  };
+
   const toggleScreenFx = () => {
-    screenFxOpen.value = !screenFxOpen.value;
+    if (screenFxOpen.value) {
+      closeScreenFx();
+      return;
+    }
+    screenFxOpen.value = true;
   };
 
   const closeScreenFx = () => {
+    if (!screenFxOpen.value) return;
     screenFxOpen.value = false;
+    void exitFullscreen();
   };
 
   const registerFocusListenerOnce = async () => {
