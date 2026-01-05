@@ -44,7 +44,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 - `corepack enable && pnpm install` — install all JavaScript and Tauri CLI dependencies.
 - `pnpm run dev` — start the Vite dev server for the web frontend only.
-- `pnpm run tauri dev` — run the full Tauri desktop app in development mode.
+- `pnpm run tauri:dev` — run the full Tauri desktop app in development mode.
 - `pnpm run build` — type-check with `vue-tsc` and build the production frontend bundle.
 - From `src-tauri`, use `cargo check` and `cargo build` to validate and build the Rust backend.
 - Do NOT run `pnpm run test:watch` from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `pnpm vitest run src/__tests__/MainApp.queue-sorting-and-filters.spec.ts` (or another focused `pnpm vitest run` invocation) as the "equivalent frontend test command" required by this spec.
@@ -78,7 +78,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 ## Testing Guidelines
 
-- Frontend and integration tests are not yet configured; when adding them, prefer colocating tests near code (e.g. `src/components/__tests__`).
+- Frontend tests are configured via Vitest and live primarily under `src/__tests__`; keep new tests near code when practical (e.g. `src/components/__tests__`).
 - For Rust, add unit tests in the same module and run them with `cargo test` from `src-tauri`.
 - Aim for meaningful coverage around transcoding logic and platform-specific behavior, especially any file or process handling.
 

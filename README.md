@@ -123,14 +123,13 @@ pnpm run dev
 
 ### Desktop app development (Tauri)
 
-Build the frontend and start the Tauri dev window:
+Start the Tauri dev window (will launch the Vite dev server via `beforeDevCommand`):
 
 ```bash
 pnpm run tauri:dev
-# equivalent to: vite build && tauri dev
 ```
 
-Note: `tauri:dev` uses `vite build` for speed and does not run `vue-tsc`. Run `pnpm run build` for a strict type-checking build.
+Note: `tauri:dev` does not run `vue-tsc`. Run `pnpm run build` for a strict type-checking build.
 
 Tauri attaches to the dev server at `http://localhost:5188` as configured in `tauri.conf.json` and `vite.config.ts`.
 
@@ -416,10 +415,9 @@ pnpm run dev
 
 ```bash
 pnpm run tauri:dev
-# 等价于：vite build && tauri dev
 ```
 
-注意：`tauri:dev` 为了速度使用 `vite build`，不会运行 `vue-tsc` 类型检查；如需严格构建请使用 `pnpm run build`。
+注意：`tauri:dev` 不会运行 `vue-tsc` 类型检查；如需严格构建请使用 `pnpm run build`。
 
 Tauri 会连接到 `tauri.conf.json` 和 `vite.config.ts` 中配置的 `http://localhost:5188` 前端开发服务。
 
