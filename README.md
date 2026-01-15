@@ -13,8 +13,6 @@
   <a href="https://github.com/muyuanjin/ffui/releases"><img src="https://img.shields.io/badge/Download-GitHub%20Releases-2ea44f?style=for-the-badge" alt="Download" /></a>
 </div>
 
-> FFUI is under active development. Bug reports, feature requests, and contributions are welcome — please use [GitHub Issues](https://github.com/muyuanjin/ffui/issues) or open a [pull request](https://github.com/muyuanjin/ffui/pulls).
-
 ## Overview
 
 FFUI is a friendly desktop app for converting and compressing videos (and audio/images) in batches. Drag files into a queue, pick a preset, and start — no FFmpeg command line needed. It’s built around a queue workflow, preset management with stats, and quick input/output comparison. If you already know FFmpeg, every preset is still fully editable and reusable.
@@ -312,8 +310,6 @@ This project is licensed under the MIT License. See `LICENSE` for details.
 ## 项目简介
 
 FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队列，选个预设就能开始批量转码。它主打“队列 + 预设”工作流，内置预设统计和输入/输出帧对比，帮助你更快找到顺手的参数组合。它基于 FFmpeg，但你不必先学命令行；如果你熟悉 FFmpeg，也可以把预设当作可复用的“参数模板库”，随时细调并复用。
-
-> FFUI 正在积极开发中。欢迎任何建议、问题反馈与贡献：可以在 GitHub 提 [Issue](https://github.com/muyuanjin/ffui/issues)，也欢迎直接提 [Pull Request](https://github.com/muyuanjin/ffui/pulls)。
 
 ## 首次使用
 
