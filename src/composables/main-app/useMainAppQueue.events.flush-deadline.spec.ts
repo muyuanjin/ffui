@@ -109,4 +109,81 @@ describe("useQueueEventListeners flush deadline", () => {
 
     wrapper.unmount();
   });
+
+  it("flushes a pending snapshot immediately when the app becomes visible again", async () => {
+    let visibilityState: DocumentVisibilityState = "hidden";
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibilityState,
+    });
+
+    const raf = vi.fn(() => 1);
+    const cancel = vi.fn(() => {});
+    (window as any).requestAnimationFrame = raf;
+    (window as any).cancelAnimationFrame = cancel;
+
+    const jobs = ref<TranscodeJob[]>([]);
+    const queueError = ref<string | null>(null);
+    const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const startupIdleReady = ref(false);
+
+    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
+      jobs,
+      queueError,
+      lastQueueSnapshotAtMs,
+      lastQueueSnapshotRevision,
+    };
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueEventListeners({
+          jobs,
+          lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
+          startupIdleReady,
+          refreshQueueFromBackend: async () => {},
+          applyQueueStateFromBackend: (state: QueueStateLite) => applyQueueStateFromBackend(state, deps),
+          applyQueueStateLiteDeltaFromBackend: (delta: QueueStateLiteDelta) =>
+            applyQueueStateLiteDeltaFromBackend(delta, deps),
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    const wrapper = mount(TestHarness);
+    await nextTick();
+
+    capturedSnapshotHandler!({
+      payload: {
+        snapshotRevision: 2,
+        jobs: [
+          {
+            id: "job-2",
+            filename: "b.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            presetId: "preset-1",
+            status: "processing",
+            progress: 66,
+          },
+        ],
+      } satisfies QueueStateLite,
+    });
+
+    await nextTick();
+    expect(jobs.value).toHaveLength(0);
+
+    visibilityState = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+    await nextTick();
+
+    expect(jobs.value).toHaveLength(1);
+    expect(jobs.value[0].progress).toBe(66);
+    expect(lastQueueSnapshotRevision.value).toBe(2);
+
+    wrapper.unmount();
+  });
 });

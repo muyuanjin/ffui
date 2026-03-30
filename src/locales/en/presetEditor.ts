@@ -369,10 +369,10 @@ const presetEditor = {
     dispositionHelp: "Sets output stream disposition flags via -disposition[:stream_specifier] value.",
     metadataHelp: "Writes container metadata such as title/artist. Leave empty if you don’t need it.",
     mapRulesModeLabel: "Mapping mode",
-    mapRulesModeAuto: "Auto (keep all streams, recommended)",
+    mapRulesModeAuto: "Auto (keep compatible streams, recommended)",
     mapRulesModeCustom: "Custom (-map rules)",
     mapRulesModeHelp:
-      "Auto keeps all streams by emitting -map 0 internally. Choose Custom only when you need precise track selection.",
+      "Auto keeps compatible streams by default. When the target muxer rejects FFmpeg data streams, FFUI automatically excludes only those incompatible tracks. Choose Custom only when you need precise track selection.",
     mapRulesModeHint:
       "Auto mode is safe for most users. Custom mode forces ffmpeg track selection rules; missing tracks will be dropped.",
     mapRulesAddAll: "Add: -map 0",

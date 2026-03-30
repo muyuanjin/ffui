@@ -383,4 +383,151 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
 
     wrapper.unmount();
   });
+
+  it("triggers only one foreground refresh when active queue data is stale on resume", async () => {
+    vi.setSystemTime(new Date("2026-03-30T00:00:00.000Z"));
+
+    const jobs = ref<TranscodeJob[]>([]);
+    const queueError = ref<string | null>(null);
+    const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const startupIdleReady = ref(false);
+
+    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
+      jobs,
+      queueError,
+      lastQueueSnapshotAtMs,
+      lastQueueSnapshotRevision,
+    };
+
+    const refreshSpy = vi.fn(async () => {});
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueEventListeners({
+          jobs,
+          lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
+          startupIdleReady,
+          refreshQueueFromBackend: refreshSpy,
+          applyQueueStateFromBackend: (state: QueueStateLite) => applyQueueStateFromBackend(state, deps),
+          applyQueueStateLiteDeltaFromBackend: (delta: QueueStateLiteDelta) =>
+            applyQueueStateLiteDeltaFromBackend(delta, deps),
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    const wrapper = mount(TestHarness);
+    await nextTick();
+
+    capturedHandler!({
+      payload: {
+        snapshotRevision: 1,
+        jobs: [
+          {
+            id: "job-foreground-stale",
+            filename: "a.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            presetId: "preset-1",
+            status: "processing",
+            progress: 12,
+          },
+        ],
+      } satisfies QueueStateLite,
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+    expect(lastQueueSnapshotAtMs.value).not.toBeNull();
+
+    vi.setSystemTime(new Date("2026-03-30T00:00:03.000Z"));
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await nextTick();
+
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+  });
+
+  it("bypasses the ahead-delta delay with a single foreground refresh on resume", async () => {
+    const jobs = ref<TranscodeJob[]>([]);
+    const queueError = ref<string | null>(null);
+    const lastQueueSnapshotAtMs = ref<number | null>(null);
+    const lastQueueSnapshotRevision = ref<number | null>(null);
+    const startupIdleReady = ref(false);
+
+    const deps: StateSyncDeps & { jobs: Ref<TranscodeJob[]> } = {
+      jobs,
+      queueError,
+      lastQueueSnapshotAtMs,
+      lastQueueSnapshotRevision,
+    };
+
+    const refreshSpy = vi.fn(async () => {});
+
+    const TestHarness = defineComponent({
+      setup() {
+        useQueueEventListeners({
+          jobs,
+          lastQueueSnapshotAtMs,
+          lastQueueSnapshotRevision,
+          startupIdleReady,
+          refreshQueueFromBackend: refreshSpy,
+          applyQueueStateFromBackend: (state: QueueStateLite) => applyQueueStateFromBackend(state, deps),
+          applyQueueStateLiteDeltaFromBackend: (delta: QueueStateLiteDelta) =>
+            applyQueueStateLiteDeltaFromBackend(delta, deps),
+        });
+        return {};
+      },
+      template: "<div />",
+    });
+
+    const wrapper = mount(TestHarness);
+    await nextTick();
+
+    capturedHandler!({
+      payload: {
+        snapshotRevision: 1,
+        jobs: [
+          {
+            id: "job-ahead-delta",
+            filename: "a.mp4",
+            type: "video",
+            source: "manual",
+            originalSizeMB: 10,
+            presetId: "preset-1",
+            status: "processing",
+            progress: 0,
+          },
+        ],
+      } satisfies QueueStateLite,
+    });
+
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+
+    capturedDeltaHandler!({
+      payload: {
+        baseSnapshotRevision: 2,
+        deltaRevision: 1,
+        patches: [{ id: "job-ahead-delta", status: "processing", progress: 55 }],
+      } satisfies QueueStateLiteDelta,
+    });
+
+    await nextTick();
+    expect(refreshSpy).toHaveBeenCalledTimes(0);
+
+    window.dispatchEvent(new Event("focus"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await nextTick();
+
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+    wrapper.unmount();
+  });
 });

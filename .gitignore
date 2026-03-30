@@ -10,7 +10,14 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-/target/
+
+# Rust build outputs (workspace and nested tool crates)
+target/
+target-*/
+
+# Local Cargo home/cache used by ad-hoc builds in this repo
+.cargo-home/
+
 *.local
 
 # Editor directories and files

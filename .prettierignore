@@ -1,6 +1,7 @@
 dist
 dist-perf-audit-*
 .cache/
+.cargo-home/
 .cachevmaf-*
 .jscpd/
 recovery/

@@ -129,6 +129,62 @@ fn enqueue_transcode_job_snapshots_queue_output_policy() {
 }
 
 #[test]
+fn enqueue_transcode_job_plans_matroska_command_without_data_stream_copy() {
+    use crate::ffui_core::domain::{OutputContainerPolicy, OutputPolicy};
+
+    let dir = env::temp_dir();
+    let path = dir.join("ffui_test_output_policy_command.mp4");
+
+    {
+        let mut file =
+            File::create(&path).expect("create temp video file for command planning test");
+        file.write_all(&[0u8; 1024])
+            .expect("write data to temp video file for command planning test");
+    }
+
+    let engine = make_engine_with_preset();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.settings.queue_output_policy = OutputPolicy {
+            container: OutputContainerPolicy::Force {
+                format: "mkv".to_string(),
+            },
+            ..Default::default()
+        };
+    }
+
+    let job = engine.enqueue_transcode_job(
+        path.to_string_lossy().into_owned(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let command = job
+        .ffmpeg_command
+        .as_deref()
+        .expect("planned ffmpeg command should exist");
+    assert!(
+        command.contains("-map 0 -map -0:d"),
+        "forced matroska output should keep mapped streams but exclude incompatible data streams, got: {command}"
+    );
+
+    let output_path = job
+        .output_path
+        .as_deref()
+        .expect("output path should exist for video job");
+    assert!(
+        output_path.ends_with(".mkv"),
+        "forced matroska output should plan an .mkv output path, got: {output_path}"
+    );
+
+    let _ = fs::remove_file(&path);
+}
+
+#[test]
 fn cancel_job_cancels_waiting_job_and_removes_from_queue() {
     let dir = env::temp_dir();
     let path = dir.join("ffui_test_cancel.mp4");

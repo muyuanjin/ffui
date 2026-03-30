@@ -455,6 +455,16 @@ function runCaptureFirstLine(command, args, options = {}) {
 
 function resolveLocalCargoPath() {
   if (process.platform !== "linux") return null;
+  const cargoHome = process.env.CARGO_HOME;
+  if (cargoHome) {
+    const candidate = path.join(cargoHome, "bin", "cargo");
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK);
+      return candidate;
+    } catch {
+      // ignore
+    }
+  }
   const home = process.env.HOME;
   if (home) {
     const candidate = path.join(home, ".cargo", "bin", "cargo");
@@ -505,7 +515,9 @@ function resolveWslCargoPathOnWindowsHost() {
   if (process.platform !== "win32") return null;
   if (!wslIsUsableOnWindowsHost()) return null;
   const script = [
-    'if [ -x "$HOME/.cargo/bin/cargo" ]; then',
+    'if [ -n "$CARGO_HOME" ] && [ -x "$CARGO_HOME/bin/cargo" ]; then',
+    '  echo "$CARGO_HOME/bin/cargo";',
+    'elif [ -x "$HOME/.cargo/bin/cargo" ]; then',
     '  echo "$HOME/.cargo/bin/cargo";',
     "elif command -v cargo >/dev/null 2>&1; then",
     "  command -v cargo;",

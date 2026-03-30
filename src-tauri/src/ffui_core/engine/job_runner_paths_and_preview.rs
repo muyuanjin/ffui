@@ -45,24 +45,6 @@ pub(super) fn build_video_resume_tmp_output_path(
     build_compressed_video_path(input, container_format, ".resume.tmp")
 }
 
-/// Temporary output path for a specific job segment.
-///
-/// Unlike the legacy `*.compressed.tmp.*` path, this includes the stable job id
-/// (and a monotonic segment index) so multiple pauses/resumes or duplicate
-/// enqueues for the same input file cannot collide on disk.
-pub(super) fn build_video_job_segment_tmp_output_path(
-    input: &Path,
-    container_format: Option<&str>,
-    job_id: &str,
-    segment_index: u64,
-) -> PathBuf {
-    build_compressed_video_path(
-        input,
-        container_format,
-        &format!(".{job_id}.seg{segment_index}.tmp"),
-    )
-}
-
 /// Temporary output segment path derived from a *final output path*.
 ///
 /// This is used when outputs are routed to a different directory than the

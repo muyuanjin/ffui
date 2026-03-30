@@ -380,9 +380,10 @@ const presetEditor = {
     dispositionHelp: "用于设置输出流的 disposition（-disposition[:stream_specifier] value）。",
     metadataHelp: "用于写入/覆盖容器元数据；仅在需要修改标题/作者等信息时填写。",
     mapRulesModeLabel: "映射模式",
-    mapRulesModeAuto: "自动（保留全部轨道，推荐）",
+    mapRulesModeAuto: "自动（保留兼容轨道，推荐）",
     mapRulesModeCustom: "自定义（显式 -map）",
-    mapRulesModeHelp: "自动模式会在内部生成 -map 0，保留全部轨道；只有需要精确挑轨时才用自定义。",
+    mapRulesModeHelp:
+      "自动模式会优先保留兼容轨道；当目标容器不接受某些 data 轨时，会自动排除这些不兼容轨道。只有需要精确挑轨时才用自定义。",
     mapRulesModeHint: "自定义模式会强制轨道选择；漏选的音频/字幕会被丢弃。",
     mapRulesAddAll: "添加：-map 0",
     mapRulesAddStream: "添加：按流",

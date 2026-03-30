@@ -6,6 +6,7 @@ import type { TranscodeJob } from "@/types";
 import { useQueueItemPreview } from "./useQueueItemPreview";
 import { resetPreviewAutoEnsureForTests } from "./previewAutoEnsure";
 import { resetPreviewLoadSchedulerForTests } from "./previewLoadScheduler";
+import { createQueuePreviewEnsurePrefetcher } from "./previewEnsurePrefetcher";
 import { provideQueuePerfHints } from "@/components/panels/queue/queuePerfHints";
 import { resetPreviewWarmCacheForTests } from "./previewWarmCache";
 
@@ -82,6 +83,7 @@ describe("useQueueItemPreview (auto ensure)", () => {
     ensureJobPreviewVariantMock.mockClear();
     buildJobPreviewUrlMock.mockClear();
     (window as any).requestIdleCallback = undefined;
+    (window as any).cancelIdleCallback = undefined;
     (window as any).requestAnimationFrame = undefined;
     resetPreviewAutoEnsureForTests();
     resetPreviewLoadSchedulerForTests();
@@ -251,6 +253,55 @@ describe("useQueueItemPreview (auto ensure)", () => {
     expect(ensureJobPreviewMock).toHaveBeenCalledWith("job-auto-preview-while-running");
     expect(composable.previewUrl.value).toBe("url:C:/previews/job-auto-preview-while-running.jpg?rev=0");
 
+    wrapper.unmount();
+  });
+
+  it("lets visible blank-card previews outrank normal ensure prefetches", async () => {
+    (window as any).requestIdleCallback = vi.fn((cb: () => void) => window.setTimeout(cb, 50));
+    (window as any).cancelIdleCallback = vi.fn((handle: number) => window.clearTimeout(handle));
+
+    const prefetcher = createQueuePreviewEnsurePrefetcher();
+    prefetcher.setTargetJobs([makeJob({ id: "job-prefetch-normal" })]);
+
+    const job = ref(makeJob({ id: "job-visible-priority" }));
+    const { composable, wrapper } = mountComposable(job);
+
+    await nextTick();
+    expect(composable.previewUrl.value).toBe(null);
+
+    await vi.runAllTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewMock.mock.calls.map(([jobId]) => jobId)).toEqual([
+      "job-visible-priority",
+      "job-prefetch-normal",
+    ]);
+    expect(composable.previewUrl.value).toBe("url:C:/previews/job-visible-priority.jpg?rev=0");
+
+    prefetcher.clear();
+    wrapper.unmount();
+  });
+
+  it("upgrades a same-job ensure from prefetch priority to visible-card priority", async () => {
+    (window as any).requestIdleCallback = vi.fn((cb: () => void) => window.setTimeout(cb, 50));
+    (window as any).cancelIdleCallback = vi.fn((handle: number) => window.clearTimeout(handle));
+
+    const prefetcher = createQueuePreviewEnsurePrefetcher();
+    prefetcher.setTargetJobs([makeJob({ id: "job-prefetch-other" }), makeJob({ id: "job-visible-same" })]);
+
+    const job = ref(makeJob({ id: "job-visible-same" }));
+    const { composable, wrapper } = mountComposable(job);
+
+    await nextTick();
+    expect(composable.previewUrl.value).toBe(null);
+
+    await vi.runAllTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewMock.mock.calls.map(([jobId]) => jobId)).toEqual(["job-visible-same", "job-prefetch-other"]);
+    expect(composable.previewUrl.value).toBe("url:C:/previews/job-visible-same.jpg?rev=0");
+
+    prefetcher.clear();
     wrapper.unmount();
   });
 });

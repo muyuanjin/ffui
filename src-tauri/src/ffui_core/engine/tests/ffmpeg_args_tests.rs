@@ -249,6 +249,10 @@ fn build_ffmpeg_args_normalizes_mkv_container_to_matroska_muxer() {
         !joined.contains("-f mkv"),
         "preset with container.format=mkv must NOT emit -f mkv (unsupported alias in some ffmpeg builds), got: {joined}"
     );
+    assert!(
+        joined.contains("-map 0 -map -0:d"),
+        "matroska auto mapping must exclude incompatible data streams while keeping other mapped streams, got: {joined}"
+    );
 }
 
 #[test]
@@ -357,6 +361,40 @@ fn build_ffmpeg_args_forced_webm_falls_back_to_matroska_when_incompatible() {
     assert!(
         !joined.contains(" -f webm "),
         "must not keep -f webm when incompatible, got: {joined}"
+    );
+    assert!(
+        joined.contains(" -map 0 ") && joined.contains(" -map -0:d "),
+        "matroska/webm-style auto mapping must exclude incompatible data streams, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_args_keeps_custom_mapping_unchanged_for_matroska_output() {
+    let mut preset = make_test_preset();
+    preset.container = Some(ContainerConfig {
+        format: Some("mkv".to_string()),
+        movflags: None,
+    });
+    preset.mapping = Some(MappingConfig {
+        maps: Some(vec!["0:v:0".to_string(), "0:a:0".to_string()]),
+        map_metadata_from_input_file_index: None,
+        map_chapters_from_input_file_index: None,
+        metadata: None,
+        dispositions: None,
+    });
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mkv");
+
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
+
+    assert!(
+        joined.contains("-map 0:v:0 -map 0:a:0"),
+        "explicit mapping must be preserved as-is, got: {joined}"
+    );
+    assert!(
+        !joined.contains("-map -0:d"),
+        "explicit mapping mode must not append auto negative maps, got: {joined}"
     );
 }
 

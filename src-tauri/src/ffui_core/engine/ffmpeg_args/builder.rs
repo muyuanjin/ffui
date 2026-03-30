@@ -19,6 +19,41 @@ fn derive_two_pass_log_prefix(output: &Path) -> String {
     s
 }
 
+fn auto_map_exclusions_for_muxer(muxer: Option<&str>) -> &'static [&'static str] {
+    match muxer {
+        Some("matroska") | Some("webm") => &["-0:d"],
+        _ => &[],
+    }
+}
+
+fn resolve_auto_map_muxer(preset: &FFmpegPreset, forced_muxer: Option<&str>) -> Option<String> {
+    forced_muxer
+        .map(std::string::ToString::to_string)
+        .or_else(|| {
+            preset
+                .container
+                .as_ref()
+                .and_then(|container| container.format.as_deref())
+                .map(super::normalize_container_format)
+                .filter(|normalized| !normalized.is_empty())
+        })
+}
+
+fn append_default_map_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+    forced_muxer: Option<&str>,
+) {
+    args.push("-map".to_string());
+    args.push("0".to_string());
+
+    let muxer = resolve_auto_map_muxer(preset, forced_muxer);
+    for exclusion in auto_map_exclusions_for_muxer(muxer.as_deref()) {
+        args.push("-map".to_string());
+        args.push((*exclusion).to_string());
+    }
+}
+
 /// 构建 ffmpeg 参数列表。
 ///
 /// `non_interactive=true` 时自动注入 `-nostdin`，用于一次性非交互转码/扫描；
@@ -161,20 +196,22 @@ pub(crate) fn build_ffmpeg_args(
         }
     }
 
+    let mut has_explicit_map = false;
     if let Some(mapping) = &preset.mapping
         && let Some(maps) = &mapping.maps
     {
         for m in maps {
-            if !m.is_empty() {
+            let trimmed = m.trim();
+            if !trimmed.is_empty() {
                 args.push("-map".to_string());
-                args.push(m.clone());
+                args.push(trimmed.to_string());
+                has_explicit_map = true;
             }
         }
     }
     apply_mapping_disposition_and_metadata_args(&mut args, preset);
-    if !args.iter().any(|a| a == "-map") {
-        args.push("-map".to_string());
-        args.push("0".to_string());
+    if !has_explicit_map {
+        append_default_map_args(&mut args, preset, forced_muxer.as_deref());
     }
 
     match preset.video.encoder {

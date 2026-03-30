@@ -140,6 +140,7 @@ export function useQueueItemPreview(options: {
           autoEnsureHandle = requestJobPreviewAutoEnsure(id, {
             heightPx: desiredHeightPxSnapshot,
             cacheKey: previewCacheKey,
+            priority: "high",
           });
           void autoEnsureHandle.promise.then((resolved) => {
             if (!resolved) return;

@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
+import ProgressComponent from "./Progress.vue";
 
 const ProgressRootStub = defineComponent({
   name: "ProgressRoot",
@@ -18,9 +19,8 @@ const ProgressIndicatorStub = defineComponent({
 });
 
 describe("Progress", () => {
-  it("sets translateX and transitionDuration from props", async () => {
-    const Component = (await import("./Progress.vue")).default;
-    const wrapper = mount(Component as any, {
+  it("sets translateX and transitionDuration from props", () => {
+    const wrapper = mount(ProgressComponent as any, {
       props: { modelValue: 25, transitionMs: 0, variant: "default" },
       global: {
         stubs: {
@@ -35,9 +35,8 @@ describe("Progress", () => {
     expect(indicator.attributes("style")).toContain("transition-duration: 0ms");
   });
 
-  it("clamps transitionMs to a non-negative integer", async () => {
-    const Component = (await import("./Progress.vue")).default;
-    const wrapper = mount(Component as any, {
+  it("clamps transitionMs to a non-negative integer", () => {
+    const wrapper = mount(ProgressComponent as any, {
       props: { modelValue: 50, transitionMs: -123, variant: "default" },
       global: {
         stubs: {

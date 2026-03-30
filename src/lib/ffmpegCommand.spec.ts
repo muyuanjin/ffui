@@ -217,6 +217,18 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     expect(args).not.toContain("-pass");
   });
 
+  it("keeps auto mapping but excludes incompatible data streams for matroska output", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        container: {
+          format: "mkv",
+        },
+      }),
+    );
+
+    expect(cmd).toContain("-map 0 -map -0:d");
+  });
+
   it("respects audio codec copy vs aac and never mixes re-encode flags into copy mode", () => {
     const sharedAudioFields: Pick<AudioConfig, "bitrate" | "sampleRateHz" | "channels" | "channelLayout"> = {
       bitrate: 192,

@@ -3,6 +3,8 @@ import { hasTauri } from "@/lib/backend";
 import type { QueueStateLite, QueueStateLiteDelta, TranscodeJob } from "@/types";
 import { recordQueueEvent } from "@/lib/queuePerf";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
+import { mergeQueueDeltaPatches } from "./useMainAppQueue.events.delta";
+import { createQueueForegroundRefreshController } from "./useMainAppQueue.events.foreground";
 
 interface QueueEventDeps {
   jobs: Ref<TranscodeJob[]>;
@@ -28,22 +30,6 @@ export function useQueueEventListeners({
   applyQueueStateFromBackend,
   applyQueueStateLiteDeltaFromBackend,
 }: QueueEventDeps): void {
-  const mergeDeltaPatchInto = (
-    existing: QueueStateLiteDelta["patches"][number],
-    incoming: QueueStateLiteDelta["patches"][number],
-  ): void => {
-    if (existing.id !== incoming.id) return;
-    // Delta patches are sparse; coalescing must merge fields instead of letting
-    // later patches (e.g. preview-only) accidentally drop earlier status/progress.
-    const incomingAny = incoming as unknown as Record<string, unknown>;
-    const existingAny = existing as unknown as Record<string, unknown>;
-    for (const key of Object.keys(incomingAny)) {
-      if (key === "id") continue;
-      if (incomingAny[key] === undefined) continue;
-      existingAny[key] = incomingAny[key];
-    }
-  };
-
   let unsubscribeQueueSnapshot: UnsubscribeFn | null = null;
   let unsubscribeQueueDelta: UnsubscribeFn | null = null;
   let disposed = false;
@@ -232,10 +218,29 @@ export function useQueueEventListeners({
     lastAppliedDeltaRevision = delta.deltaRevision;
   };
 
+  const hasPendingAheadDelta = () => {
+    return (
+      pendingAheadDeltaBaseRevision != null &&
+      pendingAheadDeltaMaxRevision != null &&
+      pendingAheadDeltaPatchesById != null
+    );
+  };
+  const foregroundRefreshController = createQueueForegroundRefreshController({
+    jobs,
+    lastQueueSnapshotAtMs,
+    refreshQueueFromBackend,
+    hasPendingAheadDelta,
+    flushPendingQueueState,
+    flushPendingQueueDelta,
+    flushPendingAheadDeltaIfReady,
+  });
+
   onMounted(() => {
     if (!hasTauri()) {
       return;
     }
+
+    foregroundRefreshController.mount();
 
     void subscribeTauriEvent<QueueStateLite>(
       "ffui://queue-state-lite",
@@ -327,24 +332,11 @@ export function useQueueEventListeners({
               pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
           }
 
-          const patches = payload?.patches ?? [];
-          if (Array.isArray(patches) && pendingAheadDeltaPatchesById) {
-            for (const patch of patches) {
-              const id = patch?.id;
-              if (!id) continue;
-              const existing = pendingAheadDeltaPatchesById.get(id);
-              if (!existing) {
-                pendingAheadDeltaPatchesById.set(id, { rev, patch });
-                continue;
-              }
-              if (rev < existing.rev) continue;
-              mergeDeltaPatchInto(existing.patch, patch);
-              if (rev > existing.rev) {
-                existing.rev = rev;
-                pendingAheadDeltaMaxRevision =
-                  pendingAheadDeltaMaxRevision == null ? rev : Math.max(pendingAheadDeltaMaxRevision, rev);
-              }
-            }
+          if (pendingAheadDeltaPatchesById) {
+            mergeQueueDeltaPatches(pendingAheadDeltaPatchesById, payload?.patches, rev, (nextRev) => {
+              pendingAheadDeltaMaxRevision =
+                pendingAheadDeltaMaxRevision == null ? nextRev : Math.max(pendingAheadDeltaMaxRevision, nextRev);
+            });
           }
 
           scheduleAheadRefresh();
@@ -367,23 +359,11 @@ export function useQueueEventListeners({
           pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
         }
 
-        const patches = payload?.patches ?? [];
-        if (Array.isArray(patches) && pendingDeltaPatchesById) {
-          for (const patch of patches) {
-            const id = patch?.id;
-            if (!id) continue;
-            const existing = pendingDeltaPatchesById.get(id);
-            if (!existing) {
-              pendingDeltaPatchesById.set(id, { rev, patch });
-              continue;
-            }
-            if (rev < existing.rev) continue;
-            mergeDeltaPatchInto(existing.patch, patch);
-            if (rev > existing.rev) {
-              existing.rev = rev;
-              pendingDeltaMaxRevision = pendingDeltaMaxRevision == null ? rev : Math.max(pendingDeltaMaxRevision, rev);
-            }
-          }
+        if (pendingDeltaPatchesById) {
+          mergeQueueDeltaPatches(pendingDeltaPatchesById, payload?.patches, rev, (nextRev) => {
+            pendingDeltaMaxRevision =
+              pendingDeltaMaxRevision == null ? nextRev : Math.max(pendingDeltaMaxRevision, nextRev);
+          });
         }
 
         if (typeof window === "undefined") {
@@ -446,6 +426,8 @@ export function useQueueEventListeners({
     unsubscribeQueueSnapshot = null;
     unsubscribeQueueDelta?.();
     unsubscribeQueueDelta = null;
+
+    foregroundRefreshController.unmount();
 
     if (pendingApplyHandle != null && typeof window !== "undefined") {
       if (typeof window.cancelAnimationFrame === "function") {

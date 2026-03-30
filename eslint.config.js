@@ -30,6 +30,7 @@ export default [
     ignores: [
       "**/.jscpd/**",
       "**/.cache/**",
+      "**/.cargo-home/**",
       "**/dist/**",
       "**/dist-perf-audit-*/**",
       "**/node_modules/**",

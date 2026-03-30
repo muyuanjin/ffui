@@ -6,9 +6,12 @@ const MAX_CACHE = 2048;
 const DEFAULT_HEIGHT_PX = 180;
 
 let inFlight = 0;
-const queuedKeys: string[] = [];
-const queuedKeySet = new Set<string>();
+const queuedHighKeys: string[] = [];
+const queuedNormalKeys: string[] = [];
+const queuedPriorityByKey = new Map<string, EnsurePriority>();
 const resolvedPreviewPathByKey = new Map<string, { path: string; resolvedAtMs: number }>();
+let scheduledPumpMode: ScheduleMode | null = null;
+let scheduledPumpCancel: (() => void) | null = null;
 
 const nowMs = () => (typeof Date?.now === "function" ? Date.now() : new Date().getTime());
 
@@ -34,28 +37,90 @@ const cacheResolvedPreviewPath = (key: string, path: string | null) => {
   }
 };
 
-const schedule = (fn: () => void) => {
+type EnsurePriority = "high" | "normal";
+type ScheduleMode = "eager" | "idle";
+
+const clearScheduledPumpState = () => {
+  scheduledPumpMode = null;
+  scheduledPumpCancel = null;
+};
+
+const cancelScheduledPump = () => {
+  const cancel = scheduledPumpCancel;
+  clearScheduledPumpState();
+  cancel?.();
+};
+
+const schedulePump = (priority: EnsurePriority) => {
   if (typeof window === "undefined") {
-    fn();
+    pump();
     return;
   }
 
   const w = window as unknown as {
     requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+    cancelIdleCallback?: (handle: number) => void;
     requestAnimationFrame?: (cb: () => void) => number;
+    cancelAnimationFrame?: (handle: number) => void;
   };
 
+  const nextMode: ScheduleMode = priority === "high" ? "eager" : "idle";
+  if (scheduledPumpMode === "eager") return;
+  if (scheduledPumpMode === nextMode) return;
+
+  cancelScheduledPump();
+
+  const run = () => {
+    clearScheduledPumpState();
+    pump();
+  };
+
+  scheduledPumpMode = nextMode;
+
+  if (nextMode === "eager") {
+    const handle = window.setTimeout(run, 0);
+    scheduledPumpCancel = () => {
+      window.clearTimeout(handle);
+    };
+    return;
+  }
+
   if (typeof w.requestIdleCallback === "function") {
-    w.requestIdleCallback(fn, { timeout: 500 });
+    const handle = w.requestIdleCallback(run, { timeout: 500 });
+    scheduledPumpCancel = () => {
+      if (typeof w.cancelIdleCallback === "function") {
+        try {
+          w.cancelIdleCallback(handle);
+          return;
+        } catch {
+          // ignore
+        }
+      }
+      window.clearTimeout(handle);
+    };
     return;
   }
 
   if (typeof w.requestAnimationFrame === "function") {
-    w.requestAnimationFrame(fn);
+    const handle = w.requestAnimationFrame(run);
+    scheduledPumpCancel = () => {
+      if (typeof w.cancelAnimationFrame === "function") {
+        try {
+          w.cancelAnimationFrame(handle);
+          return;
+        } catch {
+          // ignore
+        }
+      }
+      window.clearTimeout(handle);
+    };
     return;
   }
 
-  window.setTimeout(fn, 0);
+  const handle = window.setTimeout(run, 0);
+  scheduledPumpCancel = () => {
+    window.clearTimeout(handle);
+  };
 };
 
 type Consumer = {
@@ -65,6 +130,7 @@ type Consumer = {
 
 type JobOp = {
   state: "queued" | "running";
+  priority: EnsurePriority;
   consumers: Map<number, Consumer>;
 };
 
@@ -82,19 +148,61 @@ const hashCacheKey = (value: string): string => {
 };
 
 const removeFromQueue = (key: string) => {
-  if (!queuedKeySet.has(key)) return;
-  queuedKeySet.delete(key);
-  const idx = queuedKeys.indexOf(key);
-  if (idx >= 0) queuedKeys.splice(idx, 1);
+  const priority = queuedPriorityByKey.get(key);
+  if (!priority) return;
+  queuedPriorityByKey.delete(key);
+
+  const queue = priority === "high" ? queuedHighKeys : queuedNormalKeys;
+  const idx = queue.indexOf(key);
+  if (idx >= 0) queue.splice(idx, 1);
+};
+
+const enqueueKey = (key: string, priority: EnsurePriority) => {
+  const existing = queuedPriorityByKey.get(key);
+  if (existing === "high" || existing === priority) return;
+
+  if (existing === "normal" && priority === "high") {
+    const idx = queuedNormalKeys.indexOf(key);
+    if (idx >= 0) queuedNormalKeys.splice(idx, 1);
+  }
+
+  queuedPriorityByKey.set(key, priority);
+  if (priority === "high") {
+    queuedHighKeys.push(key);
+    return;
+  }
+  queuedNormalKeys.push(key);
+};
+
+const shiftQueuedKey = (queue: string[], priority: EnsurePriority): string | undefined => {
+  while (queue.length > 0) {
+    const candidate = queue.shift();
+    if (!candidate) continue;
+    if (queuedPriorityByKey.get(candidate) !== priority) continue;
+    queuedPriorityByKey.delete(candidate);
+    return candidate;
+  }
+  return undefined;
+};
+
+const getNextQueuedPriority = (): EnsurePriority | null => {
+  if (queuedHighKeys.length > 0) return "high";
+  if (queuedNormalKeys.length > 0) return "normal";
+  return null;
+};
+
+const scheduleQueuedPump = () => {
+  const nextPriority = getNextQueuedPriority();
+  if (!nextPriority) return;
+  schedulePump(nextPriority);
 };
 
 const pump = () => {
   if (inFlight >= MAX_CONCURRENCY) return;
   let key: string | undefined;
-  while (queuedKeys.length > 0) {
-    const candidate = queuedKeys.shift();
+  while (true) {
+    const candidate = shiftQueuedKey(queuedHighKeys, "high") ?? shiftQueuedKey(queuedNormalKeys, "normal");
     if (!candidate) break;
-    queuedKeySet.delete(candidate);
     const op = jobOpsByKey.get(candidate);
     if (!op) continue;
     if (op.state !== "queued") continue;
@@ -152,7 +260,7 @@ const pump = () => {
     .finally(() => {
       jobOpsByKey.delete(key);
       inFlight -= 1;
-      schedule(pump);
+      scheduleQueuedPump();
     });
 };
 
@@ -195,13 +303,14 @@ export function invalidateJobPreviewAutoEnsure(
 
 export function requestJobPreviewAutoEnsure(
   jobId: string,
-  opts?: { heightPx?: number | null; cacheKey?: string | null },
+  opts?: { heightPx?: number | null; cacheKey?: string | null; priority?: EnsurePriority },
 ): { promise: Promise<string | null>; cancel: () => void } {
   if (!backend.hasTauri()) return { promise: Promise.resolve(null), cancel: () => {} };
   if (!jobId) return { promise: Promise.resolve(null), cancel: () => {} };
 
   const heightPx = normalizeHeightPx(opts?.heightPx);
   const key = buildEnsureKey(jobId, heightPx, opts?.cacheKey);
+  const requestedPriority: EnsurePriority = opts?.priority === "high" ? "high" : "normal";
 
   const cached = resolvedPreviewPathByKey.get(key);
   if (cached && isCacheEntryFresh(cached)) {
@@ -215,8 +324,11 @@ export function requestJobPreviewAutoEnsure(
 
   let op = jobOpsByKey.get(key);
   if (!op) {
-    op = { state: "queued", consumers: new Map() };
+    op = { state: "queued", priority: requestedPriority, consumers: new Map() };
     jobOpsByKey.set(key, op);
+  } else if (op.state === "queued" && requestedPriority === "high" && op.priority !== "high") {
+    op.priority = "high";
+    enqueueKey(key, "high");
   }
 
   let resolveFn: (path: string | null) => void = () => {};
@@ -231,10 +343,9 @@ export function requestJobPreviewAutoEnsure(
 
   op.consumers.set(requestId, consumer);
 
-  if (op.state === "queued" && !queuedKeySet.has(key)) {
-    queuedKeySet.add(key);
-    queuedKeys.push(key);
-    schedule(pump);
+  if (op.state === "queued") {
+    enqueueKey(key, op.priority);
+    schedulePump(op.priority);
   }
 
   const cancel = () => {
@@ -262,8 +373,10 @@ export function ensureJobPreviewAuto(jobId: string): Promise<string | null> {
 
 export function resetPreviewAutoEnsureForTests() {
   inFlight = 0;
-  queuedKeys.length = 0;
-  queuedKeySet.clear();
+  cancelScheduledPump();
+  queuedHighKeys.length = 0;
+  queuedNormalKeys.length = 0;
+  queuedPriorityByKey.clear();
   jobOpsByKey.clear();
   requestSeq = 0;
   resolvedPreviewPathByKey.clear();

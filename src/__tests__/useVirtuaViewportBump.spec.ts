@@ -180,4 +180,48 @@ describe("useVirtuaViewportBump", () => {
 
     wrapper.unmount();
   });
+
+  it("stops probing cleanly when the jsdom window disappears before the next tick", async () => {
+    (globalThis as any).ResizeObserver = undefined;
+
+    const el = createEl(0);
+
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const viewportEl = ref<HTMLElement | null>(null) as Ref<HTMLElement | null>;
+          const bump = useVirtuaViewportBump(viewportEl, { minHeightPx: 64 });
+          const setViewport = (next: HTMLElement | null) => {
+            viewportEl.value = next;
+          };
+          return { bump, setViewport };
+        },
+        template: "<div />",
+      }),
+    );
+
+    (wrapper.vm as any).setViewport(el);
+    await nextTick();
+    expect((wrapper.vm as any).bump).toBe(0);
+
+    const originalWindow = globalThis.window;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    });
+
+    try {
+      expect(() => vi.advanceTimersByTime(60)).not.toThrow();
+      expect((wrapper.vm as any).bump).toBe(0);
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        writable: true,
+        value: originalWindow,
+      });
+    }
+
+    wrapper.unmount();
+  });
 });

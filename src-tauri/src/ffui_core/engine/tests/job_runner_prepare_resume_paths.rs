@@ -11,8 +11,8 @@ fn plan_resume_paths_uses_last_progress_out_time_when_pause_metadata_missing() {
     let input = dir.join("ffui_resume_plan_out_time.mp4");
     let output = dir.join("ffui_resume_plan_out_time.output.mp4");
     let job_id = "job-test-resume-out-time";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
-    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 1);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -68,8 +68,8 @@ fn plan_resume_paths_uses_next_segment_for_initial_resume() {
     let input = dir.join("ffui_resume_plan_first.mp4");
     let output = dir.join("ffui_resume_plan_first.output.mp4");
     let job_id = "job-test-resume-1";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
-    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 1);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -147,9 +147,9 @@ fn plan_resume_paths_appends_new_segment_after_multiple_pauses() {
     let input = dir.join("ffui_resume_plan_multi.mp4");
     let output = dir.join("ffui_resume_plan_multi.output.mp4");
     let job_id = "job-test-resume-2";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
-    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
-    let seg2 = build_video_job_segment_tmp_output_path(&input, None, job_id, 2);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 1);
+    let seg2 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 2);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -224,7 +224,7 @@ fn plan_resume_paths_clamps_seek_to_zero_when_target_is_smaller_than_backtrack()
     let input = dir.join("ffui_resume_plan_clamp.mp4");
     let output = dir.join("ffui_resume_plan_clamp.output.mp4");
     let job_id = "job-test-resume-3";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -275,8 +275,8 @@ fn plan_resume_paths_clamps_backtrack_seconds_to_max_seconds() {
     let input = dir.join("ffui_resume_plan_backtrack_clamp.mp4");
     let output = dir.join("ffui_resume_plan_backtrack_clamp.output.mp4");
     let job_id = "job-test-resume-4";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
-    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 1);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -343,8 +343,8 @@ fn plan_resume_paths_treats_nan_backtrack_as_zero() {
     let input = dir.join("ffui_resume_plan_nan_backtrack.mp4");
     let output = dir.join("ffui_resume_plan_nan_backtrack.output.mp4");
     let job_id = "job-test-resume-5";
-    let seg0 = build_video_job_segment_tmp_output_path(&input, None, job_id, 0);
-    let seg1 = build_video_job_segment_tmp_output_path(&input, None, job_id, 1);
+    let seg0 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 0);
+    let seg1 = build_video_job_segment_tmp_output_path_for_output(&output, job_id, 1);
 
     if let Some(parent) = seg0.parent() {
         let _ = fs::create_dir_all(parent);
@@ -403,4 +403,35 @@ fn plan_resume_paths_treats_nan_backtrack_as_zero() {
 
     let _ = fs::remove_file(&seg0);
     let _ = fs::remove_file(&seg1);
+}
+
+#[test]
+fn plan_resume_paths_uses_output_extension_for_fresh_segment_paths() {
+    let dir = env::temp_dir();
+    let input = dir.join("ffui_resume_plan_muxer_input.mp4");
+    let output = dir.join("ffui_resume_plan_muxer_output.mkv");
+    let job_id = "job-test-resume-muxer-ext";
+
+    let (_resume_target, existing, existing_end_targets, tmp_output, resume_plan) =
+        plan_resume_paths(job_id, &input, &output, None, None, None, 0.0);
+
+    assert!(
+        existing.is_empty(),
+        "fresh runs must not report existing segments"
+    );
+    assert!(
+        existing_end_targets.is_empty(),
+        "fresh runs must not report segment end targets"
+    );
+    assert!(
+        resume_plan.is_none(),
+        "fresh runs must not produce a resume plan"
+    );
+    assert!(
+        tmp_output
+            .to_string_lossy()
+            .ends_with(&format!("{job_id}.seg0.tmp.mkv")),
+        "tmp segment path must follow the final output extension, got: {}",
+        tmp_output.display()
+    );
 }

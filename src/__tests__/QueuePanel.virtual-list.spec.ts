@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { createI18n } from "vue-i18n";
 
+import QueuePanelComponent from "@/components/panels/QueuePanel.vue";
 import type { QueueListItem } from "@/composables";
-import type { TranscodeJob } from "@/types";
+import type { QueueViewMode, TranscodeJob } from "@/types";
+import type { QueueFilterKind, QueueFilterStatus } from "@/composables/queue/useQueueFiltering.types";
 import en from "@/locales/en";
 import zhCN from "@/locales/zh-CN";
 
@@ -54,12 +56,6 @@ const queueItemStub = {
   template: `<div data-testid="queue-item-stub" :data-job-id="job.id">{{ job.filename }}</div>`,
 };
 
-let QueuePanelComponent: any;
-
-beforeAll(async () => {
-  QueuePanelComponent = (await import("@/components/panels/QueuePanel.vue")).default;
-});
-
 function buildJob(id: string, status: TranscodeJob["status"]): TranscodeJob {
   return {
     id,
@@ -90,7 +86,7 @@ function mountQueuePanel(overrides: Partial<any>) {
       queueModeWaitingItems: [],
       queueModeWaitingBatchIds: new Set<string>(),
       presets: [],
-      queueViewMode: "list",
+      queueViewMode: "detail" as QueueViewMode,
       ffmpegResolvedPath: null,
       queueProgressStyle: "bar",
       queueMode: "display",
@@ -102,8 +98,8 @@ function mountQueuePanel(overrides: Partial<any>) {
       queueRowVariant: "detail",
       progressUpdateIntervalMs: 250,
       hasBatchCompressBatches: false,
-      activeStatusFilters: new Set(),
-      activeTypeFilters: new Set(),
+      activeStatusFilters: new Set<QueueFilterStatus>(),
+      activeTypeFilters: new Set<QueueFilterKind>(),
       filterText: "",
       filterUseRegex: false,
       filterRegexError: null,

@@ -6,16 +6,20 @@ export function useVirtuaViewportBump(viewportEl: Ref<HTMLElement | null>, optio
   const maxBumps = 2;
   const secondBumpWindowMs = 5_000;
   let observer: ResizeObserver | null = null;
-  let probeTimer: number | null = null;
+  let probeTimer: ReturnType<Window["setTimeout"]> | null = null;
+  let probeTimerWindow: Window | null = null;
   let probeStartedAtMs: number | null = null;
   let firstBumpAtMs: number | null = null;
   let lastBumpedHeightPx: number | null = null;
+  let probeToken = 0;
 
   const clearProbe = () => {
-    if (probeTimer == null) return;
-    if (typeof window === "undefined") return;
-    window.clearTimeout(probeTimer);
+    probeToken += 1;
+    if (probeTimer != null && probeTimerWindow != null) {
+      probeTimerWindow.clearTimeout(probeTimer);
+    }
     probeTimer = null;
+    probeTimerWindow = null;
     probeStartedAtMs = null;
   };
 
@@ -58,19 +62,29 @@ export function useVirtuaViewportBump(viewportEl: Ref<HTMLElement | null>, optio
     const PROBE_INTERVAL_MS = 50;
     const PROBE_MAX_MS = 3_000;
     if (probeStartedAtMs == null) probeStartedAtMs = Date.now();
+    const timerWindow = window;
+    probeTimerWindow = timerWindow;
+    const token = probeToken;
 
     const tick = () => {
+      if (token !== probeToken) return;
       probeTimer = null;
+      probeTimerWindow = null;
+      if (typeof window === "undefined") {
+        probeStartedAtMs = null;
+        return;
+      }
       if (bump.value >= maxBumps) return;
       const height = el.getBoundingClientRect().height;
       bumpForHeight(height);
       if (bump.value >= maxBumps) return;
       const elapsed = Date.now() - (probeStartedAtMs ?? Date.now());
       if (elapsed >= PROBE_MAX_MS) return;
-      probeTimer = window.setTimeout(tick, PROBE_INTERVAL_MS);
+      probeTimerWindow = timerWindow;
+      probeTimer = timerWindow.setTimeout(tick, PROBE_INTERVAL_MS);
     };
 
-    probeTimer = window.setTimeout(tick, 0);
+    probeTimer = timerWindow.setTimeout(tick, 0);
   };
 
   const ensure = (el: HTMLElement | null) => {

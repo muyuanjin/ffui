@@ -1,24 +1,19 @@
 pub(super) fn plan_resume_paths(
     job_id: &str,
-    input_path: &Path,
+    _input_path: &Path,
     output_path: &Path,
     media_duration: Option<f64>,
     wait_meta: Option<&WaitMetadata>,
-    container_format: Option<&str>,
+    _container_format: Option<&str>,
     backtrack_seconds: f64,
 ) -> (Option<f64>, Vec<PathBuf>, Vec<f64>, PathBuf, Option<ResumePlan>) {
     const MAX_BACKTRACK_SECONDS: f64 = 30.0;
     // Use a per-job, per-segment temp output path so multiple pauses/resumes (or
     // duplicate enqueues for the same input) never collide on disk.
-    let build_tmp = |idx: u64| {
-        // Prefer locating temp segments next to the final output so renames stay atomic
-        // even when outputs are routed to a different directory than the input.
-        if output_path.exists() || output_path.parent() != input_path.parent() {
-            build_video_job_segment_tmp_output_path_for_output(output_path, job_id, idx)
-        } else {
-            build_video_job_segment_tmp_output_path(input_path, container_format, job_id, idx)
-        }
-    };
+    //
+    // Always derive the temp segment from the final output path so the segment
+    // extension stays aligned with the actual muxer chosen by output policy.
+    let build_tmp = |idx: u64| build_video_job_segment_tmp_output_path_for_output(output_path, job_id, idx);
 
     // 根据 WaitMetadata 计算“已处理秒数”和历史分段列表，以支撑多次暂停/继续。
     let mut resume_target_seconds: Option<f64> = None;

@@ -57,6 +57,14 @@ const normalizeContainerFormat = (format: string): string => {
   return lower;
 };
 
+const autoMapExclusionsForMuxer = (muxer?: string | null): string[] => {
+  const normalized = typeof muxer === "string" ? normalizeContainerFormat(muxer) : "";
+  if (normalized === "matroska" || normalized === "webm") {
+    return ["-0:d"];
+  }
+  return [];
+};
+
 /**
  * Build a structured ffmpeg command preview from typed preset fields.
  * This mirrors the logic used by the preset wizard and parameter panel.
@@ -192,11 +200,16 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     }
   }
   // When there is no explicit mapping configuration at all, prefer a
-  // "keep all primary streams" behaviour instead of ffmpeg's implicit
-  // "pick one best audio and one best video" defaults. The Rust backend
-  // enforces the same behaviour when building the real command.
-  if ((!mapping || !mapping.maps || mapping.maps.length === 0) && !args.includes("-map")) {
+  // "keep all mapped streams" behaviour instead of ffmpeg's implicit
+  // "pick one best audio and one best video" defaults. Some muxers reject
+  // FFmpeg data streams, so structured auto mode can append negative maps to
+  // exclude only those incompatible tracks while still preserving subtitles.
+  const hasExplicitMap = Array.isArray(mapping?.maps) && mapping.maps.some((m) => String(m ?? "").trim().length > 0);
+  if (!hasExplicitMap && !args.includes("-map")) {
     args.push("-map", "0");
+    for (const exclusion of autoMapExclusionsForMuxer(container?.format)) {
+      args.push("-map", exclusion);
+    }
   }
 
   // video

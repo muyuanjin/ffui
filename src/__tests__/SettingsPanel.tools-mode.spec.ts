@@ -121,6 +121,7 @@ describe("SettingsPanel external tools management modes", () => {
     const firstPayload = emitted1![0][0] as AppSettings;
     expect(firstPayload.tools.autoDownload).toBe(true);
     expect(firstPayload.tools.autoUpdate).toBe(false);
+    await wrapper.setProps({ appSettings: firstPayload });
 
     // Switch to "手动管理": autoDownload=false, autoUpdate=false
     await wrapper.get('[data-testid="external-tools-mode-manual"]').trigger("click");

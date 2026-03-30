@@ -17,6 +17,7 @@ describe("previewAutoEnsure (cancellation)", () => {
     vi.useFakeTimers();
     ensureJobPreviewMock.mockClear();
     (window as any).requestIdleCallback = undefined;
+    (window as any).cancelIdleCallback = undefined;
     (window as any).requestAnimationFrame = undefined;
     resetPreviewAutoEnsureForTests();
   });

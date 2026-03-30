@@ -46,7 +46,7 @@ export function createQueuePreviewEnsurePrefetcher(): {
       const revision = job.previewRevision ?? null;
       const token = (tokenSeq = (tokenSeq + 1) >>> 0);
 
-      const ensureHandle = requestJobPreviewAutoEnsure(jobId);
+      const ensureHandle = requestJobPreviewAutoEnsure(jobId, { priority: "normal" });
       const abortController = new AbortController();
 
       const op: Op = {

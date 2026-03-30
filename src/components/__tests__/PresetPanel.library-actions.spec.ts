@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { defineComponent, h } from "vue";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
 import type { FFmpegPreset } from "@/types";
 import { i18n } from "@/__tests__/helpers/mainAppTauriDialog";
@@ -20,6 +21,54 @@ const makePreset = (id: string, name: string): FFmpegPreset => ({
   },
 });
 
+const DropdownMenuStub = defineComponent({
+  name: "DropdownMenu",
+  setup(_props, { slots }) {
+    return () => slots.default?.();
+  },
+});
+
+const DropdownMenuTriggerStub = defineComponent({
+  name: "DropdownMenuTrigger",
+  setup(_props, { attrs, slots }) {
+    return () => h("div", attrs, slots.default?.());
+  },
+});
+
+const DropdownMenuContentStub = defineComponent({
+  name: "DropdownMenuContent",
+  setup(_props, { attrs, slots }) {
+    return () => h("div", attrs, slots.default?.());
+  },
+});
+
+const DropdownMenuItemStub = defineComponent({
+  name: "DropdownMenuItem",
+  emits: ["select"],
+  setup(_props, { attrs, slots, emit }) {
+    return () =>
+      h(
+        "button",
+        {
+          ...attrs,
+          type: "button",
+          onClick: (event: MouseEvent) => emit("select", event),
+        },
+        slots.default?.(),
+      );
+  },
+});
+
+const presetPanelGlobal = {
+  plugins: [i18n],
+  stubs: {
+    DropdownMenu: DropdownMenuStub,
+    DropdownMenuTrigger: DropdownMenuTriggerStub,
+    DropdownMenuContent: DropdownMenuContentStub,
+    DropdownMenuItem: DropdownMenuItemStub,
+  },
+};
+
 describe("PresetPanel library actions", () => {
   it("renders selection actions right slot before pin button", () => {
     const presets = [makePreset("p1", "One")];
@@ -31,7 +80,7 @@ describe("PresetPanel library actions", () => {
       slots: {
         "selection-actions-right": '<button type="button" data-testid="slot-action">slot</button>',
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     const slotEl = wrapper.get('[data-testid="slot-action"]').element as HTMLElement;
@@ -48,7 +97,7 @@ describe("PresetPanel library actions", () => {
         presets,
         selectionBarPinned: true,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(true);
@@ -70,7 +119,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(false);
@@ -78,6 +127,7 @@ describe("PresetPanel library actions", () => {
     const toggles = wrapper.findAll('[data-testid="preset-select-toggle"]');
     expect(toggles.length).toBeGreaterThanOrEqual(2);
     await toggles[0].trigger("click");
+    await wrapper.vm.$nextTick();
 
     expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(true);
 
@@ -98,7 +148,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     expect(wrapper.find('[data-testid="preset-selection-actions"]').exists()).toBe(false);
@@ -117,7 +167,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-select-toggle"]').trigger("click");
@@ -137,7 +187,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-select-toggle"]').trigger("click");
@@ -157,7 +207,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-card-duplicate"]').trigger("click");
@@ -177,7 +227,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-import-bundle"]').trigger("click");
@@ -192,7 +242,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-import-menu"]').trigger("click");
@@ -210,7 +260,7 @@ describe("PresetPanel library actions", () => {
       props: {
         presets,
       },
-      global: { plugins: [i18n] },
+      global: presetPanelGlobal,
     });
 
     await wrapper.get('[data-testid="preset-import-menu"]').trigger("click");
