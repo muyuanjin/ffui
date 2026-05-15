@@ -164,6 +164,7 @@ const previewResolvedPath = ref<string>("");
 const previewError = ref<string | null>(null);
 const previewLoading = ref(false);
 let previewTimer: number | null = null;
+let previewRequestSeq = 0;
 
 const normalizePathForDisplay = (value: string) => {
   const input = previewInputPath.value;
@@ -187,8 +188,10 @@ const effectivePolicyForPreview = computed<OutputPolicy>(() => {
 const computeLocalPreview = () => previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value);
 
 const refreshPreview = () => {
+  const requestSeq = ++previewRequestSeq;
   if (previewTimer) window.clearTimeout(previewTimer);
   previewTimer = window.setTimeout(async () => {
+    if (requestSeq !== previewRequestSeq) return;
     previewError.value = null;
     const fallback = computeLocalPreview();
     previewResolvedPath.value = normalizePathForDisplay(fallback);
@@ -204,11 +207,15 @@ const refreshPreview = () => {
         presetId: props.previewPresetId?.trim() ? props.previewPresetId : null,
         outputPolicy: effectivePolicyForPreview.value,
       });
+      if (requestSeq !== previewRequestSeq) return;
       if (resolved) previewResolvedPath.value = normalizePathForDisplay(resolved);
     } catch (err: unknown) {
+      if (requestSeq !== previewRequestSeq) return;
       previewError.value = err instanceof Error ? err.message : String(err ?? "preview failed");
     } finally {
-      previewLoading.value = false;
+      if (requestSeq === previewRequestSeq) {
+        previewLoading.value = false;
+      }
     }
   }, 250);
 };
@@ -219,6 +226,7 @@ watch(() => [previewInputPath.value, props.previewPresetId, effectivePolicyForPr
 });
 
 onBeforeUnmount(() => {
+  previewRequestSeq += 1;
   if (previewTimer) window.clearTimeout(previewTimer);
   previewTimer = null;
 });
@@ -363,6 +371,7 @@ const pickPreviewFile = async () => {
         <div class="space-y-1">
           <Label class="text-[10px] text-muted-foreground">{{ t("outputPolicy.preview.output") }}</Label>
           <div
+            data-testid="output-policy-preview-output"
             class="min-h-8 rounded-md border border-border/60 bg-background/60 px-2 py-1 text-xs font-mono whitespace-normal break-all"
             :title="previewResolvedPath"
           >
