@@ -1,22 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { useI18n } from "vue-i18n";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { AUTO_VALUE } from "@/lib/presetEditorContract/autoValue";
-import type { PresetFieldDef } from "@/lib/presetEditorContract/parameterSchema";
-import { CUSTOM_VALUE, selectItemLabelForField } from "./presetSchemaFieldLabels";
+import { CUSTOM_VALUE } from "./presetSchemaFieldLabels";
+import PresetSchemaFieldSelect from "./PresetSchemaFieldSelect.vue";
+import { usePresetSchemaFieldLabel, type PresetSchemaFieldComponentProps } from "./presetSchemaFieldShared";
 
-const props = defineProps<{
-  field: PresetFieldDef<any>;
-  model: any;
-  isDisabled: boolean;
-  commandGroupAttr?: string;
-  commandFieldAttr?: string;
-}>();
+const props = defineProps<PresetSchemaFieldComponentProps>();
 
-const { t } = useI18n();
-const labelFor = (value: string) => selectItemLabelForField(props.field, props.model, value, t);
+const { t, labelFor } = usePresetSchemaFieldLabel(props);
 
 const presets = computed(() => (props.field.kind === "timeExpression" ? props.field.presets : []));
 
@@ -27,6 +19,12 @@ const timeExpressionSelectValue = computed<string>(() => {
   if (props.field.presets.some((p) => p.value === v)) return v;
   return CUSTOM_VALUE;
 });
+
+const timeExpressionSelectOptions = computed(() => [
+  { value: AUTO_VALUE, label: labelFor(AUTO_VALUE) },
+  ...presets.value.map((p) => ({ value: p.value, label: labelFor(p.value) })),
+  { value: CUSTOM_VALUE, label: labelFor(CUSTOM_VALUE) },
+]);
 
 const timeExpressionInputValue = computed<string>({
   get() {
@@ -61,27 +59,16 @@ const onTimeExpressionUpdate = (value: unknown) => {
 
 <template>
   <div class="space-y-2">
-    <Select
+    <PresetSchemaFieldSelect
       :model-value="timeExpressionSelectValue"
       :disabled="isDisabled"
+      :trigger-label="labelFor(timeExpressionSelectValue)"
+      :options="timeExpressionSelectOptions"
+      :test-id="field.testId"
+      :command-group-attr="commandGroupAttr"
+      :command-field-attr="commandFieldAttr"
       @update:model-value="onTimeExpressionUpdate"
-    >
-      <SelectTrigger
-        class="h-9 text-xs"
-        :data-testid="field.testId"
-        :data-command-group="commandGroupAttr"
-        :data-command-field="commandFieldAttr"
-      >
-        <SelectValue>{{ labelFor(timeExpressionSelectValue) }}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="AUTO_VALUE">{{ labelFor(AUTO_VALUE) }}</SelectItem>
-        <SelectItem v-for="p in presets" :key="p.value" :value="p.value">
-          {{ labelFor(p.value) }}
-        </SelectItem>
-        <SelectItem :value="CUSTOM_VALUE">{{ labelFor(CUSTOM_VALUE) }}</SelectItem>
-      </SelectContent>
-    </Select>
+    />
 
     <Input
       v-if="timeExpressionSelectValue === CUSTOM_VALUE"

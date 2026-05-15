@@ -24,6 +24,10 @@ import UltimateParameterPanelPreviewPane from "@/components/parameter-panel/Ulti
 import UltimateParameterPanelSidebar from "@/components/parameter-panel/UltimateParameterPanelSidebar.vue";
 import PresetEditorGroupSummaryBanner from "@/components/parameter-panel/PresetEditorGroupSummaryBanner.vue";
 import PresetTemplateValidationStatus from "@/components/preset-template/PresetTemplateValidationStatus.vue";
+import {
+  getQuickValidateButtonLabel,
+  getQuickValidateButtonToneClass,
+} from "@/components/preset-editor/quickValidateButton";
 
 const props = defineProps<{
   /** Preset being edited in the full parameter panel. */
@@ -85,29 +89,22 @@ watch([advancedEnabled, ffmpegTemplate], () => {
 });
 
 const quickValidateHover = ref(false);
-const quickValidateButtonLabel = computed(() => {
-  if (quickValidateHover.value) return t("presetEditor.advanced.quickValidateButton") as string;
-  if (quickValidateBusy.value) return t("presetEditor.advanced.quickValidate.running") as string;
+const quickValidateButtonLabel = computed(() =>
+  getQuickValidateButtonLabel({
+    isHovering: quickValidateHover.value,
+    isBusy: quickValidateBusy.value,
+    result: quickValidateResult.value,
+    t,
+  }),
+);
 
-  const outcome = quickValidateResult.value?.outcome ?? null;
-  if (!outcome) return t("presetEditor.advanced.quickValidateButton") as string;
-  if (outcome === "ok") return t("presetEditor.advanced.quickValidate.ok") as string;
-  if (outcome === "failed") return t("presetEditor.advanced.quickValidate.failed") as string;
-  if (outcome === "timedOut") return t("presetEditor.advanced.quickValidate.timedOut") as string;
-  if (outcome === "skippedToolUnavailable") return t("presetEditor.advanced.quickValidate.toolMissing") as string;
-  if (outcome === "templateInvalid") return t("presetEditor.advanced.quickValidate.templateInvalid") as string;
-  return t("presetEditor.advanced.quickValidate.failed") as string;
-});
-
-const quickValidateButtonToneClass = computed(() => {
-  if (quickValidateHover.value) return "";
-  if (quickValidateBusy.value) return "";
-  const outcome = quickValidateResult.value?.outcome ?? null;
-  if (!outcome) return "";
-  if (outcome === "ok") return "text-emerald-400";
-  if (outcome === "skippedToolUnavailable" || outcome === "templateInvalid") return "text-amber-400";
-  return "text-destructive";
-});
+const quickValidateButtonToneClass = computed(() =>
+  getQuickValidateButtonToneClass({
+    isHovering: quickValidateHover.value,
+    isBusy: quickValidateBusy.value,
+    result: quickValidateResult.value,
+  }),
+);
 
 // name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
 

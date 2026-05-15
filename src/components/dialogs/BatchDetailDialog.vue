@@ -7,6 +7,7 @@ import { useI18n } from "vue-i18n";
 import type { CompositeBatchCompressTask, FFmpegPreset, TranscodeJob, QueueProgressStyle } from "@/types";
 import QueueContextMenu from "@/components/main/QueueContextMenu.vue";
 import { buildPreviewUrl } from "@/lib/backend";
+import { buildBatchPreviewSlots } from "@/components/queue-item/batchPreviewSlots";
 
 const QueueItem = defineAsyncComponent(() => import("@/components/QueueItem.vue"));
 const SkippedItemsStack = defineAsyncComponent(() => import("@/components/queue-item/SkippedItemsStack.vue"));
@@ -179,82 +180,7 @@ const getPresetForJob = (job: TranscodeJob): FFmpegPreset => {
   };
 };
 
-// 9宫格预览图
-type PreviewSlot = {
-  key: string;
-  previewPath: string | null;
-  job: TranscodeJob | null;
-};
-
-const previewSlots = computed<PreviewSlot[]>(() => {
-  if (!props.batch) return [];
-  const jobs = props.batch.jobs ?? [];
-  const slots: PreviewSlot[] = [];
-  const usedJobIds = new Set<string>();
-
-  // 统一计算有效预览路径：图片缺失 previewPath 时回退到 outputPath/inputPath。
-  const getEffectivePreviewPath = (job: TranscodeJob): string | null => {
-    if (job.previewPath) return job.previewPath;
-    if (job.type === "image") {
-      return job.outputPath || job.inputPath || null;
-    }
-    return job.previewPath ?? null;
-  };
-
-  type SlotSource = {
-    job: TranscodeJob;
-    previewPath: string | null;
-  };
-
-  const jobsWithPreview: SlotSource[] = [];
-  const jobsWithoutPreview: SlotSource[] = [];
-
-  for (const job of jobs) {
-    const previewPath = getEffectivePreviewPath(job);
-    if (previewPath) {
-      jobsWithPreview.push({ job, previewPath });
-    } else {
-      jobsWithoutPreview.push({ job, previewPath: null });
-    }
-  }
-
-  const pushJobSlot = (source: SlotSource) => {
-    if (slots.length >= 9) return;
-    const id = source.job.id;
-    if (usedJobIds.has(id)) return;
-    usedJobIds.add(id);
-
-    slots.push({
-      key: id,
-      previewPath: source.previewPath,
-      job: source.job,
-    });
-  };
-
-  // 优先填充有预览的子任务，保证每个子任务最多出现一次，避免重复缩略图。
-  for (const source of jobsWithPreview) {
-    if (slots.length >= 9) break;
-    pushJobSlot(source);
-  }
-
-  // 其余槽位用没有预览的子任务占位（可显示文件名），同样保证不重复。
-  for (const source of jobsWithoutPreview) {
-    if (slots.length >= 9) break;
-    pushJobSlot(source);
-  }
-
-  // 不足 9 个时补齐占位槽，保持九宫格稳定布局。
-  while (slots.length < 9) {
-    const index = slots.length;
-    slots.push({
-      key: `placeholder-${index}`,
-      previewPath: null,
-      job: null,
-    });
-  }
-
-  return slots;
-});
+const previewSlots = computed(() => buildBatchPreviewSlots(props.batch?.jobs ?? []));
 
 const onPreviewClick = (job: TranscodeJob | null) => {
   if (job) {

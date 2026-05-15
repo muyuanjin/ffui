@@ -5,6 +5,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import PresetTemplateValidationStatus from "@/components/preset-template/PresetTemplateValidationStatus.vue";
+import {
+  getQuickValidateButtonLabel,
+  getQuickValidateButtonToneClass,
+} from "@/components/preset-editor/quickValidateButton";
 import type { HighlightToken } from "@/lib/highlightTokens";
 import type { AudioConfig, FilterConfig, VideoConfig, Translate } from "@/types";
 import type { PresetTemplateValidationResult } from "@/types";
@@ -50,30 +54,23 @@ const emit = defineEmits<{
 }>();
 
 const quickValidateHover = ref(false);
-const quickValidateButtonLabel = computed(() => {
-  if (!showQuickValidate) return "";
-  if (quickValidateHover.value) return t("presetEditor.advanced.quickValidateButton") as string;
-  if (quickValidateBusy) return t("presetEditor.advanced.quickValidate.running") as string;
+const quickValidateButtonLabel = computed(() =>
+  getQuickValidateButtonLabel({
+    showQuickValidate,
+    isHovering: quickValidateHover.value,
+    isBusy: quickValidateBusy,
+    result: quickValidateResult,
+    t,
+  }),
+);
 
-  const outcome = quickValidateResult?.outcome ?? null;
-  if (!outcome) return t("presetEditor.advanced.quickValidateButton") as string;
-  if (outcome === "ok") return t("presetEditor.advanced.quickValidate.ok") as string;
-  if (outcome === "failed") return t("presetEditor.advanced.quickValidate.failed") as string;
-  if (outcome === "timedOut") return t("presetEditor.advanced.quickValidate.timedOut") as string;
-  if (outcome === "skippedToolUnavailable") return t("presetEditor.advanced.quickValidate.toolMissing") as string;
-  if (outcome === "templateInvalid") return t("presetEditor.advanced.quickValidate.templateInvalid") as string;
-  return t("presetEditor.advanced.quickValidate.failed") as string;
-});
-
-const quickValidateButtonToneClass = computed(() => {
-  if (quickValidateHover.value) return "";
-  if (quickValidateBusy) return "";
-  const outcome = quickValidateResult?.outcome ?? null;
-  if (!outcome) return "";
-  if (outcome === "ok") return "text-emerald-400";
-  if (outcome === "skippedToolUnavailable" || outcome === "templateInvalid") return "text-amber-400";
-  return "text-destructive";
-});
+const quickValidateButtonToneClass = computed(() =>
+  getQuickValidateButtonToneClass({
+    isHovering: quickValidateHover.value,
+    isBusy: quickValidateBusy,
+    result: quickValidateResult,
+  }),
+);
 </script>
 
 <template>

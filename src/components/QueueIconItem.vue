@@ -3,12 +3,11 @@ import { computed, toRef, onUpdated } from "vue";
 import { Button } from "@/components/ui/button";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
-import { hasTauri } from "@/lib/backend";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
-import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
+import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDisplay";
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
 const isTestEnv =
@@ -211,23 +210,10 @@ const timeDisplayText = computed(() => {
   return null;
 });
 
-const compareDisabledReason = computed(() => {
-  if (!hasTauri()) return "requires-tauri";
-  return getJobCompareDisabledReason(props.job);
-});
-
-const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
-
-const compareDisabledText = computed(() => {
-  const reason = compareDisabledReason.value;
-  if (!reason) return null;
-  if (reason === "requires-tauri") return t("jobCompare.requiresTauri") as string;
-  if (reason === "not-video") return t("jobCompare.disabled.notVideo") as string;
-  if (reason === "status") return t("jobCompare.disabled.status") as string;
-  if (reason === "no-output") return t("jobCompare.disabled.noOutput") as string;
-  if (reason === "no-partial-output") return t("jobCompare.disabled.noPartialOutput") as string;
-  return t("jobCompare.disabled.unavailable") as string;
-});
+const { canCompare, compareDisabledText } = useJobCompareDisplay(
+  computed(() => props.job),
+  t,
+);
 
 const desiredPreviewHeightPx = computed(() => {
   if (props.size === "large") return 720;

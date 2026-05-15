@@ -4,6 +4,7 @@ import { useI18n } from "vue-i18n";
 import type { CompositeBatchCompressTask, QueueProgressStyle } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { buildJobPreviewUrl } from "@/lib/backend";
+import { buildBatchPreviewSlots } from "@/components/queue-item/batchPreviewSlots";
 
 const props = defineProps<{
   batch: CompositeBatchCompressTask;
@@ -106,80 +107,7 @@ const captionPaddingClass = computed(() => {
   return "px-2 py-1.5";
 });
 
-type PreviewSlot = {
-  key: string;
-  previewPath: string | null;
-  previewRevision: number | null;
-};
-
-const previewSlots = computed<PreviewSlot[]>(() => {
-  const jobs = props.batch.jobs ?? [];
-  const slots: PreviewSlot[] = [];
-  const usedJobIds = new Set<string>();
-
-  // 统一处理图片/视频的有效预览路径：图片缺失 previewPath 时回退到 outputPath/inputPath。
-  const getEffectivePreviewPath = (job: (typeof jobs)[number]): string | null => {
-    if (job.previewPath) return job.previewPath;
-    if (job.type === "image") {
-      return job.outputPath || job.inputPath || null;
-    }
-    return job.previewPath ?? null;
-  };
-
-  type SlotSource = {
-    job: (typeof jobs)[number];
-    previewPath: string | null;
-  };
-
-  const jobsWithPreview: SlotSource[] = [];
-  const jobsWithoutPreview: SlotSource[] = [];
-
-  for (const job of jobs) {
-    const previewPath = getEffectivePreviewPath(job);
-    if (previewPath) {
-      jobsWithPreview.push({ job, previewPath });
-    } else {
-      jobsWithoutPreview.push({ job, previewPath: null });
-    }
-  }
-
-  const pushJobSlot = (source: SlotSource) => {
-    if (slots.length >= 9) return;
-    const id = source.job.id;
-    if (usedJobIds.has(id)) return;
-    usedJobIds.add(id);
-
-    slots.push({
-      key: id,
-      previewPath: source.previewPath,
-      previewRevision: source.job.previewRevision ?? null,
-    });
-  };
-
-  // 优先填充有预览的子任务，且每个子任务最多出现一次，避免重复缩略图。
-  for (const source of jobsWithPreview) {
-    if (slots.length >= 9) break;
-    pushJobSlot(source);
-  }
-
-  // 其余槽位用没有预览的子任务占位（会显示灰色占位块），同样保证不重复。
-  for (const source of jobsWithoutPreview) {
-    if (slots.length >= 9) break;
-    pushJobSlot(source);
-  }
-
-  // 不足 9 个时补齐占位槽，保持九宫格稳定布局。
-  while (slots.length < 9) {
-    const index = slots.length;
-    slots.push({
-      key: `placeholder-${index}`,
-      previewPath: null,
-      previewRevision: null,
-    });
-  }
-
-  return slots;
-});
+const previewSlots = computed(() => buildBatchPreviewSlots(props.batch.jobs ?? []));
 
 const videosCount = computed(() => props.batch.jobs.filter((job) => job.type === "video").length);
 

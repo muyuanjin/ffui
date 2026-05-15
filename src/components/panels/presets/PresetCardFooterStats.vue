@@ -8,6 +8,7 @@ import { toFixedDisplay } from "@/lib/numberDisplay";
 import { getRatioColorClass } from "../presetHelpers";
 import PresetCardFooterVmafStat from "./PresetCardFooterVmafStat.vue";
 import { normalizePresetCardFooterSettings } from "./presetCardFooterSettings";
+import { usePresetVmafDisplay } from "./presetVmafDisplay";
 
 const props = defineProps<{
   preset: FFmpegPreset;
@@ -68,64 +69,11 @@ const avgRatioText = computed(() => (avgRatioDisplayValue.value == null ? "—" 
 const avgSpeedText = computed(() => getPresetAvgSpeed(props.preset)?.toFixed(1) ?? "—");
 const avgFpsText = computed(() => getPresetAvgFps(props.preset)?.toFixed(0) ?? "—");
 
-const predictedVmafText = computed(() => {
-  const v = props.predictedVmaf;
-  return toFixedDisplay(v, 2)?.text ?? "—";
-});
-
-const measuredVmaf = computed(() => {
-  const stats = props.preset.stats;
-  const c = Number(stats.vmafCount ?? 0);
-  const sum = Number(stats.vmafSum ?? 0);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  if (!Number.isFinite(sum)) return null;
-  return sum / c;
-});
-
-const measuredVmafText = computed(() => {
-  const v = measuredVmaf.value;
-  if (v == null || !Number.isFinite(v)) return null;
-  return toFixedDisplay(v, 2)?.text ?? null;
-});
-
-const measuredVmafCount = computed(() => {
-  const c = Number(props.preset.stats.vmafCount ?? 0);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  return Math.floor(c);
-});
-
-const vmafDisplayValue = computed<number | null>(() => {
-  const measured = measuredVmaf.value;
-  if (typeof measured === "number" && Number.isFinite(measured)) {
-    return toFixedDisplay(measured, 2)?.value ?? null;
-  }
-  const predicted = props.predictedVmaf;
-  if (typeof predicted === "number" && Number.isFinite(predicted)) {
-    return toFixedDisplay(predicted, 2)?.value ?? null;
-  }
-  return null;
-});
-
-const vmaf95Plus = computed(() => {
-  const v = vmafDisplayValue.value;
-  return typeof v === "number" && Number.isFinite(v) && v >= 95;
-});
-
-const vmafTitle = computed(() => {
-  const parts: string[] = [];
-  const mean = measuredVmafText.value;
-  if (mean) {
-    const c = measuredVmafCount.value;
-    parts.push(
-      c
-        ? (t("presets.vmafTooltipMeasuredWithCount", { value: mean, count: c }) as string)
-        : (t("presets.vmafTooltipMeasured", { value: mean }) as string),
-    );
-  } else if (predictedVmafText.value !== "—") {
-    parts.push(t("presets.vmafTooltipPredicted", { value: predictedVmafText.value }) as string);
-  }
-  if (vmaf95Plus.value) parts.push(t("presets.vmafHint95") as string);
-  return parts.join(" · ") || "VMAF";
+const { predictedVmafText, measuredVmafText, measuredVmafCount, vmaf95Plus, vmafTitle } = usePresetVmafDisplay({
+  preset: () => props.preset,
+  predictedVmaf: () => props.predictedVmaf,
+  t,
+  include95Hint: true,
 });
 
 const vmafStatProps = computed(() => ({

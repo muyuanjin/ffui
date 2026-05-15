@@ -7,6 +7,17 @@ import "echarts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
+import {
+  CHART_ANIMATION,
+  gigabyteTooltipValue,
+  gigabyteYAxis,
+  latestChartPoints,
+  megabytesPerSecondTooltipValue,
+  megabytesPerSecondYAxis,
+  percentTooltipValue,
+  percentYAxis,
+  timeCategoryAxis,
+} from "./monitorChartOptions";
 
 defineProps<{
   /** Legacy CPU usage snapshot from backend (basic polling). Kept for compatibility. */
@@ -21,15 +32,6 @@ const { snapshots, cpuTotalSeries, perCoreSeries, memorySeries, diskSeries, netw
 
 const MAX_HISTORY_POINTS = 120;
 
-// 统一的轻量级过渡动画配置，让高频刷新时视觉更连贯。
-// 对于实时监控场景，ECharts 自带的补间动画在高频刷新下容易出现“顿挫”和形状抖动，
-// 这里直接关闭图表层面的动画，只依赖较高的采样频率来保证视觉连贯性。
-const CHART_ANIMATION = {
-  animation: false,
-  animationDuration: 0,
-  animationDurationUpdate: 0,
-} as const;
-
 // Prefer GPU metrics from the streaming system-metrics pipeline so the
 // performance view no longer depends on polling commands.
 const latestGpu = computed<GpuUsageSnapshot | null>(() => {
@@ -41,24 +43,12 @@ const latestGpu = computed<GpuUsageSnapshot | null>(() => {
 const hasMetrics = computed(() => snapshots.value.length > 0);
 
 const cpuTotalOption = computed(() => {
-  const allPoints = cpuTotalSeries.value;
-  const points =
-    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
+  const points = latestChartPoints(cpuTotalSeries.value, MAX_HISTORY_POINTS);
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
-    xAxis: {
-      type: "category",
-      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
-      boundaryGap: false,
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      min: 0,
-      max: 100,
-      axisLabel: { formatter: "{value}%" },
-    },
+    xAxis: timeCategoryAxis(points),
+    yAxis: percentYAxis(),
     series: [
       {
         name: "CPU",
@@ -71,22 +61,16 @@ const cpuTotalOption = computed(() => {
     ],
     tooltip: {
       trigger: "axis",
-      valueFormatter(value: number) {
-        return `${value.toFixed(1)}%`;
-      },
+      valueFormatter: percentTooltipValue(1),
     },
   };
 });
 
 const cpuPerCoreOption = computed(() => {
-  const baseAxisAll = cpuTotalSeries.value;
-  const axisPoints =
-    baseAxisAll.length > MAX_HISTORY_POINTS ? baseAxisAll.slice(baseAxisAll.length - MAX_HISTORY_POINTS) : baseAxisAll;
+  const axisPoints = latestChartPoints(cpuTotalSeries.value, MAX_HISTORY_POINTS);
 
   const series = perCoreSeries.value.map((core) => {
-    const valuesAll = core.values;
-    const values =
-      valuesAll.length > MAX_HISTORY_POINTS ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS) : valuesAll;
+    const values = latestChartPoints(core.values, MAX_HISTORY_POINTS);
 
     return {
       name: `C${core.coreIndex}`,
@@ -101,52 +85,26 @@ const cpuPerCoreOption = computed(() => {
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
-    xAxis: {
-      type: "category",
-      data: axisPoints.map((p) => new Date(p.timestamp).toLocaleTimeString()),
-      boundaryGap: false,
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      min: 0,
-      max: 100,
-      axisLabel: { formatter: "{value}%" },
-    },
+    xAxis: timeCategoryAxis(axisPoints),
+    yAxis: percentYAxis(),
     legend: {
       type: "scroll",
     },
     series,
     tooltip: {
       trigger: "axis",
-      valueFormatter(value: number) {
-        return `${value.toFixed(0)}%`;
-      },
+      valueFormatter: percentTooltipValue(0),
     },
   };
 });
 
 const memoryOption = computed(() => {
-  const allPoints = memorySeries.value;
-  const points =
-    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
+  const points = latestChartPoints(memorySeries.value, MAX_HISTORY_POINTS);
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
-    xAxis: {
-      type: "category",
-      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
-      boundaryGap: false,
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: {
-        formatter(val: number) {
-          return `${(val / (1024 * 1024 * 1024)).toFixed(0)}G`;
-        },
-      },
-    },
+    xAxis: timeCategoryAxis(points),
+    yAxis: gigabyteYAxis(),
     series: [
       {
         name: "Used",
@@ -159,34 +117,18 @@ const memoryOption = computed(() => {
     ],
     tooltip: {
       trigger: "axis",
-      valueFormatter(value: number) {
-        return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-      },
+      valueFormatter: gigabyteTooltipValue,
     },
   };
 });
 
 const diskOption = computed(() => {
-  const allPoints = diskSeries.value;
-  const points =
-    allPoints.length > MAX_HISTORY_POINTS ? allPoints.slice(allPoints.length - MAX_HISTORY_POINTS) : allPoints;
+  const points = latestChartPoints(diskSeries.value, MAX_HISTORY_POINTS);
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 16, bottom: 24 },
-    xAxis: {
-      type: "category",
-      data: points.map((p) => new Date(p.timestamp).toLocaleTimeString()),
-      boundaryGap: false,
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: {
-        formatter(val: number) {
-          return `${(val / (1024 * 1024)).toFixed(0)} MB/s`;
-        },
-      },
-    },
+    xAxis: timeCategoryAxis(points),
+    yAxis: megabytesPerSecondYAxis(),
     series: [
       {
         name: "Read",
@@ -205,9 +147,7 @@ const diskOption = computed(() => {
     ],
     tooltip: {
       trigger: "axis",
-      valueFormatter(value: number) {
-        return `${(value / (1024 * 1024)).toFixed(2)} MB/s`;
-      },
+      valueFormatter: megabytesPerSecondTooltipValue,
     },
   };
 });
@@ -224,16 +164,10 @@ const networkOption = computed(() => {
   }
 
   const baseInterface = allSeries[0];
-  const baseValuesAll = baseInterface.values;
-  const baseValues =
-    baseValuesAll.length > MAX_HISTORY_POINTS
-      ? baseValuesAll.slice(baseValuesAll.length - MAX_HISTORY_POINTS)
-      : baseValuesAll;
+  const baseValues = latestChartPoints(baseInterface.values, MAX_HISTORY_POINTS);
 
   const series = allSeries.flatMap((iface) => {
-    const valuesAll = iface.values;
-    const values =
-      valuesAll.length > MAX_HISTORY_POINTS ? valuesAll.slice(valuesAll.length - MAX_HISTORY_POINTS) : valuesAll;
+    const values = latestChartPoints(iface.values, MAX_HISTORY_POINTS);
 
     return [
       {
@@ -256,29 +190,15 @@ const networkOption = computed(() => {
   return {
     ...CHART_ANIMATION,
     grid: { left: 40, right: 8, top: 32, bottom: 24 },
-    xAxis: {
-      type: "category",
-      data: baseValues.map((p) => new Date(p.timestamp).toLocaleTimeString()),
-      boundaryGap: false,
-      axisLabel: { show: false },
-    },
-    yAxis: {
-      type: "value",
-      axisLabel: {
-        formatter(val: number) {
-          return `${(val / (1024 * 1024)).toFixed(0)} MB/s`;
-        },
-      },
-    },
+    xAxis: timeCategoryAxis(baseValues),
+    yAxis: megabytesPerSecondYAxis(),
     legend: {
       type: "scroll",
     },
     series,
     tooltip: {
       trigger: "axis",
-      valueFormatter(value: number) {
-        return `${(value / (1024 * 1024)).toFixed(2)} MB/s`;
-      },
+      valueFormatter: megabytesPerSecondTooltipValue,
     },
   };
 });

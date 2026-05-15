@@ -5,9 +5,8 @@ import { Button } from "@/components/ui/button";
 import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
-import { hasTauri } from "@/lib/backend";
-import { getJobCompareDisabledReason, isJobCompareEligible } from "@/lib/jobCompare";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
+import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDisplay";
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
 const props = withDefaults(
@@ -95,23 +94,10 @@ const timeDisplayText = computed(() => {
   return null;
 });
 
-const compareDisabledReason = computed(() => {
-  if (!hasTauri()) return "requires-tauri";
-  return getJobCompareDisabledReason(props.job);
-});
-
-const canCompare = computed(() => isJobCompareEligible(props.job) && compareDisabledReason.value == null);
-
-const compareDisabledText = computed(() => {
-  const reason = compareDisabledReason.value;
-  if (!reason) return null;
-  if (reason === "requires-tauri") return props.t("jobCompare.requiresTauri");
-  if (reason === "not-video") return props.t("jobCompare.disabled.notVideo");
-  if (reason === "status") return props.t("jobCompare.disabled.status");
-  if (reason === "no-output") return props.t("jobCompare.disabled.noOutput");
-  if (reason === "no-partial-output") return props.t("jobCompare.disabled.noPartialOutput");
-  return props.t("jobCompare.disabled.unavailable");
-});
+const { canCompare, compareDisabledText } = useJobCompareDisplay(
+  computed(() => props.job),
+  props.t,
+);
 
 const emit = defineEmits<QueueItemRowEmits>();
 </script>

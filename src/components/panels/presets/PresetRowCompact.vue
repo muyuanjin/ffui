@@ -16,6 +16,7 @@ import {
   isCustomCommandPreset,
   isSmartPreset,
 } from "../presetHelpers";
+import { usePresetVmafDisplay } from "./presetVmafDisplay";
 
 const props = defineProps<{
   preset: FFmpegPreset;
@@ -45,40 +46,14 @@ const avgRatioDisplayValue = computed<number | null>(() => {
 const avgRatioText = computed(() => (avgRatioDisplayValue.value == null ? null : `${avgRatioDisplayValue.value}%`));
 const avgRatioColorClass = computed(() => getRatioColorClass(avgRatioDisplayValue.value));
 
-const predictedVmafText = computed(() => {
-  const v = props.predictedVmaf;
-  if (typeof v !== "number" || !Number.isFinite(v)) return "—";
-  return toFixedDisplay(v, 2)?.text ?? "—";
-});
-
-const measuredVmafText = computed(() => {
-  const c = Number(props.preset.stats.vmafCount ?? 0);
-  const sum = Number(props.preset.stats.vmafSum ?? 0);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  if (!Number.isFinite(sum)) return null;
-  return toFixedDisplay(sum / c, 2)?.text ?? null;
-});
-
-const measuredVmafCount = computed(() => {
-  const c = Number(props.preset.stats.vmafCount ?? 0);
-  if (!Number.isFinite(c) || c <= 0) return null;
-  return Math.floor(c);
-});
-
-const _vmafTitle = computed(() => {
-  const parts: string[] = [];
-  const mean = measuredVmafText.value;
-  if (mean) {
-    const c = measuredVmafCount.value;
-    parts.push(
-      c
-        ? (t("presets.vmafTooltipMeasuredWithCount", { value: mean, count: c }) as string)
-        : (t("presets.vmafTooltipMeasured", { value: mean }) as string),
-    );
-  } else if (predictedVmafText.value !== "—") {
-    parts.push(t("presets.vmafTooltipPredicted", { value: predictedVmafText.value }) as string);
-  }
-  return parts.join(" · ") || "VMAF";
+const {
+  predictedVmafText,
+  measuredVmafText,
+  vmafTitle: _vmafTitle,
+} = usePresetVmafDisplay({
+  preset: () => props.preset,
+  predictedVmaf: () => props.predictedVmaf,
+  t,
 });
 
 const handleRowClick = (event: MouseEvent) => {

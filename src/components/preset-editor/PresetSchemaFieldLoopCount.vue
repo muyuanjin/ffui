@@ -1,23 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { AUTO_VALUE } from "@/lib/presetEditorContract/autoValue";
-import type { PresetFieldDef } from "@/lib/presetEditorContract/parameterSchema";
-import { CUSTOM_VALUE, selectItemLabelForField } from "./presetSchemaFieldLabels";
+import { CUSTOM_VALUE } from "./presetSchemaFieldLabels";
+import PresetSchemaFieldSelect from "./PresetSchemaFieldSelect.vue";
+import PresetSchemaIntegerCustomInput from "./PresetSchemaIntegerCustomInput.vue";
+import { usePresetSchemaFieldLabel, type PresetSchemaFieldComponentProps } from "./presetSchemaFieldShared";
 
-const props = defineProps<{
-  field: PresetFieldDef<any>;
-  model: any;
-  isDisabled: boolean;
-  commandGroupAttr?: string;
-  commandFieldAttr?: string;
-}>();
+const props = defineProps<PresetSchemaFieldComponentProps>();
 
-const { t } = useI18n();
-const labelFor = (value: string) => selectItemLabelForField(props.field, props.model, value, t);
+const { t, labelFor } = usePresetSchemaFieldLabel(props);
 
 const quickTimes = computed(() => (props.field.kind === "loopCount" ? (props.field.quickTimes ?? []) : []));
 
@@ -28,6 +19,19 @@ const loopCountSelectValue = computed<string>(() => {
   if (cnt === -1) return "-1";
   if (cnt === 0) return "0";
   return CUSTOM_VALUE;
+});
+
+const loopCountSelectOptions = computed(() => {
+  const options = [
+    { value: AUTO_VALUE, label: labelFor(AUTO_VALUE) },
+    { value: "0", label: labelFor("0") },
+    { value: "-1", label: labelFor("-1") },
+  ];
+  for (const times of quickTimes.value) {
+    options.push({ value: String(times), label: labelFor(String(times)) });
+  }
+  options.push({ value: CUSTOM_VALUE, label: labelFor(CUSTOM_VALUE) });
+  return options;
 });
 
 const loopTimesDraft = ref<string>("");
@@ -112,47 +116,29 @@ const onLoopCountUpdate = (value: unknown) => {
 
 <template>
   <div class="space-y-2">
-    <Select :model-value="loopCountSelectValue" :disabled="isDisabled" @update:model-value="onLoopCountUpdate">
-      <SelectTrigger
-        class="h-9 text-xs"
-        :data-testid="field.testId"
-        :data-command-group="commandGroupAttr"
-        :data-command-field="commandFieldAttr"
-      >
-        <SelectValue>{{ labelFor(loopCountSelectValue) }}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="AUTO_VALUE">{{ labelFor(AUTO_VALUE) }}</SelectItem>
-        <SelectItem value="0">{{ labelFor("0") }}</SelectItem>
-        <SelectItem value="-1">{{ labelFor("-1") }}</SelectItem>
-        <SelectItem v-for="times in quickTimes" :key="times" :value="String(times)">
-          {{ labelFor(String(times)) }}
-        </SelectItem>
-        <SelectItem :value="CUSTOM_VALUE">{{ labelFor(CUSTOM_VALUE) }}</SelectItem>
-      </SelectContent>
-    </Select>
+    <PresetSchemaFieldSelect
+      :model-value="loopCountSelectValue"
+      :disabled="isDisabled"
+      :trigger-label="labelFor(loopCountSelectValue)"
+      :options="loopCountSelectOptions"
+      :test-id="field.testId"
+      :command-group-attr="commandGroupAttr"
+      :command-field-attr="commandFieldAttr"
+      @update:model-value="onLoopCountUpdate"
+    />
 
-    <Input
+    <PresetSchemaIntegerCustomInput
       v-if="loopCountSelectValue === CUSTOM_VALUE"
       :id="field.id"
       :model-value="loopTimesDraft"
-      type="number"
-      step="1"
-      min="1"
-      class="h-9 text-xs"
+      :min="1"
       :disabled="isDisabled"
-      :class="loopTimesError ? 'border-destructive focus-visible:ring-destructive/30' : ''"
-      :data-command-group="commandGroupAttr"
-      :data-command-field="commandFieldAttr"
+      :error="loopTimesError"
+      :command-group-attr="commandGroupAttr"
+      :command-field-attr="commandFieldAttr"
+      :fix-label="t('presetEditor.fieldError.fix')"
       @update:model-value="onLoopTimesDraftUpdate"
+      @fix="fixLoopTimesDraft"
     />
-    <div v-if="loopCountSelectValue === CUSTOM_VALUE && loopTimesError" class="flex items-center justify-between gap-2">
-      <p class="text-[10px] text-destructive">
-        {{ loopTimesError }}
-      </p>
-      <Button type="button" variant="ghost" size="xs" class="h-6 px-2 text-[10px]" @click="fixLoopTimesDraft">
-        {{ t("presetEditor.fieldError.fix") }}
-      </Button>
-    </div>
   </div>
 </template>

@@ -1,23 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
-import { useI18n } from "vue-i18n";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { AUTO_VALUE } from "@/lib/presetEditorContract/autoValue";
-import type { PresetFieldDef } from "@/lib/presetEditorContract/parameterSchema";
-import { CUSTOM_VALUE, selectItemLabelForField } from "./presetSchemaFieldLabels";
+import { CUSTOM_VALUE } from "./presetSchemaFieldLabels";
+import PresetSchemaFieldSelect from "./PresetSchemaFieldSelect.vue";
+import PresetSchemaIntegerCustomInput from "./PresetSchemaIntegerCustomInput.vue";
+import { usePresetSchemaFieldLabel, type PresetSchemaFieldComponentProps } from "./presetSchemaFieldShared";
 
-const props = defineProps<{
-  field: PresetFieldDef<any>;
-  model: any;
-  isDisabled: boolean;
-  commandGroupAttr?: string;
-  commandFieldAttr?: string;
-}>();
+const props = defineProps<PresetSchemaFieldComponentProps>();
 
-const { t } = useI18n();
-const labelFor = (value: string) => selectItemLabelForField(props.field, props.model, value, t);
+const { t, labelFor } = usePresetSchemaFieldLabel(props);
 
 const inputFileIndexMappingSelectValue = computed<string>(() => {
   if (props.field.kind !== "inputFileIndexMapping") return AUTO_VALUE;
@@ -26,6 +17,18 @@ const inputFileIndexMappingSelectValue = computed<string>(() => {
   if (idx === -1) return "-1";
   if (idx === 0) return "0";
   return CUSTOM_VALUE;
+});
+
+const inputFileIndexMappingSelectOptions = computed(() => {
+  const options = [
+    { value: AUTO_VALUE, label: labelFor(AUTO_VALUE) },
+    { value: "-1", label: labelFor("-1") },
+  ];
+  if (props.field.kind === "inputFileIndexMapping" && props.field.includeZero !== false) {
+    options.push({ value: "0", label: labelFor("0") });
+  }
+  options.push({ value: CUSTOM_VALUE, label: labelFor(CUSTOM_VALUE) });
+  return options;
 });
 
 const inputFileIndexDraft = ref<string>("");
@@ -106,53 +109,29 @@ const onInputFileIndexMappingUpdate = (value: unknown) => {
 
 <template>
   <div class="space-y-2">
-    <Select
+    <PresetSchemaFieldSelect
       :model-value="inputFileIndexMappingSelectValue"
       :disabled="isDisabled"
+      :trigger-label="labelFor(inputFileIndexMappingSelectValue)"
+      :options="inputFileIndexMappingSelectOptions"
+      :test-id="field.testId"
+      :command-group-attr="commandGroupAttr"
+      :command-field-attr="commandFieldAttr"
       @update:model-value="onInputFileIndexMappingUpdate"
-    >
-      <SelectTrigger
-        class="h-9 text-xs"
-        :data-testid="field.testId"
-        :data-command-group="commandGroupAttr"
-        :data-command-field="commandFieldAttr"
-      >
-        <SelectValue>{{ labelFor(inputFileIndexMappingSelectValue) }}</SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem :value="AUTO_VALUE">{{ labelFor(AUTO_VALUE) }}</SelectItem>
-        <SelectItem value="-1">{{ labelFor("-1") }}</SelectItem>
-        <SelectItem v-if="field.kind === 'inputFileIndexMapping' && field.includeZero !== false" value="0">
-          {{ labelFor("0") }}
-        </SelectItem>
-        <SelectItem :value="CUSTOM_VALUE">{{ labelFor(CUSTOM_VALUE) }}</SelectItem>
-      </SelectContent>
-    </Select>
+    />
 
-    <Input
+    <PresetSchemaIntegerCustomInput
       v-if="inputFileIndexMappingSelectValue === CUSTOM_VALUE"
       :id="field.id"
       :model-value="inputFileIndexDraft"
-      type="number"
-      step="1"
-      min="0"
-      class="h-9 text-xs"
+      :min="0"
       :disabled="isDisabled"
-      :class="inputFileIndexError ? 'border-destructive focus-visible:ring-destructive/30' : ''"
-      :data-command-group="commandGroupAttr"
-      :data-command-field="commandFieldAttr"
+      :error="inputFileIndexError"
+      :command-group-attr="commandGroupAttr"
+      :command-field-attr="commandFieldAttr"
+      :fix-label="t('presetEditor.fieldError.fix')"
       @update:model-value="onInputFileIndexDraftUpdate"
+      @fix="fixInputFileIndexDraft"
     />
-    <div
-      v-if="inputFileIndexMappingSelectValue === CUSTOM_VALUE && inputFileIndexError"
-      class="flex items-center justify-between gap-2"
-    >
-      <p class="text-[10px] text-destructive">
-        {{ inputFileIndexError }}
-      </p>
-      <Button type="button" variant="ghost" size="xs" class="h-6 px-2 text-[10px]" @click="fixInputFileIndexDraft">
-        {{ t("presetEditor.fieldError.fix") }}
-      </Button>
-    </div>
   </div>
 </template>
