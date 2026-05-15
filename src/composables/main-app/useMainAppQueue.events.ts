@@ -1,10 +1,11 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { hasTauri } from "@/lib/backend";
 import type { QueueStateLite, QueueStateLiteDelta, TranscodeJob } from "@/types";
 import { recordQueueEvent } from "@/lib/queuePerf";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
 import { getAcceptedDeltaRevisionForJobs } from "@/composables/queue/operations-state-sync";
-import { coalesceQueueDeltaFrames, type QueueDeltaFrame } from "./useMainAppQueue.events.delta";
+import { QueueDeltaLatestWinsMailbox } from "./useMainAppQueue.events.delta";
 import { createQueueForegroundRefreshController } from "./useMainAppQueue.events.foreground";
 
 interface QueueEventDeps {
@@ -35,17 +36,16 @@ export function useQueueEventListeners({
   let unsubscribeQueueDelta: UnsubscribeFn | null = null;
   let disposed = false;
   let queueTimer: number | undefined;
+  let visibleSyncTimer: number | undefined;
   let initialQueuePollScheduled = false;
   let initialQueuePollCancelled = false;
   let pendingQueueState: QueueStateLite | null = null;
   let pendingApplyHandle: number | null = null;
   let pendingApplyDeadlineHandle: number | null = null;
-  let pendingDeltaBaseRevision: number | null = null;
-  let pendingDeltaFrames: QueueDeltaFrame[] | null = null;
+  const pendingDeltaMailbox = new QueueDeltaLatestWinsMailbox();
   let pendingDeltaApplyHandle: number | null = null;
   let pendingDeltaApplyDeadlineHandle: number | null = null;
-  let pendingAheadDeltaBaseRevision: number | null = null;
-  let pendingAheadDeltaFrames: QueueDeltaFrame[] | null = null;
+  const pendingAheadDeltaMailbox = new QueueDeltaLatestWinsMailbox();
   let pendingAheadRefreshHandle: number | null = null;
   let lastAheadRefreshAtMs = 0;
 
@@ -59,6 +59,15 @@ export function useQueueEventListeners({
   const getDeltaRevisionFloor = (baseSnapshotRevision: number): number => {
     const acceptedRevision = getAcceptedDeltaRevisionForJobs(jobs, baseSnapshotRevision);
     return typeof acceptedRevision === "number" && Number.isFinite(acceptedRevision) ? acceptedRevision : -1;
+  };
+
+  const getWindowMinimized = async (): Promise<boolean> => {
+    try {
+      const win = getCurrentWindow();
+      return await win.isMinimized();
+    } catch {
+      return false;
+    }
   };
 
   const flushPendingQueueState = () => {
@@ -103,15 +112,10 @@ export function useQueueEventListeners({
     }
     pendingDeltaApplyDeadlineHandle = null;
 
-    if (!pendingDeltaFrames || pendingDeltaBaseRevision == null) return;
+    const deltaBaseRevision = pendingDeltaMailbox.baseRevision;
+    if (deltaBaseRevision == null) return;
 
-    const deltaBaseRevision = pendingDeltaBaseRevision;
-    const { deltaRevision, patches } = coalesceQueueDeltaFrames(
-      pendingDeltaFrames,
-      getDeltaRevisionFloor(deltaBaseRevision),
-    );
-    pendingDeltaFrames = null;
-    pendingDeltaBaseRevision = null;
+    const { deltaRevision, patches } = pendingDeltaMailbox.drain(getDeltaRevisionFloor(deltaBaseRevision));
     if (deltaRevision == null) return;
 
     const delta: QueueStateLiteDelta = {
@@ -173,7 +177,7 @@ export function useQueueEventListeners({
       if (lastAheadRefreshAtMs > 0 && now - lastAheadRefreshAtMs < AHEAD_REFRESH_MIN_INTERVAL_MS) {
         return;
       }
-      const base = pendingAheadDeltaBaseRevision;
+      const base = pendingAheadDeltaMailbox.baseRevision;
       if (base == null) return;
 
       const currentSnapshotRevision = lastQueueSnapshotRevision.value;
@@ -190,25 +194,20 @@ export function useQueueEventListeners({
   };
 
   const flushPendingAheadDeltaIfReady = () => {
-    const base = pendingAheadDeltaBaseRevision;
-    const frames = pendingAheadDeltaFrames;
-    if (base == null || !frames) return;
+    const base = pendingAheadDeltaMailbox.baseRevision;
+    if (base == null || pendingAheadDeltaMailbox.isEmpty) return;
 
     const currentSnapshotRevision = lastQueueSnapshotRevision.value;
     if (typeof currentSnapshotRevision !== "number" || !Number.isFinite(currentSnapshotRevision)) return;
 
     if (base < currentSnapshotRevision) {
-      pendingAheadDeltaBaseRevision = null;
-      pendingAheadDeltaFrames = null;
+      pendingAheadDeltaMailbox.clear();
       return;
     }
 
     if (base !== currentSnapshotRevision) return;
 
-    const { deltaRevision, patches } = coalesceQueueDeltaFrames(frames, getDeltaRevisionFloor(base));
-
-    pendingAheadDeltaBaseRevision = null;
-    pendingAheadDeltaFrames = null;
+    const { deltaRevision, patches } = pendingAheadDeltaMailbox.drain(getDeltaRevisionFloor(base));
     if (deltaRevision == null) return;
 
     const delta: QueueStateLiteDelta = {
@@ -221,7 +220,7 @@ export function useQueueEventListeners({
   };
 
   const hasPendingAheadDelta = () => {
-    return pendingAheadDeltaBaseRevision != null && pendingAheadDeltaFrames != null;
+    return !pendingAheadDeltaMailbox.isEmpty;
   };
   const foregroundRefreshController = createQueueForegroundRefreshController({
     jobs,
@@ -237,6 +236,7 @@ export function useQueueEventListeners({
     subscribeWindowBlur: hasTauri()
       ? async (handler) => subscribeTauriEvent("tauri://blur", async () => handler(), { key: "queue-window-blur" })
       : undefined,
+    getWindowMinimized: hasTauri() ? getWindowMinimized : undefined,
   });
 
   watch(
@@ -335,14 +335,9 @@ export function useQueueEventListeners({
           return;
         }
         if (!hasCurrentRevision || base > currentSnapshotRevision) {
-          if (pendingAheadDeltaBaseRevision !== base) {
-            pendingAheadDeltaBaseRevision = base;
-            pendingAheadDeltaFrames = [];
-          }
-          if (pendingAheadDeltaFrames) {
-            pendingAheadDeltaFrames.push({ rev, patches: payload?.patches });
-          }
+          pendingAheadDeltaMailbox.push(base, rev, payload?.patches, getDeltaRevisionFloor(base));
 
+          foregroundRefreshController.requestRefreshForAheadDelta();
           scheduleAheadRefresh();
           return;
         }
@@ -351,13 +346,7 @@ export function useQueueEventListeners({
           return;
         }
 
-        if (pendingDeltaBaseRevision !== base) {
-          pendingDeltaBaseRevision = base;
-          pendingDeltaFrames = [];
-        }
-        if (pendingDeltaFrames) {
-          pendingDeltaFrames.push({ rev, patches: payload?.patches });
-        }
+        pendingDeltaMailbox.push(base, rev, payload?.patches, getDeltaRevisionFloor(base));
 
         if (typeof window === "undefined") {
           flushPendingQueueDelta();
@@ -411,6 +400,10 @@ export function useQueueEventListeners({
 
       void refreshQueueFromBackend();
     }, SAFETY_REFRESH_INTERVAL_MS);
+
+    visibleSyncTimer = window.setInterval(() => {
+      foregroundRefreshController.handleVisibleSyncTick();
+    }, 1_000);
   });
 
   onUnmounted(() => {
@@ -454,19 +447,21 @@ export function useQueueEventListeners({
       window.clearTimeout(pendingDeltaApplyDeadlineHandle);
       pendingDeltaApplyDeadlineHandle = null;
     }
-    pendingDeltaFrames = null;
-    pendingDeltaBaseRevision = null;
+    pendingDeltaMailbox.clear();
 
     if (pendingAheadRefreshHandle != null && typeof window !== "undefined") {
       window.clearTimeout(pendingAheadRefreshHandle);
       pendingAheadRefreshHandle = null;
     }
-    pendingAheadDeltaFrames = null;
-    pendingAheadDeltaBaseRevision = null;
+    pendingAheadDeltaMailbox.clear();
 
     if (queueTimer !== undefined) {
       clearInterval(queueTimer);
       queueTimer = undefined;
+    }
+    if (visibleSyncTimer !== undefined) {
+      clearInterval(visibleSyncTimer);
+      visibleSyncTimer = undefined;
     }
   });
 }

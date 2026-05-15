@@ -387,7 +387,7 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
     wrapper.unmount();
   });
 
-  it("buffers deltas for a newer baseSnapshotRevision until the matching snapshot arrives", async () => {
+  it("buffers deltas for a newer baseSnapshotRevision and requests a visible-window refresh", async () => {
     const jobs = ref<TranscodeJob[]>([]);
     const queueError = ref<string | null>(null);
     const lastQueueSnapshotAtMs = ref<number | null>(null);
@@ -473,7 +473,7 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
     await vi.runOnlyPendingTimersAsync();
     await nextTick();
 
-    expect(refreshSpy).not.toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
     expect(jobs.value).toHaveLength(1);
     expect(jobs.value[0].progress).toBe(50);
     expect(lastQueueSnapshotRevision.value).toBe(2);
@@ -733,7 +733,7 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
     wrapper.unmount();
   });
 
-  it("bypasses the ahead-delta delay with a single foreground refresh on resume", async () => {
+  it("bypasses the ahead-delta delay with a visible-window refresh", async () => {
     const jobs = ref<TranscodeJob[]>([]);
     const queueError = ref<string | null>(null);
     const lastQueueSnapshotAtMs = ref<number | null>(null);
@@ -799,7 +799,7 @@ describe("useQueueEventListeners snapshotRevision ordering", () => {
     });
 
     await nextTick();
-    expect(refreshSpy).toHaveBeenCalledTimes(0);
+    expect(refreshSpy).toHaveBeenCalledTimes(1);
 
     window.dispatchEvent(new Event("focus"));
     document.dispatchEvent(new Event("visibilitychange"));
