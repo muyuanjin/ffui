@@ -21,6 +21,9 @@ import {
 } from "@/composables/queue/operations-state-sync";
 
 describe("useQueueEventListeners flush deadline", () => {
+  const originalVisibilityStateDescriptor = Object.getOwnPropertyDescriptor(document, "visibilityState");
+  const originalRequestAnimationFrame = window.requestAnimationFrame;
+  const originalCancelAnimationFrame = window.cancelAnimationFrame;
   let capturedSnapshotHandler: ((event: { payload: unknown }) => void) | null = null;
 
   beforeEach(() => {
@@ -37,6 +40,13 @@ describe("useQueueEventListeners flush deadline", () => {
   });
 
   afterEach(() => {
+    if (originalVisibilityStateDescriptor) {
+      Object.defineProperty(document, "visibilityState", originalVisibilityStateDescriptor);
+    } else {
+      delete (document as any).visibilityState;
+    }
+    window.requestAnimationFrame = originalRequestAnimationFrame;
+    window.cancelAnimationFrame = originalCancelAnimationFrame;
     vi.useRealTimers();
   });
 

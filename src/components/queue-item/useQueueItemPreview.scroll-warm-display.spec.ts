@@ -13,6 +13,9 @@ const buildJobPreviewUrlMock = vi.fn<(path: string | null | undefined, rev?: num
     return `url:${path}?rev=${Number(rev ?? 0)}`;
   },
 );
+const schedulePreviewLoadMock = vi.fn<
+  (key: string, run: () => void | Promise<void>, opts?: { priority?: "high" | "normal" }) => () => void
+>(() => () => {});
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -22,6 +25,14 @@ vi.mock("@/lib/backend", () => {
     loadPreviewDataUrl: vi.fn(async () => {
       throw new Error("not used in this test");
     }),
+  };
+});
+vi.mock("./previewLoadScheduler", async () => {
+  const actual = await vi.importActual<typeof import("./previewLoadScheduler")>("./previewLoadScheduler");
+  return {
+    ...actual,
+    schedulePreviewLoad: (key: string, run: () => void | Promise<void>, opts?: { priority?: "high" | "normal" }) =>
+      schedulePreviewLoadMock(key, run, opts),
   };
 });
 
@@ -46,6 +57,7 @@ describe("useQueueItemPreview (scroll warm display)", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     buildJobPreviewUrlMock.mockClear();
+    schedulePreviewLoadMock.mockClear();
     resetPreviewLoadSchedulerForTests();
     resetPreviewWarmCacheForTests();
   });
@@ -89,10 +101,12 @@ describe("useQueueItemPreview (scroll warm display)", () => {
     expect(composable.previewUrl.value).toBe(expected);
     expect(buildJobPreviewUrlMock).toHaveBeenCalled();
     expect(buildJobPreviewUrlMock).toHaveBeenCalledWith("C:/previews/job-warm.jpg", 0);
+    expect(schedulePreviewLoadMock).not.toHaveBeenCalled();
 
     await vi.runAllTimersAsync();
     await nextTick();
     expect(composable.previewUrl.value).toBe(expected);
+    expect(schedulePreviewLoadMock).not.toHaveBeenCalled();
 
     wrapper.unmount();
   });

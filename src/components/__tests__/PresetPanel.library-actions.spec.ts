@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 import PresetPanel from "@/components/panels/PresetPanel.vue";
@@ -210,13 +210,18 @@ describe("PresetPanel library actions", () => {
       global: presetPanelGlobal,
     });
 
+    await wrapper.vm.$nextTick();
     await wrapper.get('[data-testid="preset-card-duplicate"]').trigger("click");
-    const duplicateEmitted = wrapper.emitted("duplicate") as unknown[][] | undefined;
-    expect((duplicateEmitted?.[0]?.[0] as FFmpegPreset).id).toBe("p1");
+    await vi.waitFor(() => {
+      const duplicateEmitted = wrapper.emitted("duplicate") as unknown[][] | undefined;
+      expect((duplicateEmitted?.[0]?.[0] as FFmpegPreset | undefined)?.id).toBe("p1");
+    });
 
     await wrapper.get('[data-testid="preset-card-export"]').trigger("click");
-    const exportEmitted = wrapper.emitted("exportPresetToFile") as unknown[][] | undefined;
-    expect((exportEmitted?.[0]?.[0] as FFmpegPreset).id).toBe("p1");
+    await vi.waitFor(() => {
+      const exportEmitted = wrapper.emitted("exportPresetToFile") as unknown[][] | undefined;
+      expect((exportEmitted?.[0]?.[0] as FFmpegPreset | undefined)?.id).toBe("p1");
+    });
 
     wrapper.unmount();
   });

@@ -67,7 +67,7 @@ describe("useQueueItemPreview (preview load gate)", () => {
     }
   });
 
-  it("does not start new preview loads while scrolling and resumes once idle", async () => {
+  it("keeps the first visible preview load active even while scrolling", async () => {
     const isScrolling = ref(true);
     const isQueueRunning = ref(true);
     const job = ref(makeJob({ id: "job-preview-gate", previewPath: "C:/previews/job-preview-gate.jpg" }));
@@ -96,12 +96,6 @@ describe("useQueueItemPreview (preview load gate)", () => {
       composable: ReturnType<typeof useQueueItemPreview>;
     };
 
-    await nextTick();
-    await vi.runAllTimersAsync();
-    await nextTick();
-    expect(composable.previewUrl.value).toBe(null);
-
-    isScrolling.value = false;
     await nextTick();
     await vi.runAllTimersAsync();
     await nextTick();

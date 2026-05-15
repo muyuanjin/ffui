@@ -14,6 +14,7 @@ vi.mock("@/lib/backend", () => ({
 import {
   applyQueueStateFromBackend,
   applyQueueStateLiteDeltaFromBackend,
+  getAcceptedDeltaRevisionForJobs,
   refreshQueueFromBackend,
   type StateSyncDeps,
 } from "./operations-state-sync";
@@ -102,6 +103,68 @@ describe("queue operations state sync", () => {
 
     expect(deps.lastQueueSnapshotRevision.value).toBe(10);
     expect(deps.jobs.value[0].progress).toBe(50);
+  });
+
+  it("applyQueueStateFromBackend ignores same-revision snapshots below the accepted delta floor", () => {
+    const previousJob: TranscodeJob = {
+      id: "job-1",
+      filename: "C:/videos/progress.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 100,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "processing",
+      progress: 10,
+      logs: [],
+    };
+
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([previousJob]),
+    });
+
+    applyQueueStateFromBackend(
+      {
+        snapshotRevision: 10,
+        latestDeltaRevision: 10,
+        jobs: [{ ...previousJob, progress: 50 }],
+      } as any,
+      deps,
+    );
+    applyQueueStateFromBackend(
+      {
+        snapshotRevision: 10,
+        latestDeltaRevision: 9,
+        jobs: [{ ...previousJob, progress: 20 }],
+      } as any,
+      deps,
+    );
+
+    expect(deps.lastQueueSnapshotRevision.value).toBe(10);
+    expect(getAcceptedDeltaRevisionForJobs(deps.jobs, 10)).toBe(10);
+    expect(deps.jobs.value[0].progress).toBe(50);
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 10,
+        deltaRevision: 10,
+        patches: [{ id: "job-1", progress: 30 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(50);
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 10,
+        deltaRevision: 11,
+        patches: [{ id: "job-1", progress: 60 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(60);
   });
 
   it("applyQueueStateFromBackend preserves job object identity for unchanged rows to keep scrolling smooth", () => {
@@ -351,6 +414,96 @@ describe("queue operations state sync", () => {
 
     resolvePromise({ jobs: [] });
     await Promise.all([p1, p2]);
+  });
+
+  it("refreshQueueFromBackend seeds delta ordering from latestDeltaRevision so stale deltas after refresh are ignored", async () => {
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/progress.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          originalCodec: "h264",
+          presetId: "preset-1",
+          status: "processing",
+          progress: 10,
+          waitMetadata: {
+            lastProgressOutTimeSeconds: 10,
+            lastProgressUpdatedAtMs: 100,
+            lastProgressSpeed: 1,
+          },
+          logs: [],
+        },
+      ]),
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    loadQueueStateMock.mockResolvedValueOnce({
+      snapshotRevision: 1,
+      latestDeltaRevision: 10,
+      jobs: [
+        {
+          ...deps.jobs.value[0],
+          progress: 50,
+          waitMetadata: {
+            lastProgressOutTimeSeconds: 50,
+            lastProgressUpdatedAtMs: 500,
+            lastProgressSpeed: 1.2,
+          },
+        },
+      ],
+    });
+
+    await refreshQueueFromBackend(deps);
+
+    expect(deps.jobs.value[0].progress).toBe(50);
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressUpdatedAtMs).toBe(500);
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 10,
+        patches: [
+          {
+            id: "job-1",
+            progress: 20,
+            telemetry: {
+              lastProgressOutTimeSeconds: 20,
+              lastProgressUpdatedAtMs: 200,
+              lastProgressSpeed: 0.8,
+            },
+          },
+        ],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(50);
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressUpdatedAtMs).toBe(500);
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 11,
+        patches: [
+          {
+            id: "job-1",
+            progress: 60,
+            telemetry: {
+              lastProgressOutTimeSeconds: 60,
+              lastProgressUpdatedAtMs: 600,
+              lastProgressSpeed: 1.5,
+            },
+          },
+        ],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].progress).toBe(60);
+    expect(deps.jobs.value[0].waitMetadata?.lastProgressUpdatedAtMs).toBe(600);
   });
 
   it("baseline: applying a progress-only full snapshot scans all jobs on the fast path", () => {

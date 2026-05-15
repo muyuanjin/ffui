@@ -33,6 +33,7 @@ pub(super) fn snapshot_queue_state_ui_lite_from_locked_state(
 
     QueueStateUiLite {
         snapshot_revision,
+        latest_delta_revision: state.queue_delta_revision,
         jobs,
     }
 }

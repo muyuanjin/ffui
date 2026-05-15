@@ -6,9 +6,11 @@ const queuedKeySet = new Set<string>();
 const taskByKey = new Map<string, Task>();
 
 let scheduled = false;
-let inFlight = 0;
+let inFlightHigh = 0;
+let inFlightNormal = 0;
 
-const MAX_IN_FLIGHT = 2;
+const MAX_TOTAL_IN_FLIGHT = 2;
+const MAX_NORMAL_IN_FLIGHT_WITH_QUEUED_HIGH = 1;
 
 type IdleDeadlineLike = { timeRemaining: () => number; didTimeout?: boolean };
 
@@ -50,36 +52,62 @@ const schedulePump = () => {
 };
 
 const pump = (_deadline?: IdleDeadlineLike) => {
-  if (inFlight >= MAX_IN_FLIGHT) {
-    scheduled = false;
-    return;
-  }
   scheduled = false;
 
-  while (inFlight < MAX_IN_FLIGHT) {
-    const key = highPriorityKeys.shift() ?? normalPriorityKeys.shift();
-    if (!key) return;
+  const startNext = (priority: "high" | "normal"): boolean => {
+    const totalInFlight = inFlightHigh + inFlightNormal;
+    if (totalInFlight >= MAX_TOTAL_IN_FLIGHT) return false;
+    if (
+      priority === "normal" &&
+      highPriorityKeys.length > 0 &&
+      inFlightNormal >= MAX_NORMAL_IN_FLIGHT_WITH_QUEUED_HIGH
+    ) {
+      return false;
+    }
+
+    const queue = priority === "high" ? highPriorityKeys : normalPriorityKeys;
+    const key = queue.shift();
+    if (!key) return false;
     queuedKeySet.delete(key);
 
     const task = taskByKey.get(key);
     taskByKey.delete(key);
-    if (!task) continue;
+    if (!task) return true;
 
     try {
       const result = task.run();
       if (result && typeof (result as Promise<void>).then === "function") {
-        inFlight += 1;
+        if (priority === "high") {
+          inFlightHigh += 1;
+        } else {
+          inFlightNormal += 1;
+        }
         void (result as Promise<void>)
           .catch(() => {})
           .finally(() => {
-            inFlight = Math.max(0, inFlight - 1);
+            if (priority === "high") {
+              inFlightHigh = Math.max(0, inFlightHigh - 1);
+            } else {
+              inFlightNormal = Math.max(0, inFlightNormal - 1);
+            }
             pump();
           });
-        continue;
       }
     } catch {
       // ignore
     }
+
+    return true;
+  };
+
+  let startedHigh = startNext("high");
+  while (startedHigh) {
+    startedHigh = startNext("high");
+  }
+
+  let startedNormal = startNext("normal");
+  while (startedNormal) {
+    startedNormal = startNext("normal");
   }
 };
 
@@ -122,5 +150,6 @@ export function resetPreviewLoadSchedulerForTests() {
   queuedKeySet.clear();
   taskByKey.clear();
   scheduled = false;
-  inFlight = 0;
+  inFlightHigh = 0;
+  inFlightNormal = 0;
 }

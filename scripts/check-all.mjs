@@ -5,6 +5,7 @@ import path from "node:path";
 
 const PROBE_TIMEOUT_MS = 30_000;
 const STEP_CLOSE_GRACE_MS = 5_000;
+const QUEUE_PERF_BENCH_TIMEOUT_MS = 180_000;
 let stepLogSequence = 0;
 
 function parseArgs(argv) {
@@ -180,7 +181,7 @@ function createLinePrefixer(prefix, write) {
 async function runStep(label, command, args, options = {}) {
   process.stdout.write(`\n==> ${label}\n`);
 
-  const { outputPrefix, logDir, silent, ...spawnOptions } = options;
+  const { outputPrefix, logDir, silent, timeoutMs, ...spawnOptions } = options;
   const logPath = logDir
     ? path.join(
         logDir,
@@ -211,6 +212,27 @@ async function runStep(label, command, args, options = {}) {
     process.exit(1);
   });
 
+  let timedOut = false;
+  const timeout =
+    typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          try {
+            child.kill("SIGTERM");
+          } catch {
+            // ignore
+          }
+          setTimeout(() => {
+            try {
+              child.kill("SIGKILL");
+            } catch {
+              // ignore
+            }
+          }, STEP_CLOSE_GRACE_MS).unref();
+        }, timeoutMs)
+      : null;
+  timeout?.unref();
+
   const closePromise = new Promise((resolve) => child.once("close", resolve));
 
   const stdoutPrefixer =
@@ -232,6 +254,7 @@ async function runStep(label, command, args, options = {}) {
   });
 
   const code = await new Promise((resolve) => child.once("exit", resolve));
+  if (timeout) clearTimeout(timeout);
   const closed = await Promise.race([
     closePromise.then(() => true),
     new Promise((resolve) => setTimeout(() => resolve(false), STEP_CLOSE_GRACE_MS)),
@@ -247,6 +270,15 @@ async function runStep(label, command, args, options = {}) {
     );
     logStream?.end();
     process.exit(1);
+  }
+
+  if (timedOut) {
+    if (silent && logPath) {
+      process.stderr.write(`\n(See log) ${logPath}\n`);
+    }
+    logStream?.end();
+    process.stderr.write(`\nERROR: "${label}" timed out after ${Math.round(timeoutMs / 1000)}s.\n`);
+    process.exit(124);
   }
 
   if (code !== 0) {
@@ -1713,7 +1745,9 @@ await runParallel([
   },
 ]);
 
-await runFrontendPnpmStep("Queue perf benches (vitest perf suite)", ["run", "bench:queue"], opts);
+await runFrontendPnpmStep("Queue perf benches (vitest perf suite)", ["run", "bench:queue"], opts, {
+  timeoutMs: QUEUE_PERF_BENCH_TIMEOUT_MS,
+});
 
 if (opts.includePlaywright) {
   await runFrontendPnpmStep(

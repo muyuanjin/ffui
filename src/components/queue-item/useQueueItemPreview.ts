@@ -128,9 +128,10 @@ export function useQueueItemPreview(options: {
       }
 
       if (type === "video") {
+        const needsImmediateVisiblePreview = previewUrl.value == null;
         const shouldEnsure =
           !ensuredPreviewPath.value &&
-          allowAutoEnsureSnapshot &&
+          (allowAutoEnsureSnapshot || needsImmediateVisiblePreview) &&
           hasTauri() &&
           (desiredHeightPxSnapshot !== 180 || !previewPath);
         if (!shouldEnsure && autoEnsureHandle) {
@@ -200,27 +201,29 @@ export function useQueueItemPreview(options: {
       }
 
       if (previewUrl.value === nextDesired) return;
+      const needsImmediateVisiblePreview = previewUrl.value == null;
       if (!allowPreviewLoadsSnapshot) {
         const scrolling = perfHints?.isScrolling.value ?? false;
         if (scrolling) {
           const warmed = getDecodedPreviewUrl(id, nextDesired);
           if (warmed) {
             previewUrl.value = warmed;
+            return;
           }
         }
-        return;
+        if (!needsImmediateVisiblePreview) return;
       }
 
       const abortController = new AbortController();
       pendingPreviewLoadAbort = abortController;
 
-      const shouldHighPriority = previewUrl.value == null;
+      const shouldHighPriority = needsImmediateVisiblePreview;
       const cancelScheduled = schedulePreviewLoad(
         `queue-preview:${id}|h=${desiredHeightPxSnapshot}`,
         async () => {
           if (token !== desiredPreviewToken) return;
           if (abortController.signal.aborted) return;
-          if (!allowPreviewLoads.value) return;
+          if (!allowPreviewLoads.value && !needsImmediateVisiblePreview) return;
           if (desiredPreviewUrl !== nextDesired) return;
           if (options.isTestEnv) {
             previewUrl.value = nextDesired;
@@ -239,7 +242,7 @@ export function useQueueItemPreview(options: {
 
           try {
             if (abortController.signal.aborted) return;
-            if (!allowPreviewLoads.value) return;
+            if (!allowPreviewLoads.value && !needsImmediateVisiblePreview) return;
             const img = new Image();
             (img as any).decoding = "async";
             img.src = nextDesired;

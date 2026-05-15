@@ -13,6 +13,10 @@ vi.mock("@/lib/backend", () => {
 import { requestJobPreviewAutoEnsure, resetPreviewAutoEnsureForTests } from "./previewAutoEnsure";
 
 describe("previewAutoEnsure (cancellation)", () => {
+  const originalRequestIdleCallback = (window as any).requestIdleCallback;
+  const originalCancelIdleCallback = (window as any).cancelIdleCallback;
+  const originalRequestAnimationFrame = window.requestAnimationFrame;
+
   beforeEach(() => {
     vi.useFakeTimers();
     ensureJobPreviewMock.mockClear();
@@ -23,6 +27,9 @@ describe("previewAutoEnsure (cancellation)", () => {
   });
 
   afterEach(() => {
+    (window as any).requestIdleCallback = originalRequestIdleCallback;
+    (window as any).cancelIdleCallback = originalCancelIdleCallback;
+    window.requestAnimationFrame = originalRequestAnimationFrame;
     vi.useRealTimers();
   });
 

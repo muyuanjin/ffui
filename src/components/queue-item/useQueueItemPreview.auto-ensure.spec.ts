@@ -77,6 +77,10 @@ const mountComposable = (job: Ref<TranscodeJob>, opts?: { isScrolling?: Ref<bool
 };
 
 describe("useQueueItemPreview (auto ensure)", () => {
+  const originalRequestIdleCallback = (window as any).requestIdleCallback;
+  const originalCancelIdleCallback = (window as any).cancelIdleCallback;
+  const originalRequestAnimationFrame = window.requestAnimationFrame;
+
   beforeEach(() => {
     vi.useFakeTimers();
     ensureJobPreviewMock.mockClear();
@@ -91,6 +95,9 @@ describe("useQueueItemPreview (auto ensure)", () => {
   });
 
   afterEach(() => {
+    (window as any).requestIdleCallback = originalRequestIdleCallback;
+    (window as any).cancelIdleCallback = originalCancelIdleCallback;
+    window.requestAnimationFrame = originalRequestAnimationFrame;
     vi.useRealTimers();
   });
 
@@ -168,7 +175,7 @@ describe("useQueueItemPreview (auto ensure)", () => {
     }
   });
 
-  it("defers auto-ensure while scrolling and resumes once idle", async () => {
+  it("keeps auto-ensure active for visible blank cards even while scrolling", async () => {
     const scrolling = ref(true);
     const job = ref(makeJob({ id: "job-scroll-gate" }));
     const PreviewChild = {
@@ -198,16 +205,6 @@ describe("useQueueItemPreview (auto ensure)", () => {
     await nextTick();
     await vi.runAllTimersAsync();
     await nextTick();
-    expect(ensureJobPreviewMock).toHaveBeenCalledTimes(0);
-    expect(composable.previewUrl.value).toBe(null);
-
-    scrolling.value = false;
-    await nextTick();
-    await vi.runAllTimersAsync();
-    await nextTick();
-    await vi.runAllTimersAsync();
-    await nextTick();
-
     expect(ensureJobPreviewMock).toHaveBeenCalledTimes(1);
     expect(ensureJobPreviewMock).toHaveBeenCalledWith("job-scroll-gate");
     expect(composable.previewUrl.value).toBe("url:C:/previews/job-scroll-gate.jpg?rev=0");
@@ -303,5 +300,79 @@ describe("useQueueItemPreview (auto ensure)", () => {
 
     prefetcher.clear();
     wrapper.unmount();
+  });
+
+  it("starts a visible blank-card ensure immediately even when a normal prefetch is already running", async () => {
+    const resolvers = new Map<string, (value: string | null) => void>();
+    ensureJobPreviewMock.mockImplementation((jobId) => {
+      if (jobId === "job-prefetch-blocking") {
+        return new Promise<string | null>((resolve) => {
+          resolvers.set(jobId, resolve);
+        });
+      }
+      return Promise.resolve(`C:/previews/${jobId}.jpg`);
+    });
+
+    const prefetcher = createQueuePreviewEnsurePrefetcher();
+    prefetcher.setTargetJobs([makeJob({ id: "job-prefetch-blocking" })]);
+
+    await vi.runOnlyPendingTimersAsync();
+    expect(ensureJobPreviewMock.mock.calls.map(([jobId]) => jobId)).toEqual(["job-prefetch-blocking"]);
+
+    const job = ref(makeJob({ id: "job-visible-during-running-prefetch" }));
+    const { composable, wrapper } = mountComposable(job);
+
+    await nextTick();
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewMock.mock.calls.map(([jobId]) => jobId)).toEqual([
+      "job-prefetch-blocking",
+      "job-visible-during-running-prefetch",
+    ]);
+    expect(composable.previewUrl.value).toBe("url:C:/previews/job-visible-during-running-prefetch.jpg?rev=0");
+
+    resolvers.get("job-prefetch-blocking")?.("C:/previews/job-prefetch-blocking.jpg");
+    await vi.runOnlyPendingTimersAsync();
+
+    prefetcher.clear();
+    wrapper.unmount();
+  });
+
+  it("uses both ensure slots for visible blank-card previews when no prefetch is queued", async () => {
+    const resolvers = new Map<string, (value: string | null) => void>();
+    ensureJobPreviewMock.mockImplementation((jobId) => {
+      return new Promise<string | null>((resolve) => {
+        resolvers.set(jobId, resolve);
+      });
+    });
+
+    const firstJob = ref(makeJob({ id: "job-visible-high-1" }));
+    const secondJob = ref(makeJob({ id: "job-visible-high-2" }));
+
+    const firstMounted = mountComposable(firstJob);
+    const secondMounted = mountComposable(secondJob);
+
+    await nextTick();
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+
+    expect(ensureJobPreviewMock.mock.calls.map(([jobId]) => jobId)).toEqual([
+      "job-visible-high-1",
+      "job-visible-high-2",
+    ]);
+
+    resolvers.get("job-visible-high-1")?.("C:/previews/job-visible-high-1.jpg");
+    resolvers.get("job-visible-high-2")?.("C:/previews/job-visible-high-2.jpg");
+    await vi.runOnlyPendingTimersAsync();
+    await nextTick();
+
+    expect(firstMounted.composable.previewUrl.value).toBe("url:C:/previews/job-visible-high-1.jpg?rev=0");
+    expect(secondMounted.composable.previewUrl.value).toBe("url:C:/previews/job-visible-high-2.jpg?rev=0");
+
+    firstMounted.wrapper.unmount();
+    secondMounted.wrapper.unmount();
   });
 });

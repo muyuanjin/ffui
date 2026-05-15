@@ -48,6 +48,7 @@ fn make_job(
 fn make_snapshot(rev: u64, jobs: Vec<TranscodeJobUiLite>) -> QueueStateUiLite {
     QueueStateUiLite {
         snapshot_revision: rev,
+        latest_delta_revision: 0,
         jobs,
     }
 }

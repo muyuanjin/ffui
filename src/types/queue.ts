@@ -282,6 +282,11 @@ export interface QueueState {
 export interface QueueStateUiLite {
   /** Monotonic snapshot revision for ordering / de-duping. */
   snapshotRevision?: number;
+  /**
+   * Highest queue delta revision already folded into this snapshot.
+   * Used to ignore stale deltas that arrive after an explicit snapshot refresh.
+   */
+  latestDeltaRevision?: number;
   jobs: TranscodeJobLite[];
 }
 

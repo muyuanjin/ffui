@@ -62,12 +62,12 @@ fn main() {
         if let Some(parent) = out.parent() {
             let _ = fs::create_dir_all(parent);
         }
-        let mut write_result = fs::write(&out, b"");
+        let mut write_result = fs::write(&out, b"mock-preview-bytes");
         if write_result.is_err()
             && let Some(parent) = out.parent()
         {
             let _ = fs::create_dir_all(parent);
-            write_result = fs::write(&out, b"");
+            write_result = fs::write(&out, b"mock-preview-bytes");
         }
 
         if env::var("FFUI_MOCK_FFMPEG_CAPTURE_APPEND")

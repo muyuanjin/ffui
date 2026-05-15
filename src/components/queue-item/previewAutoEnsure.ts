@@ -1,11 +1,13 @@
 import * as backend from "@/lib/backend";
 
-const MAX_CONCURRENCY = 1;
+const MAX_TOTAL_CONCURRENCY = 2;
+const MAX_NORMAL_CONCURRENCY_WITH_QUEUED_HIGH = 1;
 const SUCCESS_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE = 2048;
 const DEFAULT_HEIGHT_PX = 180;
 
-let inFlight = 0;
+let inFlightHigh = 0;
+let inFlightNormal = 0;
 const queuedHighKeys: string[] = [];
 const queuedNormalKeys: string[] = [];
 const queuedPriorityByKey = new Map<string, EnsurePriority>();
@@ -197,71 +199,116 @@ const scheduleQueuedPump = () => {
   schedulePump(nextPriority);
 };
 
+const canStartPriority = (priority: EnsurePriority): boolean => {
+  const totalInFlight = inFlightHigh + inFlightNormal;
+  if (totalInFlight >= MAX_TOTAL_CONCURRENCY) return false;
+  if (priority === "normal" && queuedHighKeys.length > 0 && inFlightNormal >= MAX_NORMAL_CONCURRENCY_WITH_QUEUED_HIGH) {
+    return false;
+  }
+  return true;
+};
+
+const incrementInFlight = (priority: EnsurePriority) => {
+  if (priority === "high") {
+    inFlightHigh += 1;
+    return;
+  }
+  inFlightNormal += 1;
+};
+
+const decrementInFlight = (priority: EnsurePriority) => {
+  if (priority === "high") {
+    inFlightHigh = Math.max(0, inFlightHigh - 1);
+    return;
+  }
+  inFlightNormal = Math.max(0, inFlightNormal - 1);
+};
+
 const pump = () => {
-  if (inFlight >= MAX_CONCURRENCY) return;
-  let key: string | undefined;
-  while (true) {
-    const candidate = shiftQueuedKey(queuedHighKeys, "high") ?? shiftQueuedKey(queuedNormalKeys, "normal");
-    if (!candidate) break;
-    const op = jobOpsByKey.get(candidate);
-    if (!op) continue;
-    if (op.state !== "queued") continue;
-    if (op.consumers.size === 0) {
-      jobOpsByKey.delete(candidate);
-      continue;
-    }
-    key = candidate;
-    break;
-  }
-  if (!key) return;
+  const startNext = (priority: EnsurePriority): boolean => {
+    if (!canStartPriority(priority)) return false;
 
-  const op = jobOpsByKey.get(key);
-  if (!op || op.state !== "queued") return;
-  op.state = "running";
-
-  inFlight += 1;
-  let ensurePromise: Promise<string | null>;
-  try {
-    const [jobId, heightPartRaw] = key.split("|h=", 2);
-    const heightPart = (heightPartRaw ?? "").split("|", 1)[0] ?? "";
-    const parsedHeight = Number.parseInt(heightPart, 10);
-    const heightPx = Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : DEFAULT_HEIGHT_PX;
-
-    const ensureJobPreview = (backend as any).ensureJobPreview as undefined | ((id: string) => Promise<string | null>);
-    const ensureJobPreviewVariant = (backend as any).ensureJobPreviewVariant as
-      | undefined
-      | ((id: string, heightPx: number) => Promise<string | null>);
-
-    if (heightPx === DEFAULT_HEIGHT_PX) {
-      ensurePromise = typeof ensureJobPreview === "function" ? ensureJobPreview(jobId) : Promise.resolve(null);
-    } else {
-      ensurePromise =
-        typeof ensureJobPreviewVariant === "function"
-          ? ensureJobPreviewVariant(jobId, heightPx)
-          : Promise.resolve(null);
-    }
-  } catch {
-    ensurePromise = Promise.resolve(null);
-  }
-  void ensurePromise
-    .catch(() => null)
-    .then((path) => {
-      const resolvedPath = path ?? null;
-      cacheResolvedPreviewPath(key, resolvedPath);
-      const consumers = jobOpsByKey.get(key)?.consumers;
-      if (consumers) {
-        for (const c of consumers.values()) {
-          if (c.settled) continue;
-          c.settled = true;
-          c.resolve(resolvedPath);
-        }
+    let key: string | undefined;
+    const queue = priority === "high" ? queuedHighKeys : queuedNormalKeys;
+    while (true) {
+      const candidate = shiftQueuedKey(queue, priority);
+      if (!candidate) break;
+      const op = jobOpsByKey.get(candidate);
+      if (!op) continue;
+      if (op.state !== "queued") continue;
+      if (op.consumers.size === 0) {
+        jobOpsByKey.delete(candidate);
+        continue;
       }
-    })
-    .finally(() => {
-      jobOpsByKey.delete(key);
-      inFlight -= 1;
-      scheduleQueuedPump();
-    });
+      key = candidate;
+      break;
+    }
+    if (!key) return false;
+
+    const op = jobOpsByKey.get(key);
+    if (!op || op.state !== "queued") return false;
+    op.state = "running";
+
+    const runningPriority = op.priority;
+    incrementInFlight(runningPriority);
+
+    let ensurePromise: Promise<string | null>;
+    try {
+      const [jobId, heightPartRaw] = key.split("|h=", 2);
+      const heightPart = (heightPartRaw ?? "").split("|", 1)[0] ?? "";
+      const parsedHeight = Number.parseInt(heightPart, 10);
+      const heightPx = Number.isFinite(parsedHeight) && parsedHeight > 0 ? parsedHeight : DEFAULT_HEIGHT_PX;
+
+      const ensureJobPreview = (backend as any).ensureJobPreview as
+        | undefined
+        | ((id: string) => Promise<string | null>);
+      const ensureJobPreviewVariant = (backend as any).ensureJobPreviewVariant as
+        | undefined
+        | ((id: string, heightPx: number) => Promise<string | null>);
+
+      if (heightPx === DEFAULT_HEIGHT_PX) {
+        ensurePromise = typeof ensureJobPreview === "function" ? ensureJobPreview(jobId) : Promise.resolve(null);
+      } else {
+        ensurePromise =
+          typeof ensureJobPreviewVariant === "function"
+            ? ensureJobPreviewVariant(jobId, heightPx)
+            : Promise.resolve(null);
+      }
+    } catch {
+      ensurePromise = Promise.resolve(null);
+    }
+    void ensurePromise
+      .catch(() => null)
+      .then((path) => {
+        const resolvedPath = path ?? null;
+        cacheResolvedPreviewPath(key, resolvedPath);
+        const consumers = jobOpsByKey.get(key)?.consumers;
+        if (consumers) {
+          for (const c of consumers.values()) {
+            if (c.settled) continue;
+            c.settled = true;
+            c.resolve(resolvedPath);
+          }
+        }
+      })
+      .finally(() => {
+        jobOpsByKey.delete(key);
+        decrementInFlight(runningPriority);
+        scheduleQueuedPump();
+      });
+
+    return true;
+  };
+
+  let startedHigh = startNext("high");
+  while (startedHigh) {
+    startedHigh = startNext("high");
+  }
+
+  let startedNormal = startNext("normal");
+  while (startedNormal) {
+    startedNormal = startNext("normal");
+  }
 };
 
 const normalizeHeightPx = (heightPx: number | null | undefined): number => {
@@ -372,7 +419,8 @@ export function ensureJobPreviewAuto(jobId: string): Promise<string | null> {
 }
 
 export function resetPreviewAutoEnsureForTests() {
-  inFlight = 0;
+  inFlightHigh = 0;
+  inFlightNormal = 0;
   cancelScheduledPump();
   queuedHighKeys.length = 0;
   queuedNormalKeys.length = 0;

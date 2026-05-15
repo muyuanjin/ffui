@@ -1,0 +1,11 @@
+diff --git a/template/package.json b/template/package.json
+index bdaa32213d4f419babfee18a327191590a52fc6a..984617023930f042c24f84e277d183065cfc2c9b 100644
+--- a/template/package.json
++++ b/template/package.json
+@@ -1,5 +1,6 @@
+ {
+   "name": "my-codemod",
++  "version": "0.0.0",
+   "type": "module",
+   "bin": {
+     "my-codemod": "dist/cli.js"

@@ -1,2 +1,5 @@
 packages:
-  - "."
+  - .
+
+patchedDependencies:
+  vue-metamorph@3.3.3: patches/vue-metamorph@3.3.3.patch

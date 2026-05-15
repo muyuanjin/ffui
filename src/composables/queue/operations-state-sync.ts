@@ -63,6 +63,11 @@ const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
 const jobIndexCacheByJobsRef = new WeakMap<object, { array: TranscodeJob[]; byId: Map<string, TranscodeJob> }>();
 const deltaOrderCacheByJobsRef = new WeakMap<object, { baseSnapshotRevision: number; deltaRevision: number }>();
 
+type SnapshotStateMeta = {
+  snapshotRevision?: number;
+  latestDeltaRevision?: number;
+};
+
 const getJobIndexForDelta = (jobsRef: Ref<TranscodeJob[]>): Map<string, TranscodeJob> => {
   const key = jobsRef as unknown as object;
   const currentArray = jobsRef.value;
@@ -104,6 +109,68 @@ const shouldApplyDelta = (delta: QueueStateLiteDelta, deps: StateSyncDeps): bool
 const resetDeltaOrderCache = (deps: Pick<StateSyncDeps, "jobs">) => {
   const key = deps.jobs as unknown as object;
   deltaOrderCacheByJobsRef.delete(key);
+};
+
+export const getAcceptedDeltaRevisionForJobs = (
+  jobsRef: Ref<TranscodeJob[]>,
+  baseSnapshotRevision: number,
+): number | null => {
+  const key = jobsRef as unknown as object;
+  const cached = deltaOrderCacheByJobsRef.get(key);
+  if (!cached || cached.baseSnapshotRevision !== baseSnapshotRevision) return null;
+  return cached.deltaRevision;
+};
+
+const seedDeltaOrderCache = (
+  deps: Pick<StateSyncDeps, "jobs">,
+  baseSnapshotRevision: number,
+  latestDeltaRevision: number,
+) => {
+  const key = deps.jobs as unknown as object;
+  deltaOrderCacheByJobsRef.set(key, {
+    baseSnapshotRevision,
+    deltaRevision: Math.max(0, Math.floor(latestDeltaRevision)),
+  });
+};
+
+const normalizeDeltaRevision = (value: unknown): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return null;
+  }
+  return Math.floor(value);
+};
+
+const syncSnapshotMetaFromState = (
+  state: QueueState | QueueStateLite,
+  deps: Pick<StateSyncDeps, "jobs" | "lastQueueSnapshotRevision">,
+): boolean => {
+  const snapshotRevision = (state as SnapshotStateMeta).snapshotRevision;
+  if (typeof snapshotRevision !== "number" || !Number.isFinite(snapshotRevision)) {
+    return true;
+  }
+
+  const prev = deps.lastQueueSnapshotRevision.value;
+  if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
+    return false;
+  }
+
+  const latestDeltaRevision = normalizeDeltaRevision((state as SnapshotStateMeta).latestDeltaRevision);
+  const acceptedDeltaRevision = getAcceptedDeltaRevisionForJobs(deps.jobs, snapshotRevision);
+  if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision === prev) {
+    if (latestDeltaRevision != null && acceptedDeltaRevision != null && latestDeltaRevision < acceptedDeltaRevision) {
+      return false;
+    }
+  }
+
+  deps.lastQueueSnapshotRevision.value = snapshotRevision;
+
+  if (latestDeltaRevision != null) {
+    seedDeltaOrderCache(deps, snapshotRevision, latestDeltaRevision);
+  } else if (snapshotRevision !== prev || acceptedDeltaRevision == null) {
+    resetDeltaOrderCache(deps);
+  }
+
+  return true;
 };
 
 function syncJobObject(previous: TranscodeJob, next: TranscodeJob) {
@@ -280,14 +347,8 @@ function detectNewlyCompletedJobs(
  */
 export function applyQueueStateFromBackend(state: QueueState | QueueStateLite, deps: StateSyncDeps) {
   measureQueueApply("snapshot", () => {
-    const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
-    if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
-      const prev = deps.lastQueueSnapshotRevision.value;
-      if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
-        return;
-      }
-      deps.lastQueueSnapshotRevision.value = snapshotRevision;
-      resetDeltaOrderCache(deps);
+    if (!syncSnapshotMetaFromState(state, deps)) {
+      return;
     }
 
     const backendJobs = state.jobs ?? [];
@@ -369,15 +430,8 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
       const state = await loadQueueStateLite();
       const elapsedMs = startupNowMs() - startedAt;
       const backendJobs = (state as QueueStateLite).jobs ?? [];
-      const snapshotRevision = (state as unknown as { snapshotRevision?: number }).snapshotRevision;
-
-      if (typeof snapshotRevision === "number" && Number.isFinite(snapshotRevision)) {
-        const prev = deps.lastQueueSnapshotRevision.value;
-        if (typeof prev === "number" && Number.isFinite(prev) && snapshotRevision < prev) {
-          return;
-        }
-        deps.lastQueueSnapshotRevision.value = snapshotRevision;
-        resetDeltaOrderCache(deps);
+      if (!syncSnapshotMetaFromState(state, deps)) {
+        return;
       }
 
       if (!isTestEnv && (!loggedQueueRefresh || elapsedMs >= 200)) {

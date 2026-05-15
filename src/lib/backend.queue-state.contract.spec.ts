@@ -101,6 +101,19 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.waitMetadata?.segmentEndTargets).toBeUndefined();
   });
 
+  it("loadQueueStateLite preserves snapshot and latest delta revisions", async () => {
+    invokeMock.mockResolvedValueOnce({
+      snapshotRevision: 7,
+      latestDeltaRevision: 12,
+      jobs: [],
+    });
+
+    const result = await loadQueueStateLite();
+
+    expect(result.snapshotRevision).toBe(7);
+    expect(result.latestDeltaRevision).toBe(12);
+  });
+
   it("loadQueueStateLite does not synthesize crash-recovery segment arrays", async () => {
     const fake = {
       jobs: [

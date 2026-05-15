@@ -77,9 +77,7 @@ pub(super) fn make_engine_with_preset() -> TranscodingEngine {
 }
 
 pub(super) fn lock_mock_ffmpeg_env() -> std::sync::MutexGuard<'static, ()> {
-    static LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
-    LOCK.get_or_init(|| std::sync::Mutex::new(()))
-        .lock_unpoisoned()
+    crate::test_support::env_lock()
 }
 
 pub(super) fn assert_path_eventually_gone(path: &std::path::Path, message: &str) {

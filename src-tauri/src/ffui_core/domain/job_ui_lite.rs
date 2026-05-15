@@ -20,6 +20,8 @@ const fn is_zero(v: &u64) -> bool {
 pub struct QueueStateUiLite {
     #[serde(default)]
     pub snapshot_revision: u64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub latest_delta_revision: u64,
     pub jobs: Vec<TranscodeJobUiLite>,
 }
 
@@ -248,6 +250,7 @@ impl From<&QueueStateLite> for QueueStateUiLite {
     fn from(snapshot: &QueueStateLite) -> Self {
         Self {
             snapshot_revision: snapshot.snapshot_revision,
+            latest_delta_revision: 0,
             jobs: snapshot.jobs.iter().map(TranscodeJobUiLite::from).collect(),
         }
     }
@@ -317,6 +320,7 @@ mod ui_lite_tests {
         let ui = QueueStateUiLite::from(&snapshot);
         let json = serde_json::to_value(&ui).expect("serialize ui lite");
 
+        assert!(json.get("latestDeltaRevision").is_none());
         let job_json = &json["jobs"][0];
         assert!(job_json.get("logHead").is_none());
         assert_eq!(job_json["waitRequestPending"], false);

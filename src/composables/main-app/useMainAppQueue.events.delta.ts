@@ -2,6 +2,7 @@ import type { QueueStateLiteDelta } from "@/types";
 
 type QueueDeltaPatch = QueueStateLiteDelta["patches"][number];
 type QueueDeltaPatchEntry = { rev: number; patch: QueueDeltaPatch };
+export type QueueDeltaFrame = { rev: number; patches: QueueStateLiteDelta["patches"] | null | undefined };
 
 export function mergeQueueDeltaPatchInto(existing: QueueDeltaPatch, incoming: QueueDeltaPatch): void {
   if (existing.id !== incoming.id) return;
@@ -17,7 +18,6 @@ export function mergeQueueDeltaPatches(
   patchesById: Map<string, QueueDeltaPatchEntry>,
   patches: QueueStateLiteDelta["patches"] | null | undefined,
   rev: number,
-  onAcceptedRevision: (nextRev: number) => void,
 ): void {
   if (!Array.isArray(patches)) return;
   for (const patch of patches) {
@@ -30,8 +30,29 @@ export function mergeQueueDeltaPatches(
     }
     if (rev < existing.rev) continue;
     mergeQueueDeltaPatchInto(existing.patch, patch);
-    if (rev <= existing.rev) continue;
-    existing.rev = rev;
-    onAcceptedRevision(rev);
+    if (rev > existing.rev) {
+      existing.rev = rev;
+    }
   }
+}
+
+export function coalesceQueueDeltaFrames(
+  frames: readonly QueueDeltaFrame[],
+  minRevisionExclusive: number,
+): { deltaRevision: number | null; patches: QueueStateLiteDelta["patches"] } {
+  const patchesById = new Map<string, QueueDeltaPatchEntry>();
+  let deltaRevision: number | null = null;
+
+  for (const frame of frames) {
+    const rev = frame?.rev;
+    if (typeof rev !== "number" || !Number.isFinite(rev)) continue;
+    if (rev <= minRevisionExclusive) continue;
+    mergeQueueDeltaPatches(patchesById, frame.patches, rev);
+    deltaRevision = deltaRevision == null ? rev : Math.max(deltaRevision, rev);
+  }
+
+  return {
+    deltaRevision,
+    patches: Array.from(patchesById.values()).map((entry) => entry.patch),
+  };
 }

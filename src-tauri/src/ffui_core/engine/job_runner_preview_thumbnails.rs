@@ -1,3 +1,8 @@
+use crate::ffui_core::preview_common::{
+    acquire_inflight_lock, ensure_dir_exists, extract_frame_with_seek_backoffs,
+    is_non_empty_regular_file, two_stage_seek_args,
+};
+
 #[cfg(test)]
 fn preview_root_dir() -> PathBuf {
     crate::ffui_core::previews_dir().unwrap_or_else(|_| PathBuf::from(".").join("previews"))
@@ -30,9 +35,18 @@ fn build_preview_output_path_in_root(
     preview_root.join(format!("{hash:016x}.jpg"))
 }
 
-pub(super) fn expected_preview_output_path_for_video(input: &Path, capture_percent: u8) -> Option<PathBuf> {
+pub(super) fn expected_preview_output_path_for_video(
+    input: &Path,
+    capture_percent: u8,
+) -> Option<PathBuf> {
     let preview_root = crate::ffui_core::previews_dir().ok()?;
-    Some(build_preview_output_path_in_root(&preview_root, input, capture_percent, 180, 8))
+    Some(build_preview_output_path_in_root(
+        &preview_root,
+        input,
+        capture_percent,
+        180,
+        8,
+    ))
 }
 
 #[cfg(test)]
@@ -40,7 +54,10 @@ pub(super) fn build_preview_output_path(input: &Path, capture_percent: u8) -> Pa
     build_preview_output_path_in_root(&preview_root_dir(), input, capture_percent, 180, 8)
 }
 
-pub(super) fn compute_preview_seek_seconds(total_duration: Option<f64>, capture_percent: u8) -> f64 {
+pub(super) fn compute_preview_seek_seconds(
+    total_duration: Option<f64>,
+    capture_percent: u8,
+) -> f64 {
     const DEFAULT_SEEK_SECONDS: f64 = 3.0;
 
     let duration = match total_duration {
@@ -61,7 +78,8 @@ pub(super) fn compute_preview_seek_seconds(total_duration: Option<f64>, capture_
 }
 
 fn build_preview_ffmpeg_args_variant(
-    ss: &str,
+    fast_ss: &str,
+    accurate_ss: &str,
     input: &Path,
     output: &Path,
     height_px: u16,
@@ -69,10 +87,15 @@ fn build_preview_ffmpeg_args_variant(
 ) -> Vec<OsString> {
     vec![
         "-y".into(),
+        "-hide_banner".into(),
+        "-v".into(),
+        "error".into(),
+        "-ss".into(),
+        fast_ss.into(),
         "-i".into(),
         input.as_os_str().into(),
         "-ss".into(),
-        ss.into(),
+        accurate_ss.into(),
         "-map".into(),
         "0:v:0".into(),
         "-an".into(),
@@ -92,6 +115,44 @@ fn build_preview_ffmpeg_args_variant(
         "-1".into(),
         output.as_os_str().into(),
     ]
+}
+
+fn preview_path_is_current(preview_path: &Path, input: &Path) -> bool {
+    if !is_non_empty_regular_file(preview_path) {
+        return false;
+    }
+
+    let preview_modified_ms = fs::metadata(preview_path)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis());
+    let input_modified_ms = fs::metadata(input)
+        .ok()
+        .and_then(|meta| meta.modified().ok())
+        .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .map(|d| d.as_millis());
+
+    match (preview_modified_ms, input_modified_ms) {
+        (Some(preview_ms), Some(input_ms)) => preview_ms >= input_ms,
+        _ => true,
+    }
+}
+
+fn align_preview_modified_time_with_input(preview_path: &Path, input: &Path) {
+    let input_modified = fs::metadata(input)
+        .ok()
+        .and_then(|meta| meta.modified().ok());
+    let Some(input_modified) = input_modified else {
+        return;
+    };
+
+    let times = super::file_times::FileTimesSnapshot {
+        created: None,
+        accessed: None,
+        modified: Some(input_modified),
+    };
+    drop(super::file_times::apply_file_times(preview_path, &times));
 }
 
 pub(super) fn generate_preview_for_video(
@@ -145,40 +206,73 @@ fn generate_preview_for_video_impl(
     } else {
         preview_root
     };
-    let preview_path = build_preview_output_path_in_root(&output_root, input, capture_percent, height_px, q);
+    let preview_path =
+        build_preview_output_path_in_root(&output_root, input, capture_percent, height_px, q);
 
-    if preview_path.exists() {
+    if preview_path_is_current(&preview_path, input) {
         return Some(preview_path);
     }
 
-    if let Some(parent) = preview_path.parent() {
-        drop(fs::create_dir_all(parent));
+    let parent = preview_path.parent()?;
+    ensure_dir_exists(parent).ok()?;
+
+    let lock_key = format!("preview-thumb:{}", preview_path.to_string_lossy());
+    let inflight = acquire_inflight_lock(&lock_key);
+    let _guard = inflight.lock_unpoisoned();
+
+    if preview_path_is_current(&preview_path, input) {
+        return Some(preview_path);
     }
 
     let seek_seconds = compute_preview_seek_seconds(total_duration, capture_percent);
-    let ss_arg = format!("{seek_seconds:.3}");
+    let seek_backoffs_seconds: [f64; 5] = [0.0, 0.25, 0.5, 1.0, 2.0];
+    let tmp_path = preview_path.with_extension("part");
 
-    let mut cmd = Command::new(ffmpeg_path);
-    configure_background_command(&mut cmd);
-    let status = cmd
-        .args(build_preview_ffmpeg_args_variant(
-            &ss_arg,
-            input,
-            &preview_path,
-            height_px,
-            q,
-        ))
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()
-        .ok()?;
+    extract_frame_with_seek_backoffs(
+        seek_seconds,
+        &seek_backoffs_seconds,
+        &tmp_path,
+        &preview_path,
+        "ffmpeg did not produce a preview frame output",
+        |attempt_seek_seconds, tmp_path| {
+            let (fast_ss_arg, accurate_ss_arg) = two_stage_seek_args(attempt_seek_seconds);
+            let mut cmd = Command::new(ffmpeg_path);
+            configure_background_command(&mut cmd);
+            let status = cmd
+                .args(build_preview_ffmpeg_args_variant(
+                    &fast_ss_arg,
+                    &accurate_ss_arg,
+                    input,
+                    tmp_path,
+                    height_px,
+                    q,
+                ))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .with_context(|| {
+                    format!(
+                        "failed to run ffmpeg preview extraction for {}",
+                        input.display()
+                    )
+                })?;
+            if status.success() {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!(
+                    "ffmpeg preview extraction failed with status {status}"
+                ))
+            }
+        },
+    )
+    .ok()?;
 
-    if status.success() {
-        Some(preview_path)
-    } else {
-        drop(fs::remove_file(&preview_path));
-        None
+    if is_non_empty_regular_file(&preview_path) {
+        align_preview_modified_time_with_input(&preview_path, input);
+        return Some(preview_path);
     }
+
+    None
 }
 
 #[cfg(test)]
@@ -188,17 +282,26 @@ mod preview_thumbnail_args_tests {
     #[test]
     fn preview_thumbnail_ffmpeg_args_are_scaled_and_mjpeg() {
         let args = build_preview_ffmpeg_args_variant(
+            "0.000",
             "1.234",
             Path::new("C:/in.mp4"),
             Path::new("C:/out.jpg"),
             180,
             8,
         );
-        let rendered: Vec<String> = args.iter().map(|v| v.to_string_lossy().into_owned()).collect();
+        let rendered: Vec<String> = args
+            .iter()
+            .map(|v| v.to_string_lossy().into_owned())
+            .collect();
 
-        assert!(rendered.iter().any(|v| v == "-an"), "preview extraction should disable audio");
         assert!(
-            rendered.windows(2).any(|w| w[0] == "-vf" && w[1] == "scale=-2:180"),
+            rendered.iter().any(|v| v == "-an"),
+            "preview extraction should disable audio"
+        );
+        assert!(
+            rendered
+                .windows(2)
+                .any(|w| w[0] == "-vf" && w[1] == "scale=-2:180"),
             "preview extraction should scale down frames"
         );
         assert!(
@@ -206,28 +309,60 @@ mod preview_thumbnail_args_tests {
             "preview extraction should use a moderate jpeg quality"
         );
         assert!(
-            rendered.windows(2).any(|w| w[0] == "-c:v" && w[1] == "mjpeg"),
+            rendered
+                .windows(2)
+                .any(|w| w[0] == "-c:v" && w[1] == "mjpeg"),
             "preview extraction should force mjpeg for stable jpg outputs"
         );
         assert!(
-            rendered.windows(2).any(|w| w[0] == "-pix_fmt" && w[1] == "yuvj420p"),
+            rendered
+                .windows(2)
+                .any(|w| w[0] == "-pix_fmt" && w[1] == "yuvj420p"),
             "preview extraction should use a broadly supported pixel format"
+        );
+        let i_pos = rendered
+            .iter()
+            .position(|v| v == "-i")
+            .expect("preview extraction should include an input");
+        let ss_positions: Vec<usize> = rendered
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, value)| (value == "-ss").then_some(idx))
+            .collect();
+        assert_eq!(
+            ss_positions.len(),
+            2,
+            "preview extraction should use two-stage seek"
+        );
+        assert!(
+            ss_positions[0] < i_pos,
+            "preview extraction should fast-seek before -i"
+        );
+        assert!(
+            ss_positions[1] > i_pos,
+            "preview extraction should accurate-seek after -i"
         );
     }
 
     #[test]
     fn preview_thumbnail_ffmpeg_args_support_other_sizes() {
         let args = build_preview_ffmpeg_args_variant(
+            "7.500",
             "1.234",
             Path::new("C:/in.mp4"),
             Path::new("C:/out.jpg"),
             1080,
             6,
         );
-        let rendered: Vec<String> = args.iter().map(|v| v.to_string_lossy().into_owned()).collect();
+        let rendered: Vec<String> = args
+            .iter()
+            .map(|v| v.to_string_lossy().into_owned())
+            .collect();
 
         assert!(
-            rendered.windows(2).any(|w| w[0] == "-vf" && w[1] == "scale=-2:1080"),
+            rendered
+                .windows(2)
+                .any(|w| w[0] == "-vf" && w[1] == "scale=-2:1080"),
             "variant preview extraction should scale to the requested height"
         );
         assert!(

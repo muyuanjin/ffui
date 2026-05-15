@@ -71,6 +71,16 @@ fn snapshot_queue_state_lite_preserves_snapshot_revision() {
 }
 
 #[test]
+fn snapshot_queue_state_ui_lite_preserves_latest_delta_revision() {
+    let mut state = make_queue_order_test_state();
+    state.queue_snapshot_revision = 42;
+    state.queue_delta_revision = 7;
+    let snapshot = ui_lite::snapshot_queue_state_ui_lite_from_locked_state(&mut state);
+    assert_eq!(snapshot.snapshot_revision, 42);
+    assert_eq!(snapshot.latest_delta_revision, 7);
+}
+
+#[test]
 fn snapshot_queue_state_lite_does_not_mutate_locked_job_queue_order() {
     let mut state = make_queue_order_test_state();
     assert_eq!(state.jobs.get("b").expect("job b exists").queue_order, None);

@@ -223,6 +223,7 @@ fn delta_emit_interval_ms_respects_env_override_and_ignores_invalid_values() {
 fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
     let snapshot = QueueStateUiLite {
         snapshot_revision: 10,
+        latest_delta_revision: 0,
         jobs: vec![crate::ffui_core::TranscodeJobUiLite {
             id: "job-1".to_string(),
             filename: "C:/in.mp4".to_string(),
