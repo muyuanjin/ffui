@@ -22,6 +22,7 @@ describe("queue state lite delta appliers", () => {
     const patch: TranscodeJobLiteDeltaPatch = {
       id: "job-1",
       status: "processing",
+      processingStartedMs: 123_000,
       progress: 12.5,
       telemetry: {
         lastProgressOutTimeSeconds: 3.0,
@@ -29,6 +30,13 @@ describe("queue state lite delta appliers", () => {
         lastProgressUpdatedAtMs: 1234,
         progressEpoch: 2,
         lastProgressFrame: 777,
+        progressPhase: "muxing",
+        phaseProgress: 25,
+        phaseOutTimeSeconds: 15,
+        phaseDurationSeconds: 60,
+        phaseSpeed: 2,
+        phaseUpdatedAtMs: 4321,
+        phaseEtaMs: 22_500,
       },
       elapsedMs: 4567,
       preview: { previewPath: "C:/previews/job-1.jpg", previewRevision: 9 },
@@ -41,6 +49,7 @@ describe("queue state lite delta appliers", () => {
     expect(volatileDirtyIds.has("job-1")).toBe(true);
 
     expect(job.status).toBe("processing");
+    expect(job.processingStartedMs).toBe(123_000);
     expect(job.progress).toBe(12.5);
     expect(job.elapsedMs).toBe(4567);
     expect(job.previewPath).toBe("C:/previews/job-1.jpg");
@@ -51,5 +60,12 @@ describe("queue state lite delta appliers", () => {
     expect(job.waitMetadata?.lastProgressUpdatedAtMs).toBe(1234);
     expect(job.waitMetadata?.progressEpoch).toBe(2);
     expect(job.waitMetadata?.lastProgressFrame).toBe(777);
+    expect(job.progressPhase).toBe("muxing");
+    expect(job.phaseProgress).toBe(25);
+    expect(job.phaseOutTimeSeconds).toBe(15);
+    expect(job.phaseDurationSeconds).toBe(60);
+    expect(job.phaseSpeed).toBe(2);
+    expect(job.phaseUpdatedAtMs).toBe(4321);
+    expect(job.phaseEtaMs).toBe(22_500);
   });
 });

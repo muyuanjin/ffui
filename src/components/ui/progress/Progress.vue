@@ -16,12 +16,20 @@ import { cn } from "@/lib/utils";
  */
 export type ProgressVariant = "default" | "success" | "error" | "warning" | "muted";
 
+export interface ProgressSegment {
+  value: number;
+  variant?: ProgressVariant;
+  class?: HTMLAttributes["class"];
+  layerClass?: HTMLAttributes["class"];
+}
+
 const props = withDefaults(
   defineProps<
     ProgressRootProps & {
       class?: HTMLAttributes["class"];
       variant?: ProgressVariant;
       transitionMs?: number;
+      segments?: ProgressSegment[];
     }
   >(),
   {
@@ -29,10 +37,11 @@ const props = withDefaults(
     variant: "default",
     class: undefined,
     transitionMs: 150,
+    segments: undefined,
   },
 );
 
-const delegatedProps = reactiveOmit(props, "class", "variant");
+const delegatedProps = reactiveOmit(props, "class", "variant", "transitionMs", "segments");
 
 // 根据 variant 返回对应的背景色和指示器颜色
 const trackClass = computed(() => {
@@ -51,7 +60,11 @@ const trackClass = computed(() => {
 });
 
 const indicatorClass = computed(() => {
-  switch (props.variant) {
+  return indicatorClassForVariant(props.variant);
+});
+
+const indicatorClassForVariant = (variant: ProgressVariant | undefined) => {
+  switch (variant) {
     case "success":
       return "bg-emerald-500";
     case "error":
@@ -63,6 +76,20 @@ const indicatorClass = computed(() => {
     default:
       return "bg-primary";
   }
+};
+
+const clampedSegmentValue = (value: number) => {
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
+};
+
+const visibleSegments = computed(() => {
+  const segments = props.segments ?? [];
+  return segments;
+});
+
+const segmentStyle = (value: number) => ({
+  transform: `translateX(-${100 - clampedSegmentValue(value)}%)`,
+  transitionDuration: `${Math.max(0, Math.floor(props.transitionMs ?? 0))}ms`,
 });
 </script>
 
@@ -71,12 +98,26 @@ const indicatorClass = computed(() => {
     v-bind="delegatedProps"
     :class="cn('relative h-2 w-full overflow-hidden rounded-full', trackClass, props.class)"
   >
+    <template v-if="visibleSegments.length > 0">
+      <ProgressIndicator
+        v-for="(segment, index) in visibleSegments"
+        :key="index"
+        :class="
+          cn(
+            'absolute inset-y-0 left-0 h-full w-full transition-transform ease-linear',
+            indicatorClassForVariant(segment.variant ?? props.variant),
+            segment.layerClass,
+            segment.class,
+          )
+        "
+        :style="segmentStyle(segment.value)"
+        :data-testid="`progress-segment-${index}`"
+      />
+    </template>
     <ProgressIndicator
+      v-else
       :class="cn('h-full w-full flex-1 transition-transform ease-linear', indicatorClass)"
-      :style="{
-        transform: `translateX(-${100 - (props.modelValue ?? 0)}%)`,
-        transitionDuration: `${Math.max(0, Math.floor(props.transitionMs ?? 0))}ms`,
-      }"
+      :style="segmentStyle(props.modelValue ?? 0)"
     />
   </ProgressRoot>
 </template>

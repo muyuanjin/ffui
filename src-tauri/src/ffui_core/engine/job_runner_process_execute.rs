@@ -21,6 +21,7 @@ fn execute_transcode_job(
         ffmpeg_path,
         ffmpeg_source,
     } = prepared;
+    set_job_progress_phase(inner, job_id, ProgressPhase::Transcoding, total_duration);
 
     // 队列转码任务需要支持“暂停 / 继续”，后端会通过 stdin 写入控制指令
     //（例如 `q\n`）来让 ffmpeg 优雅结束当前分段，因此这里显式关闭
@@ -67,6 +68,35 @@ fn execute_transcode_job(
         job_output_policy.as_ref(),
     );
     maybe_insert_copyts_for_overlap_trim(&mut args, resume_plan);
+    let mut audio_sidecar = if finalize_with_source_audio
+        && !existing_segments.is_empty()
+        && should_precompute_resumed_audio(&finalize_preset)
+    {
+        match start_audio_finalization_sidecar(
+            inner,
+            job_id,
+            &ffmpeg_path,
+            &input_path,
+            &output_path,
+            &finalize_preset,
+        ) {
+            Ok(sidecar) => Some(sidecar),
+            Err(err) => {
+                let mut state = inner.state.lock_unpoisoned();
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        format!(
+                            "resume: warning: parallel audio finalization unavailable; falling back to serial final mux: {err:#}"
+                        ),
+                    );
+                }
+                None
+            }
+        }
+    } else {
+        None
+    };
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
     maybe_inject_stats_period_for_download(
@@ -207,10 +237,7 @@ fn execute_transcode_job(
                         speed,
                     );
                 } else {
-                    let mut percent = compute_progress_percent(total_duration, effective_elapsed);
-                    if percent >= 100.0 {
-                        percent = 99.9;
-                    }
+                    let percent = compute_progress_percent(total_duration, effective_elapsed);
                     update_job_progress(
                         inner,
                         job_id,
@@ -231,7 +258,10 @@ fn execute_transcode_job(
                 update_job_progress(
                     inner,
                     job_id,
-                    Some(100.0),
+                    Some(compute_progress_percent(
+                        total_duration,
+                        last_effective_elapsed_seconds.unwrap_or(0.0),
+                    )),
                     last_effective_elapsed_seconds,
                     None,
                     Some(line),
@@ -252,6 +282,9 @@ fn execute_transcode_job(
 
     let status = loop {
         if is_job_cancelled(inner, job_id) {
+            if let Some(sidecar) = audio_sidecar.take() {
+                sidecar.kill_and_cleanup();
+            }
             drop(child.kill());
             drop(child.wait());
             stderr_pump.join();
@@ -263,8 +296,21 @@ fn execute_transcode_job(
         if !wait_requested && is_job_wait_requested(inner, job_id) {
             pause_debug.mark_wait_seen(current_time_millis());
             send_ffmpeg_quit(&mut child_stdin);
+            if let Some(sidecar) = audio_sidecar.as_mut() {
+                sidecar.request_quit();
+            }
             pause_debug.mark_q_sent(current_time_millis());
             wait_requested = true;
+        }
+
+        if let Some(sidecar) = audio_sidecar.as_mut() {
+            sidecar.drain_available();
+            if sidecar.status.is_none()
+                && let Some(status) = sidecar.child.try_wait()?
+            {
+                sidecar.status = Some(status);
+                sidecar.drain_available();
+            }
         }
 
         if let Some(line) = stderr_pump.recv_timeout(poll) {
@@ -279,12 +325,18 @@ fn execute_transcode_job(
     };
 
     if is_job_cancelled(inner, job_id) {
+        if let Some(sidecar) = audio_sidecar.take() {
+            sidecar.kill_and_cleanup();
+        }
         mark_job_cancelled(inner, job_id)?;
         drop(fs::remove_file(&tmp_output));
         return Ok(());
     }
 
     if wait_requested {
+        if let Some(sidecar) = audio_sidecar.take() {
+            sidecar.kill_and_cleanup();
+        }
         // The ffmpeg "quit current segment" request (`q\n`) is irreversible once
         // sent. Users can still click "Resume" before ffmpeg exits; in that
         // case we must NOT leave the job stuck in Paused state. Instead, we
@@ -323,6 +375,9 @@ fn execute_transcode_job(
     }
 
     if !status.success() {
+        if let Some(sidecar) = audio_sidecar.take() {
+            sidecar.kill_and_cleanup();
+        }
         {
             let mut state = inner.state.lock_unpoisoned();
             if let Some(job) = state.jobs.get_mut(job_id) {
@@ -391,6 +446,7 @@ fn execute_transcode_job(
             segment_durations: segment_durations.as_deref(),
             tmp_output: tmp_output.as_path(),
             finalize_with_source_audio,
+            audio_sidecar,
         });
         match result {
             Ok(size) => {

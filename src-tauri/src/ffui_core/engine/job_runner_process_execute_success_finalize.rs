@@ -8,6 +8,21 @@ struct FinalizeSuccessfulTranscodeJobArgs<'a> {
     input_times: Option<super::file_times::FileTimesSnapshot>,
 }
 
+fn compute_final_elapsed_ms(job: &crate::ffui_core::domain::TranscodeJob, now_ms: u64) -> Option<u64> {
+    let start = job.processing_started_ms.or(job.start_time)?;
+    let current_segment_ms = now_ms.saturating_sub(start);
+    let previous_wall_ms = job
+        .wait_metadata
+        .as_ref()
+        .and_then(|meta| meta.processed_wall_millis)
+        .unwrap_or(0);
+    Some(
+        previous_wall_ms
+            .saturating_add(current_segment_ms)
+            .max(job.elapsed_ms.unwrap_or(0)),
+    )
+}
+
 fn finalize_successful_transcode_job(
     inner: &Inner,
     args: FinalizeSuccessfulTranscodeJobArgs<'_>,
@@ -68,14 +83,7 @@ fn finalize_successful_transcode_job(
             job.progress = 100.0;
             let now_ms = current_time_millis();
             job.end_time = Some(now_ms);
-            // 最终累计耗时：优先保留 update_job_progress 已维护的 elapsed_ms（基于墙钟时间），
-            // 仅在缺失时回退到 processing_started_ms/start_time 差值，避免重复累加当前段。
-            if job.elapsed_ms.is_none()
-                && let Some(start) = job.processing_started_ms.or(job.start_time)
-                && now_ms > start
-            {
-                job.elapsed_ms = Some(now_ms.saturating_sub(start));
-            }
+            job.elapsed_ms = compute_final_elapsed_ms(job, now_ms).or(job.elapsed_ms);
             if original_size_bytes > 0 && final_output_size_bytes > 0 {
                 job.output_size_mb = Some(final_output_size_bytes as f64 / (1024.0 * 1024.0));
             }
@@ -123,7 +131,7 @@ fn finalize_successful_transcode_job(
                 job,
                 format!(
                     "Completed in {:.1}s, output size {:.2} MB",
-                    elapsed,
+                    job.elapsed_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(elapsed),
                     job.output_size_mb.unwrap_or(0.0)
                 ),
             );
@@ -149,6 +157,9 @@ fn finalize_successful_transcode_job(
             }
         }
     }
+
+    set_job_progress_phase(inner, job_id, ProgressPhase::Completed, None);
+    super::state::notify_queue_lite_delta_for_job_terminal_state(inner, job_id);
 
     if let Some(times) = input_times.as_ref()
         && let Err(err) = super::file_times::apply_file_times(&final_output_path, times)
@@ -239,6 +250,124 @@ mod execute_success_finalize_tests {
                 segment_end_targets: None,
             }),
         }
+    }
+
+    #[test]
+    fn finalize_successful_transcode_job_emits_terminal_queue_lite_delta() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let _data_root_guard =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
+
+        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
+        let inner = Inner::new(vec![preset], AppSettings::default());
+        let job_id = "job-terminal-delta".to_string();
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            state.jobs.insert(job_id.clone(), make_video_job(&job_id, 100));
+        }
+
+        let deltas: std::sync::Arc<std::sync::Mutex<Vec<crate::ffui_core::QueueStateLiteDelta>>> =
+            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let deltas_clone = std::sync::Arc::clone(&deltas);
+        {
+            let mut listeners = inner.queue_lite_delta_listeners.lock_unpoisoned();
+            listeners.push(std::sync::Arc::new(move |delta| {
+                deltas_clone.lock_unpoisoned().push(delta);
+            }));
+        }
+
+        finalize_successful_transcode_job(
+            &inner,
+            FinalizeSuccessfulTranscodeJobArgs {
+                job_id: &job_id,
+                preset_id: "preset-1",
+                output_path: &dir.path().join("out.mp4"),
+                original_size_bytes: 100 * 1024 * 1024,
+                final_output_size_bytes: 50 * 1024 * 1024,
+                elapsed: 10.0,
+                input_times: None,
+            },
+        )
+        .expect("finalize job");
+
+        let deltas = deltas.lock_unpoisoned();
+        assert!(
+            deltas.len() >= 2,
+            "completion should emit a completed phase delta and a terminal job delta"
+        );
+        let delta = deltas
+            .last()
+            .expect("completion should emit a terminal queue-lite delta");
+        assert_eq!(delta.base_snapshot_revision, 0);
+        assert!(delta.delta_revision >= 1);
+        let patch = delta
+            .patches
+            .iter()
+            .find(|patch| patch.id == job_id)
+            .expect("completion delta should include finalized job");
+        assert_eq!(patch.status, Some(JobStatus::Completed));
+        assert_eq!(patch.progress, Some(100.0));
+        assert!(patch.elapsed_ms.is_some());
+        assert_eq!(
+            patch
+                .telemetry
+                .as_ref()
+                .and_then(|telemetry| telemetry.phase.progress_phase),
+            Some(ProgressPhase::Completed)
+        );
+    }
+
+    #[test]
+    fn finalize_successful_transcode_job_accounts_for_quiet_finalize_wall_time() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let _data_root_guard =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
+
+        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
+        let inner = Inner::new(vec![preset], AppSettings::default());
+        let job_id = "job-finalize-elapsed".to_string();
+        let now_ms = current_time_millis();
+        let previous_wall_ms = 11 * 60 * 1000;
+        let quiet_finalize_ms = 22 * 60 * 1000;
+        {
+            let mut job = make_video_job(&job_id, 100);
+            job.processing_started_ms = Some(now_ms.saturating_sub(quiet_finalize_ms));
+            job.elapsed_ms = Some(previous_wall_ms);
+            if let Some(meta) = job.wait_metadata.as_mut() {
+                meta.processed_wall_millis = Some(previous_wall_ms);
+            }
+
+            let mut state = inner.state.lock_unpoisoned();
+            state.jobs.insert(job_id.clone(), job);
+        }
+
+        finalize_successful_transcode_job(
+            &inner,
+            FinalizeSuccessfulTranscodeJobArgs {
+                job_id: &job_id,
+                preset_id: "preset-1",
+                output_path: &dir.path().join("out.mp4"),
+                original_size_bytes: 100 * 1024 * 1024,
+                final_output_size_bytes: 50 * 1024 * 1024,
+                elapsed: 10.0,
+                input_times: None,
+            },
+        )
+        .expect("finalize job");
+
+        let state = inner.state.lock_unpoisoned();
+        let job = state.jobs.get(&job_id).expect("job present");
+        let elapsed_ms = job.elapsed_ms.expect("elapsed_ms should be finalized");
+        assert!(
+            elapsed_ms >= previous_wall_ms + quiet_finalize_ms,
+            "final elapsed should include quiet finalize wall time, got {elapsed_ms}"
+        );
+        assert!(
+            job.log_tail
+                .as_deref()
+                .is_some_and(|tail| tail.contains("Completed in 1980.")),
+            "completion log should use finalized wall-clock elapsed time"
+        );
     }
 
     #[test]

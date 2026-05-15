@@ -39,6 +39,8 @@ export type {
   JobLogLineLike,
   JobRun,
   WaitMetadata,
+  ProgressPhase,
+  ProgressPhaseTelemetry,
   JobCompareOutput,
   JobCompareSources,
   TranscodeJob,

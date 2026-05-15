@@ -368,6 +368,96 @@ describe("QueueIconItem", () => {
     expect(barEl.style.transform).toBe("translateX(-58%)");
   });
 
+  it("shows phase ETA for final mux without marking processing jobs completed", () => {
+    const now = Date.now();
+    const job = makeJob({
+      status: "processing",
+      progress: 100,
+      startTime: now - 61_000,
+      processingStartedMs: now - 61_000,
+      progressPhase: "muxing",
+      phaseProgress: 40,
+      phaseUpdatedAtMs: now,
+      phaseEtaMs: 30_000,
+      previewPath: "C:/app-data/previews/icon.jpg",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(wrapper.text()).toContain("processing");
+    expect(wrapper.get("[data-testid='queue-icon-item-time-display']").text()).toBe(
+      "elapsed 1:00 · final muxing · about 0:30 left",
+    );
+    expect((wrapper.get("[data-testid='queue-icon-item-progress-bar']").element as HTMLElement).style.transform).toBe(
+      "translateX(-0%)",
+    );
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-concatenating']").element as HTMLElement).style
+        .transform,
+    ).toBe("translateX(-0%)");
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-audioFinalizing']").element as HTMLElement).style
+        .transform,
+    ).toBe("translateX(-0%)");
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-muxing']").element as HTMLElement).style.transform,
+    ).toBe("translateX(-60%)");
+    expect(wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-muxing']").classes()).toContain("h-full");
+  });
+
+  it("keeps completed colored icon phase bars while the current phase is still at zero", () => {
+    const now = Date.now();
+    const job = makeJob({
+      status: "processing",
+      progress: 100,
+      startTime: now - 61_000,
+      processingStartedMs: now - 61_000,
+      progressPhase: "muxing",
+      phaseUpdatedAtMs: now,
+      phaseEtaMs: 30_000,
+      previewPath: "C:/app-data/previews/icon.jpg",
+    });
+
+    const wrapper = mount(QueueIconItem, {
+      props: {
+        job,
+        size: "medium",
+        progressStyle: "bar",
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-concatenating']").element as HTMLElement).style
+        .transform,
+    ).toBe("translateX(-0%)");
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-audioFinalizing']").element as HTMLElement).style
+        .transform,
+    ).toBe("translateX(-0%)");
+    expect(
+      (wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-muxing']").element as HTMLElement).style.transform,
+    ).toBe("translateX(-100%)");
+    expect(wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-concatenating']").classes()).toContain(
+      "h-full",
+    );
+    expect(wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-audioFinalizing']").classes()).toContain(
+      "h-full",
+    );
+    expect(wrapper.get("[data-testid='queue-icon-item-progress-phase-bar-muxing']").classes()).toContain("h-full");
+  });
+
   it("maps card-fill and ripple-card progress styles to horizontal fill width and clamps to [0, 100]", () => {
     const base = makeJob({
       status: "processing",

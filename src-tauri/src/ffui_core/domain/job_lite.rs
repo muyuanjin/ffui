@@ -11,6 +11,35 @@ const fn is_zero(v: &u64) -> bool {
     *v == 0
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ProgressPhase {
+    Transcoding,
+    Concatenating,
+    AudioFinalizing,
+    Muxing,
+    Completed,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressPhaseTelemetry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub progress_phase: Option<ProgressPhase>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_progress: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_out_time_seconds: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_duration_seconds: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_speed: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_updated_at_ms: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase_eta_ms: Option<u64>,
+}
+
 // Lightweight view of a transcode job used for high-frequency queue snapshots.
 // Omits heavyweight fields like full logs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -99,6 +128,8 @@ pub struct TranscodeJobLite {
     /// Optional metadata captured when a job is paused via wait or restored
     /// after crash recovery.
     pub wait_metadata: Option<WaitMetadata>,
+    #[serde(flatten)]
+    pub phase_telemetry: ProgressPhaseTelemetry,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -147,6 +178,8 @@ pub struct TranscodeJobLiteTelemetryDelta {
     pub last_progress_updated_at_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_progress_frame: Option<u64>,
+    #[serde(flatten)]
+    pub phase: ProgressPhaseTelemetry,
 }
 
 /// Grouped preview patch applied onto `TranscodeJob.previewPath` / `previewRevision`.
@@ -165,6 +198,11 @@ pub struct TranscodeJobLiteDeltaPatch {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<JobStatus>,
+    #[serde(
+        rename = "processingStartedMs",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub processing_started_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<f64>,
     /// Optional grouped progress telemetry applied onto `waitMetadata`.
@@ -232,6 +270,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             warnings: job.warnings.clone(),
             batch_id: config.batch_id,
             wait_metadata: job.wait_metadata.clone(),
+            phase_telemetry: ProgressPhaseTelemetry::default(),
         }
     }
 }

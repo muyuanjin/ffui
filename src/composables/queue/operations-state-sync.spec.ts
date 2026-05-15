@@ -839,6 +839,48 @@ describe("queue operations state sync", () => {
     expect(deps.jobs.value[0].progress).toBe(43);
   });
 
+  it("applyQueueStateLiteDeltaFromBackend applies terminal completion deltas immediately", () => {
+    const onJobCompleted = vi.fn();
+    const deps = makeDeps({
+      jobs: ref<TranscodeJob[]>([
+        {
+          id: "job-1",
+          filename: "C:/videos/complete.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 100,
+          presetId: "preset-1",
+          status: "processing",
+          progress: 99,
+          elapsedMs: 1_000,
+          waitMetadata: {
+            lastProgressOutTimeSeconds: 9.9,
+            lastProgressUpdatedAtMs: 123,
+          },
+          logs: [],
+        },
+      ]),
+      onJobCompleted,
+    });
+    deps.lastQueueSnapshotRevision.value = 1;
+
+    applyQueueStateLiteDeltaFromBackend(
+      {
+        baseSnapshotRevision: 1,
+        deltaRevision: 1,
+        patches: [{ id: "job-1", status: "completed", progress: 100, elapsedMs: 2_000 }],
+      },
+      deps,
+    );
+
+    expect(deps.jobs.value[0].status).toBe("completed");
+    expect(deps.jobs.value[0].progress).toBe(100);
+    expect(deps.jobs.value[0].elapsedMs).toBe(2_000);
+    expect(deps.jobs.value[0].waitMetadata).toBeUndefined();
+    expect(onJobCompleted).toHaveBeenCalledTimes(1);
+    expect(onJobCompleted).toHaveBeenCalledWith(deps.jobs.value[0]);
+  });
+
   it("applyQueueStateLiteDeltaFromBackend ignores stale or mismatched delta updates", () => {
     const deps = makeDeps({
       jobs: ref<TranscodeJob[]>([

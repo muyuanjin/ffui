@@ -14,14 +14,16 @@ use super::ffmpeg_args::{
     compute_progress_percent, configure_background_command,
     detect_best_effort_video_start_time_seconds, detect_duration_seconds, detect_video_codec,
     detect_video_dimensions_and_frame_rate, detect_video_stream_duration_seconds,
-    format_command_for_log, infer_output_extension, is_ffmpeg_progress_end,
+    ensure_progress_args, format_command_for_log, infer_output_extension, is_ffmpeg_progress_end,
     parse_ffmpeg_duration_from_metadata_line, parse_ffmpeg_progress_line,
     parse_ffmpeg_progress_sample,
 };
 use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,
 };
-use crate::ffui_core::domain::{JobStatus, JobType, MediaInfo, WaitMetadata};
+use crate::ffui_core::domain::{
+    AudioCodecType, JobStatus, JobType, MediaInfo, ProgressPhase, WaitMetadata,
+};
 use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
 use crate::ffui_core::tools::{
     ExternalToolKind, ensure_tool_available, last_tool_download_metadata,

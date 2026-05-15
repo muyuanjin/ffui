@@ -6,10 +6,194 @@ use super::transcode_activity;
 use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
 use super::worker_utils::{append_job_log_line, should_record_job_log_line};
 use crate::ffui_core::{
-    QueueStateLiteDelta, TranscodeJobLiteDeltaPatch, TranscodeJobLiteTelemetryDelta,
+    ProgressPhaseTelemetry, QueueStateLiteDelta, TranscodeJobLiteDeltaPatch,
+    TranscodeJobLiteTelemetryDelta,
 };
 
 const PROGRESS_PERSIST_MIN_INTERVAL_MS: u64 = 1000;
+
+pub(super) fn compute_phase_eta_ms(
+    duration_seconds: Option<f64>,
+    out_time_seconds: Option<f64>,
+    speed: Option<f64>,
+) -> Option<u64> {
+    let duration = duration_seconds.filter(|v| v.is_finite() && *v > 0.0)?;
+    let out_time = out_time_seconds.filter(|v| v.is_finite() && *v >= 0.0)?;
+    let speed = speed.filter(|v| v.is_finite() && *v > 0.0)?;
+    let remaining = (duration - out_time).max(0.0);
+    Some(((remaining / speed) * 1000.0).round() as u64)
+}
+
+pub(super) fn compute_phase_progress(
+    duration_seconds: Option<f64>,
+    out_time_seconds: Option<f64>,
+) -> Option<f64> {
+    let duration = duration_seconds.filter(|v| v.is_finite() && *v > 0.0)?;
+    let out_time = out_time_seconds.filter(|v| v.is_finite() && *v >= 0.0)?;
+    Some(((out_time / duration) * 100.0).clamp(0.0, 100.0))
+}
+
+pub(super) fn set_job_progress_phase(
+    inner: &Inner,
+    job_id: &str,
+    phase: ProgressPhase,
+    duration_seconds: Option<f64>,
+) {
+    let now_ms = current_time_millis();
+    emit_job_progress_phase(
+        inner,
+        job_id,
+        ProgressPhaseTelemetry {
+            progress_phase: Some(phase),
+            phase_progress: if matches!(phase, ProgressPhase::Completed) {
+                Some(100.0)
+            } else {
+                duration_seconds
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .map(|_| 0.0)
+            },
+            phase_out_time_seconds: None,
+            phase_duration_seconds: duration_seconds.filter(|v| v.is_finite() && *v > 0.0),
+            phase_speed: None,
+            phase_updated_at_ms: Some(now_ms),
+            phase_eta_ms: None,
+        },
+    );
+}
+
+fn emit_job_progress_phase(inner: &Inner, job_id: &str, telemetry: ProgressPhaseTelemetry) {
+    let delta = {
+        let mut state = inner.state.lock_unpoisoned();
+        let (progress, processing_started_ms, elapsed_ms) = {
+            let Some(job) = state.jobs.get_mut(job_id) else {
+                return;
+            };
+            let phase = telemetry.progress_phase;
+            let should_mark_primary_done = matches!(
+                phase,
+                Some(
+                    ProgressPhase::Concatenating
+                        | ProgressPhase::AudioFinalizing
+                        | ProgressPhase::Muxing
+                        | ProgressPhase::Completed
+                )
+            );
+            if should_mark_primary_done && job.progress < 100.0 {
+                job.progress = 100.0;
+                if let Some(meta) = job.wait_metadata.as_mut() {
+                    meta.last_progress_percent = Some(100.0);
+                }
+                (
+                    Some(100.0),
+                    job.processing_started_ms,
+                    job.elapsed_ms,
+                )
+            } else {
+                (
+                    None,
+                    job.processing_started_ms,
+                    job.elapsed_ms,
+                )
+            }
+        };
+        state
+            .progress_phase_by_job
+            .insert(job_id.to_string(), telemetry.clone());
+        state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
+        QueueStateLiteDelta {
+            base_snapshot_revision: state.queue_snapshot_revision,
+            delta_revision: state.queue_delta_revision,
+            patches: vec![TranscodeJobLiteDeltaPatch {
+                id: job_id.to_string(),
+                status: None,
+                processing_started_ms,
+                progress,
+                telemetry: Some(TranscodeJobLiteTelemetryDelta {
+                    progress_epoch: None,
+                    last_progress_out_time_seconds: None,
+                    last_progress_speed: None,
+                    last_progress_updated_at_ms: None,
+                    last_progress_frame: None,
+                    phase: telemetry,
+                }),
+                elapsed_ms,
+                preview: None,
+            }],
+        }
+    };
+    notify_queue_lite_delta_listeners(inner, delta);
+}
+
+fn update_job_progress_phase_sample(
+    inner: &Inner,
+    job_id: &str,
+    out_time_seconds: Option<f64>,
+    speed: Option<f64>,
+) {
+    if out_time_seconds.is_none() && speed.is_none() {
+        return;
+    }
+    let now_ms = current_time_millis();
+    let delta = {
+        let mut state = inner.state.lock_unpoisoned();
+        let Some(job) = state.jobs.get(job_id) else {
+            return;
+        };
+        if job.status != JobStatus::Processing {
+            return;
+        }
+        let processing_started_ms = job.processing_started_ms;
+        let elapsed_ms = job.elapsed_ms;
+        let Some(phase) = state.progress_phase_by_job.get_mut(job_id) else {
+            return;
+        };
+
+        if let Some(out_time) = out_time_seconds
+            && out_time.is_finite()
+            && out_time >= 0.0
+        {
+            phase.phase_out_time_seconds = Some(out_time);
+        }
+        if let Some(v) = speed
+            && v.is_finite()
+            && v > 0.0
+        {
+            phase.phase_speed = Some(v);
+        }
+        phase.phase_updated_at_ms = Some(now_ms);
+        phase.phase_progress =
+            compute_phase_progress(phase.phase_duration_seconds, phase.phase_out_time_seconds);
+        phase.phase_eta_ms = compute_phase_eta_ms(
+            phase.phase_duration_seconds,
+            phase.phase_out_time_seconds,
+            phase.phase_speed,
+        );
+        let phase = phase.clone();
+
+        state.queue_delta_revision = state.queue_delta_revision.saturating_add(1);
+        QueueStateLiteDelta {
+            base_snapshot_revision: state.queue_snapshot_revision,
+            delta_revision: state.queue_delta_revision,
+            patches: vec![TranscodeJobLiteDeltaPatch {
+                id: job_id.to_string(),
+                status: None,
+                processing_started_ms,
+                progress: None,
+                telemetry: Some(TranscodeJobLiteTelemetryDelta {
+                    progress_epoch: None,
+                    last_progress_out_time_seconds: None,
+                    last_progress_speed: None,
+                    last_progress_updated_at_ms: None,
+                    last_progress_frame: None,
+                    phase,
+                }),
+                elapsed_ms,
+                preview: None,
+            }],
+        }
+    };
+    notify_queue_lite_delta_listeners(inner, delta);
+}
 
 pub(super) fn update_job_progress(
     inner: &Inner,
@@ -35,7 +219,6 @@ pub(super) fn update_job_progress(
         let mut next_persist_snapshot_at_ms: Option<u64> = None;
         let mut pending_patch: Option<TranscodeJobLiteDeltaPatch> = None;
         let mut heal_to_processing: Option<(String, String)> = None;
-
         if let Some(job) = state.jobs.get_mut(job_id) {
             let saw_progress_sample = progress_out_time_seconds.is_some()
                 || progress_frame.is_some()
@@ -181,6 +364,7 @@ pub(super) fn update_job_progress(
                         last_progress_speed: m.last_progress_speed,
                         last_progress_updated_at_ms: m.last_progress_updated_at_ms,
                         last_progress_frame: m.last_progress_frame,
+                        phase: ProgressPhaseTelemetry::default(),
                     };
                     if delta.progress_epoch.is_none()
                         && delta.last_progress_out_time_seconds.is_none()
@@ -196,9 +380,10 @@ pub(super) fn update_job_progress(
                 pending_patch = Some(TranscodeJobLiteDeltaPatch {
                     id: job.id.clone(),
                     status: Some(job.status),
+                    processing_started_ms: job.processing_started_ms,
                     progress: progress_changed.then_some(job.progress),
                     telemetry,
-                    elapsed_ms: progress_changed.then_some(job.elapsed_ms).flatten(),
+                    elapsed_ms: job.elapsed_ms,
                     preview: None,
                 });
             }
@@ -236,6 +421,8 @@ pub(super) fn update_job_progress(
     if let Some(delta) = delta_to_emit {
         notify_queue_lite_delta_listeners(inner, delta);
     }
+
+    update_job_progress_phase_sample(inner, job_id, progress_out_time_seconds, speed);
 
     if should_persist_snapshot {
         persist_queue_state_lite_best_effort(inner);

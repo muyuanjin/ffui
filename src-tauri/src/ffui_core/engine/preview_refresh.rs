@@ -137,6 +137,7 @@ impl TranscodingEngine {
                 Some(TranscodeJobLiteDeltaPatch {
                     id: job.id.clone(),
                     status: None,
+                    processing_started_ms: None,
                     progress: None,
                     telemetry: None,
                     elapsed_ms: None,
@@ -375,6 +376,7 @@ impl TranscodingEngine {
                 preview_patches.push(TranscodeJobLiteDeltaPatch {
                     id: job_id.clone(),
                     status: None,
+                    processing_started_ms: None,
                     progress: None,
                     telemetry: None,
                     elapsed_ms: None,

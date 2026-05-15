@@ -68,8 +68,19 @@ const queue = {
   time: {
     totalElapsed: "耗时 {time}",
     elapsed: "已用",
+    elapsedWithValue: "已用 {time}",
     estimated: "预估",
     remaining: "剩余",
+    remainingApprox: "剩余约 {time}",
+    calculating: "预计时间计算中",
+  },
+  progressPhase: {
+    transcoding: "视频转码中",
+    concatenating: "分段拼接中",
+    audioFinalizing: "音频处理中",
+    muxing: "最终合成中",
+    completed: "已完成",
+    videoDone: "视频转码完成",
   },
   media: {
     duration: "时长 {time}",

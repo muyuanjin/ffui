@@ -1,4 +1,3 @@
-#[derive(Clone, Copy)]
 struct FinalizeResumedJobOutputArgs<'a> {
     inner: &'a Inner,
     job_id: &'a str,
@@ -10,6 +9,7 @@ struct FinalizeResumedJobOutputArgs<'a> {
     segment_durations: Option<&'a [f64]>,
     tmp_output: &'a Path,
     finalize_with_source_audio: bool,
+    audio_sidecar: Option<AudioFinalizationSidecar>,
 }
 
 fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result<u64> {
@@ -24,6 +24,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         segment_durations,
         tmp_output,
         finalize_with_source_audio,
+        audio_sidecar,
     } = args;
     let ext = output_path
         .extension()
@@ -58,6 +59,7 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
         }
     }
 
+    set_job_progress_phase(inner, job_id, ProgressPhase::Concatenating, None);
     concat_video_segments(ffmpeg_path, all_segments, segment_durations, &joined_video_tmp)
         .with_context(|| "ffmpeg concat failed when resuming from partial output")?;
 
@@ -126,19 +128,38 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
     }
 
     if finalize_with_source_audio {
-        let mux_args =
-            build_mux_args_for_resumed_output(&joined_video_tmp, input_path, &mux_tmp, finalize_preset);
+        let processed_audio = match audio_sidecar {
+            Some(sidecar) => wait_for_audio_sidecar(inner, job_id, sidecar, expected_seconds)?,
+            None => None,
+        };
+        set_job_progress_phase(inner, job_id, ProgressPhase::Muxing, expected_seconds);
+        let mux_args = match processed_audio.as_ref() {
+            Some(audio_tmp) => build_mux_args_for_resumed_output_with_processed_audio(
+                &joined_video_tmp,
+                audio_tmp,
+                &mux_tmp,
+                finalize_preset,
+            ),
+            None => build_mux_args_for_resumed_output(
+                &joined_video_tmp,
+                input_path,
+                &mux_tmp,
+                finalize_preset,
+            ),
+        };
         log_external_command(inner, job_id, ffmpeg_path, &mux_args);
-        let mut mux_cmd = Command::new(ffmpeg_path);
-        configure_background_command(&mut mux_cmd);
-        let status = mux_cmd
-            .args(&mux_args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
+        let status = run_resumed_output_mux(
+            inner,
+            job_id,
+            ffmpeg_path,
+            &mux_args,
+        )
             .with_context(|| "failed to run ffmpeg mux for resumed output")?;
         if !status.success() {
             drop(fs::remove_file(&mux_tmp));
+            if let Some(audio_tmp) = processed_audio.as_ref() {
+                drop(fs::remove_file(audio_tmp));
+            }
             return Err(anyhow::anyhow!(
                 "ffmpeg mux failed when finalizing resumed output (status {status})"
             ));
@@ -150,7 +171,11 @@ fn finalize_resumed_job_output(args: FinalizeResumedJobOutputArgs<'_>) -> Result
                 output_path.display()
             )
         })?;
+        if let Some(audio_tmp) = processed_audio.as_ref() {
+            drop(fs::remove_file(audio_tmp));
+        }
     } else {
+        set_job_progress_phase(inner, job_id, ProgressPhase::Completed, None);
         fs::rename(&joined_video_tmp, output_path).with_context(|| {
             format!(
                 "failed to finalize resumed output {} -> {}",
@@ -196,6 +221,7 @@ pub(super) fn finalize_resumed_job_output_for_tests(
         segment_durations,
         tmp_output,
         finalize_with_source_audio,
+        audio_sidecar: None,
     })
 }
 
@@ -206,42 +232,9 @@ pub(super) fn build_mux_args_for_resumed_output(
     preset: &FFmpegPreset,
 ) -> Vec<String> {
     let mut args: Vec<String> = Vec::new();
-    args.push("-y".to_string());
-
-    if let Some(global) = preset.global.as_ref() {
-        if let Some(level) = &global.log_level
-            && !level.is_empty()
-        {
-            args.push("-loglevel".to_string());
-            args.push(level.clone());
-        }
-        if global.hide_banner.unwrap_or(false) {
-            args.push("-hide_banner".to_string());
-        }
-    }
-
-    args.push("-i".to_string());
-    args.push(joined_video.to_string_lossy().into_owned());
-    args.push("-i".to_string());
-    args.push(input_path.to_string_lossy().into_owned());
-
-    args.push("-map".to_string());
-    args.push("0:v:0".to_string());
-
-    let keep_subtitles = matches!(
-        preset
-            .subtitles
-            .as_ref()
-            .and_then(|s| s.strategy.as_ref()),
-        Some(crate::ffui_core::domain::SubtitleStrategy::Keep)
-    );
-    if keep_subtitles {
-        args.push("-map".to_string());
-        args.push("0:s?".to_string());
-    }
-
-    args.push("-map".to_string());
-    args.push("1:a?".to_string());
+    push_resumed_ffmpeg_common_prefix(&mut args, preset);
+    let keep_subtitles =
+        push_resumed_mux_inputs_and_maps(&mut args, joined_video, input_path, preset);
 
     args.push("-c:v".to_string());
     args.push("copy".to_string());
@@ -259,5 +252,72 @@ pub(super) fn build_mux_args_for_resumed_output(
 
     args.push("-shortest".to_string());
     args.push(mux_tmp.to_string_lossy().into_owned());
+    ensure_progress_args(&mut args);
     args
+}
+
+fn run_resumed_output_mux(
+    inner: &Inner,
+    job_id: &str,
+    ffmpeg_path: &str,
+    mux_args: &[String],
+) -> Result<std::process::ExitStatus> {
+    let mut mux_cmd = Command::new(ffmpeg_path);
+    configure_background_command(&mut mux_cmd);
+    let mut child = mux_cmd
+        .args(mux_args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .with_context(|| "failed to spawn ffmpeg mux for resumed output")?;
+    assign_child_to_job(child.id());
+
+    let mut stderr_pump = FfmpegStderrPump::spawn(&mut child);
+    let poll = Duration::from_millis(100);
+    let mut last_visible_progress_log_at_ms = 0;
+
+    let mut handle_line = |line: String| {
+        let sample = parse_ffmpeg_progress_sample(&line);
+        update_job_progress(
+            inner,
+            job_id,
+            None,
+            sample.elapsed_seconds,
+            sample.frame,
+            Some(&line),
+            sample.speed,
+        );
+
+        if let Some(elapsed) = sample.elapsed_seconds {
+            let now_ms = current_time_millis();
+            if last_visible_progress_log_at_ms == 0
+                || now_ms.saturating_sub(last_visible_progress_log_at_ms) >= 15_000
+            {
+                last_visible_progress_log_at_ms = now_ms;
+                let suffix = sample
+                    .speed
+                    .map(|speed| format!(", speed {speed:.2}x"))
+                    .unwrap_or_default();
+                let mut state = inner.state.lock_unpoisoned();
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    super::worker_utils::append_job_log_line(
+                        job,
+                        format!("resume: final mux progress out_time {elapsed:.1}s{suffix}"),
+                    );
+                }
+            }
+        }
+    };
+
+    loop {
+        if let Some(line) = stderr_pump.recv_timeout(poll) {
+            handle_line(line);
+        }
+
+        if let Some(status) = child.try_wait()? {
+            stderr_pump.drain_exit_bound_lines(&mut handle_line);
+            return Ok(status);
+        }
+    }
 }

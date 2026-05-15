@@ -31,9 +31,10 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
       status?: string;
       startTime?: number;
       processingStartedMs?: number;
+      phaseUpdatedAtMs?: number;
     };
     if (value?.status !== "processing") return false;
-    return typeof (value.processingStartedMs ?? value.startTime) === "number";
+    return typeof (value.processingStartedMs ?? value.startTime ?? value.phaseUpdatedAtMs) === "number";
   });
 
   const sampledProgress = ref<number | null>(null);
@@ -127,13 +128,59 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
   });
 
   // 预估剩余时间（毫秒）
+  const phaseEtaMs = computed(() => {
+    if (job.value.status !== "processing") return null;
+    const updatedAt = job.value.phaseUpdatedAtMs;
+    if (typeof updatedAt !== "number" || !Number.isFinite(updatedAt) || updatedAt <= 0) return null;
+
+    const now = needsTick.value ? sharedNowMs.value : Date.now();
+    const elapsedSinceSampleMs = Math.max(0, now - updatedAt);
+
+    const backendEta = job.value.phaseEtaMs;
+    if (typeof backendEta === "number" && Number.isFinite(backendEta) && backendEta >= 0) {
+      return Math.max(0, backendEta - elapsedSinceSampleMs);
+    }
+
+    const duration = job.value.phaseDurationSeconds;
+    const outTime = job.value.phaseOutTimeSeconds;
+    const speed = job.value.phaseSpeed;
+    if (
+      typeof duration === "number" &&
+      Number.isFinite(duration) &&
+      duration > 0 &&
+      typeof outTime === "number" &&
+      Number.isFinite(outTime) &&
+      outTime >= 0 &&
+      typeof speed === "number" &&
+      Number.isFinite(speed) &&
+      speed > 0
+    ) {
+      const estimatedOutTime = outTime + (elapsedSinceSampleMs / 1000) * speed;
+      return Math.max(0, ((duration - estimatedOutTime) / speed) * 1000);
+    }
+
+    return null;
+  });
+
   const estimatedRemainingMs = computed(() => {
+    if (phaseEtaMs.value != null) return phaseEtaMs.value;
+    if (job.value.progressPhase && job.value.status === "processing") return null;
     return estimateRemainingTime(elapsedMs.value, progressForEstimates.value);
   });
 
   // 格式化的预估剩余时间
   const estimatedRemainingTimeDisplay = computed(() => {
+    if (estimatedRemainingMs.value === 0) return "0:00";
     return formatElapsedTime(estimatedRemainingMs.value);
+  });
+
+  const isRemainingTimeCalculating = computed(() => {
+    return job.value.status === "processing" && estimatedRemainingMs.value == null;
+  });
+
+  const phaseDisplayKey = computed(() => {
+    const phase = job.value.progressPhase;
+    return phase ? `queue.progressPhase.${phase}` : null;
   });
 
   // 是否应该显示时间信息
@@ -167,6 +214,8 @@ export function useJobTimeDisplay(job: Ref<TranscodeJob>) {
     estimatedTotalTimeDisplay,
     estimatedRemainingMs,
     estimatedRemainingTimeDisplay,
+    isRemainingTimeCalculating,
+    phaseDisplayKey,
     shouldShowTimeInfo,
     isTerminalState,
     isProcessing,

@@ -393,11 +393,15 @@ export function applyQueueStateLiteDeltaFromBackend(delta: QueueStateLiteDelta, 
       if (!id) continue;
       const job = byId.get(id);
       if (!job) continue;
+      const wasCompleted = job.status === "completed";
       patchedAny = true;
 
       const result = applyDeltaPatchToJob(job, patch, { trackVolatileDirtyIds, volatileDirtyIds });
       if (result.volatileSortUpdated) {
         volatileSortUpdated = true;
+      }
+      if (patch.status === "completed" && !wasCompleted) {
+        deps.onJobCompleted?.(job);
       }
     }
 

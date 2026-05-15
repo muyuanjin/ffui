@@ -68,8 +68,19 @@ const queue = {
   time: {
     totalElapsed: "took {time}",
     elapsed: "elapsed",
+    elapsedWithValue: "elapsed {time}",
     estimated: "estimated",
     remaining: "remaining",
+    remainingApprox: "about {time} left",
+    calculating: "estimating time",
+  },
+  progressPhase: {
+    transcoding: "transcoding video",
+    concatenating: "joining segments",
+    audioFinalizing: "finalizing audio",
+    muxing: "final muxing",
+    completed: "completed",
+    videoDone: "video transcoding complete",
   },
   media: {
     duration: "Duration {time}",

@@ -251,6 +251,45 @@ describe("useSmoothProgress", () => {
     wrapper.unmount();
   });
 
+  it("does not roll back main progress when extra phase telemetry starts from zero", async () => {
+    const job = ref(
+      makeJob({
+        status: "processing",
+        progress: 100,
+        progressPhase: "audioFinalizing",
+        mediaInfo: { durationSeconds: 100 },
+        waitMetadata: {
+          progressEpoch: 1,
+          lastProgressOutTimeSeconds: 100,
+          lastProgressUpdatedAtMs: 0,
+        },
+      }),
+    );
+    const { composable, wrapper } = mountComposable(job, { progressUpdateIntervalMs: 200 });
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(100, 6);
+
+    vi.advanceTimersByTime(1000);
+    job.value = {
+      ...job.value,
+      waitMetadata: {
+        ...(job.value.waitMetadata ?? {}),
+        lastProgressOutTimeSeconds: 0,
+        lastProgressSpeed: 1,
+        lastProgressUpdatedAtMs: Date.now(),
+      },
+      phaseProgress: 0,
+    };
+    await nextTick();
+
+    vi.advanceTimersByTime(200);
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBeCloseTo(100, 6);
+    wrapper.unmount();
+  });
+
   it("suppresses prediction-only rollbacks within the same epoch", async () => {
     const job = ref(
       makeJob({
@@ -368,6 +407,20 @@ describe("useSmoothProgress", () => {
 
     await nextTick();
     expect(composable.displayedClampedProgress.value).toBe(90);
+
+    job.value = { ...job.value, status: "completed", progress: 100 };
+    await nextTick();
+
+    expect(composable.displayedClampedProgress.value).toBe(100);
+    wrapper.unmount();
+  });
+
+  it("keeps processing progress raw even when backend sends 100", async () => {
+    const job = ref(makeJob({ status: "processing", progress: 100 }));
+    const { composable, wrapper } = mountComposable(job);
+
+    await nextTick();
+    expect(composable.displayedClampedProgress.value).toBe(100);
 
     job.value = { ...job.value, status: "completed", progress: 100 };
     await nextTick();

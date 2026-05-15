@@ -252,6 +252,7 @@ impl From<JobRecord> for TranscodeJobLite {
             warnings,
             batch_id,
             wait_metadata,
+            phase_telemetry: Default::default(),
         }
     }
 }

@@ -76,7 +76,8 @@ fn update_job_progress_clamps_and_is_monotonic() {
         );
     }
 
-    // Values above 100 clamp to 100.
+    // Processing progress is raw ffmpeg progress. The UI must use status, not
+    // progress === 100, to decide whether a job is terminally completed.
     update_job_progress(&inner, &job_id, Some(150.0), None, None, None, None);
 
     {
@@ -391,6 +392,133 @@ fn update_job_progress_updates_speed_telemetry_even_without_out_time() {
         !deltas.lock_unpoisoned().is_empty(),
         "speed-only telemetry should emit a queue-lite delta so the frontend can keep smoothing"
     );
+}
+
+#[test]
+fn progress_phase_telemetry_reports_real_phase_samples_and_eta() {
+    let engine = make_engine_with_preset();
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/phase-telemetry.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        0.0,
+        None,
+        "preset-1".into(),
+    );
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    engine.register_queue_lite_delta_listener(move |delta: QueueStateLiteDelta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    });
+
+    {
+        deltas.lock_unpoisoned().clear();
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job.id)
+            .expect("job should exist after enqueue");
+        stored.status = JobStatus::Processing;
+    }
+
+    set_job_progress_phase(
+        &engine.inner,
+        &job.id,
+        crate::ffui_core::ProgressPhase::Transcoding,
+        Some(100.0),
+    );
+    update_job_progress(
+        &engine.inner,
+        &job.id,
+        Some(40.0),
+        Some(40.0),
+        None,
+        None,
+        Some(2.0),
+    );
+    set_job_progress_phase(
+        &engine.inner,
+        &job.id,
+        crate::ffui_core::ProgressPhase::Concatenating,
+        None,
+    );
+    set_job_progress_phase(
+        &engine.inner,
+        &job.id,
+        crate::ffui_core::ProgressPhase::Muxing,
+        Some(100.0),
+    );
+    update_job_progress(
+        &engine.inner,
+        &job.id,
+        None,
+        Some(25.0),
+        None,
+        None,
+        Some(1.5),
+    );
+    set_job_progress_phase(
+        &engine.inner,
+        &job.id,
+        crate::ffui_core::ProgressPhase::Completed,
+        None,
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job.id)
+        .expect("job should still exist after phase updates");
+    assert_eq!(
+        stored.progress, 100.0,
+        "entering post-transcode phases should keep the primary progress full"
+    );
+    let phase = state
+        .progress_phase_by_job
+        .get(&job.id)
+        .expect("phase telemetry should be tracked");
+    assert_eq!(
+        phase.progress_phase,
+        Some(crate::ffui_core::ProgressPhase::Completed)
+    );
+    drop(state);
+
+    let phases = deltas
+        .lock_unpoisoned()
+        .iter()
+        .flat_map(|delta| delta.patches.iter())
+        .filter_map(|patch| patch.telemetry.as_ref())
+        .filter_map(|telemetry| telemetry.phase.progress_phase)
+        .collect::<Vec<_>>();
+    assert!(phases.contains(&crate::ffui_core::ProgressPhase::Transcoding));
+    assert!(phases.contains(&crate::ffui_core::ProgressPhase::Concatenating));
+    assert!(phases.contains(&crate::ffui_core::ProgressPhase::Muxing));
+    assert!(phases.contains(&crate::ffui_core::ProgressPhase::Completed));
+    assert!(
+        deltas
+            .lock_unpoisoned()
+            .iter()
+            .flat_map(|delta| delta.patches.iter())
+            .any(|patch| patch.progress == Some(100.0)),
+        "post-transcode phase delta should tell the frontend the primary bar is full"
+    );
+
+    let mux_sample = deltas
+        .lock_unpoisoned()
+        .iter()
+        .flat_map(|delta| delta.patches.iter())
+        .filter_map(|patch| patch.telemetry.as_ref())
+        .map(|telemetry| telemetry.phase.clone())
+        .find(|phase| {
+            phase.progress_phase == Some(crate::ffui_core::ProgressPhase::Muxing)
+                && phase.phase_out_time_seconds == Some(25.0)
+        })
+        .expect("mux phase sample should be emitted");
+    assert_eq!(mux_sample.phase_duration_seconds, Some(100.0));
+    assert_eq!(mux_sample.phase_speed, Some(1.5));
+    assert_eq!(mux_sample.phase_eta_ms, Some(50_000));
 }
 
 #[test]
@@ -716,6 +844,82 @@ fn worker_selection_bumps_progress_epoch_and_applies_resume_baseline() {
             "expected updated_at to be refreshed for the new epoch"
         );
     }
+}
+
+#[test]
+fn worker_selection_allows_complete_resume_baseline_before_final_phase() {
+    let engine = make_engine_with_preset();
+    let job_id = "job-resume-baseline-final-mux".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.queue.push_back(job_id.clone());
+        let job = TranscodeJob {
+            id: job_id.clone(),
+            filename: "C:/videos/in.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::Manual,
+            queue_order: None,
+            original_size_mb: 100.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Queued,
+            progress: 99.0,
+            start_time: None,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: None,
+            created_time_ms: None,
+            modified_time_ms: None,
+            output_path: None,
+            output_policy: None,
+            ffmpeg_command: None,
+            runs: Vec::new(),
+            media_info: Some(MediaInfo {
+                duration_seconds: Some(100.0),
+                width: None,
+                height: None,
+                frame_rate: None,
+                video_codec: None,
+                audio_codec: None,
+                size_mb: None,
+            }),
+            estimated_seconds: None,
+            preview_path: None,
+            preview_revision: 0,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: None,
+            wait_metadata: Some(WaitMetadata {
+                last_progress_percent: Some(99.0),
+                processed_wall_millis: Some(1_000),
+                processed_seconds: Some(99.0),
+                target_seconds: Some(100.0),
+                progress_epoch: Some(1),
+                last_progress_out_time_seconds: Some(99.0),
+                last_progress_speed: Some(2.0),
+                last_progress_updated_at_ms: Some(123),
+                last_progress_frame: None,
+                tmp_output_path: Some("C:/videos/seg1.tmp.mkv".to_string()),
+                segments: Some(vec!["C:/videos/seg0.tmp.mkv".to_string()]),
+                segment_end_targets: Some(vec![99.0]),
+            }),
+        };
+        state.jobs.insert(job_id.clone(), job);
+    }
+
+    let mut state = engine.inner.state.lock_unpoisoned();
+    let picked = next_job_for_worker_locked(&mut state).expect("job must be selectable");
+    assert_eq!(picked, job_id);
+    let job = state.jobs.get(&job_id).expect("job must exist");
+    assert_eq!(job.status, JobStatus::Processing);
+    assert_eq!(job.progress, 100.0);
 }
 
 #[test]
@@ -1091,6 +1295,107 @@ fn update_job_progress_delta_omits_large_fields_for_ipc() {
     assert!(
         patch.preview.is_none(),
         "queue-lite delta must omit unrelated fields"
+    );
+}
+
+#[test]
+fn update_job_progress_delta_carries_processing_start_and_elapsed_on_telemetry_only_tick() {
+    let settings = AppSettings::default();
+    let inner = Inner::new(Vec::new(), settings);
+    let job_id = "job-delta-elapsed-telemetry".to_string();
+    let now_ms = crate::ffui_core::engine::worker_utils::current_time_millis();
+    let processing_started_ms = now_ms.saturating_sub(2_000);
+
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.queue_snapshot_revision = 4;
+        state.jobs.insert(
+            job_id.clone(),
+            TranscodeJob {
+                id: job_id.clone(),
+                filename: "dummy.mp4".to_string(),
+                job_type: JobType::Video,
+                source: JobSource::Manual,
+                queue_order: None,
+                original_size_mb: 100.0,
+                original_codec: Some("h264".to_string()),
+                preset_id: "preset-1".to_string(),
+                status: JobStatus::Processing,
+                progress: 40.0,
+                start_time: Some(now_ms.saturating_sub(60_000)),
+                end_time: None,
+                processing_started_ms: Some(processing_started_ms),
+                elapsed_ms: Some(5_000),
+                output_size_mb: None,
+                logs: Vec::new(),
+                log_head: None,
+                skip_reason: None,
+                input_path: None,
+                created_time_ms: None,
+                modified_time_ms: None,
+                output_path: None,
+                output_policy: None,
+                ffmpeg_command: None,
+                runs: Vec::new(),
+                media_info: None,
+                estimated_seconds: None,
+                preview_path: None,
+                preview_revision: 0,
+                log_tail: None,
+                failure_reason: None,
+                warnings: Vec::new(),
+                batch_id: None,
+                wait_metadata: Some(WaitMetadata {
+                    last_progress_percent: Some(40.0),
+                    processed_wall_millis: Some(5_000),
+                    processed_seconds: Some(40.0),
+                    target_seconds: Some(40.0),
+                    progress_epoch: Some(2),
+                    last_progress_out_time_seconds: Some(40.0),
+                    last_progress_speed: Some(1.0),
+                    last_progress_updated_at_ms: Some(now_ms),
+                    last_progress_frame: None,
+                    tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
+                    segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
+                    segment_end_targets: Some(vec![40.0]),
+                }),
+            },
+        );
+    }
+
+    let deltas: TestArc<TestMutex<Vec<QueueStateLiteDelta>>> =
+        TestArc::new(TestMutex::new(Vec::new()));
+    let deltas_clone = TestArc::clone(&deltas);
+    {
+        let mut listeners = inner.queue_lite_delta_listeners.lock_unpoisoned();
+        listeners.push(Arc::new(move |delta: QueueStateLiteDelta| {
+            deltas_clone.lock_unpoisoned().push(delta);
+        }));
+    }
+
+    update_job_progress(&inner, &job_id, None, Some(41.0), None, None, Some(1.25));
+
+    let deltas = deltas.lock_unpoisoned();
+    assert!(!deltas.is_empty());
+    let delta = &deltas[deltas.len() - 1];
+    assert_eq!(delta.base_snapshot_revision, 4);
+    let patch = delta
+        .patches
+        .iter()
+        .find(|p| p.id == job_id)
+        .expect("expected telemetry delta patch for updated job");
+    assert_eq!(patch.status, Some(JobStatus::Processing));
+    assert_eq!(patch.processing_started_ms, Some(processing_started_ms));
+    assert!(
+        patch.elapsed_ms.is_some_and(|elapsed| elapsed >= 5_000),
+        "telemetry-only progress ticks must carry elapsed_ms so resumed jobs do not freeze",
+    );
+    assert_eq!(
+        patch
+            .telemetry
+            .as_ref()
+            .and_then(|telemetry| telemetry.last_progress_speed),
+        Some(1.25)
     );
 }
 

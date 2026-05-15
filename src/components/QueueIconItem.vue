@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, toRef, onUpdated } from "vue";
 import { Button } from "@/components/ui/button";
-import type { QueueProgressStyle, TranscodeJob } from "@/types";
+import type { ProgressPhase, QueueProgressStyle, TranscodeJob } from "@/types";
 import { useI18n } from "vue-i18n";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
@@ -9,6 +9,15 @@ import { isQueuePerfEnabled, recordQueueIconItemUpdate } from "@/lib/queuePerf";
 import { useQueueItemPreview } from "@/components/queue-item/useQueueItemPreview";
 import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDisplay";
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
+import {
+  compactTimeDisplayParts,
+  joinTimeDisplayParts,
+  labelPart,
+  separatorPart,
+  translatedTimeParts,
+  valuePart,
+  type TimeDisplayPart,
+} from "@/components/queue-item/timeDisplayParts";
 
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
@@ -68,6 +77,46 @@ const clampedProgress = computed(() => {
 const progressTransformStyle = computed(() => {
   const pct = clampedProgress.value;
   return { transform: `translateX(-${100 - pct}%)` };
+});
+
+const isExtraProgressPhase = computed(() => {
+  const phase = props.job.progressPhase;
+  return props.job.status === "processing" && !!phase && phase !== "transcoding";
+});
+
+const extraProgressPhaseOrder: ProgressPhase[] = ["concatenating", "audioFinalizing", "muxing"];
+
+const phaseProgressPercent = computed(() => {
+  const raw = props.job.phaseProgress;
+  return typeof raw === "number" && Number.isFinite(raw) ? Math.max(0, Math.min(100, raw)) : 0;
+});
+
+const progressTransformForPercent = (percent: number) => ({
+  transform: `translateX(-${100 - Math.max(0, Math.min(100, percent))}%)`,
+});
+
+const progressColorClassForPhase = (phase: ProgressPhase | undefined) => {
+  switch (phase) {
+    case "audioFinalizing":
+      return "bg-cyan-400";
+    case "muxing":
+      return "bg-emerald-400";
+    case "concatenating":
+      return "bg-amber-400";
+    default:
+      return "bg-primary";
+  }
+};
+
+const iconPhaseProgressSegments = computed(() => {
+  const currentPhase = props.job.progressPhase === "completed" ? "muxing" : props.job.progressPhase;
+  if (!isExtraProgressPhase.value) return [];
+  const currentIndex = extraProgressPhaseOrder.findIndex((phase) => phase === currentPhase);
+  if (currentIndex < 0) return [];
+  return extraProgressPhaseOrder.slice(0, currentIndex + 1).map((phase) => ({
+    phase,
+    value: props.job.progressPhase === "completed" || phase !== currentPhase ? 100 : phaseProgressPercent.value,
+  }));
 });
 
 const showBarProgress = computed(
@@ -179,36 +228,69 @@ const isSelectable = computed(() => props.canSelect === true);
 const isSelected = computed(() => !!props.selected);
 
 // 使用时间显示组合式函数
-const { elapsedTimeDisplay, estimatedTotalTimeDisplay, shouldShowTimeInfo, isTerminalState, isProcessing } =
-  useJobTimeDisplay(toRef(props, "job"));
+const {
+  elapsedTimeDisplay,
+  estimatedTotalTimeDisplay,
+  estimatedRemainingTimeDisplay,
+  isRemainingTimeCalculating,
+  phaseDisplayKey,
+  shouldShowTimeInfo,
+  isTerminalState,
+  isProcessing,
+} = useJobTimeDisplay(toRef(props, "job"));
 
-// 时间显示文本（简短版本，适合图标视图）
-const timeDisplayText = computed(() => {
-  if (!shouldShowTimeInfo.value) return null;
+// 时间显示片段（简短版本，适合图标视图）。标签和值拆开，保证垂直对齐。
+const timeDisplayParts = computed<TimeDisplayPart[]>(() => {
+  if (!shouldShowTimeInfo.value) return [];
 
   if (isTerminalState.value) {
     // 终态：显示总耗时
     if (elapsedTimeDisplay.value !== "-") {
-      return elapsedTimeDisplay.value;
+      return compactTimeDisplayParts([valuePart(elapsedTimeDisplay.value)]);
     }
-    return null;
+    return [];
   }
 
   if (isProcessing.value || props.job.status === "paused") {
+    if (props.job.status === "processing" && phaseDisplayKey.value) {
+      const parts: TimeDisplayPart[] = [];
+      const phase = labelPart(String(t(phaseDisplayKey.value)));
+      const elapsed =
+        elapsedTimeDisplay.value !== "-"
+          ? translatedTimeParts(t, "queue.time.elapsedWithValue", elapsedTimeDisplay.value)
+          : null;
+      const groups: TimeDisplayPart[][] = [];
+      if (elapsed) groups.push(elapsed);
+      if (phase) groups.push([phase]);
+      if (estimatedRemainingTimeDisplay.value !== "-") {
+        groups.push(translatedTimeParts(t, "queue.time.remainingApprox", estimatedRemainingTimeDisplay.value));
+      } else if (isRemainingTimeCalculating.value) {
+        const calculating = labelPart(String(t("queue.time.calculating")));
+        if (calculating) groups.push([calculating]);
+      }
+      groups.forEach((group, index) => {
+        if (index > 0) parts.push(separatorPart(" · "));
+        parts.push(...group);
+      });
+      return parts;
+    }
+
     // 处理中或暂停：显示已用时间 / 预估总时间
     const elapsed = elapsedTimeDisplay.value;
     const total = estimatedTotalTimeDisplay.value;
 
     if (elapsed !== "-" && total !== "-") {
-      return `${elapsed}/${total}`;
+      return compactTimeDisplayParts([valuePart(elapsed), separatorPart("/"), valuePart(total)]);
     }
     if (elapsed !== "-") {
-      return elapsed;
+      return compactTimeDisplayParts([valuePart(elapsed)]);
     }
   }
 
-  return null;
+  return [];
 });
+
+const timeDisplayText = computed(() => joinTimeDisplayParts(timeDisplayParts.value));
 
 const { canCompare, compareDisabledText } = useJobCompareDisplay(
   computed(() => props.job),
@@ -326,8 +408,24 @@ if (isQueuePerfEnabled) {
       <div class="mt-0.5 flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-[10px] text-muted-foreground truncate">
           <span>{{ statusLabel }}</span>
-          <span v-if="timeDisplayText" class="font-mono" data-testid="queue-icon-item-time-display">
-            {{ timeDisplayText }}
+          <span
+            v-if="timeDisplayParts.length > 0"
+            class="inline-flex min-w-0 items-center leading-none"
+            data-testid="queue-icon-item-time-display"
+            :aria-label="timeDisplayText"
+          >
+            <span
+              v-for="(part, index) in timeDisplayParts"
+              :key="`${part.kind}-${index}-${part.text}`"
+              class="inline-flex items-center leading-none"
+              :class="{
+                'font-mono font-semibold tabular-nums text-foreground': part.kind === 'value',
+                'font-sans text-muted-foreground': part.kind === 'label',
+                'font-sans text-muted-foreground/50': part.kind === 'separator',
+              }"
+            >
+              {{ part.text }}
+            </span>
           </span>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
@@ -360,25 +458,33 @@ if (isQueuePerfEnabled) {
       <!-- 底部进度条：根据 progressStyle 切换不同视觉样式，颜色随任务状态变化 -->
       <div
         v-if="showBarProgress || showCardFillProgress || showRippleCardProgress"
-        class="mt-1.5 h-1 w-full bg-muted/60 rounded-full overflow-hidden"
+        class="relative mt-1.5 h-1 w-full bg-muted/60 rounded-full overflow-hidden"
         data-testid="queue-icon-item-progress-container"
       >
         <div
           v-if="showBarProgress"
           class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear will-change-transform"
           :class="progressColorClass"
-          :style="progressTransformStyle"
+          :style="isExtraProgressPhase ? { transform: 'translateX(-0%)' } : progressTransformStyle"
           data-testid="queue-icon-item-progress-bar"
         />
         <div
-          v-else-if="showCardFillProgress"
+          v-for="segment in iconPhaseProgressSegments"
+          :key="segment.phase"
+          class="absolute inset-0 h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear will-change-transform"
+          :class="progressColorClassForPhase(segment.phase)"
+          :style="progressTransformForPercent(segment.value)"
+          :data-testid="`queue-icon-item-progress-phase-bar-${segment.phase}`"
+        />
+        <div
+          v-if="showCardFillProgress"
           class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear will-change-transform"
           :class="progressColorClass"
           :style="progressTransformStyle"
           data-testid="queue-icon-item-progress-card-fill"
         />
         <div
-          v-else
+          v-if="showRippleCardProgress"
           class="h-full w-full flex-1 rounded-full transition-transform duration-150 ease-linear animate-pulse will-change-transform"
           :class="rippleProgressColorClass"
           :style="progressTransformStyle"

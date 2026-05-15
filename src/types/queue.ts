@@ -3,6 +3,17 @@ import type { OutputPolicy } from "./output-policy";
 export type JobStatus = "queued" | "processing" | "paused" | "completed" | "failed" | "skipped" | "cancelled";
 export type JobType = "video" | "image" | "audio";
 export type JobSource = "manual" | "batch_compress";
+export type ProgressPhase = "transcoding" | "concatenating" | "audioFinalizing" | "muxing" | "completed";
+
+export interface ProgressPhaseTelemetry {
+  progressPhase?: ProgressPhase;
+  phaseProgress?: number;
+  phaseOutTimeSeconds?: number;
+  phaseDurationSeconds?: number;
+  phaseSpeed?: number;
+  phaseUpdatedAtMs?: number;
+  phaseEtaMs?: number;
+}
 
 /**
  * Request payload for creating a single transcoding job on the backend.
@@ -221,6 +232,13 @@ export interface TranscodeJob {
   batchId?: string;
   /** Optional metadata captured when a job is paused via wait or restored after crash recovery. */
   waitMetadata?: WaitMetadata;
+  progressPhase?: ProgressPhase;
+  phaseProgress?: number;
+  phaseOutTimeSeconds?: number;
+  phaseDurationSeconds?: number;
+  phaseSpeed?: number;
+  phaseUpdatedAtMs?: number;
+  phaseEtaMs?: number;
 }
 
 /**
@@ -265,6 +283,13 @@ export interface TranscodeJobUiLite {
   warnings?: JobWarning[];
   batchId?: string;
   waitMetadata?: WaitMetadata;
+  progressPhase?: ProgressPhase;
+  phaseProgress?: number;
+  phaseOutTimeSeconds?: number;
+  phaseDurationSeconds?: number;
+  phaseSpeed?: number;
+  phaseUpdatedAtMs?: number;
+  phaseEtaMs?: number;
 }
 
 export type TranscodeJobLite = TranscodeJobUiLite;
@@ -298,6 +323,13 @@ export interface TranscodeJobLiteTelemetryDelta {
   lastProgressSpeed?: number;
   lastProgressUpdatedAtMs?: number;
   lastProgressFrame?: number;
+  progressPhase?: ProgressPhase;
+  phaseProgress?: number;
+  phaseOutTimeSeconds?: number;
+  phaseDurationSeconds?: number;
+  phaseSpeed?: number;
+  phaseUpdatedAtMs?: number;
+  phaseEtaMs?: number;
 }
 
 export interface TranscodeJobLitePreviewDelta {
@@ -308,6 +340,7 @@ export interface TranscodeJobLitePreviewDelta {
 export interface TranscodeJobLiteDeltaPatch {
   id: string;
   status?: JobStatus;
+  processingStartedMs?: number;
   progress?: number;
   telemetry?: TranscodeJobLiteTelemetryDelta;
   elapsedMs?: number;

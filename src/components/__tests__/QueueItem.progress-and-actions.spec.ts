@@ -133,7 +133,7 @@ describe("QueueItem progress and actions", () => {
     expect((rippleFill.element as HTMLElement).style.transform).toContain("translateX(-58%)");
   });
 
-  it("clamps progress to the [0, 100] range before mapping to visual fill", () => {
+  it("maps processing progress 100 to full fill without treating it as completed", () => {
     const job = makeJob({ status: "processing", progress: 180 });
 
     const wrapper = mount(QueueItem, {
@@ -143,6 +143,86 @@ describe("QueueItem progress and actions", () => {
 
     const fill = wrapper.get("[data-testid='queue-item-progress-fill']");
     expect((fill.element as HTMLElement).style.clipPath).toContain("inset(0 0% 0 0)");
+    expect(wrapper.get("[data-testid='queue-item-status-label']").text()).toBe("processing");
+  });
+
+  it("shows final mux phase and ETA while a 100% progress job is still processing", () => {
+    const now = Date.now();
+    const job = makeJob({
+      status: "processing",
+      progress: 100,
+      startTime: now - 61_000,
+      processingStartedMs: now - 61_000,
+      progressPhase: "muxing",
+      phaseProgress: 40,
+      phaseUpdatedAtMs: now,
+      phaseEtaMs: 30_000,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canCancel: false, progressStyle: "bar" },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.get("[data-testid='queue-item-status-label']").text()).toBe("processing");
+    expect(wrapper.get("[data-testid='queue-item-time-display']").text()).toBe(
+      "elapsed 1:00 · video transcoding complete · final muxing · about 0:30 left",
+    );
+    expect(wrapper.get("[data-testid='progress-segment-0']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-1']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-2']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-3']").attributes("style")).toContain("translateX(-60%)");
+    expect(wrapper.get("[data-testid='progress-segment-3']").classes()).toContain("h-full");
+  });
+
+  it("keeps completed colored phase segments while the current phase is still at zero", () => {
+    const now = Date.now();
+    const job = makeJob({
+      status: "processing",
+      progress: 100,
+      startTime: now - 61_000,
+      processingStartedMs: now - 61_000,
+      progressPhase: "muxing",
+      phaseUpdatedAtMs: now,
+      phaseEtaMs: 30_000,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canCancel: false, progressStyle: "bar" },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.get("[data-testid='progress-segment-0']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-1']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-2']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-3']").attributes("style")).toContain("translateX(-100%)");
+    expect(wrapper.get("[data-testid='progress-segment-1']").classes()).toContain("h-full");
+    expect(wrapper.get("[data-testid='progress-segment-2']").classes()).toContain("h-full");
+    expect(wrapper.get("[data-testid='progress-segment-3']").classes()).toContain("h-full");
+  });
+
+  it("uses a new full-height color layer for audio finalizing progress", () => {
+    const now = Date.now();
+    const job = makeJob({
+      status: "processing",
+      progress: 100,
+      startTime: now - 61_000,
+      processingStartedMs: now - 61_000,
+      progressPhase: "audioFinalizing",
+      phaseProgress: 25,
+      phaseUpdatedAtMs: now,
+      phaseEtaMs: 45_000,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canCancel: false, progressStyle: "bar" },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.get("[data-testid='progress-segment-1']").attributes("style")).toContain("translateX(-0%)");
+    expect(wrapper.get("[data-testid='progress-segment-2']").attributes("style")).toContain("translateX(-75%)");
+    expect(wrapper.get("[data-testid='progress-segment-2']").classes()).toContain("bg-cyan-400");
+    expect(wrapper.get("[data-testid='progress-segment-2']").classes()).toContain("h-full");
   });
 
   it("treats cancelled jobs as fully progressed for visual card fill (aligns with header aggregate progress)", async () => {

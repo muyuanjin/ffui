@@ -14,6 +14,7 @@ fn make_lite_delta(
         patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
             id: job_id.to_string(),
             status: None,
+            processing_started_ms: None,
             progress: Some(progress),
             telemetry: None,
             elapsed_ms: None,
@@ -74,6 +75,7 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
         patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
             id: "job-1".to_string(),
             status: Some(crate::ffui_core::JobStatus::Paused),
+            processing_started_ms: None,
             progress: Some(10.0),
             telemetry: None,
             elapsed_ms: None,
@@ -89,6 +91,7 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
         patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
             id: "job-1".to_string(),
             status: None,
+            processing_started_ms: None,
             progress: None,
             telemetry: None,
             elapsed_ms: None,
@@ -125,6 +128,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     let mut into = crate::ffui_core::TranscodeJobLiteDeltaPatch {
         id: "job-1".to_string(),
         status: Some(crate::ffui_core::JobStatus::Queued),
+        processing_started_ms: Some(10),
         progress: Some(1.0),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
             progress_epoch: Some(1),
@@ -132,6 +136,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
             last_progress_speed: Some(1.0),
             last_progress_updated_at_ms: Some(100),
             last_progress_frame: Some(5),
+            phase: Default::default(),
         }),
         elapsed_ms: Some(50),
         preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
@@ -143,6 +148,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     let newer = crate::ffui_core::TranscodeJobLiteDeltaPatch {
         id: "job-1".to_string(),
         status: Some(crate::ffui_core::JobStatus::Processing),
+        processing_started_ms: Some(20),
         progress: Some(9.0),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
             progress_epoch: Some(5),
@@ -150,6 +156,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
             last_progress_speed: Some(3.5),
             last_progress_updated_at_ms: Some(999),
             last_progress_frame: Some(9),
+            phase: Default::default(),
         }),
         elapsed_ms: Some(123),
         preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
@@ -161,6 +168,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     merge_queue_state_lite_delta_patch(&mut into, newer);
 
     assert_eq!(into.status, Some(crate::ffui_core::JobStatus::Processing));
+    assert_eq!(into.processing_started_ms, Some(20));
     assert_eq!(into.progress, Some(9.0));
     assert_eq!(into.elapsed_ms, Some(123));
     assert_eq!(
@@ -225,6 +233,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
         snapshot_revision: 10,
         latest_delta_revision: 0,
         jobs: vec![crate::ffui_core::TranscodeJobUiLite {
+            /* jscpd:ignore-start */
             id: "job-1".to_string(),
             filename: "C:/in.mp4".to_string(),
             job_type: crate::ffui_core::JobType::Video,
@@ -259,6 +268,8 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
             warnings: Vec::new(),
             batch_id: None,
             wait_metadata: None,
+            phase_telemetry: Default::default(),
+            /* jscpd:ignore-end */
         }],
     };
 
@@ -268,6 +279,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
         patches: vec![crate::ffui_core::TranscodeJobLiteDeltaPatch {
             id: "job-1".to_string(),
             status: Some(crate::ffui_core::JobStatus::Processing),
+            processing_started_ms: None,
             progress: Some(12.5),
             telemetry: None,
             elapsed_ms: Some(100),

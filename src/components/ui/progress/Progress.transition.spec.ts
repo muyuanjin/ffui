@@ -49,4 +49,31 @@ describe("Progress", () => {
     const indicator = wrapper.get("[data-testid='progress-indicator-stub']");
     expect(indicator.attributes("style")).toContain("transition-duration: 0ms");
   });
+
+  it("renders layered segments when provided", () => {
+    const wrapper = mount(ProgressComponent as any, {
+      props: {
+        modelValue: 100,
+        transitionMs: 120,
+        variant: "default",
+        segments: [
+          { value: 100, variant: "default" },
+          { value: 40, class: "bg-cyan-400", layerClass: "inset-0 h-full" },
+        ],
+      },
+      global: {
+        stubs: {
+          ProgressRoot: ProgressRootStub,
+          ProgressIndicator: ProgressIndicatorStub,
+        },
+      },
+    });
+
+    const segments = wrapper.findAll("[data-testid^='progress-segment-']");
+    expect(segments).toHaveLength(2);
+    expect(segments[0]?.attributes("style")).toContain("translateX(-0%)");
+    expect(segments[1]?.attributes("style")).toContain("translateX(-60%)");
+    expect(segments[1]?.classes()).toContain("bg-cyan-400");
+    expect(segments[1]?.classes()).toContain("h-full");
+  });
 });

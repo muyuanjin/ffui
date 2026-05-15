@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onUpdated } from "vue";
-import type { FFmpegPreset, QueueProgressStyle, TranscodeJob } from "../types";
+import type { FFmpegPreset, ProgressPhase, QueueProgressStyle, TranscodeJob } from "../types";
 import { Card } from "@/components/ui/card";
-import { Progress, type ProgressVariant } from "@/components/ui/progress";
+import { Progress, type ProgressSegment, type ProgressVariant } from "@/components/ui/progress";
 import { useI18n } from "vue-i18n";
 import QueueItemProgressLayer from "@/components/queue-item/QueueItemProgressLayer.vue";
 import QueueItemHeaderRow from "@/components/queue-item/QueueItemHeaderRow.vue";
@@ -222,6 +222,57 @@ const progressVariant = computed<ProgressVariant>(() => {
   }
 });
 
+const isExtraProgressPhase = computed(() => {
+  const phase = props.job.progressPhase;
+  return props.job.status === "processing" && !!phase && phase !== "transcoding";
+});
+
+const phaseProgressValue = computed(() => {
+  const raw = props.job.phaseProgress;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(100, raw));
+});
+
+const extraProgressPhaseOrder: ProgressPhase[] = ["concatenating", "audioFinalizing", "muxing"];
+
+const progressSegmentClassForPhase = (phase: ProgressPhase | undefined) => {
+  switch (phase) {
+    case "audioFinalizing":
+      return "bg-cyan-400";
+    case "muxing":
+      return "bg-emerald-400";
+    case "concatenating":
+      return "bg-amber-400";
+    default:
+      return "bg-primary";
+  }
+};
+
+const progressSegments = computed<ProgressSegment[] | undefined>(() => {
+  if (!isExtraProgressPhase.value) return undefined;
+  const currentPhase = props.job.progressPhase === "completed" ? "muxing" : props.job.progressPhase;
+  const currentIndex = extraProgressPhaseOrder.findIndex((phase) => phase === currentPhase);
+  if (currentIndex < 0) return undefined;
+
+  const segments: ProgressSegment[] = [
+    {
+      value: 100,
+      variant: "default",
+    },
+  ];
+
+  for (let index = 0; index <= currentIndex; index += 1) {
+    const phase = extraProgressPhaseOrder[index];
+    segments.push({
+      value: props.job.progressPhase === "completed" || phase !== currentPhase ? 100 : phaseProgressValue.value,
+      class: progressSegmentClassForPhase(phase),
+      layerClass: "inset-0 h-full rounded-full",
+    });
+  }
+
+  return segments;
+});
+
 const rawCommand = computed(() => props.job.ffmpegCommand ?? "");
 const {
   effectiveCommand,
@@ -401,6 +452,7 @@ if (isQueuePerfEnabled) {
       :model-value="displayedClampedProgress"
       :variant="progressVariant"
       :transition-ms="progressTransitionMs"
+      :segments="progressSegments"
       class="mt-2 relative z-10"
       data-testid="queue-item-progress-bar"
     />

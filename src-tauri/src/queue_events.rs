@@ -197,6 +197,9 @@ fn merge_queue_state_lite_delta_patch(
     if newer.status.is_some() {
         into.status = newer.status;
     }
+    if newer.processing_started_ms.is_some() {
+        into.processing_started_ms = newer.processing_started_ms;
+    }
     if newer.progress.is_some() {
         into.progress = newer.progress;
     }

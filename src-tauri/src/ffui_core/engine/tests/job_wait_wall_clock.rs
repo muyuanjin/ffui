@@ -187,3 +187,76 @@ fn mark_job_waiting_does_not_append_zero_progress_segments_for_resumed_jobs() {
         "tmp_output_path should remain on the effective last segment"
     );
 }
+
+#[test]
+fn resumed_job_selection_resets_processing_started_ms_for_the_new_run() {
+    let engine = make_engine_with_preset();
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/wait-resume-elapsed.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    let job_id = job.id;
+    let stale_processing_started_ms = current_time_millis().saturating_sub(60_000);
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let stored = state
+            .jobs
+            .get_mut(&job_id)
+            .expect("job must exist after enqueue");
+        stored.status = JobStatus::Paused;
+        stored.progress = 40.0;
+        stored.start_time = Some(stale_processing_started_ms.saturating_sub(30_000));
+        stored.processing_started_ms = Some(stale_processing_started_ms);
+        stored.elapsed_ms = Some(12_000);
+        stored.wait_metadata = Some(WaitMetadata {
+            last_progress_percent: Some(40.0),
+            processed_wall_millis: Some(12_000),
+            processed_seconds: Some(40.0),
+            target_seconds: Some(40.0),
+            progress_epoch: Some(1),
+            last_progress_out_time_seconds: Some(40.0),
+            last_progress_speed: Some(1.0),
+            last_progress_updated_at_ms: Some(stale_processing_started_ms),
+            last_progress_frame: None,
+            tmp_output_path: Some("C:/tmp/seg0.mkv".to_string()),
+            segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
+            segment_end_targets: Some(vec![40.0]),
+        });
+    }
+
+    assert!(engine.resume_job(&job_id), "paused job must be resumable");
+
+    let picked = {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        next_job_for_worker_locked(&mut state).expect("resumed job must be selectable")
+    };
+    assert_eq!(picked, job_id);
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let stored = state
+        .jobs
+        .get(&job_id)
+        .expect("job must remain after resume selection");
+    let processing_started_ms = stored
+        .processing_started_ms
+        .expect("resumed processing job must have a current-run start time");
+    assert!(
+        processing_started_ms > stale_processing_started_ms,
+        "resume selection must reset processing_started_ms for the new processing run"
+    );
+    assert_eq!(
+        stored
+            .wait_metadata
+            .as_ref()
+            .and_then(|meta| meta.processed_wall_millis),
+        Some(12_000),
+        "resume selection must preserve accumulated wall-clock processing time"
+    );
+}

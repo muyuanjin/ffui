@@ -6,6 +6,15 @@ import type { FFmpegPreset, TranscodeJob, Translate } from "@/types";
 import { useJobTimeDisplay } from "@/composables/useJobTimeDisplay";
 import QueueJobWarnings from "@/components/queue-item/QueueJobWarnings.vue";
 import type { QueueItemRowEmits } from "@/components/queue-item/queueItemRowEmits";
+import {
+  compactTimeDisplayParts,
+  joinTimeDisplayParts,
+  labelPart,
+  separatorPart,
+  translatedTimeParts,
+  valuePart,
+  type TimeDisplayPart,
+} from "@/components/queue-item/timeDisplayParts";
 import { useJobCompareDisplay } from "@/components/queue-item/useJobCompareDisplay";
 import { resolveUiJobStatus } from "@/composables/main-app/useMainAppQueue.pausing";
 
@@ -63,36 +72,77 @@ const {
 const isPausing = computed(() => resolveUiJobStatus(props.job) === "pausing");
 
 // 使用时间显示组合式函数
-const { elapsedTimeDisplay, estimatedTotalTimeDisplay, shouldShowTimeInfo, isTerminalState, isProcessing } =
-  useJobTimeDisplay(toRef(props, "job"));
+const {
+  elapsedTimeDisplay,
+  estimatedTotalTimeDisplay,
+  estimatedRemainingTimeDisplay,
+  isRemainingTimeCalculating,
+  phaseDisplayKey,
+  shouldShowTimeInfo,
+  isTerminalState,
+  isProcessing,
+} = useJobTimeDisplay(toRef(props, "job"));
 
-// 时间显示文本
-const timeDisplayText = computed(() => {
-  if (!shouldShowTimeInfo.value) return null;
+// 时间显示片段。文字和值拆开渲染，避免中文 UI 字体与等宽数字字体混排造成 baseline 不齐。
+const timeDisplayParts = computed<TimeDisplayPart[]>(() => {
+  if (!shouldShowTimeInfo.value) return [];
 
   if (isTerminalState.value) {
     // 终态：显示总耗时
     if (elapsedTimeDisplay.value !== "-") {
-      return props.t("queue.time.totalElapsed", { time: elapsedTimeDisplay.value });
+      return translatedTimeParts(props.t, "queue.time.totalElapsed", elapsedTimeDisplay.value);
     }
-    return null;
+    return [];
   }
 
   if (isProcessing.value || props.job.status === "paused") {
+    if (props.job.status === "processing" && phaseDisplayKey.value) {
+      const parts: TimeDisplayPart[] = [];
+      const elapsed =
+        elapsedTimeDisplay.value !== "-"
+          ? translatedTimeParts(props.t, "queue.time.elapsedWithValue", elapsedTimeDisplay.value)
+          : null;
+      const remaining =
+        estimatedRemainingTimeDisplay.value !== "-"
+          ? translatedTimeParts(props.t, "queue.time.remainingApprox", estimatedRemainingTimeDisplay.value)
+          : isRemainingTimeCalculating.value
+            ? compactTimeDisplayParts([labelPart(String(props.t("queue.time.calculating")))])
+            : null;
+      const prefix =
+        props.job.progressPhase === "concatenating" ||
+        props.job.progressPhase === "audioFinalizing" ||
+        props.job.progressPhase === "muxing"
+          ? labelPart(String(props.t("queue.progressPhase.videoDone")))
+          : null;
+      const groups = [
+        elapsed,
+        prefix ? [prefix] : null,
+        compactTimeDisplayParts([labelPart(String(props.t(phaseDisplayKey.value)))]),
+        remaining,
+      ].filter((group): group is TimeDisplayPart[] => Array.isArray(group) && group.length > 0);
+      groups.forEach((group, index) => {
+        if (index > 0) parts.push(separatorPart(" · "));
+        parts.push(...group);
+      });
+      return parts;
+    }
+
     // 处理中或暂停：显示已用时间 / 预估总时间
     const elapsed = elapsedTimeDisplay.value;
     const total = estimatedTotalTimeDisplay.value;
 
     if (elapsed !== "-" && total !== "-") {
-      return `${elapsed} / ${total}`;
+      return compactTimeDisplayParts([valuePart(elapsed), separatorPart(" / "), valuePart(total)]);
     }
     if (elapsed !== "-") {
-      return elapsed;
+      return compactTimeDisplayParts([valuePart(elapsed)]);
     }
   }
 
-  return null;
+  return [];
 });
+
+const timeDisplayText = computed(() => joinTimeDisplayParts(timeDisplayParts.value));
 
 const { canCompare, compareDisabledText } = useJobCompareDisplay(
   computed(() => props.job),
@@ -223,11 +273,23 @@ const emit = defineEmits<QueueItemRowEmits>();
       </span>
       <!-- 时间显示 -->
       <span
-        v-if="timeDisplayText"
-        class="text-[11px] text-muted-foreground font-mono"
+        v-if="timeDisplayParts.length > 0"
+        class="inline-flex items-center justify-end text-[11px] leading-none text-muted-foreground"
         data-testid="queue-item-time-display"
+        :aria-label="timeDisplayText"
       >
-        {{ timeDisplayText }}
+        <span
+          v-for="(part, index) in timeDisplayParts"
+          :key="`${part.kind}-${index}-${part.text}`"
+          class="inline-flex items-center leading-none"
+          :class="{
+            'font-mono font-semibold tabular-nums text-foreground': part.kind === 'value',
+            'font-sans text-muted-foreground': part.kind === 'label',
+            'font-sans text-muted-foreground/50': part.kind === 'separator',
+          }"
+        >
+          {{ part.text }}
+        </span>
       </span>
       <div class="flex flex-wrap justify-end items-center gap-1.5">
         <Button

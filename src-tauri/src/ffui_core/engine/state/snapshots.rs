@@ -11,6 +11,9 @@ pub(super) fn snapshot_queue_state_lite_from_locked_state(
     let mut jobs: Vec<TranscodeJobLite> = Vec::with_capacity(state.jobs.len());
     for (id, job) in &state.jobs {
         let mut lite = TranscodeJobLite::from(job);
+        if let Some(phase) = state.progress_phase_by_job.get(id) {
+            lite.phase_telemetry = phase.clone();
+        }
         if lite.job_type == JobType::Video
             && let Some(input_path) = job.input_path.as_deref()
             && let Some(expected) = super::super::job_runner::expected_preview_output_path_for_video(

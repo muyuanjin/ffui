@@ -192,6 +192,37 @@ fn compute_progress_percent_for_unknown_duration_returns_zero() {
 }
 
 #[test]
+fn compute_phase_progress_uses_current_phase_duration() {
+    let start = compute_phase_progress(Some(100.0), Some(0.0)).expect("valid phase progress");
+    let mid = compute_phase_progress(Some(100.0), Some(50.0)).expect("valid phase progress");
+    let end = compute_phase_progress(Some(100.0), Some(100.0)).expect("valid phase progress");
+    let over = compute_phase_progress(Some(100.0), Some(150.0)).expect("valid phase progress");
+
+    assert_eq!(start, 0.0);
+    assert_eq!(mid, 50.0);
+    assert_eq!(end, 100.0);
+    assert_eq!(over, 100.0);
+    assert!(compute_phase_progress(None, Some(10.0)).is_none());
+    assert!(compute_phase_progress(Some(100.0), None).is_none());
+}
+
+#[test]
+fn compute_phase_eta_uses_out_time_and_speed_without_fake_stage_weight() {
+    assert_eq!(
+        compute_phase_eta_ms(Some(100.0), Some(40.0), Some(2.0)),
+        Some(30_000)
+    );
+    assert_eq!(
+        compute_phase_eta_ms(Some(100.0), Some(150.0), Some(2.0)),
+        Some(0)
+    );
+    assert!(compute_phase_eta_ms(None, Some(10.0), Some(1.0)).is_none());
+    assert!(compute_phase_eta_ms(Some(100.0), None, Some(1.0)).is_none());
+    assert!(compute_phase_eta_ms(Some(100.0), Some(10.0), None).is_none());
+    assert!(compute_phase_eta_ms(Some(100.0), Some(10.0), Some(0.0)).is_none());
+}
+
+#[test]
 fn choose_processed_seconds_after_wait_prefers_segment_end_over_progress_out_time() {
     // When B-frames are enabled, ffmpeg's -progress out_time* can lag behind
     // the final muxed frames due to encoder delay. For resume correctness we

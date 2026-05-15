@@ -40,6 +40,17 @@ const statusKey = computed(() => {
   const raw = props.item.job.status;
   return `queue.status.${raw}`;
 });
+
+const displayProgress = computed(() => {
+  if (props.item.kind !== "job") return 0;
+  const raw = Number.isFinite(props.item.job.progress) ? props.item.job.progress : 0;
+  return Math.max(0, Math.min(100, raw));
+});
+
+const phaseText = computed(() => {
+  if (props.item.kind !== "job" || props.item.job.status !== "processing" || !props.item.job.progressPhase) return "";
+  return t(`queue.progressPhase.${props.item.job.progressPhase}`);
+});
 </script>
 
 <template>
@@ -98,14 +109,20 @@ const statusKey = computed(() => {
     <div v-if="item.kind === 'job'" class="flex items-center gap-2">
       <Progress
         v-if="item.job.status !== 'queued' && item.job.status !== 'skipped'"
-        :model-value="item.job.progress"
+        :model-value="displayProgress"
         :variant="getProgressVariant(item.job.status)"
         class="h-1 flex-1"
       />
       <span
-        v-if="item.job.progress > 0 && item.job.progress < 100"
+        v-if="phaseText"
+        class="text-[10px] text-muted-foreground shrink-0"
+        data-testid="queue-carousel-phase-label"
+        >{{ phaseText }}</span
+      >
+      <span
+        v-else-if="displayProgress > 0 && displayProgress < 100"
         class="text-[10px] text-muted-foreground font-mono shrink-0"
-        >{{ Math.round(item.job.progress) }}%</span
+        >{{ Math.round(displayProgress) }}%</span
       >
     </div>
     <div v-else class="flex items-center gap-2">

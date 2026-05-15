@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::job::{
     JobSource, JobStatus, JobType, JobWarning, MediaInfo, TranscodeJob, WaitMetadata,
 };
-use super::job_lite::{QueueStateLite, TranscodeJobLite};
+use super::job_lite::{ProgressPhaseTelemetry, QueueStateLite, TranscodeJobLite};
 use super::output_policy::OutputPolicy;
 
 #[allow(clippy::trivially_copy_pass_by_ref)]
@@ -135,6 +135,8 @@ pub struct TranscodeJobUiLite {
     pub batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wait_metadata: Option<WaitMetadataUiLite>,
+    #[serde(flatten)]
+    pub phase_telemetry: ProgressPhaseTelemetry,
 }
 
 impl From<&WaitMetadata> for WaitMetadataUiLite {
@@ -190,6 +192,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
             warnings,
             batch_id,
             wait_metadata,
+            phase_telemetry,
             ..
         } = job;
 
@@ -230,6 +233,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
             warnings,
             batch_id,
             wait_metadata,
+            phase_telemetry,
         }
     }
 }
@@ -310,6 +314,7 @@ mod ui_lite_tests {
                 segments: Some(vec!["C:/tmp/seg0.mkv".to_string()]),
                 segment_end_targets: Some(vec![12.5]),
             }),
+            phase_telemetry: ProgressPhaseTelemetry::default(),
         };
 
         let snapshot = QueueStateLite {

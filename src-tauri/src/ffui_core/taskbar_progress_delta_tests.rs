@@ -42,6 +42,7 @@ fn make_job(
         warnings: Vec::new(),
         batch_id: None,
         wait_metadata: None,
+        phase_telemetry: Default::default(),
     }
 }
 
@@ -69,6 +70,7 @@ fn patch_progress(id: &str, progress: f64) -> crate::ffui_core::TranscodeJobLite
     crate::ffui_core::TranscodeJobLiteDeltaPatch {
         id: id.to_string(),
         status: None,
+        processing_started_ms: None,
         progress: Some(progress),
         telemetry: None,
         elapsed_ms: None,
@@ -80,6 +82,7 @@ fn patch_status(id: &str, status: JobStatus) -> crate::ffui_core::TranscodeJobLi
     crate::ffui_core::TranscodeJobLiteDeltaPatch {
         id: id.to_string(),
         status: Some(status),
+        processing_started_ms: None,
         progress: None,
         telemetry: None,
         elapsed_ms: None,

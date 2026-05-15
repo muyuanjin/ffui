@@ -103,11 +103,8 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
                     && total.is_finite()
                     && total > 0.0
                 {
-                    let mut baseline_progress =
+                    let baseline_progress =
                         compute_progress_percent(Some(total), baseline_out_time_seconds);
-                    if baseline_progress >= 100.0 {
-                        baseline_progress = 99.9;
-                    }
                     if baseline_progress.is_finite()
                         && (!job.progress.is_finite()
                             || (job.progress - baseline_progress).abs() > 0.05)

@@ -66,6 +66,7 @@ pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
 
 include!("job_runner_process_resume_utils.rs");
 include!("job_runner_process_execute_replace_original.rs");
+include!("job_runner_process_execute_audio_sidecar.rs");
 include!("job_runner_process_execute.rs");
 include!("job_runner_process_execute_finalize.rs");
 include!("job_runner_process_execute_resume_support.rs");

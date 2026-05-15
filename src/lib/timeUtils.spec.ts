@@ -117,6 +117,20 @@ describe("timeUtils", () => {
       expect(computeJobElapsedMs(job, nowMs)).toBe(20000);
     });
 
+    it("continues elapsed time after resume by adding processed wall time to the current run", () => {
+      const job = {
+        status: "processing",
+        startTime: nowMs - 120000,
+        processingStartedMs: nowMs - 7000,
+        elapsedMs: 60000,
+        waitMetadata: {
+          processedWallMillis: 42000,
+        },
+      };
+      expect(computeJobElapsedMs(job, nowMs)).toBe(49000);
+      expect(computeJobElapsedMs(job, nowMs + 3000)).toBe(52000);
+    });
+
     it("uses processingStartedMs for completed jobs when elapsedMs is missing", () => {
       const job = {
         status: "completed",

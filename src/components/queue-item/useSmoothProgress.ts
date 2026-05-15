@@ -1,4 +1,4 @@
-import { computed, onScopeDispose, ref, watch, type ComputedRef } from "vue";
+import { computed, onMounted, onScopeDispose, onUnmounted, ref, watch, type ComputedRef } from "vue";
 import type { QueueProgressStyle, TranscodeJob } from "@/types";
 import { clampProgressUpdateIntervalMs } from "@/lib/progressTransition";
 
@@ -43,6 +43,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   const estimateProgressPercentNow = (nowMs: number, allowDecrease: boolean): number => {
     const job = options.job.value;
     if (job.status !== "processing") return clampedProgress.value;
+    if (job.progressPhase && job.progressPhase !== "transcoding") return clampedProgress.value;
 
     const durationSeconds = job.mediaInfo?.durationSeconds;
     const meta = job.waitMetadata;
@@ -80,19 +81,11 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
     const estimatedPercent = Math.max(0, Math.min(100, (estimatedOutTimeSeconds / durationSeconds) * 100));
     const backendPercent = clampedProgress.value;
 
-    const capWhileProcessing = (value: number): number => {
-      // The backend intentionally avoids emitting 100% while still processing.
-      // Keep that behavior for estimates, but never override an explicit 100%
-      // already provided by the backend (tests and edge cases rely on clamping).
-      if (backendPercent >= 100) return 100;
-      return Math.min(99.9, value);
-    };
-
-    const cappedBackend = capWhileProcessing(backendPercent);
-    const cappedEstimate = capWhileProcessing(estimatedPercent);
+    const cappedBackend = Math.max(0, Math.min(100, backendPercent));
+    const cappedEstimate = Math.max(0, Math.min(100, estimatedPercent));
 
     const basePercent = Math.max(0, Math.min(100, (baseOutTimeSeconds / durationSeconds) * 100));
-    const cappedBasePercent = capWhileProcessing(basePercent);
+    const cappedBasePercent = Math.max(0, Math.min(100, basePercent));
 
     const computeLeadCapPercent = (): number => {
       if (speed <= 0) return 0;
@@ -131,6 +124,7 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
   let lastTelemetryUpdatedAtMs: number | null = null;
   let lastTelemetryOutTimeSeconds: number | null = null;
   let rollbackModeUntilMs = 0;
+  let runSmoothTick: (() => void) | null = null;
 
   const stopSmoothing = () => {
     if (smoothTimer != null) {
@@ -209,9 +203,12 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
 
       const sample = resolveTelemetrySample();
       let telemetryRollback = false;
+      const phase = options.job.value.progressPhase;
+      const canTelemetryRollbackMainProgress = !phase || phase === "transcoding";
       if (sample != null) {
         if (lastTelemetryUpdatedAtMs == null || sample.updatedAtMs > lastTelemetryUpdatedAtMs) {
           if (
+            canTelemetryRollbackMainProgress &&
             lastTelemetryOutTimeSeconds != null &&
             sample.outTimeSeconds + 1e-3 < lastTelemetryOutTimeSeconds &&
             !isNewEpoch
@@ -258,9 +255,40 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       displayedProgress.value = current + Math.sign(diff) * maxDelta;
       if (allowDecrease && displayedProgress.value <= target + 0.1) rollbackModeUntilMs = 0;
     };
+    runSmoothTick = tick;
     tick();
     smoothTimer = setInterval(tick, smoothTickMs.value);
   };
+
+  const requestSmoothTick = () => {
+    if (options.job.value.status !== "processing") {
+      displayedProgress.value = clampedProgress.value;
+      return;
+    }
+    runSmoothTick?.();
+  };
+
+  const handleVisibilityRefresh = () => {
+    requestSmoothTick();
+  };
+
+  onMounted(() => {
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", handleVisibilityRefresh);
+    }
+  });
+
+  onUnmounted(() => {
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+    }
+    if (typeof window !== "undefined") {
+      window.removeEventListener("focus", handleVisibilityRefresh);
+    }
+  });
 
   onScopeDispose(() => stopSmoothing());
 
@@ -320,18 +348,28 @@ export function useSmoothProgress(options: UseSmoothProgressOptions) {
       }
 
       // Non-processing states: follow the backend value and stop ticking.
+      runSmoothTick = null;
       displayedProgress.value = clampedProgress.value;
     },
     { immediate: true, flush: "sync" },
   );
 
   watch(
-    () => clampedProgress.value,
+    () => [
+      clampedProgress.value,
+      options.job.value.waitMetadata?.lastProgressUpdatedAtMs,
+      options.job.value.waitMetadata?.lastProgressOutTimeSeconds,
+      options.job.value.waitMetadata?.lastProgressSpeed,
+      options.job.value.waitMetadata?.progressEpoch,
+      options.job.value.progressPhase,
+    ],
     (next) => {
       const status = options.job.value.status;
       if (status !== "processing") {
-        displayedProgress.value = next;
+        displayedProgress.value = typeof next[0] === "number" ? next[0] : clampedProgress.value;
+        return;
       }
+      requestSmoothTick();
     },
     { flush: "sync" },
   );
