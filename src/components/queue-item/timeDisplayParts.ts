@@ -1,6 +1,6 @@
 import type { Translate } from "@/types";
 
-export type TimeDisplayPartKind = "label" | "value" | "separator";
+export type TimeDisplayPartKind = "label" | "value" | "gap" | "separator";
 
 export interface TimeDisplayPart {
   kind: TimeDisplayPartKind;
@@ -8,7 +8,7 @@ export interface TimeDisplayPart {
 }
 
 const part = (kind: TimeDisplayPartKind, text: string): TimeDisplayPart | null => {
-  const normalized = kind === "separator" ? text : text.trim();
+  const normalized = kind === "separator" || kind === "gap" ? text : text.trim();
   return normalized ? { kind, text: normalized } : null;
 };
 
@@ -32,12 +32,17 @@ export const translatedTimeParts = (t: Translate, key: string, time: string): Ti
 
   return compactTimeDisplayParts([
     labelPart(before),
-    before ? separatorPart(" ") : null,
+    before ? gapPart(" ") : null,
     valuePart(time),
-    after ? separatorPart(" ") : null,
+    after ? gapPart(" ") : null,
     labelPart(after),
   ]);
 };
+
+export const gapPart = (text: string): TimeDisplayPart => ({
+  kind: "gap",
+  text,
+});
 
 export const separatorPart = (text: string): TimeDisplayPart => ({
   kind: "separator",

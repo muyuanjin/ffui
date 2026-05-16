@@ -421,7 +421,8 @@ if (isQueuePerfEnabled) {
               :class="{
                 'font-mono font-semibold tabular-nums text-foreground': part.kind === 'value',
                 'font-sans text-muted-foreground': part.kind === 'label',
-                'font-sans text-muted-foreground/50': part.kind === 'separator',
+                'w-1.5 flex-shrink-0 whitespace-pre': part.kind === 'gap',
+                'font-sans text-muted-foreground/50 whitespace-pre': part.kind === 'separator',
               }"
             >
               {{ part.text }}
