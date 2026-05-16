@@ -1,6 +1,6 @@
 [package]
 name = "ffui"
-version = "0.3.2"
+version = "0.3.3"
 description = "A Tauri App"
 authors = ["muyuanjin"]
 edition = "2024"
