@@ -37,10 +37,10 @@ pub(in crate::ffui_core::engine) fn delete_jobs_bulk(
                 JobStatus::Completed
                 | JobStatus::Failed
                 | JobStatus::Skipped
-                | JobStatus::Cancelled => {
-                    if !state.active_jobs.contains(job_id.as_str()) {
-                        deletable_job_ids.insert(job_id.clone());
-                    }
+                | JobStatus::Cancelled
+                    if !state.active_jobs.contains(job_id.as_str()) =>
+                {
+                    deletable_job_ids.insert(job_id.clone());
                 }
                 _ => {}
             }

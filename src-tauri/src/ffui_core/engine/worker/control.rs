@@ -203,10 +203,8 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
             touched_any = true;
 
             match status {
-                JobStatus::Processing => {
-                    if state.wait_requests.insert(job_id.clone()) {
-                        should_notify = true;
-                    }
+                JobStatus::Processing if state.wait_requests.insert(job_id.clone()) => {
+                    should_notify = true;
                 }
                 JobStatus::Queued => {
                     if let Some(job) = state.jobs.get_mut(job_id.as_str()) {
