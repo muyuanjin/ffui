@@ -388,10 +388,10 @@ export const inspectMedia = async (path: string): Promise<string> => {
  * Given an ordered list of candidate media paths (input/output/tmp), ask the
  * backend to pick the first one that currently exists as a regular file.
  *
- * In Tauri mode this uses a dedicated command that checks filesystem state so
- * preview playback can transparently fall back when users delete or replace
- * original/output files. In pure web/test environments we simply return the
- * first non-empty candidate to keep behaviour predictable and cheap.
+ * In Tauri mode this uses a dedicated command that checks filesystem state and
+ * returns null when none of the candidates currently exists. In pure web/test
+ * environments we simply return the first non-empty candidate to keep behaviour
+ * predictable and cheap.
  */
 export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise<string | null> => {
   const filtered = candidatePaths.filter((p) => !!p);
@@ -401,11 +401,10 @@ export const selectPlayableMediaPath = async (candidatePaths: string[]): Promise
   }
   try {
     const selected = await invokeCommand<string | null>("select_playable_media_path", { candidatePaths: filtered });
-    // 后端可能因为路径过长/权限问题返回 null，这里回退到首个候选，避免上层拿到空值后出现“无可播放视频”。
-    return selected ?? filtered[0] ?? null;
+    return selected;
   } catch (error) {
-    console.error("selectPlayableMediaPath: falling back to first candidate after error", error);
-    return filtered[0] ?? null;
+    console.error("selectPlayableMediaPath: failed to verify candidate paths", error);
+    return null;
   }
 };
 /**

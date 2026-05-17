@@ -150,4 +150,40 @@ describe("useMainAppPreview source switching does not flicker", () => {
 
     wrapper.unmount();
   });
+
+  it("does not preview a stale path when Tauri reports every candidate missing", async () => {
+    const wrapper = mount(TestHarness);
+    const vm: any = wrapper.vm;
+
+    const job: TranscodeJob = {
+      id: "job-missing-media-1",
+      filename: "C:/videos/deleted.mp4",
+      type: "video",
+      source: "manual",
+      originalSizeMB: 10,
+      originalCodec: "h264",
+      presetId: "preset-1",
+      status: "completed",
+      progress: 100,
+      logs: [],
+      inputPath: "C:/videos/deleted.mp4",
+      outputPath: "C:/videos/deleted.out.mp4",
+    } as any;
+
+    const { selectPlayableMediaPath } = await import("@/lib/backend");
+    const selectMock = selectPlayableMediaPath as unknown as ReturnType<typeof vi.fn>;
+    selectMock.mockResolvedValue(null);
+
+    await vm.openJobPreviewFromQueue(job);
+    await nextTick();
+
+    expect(selectMock).toHaveBeenCalledWith([job.outputPath, job.inputPath]);
+    expect(vm.dialogManager.previewOpen.value).toBe(true);
+    expect(vm.previewUrl).toBeNull();
+    expect(vm.previewPath).toBeNull();
+
+    wrapper.unmount();
+    selectMock.mockReset();
+    selectMock.mockImplementation(async (candidates: string[]) => candidates[0] ?? null);
+  });
 });

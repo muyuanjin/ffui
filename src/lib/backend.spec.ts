@@ -259,7 +259,7 @@ describe("backend contract", () => {
     expect(result).toBe(chosen);
   });
 
-  it("selectPlayableMediaPath falls back to the first candidate when backend returns null", async () => {
+  it("selectPlayableMediaPath returns null in Tauri mode when no candidate exists", async () => {
     const candidates = ["C:/videos/output.mp4", "C:/videos/source.mp4"];
 
     const originalWindow = (globalThis as any).window;
@@ -270,7 +270,7 @@ describe("backend contract", () => {
     const result = await selectPlayableMediaPath(candidates);
 
     expect(invokeMock).toHaveBeenCalledTimes(1);
-    expect(result).toBe(candidates[0]);
+    expect(result).toBeNull();
 
     if (originalWindow === undefined) {
       delete (globalThis as any).window;

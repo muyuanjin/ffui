@@ -17,18 +17,11 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
     use std::fs;
     use std::path::Path;
 
-    // 记录首个非空候选，若所有存在性检查都失败仍可兜底返回，避免前端拿到 None。
-    let mut first_non_empty: Option<String> = None;
-
     for raw in candidate_paths {
         // 允许调用方传入带空白的路径（例如用户复制粘贴时留下的空格），这里统一去除前后空白。
         let trimmed = raw.trim();
         if trimmed.is_empty() {
             continue;
-        }
-
-        if first_non_empty.is_none() {
-            first_non_empty = Some(trimmed.to_string());
         }
 
         let path = Path::new(trimmed);
@@ -61,7 +54,7 @@ pub fn select_playable_media_path(candidate_paths: Vec<String>) -> Option<String
         }
     }
 
-    first_non_empty
+    None
 }
 
 /// 在 Windows 上为路径加上扩展长度前缀，避免超长/UNC 路径在常规 API 下判定失败。

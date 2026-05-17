@@ -146,15 +146,18 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
   const resolveInitialPreviewSelection = async (
     job: TranscodeJob,
   ): Promise<{ mode: PreviewSourceMode; selectedPath: string | null }> => {
+    const tauriMode = hasTauri();
+
     // In-flight jobs should always start from input (even when tmp output exists).
     // Users can still switch to output mode manually if they want to inspect tmp output.
     if (job.status !== "completed" && job.status !== "failed") {
       const mode: PreviewSourceMode = "input";
       const candidates = buildPreviewCandidates(job, mode);
+      if (tauriMode) return { mode, selectedPath: null };
       return { mode, selectedPath: candidates[0] ?? null };
     }
 
-    if (!hasTauri()) {
+    if (!tauriMode) {
       const mode = guessInitialPreviewSourceMode(job);
       const candidates = buildPreviewCandidates(job, mode);
       return { mode, selectedPath: candidates[0] ?? null };
@@ -167,11 +170,8 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     try {
       selectedPath = await selectPlayableMediaPath(candidates);
     } catch (error) {
-      console.error("Failed to select initial preview path, falling back", error);
-      selectedPath = candidates[0] ?? null;
+      console.error("Failed to select initial preview path", error);
     }
-
-    if (!selectedPath) selectedPath = candidates[0] ?? null;
 
     const inputPath = (job.inputPath ?? "").trim();
     const mode: PreviewSourceMode = selectedPath && inputPath && selectedPath.trim() === inputPath ? "input" : "output";
@@ -217,23 +217,25 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
 
     try {
       let selectedPath: string | null = null;
+      const tauriMode = hasTauri();
 
       const preferred = (options?.initialSelectedPath ?? "").trim();
       if (preferred && candidates.includes(preferred)) {
         selectedPath = preferred;
-      } else if (hasTauri()) {
+      } else if (tauriMode) {
         // 让后端根据真实文件存在情况挑选首选路径，避免指向已删除/不存在的输出文件。
         selectedPath = await selectPlayableMediaPath(candidates);
       }
 
       if (!isCurrent()) return;
 
-      if (!selectedPath) {
+      if (!selectedPath && !tauriMode) {
         selectedPath = candidates[0] ?? null;
       }
 
       if (!selectedPath) {
         previewUrl.value = null;
+        currentPreviewPath.value = null;
         if (isCurrent()) {
           previewSelectionInFlight.value = false;
         }
@@ -374,11 +376,7 @@ export function useMainAppPreview(options: UseMainAppPreviewOptions): UseMainApp
     try {
       path = await selectPlayableMediaPath(uniqueCandidates);
     } catch (e) {
-      console.error("Failed to select playable path for system player, falling back", e);
-    }
-
-    if (!path) {
-      path = uniqueCandidates[0] ?? null;
+      console.error("Failed to select playable path for system player", e);
     }
 
     if (!path) return;

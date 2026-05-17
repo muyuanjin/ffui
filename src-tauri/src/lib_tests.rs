@@ -95,7 +95,7 @@ fn select_playable_media_path_trims_and_picks_existing_file() {
 }
 
 #[test]
-fn select_playable_media_path_falls_back_to_first_non_empty_candidate() {
+fn select_playable_media_path_returns_none_when_no_candidate_exists() {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     let tmp_dir = std::env::temp_dir();
@@ -110,9 +110,8 @@ fn select_playable_media_path_falls_back_to_first_non_empty_candidate() {
         select_playable_media_path(vec![missing_str.clone(), String::new(), "  ".to_string()]);
 
     assert_eq!(
-        selected,
-        Some(missing_str),
-        "even when stat fails the helper should return the first non-empty candidate"
+        selected, None,
+        "when every candidate is missing the helper must not return an unplayable path"
     );
 }
 
