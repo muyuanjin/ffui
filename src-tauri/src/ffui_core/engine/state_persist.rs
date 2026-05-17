@@ -1,9 +1,11 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::atomic::Ordering;
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
+
+use anyhow::{Context, Result};
 
 use crate::ffui_core::domain::{
     JobRecord, JobStatus, QueueState, QueueStateLite, TranscodeJobLite,
@@ -42,27 +44,26 @@ pub(super) static QUEUE_PERSIST_WRITE_COUNT: &std::sync::atomic::AtomicU64 =
 static QUEUE_PERSIST_WRITE_MUTEX: once_cell::sync::Lazy<Mutex<()>> =
     once_cell::sync::Lazy::new(|| Mutex::new(()));
 
-/// Path to the sidecar JSON file used for crash-recovery queue snapshots.
-fn queue_state_sidecar_path() -> Option<PathBuf> {
+fn queue_state_sidecar_path_result() -> Result<PathBuf> {
     #[cfg(test)]
     {
         if let Some(path) = state_persist_test_support::queue_state_sidecar_path_override() {
-            return Some(path);
+            return Ok(path);
         }
     }
 
     if let Ok(raw) = std::env::var("FFUI_QUEUE_STATE_SIDECAR_PATH") {
         let normalized = raw.trim();
         if !normalized.is_empty() {
-            return Some(PathBuf::from(normalized));
+            return Ok(PathBuf::from(normalized));
         }
     }
 
-    crate::ffui_core::queue_state_path().ok()
+    crate::ffui_core::queue_state_path().context("failed to resolve queue state sidecar path")
 }
 
 pub(super) fn persisted_queue_state_exists_on_disk() -> bool {
-    queue_state_sidecar_path().is_some_and(|path| path.exists())
+    queue_state_sidecar_path_result().is_ok_and(|path| path.exists())
 }
 
 #[cfg(feature = "bench")]
@@ -71,7 +72,7 @@ pub(super) fn decode_persisted_queue_state_bytes_for_bench(data: &[u8]) -> Optio
 }
 
 pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
-    let path = queue_state_sidecar_path()?;
+    let path = queue_state_sidecar_path_result().ok()?;
     if !path.exists() {
         return None;
     }
@@ -133,8 +134,8 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
         }
     };
 
-    if rewrite {
-        persist_queue_state_lite_immediate(&lite);
+    if rewrite && let Err(err) = persist_queue_state_lite_immediate(&lite) {
+        crate::debug_eprintln!("failed to rewrite persisted queue state: {err:#}");
     }
 
     let mut snapshot = QueueState::from(lite);
@@ -147,62 +148,62 @@ pub(super) fn load_persisted_queue_state() -> Option<QueueState> {
 /// Actual on-disk writer for queue state snapshots. This performs a single
 /// compact JSON write without any debouncing semantics; callers should go
 /// through `persist_queue_state_lite` instead.
-fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
+fn remove_temp_queue_state_file_best_effort(path: &Path) {
+    if fs::remove_file(path).is_err_and(|err| err.kind() != std::io::ErrorKind::NotFound) {
+        crate::debug_eprintln!("failed to remove temp queue state file {}", path.display());
+    }
+}
+
+fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) -> Result<()> {
     if should_abort_queue_persist_write_for_tests(epoch) {
-        return;
+        return Ok(());
     }
 
-    let Some(path) = queue_state_sidecar_path() else {
-        return;
-    };
+    let path = queue_state_sidecar_path_result()?;
 
     let _write_guard = QUEUE_PERSIST_WRITE_MUTEX.lock_unpoisoned();
 
     if let Some(parent) = path.parent()
         && let Err(err) = fs::create_dir_all(parent)
     {
-        crate::debug_eprintln!(
-            "failed to create directory for queue state {}: {err:#}",
-            parent.display()
-        );
-        return;
+        return Err(err).with_context(|| {
+            format!(
+                "failed to create directory for queue state {}",
+                parent.display()
+            )
+        });
     }
 
     let tmp_path = path.with_extension("tmp");
-    match fs::File::create(&tmp_path) {
-        Ok(file) => {
-            let persisted = persisted_queue_state::PersistedQueueStateFile {
-                version: persisted_queue_state::PERSISTED_QUEUE_STATE_VERSION,
-                snapshot_revision: snapshot.snapshot_revision,
-                jobs: snapshot.jobs.iter().cloned().map(JobRecord::from).collect(),
-            };
-            if let Err(err) = serde_json::to_writer(&file, &persisted) {
-                crate::debug_eprintln!(
-                    "failed to write queue state to {}: {err:#}",
-                    tmp_path.display()
-                );
-                drop(fs::remove_file(&tmp_path));
-                return;
-            }
-            // Ensure the file handle is closed before attempting an atomic rename.
-            // On Windows, renaming an open file will fail (and tests may observe
-            // the sidecar as missing).
-            drop(file);
-            if let Err(err) = fs::rename(&tmp_path, &path) {
-                crate::debug_eprintln!(
-                    "failed to atomically rename {} -> {}: {err:#}",
-                    tmp_path.display(),
-                    path.display()
-                );
-                drop(fs::remove_file(&tmp_path));
-            }
-        }
-        Err(err) => {
-            crate::debug_eprintln!(
-                "failed to create temp queue state file {}: {err:#}",
-                tmp_path.display()
-            );
-        }
+    let file = fs::File::create(&tmp_path).with_context(|| {
+        format!(
+            "failed to create temp queue state file {}",
+            tmp_path.display()
+        )
+    })?;
+    let persisted = persisted_queue_state::PersistedQueueStateFile {
+        version: persisted_queue_state::PERSISTED_QUEUE_STATE_VERSION,
+        snapshot_revision: snapshot.snapshot_revision,
+        jobs: snapshot.jobs.iter().cloned().map(JobRecord::from).collect(),
+    };
+    if let Err(err) = serde_json::to_writer(&file, &persisted) {
+        remove_temp_queue_state_file_best_effort(&tmp_path);
+        return Err(err)
+            .with_context(|| format!("failed to write queue state to {}", tmp_path.display()));
+    }
+    // Ensure the file handle is closed before attempting an atomic rename.
+    // On Windows, renaming an open file will fail (and tests may observe
+    // the sidecar as missing).
+    drop(file);
+    if let Err(err) = fs::rename(&tmp_path, &path) {
+        remove_temp_queue_state_file_best_effort(&tmp_path);
+        return Err(err).with_context(|| {
+            format!(
+                "failed to atomically rename {} -> {}",
+                tmp_path.display(),
+                path.display()
+            )
+        });
     }
 
     #[cfg(test)]
@@ -214,6 +215,8 @@ fn persist_queue_state_inner(snapshot: &QueueStateLite, epoch: u64) {
             QUEUE_PERSIST_WRITE_COUNT.fetch_add(1, Ordering::SeqCst);
         }
     }
+
+    Ok(())
 }
 
 /// Debounce window for queue persistence writes. This reduces disk I/O on
@@ -377,8 +380,10 @@ fn ensure_worker_thread_started() {
                     }
                 };
 
-                if let Some((epoch, snapshot)) = maybe_snapshot {
-                    persist_queue_state_inner(&snapshot, epoch);
+                if let Some((epoch, snapshot)) = maybe_snapshot
+                    && let Err(err) = persist_queue_state_inner(&snapshot, epoch)
+                {
+                    crate::debug_eprintln!("failed to persist queue state: {err:#}");
                 }
             }
         })
@@ -399,7 +404,7 @@ fn ensure_worker_thread_started() {
 ///
 /// This is used by graceful shutdown paths that need to ensure crash-recovery
 /// metadata (such as wait segments) is durable before the process exits.
-pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
+pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) -> Result<()> {
     #[cfg(test)]
     let _test_guard = lock_persist_test_mutex_for_tests();
 
@@ -414,8 +419,9 @@ pub(super) fn persist_queue_state_lite_immediate(snapshot: &QueueStateLite) {
     state.next_flush_at = None;
     drop(state);
 
-    persist_queue_state_inner(snapshot, epoch);
+    persist_queue_state_inner(snapshot, epoch)?;
     QUEUE_PERSIST.cv.notify_all();
+    Ok(())
 }
 
 /// Persist the given snapshot to disk using a debounced writer. The first
@@ -448,7 +454,9 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                 .clone()
                 .unwrap_or_else(|| snapshot.clone());
             drop(state);
-            persist_queue_state_inner(&to_write, epoch);
+            if let Err(err) = persist_queue_state_inner(&to_write, epoch) {
+                crate::debug_eprintln!("failed to persist queue state: {err:#}");
+            }
         }
         Some(last) => {
             let debounce = Duration::from_millis(QUEUE_PERSIST_DEBOUNCE_MS);
@@ -461,7 +469,9 @@ pub(super) fn persist_queue_state_lite(snapshot: &QueueStateLite) {
                     .clone()
                     .unwrap_or_else(|| snapshot.clone());
                 drop(state);
-                persist_queue_state_inner(&to_write, epoch);
+                if let Err(err) = persist_queue_state_inner(&to_write, epoch) {
+                    crate::debug_eprintln!("failed to persist queue state: {err:#}");
+                }
                 QUEUE_PERSIST.cv.notify_all();
                 return;
             }

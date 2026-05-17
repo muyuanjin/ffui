@@ -37,7 +37,7 @@ fn crash_recovery_disabled_restores_only_resumable_jobs_from_persisted_snapshot(
         state.jobs.get_mut(&completed.id).unwrap().status = JobStatus::Completed;
     }
     assert!(
-        writer.force_persist_queue_state_lite_now(),
+        writer.force_persist_queue_state_lite_now().is_ok(),
         "expected writer to persist full snapshot in crash recovery mode"
     );
 

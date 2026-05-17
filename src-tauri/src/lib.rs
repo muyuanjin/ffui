@@ -421,7 +421,10 @@ pub fn run() {
             if enabled {
                 // Persist resumable queue state on graceful exits so paused/waiting jobs
                 // remain recoverable after restart, even when crash-recovery is disabled.
-                let _ = engine.force_persist_queue_state_lite_now();
+                crate::app_exit::persist_queue_for_exit_best_effort(
+                    &engine,
+                    "graceful exit without active processing",
+                );
             }
             crate::ffui_core::write_shutdown_marker(crate::ffui_core::ShutdownMarkerKind::Clean);
             return;

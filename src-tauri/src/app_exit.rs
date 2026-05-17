@@ -39,6 +39,14 @@ impl ExitCoordinator {
     }
 }
 
+pub fn persist_queue_for_exit_best_effort(engine: &TranscodingEngine, reason: &str) {
+    if let Err(err) = engine.force_persist_queue_state_lite_now() {
+        crate::debug_eprintln!(
+            "shutdown: failed to persist queue state during {reason}; continuing exit because this snapshot is best-effort: {err:#}"
+        );
+    }
+}
+
 pub fn pause_processing_jobs_for_exit(
     engine: &TranscodingEngine,
     timeout_seconds: f64,
@@ -98,7 +106,7 @@ pub fn pause_processing_jobs_for_exit(
     drop(state);
 
     // Ensure any recent wait_metadata updates are durable before the process exits.
-    let _ = engine.force_persist_queue_state_lite_now();
+    persist_queue_for_exit_best_effort(engine, "auto-wait");
 
     ExitAutoWaitOutcome {
         requested_job_count,
@@ -337,8 +345,8 @@ mod tests {
         }
 
         assert!(
-            engine.force_persist_queue_state_lite_now(),
-            "expected force_persist_queue_state_lite_now to return true when crash recovery is enabled"
+            engine.force_persist_queue_state_lite_now().is_ok(),
+            "expected force_persist_queue_state_lite_now to succeed when crash recovery is enabled"
         );
         assert!(
             sidecar_path.exists(),
@@ -373,8 +381,8 @@ mod tests {
         }
 
         assert!(
-            engine.force_persist_queue_state_lite_now(),
-            "expected force_persist_queue_state_lite_now to return true when crash recovery is disabled"
+            engine.force_persist_queue_state_lite_now().is_ok(),
+            "expected force_persist_queue_state_lite_now to succeed when crash recovery is disabled"
         );
 
         let raw =
@@ -394,5 +402,43 @@ mod tests {
             "job-paused",
             "expected persisted resumable job to be the paused one"
         );
+    }
+
+    #[test]
+    fn force_persist_queue_state_lite_now_reports_write_failure() {
+        let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+        let _env_lock = crate::test_support::env_lock();
+
+        let sidecar_path = std::env::temp_dir().join(format!(
+            "ffui_exit_persist_dir_target_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis()
+        ));
+        std::fs::create_dir_all(&sidecar_path).expect("expected test directory to be creatable");
+        let _sidecar_guard =
+            crate::ffui_core::override_queue_state_sidecar_path_for_tests(sidecar_path.clone());
+
+        let engine = TranscodingEngine::new_for_tests();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.settings.queue_persistence_mode = QueuePersistenceMode::CrashRecoveryLite;
+            state.jobs.insert(
+                "job-write-fail".to_string(),
+                make_job("job-write-fail", JobStatus::Paused),
+            );
+        }
+
+        let err = engine
+            .force_persist_queue_state_lite_now()
+            .expect_err("expected directory sidecar target to make atomic rename fail");
+        let err_text = format!("{err:#}");
+        assert!(
+            err_text.contains("failed to atomically rename"),
+            "expected atomic rename context in error, got {err_text}"
+        );
+
+        std::fs::remove_dir_all(sidecar_path).expect("expected test directory cleanup to succeed");
     }
 }

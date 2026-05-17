@@ -1,6 +1,9 @@
 use tauri::{AppHandle, State};
 
-use crate::app_exit::{ExitAutoWaitOutcome, ExitCoordinator, pause_processing_jobs_for_exit};
+use crate::app_exit::{
+    ExitAutoWaitOutcome, ExitCoordinator, pause_processing_jobs_for_exit,
+    persist_queue_for_exit_best_effort,
+};
 use crate::ffui_core::{
     ShutdownMarkerKind, TranscodingEngine, write_shutdown_marker_with_auto_wait_job_ids,
 };
@@ -31,7 +34,7 @@ pub async fn exit_app_now(
 
     // Best-effort: persist the current queue snapshot so the next startup can
     // recover and offer a one-click resume prompt even after an immediate exit.
-    let _ = engine.force_persist_queue_state_lite_now();
+    persist_queue_for_exit_best_effort(&engine, "immediate exit");
     write_shutdown_marker_with_auto_wait_job_ids(
         ShutdownMarkerKind::Running,
         Some(processing_job_ids),

@@ -201,7 +201,7 @@ impl TranscodingEngine {
     ///
     /// This is used by graceful shutdown paths that need wait metadata (segments,
     /// join targets, etc.) to be durable before the process exits.
-    pub fn force_persist_queue_state_lite_now(&self) -> bool {
+    pub fn force_persist_queue_state_lite_now(&self) -> anyhow::Result<()> {
         let mode = {
             let state = self.inner.state.lock_unpoisoned();
             state.settings.queue_persistence_mode
@@ -222,9 +222,9 @@ impl TranscodingEngine {
             });
         }
 
-        state_persist::persist_queue_state_lite_immediate(&snapshot);
-        true
+        state_persist::persist_queue_state_lite_immediate(&snapshot)
     }
+
     /// Fetch full details for a single job from the in-memory engine state.
     pub fn job_detail(&self, job_id: &str) -> Option<TranscodeJob> {
         let state = self.inner.state.lock_unpoisoned();
