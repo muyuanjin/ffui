@@ -20,6 +20,8 @@ vi.mock("vue-echarts", () => ({
   },
 }));
 
+vi.mock("@/lib/echarts", () => ({}));
+
 // Stub gsap so the numeric interpolation executes synchronously in tests.
 vi.mock("gsap", () => ({
   __esModule: true,

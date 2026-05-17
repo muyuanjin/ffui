@@ -17,6 +17,8 @@ vi.mock("vue-echarts", () => ({
   },
 }));
 
+vi.mock("@/lib/echarts", () => ({}));
+
 // Provide a lightweight stub for useSystemMetrics that we can drive from tests
 // by mutating the shared `snapshots` ref.
 const snapshots = ref<SystemMetricsSnapshot[]>([]);

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import VChart from "vue-echarts";
-import "echarts";
+import "@/lib/echarts";
 import type { EChartsCoreOption } from "echarts/core";
 import { useI18n } from "vue-i18n";
 

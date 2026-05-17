@@ -224,8 +224,6 @@ export default defineConfig(async (env: ConfigEnv): Promise<UserConfig> => {
         "class-variance-authority",
         "clsx",
         "tailwind-merge",
-        "apexcharts",
-        "vue3-apexcharts",
         "echarts",
         "vue-echarts",
         "@tauri-apps/plugin-os",

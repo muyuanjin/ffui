@@ -20,6 +20,22 @@ const vueCompilerMacroGlobals = {
   withDefaults: "readonly",
 };
 
+const chartRuntimeRestrictedImports = [
+  {
+    name: "apexcharts",
+    message:
+      "ApexCharts is not used by FFUI; use the existing ECharts monitor stack unless a new approved change adds ApexCharts back.",
+  },
+  {
+    name: "vue3-apexcharts",
+    message: "Do not register ApexCharts globally; FFUI monitor charts use ECharts.",
+  },
+  {
+    name: "echarts",
+    message: "Use src/lib/echarts.ts for bounded ECharts module registration instead of importing the full package.",
+  },
+];
+
 export default [
   {
     linterOptions: {
@@ -140,6 +156,7 @@ export default [
         "error",
         {
           paths: [
+            ...chartRuntimeRestrictedImports,
             {
               name: "@tauri-apps/api/core",
               importNames: ["invoke"],
@@ -158,6 +175,7 @@ export default [
         "error",
         {
           paths: [
+            ...chartRuntimeRestrictedImports,
             {
               name: "@tauri-apps/api/core",
               importNames: ["invoke"],
@@ -182,6 +200,7 @@ export default [
         "error",
         {
           paths: [
+            ...chartRuntimeRestrictedImports,
             {
               name: "@tauri-apps/api/core",
               importNames: ["invoke"],
@@ -214,6 +233,7 @@ export default [
         "error",
         {
           paths: [
+            ...chartRuntimeRestrictedImports,
             {
               name: "@tauri-apps/api/core",
               importNames: ["invoke"],

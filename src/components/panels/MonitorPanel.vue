@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import VChart from "vue-echarts";
-import "echarts";
+import "@/lib/echarts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";

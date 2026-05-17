@@ -51,7 +51,7 @@
 ```typescript
 import { computed, ref, watch } from "vue";
 import VChart from "vue-echarts";
-import "echarts";
+import "@/lib/echarts";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
 import { useI18n } from "vue-i18n";
@@ -91,7 +91,7 @@ const gpuMemorySeries = computed(() => smoothEma(gpuHistory.value.map((p) => p.m
 ```typescript
 import { computed, ref, watch } from "vue";
 import VChart from "vue-echarts";
-import "echarts";
+import "@/lib/echarts";
 import type { CpuUsageSnapshot, GpuUsageSnapshot } from "@/types";
 import { useSystemMetrics } from "@/composables";
 import { useI18n } from "vue-i18n";
@@ -154,6 +154,8 @@ import { smoothEma, createFixedBuffer } from "@/composables/monitor/useChartData
 import { useGpuMetrics } from "@/composables/monitor/useGpuMetrics";
 import { useMonitorUptime } from "@/composables/monitor/useMonitorUptime";
 ```
+
+ECharts runtime 模块由 `@/lib/echarts` 集中按需注册。监控组件需要渲染 `vue-echarts` 时应导入该内部入口，不要直接 `import "echarts"`。
 
 ## 优势
 

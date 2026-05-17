@@ -3,7 +3,6 @@ import App from "./App.vue";
 import "./index.css";
 import "vue-sonner/style.css";
 import { i18n, loadLocale } from "./i18n";
-import VueApexCharts from "vue3-apexcharts";
 import { hasTauri, loadAppSettings, saveAppSettings } from "@/lib/backend";
 import { bootstrapAppLocale } from "@/lib/bootstrapAppLocale";
 import { perfLog } from "@/lib/perfLog";
@@ -43,7 +42,6 @@ const run = async () => {
 
   const app = createApp(App);
   app.use(i18n);
-  app.use(VueApexCharts);
   app.mount("#app");
 
   // Tauri drag regions + modal pointer-event locks can occasionally leave the app
