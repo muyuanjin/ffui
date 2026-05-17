@@ -133,6 +133,12 @@ mod tests {
         tmp_dir.join(format!("{prefix}_{stamp}.json"))
     }
 
+    fn create_queue_state_sidecar_dir_target(prefix: &str) -> std::path::PathBuf {
+        let sidecar_path = install_queue_state_sidecar_path(prefix);
+        std::fs::create_dir_all(&sidecar_path).expect("expected test directory to be creatable");
+        sidecar_path
+    }
+
     fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
         TranscodeJob {
             id: id.to_string(),
@@ -266,7 +272,8 @@ mod tests {
             insert_processing_job(&engine, &format!("job-bulk-{idx}"));
         }
 
-        let _ = pause_processing_jobs_for_exit(&engine, 0.01);
+        let outcome = pause_processing_jobs_for_exit(&engine, 0.01);
+        assert_eq!(outcome.requested_job_count, 32);
 
         assert_eq!(
             notify_count.load(Ordering::SeqCst),
@@ -353,8 +360,9 @@ mod tests {
             "expected queue snapshot to be written"
         );
 
-        let _ =
-            std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable");
+        drop(
+            std::fs::read_to_string(&sidecar_path).expect("expected queue snapshot to be readable"),
+        );
     }
 
     #[test]
@@ -409,14 +417,7 @@ mod tests {
         let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
         let _env_lock = crate::test_support::env_lock();
 
-        let sidecar_path = std::env::temp_dir().join(format!(
-            "ffui_exit_persist_dir_target_{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis()
-        ));
-        std::fs::create_dir_all(&sidecar_path).expect("expected test directory to be creatable");
+        let sidecar_path = create_queue_state_sidecar_dir_target("ffui_exit_persist_dir_target");
         let _sidecar_guard =
             crate::ffui_core::override_queue_state_sidecar_path_for_tests(sidecar_path.clone());
 
@@ -438,6 +439,31 @@ mod tests {
             err_text.contains("failed to atomically rename"),
             "expected atomic rename context in error, got {err_text}"
         );
+
+        std::fs::remove_dir_all(sidecar_path).expect("expected test directory cleanup to succeed");
+    }
+
+    #[test]
+    fn persist_queue_for_exit_best_effort_does_not_propagate_write_failure() {
+        let _persist_guard = crate::ffui_core::lock_persist_test_mutex_for_tests();
+        let _env_lock = crate::test_support::env_lock();
+
+        let sidecar_path =
+            create_queue_state_sidecar_dir_target("ffui_exit_best_effort_dir_target");
+        let _sidecar_guard =
+            crate::ffui_core::override_queue_state_sidecar_path_for_tests(sidecar_path.clone());
+
+        let engine = TranscodingEngine::new_for_tests();
+        {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.settings.queue_persistence_mode = QueuePersistenceMode::CrashRecoveryLite;
+            state.jobs.insert(
+                "job-best-effort-write-fail".to_string(),
+                make_job("job-best-effort-write-fail", JobStatus::Paused),
+            );
+        }
+
+        persist_queue_for_exit_best_effort(&engine, "test exit");
 
         std::fs::remove_dir_all(sidecar_path).expect("expected test directory cleanup to succeed");
     }

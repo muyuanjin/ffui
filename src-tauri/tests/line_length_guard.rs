@@ -68,7 +68,7 @@ fn backend_source_files_should_not_exceed_threshold() {
         })
         .collect();
 
-    over_limit.sort_by(|a, b| b.1.cmp(&a.1));
+    over_limit.sort_by_key(|(_, lines, _)| std::cmp::Reverse(*lines));
 
     if !over_limit.is_empty() {
         let details = over_limit
