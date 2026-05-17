@@ -161,8 +161,17 @@ watch(
           appendCheckUpdateLog(request.kind, t("app.settings.checkToolUpdateLogSummaryResultUpToDate"));
         }
 
-        if (status.lastRemoteCheckMessage && status.lastRemoteCheckMessage.startsWith("[proxy]")) {
-          appendCheckUpdateLog(request.kind, status.lastRemoteCheckMessage, "warn");
+        if (status.lastRemoteCheckMessage) {
+          const messageLevel =
+            status.lastRemoteCheckMessage.includes("pinned") ||
+            status.lastRemoteCheckMessage.includes("failed") ||
+            status.lastRemoteCheckMessage.includes("rate limit") ||
+            status.lastRemoteCheckMessage.includes("rejected") ||
+            status.lastRemoteCheckMessage.startsWith("[proxy]") ||
+            status.lastRemoteCheckMessage.includes("invalid proxy")
+              ? "warn"
+              : "info";
+          appendCheckUpdateLog(request.kind, status.lastRemoteCheckMessage, messageLevel);
         }
       }
     }

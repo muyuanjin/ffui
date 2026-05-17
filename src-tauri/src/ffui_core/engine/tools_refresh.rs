@@ -13,21 +13,19 @@ use crate::ffui_core::tools::{
 };
 use crate::sync_ext::MutexExt;
 
-type CheckedRemoteRefresh = fn() -> anyhow::Result<(String, String, Option<String>)>;
-type BestEffortRemoteRefresh = fn() -> Option<(String, String)>;
-type RemoteRefreshTuple = (Option<String>, Option<String>, Option<String>);
+type RemoteRefreshInfo = crate::ffui_core::tools::ReleaseResolveInfo;
+type CheckedRemoteRefresh = fn() -> anyhow::Result<RemoteRefreshInfo>;
+type BestEffortRemoteRefresh = fn() -> Option<RemoteRefreshInfo>;
 
 fn best_effort_remote_refresh(
     manual: bool,
     checked: CheckedRemoteRefresh,
     best_effort: BestEffortRemoteRefresh,
-) -> anyhow::Result<RemoteRefreshTuple> {
+) -> anyhow::Result<Option<RemoteRefreshInfo>> {
     if manual {
-        return checked().map(|(version, tag, note)| (Some(version), Some(tag), note));
+        return checked().map(Some);
     }
-    Ok(best_effort().map_or((None, None, None), |(version, tag)| {
-        (Some(version), Some(tag), None)
-    }))
+    Ok(best_effort())
 }
 
 fn store_remote_version_cache<F>(engine: &TranscodingEngine, update: F)
@@ -44,7 +42,11 @@ where
     }
 }
 
-fn record_proxy_note_for_kinds(kinds: &[ExternalToolKind], note: &str, checked_at_ms: u64) {
+fn record_remote_check_message_for_kinds(
+    kinds: &[ExternalToolKind],
+    note: &str,
+    checked_at_ms: u64,
+) {
     for kind in kinds.iter().copied() {
         record_tool_remote_check_message(kind, note.to_string(), checked_at_ms);
     }
@@ -247,46 +249,44 @@ impl TranscodingEngine {
                     );
 
                     match refreshed {
-                        Ok((Some(version), Some(tag), note)) => {
-                            remote_updated = true;
-                            should_persist_settings = true;
-                            store_remote_version_cache(&engine_clone, |cache| {
-                                cache.ffmpeg_static = Some(
-                                    crate::ffui_core::settings::types::RemoteToolVersionInfo {
-                                        checked_at_ms: Some(now_ms),
-                                        version: Some(version),
-                                        tag: Some(tag),
-                                    },
-                                );
-                            });
+                        Ok(Some(info)) => {
+                            remote_updated |= info.cacheable();
+                            if info.cacheable() {
+                                should_persist_settings = true;
+                                store_remote_version_cache(&engine_clone, |cache| {
+                                    cache.ffmpeg_static = Some(
+                                        crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                            checked_at_ms: Some(now_ms),
+                                            version: Some(info.version.clone()),
+                                            tag: Some(info.tag.clone()),
+                                        },
+                                    );
+                                });
+                            }
 
-	                            if manual_remote_check && let Some(note) = note {
-	                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-	                                    .map_or_else(
-	                                        || {
-	                                            vec![
-	                                                ExternalToolKind::Ffmpeg,
-	                                                ExternalToolKind::Ffprobe,
-	                                            ]
-	                                        },
-	                                        |kind| vec![kind],
-	                                    );
-	                                record_proxy_note_for_kinds(&report_kinds, &note, now_ms);
-	                            }
+                            if manual_remote_check
+                                && let Some(note) = info.status_message()
+                            {
+                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+                                    .map_or_else(
+                                        || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                                        |kind| vec![kind],
+                                    );
+                                record_remote_check_message_for_kinds(&report_kinds, &note, now_ms);
+                            }
                         }
-                        Ok((_v, _t, _note)) => {
+                        Ok(None) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] ffmpeg remote version check failed (best-effort)"
                             );
                         }
-		                        Err(err) => {
-		                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-		                                .map_or_else(
-		                                    || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
-		                                    |kind| vec![kind],
-		                                );
-		                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
-		                        }
+                        Err(err) => {
+                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind.map_or_else(
+                                || vec![ExternalToolKind::Ffmpeg, ExternalToolKind::Ffprobe],
+                                |kind| vec![kind],
+                            );
+                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
+                        }
                     }
                 }
 
@@ -298,39 +298,43 @@ impl TranscodingEngine {
                     );
 
                     match refreshed {
-                        Ok((Some(version), Some(tag), note)) => {
-                            remote_updated = true;
-                            should_persist_settings = true;
-                            store_remote_version_cache(&engine_clone, |cache| {
-                                cache.libavif = Some(
-                                    crate::ffui_core::settings::types::RemoteToolVersionInfo {
-                                        checked_at_ms: Some(now_ms),
-                                        version: Some(version),
-                                        tag: Some(tag),
-                                    },
-                                );
-                            });
+                        Ok(Some(info)) => {
+                            remote_updated |= info.cacheable();
+                            if info.cacheable() {
+                                should_persist_settings = true;
+                                store_remote_version_cache(&engine_clone, |cache| {
+                                    cache.libavif = Some(
+                                        crate::ffui_core::settings::types::RemoteToolVersionInfo {
+                                            checked_at_ms: Some(now_ms),
+                                            version: Some(info.version.clone()),
+                                            tag: Some(info.tag.clone()),
+                                        },
+                                    );
+                                });
+                            }
 
-	                            if manual_remote_check && let Some(note) = note {
-	                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-	                                    .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
-	                                        vec![kind]
-	                                    });
-	                                record_proxy_note_for_kinds(&report_kinds, &note, now_ms);
-	                            }
+                            if manual_remote_check
+                                && let Some(note) = info.status_message()
+                            {
+                                let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+                                    .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
+                                        vec![kind]
+                                    });
+                                record_remote_check_message_for_kinds(&report_kinds, &note, now_ms);
+                            }
                         }
-                        Ok((_v, _t, _note)) => {
+                        Ok(None) => {
                             crate::debug_eprintln!(
                                 "[tools_refresh] libavif remote version check failed (best-effort)"
                             );
                         }
-		                        Err(err) => {
-		                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
-		                                .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
-		                                    vec![kind]
-		                                });
-		                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
-		                        }
+                        Err(err) => {
+                            let report_kinds: Vec<ExternalToolKind> = remote_check_kind
+                                .map_or_else(|| vec![ExternalToolKind::Avifenc], |kind| {
+                                    vec![kind]
+                                });
+                            record_proxy_remote_check_error(&report_kinds, &err, now_ms);
+                        }
                     }
                 }
 

@@ -24,6 +24,7 @@ mod types;
 
 // Re-export API
 pub(crate) use candidates::tool_candidates;
+pub(crate) use download::ReleaseResolveInfo;
 pub(crate) use download::{ensure_tool_available, force_download_tool_binary};
 pub(crate) use ffmpeg_capabilities::{
     ensure_ffmpeg_filter_help_available, ensure_ffmpeg_video_encoder_usable,
@@ -164,39 +165,36 @@ pub(crate) fn update_probe_cache_from_statuses(
     touched
 }
 
-pub(crate) fn try_refresh_ffmpeg_static_release_from_github() -> Option<(String, String)> {
-    let info = download::try_refresh_ffmpeg_release_from_github()?;
-    Some((info.version, info.tag))
+pub(crate) fn try_refresh_ffmpeg_static_release_from_github() -> Option<download::ReleaseResolveInfo>
+{
+    download::try_refresh_ffmpeg_release_from_github()
 }
 
-pub(crate) fn try_refresh_libavif_release_from_github() -> Option<(String, String)> {
-    let info = download::try_refresh_libavif_release_from_github()?;
-    Some((info.version, info.tag))
+pub(crate) fn try_refresh_libavif_release_from_github() -> Option<download::ReleaseResolveInfo> {
+    download::try_refresh_libavif_release_from_github()
 }
 
 #[cfg(not(test))]
 pub(crate) fn refresh_ffmpeg_static_release_from_github_checked()
--> anyhow::Result<(String, String, Option<String>)> {
-    let (info, note) = download::refresh_ffmpeg_release_from_github_checked()?;
-    Ok((info.version, info.tag, note))
+-> anyhow::Result<download::ReleaseResolveInfo> {
+    download::refresh_ffmpeg_release_from_github_checked()
 }
 
 #[cfg(not(test))]
 pub(crate) fn refresh_libavif_release_from_github_checked()
--> anyhow::Result<(String, String, Option<String>)> {
-    let (info, note) = download::refresh_libavif_release_from_github_checked()?;
-    Ok((info.version, info.tag, note))
+-> anyhow::Result<download::ReleaseResolveInfo> {
+    download::refresh_libavif_release_from_github_checked()
 }
 
 #[cfg(test)]
 pub(crate) fn refresh_ffmpeg_static_release_from_github_checked()
--> anyhow::Result<(String, String, Option<String>)> {
+-> anyhow::Result<download::ReleaseResolveInfo> {
     Err(anyhow::anyhow!("network fetch is disabled in unit tests"))
 }
 
 #[cfg(test)]
 pub(crate) fn refresh_libavif_release_from_github_checked()
--> anyhow::Result<(String, String, Option<String>)> {
+-> anyhow::Result<download::ReleaseResolveInfo> {
     Err(anyhow::anyhow!("network fetch is disabled in unit tests"))
 }
 

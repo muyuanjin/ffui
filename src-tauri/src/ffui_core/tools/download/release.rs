@@ -1,52 +1,73 @@
 use anyhow::{Result, anyhow};
 
 #[cfg(not(test))]
-use anyhow::Context;
-
-#[cfg(not(test))]
-use crate::ffui_core::network_proxy;
+use super::release_http::{
+    resolve_ffmpeg_release_from_github, resolve_libavif_release_from_github,
+    resolve_release_from_github_checked,
+};
+#[cfg(test)]
+use super::release_resolver::pinned_info;
+use super::release_resolver::{FFMPEG_PROJECT, LIBAVIF_PROJECT, ReleaseResolveInfo};
 use crate::ffui_core::tools::types::{
-    ExternalToolKind, FFMPEG_RELEASE_CACHE, FFMPEG_STATIC_TAG, FFMPEG_STATIC_VERSION,
-    FfmpegStaticRelease, LIBAVIF_RELEASE_CACHE, LIBAVIF_VERSION, LibavifRelease,
+    ExternalToolKind, FFMPEG_RELEASE_CACHE, FfmpegStaticRelease, LIBAVIF_RELEASE_CACHE,
+    LibavifRelease,
 };
 use crate::sync_ext::MutexExt;
 
-pub(crate) fn semantic_version_from_tag(tag: &str) -> String {
-    let idx = tag.find(|c: char| c.is_ascii_digit()).unwrap_or(0);
-    tag[idx..].to_string()
+pub(crate) use super::release_resolver::semantic_version_from_tag;
+
+#[cfg(test)]
+fn resolve_ffmpeg_release_from_github() -> ReleaseResolveInfo {
+    pinned_info(FFMPEG_PROJECT, None, None)
+}
+
+#[cfg(test)]
+fn resolve_libavif_release_from_github() -> ReleaseResolveInfo {
+    pinned_info(LIBAVIF_PROJECT, None, None)
+}
+
+fn cache_ffmpeg_release(info: &ReleaseResolveInfo) {
+    if !info.cacheable() {
+        return;
+    }
+    let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
+    *cache = Some(FfmpegStaticRelease {
+        version: info.version.clone(),
+        tag: info.tag.clone(),
+    });
+}
+
+fn cache_libavif_release(info: &ReleaseResolveInfo) {
+    if !info.cacheable() {
+        return;
+    }
+    let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
+    *cache = Some(LibavifRelease {
+        version: info.version.clone(),
+        tag: info.tag.clone(),
+    });
 }
 
 /// Best-effort remote check against GitHub Releases.
 ///
-/// Returns None when the network request fails. When it succeeds, this also
-/// updates the in-process `FFMPEG_RELEASE_CACHE` so subsequent status snapshots
-/// can reuse the latest remote version without repeating network calls.
-pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<FfmpegStaticRelease> {
-    let tag = fetch_ffmpeg_release_from_github()?;
-    let version = semantic_version_from_tag(&tag);
-    let info = FfmpegStaticRelease { version, tag };
-
-    {
-        let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
-        *cache = Some(info.clone());
+/// Returns None when all remote sources fail. Successful remote checks update
+/// the in-process cache so later status snapshots can reuse the latest version
+/// without repeating network work.
+pub(crate) fn try_refresh_ffmpeg_release_from_github() -> Option<ReleaseResolveInfo> {
+    let info = resolve_ffmpeg_release_from_github();
+    if !info.cacheable() {
+        return None;
     }
+    cache_ffmpeg_release(&info);
     Some(info)
 }
 
-/// Best-effort remote check against GitHub Releases for libavif.
-///
-/// Returns None when the network request fails. When it succeeds, this also
-/// updates the in-process `LIBAVIF_RELEASE_CACHE` so subsequent status snapshots
-/// can reuse the latest remote version without repeating network calls.
-pub(crate) fn try_refresh_libavif_release_from_github() -> Option<LibavifRelease> {
-    let tag = fetch_libavif_release_from_github()?;
-    let version = semantic_version_from_tag(&tag);
-    let info = LibavifRelease { version, tag };
-
-    {
-        let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
-        *cache = Some(info.clone());
+pub(crate) fn try_refresh_libavif_release_from_github() -> Option<ReleaseResolveInfo> {
+    let info = resolve_libavif_release_from_github();
+    if !info.cacheable() {
+        return None;
     }
+    cache_libavif_release(&info);
     Some(info)
 }
 
@@ -58,19 +79,14 @@ pub(crate) fn current_ffmpeg_release() -> FfmpegStaticRelease {
         }
     }
 
-    let from_github = fetch_ffmpeg_release_from_github();
-    let info = from_github.map_or_else(
-        || FfmpegStaticRelease {
-            version: FFMPEG_STATIC_VERSION.to_string(),
-            tag: FFMPEG_STATIC_TAG.to_string(),
-        },
-        |tag| {
-            let version = semantic_version_from_tag(&tag);
-            FfmpegStaticRelease { version, tag }
-        },
-    );
+    let resolved = resolve_ffmpeg_release_from_github();
+    let cacheable = resolved.cacheable();
+    let info = FfmpegStaticRelease {
+        version: resolved.version,
+        tag: resolved.tag,
+    };
 
-    {
+    if cacheable {
         let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
         *cache = Some(info.clone());
     }
@@ -85,237 +101,32 @@ pub(crate) fn current_libavif_release() -> LibavifRelease {
         }
     }
 
-    let from_github = fetch_libavif_release_from_github();
-    let info = from_github.map_or_else(
-        || LibavifRelease {
-            version: semantic_version_from_tag(LIBAVIF_VERSION),
-            tag: LIBAVIF_VERSION.to_string(),
-        },
-        |tag| {
-            let version = semantic_version_from_tag(&tag);
-            LibavifRelease { version, tag }
-        },
-    );
+    let resolved = resolve_libavif_release_from_github();
+    let cacheable = resolved.cacheable();
+    let info = LibavifRelease {
+        version: resolved.version,
+        tag: resolved.tag,
+    };
 
-    {
+    if cacheable {
         let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
         *cache = Some(info.clone());
     }
     info
 }
 
-/// Remote check against GitHub Releases, with explicit proxy fallback behavior.
-///
-/// - When a custom/system proxy is configured, this first tries using the proxy.
-/// - When the request fails and fallback is enabled, it retries without proxy and
-///   returns a note that can be surfaced in the UI.
 #[cfg(not(test))]
-pub(crate) fn refresh_ffmpeg_release_from_github_checked()
--> Result<(FfmpegStaticRelease, Option<String>)> {
-    let (tag, note) = fetch_ffmpeg_release_from_github_checked()?;
-    let version = semantic_version_from_tag(&tag);
-    let info = FfmpegStaticRelease { version, tag };
-
-    {
-        let mut cache = FFMPEG_RELEASE_CACHE.lock_unpoisoned();
-        *cache = Some(info.clone());
-    }
-    Ok((info, note))
+pub(crate) fn refresh_ffmpeg_release_from_github_checked() -> Result<ReleaseResolveInfo> {
+    let info = resolve_release_from_github_checked(FFMPEG_PROJECT)?;
+    cache_ffmpeg_release(&info);
+    Ok(info)
 }
 
 #[cfg(not(test))]
-pub(crate) fn refresh_libavif_release_from_github_checked()
--> Result<(LibavifRelease, Option<String>)> {
-    let (tag, note) = fetch_libavif_release_from_github_checked()?;
-    let version = semantic_version_from_tag(&tag);
-    let info = LibavifRelease { version, tag };
-
-    {
-        let mut cache = LIBAVIF_RELEASE_CACHE.lock_unpoisoned();
-        *cache = Some(info.clone());
-    }
-    Ok((info, note))
-}
-
-#[cfg(not(test))]
-fn fetch_ffmpeg_release_from_github() -> Option<String> {
-    use std::time::Duration;
-
-    use reqwest::blocking::Client;
-    use serde::Deserialize;
-
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
-
-    let proxy = network_proxy::resolve_effective_proxy_once();
-    let builder = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .user_agent("ffui/ffmpeg-static-updater");
-    let builder = network_proxy::apply_reqwest_blocking_builder(builder, &proxy);
-
-    let client = builder.build().ok()?;
-    let resp = client
-        .get("https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest")
-        .send()
-        .ok()?;
-
-    if !resp.status().is_success() {
-        return None;
-    }
-
-    let release: Release = resp.json().ok()?;
-    Some(release.tag_name)
-}
-
-#[cfg(not(test))]
-fn fetch_libavif_release_from_github() -> Option<String> {
-    use std::time::Duration;
-
-    use reqwest::blocking::Client;
-    use serde::Deserialize;
-
-    #[derive(Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
-
-    let proxy = network_proxy::resolve_effective_proxy_once();
-    let builder = Client::builder()
-        .timeout(Duration::from_secs(5))
-        .user_agent("ffui/libavif-updater");
-    let builder = network_proxy::apply_reqwest_blocking_builder(builder, &proxy);
-
-    let client = builder.build().ok()?;
-    let resp = client
-        .get("https://api.github.com/repos/AOMediaCodec/libavif/releases/latest")
-        .send()
-        .ok()?;
-
-    if !resp.status().is_success() {
-        return None;
-    }
-
-    let release: Release = resp.json().ok()?;
-    Some(release.tag_name)
-}
-
-#[cfg(not(test))]
-fn build_client(
-    user_agent: &str,
-    timeout: std::time::Duration,
-    proxy: Option<reqwest::Proxy>,
-    force_no_proxy: bool,
-) -> Result<reqwest::blocking::Client> {
-    use reqwest::blocking::Client;
-
-    let mut builder = Client::builder().timeout(timeout).user_agent(user_agent);
-    if force_no_proxy {
-        builder = builder.no_proxy();
-    }
-    if let Some(proxy) = proxy {
-        builder = builder.proxy(proxy);
-    }
-    builder.build().context("failed to build HTTP client")
-}
-
-#[cfg(not(test))]
-fn fetch_github_latest_tag_checked(
-    url: &str,
-    user_agent: &str,
-) -> Result<(String, Option<String>)> {
-    use std::time::Duration;
-
-    let resolved = network_proxy::resolve_effective_proxy_once();
-    let force_no_proxy = resolved.is_no_proxy_mode();
-
-    let parsed = match network_proxy::parse_reqwest_proxy_for(&resolved) {
-        Ok(v) => v,
-        Err(err) => {
-            if resolved.fallback_to_direct_on_error() {
-                let client = build_client(user_agent, Duration::from_secs(5), None, true)?;
-                let tag = fetch_github_latest_tag(&client, url)?;
-                return Ok((
-                    tag,
-                    Some(format!(
-                        "[proxy] invalid proxy URL; falling back to direct: {err:#}"
-                    )),
-                ));
-            }
-            return Err(err);
-        }
-    };
-
-    if let Some(parsed) = parsed {
-        let proxy_client = build_client(
-            user_agent,
-            Duration::from_secs(5),
-            Some(parsed.proxy),
-            false,
-        )?;
-        match fetch_github_latest_tag(&proxy_client, url) {
-            Ok(tag) => return Ok((tag, None)),
-            Err(err) => {
-                if resolved.fallback_to_direct_on_error() {
-                    let direct = build_client(user_agent, Duration::from_secs(5), None, true)?;
-                    let tag = fetch_github_latest_tag(&direct, url)?;
-                    return Ok((
-                        tag,
-                        Some(format!(
-                            "[proxy] request failed; falling back to direct: {err:#}"
-                        )),
-                    ));
-                }
-                return Err(err);
-            }
-        }
-    }
-
-    let client = build_client(user_agent, Duration::from_secs(5), None, force_no_proxy)?;
-    let tag = fetch_github_latest_tag(&client, url)?;
-    Ok((tag, None))
-}
-
-#[cfg(not(test))]
-fn fetch_github_latest_tag(client: &reqwest::blocking::Client, url: &str) -> Result<String> {
-    #[derive(serde::Deserialize)]
-    struct Release {
-        tag_name: String,
-    }
-
-    let resp = client.get(url).send().context("request failed")?;
-    if !resp.status().is_success() {
-        return Err(anyhow!("request failed with status {}", resp.status()));
-    }
-    let release: Release = resp.json().context("failed to parse JSON")?;
-    Ok(release.tag_name)
-}
-
-#[cfg(not(test))]
-fn fetch_ffmpeg_release_from_github_checked() -> Result<(String, Option<String>)> {
-    fetch_github_latest_tag_checked(
-        "https://api.github.com/repos/eugeneware/ffmpeg-static/releases/latest",
-        "ffui/ffmpeg-static-updater",
-    )
-}
-
-#[cfg(not(test))]
-fn fetch_libavif_release_from_github_checked() -> Result<(String, Option<String>)> {
-    fetch_github_latest_tag_checked(
-        "https://api.github.com/repos/AOMediaCodec/libavif/releases/latest",
-        "ffui/libavif-updater",
-    )
-}
-
-#[cfg(test)]
-const fn fetch_ffmpeg_release_from_github() -> Option<String> {
-    None
-}
-
-#[cfg(test)]
-const fn fetch_libavif_release_from_github() -> Option<String> {
-    None
+pub(crate) fn refresh_libavif_release_from_github_checked() -> Result<ReleaseResolveInfo> {
+    let info = resolve_release_from_github_checked(LIBAVIF_PROJECT)?;
+    cache_libavif_release(&info);
+    Ok(info)
 }
 
 #[allow(dead_code)]
@@ -329,8 +140,7 @@ pub(crate) fn latest_remote_version(kind: ExternalToolKind) -> Option<String> {
 }
 
 pub(crate) fn default_ffmpeg_download_url() -> Result<String> {
-    let release = current_ffmpeg_release();
-    let tag = release.tag;
+    let tag = current_ffmpeg_release().tag;
 
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         Ok(format!(
@@ -360,8 +170,7 @@ pub(crate) fn default_ffmpeg_download_url() -> Result<String> {
 }
 
 pub(crate) fn default_ffprobe_download_url() -> Result<String> {
-    let release = current_ffmpeg_release();
-    let tag = release.tag;
+    let tag = current_ffmpeg_release().tag;
 
     if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
         Ok(format!(
@@ -391,8 +200,7 @@ pub(crate) fn default_ffprobe_download_url() -> Result<String> {
 }
 
 pub(crate) fn default_avifenc_zip_url() -> Result<String> {
-    let release = current_libavif_release();
-    let tag = release.tag;
+    let tag = current_libavif_release().tag;
 
     if cfg!(target_os = "windows") {
         Ok(format!(

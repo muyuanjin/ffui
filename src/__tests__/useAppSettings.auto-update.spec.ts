@@ -212,4 +212,40 @@ describe("useAppSettings auto-update behaviour", () => {
 
     wrapper.unmount();
   });
+
+  it("does not schedule auto-download when a rate-limited fallback check reports up to date", async () => {
+    const mockDownloadExternalToolNow = vi.mocked(backend.downloadExternalToolNow);
+    mockDownloadExternalToolNow.mockReset();
+
+    const wrapper = mount(TestHost);
+    const vm = wrapper.vm as unknown as {
+      appSettings: AppSettings | null;
+      toolStatuses: ExternalToolStatus[];
+    };
+
+    vm.appSettings = makeAppSettings();
+    vm.toolStatuses = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "download",
+        version: "ffmpeg version 6.1.1",
+        remoteVersion: "6.1.1",
+        updateCheckResult: "upToDate",
+        updateAvailable: false,
+        autoDownloadEnabled: true,
+        autoUpdateEnabled: true,
+        downloadInProgress: false,
+        lastRemoteCheckMessage:
+          "remote version check source: redirect; GitHub API rate limit exhausted; tried non-API release check",
+      },
+    ];
+
+    await nextTick();
+    await flushPromises();
+
+    expect(mockDownloadExternalToolNow).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
 });

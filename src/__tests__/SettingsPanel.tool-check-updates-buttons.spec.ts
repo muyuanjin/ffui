@@ -305,4 +305,185 @@ describe("SettingsPanel external tools check updates button", () => {
 
     wrapper.unmount();
   });
+
+  it("shows fallback source when API is rate-limited but a non-API check succeeds", async () => {
+    const toolStatuses: ExternalToolStatus[] = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "path",
+        version: "ffmpeg version 6.1.1",
+        remoteVersion: "6.1.1",
+        updateCheckResult: "upToDate",
+        updateAvailable: false,
+        autoDownloadEnabled: false,
+        autoUpdateEnabled: false,
+        downloadInProgress: false,
+      },
+    ];
+
+    const refreshToolStatuses = vi.fn(async () => {});
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
+        },
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses,
+        refreshToolStatuses,
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="tool-check-update-ffmpeg"]').trigger("click");
+    await flushPromises();
+
+    await wrapper.setProps({
+      toolStatuses: [
+        {
+          ...toolStatuses[0],
+          lastRemoteCheckMessage:
+            "remote version check source: redirect; GitHub API rate limit exhausted; tried non-API release check",
+          lastRemoteCheckAtMs: Date.now(),
+        },
+      ],
+    });
+    await flushPromises();
+
+    const log = wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text();
+    expect(log).toContain("结论：已是最新版本");
+    expect(log).toContain("source: redirect");
+    expect(log).toContain("rate limit exhausted");
+    expect(log).not.toContain("结论：远端检查失败");
+
+    wrapper.unmount();
+  });
+
+  it("keeps the existing remote version visible when remote checks fall back to pinned", async () => {
+    const toolStatuses: ExternalToolStatus[] = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "path",
+        version: "ffmpeg version 6.0",
+        remoteVersion: "7.0.0",
+        updateCheckResult: "updateAvailable",
+        updateAvailable: true,
+        autoDownloadEnabled: false,
+        autoUpdateEnabled: false,
+        downloadInProgress: false,
+      },
+    ];
+
+    const refreshToolStatuses = vi.fn(async () => {});
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
+        },
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses,
+        refreshToolStatuses,
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="tool-check-update-ffmpeg"]').trigger("click");
+    await flushPromises();
+
+    await wrapper.setProps({
+      toolStatuses: [
+        {
+          ...toolStatuses[0],
+          lastRemoteCheckMessage:
+            "remote version check source: pinned; all remote release checks failed; using the built-in pinned version",
+          lastRemoteCheckAtMs: Date.now(),
+        },
+      ],
+    });
+    await flushPromises();
+
+    const log = wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text();
+    expect(log).toContain("远端版本：7.0.0");
+    expect(log).toContain("source: pinned");
+    expect(log).toContain("built-in pinned version");
+    expect(log).not.toContain("结论：远端检查失败");
+
+    wrapper.unmount();
+  });
+
+  it("keeps proxy fallback notices visible as warnings", async () => {
+    const toolStatuses: ExternalToolStatus[] = [
+      {
+        kind: "ffmpeg",
+        resolvedPath: "C:/tools/ffmpeg.exe",
+        source: "path",
+        version: "ffmpeg version 6.1.1",
+        remoteVersion: "6.1.1",
+        updateCheckResult: "upToDate",
+        updateAvailable: false,
+        autoDownloadEnabled: false,
+        autoUpdateEnabled: false,
+        downloadInProgress: false,
+      },
+    ];
+
+    const wrapper = mount(SettingsPanel, {
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
+        },
+      },
+      props: {
+        appSettings: makeAppSettings(),
+        toolStatuses,
+        refreshToolStatuses: vi.fn(async () => {}),
+        isSavingSettings: false,
+        settingsSaveError: null,
+        fetchToolCandidates: async () => [],
+      },
+    });
+
+    await flushPromises();
+    await wrapper.get('[data-testid="tool-check-update-ffmpeg"]').trigger("click");
+    await flushPromises();
+
+    await wrapper.setProps({
+      toolStatuses: [
+        {
+          ...toolStatuses[0],
+          lastRemoteCheckMessage: "[proxy] invalid proxy URL; falling back to direct: invalid proxy URL",
+          lastRemoteCheckAtMs: Date.now(),
+        },
+      ],
+    });
+    await flushPromises();
+
+    const log = wrapper.get('[data-testid="tool-check-update-hover-log-ffmpeg"]').text();
+    expect(log).toContain("WARN");
+    expect(log).toContain("[proxy] invalid proxy URL");
+
+    wrapper.unmount();
+  });
 });

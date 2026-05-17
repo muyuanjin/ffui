@@ -94,6 +94,7 @@ pub fn resolve_effective_proxy_once() -> ResolvedNetworkProxy {
 }
 
 #[cfg(not(test))]
+#[allow(dead_code)]
 pub fn apply_reqwest_blocking_builder(
     builder: reqwest::blocking::ClientBuilder,
     resolved: &ResolvedNetworkProxy,
