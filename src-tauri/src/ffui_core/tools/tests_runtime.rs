@@ -201,6 +201,7 @@ mod tools_tests_runtime {
         {
             let mut file = File::create(&avifenc_path).expect("create fake avifenc .bat");
             writeln!(file, "@echo off").unwrap();
+            writeln!(file, "echo avifenc 1.3.0").unwrap();
             writeln!(file, "exit /b 0").unwrap();
             drop(file);
         }
@@ -209,6 +210,7 @@ mod tools_tests_runtime {
         {
             let mut file = File::create(&avifenc_path).expect("create fake avifenc script");
             writeln!(file, "#!/usr/bin/env sh").unwrap();
+            writeln!(file, "echo \"avifenc 1.3.0\"").unwrap();
             writeln!(file, "exit 0").unwrap();
             drop(file);
             let mut perms = fs::metadata(&avifenc_path)

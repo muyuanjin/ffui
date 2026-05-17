@@ -121,7 +121,7 @@ mod tools_tests_probe {
     }
 
     #[test]
-    fn verify_avifenc_binary_treats_non_zero_exit_as_available() {
+    fn verify_avifenc_binary_rejects_non_zero_exit() {
         use crate::ffui_core::tools::ExternalToolKind;
         use crate::ffui_core::tools::probe::verify_tool_binary;
 
@@ -133,18 +133,17 @@ mod tools_tests_probe {
             let path = dir.join("fake_avifenc.bat");
             let mut file = File::create(&path).expect("create fake avifenc .bat");
             writeln!(file, "@echo off").unwrap();
-            // Always exit with a non-zero status so we can verify that the
-            // verifier does not rely on the exit code for avifenc.
+            writeln!(file, "echo avifenc 1.3.0").unwrap();
             writeln!(file, "exit /b 7").unwrap();
             drop(file);
 
             assert!(
-                verify_tool_binary(
+                !verify_tool_binary(
                     path.to_string_lossy().as_ref(),
                     ExternalToolKind::Avifenc,
                     "path"
                 ),
-                "avifenc verifier must treat a successfully spawned binary as available even when it exits non-zero"
+                "avifenc verifier must reject non-zero --version exits"
             );
         }
 
@@ -153,7 +152,110 @@ mod tools_tests_probe {
             let path = dir.join("fake_avifenc.sh");
             let mut file = File::create(&path).expect("create fake avifenc script");
             writeln!(file, "#!/usr/bin/env sh").unwrap();
+            writeln!(file, "echo \"avifenc 1.3.0\"").unwrap();
             writeln!(file, "exit 7").unwrap();
+            drop(file);
+
+            #[cfg(unix)]
+            {
+                make_executable(&path, "fake avifenc script");
+            }
+
+            assert!(
+                !verify_tool_binary(
+                    path.to_string_lossy().as_ref(),
+                    ExternalToolKind::Avifenc,
+                    "path"
+                ),
+                "avifenc verifier must reject non-zero --version exits"
+            );
+        }
+    }
+
+    #[test]
+    fn verify_avifenc_binary_rejects_empty_successful_version_output() {
+        use crate::ffui_core::tools::ExternalToolKind;
+        use crate::ffui_core::tools::probe::verify_tool_binary;
+
+        let tmp = TempDir::new().expect("temp dir");
+        let dir = tmp.path();
+
+        #[cfg(windows)]
+        {
+            let path = dir.join("fake_avifenc_empty.bat");
+            let mut file = File::create(&path).expect("create fake avifenc .bat");
+            writeln!(file, "@echo off").unwrap();
+            writeln!(file, "exit /b 0").unwrap();
+            drop(file);
+
+            assert!(
+                !verify_tool_binary(
+                    path.to_string_lossy().as_ref(),
+                    ExternalToolKind::Avifenc,
+                    "path"
+                ),
+                "avifenc verifier must reject empty --version output"
+            );
+        }
+
+        #[cfg(not(windows))]
+        {
+            let path = dir.join("fake_avifenc_empty.sh");
+            let mut file = File::create(&path).expect("create fake avifenc script");
+            writeln!(file, "#!/usr/bin/env sh").unwrap();
+            writeln!(file, "exit 0").unwrap();
+            drop(file);
+
+            #[cfg(unix)]
+            {
+                make_executable(&path, "fake avifenc script");
+            }
+
+            assert!(
+                !verify_tool_binary(
+                    path.to_string_lossy().as_ref(),
+                    ExternalToolKind::Avifenc,
+                    "path"
+                ),
+                "avifenc verifier must reject empty --version output"
+            );
+        }
+    }
+
+    #[test]
+    fn verify_avifenc_binary_accepts_successful_non_empty_version_output() {
+        use crate::ffui_core::tools::ExternalToolKind;
+        use crate::ffui_core::tools::probe::verify_tool_binary;
+
+        let tmp = TempDir::new().expect("temp dir");
+        let dir = tmp.path();
+
+        #[cfg(windows)]
+        {
+            let path = dir.join("fake_avifenc_ok.bat");
+            let mut file = File::create(&path).expect("create fake avifenc .bat");
+            writeln!(file, "@echo off").unwrap();
+            writeln!(file, "echo avifenc 1.3.0").unwrap();
+            writeln!(file, "exit /b 0").unwrap();
+            drop(file);
+
+            assert!(
+                verify_tool_binary(
+                    path.to_string_lossy().as_ref(),
+                    ExternalToolKind::Avifenc,
+                    "path"
+                ),
+                "avifenc verifier must accept successful non-empty --version output"
+            );
+        }
+
+        #[cfg(not(windows))]
+        {
+            let path = dir.join("fake_avifenc_ok.sh");
+            let mut file = File::create(&path).expect("create fake avifenc script");
+            writeln!(file, "#!/usr/bin/env sh").unwrap();
+            writeln!(file, "echo \"avifenc 1.3.0\"").unwrap();
+            writeln!(file, "exit 0").unwrap();
             drop(file);
 
             #[cfg(unix)]
@@ -167,7 +269,7 @@ mod tools_tests_probe {
                     ExternalToolKind::Avifenc,
                     "path"
                 ),
-                "avifenc verifier must treat a successfully spawned binary as available even when it exits non-zero"
+                "avifenc verifier must accept successful non-empty --version output"
             );
         }
     }

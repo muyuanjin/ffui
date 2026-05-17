@@ -260,30 +260,18 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
     let mut cmd = Command::new(path);
     configure_background_command(&mut cmd);
     // For ffmpeg/ffprobe we prefer `-version`, which avoids the non-zero exit
-    // code some builds use for `--version`. For avifenc we only care that the
-    // binary can be spawned at all; many builds exit non‑zero when called
-    // without real input, so we treat any successful spawn as "available".
+    // code some builds use for `--version`. For avifenc, upstream supports
+    // GNU-style `--version`; require a successful exit and non-empty output so
+    // corrupt wrappers do not poison image AVIF encoding.
     if kind == ExternalToolKind::Avifenc {
         #[cfg(windows)]
+        if let Some(machine) = parse_pe_machine(path)
+            && !pe_arch_compatible_with_host(machine)
         {
-            // Fast path on Windows: if PE architecture is compatible, treat as available
-            // without spawning a process.
-            if let Some(machine) = parse_pe_machine(path) {
-                let ok = pe_arch_compatible_with_host(machine);
-                if !ok {
-                    let err = std::io::Error::from_raw_os_error(193);
-                    mark_arch_incompatible_for_session(kind, source, path, &err);
-                    cache_store_with_version(kind, path, false, None);
-                    return false;
-                }
-                cache_store_with_version(kind, path, true, None);
-                if debug_log {
-                    crate::debug_eprintln!(
-                        "[verify_tool_binary] fast-ok avifenc (PE arch match) path={path} source={source} machine=0x{machine:04x}"
-                    );
-                }
-                return true;
-            }
+            let err = std::io::Error::from_raw_os_error(193);
+            mark_arch_incompatible_for_session(kind, source, path, &err);
+            cache_store_with_version(kind, path, false, None);
+            return false;
         }
         cmd.arg("--version");
         match cmd.output() {
@@ -299,8 +287,9 @@ pub(crate) fn verify_tool_binary(path: &str, kind: ExternalToolKind, source: &st
                     );
                 }
                 let version = extract_first_non_empty_line(&out.stdout, &out.stderr);
-                cache_store_with_version(kind, path, true, version);
-                true
+                let ok = out.status.success() && version.is_some();
+                cache_store_with_version(kind, path, ok, version);
+                ok
             }
             Err(err) => {
                 if debug_log {
@@ -385,12 +374,14 @@ pub(super) fn detect_local_tool_version(path: &str, kind: ExternalToolKind) -> O
     configure_background_command(&mut cmd);
     let version = match kind {
         ExternalToolKind::Avifenc => {
-            // avifenc uses GNU-style `--version` in upstream builds; some versions
-            // may print to stderr or exit non-zero, so we accept any output.
-            cmd.arg("--version")
-                .output()
-                .ok()
-                .and_then(|out| extract_first_non_empty_line(&out.stdout, &out.stderr))
+            // Keep version detection aligned with availability checks:
+            // successful `--version` plus non-empty output.
+            cmd.arg("--version").output().ok().and_then(|out| {
+                out.status
+                    .success()
+                    .then(|| extract_first_non_empty_line(&out.stdout, &out.stderr))
+                    .flatten()
+            })
         }
         _ => cmd
             .arg("-version")

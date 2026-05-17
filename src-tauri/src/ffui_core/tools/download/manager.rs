@@ -1,6 +1,6 @@
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::time::Duration;
 
@@ -14,6 +14,7 @@ use super::release::{
     current_ffmpeg_release, default_avifenc_zip_url, default_ffmpeg_download_url,
     default_ffprobe_download_url, semantic_version_from_tag,
 };
+use super::transaction::{ToolInstallTransaction, install_verified_staged_binary};
 use crate::ffui_core::settings::ExternalToolSettings;
 use crate::ffui_core::tools::discover::discover_candidates;
 use crate::ffui_core::tools::probe::verify_tool_binary;
@@ -26,21 +27,61 @@ use crate::ffui_core::tools::runtime_state::{
     record_last_tool_download, snapshot_download_state,
 };
 use crate::ffui_core::tools::types::{ExternalToolKind, LIBAVIF_VERSION};
+use crate::sync_ext::MutexExt;
 
-fn backup_existing_tool_binary(dest_path: &PathBuf) -> Option<PathBuf> {
-    if !dest_path.exists() {
-        return None;
+static FFMPEG_INSTALL_LOCK: once_cell::sync::Lazy<Mutex<()>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(()));
+static FFPROBE_INSTALL_LOCK: once_cell::sync::Lazy<Mutex<()>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(()));
+static AVIFENC_INSTALL_LOCK: once_cell::sync::Lazy<Mutex<()>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(()));
+
+#[cfg(test)]
+type TestDownloadHook = Arc<dyn Fn(ExternalToolKind) -> Result<PathBuf> + Send + Sync + 'static>;
+#[cfg(test)]
+type TestVerifyHook = Arc<dyn Fn(&Path, ExternalToolKind, &str) -> bool + Send + Sync + 'static>;
+
+#[cfg(test)]
+static TEST_DOWNLOAD_HOOK: once_cell::sync::Lazy<Mutex<Option<TestDownloadHook>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
+#[cfg(test)]
+static TEST_VERIFY_HOOK: once_cell::sync::Lazy<Mutex<Option<TestVerifyHook>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
+
+fn install_lock_for(kind: ExternalToolKind) -> &'static Mutex<()> {
+    match kind {
+        ExternalToolKind::Ffmpeg => &FFMPEG_INSTALL_LOCK,
+        ExternalToolKind::Ffprobe => &FFPROBE_INSTALL_LOCK,
+        ExternalToolKind::Avifenc => &AVIFENC_INSTALL_LOCK,
+    }
+}
+
+fn lock_tool_install(kind: ExternalToolKind) -> MutexGuard<'static, ()> {
+    install_lock_for(kind).lock_unpoisoned()
+}
+
+#[cfg(test)]
+fn test_download_hook() -> Option<TestDownloadHook> {
+    TEST_DOWNLOAD_HOOK.lock_unpoisoned().clone()
+}
+
+#[cfg(test)]
+fn test_verify_hook() -> Option<TestVerifyHook> {
+    TEST_VERIFY_HOOK.lock_unpoisoned().clone()
+}
+
+fn verify_install_candidate(path: &Path, kind: ExternalToolKind, source: &str) -> bool {
+    #[cfg(test)]
+    if let Some(hook) = test_verify_hook() {
+        return hook(path, kind, source);
     }
 
-    let candidate = dest_path.with_extension("bak");
-    drop(std::fs::remove_file(&candidate));
-    if std::fs::rename(dest_path, &candidate).is_ok() {
-        Some(candidate)
-    } else {
-        // Fallback: remove existing file so the new download can be placed.
-        drop(std::fs::remove_file(dest_path));
-        None
-    }
+    verify_tool_binary(&path.to_string_lossy(), kind, source)
+}
+
+fn verified_downloaded_candidate(kind: ExternalToolKind) -> Option<PathBuf> {
+    let downloaded = downloaded_tool_path(kind)?;
+    verify_install_candidate(&downloaded, kind, "download").then_some(downloaded)
 }
 
 /// For download flows that do not naturally surface per-chunk progress
@@ -71,7 +112,48 @@ pub(crate) fn spawn_download_size_probe(
     (stop, handle)
 }
 
-fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
+fn stop_download_size_probe(probe: Option<(Arc<AtomicBool>, Option<thread::JoinHandle<()>>)>) {
+    if let Some((stop, handle)) = probe {
+        stop.store(true, Ordering::Relaxed);
+        if let Some(handle) = handle {
+            drop(handle.join());
+        }
+    }
+}
+
+fn download_tool_binary_locked(kind: ExternalToolKind) -> Result<PathBuf> {
+    #[cfg(test)]
+    if let Some(hook) = test_download_hook() {
+        mark_download_started(
+            kind,
+            format!("starting auto-download for {}", tool_binary_name(kind)),
+        );
+        return match hook(kind) {
+            Ok(path) => {
+                mark_download_progress(kind, 1, Some(1));
+                mark_download_finished(
+                    kind,
+                    format!(
+                        "auto-download completed for {} (path: {})",
+                        tool_binary_name(kind),
+                        path.display()
+                    ),
+                );
+                Ok(path)
+            }
+            Err(err) => {
+                mark_download_error(
+                    kind,
+                    format!(
+                        "auto-download for {} failed: {err:#}",
+                        tool_binary_name(kind)
+                    ),
+                );
+                Err(err)
+            }
+        };
+    }
+
     mark_download_started(
         kind,
         format!("starting auto-download for {}", tool_binary_name(kind)),
@@ -79,7 +161,6 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 
     let result: Result<(PathBuf, Option<String>)> = match kind {
         ExternalToolKind::Ffmpeg | ExternalToolKind::Ffprobe => {
-            let proxy_note: Option<String>;
             let url = if matches!(kind, ExternalToolKind::Ffmpeg) {
                 default_ffmpeg_download_url()?
             } else {
@@ -87,83 +168,52 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             };
 
             let release = current_ffmpeg_release();
-            record_last_tool_download(kind, url.clone(), Some(release.version), Some(release.tag));
 
             let dir = tools_dir()?;
+            std::fs::create_dir_all(&dir)
+                .with_context(|| format!("failed to create tools dir {}", dir.display()))?;
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
-            let tmp_path = dir.join(format!("{filename}.tmp"));
+            let transaction = ToolInstallTransaction::new(kind)?;
+            let staged_path = transaction.path(&filename);
             let mut probe: Option<(Arc<AtomicBool>, Option<thread::JoinHandle<()>>)> = None;
 
-            if super::net::aria2c_available() {
+            let download_result = if super::net::aria2c_available() {
                 // Try to fetch a content length hint to expose determinate progress early.
                 let total_hint = super::net::content_length_head(&url);
                 probe = Some(spawn_download_size_probe(
                     kind,
-                    tmp_path.clone(),
+                    staged_path.clone(),
                     total_hint,
                 ));
                 // Download to a temporary file first to avoid surfacing a
                 // truncated/corrupted binary under the final name on crashes.
-                match download_file_with_aria2c(&url, &tmp_path) {
-                    Ok(info) => {
-                        proxy_note = info.message;
-                    }
+                match download_file_with_aria2c(&url, &staged_path) {
+                    Ok(info) => Ok(info),
                     Err(err) => {
                         crate::debug_eprintln!(
                             "aria2c download failed for {filename} ({url}): {err:#}; falling back to built-in HTTP client"
                         );
-                        let info =
-                            download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
-                                mark_download_progress(kind, downloaded, total);
-                            })?;
-                        proxy_note = info.message;
+                        download_file_with_reqwest(&url, &staged_path, |downloaded, total| {
+                            mark_download_progress(kind, downloaded, total);
+                        })
                     }
                 }
             } else {
-                let info = download_file_with_reqwest(&url, &tmp_path, |downloaded, total| {
+                download_file_with_reqwest(&url, &staged_path, |downloaded, total| {
                     mark_download_progress(kind, downloaded, total);
-                })?;
-                proxy_note = info.message;
-            }
-            if let Some((stop, handle)) = probe {
-                stop.store(true, Ordering::Relaxed);
-                if let Some(handle) = handle {
-                    drop(handle.join());
-                }
-            }
+                })
+            };
+            stop_download_size_probe(probe);
+            let proxy_note: Option<String> = download_result?.message;
 
-            // On Windows we must verify using an executable-looking path
-            // (suffix .exe), so perform verification _after_ moving into
-            // place. To avoid losing a good existing binary on failure, keep
-            // a best-effort backup and restore it if verification fails.
-            let backup_path = backup_existing_tool_binary(&dest_path);
-
-            std::fs::rename(&tmp_path, &dest_path).with_context(|| {
-                format!(
-                    "failed to move freshly downloaded {tool} into place: {} -> {}",
-                    tmp_path.display(),
-                    dest_path.display(),
-                    tool = tool_binary_name(kind)
-                )
-            })?;
-
-            let dest_str = dest_path.to_string_lossy().into_owned();
-            if !verify_tool_binary(&dest_str, kind, "download") {
-                drop(std::fs::remove_file(&dest_path));
-                if let Some(backup) = &backup_path {
-                    drop(std::fs::rename(backup, &dest_path));
-                }
-                return Err(anyhow!(
-                    "downloaded {tool} binary failed verification after install; refusing to keep it",
-                    tool = tool_binary_name(kind)
-                ));
-            }
-
-            // Verified successfully; clean up any backup.
-            if let Some(backup) = &backup_path {
-                drop(std::fs::remove_file(backup));
-            }
+            install_verified_staged_binary(
+                kind,
+                &staged_path,
+                &dest_path,
+                verify_install_candidate,
+            )?;
+            record_last_tool_download(kind, url, Some(release.version), Some(release.tag));
 
             // Ensure progress reaches 100% with concrete byte counts even when
             // aria2c is used (which does not emit per-chunk callbacks).
@@ -181,38 +231,22 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
             let proxy_note = info.message;
 
             let dir = tools_dir()?;
+            std::fs::create_dir_all(&dir)
+                .with_context(|| format!("failed to create tools dir {}", dir.display()))?;
             let filename = downloaded_tool_filename(tool_binary_name(kind));
             let dest_path = dir.join(&filename);
-            let tmp_path = dir.join(format!("{filename}.tmp"));
+            let transaction = ToolInstallTransaction::new(kind)?;
+            let staged_path = transaction.path(&filename);
 
             // Extract into a temporary path first to avoid leaving a partial
             // binary with the final name when extraction is interrupted.
-            extract_avifenc_from_zip(&bytes, &tmp_path)?;
-
-            let backup_path = backup_existing_tool_binary(&dest_path);
-
-            std::fs::rename(&tmp_path, &dest_path).with_context(|| {
-                format!(
-                    "failed to move freshly extracted avifenc into place: {} -> {}",
-                    tmp_path.display(),
-                    dest_path.display()
-                )
-            })?;
-
-            let dest_str = dest_path.to_string_lossy().into_owned();
-            if !verify_tool_binary(&dest_str, kind, "download") {
-                drop(std::fs::remove_file(&dest_path));
-                if let Some(backup) = &backup_path {
-                    drop(std::fs::rename(backup, &dest_path));
-                }
-                return Err(anyhow!(
-                    "extracted avifenc failed verification after install; refusing to keep it"
-                ));
-            }
-
-            if let Some(backup) = &backup_path {
-                drop(std::fs::remove_file(backup));
-            }
+            extract_avifenc_from_zip(&bytes, &staged_path)?;
+            install_verified_staged_binary(
+                kind,
+                &staged_path,
+                &dest_path,
+                verify_install_candidate,
+            )?;
             record_last_tool_download(
                 kind,
                 url,
@@ -256,6 +290,11 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
     }
 }
 
+fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
+    let _guard = lock_tool_install(kind);
+    download_tool_binary_locked(kind)
+}
+
 /// Force a download/update for the given external tool kind.
 ///
 /// This bypasses the `ensure_tool_available` auto-download/update decision
@@ -263,6 +302,42 @@ fn download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
 /// 自动更新开关触发的后台更新)。
 pub(crate) fn force_download_tool_binary(kind: ExternalToolKind) -> Result<PathBuf> {
     download_tool_binary(kind)
+}
+
+#[cfg(test)]
+pub(super) fn with_test_download_hook<R>(
+    hook: impl Fn(ExternalToolKind) -> Result<PathBuf> + Send + Sync + 'static,
+    f: impl FnOnce() -> R,
+) -> R {
+    struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            *TEST_DOWNLOAD_HOOK.lock_unpoisoned() = None;
+        }
+    }
+
+    *TEST_DOWNLOAD_HOOK.lock_unpoisoned() = Some(Arc::new(hook));
+    let _guard = Guard;
+    f()
+}
+
+#[cfg(test)]
+pub(super) fn with_test_verify_hook<R>(
+    hook: impl Fn(&Path, ExternalToolKind, &str) -> bool + Send + Sync + 'static,
+    f: impl FnOnce() -> R,
+) -> R {
+    struct Guard;
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            *TEST_VERIFY_HOOK.lock_unpoisoned() = None;
+        }
+    }
+
+    *TEST_VERIFY_HOOK.lock_unpoisoned() = Some(Arc::new(hook));
+    let _guard = Guard;
+    f()
 }
 
 pub(crate) fn ensure_tool_available(
@@ -349,7 +424,7 @@ pub(crate) fn ensure_tool_available(
             continue;
         }
 
-        let verified = verify_tool_binary(&path, kind, &source);
+        let verified = verify_install_candidate(Path::new(&path), kind, &source);
         if verified {
             return Ok((path, source, did_download));
         }
@@ -358,12 +433,21 @@ pub(crate) fn ensure_tool_available(
         // one-off download of the pinned static binary, but only when we do
         // not already know the downloaded binary is architecturally broken.
         if source == "path" && settings.auto_download && !runtime_state.download_arch_incompatible {
-            match download_tool_binary(kind) {
+            let _install_guard = lock_tool_install(kind);
+            if let Some(downloaded) = verified_downloaded_candidate(kind) {
+                return Ok((
+                    downloaded.to_string_lossy().into_owned(),
+                    "download".to_string(),
+                    false,
+                ));
+            }
+
+            match download_tool_binary_locked(kind) {
                 Ok(downloaded) => {
                     let downloaded_path = downloaded.to_string_lossy().into_owned();
                     let downloaded_source = "download".to_string();
                     did_download = true;
-                    if verify_tool_binary(&downloaded_path, kind, &downloaded_source) {
+                    if verify_install_candidate(&downloaded, kind, &downloaded_source) {
                         return Ok((downloaded_path, downloaded_source, did_download));
                     }
                     last_error = Some(format!(
