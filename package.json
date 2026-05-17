@@ -9,6 +9,8 @@
     "build": "vue-tsc --noEmit && vite build",
     "version:set": "node scripts/set-version.mjs",
     "check:all": "node scripts/check-all-coalesce.mjs",
+    "check:queue-contracts": "cargo test generated_queue_ipc_contracts_match_committed --manifest-path src-tauri/Cargo.toml",
+    "check:queue-contracts:update": "node scripts/update-queue-contracts.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
     "vq:snapshot:rebuild": "node scripts/vq-results/build-quality-snapshot.mjs",
     "preview": "vite preview",

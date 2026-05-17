@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use crate::ffui_core::FallbackFrameQuality;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Type)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum JobCompareOutput {
     Completed {
@@ -17,7 +18,7 @@ pub enum JobCompareOutput {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct JobCompareSources {
     pub job_id: String,

@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct JobLogLine {
     pub text: String,
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub at_ms: Option<u64>,
 }
 

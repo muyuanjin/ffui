@@ -20,6 +20,8 @@ macro_rules! debug_eprintln {
 mod app_exit;
 mod commands;
 mod ffui_core;
+#[cfg(test)]
+mod ipc_contracts;
 mod process_ext;
 mod queue_events;
 mod single_instance;

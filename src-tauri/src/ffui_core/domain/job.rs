@@ -1,11 +1,12 @@
 pub use super::job_logs::JobLogLine;
 use super::output_policy::OutputPolicy;
 use serde::{Deserialize, Serialize};
+use specta::Type;
 #[allow(clippy::trivially_copy_pass_by_ref)]
 const fn is_zero(v: &u64) -> bool {
     *v == 0
 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadata {
     /// Last known overall progress percentage when the job was paused via a
@@ -17,6 +18,7 @@ pub struct WaitMetadata {
     /// `elapsed_ms` reflects real time spent transcoding, instead of media
     /// duration-derived estimates.
     #[serde(rename = "processedWallMillis", alias = "processedWallMs")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processed_wall_millis: Option<u64>,
     /// Approximate number of seconds already processed when the job was
     /// paused. When media duration is unknown this may be None.
@@ -27,6 +29,7 @@ pub struct WaitMetadata {
     /// segment loss, conservative crash recovery), it MAY bump this value so
     /// the UI can treat subsequent progress as belonging to a new epoch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub progress_epoch: Option<u64>,
     /// Best-effort last seen `-progress` out_time (seconds) while the job was
     /// actively processing. This is persisted frequently for crash recovery so
@@ -37,9 +40,11 @@ pub struct WaitMetadata {
     pub last_progress_speed: Option<f64>,
     /// Best-effort wall-clock timestamp (ms since epoch) for the last progress sample.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_updated_at_ms: Option<u64>,
     /// Best-effort last seen `-progress` frame counter while the job was
     /// actively processing. This is primarily a diagnostic and recovery hint.
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_frame: Option<u64>,
     /// Path to a partial output segment or temporary output file, when
     /// available. This is intended for future crash-recovery and resume
@@ -54,7 +59,7 @@ pub struct WaitMetadata {
     pub segment_end_targets: Option<Vec<f64>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct JobWarning {
     /// Stable machine-readable warning identifier.
@@ -63,7 +68,7 @@ pub struct JobWarning {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobStatus {
     #[serde(alias = "waiting")]
@@ -76,7 +81,7 @@ pub enum JobStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum JobType {
     Video,
@@ -84,7 +89,7 @@ pub enum JobType {
     Audio,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type)]
 #[serde(rename_all = "snake_case")]
 pub enum JobSource {
     Manual,
@@ -95,7 +100,7 @@ pub enum JobSource {
 ///
 /// This is intentionally separate from read models so enqueue/config inputs can
 /// evolve without inflating queue snapshots or job detail payloads.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct JobRequest {
     pub filename: String,
@@ -112,7 +117,7 @@ pub struct JobRequest {
 /// Persistable job intent/config snapshot.
 ///
 /// This intentionally excludes runtime-only state (progress, logs, etc.).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct JobConfig {
     pub filename: String,
@@ -138,7 +143,7 @@ pub struct JobConfig {
     pub batch_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MediaInfo {
     pub duration_seconds: Option<f64>,
@@ -155,22 +160,24 @@ pub struct MediaInfo {
 
 /// Represents a single external tool "run" for a job (e.g. the initial ffmpeg
 /// launch, a resume run with `-ss ...`, or a retry after restart).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct JobRun {
     /// Copy-safe command string for this run (quoted, user-facing).
     pub command: String,
     /// Log lines emitted during this run (bounded).
+    #[specta(type = Vec<JobLogLine>)]
     #[serde(
         default,
         deserialize_with = "super::job_logs::deserialize_job_log_lines"
     )]
     pub logs: Vec<JobLogLine>,
     /// Best-effort wall-clock start time for this run in milliseconds since epoch.
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub started_at_ms: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJob {
     /* jscpd:ignore-start */
@@ -183,6 +190,7 @@ pub struct TranscodeJob {
     /// scheduled earlier. The frontend uses this for queue-mode ordering while
     /// treating it as metadata in display-only mode.
     #[serde(rename = "queueOrder")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub queue_order: Option<u64>,
     // Align with TS field name `originalSizeMB` but accept legacy
     // `originalSizeMb` when deserializing.
@@ -192,13 +200,17 @@ pub struct TranscodeJob {
     pub preset_id: String,
     pub status: JobStatus,
     pub progress: f64,
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub start_time: Option<u64>,
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub end_time: Option<u64>,
     /// 实际开始处理的时间戳（毫秒），用于计算纯处理耗时（不含排队）。
     #[serde(rename = "processingStartedMs")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processing_started_ms: Option<u64>,
     /// 累计已用转码时间（毫秒）。用于处理暂停/恢复场景，在暂停时保存当前累计时间，
     /// 恢复后继续累加。对于未暂停过的任务，可通过 (当前时间 - `start_time`) 计算。
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub elapsed_ms: Option<u64>,
     // Align with TS field name `outputSizeMB` but accept legacy
     // `outputSizeMb` when deserializing.
@@ -206,6 +218,7 @@ pub struct TranscodeJob {
     pub output_size_mb: Option<f64>, /* jscpd:ignore-end */
     /// Rolling window of recent log lines for this job. The UI uses this to
     /// display progressive output and debugging details.
+    #[specta(type = Vec<JobLogLine>)]
     #[serde(
         default,
         deserialize_with = "super::job_logs::deserialize_job_log_lines"
@@ -225,9 +238,11 @@ pub struct TranscodeJob {
     /// On platforms that do not expose birth time, this may fall back to inode
     /// change time (ctime).
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub created_time_ms: Option<u64>,
     /// Best-effort input file modified time in milliseconds since epoch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub modified_time_ms: Option<u64>,
     /// Planned or final output path for this job. For video transcodes this
     /// points at the `.compressed.*` target, even before the file exists.
@@ -260,6 +275,7 @@ pub struct TranscodeJob {
     /// This allows the frontend to cache-bust preview URLs even when the
     /// preview path itself is stable (e.g. hash-based filenames).
     #[serde(default, skip_serializing_if = "is_zero")]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub preview_revision: u64,
     /// Bounded textual tail of stderr/stdout logs for this job, suitable
     /// for rendering in the task detail view without unbounded growth.
@@ -326,7 +342,7 @@ impl TranscodeJob {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueState {
     pub jobs: Vec<TranscodeJob>,

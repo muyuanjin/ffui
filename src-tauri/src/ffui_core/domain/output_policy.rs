@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 pub enum OutputContainerPolicy {
     /// Follow the preset (structured) or the advanced template when present.
@@ -15,7 +16,7 @@ pub enum OutputContainerPolicy {
     Force { format: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase", tag = "mode")]
 pub enum OutputDirectoryPolicy {
     #[serde(rename = "sameAsInput")]
@@ -25,14 +26,14 @@ pub enum OutputDirectoryPolicy {
     Fixed { directory: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputFilenameRegexReplace {
     pub pattern: String,
     pub replacement: String,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum OutputFilenameAppend {
     /// The literal suffix string in `OutputFilenamePolicy::suffix`.
@@ -42,7 +43,7 @@ pub enum OutputFilenameAppend {
     Random,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputFilenamePolicy {
     /// Optional string prepended to the filename stem.
@@ -103,7 +104,7 @@ impl Default for OutputFilenamePolicy {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(untagged)]
 pub enum PreserveFileTimesPolicy {
     /// Backward-compatible mode: true = preserve all, false = preserve none.
@@ -156,7 +157,7 @@ const fn is_preserve_file_times_disabled(v: &PreserveFileTimesPolicy) -> bool {
     !v.any()
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct OutputPolicy {
     #[serde(default)]

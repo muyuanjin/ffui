@@ -174,7 +174,7 @@ export interface TranscodeJob {
    * scheduled earlier. In display-only mode this is treated as metadata;
    * in queue mode it is used to reflect backend execution order.
    */
-  queueOrder?: number;
+  queueOrder?: number | null;
   originalSizeMB: number;
   originalCodec?: string;
   presetId: string;
@@ -253,7 +253,7 @@ export interface TranscodeJobUiLite {
   filename: string;
   type: JobType;
   source: JobSource;
-  queueOrder?: number;
+  queueOrder?: number | null;
   originalSizeMB: number;
   originalCodec?: string;
   presetId: string;

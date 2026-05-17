@@ -10,6 +10,8 @@ vi.mock("@tauri-apps/api/core", () => {
 });
 
 import { loadQueueStateLite } from "./backend";
+import { queueStateLiteFromWire } from "./backend/queueContract";
+import type { WireQueueStateLite } from "./backend/generated/queue-contracts";
 
 describe("backend queue state contract", () => {
   beforeEach(() => {
@@ -18,6 +20,7 @@ describe("backend queue state contract", () => {
 
   it("loadQueueStateLite preserves queueOrder field values", async () => {
     const fake = {
+      snapshotRevision: 1,
       jobs: [
         {
           id: "job-queue-1",
@@ -27,9 +30,9 @@ describe("backend queue state contract", () => {
           originalSizeMB: 10,
           presetId: "preset-1",
           status: "queued",
+          waitRequestPending: false,
           queueOrder: 3,
           progress: 0,
-          logs: [],
         },
         {
           id: "job-queue-2",
@@ -42,10 +45,9 @@ describe("backend queue state contract", () => {
           waitRequestPending: true,
           queueOrder: null,
           progress: 10,
-          logs: [],
         },
       ],
-    };
+    } satisfies WireQueueStateLite;
     invokeMock.mockResolvedValueOnce(fake);
 
     const result = await loadQueueStateLite();
@@ -54,6 +56,36 @@ describe("backend queue state contract", () => {
     expect(result.jobs[0]?.queueOrder).toBe(3);
     expect(result.jobs[1]?.queueOrder).toBeNull();
     expect(result.jobs[1]?.waitRequestPending).toBe(true);
+  });
+
+  it("maps generated queue wire snapshots with queueOrder null explicitly", () => {
+    const wire = {
+      snapshotRevision: 2,
+      latestDeltaRevision: 4,
+      jobs: [
+        {
+          id: "job-null-order",
+          filename: "C:/videos/in.mp4",
+          type: "video",
+          source: "manual",
+          originalSizeMB: 10,
+          originalCodec: null,
+          presetId: "preset-1",
+          status: "processing",
+          waitRequestPending: true,
+          queueOrder: null,
+          progress: 42,
+          warnings: [],
+        },
+      ],
+    } satisfies WireQueueStateLite;
+
+    const result = queueStateLiteFromWire(wire);
+
+    expect(result.snapshotRevision).toBe(2);
+    expect(result.latestDeltaRevision).toBe(4);
+    expect(result.jobs[0]?.queueOrder).toBeNull();
+    expect(result.jobs[0]?.waitRequestPending).toBe(true);
   });
 
   it("loadQueueStateLite preserves waitMetadata field names and values", async () => {

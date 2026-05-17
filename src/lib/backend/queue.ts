@@ -1,5 +1,7 @@
 import { invokeCommand } from "./invokeCommand";
 import type { TranscodeJob } from "@/types";
+import type { WireTranscodeJob } from "./generated/queue-contracts";
+import { transcodeJobFromWire } from "./queueContract";
 import { hasTauri } from "../backend.core";
 
 export const cancelTranscodeJob = async (jobId: string): Promise<boolean> => {
@@ -55,7 +57,8 @@ export const reorderQueue = async (orderedIds: string[]): Promise<boolean> => {
 };
 
 export const loadJobDetail = async (jobId: string): Promise<TranscodeJob | null> => {
-  return invokeCommand<TranscodeJob | null>("get_job_detail", { jobId });
+  const wire = await invokeCommand<WireTranscodeJob | null>("get_job_detail", { jobId });
+  return wire ? transcodeJobFromWire(wire) : null;
 };
 
 export const loadPreviewDataUrl = async (previewPath: string): Promise<string> => {

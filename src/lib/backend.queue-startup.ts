@@ -1,10 +1,13 @@
 import { invokeCommand } from "./backend/invokeCommand";
 import type { QueueStartupHint } from "@/types";
 import { hasTauri } from "./backend.core";
+import type { WireQueueStartupHint } from "./backend/generated/queue-contracts";
+import { queueStartupHintFromWire } from "./backend/queueContract";
 
 export const getQueueStartupHint = async (): Promise<QueueStartupHint | null> => {
   if (!hasTauri()) return null;
-  return invokeCommand<QueueStartupHint | null>("get_queue_startup_hint");
+  const wire = await invokeCommand<WireQueueStartupHint | null>("get_queue_startup_hint");
+  return queueStartupHintFromWire(wire);
 };
 
 export const resumeStartupQueue = async (): Promise<number> => {

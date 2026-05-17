@@ -19,10 +19,12 @@ import type {
   SystemMetricsSnapshot,
   TranscodeActivityToday,
 } from "../types";
+import type { WireQueueState, WireQueueStateLite } from "./backend/generated/queue-contracts";
 import type { SystemFontFamily } from "./systemFontSearch";
 import type { DownloadedFontInfo, OpenSourceFontInfo, UiFontDownloadSnapshot } from "./backend.types";
 import { hasTauri } from "./backend.core";
 import { invokeCommand } from "./backend/invokeCommand";
+import { queueStateFromWire, queueStateLiteFromWire } from "./backend/queueContract";
 import { appendQueryParam } from "./url";
 export type {
   AppUpdaterCapabilities,
@@ -309,11 +311,13 @@ export const validatePresetTemplate = async (
 };
 
 export const loadQueueState = async (): Promise<QueueState> => {
-  return invokeCommand<QueueState>("get_queue_state");
+  const wire = await invokeCommand<WireQueueState>("get_queue_state");
+  return queueStateFromWire(wire);
 };
 
 export const loadQueueStateLite = async (): Promise<QueueStateLite> => {
-  return invokeCommand<QueueStateLite>("get_queue_state_lite");
+  const wire = await invokeCommand<WireQueueStateLite>("get_queue_state_lite");
+  return queueStateLiteFromWire(wire);
 };
 
 export const expandManualJobInputs = async (paths: string[], options?: { recursive?: boolean }): Promise<string[]> => {

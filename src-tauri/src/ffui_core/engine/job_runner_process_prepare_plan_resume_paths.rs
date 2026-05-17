@@ -70,8 +70,7 @@ pub(super) fn plan_resume_paths(
         if let Some(last) = existing_segment_end_targets
             .iter()
             .copied()
-            .filter(|t| t.is_finite() && *t > 0.0)
-            .next_back()
+            .rfind(|t| t.is_finite() && *t > 0.0)
         {
             resume_target_seconds = Some(last);
         }

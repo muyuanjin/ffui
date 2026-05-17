@@ -1,15 +1,18 @@
 import { invokeCommand } from "./invokeCommand";
 import type { JobCompareSources } from "@/types";
 import type { FallbackFrameQuality } from "./fallbackPreview";
+import type { WireJobCompareSources } from "./generated/queue-contracts";
+import { jobCompareSourcesFromWire } from "./queueContract";
 
 export const getJobCompareSources = async (jobId: string): Promise<JobCompareSources | null> => {
   const normalized = jobId.trim();
   if (!normalized) return null;
-  return invokeCommand<JobCompareSources | null>("get_job_compare_sources", {
+  const wire = await invokeCommand<WireJobCompareSources | null>("get_job_compare_sources", {
     args: {
       jobId: normalized,
     },
   });
+  return jobCompareSourcesFromWire(wire);
 };
 
 export const extractJobCompareFrame = async (args: {

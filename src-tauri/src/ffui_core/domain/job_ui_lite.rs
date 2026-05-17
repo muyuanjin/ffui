@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use super::job::{
     JobSource, JobStatus, JobType, JobWarning, MediaInfo, TranscodeJob, WaitMetadata,
@@ -15,12 +16,14 @@ const fn is_zero(v: &u64) -> bool {
 ///
 /// This is intentionally slimmer than `QueueStateLite` (crash-recovery persistence)
 /// so startup and high-frequency UI delivery do not ship recovery-only fields.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueStateUiLite {
     #[serde(default)]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub snapshot_revision: u64,
     #[serde(default, skip_serializing_if = "is_zero")]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub latest_delta_revision: u64,
     pub jobs: Vec<TranscodeJobUiLite>,
 }
@@ -29,7 +32,7 @@ pub struct QueueStateUiLite {
 ///
 /// Keeps only the fields needed by the queue list UI (progress smoothing, partial
 /// output path) while omitting crash-recovery internals such as per-segment lists.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WaitMetadataUiLite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -40,26 +43,30 @@ pub struct WaitMetadataUiLite {
         default,
         skip_serializing_if = "Option::is_none"
     )]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processed_wall_millis: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub processed_seconds: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_seconds: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub progress_epoch: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_progress_out_time_seconds: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_progress_speed: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_updated_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_frame: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tmp_output_path: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobUiLite {
     pub id: String,
@@ -68,6 +75,7 @@ pub struct TranscodeJobUiLite {
     pub job_type: JobType,
     pub source: JobSource,
     #[serde(rename = "queueOrder")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub queue_order: Option<u64>,
     #[serde(rename = "originalSizeMB", alias = "originalSizeMb")]
     pub original_size_mb: f64,
@@ -81,16 +89,20 @@ pub struct TranscodeJobUiLite {
     pub wait_request_pending: bool,
     pub progress: f64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub start_time: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub end_time: Option<u64>,
     #[serde(
         rename = "processingStartedMs",
         default,
         skip_serializing_if = "Option::is_none"
     )]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processing_started_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub elapsed_ms: Option<u64>,
     #[serde(
         rename = "outputSizeMB",
@@ -102,8 +114,10 @@ pub struct TranscodeJobUiLite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub created_time_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub modified_time_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output_path: Option<String>,
@@ -114,6 +128,7 @@ pub struct TranscodeJobUiLite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_run_command: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub first_run_started_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub skip_reason: Option<String>,
@@ -124,6 +139,7 @@ pub struct TranscodeJobUiLite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preview_path: Option<String>,
     #[serde(default, skip_serializing_if = "is_zero")]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub preview_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub log_tail: Option<String>,

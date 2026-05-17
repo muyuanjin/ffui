@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, watch, type Ref } from "vue";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { hasTauri } from "@/lib/backend";
+import { subscribeQueueStateLiteDeltaEvent, subscribeQueueStateLiteEvent } from "@/lib/backend/queueEvents";
 import type { QueueStateLite, QueueStateLiteDelta, TranscodeJob } from "@/types";
 import { recordQueueEvent } from "@/lib/queuePerf";
 import { subscribeTauriEvent, type UnsubscribeFn } from "@/lib/tauriSubscriptions";
@@ -254,11 +255,10 @@ export function useQueueEventListeners({
 
     foregroundRefreshController.mount();
 
-    void subscribeTauriEvent<QueueStateLite>(
-      "ffui://queue-state-lite",
+    void subscribeQueueStateLiteEvent(
       (payload) => {
         recordQueueEvent("snapshot", payload);
-        const revision = payload?.snapshotRevision;
+        const revision = payload.snapshotRevision;
         const currentRevision = lastQueueSnapshotRevision.value;
         if (
           typeof revision === "number" &&
@@ -318,12 +318,11 @@ export function useQueueEventListeners({
         console.error("Failed to register queue_state listener:", err);
       });
 
-    void subscribeTauriEvent<QueueStateLiteDelta>(
-      "ffui://queue-state-lite-delta",
+    void subscribeQueueStateLiteDeltaEvent(
       (payload) => {
-        recordQueueEvent("delta", payload, payload?.patches?.length ?? 0);
-        const base = payload?.baseSnapshotRevision;
-        const rev = payload?.deltaRevision;
+        recordQueueEvent("delta", payload, payload.patches.length);
+        const base = payload.baseSnapshotRevision;
+        const rev = payload.deltaRevision;
 
         if (typeof base !== "number" || !Number.isFinite(base)) return;
         if (typeof rev !== "number" || !Number.isFinite(rev)) return;

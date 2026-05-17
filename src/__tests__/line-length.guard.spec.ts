@@ -16,7 +16,7 @@ function collectSourceFiles(dir: string): string[] {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       // Skip obvious non-source directories if they ever appear under src
-      if (["node_modules", "dist", ".git"].includes(entry.name)) return [];
+      if (["node_modules", "dist", ".git", "generated"].includes(entry.name)) return [];
       return collectSourceFiles(fullPath);
     }
     if (!entry.isFile()) return [];

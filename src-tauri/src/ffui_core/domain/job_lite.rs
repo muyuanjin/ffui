@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use super::job::{
     JobConfig, JobRun, JobSource, JobStatus, JobType, JobWarning, MediaInfo, QueueState,
@@ -11,7 +12,7 @@ const fn is_zero(v: &u64) -> bool {
     *v == 0
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum ProgressPhase {
     Transcoding,
@@ -21,7 +22,7 @@ pub enum ProgressPhase {
     Completed,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProgressPhaseTelemetry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -35,14 +36,16 @@ pub struct ProgressPhaseTelemetry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub phase_speed: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub phase_updated_at_ms: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub phase_eta_ms: Option<u64>,
 }
 
 // Lightweight view of a transcode job used for high-frequency queue snapshots.
 // Omits heavyweight fields like full logs.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLite {
     /* jscpd:ignore-start */
@@ -55,6 +58,7 @@ pub struct TranscodeJobLite {
     /// scheduled earlier. The frontend uses this for queue-mode ordering while
     /// treating it as metadata in display-only mode.
     #[serde(rename = "queueOrder")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub queue_order: Option<u64>,
     // Align with TS field name `originalSizeMB` but accept legacy
     // `originalSizeMb` when deserializing.
@@ -64,12 +68,16 @@ pub struct TranscodeJobLite {
     pub preset_id: String,
     pub status: JobStatus,
     pub progress: f64,
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub start_time: Option<u64>,
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub end_time: Option<u64>,
     /// 实际开始处理的时间戳（毫秒），用于计算纯处理耗时（不含排队）。
     #[serde(rename = "processingStartedMs")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processing_started_ms: Option<u64>,
     /// 累计已用转码时间（毫秒）。
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub elapsed_ms: Option<u64>,
     // Align with TS field name `outputSizeMB` but accept legacy
     // `outputSizeMb` when deserializing.
@@ -79,9 +87,11 @@ pub struct TranscodeJobLite {
     pub input_path: Option<String>,
     /// Best-effort input file creation/birth time in milliseconds since epoch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub created_time_ms: Option<u64>,
     /// Best-effort input file modified time in milliseconds since epoch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub modified_time_ms: Option<u64>,
     /// Planned or final output path for this job (e.g. .compressed.mp4).
     pub output_path: Option<String>,
@@ -92,6 +102,7 @@ pub struct TranscodeJobLite {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_run_command: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub first_run_started_at_ms: Option<u64>,
     /// Short human-readable reason for why a job was skipped. This is used by
     /// the queue list to surface skip context even when the full logs are
@@ -108,6 +119,7 @@ pub struct TranscodeJobLite {
     ///
     /// See `TranscodeJob.preview_revision`.
     #[serde(default, skip_serializing_if = "is_zero")]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub preview_revision: u64,
     /// Optional pre-truncated tail string of logs from the backend. The
     /// detail view prefers the full in-memory logs when available and falls
@@ -132,7 +144,7 @@ pub struct TranscodeJobLite {
     pub phase_telemetry: ProgressPhaseTelemetry,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueStateLite {
     /// Monotonic revision of this snapshot for ordering / de-duping on the frontend.
@@ -145,6 +157,7 @@ pub struct QueueStateLite {
     /// the queue (add/remove/reorder/status transitions). High-frequency progress
     /// updates SHOULD use a delta stream instead of emitting new full snapshots.
     #[serde(default)]
+    #[specta(type = specta_typescript::Number<u64>)]
     pub snapshot_revision: u64,
     pub jobs: Vec<TranscodeJobLite>,
 }
@@ -153,46 +166,52 @@ pub struct QueueStateLite {
 ///
 /// Designed so high-frequency progress/preview updates can be delivered without
 /// sending a full `QueueStateLite` snapshot each tick.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueStateLiteDelta {
     /// The `QueueStateLite.snapshotRevision` this delta is based on.
+    #[specta(type = specta_typescript::Number<u64>)]
     pub base_snapshot_revision: u64,
     /// Monotonic revision for deltas within the same `baseSnapshotRevision`.
+    #[specta(type = specta_typescript::Number<u64>)]
     pub delta_revision: u64,
     /// Per-job field patches.
     pub patches: Vec<TranscodeJobLiteDeltaPatch>,
 }
 
 /// Grouped progress telemetry patch applied onto `TranscodeJob.waitMetadata`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLiteTelemetryDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub progress_epoch: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_progress_out_time_seconds: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_progress_speed: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_updated_at_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub last_progress_frame: Option<u64>,
     #[serde(flatten)]
     pub phase: ProgressPhaseTelemetry,
 }
 
 /// Grouped preview patch applied onto `TranscodeJob.previewPath` / `previewRevision`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLitePreviewDelta {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preview_path: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub preview_revision: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct TranscodeJobLiteDeltaPatch {
     pub id: String,
@@ -202,6 +221,7 @@ pub struct TranscodeJobLiteDeltaPatch {
         rename = "processingStartedMs",
         skip_serializing_if = "Option::is_none"
     )]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub processing_started_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<f64>,
@@ -209,6 +229,7 @@ pub struct TranscodeJobLiteDeltaPatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TranscodeJobLiteTelemetryDelta>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
     pub elapsed_ms: Option<u64>,
     /// Optional grouped preview patch applied onto `previewPath` / `previewRevision`.
     #[serde(skip_serializing_if = "Option::is_none")]
