@@ -31,7 +31,9 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 ## Main App 架构硬纪律（必须长期保持）
 
 - `src/MainApp.vue` 只允许做薄别名入口（兼容层），不得承载领域装配或大规模透传。
-- `src/MainApp.impl.vue` 只负责创建并 `provide` AppContext，然后挂载 `src/components/main/MainAppRootShell.vue`；不得在此处做跨域业务协调。
+- `src/MainApp.impl.vue` 只负责创建 MainApp domains、通过 domain-scoped DI 进行 `provide`，然后挂载 `src/components/main/MainAppRootShell.vue`；不得在此处做跨域业务协调。
+- `src/MainApp.setup.ts` 只能作为薄 context 入口和兼容层；不得直接创建 queue/presets/settings/media 等领域模块，不得通过 `as MainAppQueueTabModule` 或 `queue.xxx = ...` 这类“先断言后补字段”的方式装配 domain。
+- MainApp 域 hooks（`useQueueDomain()` / `usePresetsDomain()` 等）必须直接注入各自的 domain key；`useMainAppContext()` 只允许作为兼容 adapter，不得作为域 hooks 的实现基础。
 - `src/components/main/MainAppRootShell.vue` / `src/components/main/**/*Host.vue` / `src/components/main/**/*Shell.vue` 必须是装配层：只 `v-bind/v-on`，不得直接拼装跨域业务逻辑。
 - Host/Shell 组件不得直接导入 MainApp 域 hooks 或 `useMainAppContext()`；跨域协调必须收敛到 `src/composables/main-app/orchestrators/**`。
 - UI 层（`src/components/**`）不得直接消费“全局 context bag”（禁止直接 `useMainAppContext()`）；必须使用域 hooks 或 orchestrators。
