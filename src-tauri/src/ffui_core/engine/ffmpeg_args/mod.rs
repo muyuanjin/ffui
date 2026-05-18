@@ -7,6 +7,8 @@ mod job_object;
 mod output_policy;
 mod platform;
 mod progress;
+mod two_pass;
+mod two_pass_policy;
 mod utils;
 
 // Internal helpers that are safe and useful across engine sub-modules (enqueue,
@@ -32,6 +34,10 @@ pub(super) use progress::parse_ffmpeg_time_to_seconds;
 pub(super) use progress::{
     compute_progress_percent, is_ffmpeg_progress_end, parse_ffmpeg_duration_from_metadata_line,
     parse_ffmpeg_progress_sample,
+};
+pub(crate) use two_pass::{
+    FfmpegRunKind, build_ffmpeg_run_plan, preset_requires_two_pass, rewrite_two_pass_log_prefix,
+    two_pass_artifact_paths,
 };
 pub(super) use utils::ensure_progress_args;
 pub(crate) use utils::format_command_for_log;

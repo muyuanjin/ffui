@@ -258,6 +258,7 @@ const presetEditor = {
     parsePartial: "Detected only part of the paths. Please replace the remaining paths with INPUT / OUTPUT.",
     parseFailed:
       "Could not detect input/output paths automatically. Ensure the command contains -i <input> and an output path, or replace them manually with INPUT / OUTPUT.",
+    parseTwoPassUnsupported: "Two-pass presets must stay in generated mode because they require two ffmpeg runs.",
     copyCommandButton: "Copy command",
     copyTemplateButton: "Copy template",
     copyButton: "Copy",

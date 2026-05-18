@@ -20,6 +20,7 @@ import {
 import type { HighlightToken } from "@/lib/highlightTokens";
 import { normalizeVideoForSave } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 import { normalizePreset } from "@/lib/presetEditorContract/presetDerivation";
+import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
 
 // ----- Types -----
 
@@ -226,12 +227,27 @@ export function usePresetEditor(options: UsePresetEditorOptions): UsePresetEdito
   };
 
   const handleParseTemplateFromCommand = () => {
+    const isStructuredTwoPass = !ffmpegTemplate.value.trim() && isStructuredTwoPassVideo(video);
+    if (isStructuredTwoPass) {
+      parseHint.value =
+        (t?.("presetEditor.advanced.parseTwoPassUnsupported") as string | undefined) ??
+        "Two-pass presets must stay in generated mode because they require two ffmpeg runs.";
+      parseHintVariant.value = "warning";
+      return;
+    }
+
     const source =
       ffmpegTemplate.value.trim() ||
       getFfmpegCommandPreview({
+        global: global as GlobalConfig,
+        input: input as InputTimelineConfig,
+        mapping: mapping as MappingConfig,
         video: video as VideoConfig,
         audio: audio as AudioConfig,
         filters: filters as FilterConfig,
+        subtitles: subtitles as SubtitlesConfig,
+        container: container as ContainerConfig,
+        hardware: hardware as HardwareConfig,
         advancedEnabled: false,
         ffmpegTemplate: "",
       });

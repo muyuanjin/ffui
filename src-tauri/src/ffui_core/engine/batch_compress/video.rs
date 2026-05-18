@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 
 use super::super::ffmpeg_args::{
-    build_ffmpeg_args as build_queue_ffmpeg_args, format_command_for_log,
+    build_ffmpeg_run_plan as build_queue_ffmpeg_run_plan, format_command_for_log,
 };
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::Inner;
@@ -272,9 +272,15 @@ pub(crate) fn enqueue_batch_compress_video_job(
         .insert(output_path.to_string_lossy().into_owned());
 
     job.output_path = Some(output_path.to_string_lossy().into_owned());
-    let planned_args =
-        build_queue_ffmpeg_args(preset, path, &output_path, false, Some(&output_policy));
-    job.ffmpeg_command = Some(format_command_for_log("ffmpeg", &planned_args));
+    let planned_runs =
+        build_queue_ffmpeg_run_plan(preset, path, &output_path, false, Some(&output_policy));
+    job.ffmpeg_command = Some(
+        planned_runs
+            .iter()
+            .map(|run| format_command_for_log("ffmpeg", &run.args))
+            .collect::<Vec<_>>()
+            .join(" && "),
+    );
     if let Some(run) = job.runs.first_mut()
         && run.command.is_empty()
         && job.ffmpeg_command.is_some()

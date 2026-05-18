@@ -76,38 +76,52 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
     let can_apply_video_filters = !matches!(preset.video.encoder, EncoderType::Copy);
     let can_apply_audio_filters = !matches!(preset.audio.codec, AudioCodecType::Copy);
 
-    let mut vf_parts: Vec<String> = Vec::new();
     if can_apply_video_filters {
-        if let Some(scale) = &preset.filters.scale
-            && !scale.is_empty()
-        {
-            vf_parts.push(format!("scale={scale}"));
-        }
-        if let Some(crop) = &preset.filters.crop
-            && !crop.is_empty()
-        {
-            vf_parts.push(format!("crop={crop}"));
-        }
-        if let Some(fps) = preset.filters.fps
-            && fps > 0
-        {
-            vf_parts.push(format!("fps={fps}"));
-        }
-        if let Some(subtitles) = &preset.subtitles
-            && matches!(subtitles.strategy, Some(SubtitleStrategy::BurnIn))
-            && let Some(filter) = &subtitles.burn_in_filter
-            && !filter.is_empty()
-        {
-            vf_parts.push(filter.clone());
-        }
+        apply_video_filter_args(args, preset);
     }
+    if can_apply_audio_filters {
+        apply_audio_filter_args(args, preset);
+    }
+    if can_apply_video_filters {
+        apply_filter_complex_args(args, preset);
+    }
+}
+
+pub(in crate::ffui_core::engine) fn apply_video_filter_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    let mut vf_parts: Vec<String> = Vec::new();
+    if let Some(scale) = &preset.filters.scale
+        && !scale.is_empty()
+    {
+        vf_parts.push(format!("scale={scale}"));
+    }
+    if let Some(crop) = &preset.filters.crop
+        && !crop.is_empty()
+    {
+        vf_parts.push(format!("crop={crop}"));
+    }
+    if let Some(fps) = preset.filters.fps
+        && fps > 0
+    {
+        vf_parts.push(format!("fps={fps}"));
+    }
+    if let Some(subtitles) = &preset.subtitles
+        && matches!(subtitles.strategy, Some(SubtitleStrategy::BurnIn))
+        && let Some(filter) = &subtitles.burn_in_filter
+        && !filter.is_empty()
+    {
+        vf_parts.push(filter.clone());
+    }
+
     let vf_chain = preset
         .filters
         .vf_chain
         .as_ref()
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
-    if can_apply_video_filters && (!vf_parts.is_empty() || vf_chain.is_some()) {
+    if !vf_parts.is_empty() || vf_chain.is_some() {
         let mut combined = String::new();
         if !vf_parts.is_empty() {
             combined.push_str(&vf_parts.join(","));
@@ -121,12 +135,13 @@ pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
         args.push("-vf".to_string());
         args.push(combined);
     }
+}
 
-    if can_apply_audio_filters {
-        apply_audio_filter_args(args, preset);
-    }
-
-    if can_apply_video_filters && let Some(filter_complex) = &preset.filters.filter_complex {
+pub(in crate::ffui_core::engine) fn apply_filter_complex_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    if let Some(filter_complex) = &preset.filters.filter_complex {
         let trimmed = filter_complex.trim();
         if !trimmed.is_empty() {
             args.push("-filter_complex".to_string());
@@ -294,7 +309,10 @@ pub(in crate::ffui_core::engine) fn apply_container_args(
     }
 }
 
-pub(super) fn apply_hw_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
+pub(in crate::ffui_core::engine) fn apply_hw_input_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
     if let Some(hw) = &preset.hardware {
         if let Some(accel) = &hw.hwaccel {
             let trimmed = accel.trim();
@@ -317,13 +335,21 @@ pub(super) fn apply_hw_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
                 args.push(trimmed.to_string());
             }
         }
-        if let Some(bsfs) = &hw.bitstream_filters {
-            for bsf in bsfs {
-                let trimmed = bsf.trim();
-                if !trimmed.is_empty() {
-                    args.push("-bsf".to_string());
-                    args.push(trimmed.to_string());
-                }
+    }
+}
+
+pub(in crate::ffui_core::engine) fn apply_hw_output_args(
+    args: &mut Vec<String>,
+    preset: &FFmpegPreset,
+) {
+    if let Some(hw) = &preset.hardware
+        && let Some(bsfs) = &hw.bitstream_filters
+    {
+        for bsf in bsfs {
+            let trimmed = bsf.trim();
+            if !trimmed.is_empty() {
+                args.push("-bsf".to_string());
+                args.push(trimmed.to_string());
             }
         }
     }

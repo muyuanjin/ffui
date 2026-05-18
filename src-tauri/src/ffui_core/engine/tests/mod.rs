@@ -81,3 +81,4 @@ mod settings_migration_startup;
 mod settings_onboarding_inference;
 mod tools_download_metadata;
 mod transcode_activity_tests;
+mod two_pass_resume_execution;

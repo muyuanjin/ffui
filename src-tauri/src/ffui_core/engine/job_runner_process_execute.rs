@@ -21,11 +21,9 @@ fn execute_transcode_job(
         ffmpeg_path,
         ffmpeg_source,
     } = prepared;
+    let execution_start_time = SystemTime::now();
     set_job_progress_phase(inner, job_id, ProgressPhase::Transcoding, total_duration);
 
-    // 队列转码任务需要支持“暂停 / 继续”，后端会通过 stdin 写入控制指令
-    //（例如 `q\n`）来让 ffmpeg 优雅结束当前分段，因此这里显式关闭
-    // `non_interactive`，避免自动注入 `-nostdin`。
     let job_output_policy = {
         let state = inner.state.lock_unpoisoned();
         state
@@ -37,21 +35,7 @@ fn execute_transcode_job(
         .as_ref()
         .map(|p| p.preserve_file_times.clone())
         .unwrap_or_default();
-    let input_times = if preserve_times_policy.any() {
-        let mut times = super::file_times::read_file_times(&input_path);
-        if !preserve_times_policy.created() {
-            times.created = None;
-        }
-        if !preserve_times_policy.modified() {
-            times.modified = None;
-        }
-        if !preserve_times_policy.accessed() {
-            times.accessed = None;
-        }
-        Some(times)
-    } else {
-        None
-    };
+    let input_times = input_file_times_for_policy(&preserve_times_policy, &input_path);
     log_resume_plan_and_normalize_segments(
         inner,
         job_id,
@@ -60,14 +44,42 @@ fn execute_transcode_job(
         finalize_with_source_audio,
         &existing_segments,
     );
-    let mut args = build_ffmpeg_args(
-        &preset,
-        &input_path,
-        &tmp_output,
-        false,
-        job_output_policy.as_ref(),
-    );
-    maybe_insert_copyts_for_overlap_trim(&mut args, resume_plan);
+    let two_pass_requested = preset_requires_two_pass(&preset);
+    let mut two_pass_second_args = None;
+    if two_pass_requested {
+        let planned = plan_initial_two_pass_second_args(TwoPassPreludeArgs {
+            inner,
+            job_id,
+            input_path: &input_path,
+            tmp_output: &tmp_output,
+            output_path: &output_path,
+            preset: &preset,
+            job_output_policy: job_output_policy.as_ref(),
+            resume_plan: resume_plan.as_ref(),
+            settings_snapshot: &settings_snapshot,
+            ffmpeg_path: &ffmpeg_path,
+            ffmpeg_source: &ffmpeg_source,
+        })?;
+        let Some(planned) = planned else {
+            return Ok(());
+        };
+        two_pass_second_args = Some(planned);
+    }
+    let mut args = two_pass_second_args.unwrap_or_else(|| {
+        build_ffmpeg_args(
+            &preset,
+            &input_path,
+            &tmp_output,
+            false,
+            job_output_policy.as_ref(),
+        )
+    });
+    let mut two_pass_log_output = current_two_pass_log_output(&tmp_output);
+    let two_pass_completed_segments = existing_segments.clone();
+    if two_pass_requested {
+        two_pass_log_output = rewrite_current_two_pass_log_prefix(&mut args, &tmp_output);
+    }
+    maybe_insert_copyts_for_overlap_trim(&mut args, resume_plan.as_ref());
     let mut audio_sidecar = if finalize_with_source_audio
         && !existing_segments.is_empty()
         && should_precompute_resumed_audio(&finalize_preset)
@@ -106,8 +118,6 @@ fn execute_transcode_job(
         &ffmpeg_path,
         &ffmpeg_source,
     );
-    // Record the exact ffmpeg command we are about to run so that users can
-    // see and reproduce it from the queue UI if anything goes wrong.
     let ffmpeg_program_for_log = ffmpeg_path.clone();
     log_external_command(inner, job_id, &ffmpeg_program_for_log, &args);
     let mut child = cmd
@@ -118,13 +128,8 @@ fn execute_transcode_job(
         .spawn()
         .with_context(|| format!("failed to spawn ffmpeg for {}", input_path.display()))?;
 
-    // 将 ffmpeg 子进程添加到 Job Object，确保父进程退出时子进程也会被终止
-    // 这对于用户强制关闭 FFUI 的场景尤为重要
     assign_child_to_job(child.id());
 
-    let start_time = SystemTime::now();
-
-    // 保留对子进程 stdin 的可选句柄，用于在“暂停”时写入 `q\n` 请求 ffmpeg 优雅退出。
     let mut child_stdin = child.stdin.take();
     let mut wait_requested = false;
     let mut last_effective_elapsed_seconds: Option<f64> = None;
@@ -249,8 +254,6 @@ fn execute_transcode_job(
                     );
                 }
             } else {
-                // Still accept speed-only samples so the frontend can keep
-                // extrapolating even when out_time is temporarily stalled.
                 update_job_progress(inner, job_id, None, None, frame, Some(line), speed);
             }
 
@@ -290,6 +293,9 @@ fn execute_transcode_job(
             stderr_pump.join();
             mark_job_cancelled(inner, job_id)?;
             drop(fs::remove_file(&tmp_output));
+            if two_pass_requested {
+                cleanup_two_pass_outputs(&two_pass_log_output, &tmp_output, &existing_segments);
+            }
             return Ok(());
         }
 
@@ -330,6 +336,9 @@ fn execute_transcode_job(
         }
         mark_job_cancelled(inner, job_id)?;
         drop(fs::remove_file(&tmp_output));
+        if two_pass_requested {
+            cleanup_two_pass_outputs(&two_pass_log_output, &tmp_output, &existing_segments);
+        }
         return Ok(());
     }
 
@@ -348,8 +357,11 @@ fn execute_transcode_job(
         // 上通常要几百毫秒到 1s）。续转边界使用 ffmpeg `-progress out_time*` 的最后值：
         // - 若该值在某些编码器/B 帧情况下略偏小，只会造成更大的 overlap（安全）；
         // - 若存在 overshoot 风险，会在“继续/完成”路径进行一次保守校准。
-        let processed_seconds_override =
-            choose_processed_seconds_after_wait(total_duration, last_effective_elapsed_seconds, None);
+        let processed_seconds_override = choose_processed_seconds_after_wait(
+            total_duration,
+            last_effective_elapsed_seconds,
+            None,
+        );
 
         // Pause should complete quickly: defer segment remuxing to resume/finalize.
         if resume_plan.is_some() && finalize_with_source_audio {
@@ -378,35 +390,25 @@ fn execute_transcode_job(
         if let Some(sidecar) = audio_sidecar.take() {
             sidecar.kill_and_cleanup();
         }
-        {
-            let mut state = inner.state.lock_unpoisoned();
-            if let Some(job) = state.jobs.get_mut(job_id) {
-                job.status = JobStatus::Failed;
-                job.progress = 100.0;
-                job.end_time = Some(current_time_millis());
-	                let code_desc = status.code().map_or_else(
-	                    || "terminated by signal".to_string(),
-	                    |code| format!("exit code {code}"),
-	                );
-	                let reason = format!("ffmpeg exited with non-zero status ({code_desc})");
-	                job.failure_reason = Some(reason.clone());
-	                super::worker_utils::append_job_log_line(job, reason);
-	            }
-	        }
-            // Keep partial segments on disk for recovery when this is a resumed
-            // job (existing segments present). Removing the latest segment here
-            // can turn a recoverable failure into irreversible content loss.
-            if existing_segments.is_empty() {
-	            drop(fs::remove_file(&tmp_output));
-            }
+        mark_ffmpeg_status_failed(inner, job_id, status);
+        // Keep partial segments on disk for recovery when this is a resumed
+        // job (existing segments present). Removing the latest segment here
+        // can turn a recoverable failure into irreversible content loss.
+        if existing_segments.is_empty() {
+            drop(fs::remove_file(&tmp_output));
+        }
+        if two_pass_requested {
+            cleanup_two_pass_outputs_after_failed_encode(
+                &two_pass_log_output,
+                &tmp_output,
+                !existing_segments.is_empty(),
+            );
+        }
         mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
 
-    let elapsed = start_time
-        .elapsed()
-        .unwrap_or(Duration::from_secs(0))
-        .as_secs_f64();
+    let elapsed = elapsed_since_execution_start(execution_start_time);
 
     let final_output_size_bytes: u64;
 
@@ -459,9 +461,8 @@ fn execute_transcode_job(
                         job.status = JobStatus::Failed;
                         job.progress = 100.0;
                         job.end_time = Some(current_time_millis());
-                        let reason = format!(
-                            "finalize failed when resuming from partial output: {err:#}"
-                        );
+                        let reason =
+                            format!("finalize failed when resuming from partial output: {err:#}");
                         job.failure_reason = Some(reason.clone());
                         super::worker_utils::append_job_log_line(job, reason);
                     }
@@ -473,6 +474,13 @@ fn execute_transcode_job(
         }
     }
 
+    if two_pass_requested {
+        cleanup_two_pass_outputs(
+            &two_pass_log_output,
+            &tmp_output,
+            &two_pass_completed_segments,
+        );
+    }
     finalize_successful_transcode_job(
         inner,
         FinalizeSuccessfulTranscodeJobArgs {

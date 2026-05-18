@@ -11,6 +11,12 @@ import type {
   VideoConfig,
 } from "@/types";
 import { getCqArgumentForEncoder } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
+import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
+import {
+  detectRuntimePreviewPlatform,
+  resolvePreviewPlatform,
+  type FfmpegCommandPreviewOptions,
+} from "./previewPlatform";
 
 export interface FfmpegCommandPreviewInput {
   video: VideoConfig;
@@ -28,11 +34,6 @@ export interface FfmpegCommandPreviewInput {
   ffmpegTemplate?: string;
 }
 
-/**
- * 容器格式规范化：
- * - UI 中使用更直观的标识（例如 mkv），但 ffmpeg 实际要求 muxer 名称（例如 matroska）。
- * - 这里做一层映射，保证生成的命令始终使用 ffmpeg 支持的格式名。
- */
 const normalizeContainerFormat = (format: string): string => {
   const trimmed = format.trim();
   if (!trimmed) return trimmed;
@@ -65,13 +66,42 @@ const autoMapExclusionsForMuxer = (muxer?: string | null): string[] => {
   return [];
 };
 
-/**
- * Build a structured ffmpeg command preview from typed preset fields.
- * This mirrors the logic used by the preset wizard and parameter panel.
- */
-export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInput): string => {
+export const buildFfmpegCommandFromStructured = (
+  input: FfmpegCommandPreviewInput,
+  options: FfmpegCommandPreviewOptions = {},
+): string => {
+  const platform = resolvePreviewPlatform(options);
+  if (isStructuredTwoPassVideo(input.video)) {
+    return buildStructuredTwoPassCommand(input, { platform });
+  }
+  return buildStructuredSingleCommand(input, { platform });
+};
+
+const buildStructuredTwoPassCommand = (
+  input: FfmpegCommandPreviewInput,
+  options: Required<FfmpegCommandPreviewOptions>,
+): string => {
+  const passOne = buildStructuredSingleCommand(
+    { ...input, video: { ...input.video, pass: 1 } },
+    { ...options, twoPassFirstPass: true },
+  );
+  const passTwo = buildStructuredSingleCommand({ ...input, video: { ...input.video, pass: 2 } }, options);
+  return `${passOne} && ${passTwo}`;
+};
+
+interface StructuredCommandOptions extends Required<FfmpegCommandPreviewOptions> {
+  twoPassFirstPass?: boolean;
+}
+
+const buildStructuredSingleCommand = (
+  input: FfmpegCommandPreviewInput,
+  options: StructuredCommandOptions = { platform: detectRuntimePreviewPlatform() },
+): string => {
   const inputPlaceholder = "INPUT";
-  const outputPlaceholder = "OUTPUT";
+  const outputPlaceholder = options.twoPassFirstPass && options.platform === "windows" ? "NUL" : "OUTPUT";
+  const finalOutputPlaceholder =
+    options.twoPassFirstPass && options.platform === "posix" ? "/dev/null" : outputPlaceholder;
+  const passLogOutputPlaceholder = "OUTPUT";
 
   const v = input.video as VideoConfig;
   const a = input.audio as AudioConfig;
@@ -126,6 +156,17 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     args.push("-ss", timeline.seekPosition);
     if (timeline.accurateSeek) {
       args.push("-accurate_seek");
+    }
+  }
+  if (hardware) {
+    if (hardware.hwaccel && hardware.hwaccel.trim().length > 0) {
+      args.push("-hwaccel", hardware.hwaccel.trim());
+    }
+    if (hardware.hwaccelDevice && hardware.hwaccelDevice.trim().length > 0) {
+      args.push("-hwaccel_device", hardware.hwaccelDevice.trim());
+    }
+    if (hardware.hwaccelOutputFormat && hardware.hwaccelOutputFormat.trim().length > 0) {
+      args.push("-hwaccel_output_format", hardware.hwaccelOutputFormat.trim());
     }
   }
 
@@ -246,8 +287,8 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
       }
       const passEnabled = (v.pass === 1 || v.pass === 2) && typeof v.bitrateKbps === "number" && v.bitrateKbps > 0;
       if (passEnabled) {
-        args.push("-passlogfile", `${outputPlaceholder}.ffui2pass`);
-        args.push("-pass", "2");
+        args.push("-passlogfile", `${passLogOutputPlaceholder}.ffui2pass`);
+        args.push("-pass", v.pass === 1 ? "1" : "2");
       }
     }
 
@@ -287,21 +328,23 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
   }
 
   // audio
-  if (a.codec === "copy") {
-    args.push("-c:a", "copy");
-  } else if (a.codec === "aac") {
-    args.push("-c:a", "aac");
-    if (a.bitrate) {
-      args.push("-b:a", `${a.bitrate}k`);
-    }
-    if (a.sampleRateHz) {
-      args.push("-ar", String(a.sampleRateHz));
-    }
-    if (a.channels) {
-      args.push("-ac", String(a.channels));
-    }
-    if (a.channelLayout) {
-      args.push("-channel_layout", a.channelLayout);
+  if (!options.twoPassFirstPass) {
+    if (a.codec === "copy") {
+      args.push("-c:a", "copy");
+    } else if (a.codec === "aac") {
+      args.push("-c:a", "aac");
+      if (a.bitrate) {
+        args.push("-b:a", `${a.bitrate}k`);
+      }
+      if (a.sampleRateHz) {
+        args.push("-ar", String(a.sampleRateHz));
+      }
+      if (a.channels) {
+        args.push("-ac", String(a.channels));
+      }
+      if (a.channelLayout) {
+        args.push("-channel_layout", a.channelLayout);
+      }
     }
   }
 
@@ -339,7 +382,7 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     args.push("-vf", parts.join(","));
   }
 
-  if (canApplyAudioFilters) {
+  if (canApplyAudioFilters && !options.twoPassFirstPass) {
     const afParts: string[] = [];
 
     // Structured loudness normalization via loudnorm, driven by audio
@@ -376,14 +419,18 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     args.push("-filter_complex", f.filterComplex.trim());
   }
 
-  // Subtitle strategy: keep/drop (burn-in is handled via the filter chain).
-  if (subtitles?.strategy === "drop") {
+  if (options.twoPassFirstPass) {
+    args.push("-an", "-sn", "-dn");
+  } else if (subtitles?.strategy === "drop") {
+    // Subtitle strategy: keep/drop (burn-in is handled via the filter chain).
     // Disable subtitle streams entirely.
     args.push("-sn");
   }
 
   // Container / muxer options.
-  if (container) {
+  if (options.twoPassFirstPass) {
+    args.push("-f", "null");
+  } else if (container) {
     if (container.format && container.format.trim().length > 0) {
       const fmt = normalizeContainerFormat(container.format);
       if (fmt.length > 0) {
@@ -401,17 +448,8 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
     }
   }
 
-  // Hardware and bitstream filter options.
-  if (hardware) {
-    if (hardware.hwaccel && hardware.hwaccel.trim().length > 0) {
-      args.push("-hwaccel", hardware.hwaccel.trim());
-    }
-    if (hardware.hwaccelDevice && hardware.hwaccelDevice.trim().length > 0) {
-      args.push("-hwaccel_device", hardware.hwaccelDevice.trim());
-    }
-    if (hardware.hwaccelOutputFormat && hardware.hwaccelOutputFormat.trim().length > 0) {
-      args.push("-hwaccel_output_format", hardware.hwaccelOutputFormat.trim());
-    }
+  // Bitstream filters are output-side options and must stay before OUTPUT.
+  if (hardware && !options.twoPassFirstPass) {
     if (hardware.bitstreamFilters && hardware.bitstreamFilters.length > 0) {
       for (const bsf of hardware.bitstreamFilters) {
         const trimmed = (bsf ?? "").trim();
@@ -423,37 +461,36 @@ export const buildFfmpegCommandFromStructured = (input: FfmpegCommandPreviewInpu
   }
 
   // output
-  args.push(outputPlaceholder);
+  args.push(finalOutputPlaceholder);
 
   return ["ffmpeg", ...args].join(" ");
 };
 
-/**
- * Compute the effective ffmpeg command preview for a given preset-like input,
- * honoring advanced/template mode when enabled.
- */
-export const getFfmpegCommandPreview = (input: FfmpegCommandPreviewInput): string => {
+export const getFfmpegCommandPreview = (
+  input: FfmpegCommandPreviewInput,
+  options: FfmpegCommandPreviewOptions = {},
+): string => {
   const template = (input.ffmpegTemplate ?? "").trim();
   if (input.advancedEnabled && template.length > 0) {
     return template;
   }
-  return buildFfmpegCommandFromStructured(input);
+  return buildFfmpegCommandFromStructured(input, options);
 };
 
-/**
- * Convenience helper for computing the command preview of a persisted preset.
- */
-export const getPresetCommandPreview = (preset: FFmpegPreset): string =>
-  getFfmpegCommandPreview({
-    global: preset.global,
-    input: preset.input,
-    mapping: preset.mapping,
-    video: preset.video,
-    audio: preset.audio,
-    filters: preset.filters,
-    subtitles: preset.subtitles,
-    container: preset.container,
-    hardware: preset.hardware,
-    advancedEnabled: preset.advancedEnabled,
-    ffmpegTemplate: preset.ffmpegTemplate,
-  });
+export const getPresetCommandPreview = (preset: FFmpegPreset, options: FfmpegCommandPreviewOptions = {}): string =>
+  getFfmpegCommandPreview(
+    {
+      global: preset.global,
+      input: preset.input,
+      mapping: preset.mapping,
+      video: preset.video,
+      audio: preset.audio,
+      filters: preset.filters,
+      subtitles: preset.subtitles,
+      container: preset.container,
+      hardware: preset.hardware,
+      advancedEnabled: preset.advancedEnabled,
+      ffmpegTemplate: preset.ffmpegTemplate,
+    },
+    options,
+  );

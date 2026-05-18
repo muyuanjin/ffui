@@ -1,8 +1,9 @@
 use std::path::Path;
 
 use super::builder_tail::{
-    apply_audio_args, apply_container_args, apply_filter_args, apply_global_args, apply_hw_args,
-    apply_mapping_disposition_and_metadata_args, apply_subtitle_args,
+    apply_audio_args, apply_container_args, apply_filter_args, apply_global_args,
+    apply_hw_input_args, apply_hw_output_args, apply_mapping_disposition_and_metadata_args,
+    apply_subtitle_args,
 };
 use super::builder_webm::should_fallback_webm_forced_container;
 use super::output_policy::{enforce_output_muxer_for_template, forced_muxer_for_policy};
@@ -13,7 +14,7 @@ use crate::ffui_core::domain::{
 };
 use crate::ffui_core::engine::template_args::{split_template_args, strip_leading_ffmpeg_program};
 
-fn derive_two_pass_log_prefix(output: &Path) -> String {
+pub(super) fn derive_two_pass_log_prefix(output: &Path) -> String {
     let mut s = output.to_string_lossy().into_owned();
     s.push_str(".ffui2pass");
     s
@@ -39,7 +40,7 @@ fn resolve_auto_map_muxer(preset: &FFmpegPreset, forced_muxer: Option<&str>) -> 
         })
 }
 
-fn append_default_map_args(
+pub(super) fn append_default_map_args(
     args: &mut Vec<String>,
     preset: &FFmpegPreset,
     forced_muxer: Option<&str>,
@@ -162,6 +163,7 @@ pub(crate) fn build_ffmpeg_args(
             args.push("-accurate_seek".to_string());
         }
     }
+    apply_hw_input_args(&mut args, preset);
 
     args.push("-i".to_string());
     args.push(input.to_string_lossy().into_owned());
@@ -278,7 +280,7 @@ pub(crate) fn build_ffmpeg_args(
                         args.push(format!("{bufsize}k"));
                     }
                     if let Some(pass) = preset.video.pass
-                        && (pass == 1 || pass == 2)
+                        && super::two_pass_policy::preset_uses_structured_two_pass(preset)
                     {
                         args.push("-passlogfile".to_string());
                         args.push(derive_two_pass_log_prefix(output));
@@ -354,7 +356,7 @@ pub(crate) fn build_ffmpeg_args(
     apply_subtitle_args(&mut args, preset);
 
     apply_container_args(&mut args, preset, forced_muxer.as_deref());
-    apply_hw_args(&mut args, preset);
+    apply_hw_output_args(&mut args, preset);
 
     args.push(output.to_string_lossy().into_owned());
     args

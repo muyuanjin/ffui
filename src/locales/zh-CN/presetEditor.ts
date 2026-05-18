@@ -272,6 +272,7 @@ const presetEditor = {
     parsePartial: "只识别到部分输入/输出参数，请检查命令并手动将剩余路径替换为 INPUT / OUTPUT。",
     parseFailed:
       "未能自动识别输入/输出路径，请确保包含 -i <输入> 和输出文件路径，或直接手动将对应部分替换为 INPUT / OUTPUT。",
+    parseTwoPassUnsupported: "两遍编码预设必须保留在生成模式，因为它需要连续运行两次 ffmpeg。",
     copyCommandButton: "复制命令",
     copyTemplateButton: "复制模板",
     copyButton: "复制",

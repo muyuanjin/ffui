@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { highlightFfmpegCommandTokens, getPresetCommandPreview } from "@/lib/ffmpegCommand";
 import { copyToClipboard } from "@/lib/copyToClipboard";
+import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
 import { useI18n } from "vue-i18n";
 import type { FFmpegPreset, PresetCardFooterSettings } from "@/types";
 import { GripVertical, Edit, Trash2, Copy, CopyPlus, Download, CircleHelp } from "lucide-vue-next";
@@ -42,6 +43,9 @@ const { t, locale } = useI18n();
 
 const commandPreview = computed(() => getPresetCommandPreview(preset.value));
 const commandTokens = computed(() => highlightFfmpegCommandTokens(commandPreview.value));
+const isStructuredTwoPassPreset = computed(
+  () => !isCustomCommandPreset(preset.value) && isStructuredTwoPassVideo(preset.value.video),
+);
 
 const handleCardClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement | null;
@@ -171,7 +175,7 @@ const handleCardClick = (event: MouseEvent) => {
             <div class="font-mono text-[11px] text-foreground leading-tight">{{ preset.video.encoder }}</div>
             <div class="font-mono text-[10px] text-primary mt-0.5">
               {{ getVideoRateControlSummary(preset.video) }}
-              <span v-if="preset.video.pass" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
+              <span v-if="isStructuredTwoPassPreset" class="text-amber-500 ml-1">{{ t("presets.twoPass") }}</span>
             </div>
           </div>
           <div class="bg-muted/40 rounded px-2 py-1.5 border border-border/30">

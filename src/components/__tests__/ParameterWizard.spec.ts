@@ -73,6 +73,61 @@ describe("ParameterWizard", () => {
     expect("tune" in preset.video).toBe(false);
   });
 
+  it("allows parsing to advanced template when pass is set but bitrate is missing or encoder is copy", async () => {
+    const wrapper = mount(ParameterWizard, {
+      props: {
+        initialPreset: {
+          id: "two-pass-guard-test",
+          name: "Two pass guard test",
+          description: "",
+          global: undefined,
+          input: undefined,
+          mapping: undefined,
+          video: {
+            encoder: "copy",
+            rateControl: "vbr",
+            qualityValue: 23,
+            preset: "medium",
+            pass: 2,
+          } as any,
+          audio: {
+            codec: "copy",
+          } as any,
+          filters: {},
+          stats: {
+            usageCount: 0,
+            totalInputSizeMB: 0,
+            totalOutputSizeMB: 0,
+            totalTimeSeconds: 0,
+          },
+          advancedEnabled: false,
+          ffmpegTemplate: "",
+        } as FFmpegPreset,
+        onSave: () => undefined,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    const nextLabel = t("common.next");
+    for (let i = 0; i < 4; i += 1) {
+      const nextButton = wrapper.findAll("button").find((btn) => btn.text().includes(nextLabel));
+      expect(nextButton).toBeTruthy();
+      await nextButton!.trigger("click");
+    }
+
+    const parseLabel = t("presetEditor.advanced.parseButton");
+    const parseButton = wrapper.findAll("button").find((btn) => btn.text().includes(parseLabel));
+    expect(parseButton).toBeTruthy();
+    await parseButton!.trigger("click");
+
+    expect(wrapper.text()).not.toContain(t("presetEditor.advanced.parseTwoPassUnsupported"));
+    expect(wrapper.text()).toContain("INPUT");
+    expect(wrapper.text()).toContain("OUTPUT");
+    expect(wrapper.text()).not.toContain("-pass ");
+  });
+
   it("preserves NVENC/AV1 smart preset HQ tuning when updating via the wizard without parameter changes", async () => {
     const emitted: FFmpegPreset[] = [];
 

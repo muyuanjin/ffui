@@ -284,6 +284,44 @@ fn enqueue_sets_planned_ffmpeg_command_before_processing_starts() {
 }
 
 #[test]
+fn enqueue_sets_structured_two_pass_planned_command_with_both_runs() {
+    let mut preset = make_test_preset();
+    preset.video.rate_control = RateControlMode::Vbr;
+    preset.video.bitrate_kbps = Some(3000);
+    preset.video.pass = Some(2);
+    let engine = TranscodingEngine {
+        inner: Arc::new(Inner::new(vec![preset], AppSettings::default())),
+    };
+
+    let job = engine.enqueue_transcode_job(
+        "C:/videos/planned-two-pass-command.mp4".to_string(),
+        JobType::Video,
+        JobSource::Manual,
+        100.0,
+        Some("h264".into()),
+        "preset-1".into(),
+    );
+
+    let detail = engine
+        .job_detail(&job.id)
+        .expect("enqueued job should exist");
+    let cmd = detail.ffmpeg_command.as_deref().unwrap_or_default();
+
+    assert!(
+        cmd.contains(" && "),
+        "structured two-pass planned command should include both ffmpeg invocations, got: {cmd}"
+    );
+    assert!(
+        cmd.contains(" -pass 1 ") && cmd.contains(" -f null "),
+        "structured two-pass planned command should include pass 1 null analysis, got: {cmd}"
+    );
+    assert!(
+        cmd.contains(" -pass 2 ") && cmd.contains(".compressed."),
+        "structured two-pass planned command should include pass 2 real output, got: {cmd}"
+    );
+}
+
+#[test]
 fn queue_state_lite_uses_dedicated_builder_without_full_snapshot() {
     reset_snapshot_queue_state_calls();
     let engine = make_engine_with_preset();

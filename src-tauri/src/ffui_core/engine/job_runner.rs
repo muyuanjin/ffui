@@ -9,14 +9,15 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use anyhow::{Context, Result};
 
 use super::ffmpeg_args::{
-    apply_audio_args, apply_audio_filter_args, apply_container_args,
+    FfmpegRunKind, apply_audio_args, apply_audio_filter_args, apply_container_args,
     apply_mapping_disposition_and_metadata_args, assign_child_to_job, build_ffmpeg_args,
-    compute_progress_percent, configure_background_command,
+    build_ffmpeg_run_plan, compute_progress_percent, configure_background_command,
     detect_best_effort_video_start_time_seconds, detect_duration_seconds, detect_video_codec,
     detect_video_dimensions_and_frame_rate, detect_video_stream_duration_seconds,
     ensure_progress_args, format_command_for_log, infer_output_extension, is_ffmpeg_progress_end,
     parse_ffmpeg_duration_from_metadata_line, parse_ffmpeg_progress_line,
-    parse_ffmpeg_progress_sample,
+    parse_ffmpeg_progress_sample, preset_requires_two_pass, rewrite_two_pass_log_prefix,
+    two_pass_artifact_paths,
 };
 use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,

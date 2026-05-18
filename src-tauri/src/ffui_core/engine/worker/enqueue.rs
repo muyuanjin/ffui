@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use super::super::ffmpeg_args::{build_ffmpeg_args, format_command_for_log};
+use super::super::ffmpeg_args::{build_ffmpeg_run_plan, format_command_for_log};
 use super::super::output_policy_paths::plan_video_output_path;
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{current_time_millis, estimate_job_seconds_for_preset};
@@ -95,14 +95,19 @@ fn enqueue_transcode_job_no_notify(
                 (Some(preset), Some(output_path)) => {
                     let input_path_buf = PathBuf::from(&normalized_filename);
                     let output_path_buf = PathBuf::from(output_path);
-                    let args = build_ffmpeg_args(
+                    let plan = build_ffmpeg_run_plan(
                         preset,
                         &input_path_buf,
                         &output_path_buf,
                         false,
                         Some(&queue_output_policy),
                     );
-                    Some(format_command_for_log("ffmpeg", &args))
+                    Some(
+                        plan.iter()
+                            .map(|run| format_command_for_log("ffmpeg", &run.args))
+                            .collect::<Vec<_>>()
+                            .join(" && "),
+                    )
                 }
                 _ => None,
             }

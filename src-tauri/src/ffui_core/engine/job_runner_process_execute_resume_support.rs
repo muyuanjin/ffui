@@ -51,7 +51,7 @@ fn log_resume_plan_and_normalize_segments(
     }
 }
 
-fn maybe_insert_copyts_for_overlap_trim(args: &mut Vec<String>, resume_plan: Option<ResumePlan>) {
+fn maybe_insert_copyts_for_overlap_trim(args: &mut Vec<String>, resume_plan: Option<&ResumePlan>) {
     // For overlap+trim resume, keep source timestamps so the trim filter can
     // cut at an absolute target time that is stable across `-ss` seek jitter.
     if let Some(plan) = resume_plan
@@ -273,10 +273,10 @@ impl PauseLatencyDebug {
     fn emit_pause_summary(&self, _inner: &Inner, _job_id: &str) {}
 }
 
-	#[cfg(all(test, unix))]
-	mod execute_resume_support_tests_unix {
-	    use super::*;
-	    use std::fs;
+#[cfg(all(test, unix))]
+mod execute_resume_support_tests_unix {
+    use super::*;
+    use std::fs;
 
     #[cfg(unix)]
     fn write_executable(path: &std::path::Path, content: &str) {
@@ -289,90 +289,87 @@ impl PauseLatencyDebug {
 
     #[test]
     #[cfg(unix)]
-	    fn probe_ffmpeg_supports_stats_period_detects_flag_in_help() {
-	        let dir = std::env::temp_dir().join("ffui_test_stats_period_probe");
-	        let _ = fs::create_dir_all(&dir);
-	        let exe = dir.join("fake-ffmpeg.sh");
+    fn probe_ffmpeg_supports_stats_period_detects_flag_in_help() {
+        let dir = std::env::temp_dir().join("ffui_test_stats_period_probe");
+        let _ = fs::create_dir_all(&dir);
+        let exe = dir.join("fake-ffmpeg.sh");
         write_executable(
             &exe,
             "#!/bin/sh\n\necho \"  -stats_period duration   set the period\"\nexit 0\n",
         );
 
-	        assert!(
-	            probe_ffmpeg_supports_stats_period(exe.to_string_lossy().as_ref()),
-	            "probe should detect stats_period in help output"
-	        );
-	    }
+        assert!(
+            probe_ffmpeg_supports_stats_period(exe.to_string_lossy().as_ref()),
+            "probe should detect stats_period in help output"
+        );
+    }
 
-	    #[test]
-	    #[cfg(unix)]
-	    fn maybe_inject_stats_period_normalizes_existing_flag_to_settings_interval() {
-	        let mut settings = AppSettings::default();
-	        settings.progress_update_interval_ms = Some(200);
-	        let inner = Inner::new(Vec::new(), settings.clone());
+    #[test]
+    #[cfg(unix)]
+    fn maybe_inject_stats_period_normalizes_existing_flag_to_settings_interval() {
+        let mut settings = AppSettings::default();
+        settings.progress_update_interval_ms = Some(200);
+        let inner = Inner::new(Vec::new(), settings.clone());
 
-	        let mut args = vec![
-	            "-stats_period".to_string(),
-	            "9.999".to_string(),
-	            "-i".to_string(),
-	            "INPUT".to_string(),
-	        ];
-	        maybe_inject_stats_period_for_download(
-	            &inner,
-	            &mut args,
-	            &settings,
-	            "fake-ffmpeg",
-	            "download",
-	        );
+        let mut args = vec![
+            "-stats_period".to_string(),
+            "9.999".to_string(),
+            "-i".to_string(),
+            "INPUT".to_string(),
+        ];
+        maybe_inject_stats_period_for_download(
+            &inner,
+            &mut args,
+            &settings,
+            "fake-ffmpeg",
+            "download",
+        );
 
-	        let pairs = args
-	            .windows(2)
-	            .filter(|w| w[0] == "-stats_period")
-	            .count();
-	        assert_eq!(pairs, 1, "must keep a single -stats_period, got: {args:?}");
-	        let idx = args
-	            .iter()
-	            .position(|a| a == "-stats_period")
-	            .expect("expected -stats_period to be present");
-	        assert_eq!(
-	            args.get(idx + 1).map(String::as_str),
-	            Some("0.200"),
-	            "must normalize to 200ms => 0.200s, got: {args:?}"
-	        );
-	    }
+        let pairs = args.windows(2).filter(|w| w[0] == "-stats_period").count();
+        assert_eq!(pairs, 1, "must keep a single -stats_period, got: {args:?}");
+        let idx = args
+            .iter()
+            .position(|a| a == "-stats_period")
+            .expect("expected -stats_period to be present");
+        assert_eq!(
+            args.get(idx + 1).map(String::as_str),
+            Some("0.200"),
+            "must normalize to 200ms => 0.200s, got: {args:?}"
+        );
+    }
 
-	    #[test]
-	    #[cfg(unix)]
-	    fn maybe_inject_stats_period_removes_flag_when_unsupported() {
-	        let mut settings = AppSettings::default();
-	        settings.progress_update_interval_ms = Some(250);
-	        let inner = Inner::new(Vec::new(), settings.clone());
+    #[test]
+    #[cfg(unix)]
+    fn maybe_inject_stats_period_removes_flag_when_unsupported() {
+        let mut settings = AppSettings::default();
+        settings.progress_update_interval_ms = Some(250);
+        let inner = Inner::new(Vec::new(), settings.clone());
 
-	        let dir = std::env::temp_dir().join("ffui_test_stats_period_unsupported");
-	        let _ = fs::create_dir_all(&dir);
-	        let exe = dir.join("fake-ffmpeg-no-stats-period.sh");
-	        write_executable(&exe, "#!/bin/sh\n\necho \"nope\"\nexit 0\n");
+        let dir = std::env::temp_dir().join("ffui_test_stats_period_unsupported");
+        let _ = fs::create_dir_all(&dir);
+        let exe = dir.join("fake-ffmpeg-no-stats-period.sh");
+        write_executable(&exe, "#!/bin/sh\n\necho \"nope\"\nexit 0\n");
 
-	        let mut args = vec![
-	            "-stats_period".to_string(),
-	            "1.000".to_string(),
-	            "-i".to_string(),
-	            "INPUT".to_string(),
-	        ];
-	        maybe_inject_stats_period_for_download(
-	            &inner,
-	            &mut args,
-	            &settings,
-	            exe.to_string_lossy().as_ref(),
-	            "custom",
-	        );
+        let mut args = vec![
+            "-stats_period".to_string(),
+            "1.000".to_string(),
+            "-i".to_string(),
+            "INPUT".to_string(),
+        ];
+        maybe_inject_stats_period_for_download(
+            &inner,
+            &mut args,
+            &settings,
+            exe.to_string_lossy().as_ref(),
+            "custom",
+        );
 
-	        assert!(
-	            !args.iter().any(|a| a == "-stats_period"),
-	            "unsupported binaries must not be invoked with -stats_period, got: {args:?}"
-	        );
-	    }
-	}
+        assert!(
+            !args.iter().any(|a| a == "-stats_period"),
+            "unsupported binaries must not be invoked with -stats_period, got: {args:?}"
+        );
+    }
+}
 
 struct FfmpegStderrPump {
     rx: Option<std::sync::mpsc::Receiver<String>>,
@@ -382,7 +379,10 @@ struct FfmpegStderrPump {
 impl FfmpegStderrPump {
     fn spawn(child: &mut std::process::Child) -> Self {
         let Some(stderr) = child.stderr.take() else {
-            return Self { rx: None, join: None };
+            return Self {
+                rx: None,
+                join: None,
+            };
         };
 
         let (tx, rx) = std::sync::mpsc::channel::<String>();

@@ -3,6 +3,7 @@ import {
   highlightFfmpegCommand,
   normalizeFfmpegTemplate,
   buildFfmpegCommandFromStructured,
+  getFfmpegCommandPreview,
   type FfmpegCommandPreviewInput,
 } from "./ffmpegCommand";
 import type {
@@ -215,6 +216,106 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     expect(args).not.toContain("-bufsize");
     expect(args).not.toContain("-passlogfile");
     expect(args).not.toContain("-pass");
+  });
+
+  it("renders structured two-pass presets as reproducible pass 1 and pass 2 commands", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        video: makeBaseVideo({
+          rateControl: "vbr",
+          bitrateKbps: 3000,
+          maxBitrateKbps: 4000,
+          bufferSizeKbits: 6000,
+          pass: 2,
+        }),
+        audio: {
+          codec: "aac",
+          bitrate: 192,
+        },
+      }),
+      { platform: "posix" },
+    );
+
+    const [passOne, passTwo] = cmd.split(" && ");
+    expect(passOne).toContain("-passlogfile OUTPUT.ffui2pass -pass 1");
+    expect(passOne).toContain("-an -sn -dn -f null /dev/null");
+    expect(passOne).not.toContain("-c:a aac");
+    expect(passTwo).toContain("-passlogfile OUTPUT.ffui2pass -pass 2");
+    expect(passTwo).toContain("-c:a aac");
+    expect(passTwo).toContain(" OUTPUT");
+  });
+
+  it("renders structured two-pass when advanced mode is enabled with an empty template", () => {
+    const cmd = getFfmpegCommandPreview(
+      makeInput({
+        advancedEnabled: true,
+        ffmpegTemplate: "   ",
+        video: makeBaseVideo({
+          rateControl: "vbr",
+          bitrateKbps: 3000,
+          pass: 2,
+        }),
+      }),
+      { platform: "posix" },
+    );
+
+    const [passOne, passTwo] = cmd.split(" && ");
+    expect(passOne).toContain("-pass 1");
+    expect(passTwo).toContain("-pass 2");
+  });
+
+  it("uses the Windows null sink for structured two-pass pass 1 previews", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        video: makeBaseVideo({
+          rateControl: "vbr",
+          bitrateKbps: 3000,
+          pass: 2,
+        }),
+      }),
+      { platform: "windows" },
+    );
+
+    const [passOne] = cmd.split(" && ");
+    expect(passOne).toContain("-passlogfile OUTPUT.ffui2pass -pass 1");
+    expect(passOne).toContain("-f null NUL");
+    expect(passOne).not.toContain("/dev/null");
+    expect(passOne).not.toContain("NUL.ffui2pass");
+  });
+
+  it("uses the POSIX null sink for structured two-pass pass 1 previews", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        video: makeBaseVideo({
+          rateControl: "vbr",
+          bitrateKbps: 3000,
+          pass: 2,
+        }),
+      }),
+      { platform: "posix" },
+    );
+
+    const [passOne] = cmd.split(" && ");
+    expect(passOne).toContain("-passlogfile OUTPUT.ffui2pass -pass 1");
+    expect(passOne).toContain("-f null /dev/null");
+    expect(passOne).not.toContain("NUL");
+  });
+
+  it("does not render a two-pass command when pass=2 has no target bitrate", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        video: makeBaseVideo({
+          rateControl: "vbr",
+          pass: 2,
+        }),
+      }),
+      { platform: "posix" },
+    );
+
+    expect(cmd).not.toContain(" && ");
+    expect(cmd).not.toContain("-pass 1");
+    expect(cmd).not.toContain("-pass 2");
+    expect(cmd).not.toContain("-passlogfile");
   });
 
   it("keeps auto mapping but excludes incompatible data streams for matroska output", () => {
@@ -508,5 +609,30 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     const fIndex = args.indexOf("-f");
     expect(fIndex).toBeGreaterThan(-1);
     expect(args[fIndex + 1]).toBe("rm");
+  });
+
+  it("emits hwaccel before input and keeps bitstream filters output-side", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        hardware: {
+          hwaccel: "cuda",
+          hwaccelDevice: "cuda:0",
+          hwaccelOutputFormat: "cuda",
+          bitstreamFilters: ["h264_mp4toannexb"],
+        },
+      }),
+    );
+    const args = splitArgs(cmd);
+    const inputIndex = args.indexOf("-i");
+    const outputIndex = args.lastIndexOf("OUTPUT");
+    const hwIndex = args.indexOf("-hwaccel");
+    const bsfIndex = args.indexOf("-bsf");
+
+    expect(hwIndex).toBeGreaterThan(-1);
+    expect(hwIndex).toBeLessThan(inputIndex);
+    expect(args.indexOf("-hwaccel_device")).toBeLessThan(inputIndex);
+    expect(args.indexOf("-hwaccel_output_format")).toBeLessThan(inputIndex);
+    expect(bsfIndex).toBeGreaterThan(inputIndex);
+    expect(bsfIndex).toBeLessThan(outputIndex);
   });
 });

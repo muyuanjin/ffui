@@ -116,6 +116,16 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
     });
     preset.container = Some(ContainerConfig {
         format: Some("mp4".to_string()),
+        movflags: Some(vec!["faststart".to_string()]),
+    });
+    preset.hardware = Some(HardwareConfig {
+        hwaccel: None,
+        hwaccel_device: None,
+        hwaccel_output_format: None,
+        bitstream_filters: Some(vec!["h264_mp4toannexb".to_string()]),
+    });
+    preset.container = Some(ContainerConfig {
+        format: Some("mp4".to_string()),
         movflags: Some(vec!["faststart".to_string(), "frag_keyframe".to_string()]),
     });
     preset.hardware = Some(HardwareConfig {
@@ -225,6 +235,193 @@ fn build_ffmpeg_args_honors_structured_global_timeline_and_container_fields() {
         idx_itsoffset < idx_i,
         "-itsoffset must appear before -i to affect the input, got: {joined}"
     );
+    let idx_hwaccel = args
+        .iter()
+        .position(|a| a == "-hwaccel")
+        .expect("structured args must include -hwaccel");
+    let idx_bsf = args
+        .iter()
+        .position(|a| a == "-bsf")
+        .expect("structured args must include -bsf");
+    let idx_output = args.len() - 1;
+    assert!(
+        idx_hwaccel < idx_i,
+        "-hwaccel must appear before -i to affect the input, got: {joined}"
+    );
+    assert!(
+        idx_bsf > idx_i && idx_bsf < idx_output,
+        "-bsf must remain output-side before the output path, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_run_plan_creates_two_pass_runs_with_null_first_pass() {
+    let mut preset = make_test_preset();
+    preset.video.rate_control = RateControlMode::Vbr;
+    preset.video.bitrate_kbps = Some(3000);
+    preset.video.max_bitrate_kbps = Some(4000);
+    preset.video.buffer_size_kbits = Some(6000);
+    preset.video.pass = Some(2);
+    preset.audio.codec = AudioCodecType::Aac;
+    preset.subtitles = Some(SubtitlesConfig {
+        strategy: Some(SubtitleStrategy::Drop),
+        burn_in_filter: None,
+    });
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+
+    assert_eq!(plan.len(), 2, "two-pass preset must plan two ffmpeg runs");
+    assert!(matches!(plan[0].kind, FfmpegRunKind::TwoPassFirst));
+    assert!(matches!(plan[1].kind, FfmpegRunKind::TwoPassSecond));
+
+    let first = format!(" {} ", plan[0].args.join(" "));
+    assert!(
+        first.contains(" -pass 1 "),
+        "pass 1 run must emit -pass 1, got: {first}"
+    );
+    assert!(
+        first.contains(" -passlogfile ") && first.contains(".ffui2pass"),
+        "pass 1 run must use the shared passlog prefix, got: {first}"
+    );
+    assert!(
+        first.contains(" -an ") && first.contains(" -sn ") && first.contains(" -dn "),
+        "pass 1 run must disable non-video output, got: {first}"
+    );
+    assert!(
+        first.contains(" -f null "),
+        "pass 1 run must target the null muxer, got: {first}"
+    );
+    assert!(
+        first.contains(" /dev/null ") || first.contains(" NUL "),
+        "pass 1 run must write to the platform null device, got: {first}"
+    );
+    assert!(
+        !first.contains(" -c:a ") && !first.contains(" -b:a "),
+        "pass 1 must not emit audio encode args, got: {first}"
+    );
+    assert!(
+        !first.contains(" mp4 ") && !first.contains(" -movflags ") && !first.contains(" -bsf "),
+        "pass 1 must strip real-output muxer options before adding the null muxer, got: {first}"
+    );
+
+    let second = format!(" {} ", plan[1].args.join(" "));
+    assert!(
+        second.contains(" -pass 2 "),
+        "pass 2 run must emit -pass 2, got: {second}"
+    );
+    assert!(
+        second.contains(" -c:a aac "),
+        "pass 2 run must keep normal output audio policy, got: {second}"
+    );
+    assert!(
+        second.contains(output.to_string_lossy().as_ref()),
+        "pass 2 run must target the real output path, got: {second}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_run_plan_ignores_pass_enabled_preset_without_positive_bitrate() {
+    for bitrate in [None, Some(0), Some(-1)] {
+        let mut preset = make_test_preset();
+        preset.video.rate_control = RateControlMode::Vbr;
+        preset.video.bitrate_kbps = bitrate;
+        preset.video.max_bitrate_kbps = Some(4000);
+        preset.video.pass = Some(2);
+
+        let input = PathBuf::from("C:/Videos/input.mp4");
+        let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+
+        assert_eq!(
+            plan.len(),
+            1,
+            "pass-enabled CBR/VBR preset without positive target bitrate should plan a single run; bitrate={bitrate:?}"
+        );
+        assert!(matches!(plan[0].kind, FfmpegRunKind::Single));
+
+        let args = format!(" {} ", plan[0].args.join(" "));
+        assert!(
+            !args.contains(" -pass ") && !args.contains(" -passlogfile "),
+            "single run for invalid two-pass data must not include structured two-pass flags, got: {args}"
+        );
+    }
+}
+
+#[test]
+fn build_ffmpeg_args_and_run_plan_share_structured_two_pass_routing() {
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+
+    let mut cases = Vec::new();
+
+    let mut enabled = make_test_preset();
+    enabled.video.rate_control = RateControlMode::Cbr;
+    enabled.video.bitrate_kbps = Some(3000);
+    enabled.video.pass = Some(2);
+    cases.push(("pass-enabled cbr with bitrate", enabled, true));
+
+    let mut missing_bitrate = make_test_preset();
+    missing_bitrate.video.rate_control = RateControlMode::Cbr;
+    missing_bitrate.video.bitrate_kbps = None;
+    missing_bitrate.video.pass = Some(2);
+    cases.push(("pass-enabled cbr without bitrate", missing_bitrate, false));
+
+    let mut zero_bitrate = make_test_preset();
+    zero_bitrate.video.rate_control = RateControlMode::Vbr;
+    zero_bitrate.video.bitrate_kbps = Some(0);
+    zero_bitrate.video.pass = Some(2);
+    cases.push(("pass-enabled vbr with zero bitrate", zero_bitrate, false));
+
+    let mut negative_bitrate = make_test_preset();
+    negative_bitrate.video.rate_control = RateControlMode::Vbr;
+    negative_bitrate.video.bitrate_kbps = Some(-1);
+    negative_bitrate.video.pass = Some(2);
+    cases.push((
+        "pass-enabled vbr with negative bitrate",
+        negative_bitrate,
+        false,
+    ));
+
+    let mut copy = make_test_preset();
+    copy.video.encoder = EncoderType::Copy;
+    copy.video.rate_control = RateControlMode::Vbr;
+    copy.video.pass = Some(2);
+    cases.push(("copy encoder", copy, false));
+
+    let mut crf = make_test_preset();
+    crf.video.rate_control = RateControlMode::Crf;
+    crf.video.pass = Some(2);
+    cases.push(("crf", crf, false));
+
+    let mut advanced = make_test_preset();
+    advanced.advanced_enabled = Some(true);
+    advanced.ffmpeg_template = Some("-i INPUT -c:v libx264 -b:v 3000k OUTPUT".to_string());
+    advanced.video.rate_control = RateControlMode::Vbr;
+    advanced.video.pass = Some(2);
+    cases.push(("advanced template", advanced, false));
+
+    for (name, preset, should_two_pass) in cases {
+        let args = build_ffmpeg_args(&preset, &input, &output, true, None);
+        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+        let args_has_structured_pass = args
+            .windows(2)
+            .any(|pair| pair[0] == "-pass" && pair[1] == "2")
+            && args.iter().any(|arg| arg == "-passlogfile");
+        let plan_is_two_pass = plan
+            .iter()
+            .any(|run| matches!(run.kind, FfmpegRunKind::TwoPassFirst));
+
+        assert_eq!(
+            args_has_structured_pass, should_two_pass,
+            "{name}: builder two-pass flags should match expected structured routing; args={args:?}"
+        );
+        assert_eq!(
+            plan_is_two_pass, should_two_pass,
+            "{name}: run plan should match builder structured two-pass routing; plan={plan:?}"
+        );
+    }
 }
 
 #[test]

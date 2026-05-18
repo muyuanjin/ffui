@@ -10,6 +10,7 @@ export type { CommandTokenKind, CommandToken } from "./tokenizer";
 export type { TemplateParseResult } from "./normalization";
 
 export type { FfmpegCommandPreviewInput } from "./builder";
+export type { FfmpegCommandPreviewOptions, FfmpegCommandPreviewPlatform } from "./previewPlatform";
 
 // 导出工具函数
 export { escapeHtml, tokenizeFfmpegCommand } from "./tokenizer";

@@ -8,6 +8,7 @@ import { highlightFfmpegCommandTokens, normalizeFfmpegTemplate, getFfmpegCommand
 import { validatePresetTemplate } from "@/lib/backend";
 import { applyEncoderChangePatch, normalizeVideoForSave } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
 import { normalizePreset } from "@/lib/presetEditorContract/presetDerivation";
+import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
 import WizardStepBasics from "@/components/parameter-wizard/WizardStepBasics.vue";
 import WizardStepVideo from "@/components/parameter-wizard/WizardStepVideo.vue";
 import WizardStepFilters from "@/components/parameter-wizard/WizardStepFilters.vue";
@@ -66,6 +67,7 @@ const parseHint = ref<string | null>(null);
 const parseHintVariant = ref<"neutral" | "ok" | "warning">("neutral");
 
 const isCustomCommandPreset = computed<boolean>(() => advancedEnabled.value && ffmpegTemplate.value.trim().length > 0);
+const isStructuredTwoPassPreset = computed<boolean>(() => isStructuredTwoPassVideo(video));
 
 if (props.initialPreset) {
   presetKind.value = isCustomCommandPreset.value ? "custom" : "structured";
@@ -285,6 +287,12 @@ const handleCopyPreview = async () => {
 };
 
 const handleParseTemplateFromCommand = () => {
+  if (!ffmpegTemplate.value.trim() && isStructuredTwoPassPreset.value) {
+    parseHint.value = t("presetEditor.advanced.parseTwoPassUnsupported") as string;
+    parseHintVariant.value = "warning";
+    return;
+  }
+
   const source =
     ffmpegTemplate.value.trim() ||
     getFfmpegCommandPreview({
