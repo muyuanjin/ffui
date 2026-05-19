@@ -26,6 +26,7 @@ import { hasTauri } from "./backend.core";
 import { invokeCommand } from "./backend/invokeCommand";
 import { queueStateFromWire, queueStateLiteFromWire } from "./backend/queueContract";
 import { appendQueryParam } from "./url";
+import { validateAndNormalizePresetForSave } from "./presetSaveContract";
 export type {
   AppUpdaterCapabilities,
   DownloadedFontInfo,
@@ -250,7 +251,8 @@ export const measurePresetVmaf = async (
 };
 
 export const savePresetOnBackend = async (preset: FFmpegPreset): Promise<FFmpegPreset[]> => {
-  return invokeCommand<FFmpegPreset[]>("save_preset", { preset });
+  const { preset: normalizedPreset } = validateAndNormalizePresetForSave(preset);
+  return invokeCommand<FFmpegPreset[]>("save_preset", { preset: normalizedPreset });
 };
 
 export const deletePresetOnBackend = async (presetId: string): Promise<FFmpegPreset[]> => {

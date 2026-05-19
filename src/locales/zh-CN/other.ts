@@ -303,6 +303,7 @@ const other = {
     openInSystemPlayer: "用系统播放器打开",
   },
   presets: {
+    saveFailedTitle: "预设保存失败",
     vmafHint95: "≥95（肉眼接近无损）",
     vmafTooltipMeasured: "实测均值：{value}",
     vmafTooltipMeasuredWithCount: "实测均值：{value}（{count} 次）",

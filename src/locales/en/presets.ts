@@ -1,4 +1,5 @@
 const presets = {
+  saveFailedTitle: "Preset save failed",
   vmafHint95: "≥95 (visually near-lossless)",
   vmafTooltipMeasured: "Measured mean: {value}",
   vmafTooltipMeasuredWithCount: "Measured mean: {value} ({count}×)",

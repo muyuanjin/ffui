@@ -108,10 +108,6 @@ const quickValidateButtonToneClass = computed(() =>
 
 // name 和 description 现在在模板中直接使用，用于编辑预设名称和描述
 
-const handleSave = () => {
-  emit("save", buildPresetFromState());
-};
-
 const handleSwitchToWizard = () => {
   emit("switchToWizard", buildPresetFromState());
 };
@@ -134,6 +130,7 @@ const validationState = {
   ffmpegTemplate,
 };
 const validation = computed(() => validatePresetEditorState(validationState as any));
+const hasValidationErrors = computed(() => validation.value.issues.some((issue) => issue.level === "error"));
 const groupSummary = computed(() => validation.value.byGroup);
 const activeGroup = computed(() => activeTab.value as PresetEditorGroup);
 const activeGroupSummary = computed(() => groupSummary.value[activeGroup.value]);
@@ -151,6 +148,11 @@ const applyFixById = (fixId: string) => {
   const fix = activeGroupFixes.value.find((f) => f.id === fixId) ?? validation.value.fixes.find((f) => f.id === fixId);
   if (!fix) return;
   fix.apply(validationState as any);
+};
+
+const handleSave = () => {
+  if (hasValidationErrors.value) return;
+  emit("save", buildPresetFromState());
 };
 
 const focusedTarget = ref<{ group: string; field?: string } | null>(null);
@@ -453,7 +455,11 @@ const handleQuickValidate = async () => {
         >
           {{ t("common.cancel") }}
         </Button>
-        <Button class="px-6 py-2 font-medium flex items-center gap-2 transition-colors" @click="handleSave">
+        <Button
+          class="px-6 py-2 font-medium flex items-center gap-2 transition-colors"
+          :disabled="hasValidationErrors"
+          @click="handleSave"
+        >
           {{ t("presetEditor.actions.update") }}
         </Button>
       </div>

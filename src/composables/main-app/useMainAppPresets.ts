@@ -14,6 +14,7 @@ import {
 import { toast } from "vue-sonner";
 import { INITIAL_PRESETS } from "@/lib/initialPresets";
 import { applyPresetStatsDelta, getPresetStatsDeltaFromJob, makeZeroPresetStats } from "@/lib/presetStats";
+import { validateAndNormalizePresetForSave } from "@/lib/presetSaveContract";
 import { startupNowMs, updateStartupMetrics } from "@/lib/startupMetrics";
 import { perfLog } from "@/lib/perfLog";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -66,7 +67,7 @@ const LEGACY_DEFAULT_PRESET_IDS = new Set(INITIAL_PRESETS.map((preset) => preset
  * AppSettings (defaultQueuePresetId) is handled in useMainAppSettings.
  */
 export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainAppPresetsReturn {
-  const { presets, presetsLoadedFromBackend, manualJobPresetId, dialogManager, shell, locale } = options;
+  const { t, presets, presetsLoadedFromBackend, manualJobPresetId, dialogManager, shell, locale } = options;
 
   // Initialize with local presets so the UI is immediately usable.
   if (presets.value.length === 0) {
@@ -194,24 +195,33 @@ export function useMainAppPresets(options: UseMainAppPresetsOptions): UseMainApp
           ? makeZeroPresetStats()
           : existing.stats;
     const createdTimeMs = existing?.createdTimeMs ?? preset.createdTimeMs ?? (existing ? undefined : Date.now());
-    const normalizedPreset: FFmpegPreset = { ...preset, createdTimeMs, stats: nextStats };
-    if (idx >= 0) {
-      presets.value.splice(idx, 1, normalizedPreset);
-    } else {
-      presets.value.push(normalizedPreset);
-    }
-    ensureManualPresetIdLocal();
+    let normalizedPreset: FFmpegPreset;
+    try {
+      normalizedPreset = validateAndNormalizePresetForSave({ ...preset, createdTimeMs, stats: nextStats }).preset;
 
+      if (hasTauri()) {
+        const updated = await savePresetOnBackend(normalizedPreset);
+        if (Array.isArray(updated) && updated.length > 0) {
+          presets.value = updated;
+        }
+      } else if (idx >= 0) {
+        presets.value.splice(idx, 1, normalizedPreset);
+      } else {
+        presets.value.push(normalizedPreset);
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e ?? "Unknown error");
+      console.error("Failed to save preset to backend:", e);
+      toast.error(t("presets.saveFailedTitle"), {
+        description: message,
+        duration: 6000,
+      });
+      return;
+    }
+
+    ensureManualPresetIdLocal();
     dialogManager.closeWizard();
     dialogManager.closeParameterPanel();
-
-    if (hasTauri()) {
-      try {
-        await savePresetOnBackend(normalizedPreset);
-      } catch (e) {
-        console.error("Failed to save preset to backend:", e);
-      }
-    }
 
     // When saving from wizard, jump the user into the preset tab for clarity.
     if (shell) {

@@ -57,3 +57,23 @@ fn presets_snapshot_is_reused_and_cow_on_mutation() {
     );
     drop(data_root_guard);
 }
+
+#[test]
+fn save_preset_rejects_invalid_preset_without_mutating_snapshot() {
+    let engine = make_engine_with_preset();
+    let before = engine.presets();
+    let mut preset = before[0].clone();
+    preset.video.max_bitrate_kbps = Some(1000);
+    preset.video.bitrate_kbps = Some(2000);
+
+    let err = engine
+        .save_preset(preset)
+        .expect_err("invalid VBV settings should be rejected");
+
+    assert!(err.to_string().contains("maxBitrateKbps"));
+    let after = engine.presets();
+    assert!(
+        std::sync::Arc::ptr_eq(&before, &after),
+        "rejected save must not replace the in-memory preset snapshot"
+    );
+}

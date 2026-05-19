@@ -88,7 +88,7 @@ fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
 
     // Prefer structured model when present.
     if !preset.advanced_enabled.unwrap_or(false) {
-        let enc = match preset.video.encoder {
+        let enc = match &preset.video.encoder {
             EncoderType::Libx264 => "x264",
             EncoderType::Libx265 => "x265",
             EncoderType::HevcNvenc => "hevc_nvenc",
@@ -100,10 +100,11 @@ fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
             EncoderType::Av1Amf => "av1_amf",
             EncoderType::LibSvtAv1 => "svtav1",
             EncoderType::Copy => "copy",
+            EncoderType::Unknown(value) => value.as_str(),
         };
 
         let q = preset.video.quality_value;
-        let qtag = match preset.video.rate_control {
+        let qtag = match &preset.video.rate_control {
             RateControlMode::Crf => format!("crf{q}"),
             RateControlMode::Cq => format!("cq{q}"),
             RateControlMode::Constqp => format!("qp{q}"),
@@ -121,6 +122,7 @@ fn infer_encoder_quality_tag(preset: Option<&FFmpegPreset>) -> Option<String> {
                     (None, None) => "vbr".to_string(),
                 }
             }
+            RateControlMode::Unknown(value) => value.as_str().to_string(),
         };
         return Some(format!("{enc}-{qtag}"));
     }

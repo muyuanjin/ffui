@@ -1,30 +1,74 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncoderType {
-    #[serde(rename = "libx264")]
     Libx264,
-    #[serde(rename = "libx265")]
     Libx265,
-    #[serde(rename = "hevc_nvenc")]
     HevcNvenc,
-    #[serde(rename = "h264_nvenc")]
     H264Nvenc,
-    #[serde(rename = "av1_nvenc")]
     Av1Nvenc,
-    #[serde(rename = "hevc_qsv")]
     HevcQsv,
-    #[serde(rename = "av1_qsv")]
     Av1Qsv,
-    #[serde(rename = "hevc_amf")]
     HevcAmf,
-    #[serde(rename = "av1_amf")]
     Av1Amf,
-    #[serde(rename = "libsvtav1")]
     LibSvtAv1,
-    #[serde(rename = "copy")]
     Copy,
+    Unknown(String),
+}
+
+impl EncoderType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Libx264 => "libx264",
+            Self::Libx265 => "libx265",
+            Self::HevcNvenc => "hevc_nvenc",
+            Self::H264Nvenc => "h264_nvenc",
+            Self::Av1Nvenc => "av1_nvenc",
+            Self::HevcQsv => "hevc_qsv",
+            Self::Av1Qsv => "av1_qsv",
+            Self::HevcAmf => "hevc_amf",
+            Self::Av1Amf => "av1_amf",
+            Self::LibSvtAv1 => "libsvtav1",
+            Self::Copy => "copy",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    pub fn is_copy(&self) -> bool {
+        matches!(self, Self::Copy)
+    }
+}
+
+impl Serialize for EncoderType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for EncoderType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(match value.as_str() {
+            "libx264" => Self::Libx264,
+            "libx265" => Self::Libx265,
+            "hevc_nvenc" => Self::HevcNvenc,
+            "h264_nvenc" => Self::H264Nvenc,
+            "av1_nvenc" => Self::Av1Nvenc,
+            "hevc_qsv" => Self::HevcQsv,
+            "av1_qsv" => Self::Av1Qsv,
+            "hevc_amf" => Self::HevcAmf,
+            "av1_amf" => Self::Av1Amf,
+            "libsvtav1" => Self::LibSvtAv1,
+            "copy" => Self::Copy,
+            _ => Self::Unknown(value),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,14 +80,61 @@ pub enum AudioCodecType {
     Aac,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RateControlMode {
     Crf,
     Cq,
     Constqp,
     Cbr,
     Vbr,
+    Unknown(String),
+}
+
+impl RateControlMode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Crf => "crf",
+            Self::Cq => "cq",
+            Self::Constqp => "constqp",
+            Self::Cbr => "cbr",
+            Self::Vbr => "vbr",
+            Self::Unknown(value) => value.as_str(),
+        }
+    }
+
+    pub fn is_bitrate_mode(&self) -> bool {
+        matches!(self, Self::Cbr | Self::Vbr)
+    }
+
+    pub fn is_known(&self) -> bool {
+        !matches!(self, Self::Unknown(_))
+    }
+}
+
+impl Serialize for RateControlMode {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for RateControlMode {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Ok(match value.as_str() {
+            "crf" => Self::Crf,
+            "cq" => Self::Cq,
+            "constqp" => Self::Constqp,
+            "cbr" => Self::Cbr,
+            "vbr" => Self::Vbr,
+            _ => Self::Unknown(value),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,7 +199,7 @@ pub struct AudioConfig {
 pub struct FilterConfig {
     pub scale: Option<String>,
     pub crop: Option<String>,
-    pub fps: Option<u32>,
+    pub fps: Option<f64>,
     pub vf_chain: Option<String>,
     pub af_chain: Option<String>,
     pub filter_complex: Option<String>,

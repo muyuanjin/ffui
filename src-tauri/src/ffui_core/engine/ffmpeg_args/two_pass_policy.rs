@@ -1,4 +1,4 @@
-use crate::ffui_core::domain::{EncoderType, FFmpegPreset, RateControlMode};
+use crate::ffui_core::domain::FFmpegPreset;
 
 fn preset_uses_advanced_template(preset: &FFmpegPreset) -> bool {
     preset.advanced_enabled.unwrap_or(false)
@@ -10,11 +10,8 @@ fn preset_uses_advanced_template(preset: &FFmpegPreset) -> bool {
 
 pub(super) fn preset_uses_structured_two_pass(preset: &FFmpegPreset) -> bool {
     !preset_uses_advanced_template(preset)
-        && matches!(
-            preset.video.rate_control,
-            RateControlMode::Cbr | RateControlMode::Vbr
-        )
+        && preset.video.rate_control.is_bitrate_mode()
         && matches!(preset.video.pass, Some(1 | 2))
         && preset.video.bitrate_kbps.is_some_and(|bitrate| bitrate > 0)
-        && !matches!(preset.video.encoder, EncoderType::Copy)
+        && !preset.video.encoder.is_copy()
 }

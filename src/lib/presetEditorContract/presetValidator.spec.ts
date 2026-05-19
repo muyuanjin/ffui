@@ -92,7 +92,7 @@ describe("presetValidator (editor state)", () => {
     expect(mapping.mapChaptersFromInputFileIndex).toBeUndefined();
   });
 
-  it("warns when advanced is enabled but template is empty and can fix it", () => {
+  it("errors when advanced is enabled but template is empty and can fix it", () => {
     const advancedEnabled = ref(true);
     const ffmpegTemplate = ref("");
 
@@ -111,7 +111,7 @@ describe("presetValidator (editor state)", () => {
     };
 
     const res = validatePresetEditorState(state as any);
-    expect(res.byGroup.command.warnings).toBe(1);
+    expect(res.byGroup.command.errors).toBe(1);
 
     const fix = res.byGroup.command.fixes[0];
     fix.apply(state as any);

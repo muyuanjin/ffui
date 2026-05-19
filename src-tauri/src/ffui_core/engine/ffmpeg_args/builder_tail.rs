@@ -1,7 +1,5 @@
 use super::normalize_container_format;
-use crate::ffui_core::domain::{
-    AudioCodecType, EncoderType, FFmpegPreset, OverwriteBehavior, SubtitleStrategy,
-};
+use crate::ffui_core::domain::{AudioCodecType, FFmpegPreset, OverwriteBehavior, SubtitleStrategy};
 
 pub(in crate::ffui_core::engine) fn apply_global_args(
     args: &mut Vec<String>,
@@ -73,7 +71,7 @@ pub(in crate::ffui_core::engine) fn apply_audio_args(
 }
 
 pub(super) fn apply_filter_args(args: &mut Vec<String>, preset: &FFmpegPreset) {
-    let can_apply_video_filters = !matches!(preset.video.encoder, EncoderType::Copy);
+    let can_apply_video_filters = !preset.video.encoder.is_copy();
     let can_apply_audio_filters = !matches!(preset.audio.codec, AudioCodecType::Copy);
 
     if can_apply_video_filters {
@@ -103,9 +101,10 @@ pub(in crate::ffui_core::engine) fn apply_video_filter_args(
         vf_parts.push(format!("crop={crop}"));
     }
     if let Some(fps) = preset.filters.fps
-        && fps > 0
+        && fps.is_finite()
+        && fps > 0.0
     {
-        vf_parts.push(format!("fps={fps}"));
+        vf_parts.push(format!("fps={}", format_decimal_arg(fps)));
     }
     if let Some(subtitles) = &preset.subtitles
         && matches!(subtitles.strategy, Some(SubtitleStrategy::BurnIn))
@@ -134,6 +133,18 @@ pub(in crate::ffui_core::engine) fn apply_video_filter_args(
         }
         args.push("-vf".to_string());
         args.push(combined);
+    }
+}
+
+fn format_decimal_arg(value: f64) -> String {
+    if value.fract() == 0.0 {
+        format!("{value:.0}")
+    } else {
+        let mut raw = format!("{value:.6}");
+        while raw.contains('.') && raw.ends_with('0') {
+            raw.pop();
+        }
+        raw
     }
 }
 

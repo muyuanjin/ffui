@@ -216,29 +216,16 @@ pub(crate) fn build_ffmpeg_args(
         append_default_map_args(&mut args, preset, forced_muxer.as_deref());
     }
 
-    match preset.video.encoder {
+    match &preset.video.encoder {
         EncoderType::Copy => {
             args.push("-c:v".to_string());
             args.push("copy".to_string());
         }
-        ref enc => {
+        enc => {
             args.push("-c:v".to_string());
-            let enc_name = match enc {
-                EncoderType::Libx264 => "libx264",
-                EncoderType::Libx265 => "libx265",
-                EncoderType::HevcNvenc => "hevc_nvenc",
-                EncoderType::H264Nvenc => "h264_nvenc",
-                EncoderType::Av1Nvenc => "av1_nvenc",
-                EncoderType::HevcQsv => "hevc_qsv",
-                EncoderType::Av1Qsv => "av1_qsv",
-                EncoderType::HevcAmf => "hevc_amf",
-                EncoderType::Av1Amf => "av1_amf",
-                EncoderType::LibSvtAv1 => "libsvtav1",
-                EncoderType::Copy => "copy",
-            };
-            args.push(enc_name.to_string());
+            args.push(enc.as_str().to_string());
 
-            match preset.video.rate_control {
+            match &preset.video.rate_control {
                 RateControlMode::Crf => {
                     args.push("-crf".to_string());
                     args.push(preset.video.quality_value.to_string());
@@ -288,6 +275,7 @@ pub(crate) fn build_ffmpeg_args(
                         args.push(pass.to_string());
                     }
                 }
+                RateControlMode::Unknown(_) => {}
             }
 
             if !preset.video.preset.is_empty() {

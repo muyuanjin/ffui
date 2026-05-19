@@ -198,6 +198,68 @@ describe("backend contract - presets", () => {
     expect(result).toEqual(backendList);
   });
 
+  it("savePresetOnBackend sends normalized camelCase preset payloads with decimal fps", async () => {
+    const preset: FFmpegPreset = {
+      id: "decimal-fps",
+      name: "Decimal FPS",
+      description: "Allows NTSC-ish frame rates",
+      video: {
+        encoder: "future_encoder",
+        rateControl: "future_rc",
+        qualityValue: 23,
+        preset: "medium",
+      },
+      audio: { codec: "copy" },
+      filters: { fps: 29.97 },
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+    };
+
+    invokeMock.mockResolvedValueOnce([preset]);
+
+    await savePresetOnBackend(preset);
+
+    const [, payload] = invokeMock.mock.calls[0];
+    const sentPreset = (payload as any).preset as FFmpegPreset;
+    expect(sentPreset.filters.fps).toBe(29.97);
+    expect(sentPreset.video.encoder).toBe("future_encoder");
+    expect(sentPreset.video.rateControl).toBe("future_rc");
+    expect(JSON.stringify(payload)).not.toContain("rate_control");
+    expect(JSON.stringify(payload)).not.toContain("quality_value");
+    expect(JSON.stringify(payload)).not.toContain("max_bitrate_kbps");
+  });
+
+  it("savePresetOnBackend rejects invalid presets before invoking Tauri", async () => {
+    const preset: FFmpegPreset = {
+      id: "invalid-vbv",
+      name: "Invalid VBV",
+      description: "bad maxrate",
+      video: {
+        encoder: "libx264",
+        rateControl: "vbr",
+        qualityValue: 23,
+        preset: "medium",
+        bitrateKbps: 4000,
+        maxBitrateKbps: 3000,
+      },
+      audio: { codec: "copy" },
+      filters: {},
+      stats: {
+        usageCount: 0,
+        totalInputSizeMB: 0,
+        totalOutputSizeMB: 0,
+        totalTimeSeconds: 0,
+      },
+    };
+
+    await expect(savePresetOnBackend(preset)).rejects.toThrow(/maxrateBelowBitrate/);
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+
   it("deletePresetOnBackend sends delete_preset with the presetId and returns the updated list", async () => {
     const remaining: FFmpegPreset[] = [
       {

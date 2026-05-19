@@ -95,19 +95,21 @@ fn enqueue_transcode_job_no_notify(
                 (Some(preset), Some(output_path)) => {
                     let input_path_buf = PathBuf::from(&normalized_filename);
                     let output_path_buf = PathBuf::from(output_path);
-                    let plan = build_ffmpeg_run_plan(
+                    match build_ffmpeg_run_plan(
                         preset,
                         &input_path_buf,
                         &output_path_buf,
                         false,
                         Some(&queue_output_policy),
-                    );
-                    Some(
-                        plan.iter()
-                            .map(|run| format_command_for_log("ffmpeg", &run.args))
-                            .collect::<Vec<_>>()
-                            .join(" && "),
-                    )
+                    ) {
+                        Ok(plan) => Some(
+                            plan.iter()
+                                .map(|run| format_command_for_log("ffmpeg", &run.args))
+                                .collect::<Vec<_>>()
+                                .join(" && "),
+                        ),
+                        Err(_) => None,
+                    }
                 }
                 _ => None,
             }

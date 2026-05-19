@@ -61,7 +61,7 @@ pub fn get_smart_default_presets(engine: State<'_, TranscodingEngine>) -> Vec<FF
 }
 
 fn encoder_name_for_preset(preset: &FFmpegPreset) -> Option<&'static str> {
-    match preset.video.encoder {
+    match &preset.video.encoder {
         EncoderType::Libx264 => Some("libx264"),
         EncoderType::Libx265 => Some("libx265"),
         EncoderType::HevcNvenc => Some("hevc_nvenc"),
@@ -72,7 +72,7 @@ fn encoder_name_for_preset(preset: &FFmpegPreset) -> Option<&'static str> {
         EncoderType::HevcAmf => Some("hevc_amf"),
         EncoderType::Av1Amf => Some("av1_amf"),
         EncoderType::LibSvtAv1 => Some("libsvtav1"),
-        EncoderType::Copy => None,
+        EncoderType::Copy | EncoderType::Unknown(_) => None,
     }
 }
 

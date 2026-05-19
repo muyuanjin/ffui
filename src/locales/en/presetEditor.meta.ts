@@ -29,6 +29,8 @@ export const validation = {
   command: {
     emptyTemplateButEnabled: "Custom command is enabled, but the template is empty.",
     fixDisableAdvanced: "Disable custom command",
+    invalidTemplatePlaceholders:
+      "Custom command templates must contain exactly one INPUT and one OUTPUT placeholder (found INPUT ×{inputCount}, OUTPUT ×{outputCount}).",
   },
   mapping: {
     invalidMapIndex: "Invalid input index: {value} (must be ≥ -1).",
@@ -49,6 +51,8 @@ export const validation = {
     fixMaxrateToBitrate: "Set maxrate = bitrate",
     bufsizeOutOfRange: "bufsize ({bufsize}k) is outside the suggested range: {min}k–{max}k.",
     fixBufsizeTo2xMaxrate: "Set bufsize = 2× maxrate",
+    qualityOutOfRange: "Quality value {value} is outside the encoder range ({min}–{max}).",
+    integerFieldRequired: "{field} must be an integer (got {value}).",
   },
   audio: {
     invalidBitrate: "Invalid audio bitrate: {value} (must be > 0).",
@@ -60,5 +64,6 @@ export const validation = {
   },
   filters: {
     filterComplexWithVfAf: "filter_complex is set; vf/af may still be generated and could be unexpected.",
+    invalidFps: "FPS must be a finite positive number (got {value}).",
   },
 } as const;

@@ -272,15 +272,20 @@ pub(crate) fn enqueue_batch_compress_video_job(
         .insert(output_path.to_string_lossy().into_owned());
 
     job.output_path = Some(output_path.to_string_lossy().into_owned());
-    let planned_runs =
-        build_queue_ffmpeg_run_plan(preset, path, &output_path, false, Some(&output_policy));
-    job.ffmpeg_command = Some(
-        planned_runs
-            .iter()
-            .map(|run| format_command_for_log("ffmpeg", &run.args))
-            .collect::<Vec<_>>()
-            .join(" && "),
-    );
+    match build_queue_ffmpeg_run_plan(preset, path, &output_path, false, Some(&output_policy)) {
+        Ok(planned_runs) => {
+            job.ffmpeg_command = Some(
+                planned_runs
+                    .iter()
+                    .map(|run| format_command_for_log("ffmpeg", &run.args))
+                    .collect::<Vec<_>>()
+                    .join(" && "),
+            );
+        }
+        Err(err) => {
+            append_job_log_line(&mut job, format!("error: {err}"));
+        }
+    }
     if let Some(run) = job.runs.first_mut()
         && run.command.is_empty()
         && job.ffmpeg_command.is_some()

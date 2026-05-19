@@ -13,6 +13,7 @@ const enqueueTranscodeJobs = vi.fn();
 const expandManualJobInputs = vi.fn();
 const readPresetsBundle = vi.fn();
 const exportPresetsBundle = vi.fn();
+const toastError = vi.fn();
 
 vi.mock("@/lib/backend", () => {
   return {
@@ -26,6 +27,15 @@ vi.mock("@/lib/backend", () => {
     expandManualJobInputs: (...args: any[]) => expandManualJobInputs(...args),
     readPresetsBundle: (...args: any[]) => readPresetsBundle(...args),
     exportPresetsBundle: (...args: any[]) => exportPresetsBundle(...args),
+  };
+});
+
+vi.mock("vue-sonner", () => {
+  return {
+    toast: {
+      error: (...args: any[]) => toastError(...args),
+      success: vi.fn(),
+    },
   };
 });
 
@@ -97,6 +107,7 @@ describe("useMainAppPresets library actions", () => {
     expandManualJobInputs.mockReset();
     readPresetsBundle.mockReset();
     exportPresetsBundle.mockReset();
+    toastError.mockReset();
     openDialog.mockReset();
     saveDialog.mockReset();
     copyToClipboard.mockReset();
@@ -187,6 +198,53 @@ describe("useMainAppPresets library actions", () => {
     });
 
     wrapper.unmount();
+  });
+
+  it("handleSavePreset keeps editor state open and local presets unchanged when backend save fails", async () => {
+    const original = makePreset({ id: "p1", name: "Preset A" });
+    const presets = ref<FFmpegPreset[]>([original]);
+    const presetsLoadedFromBackend = ref(true);
+    const manualJobPresetId = ref<string | null>(null);
+    const locale = ref("en");
+    const closeParameterPanel = vi.fn();
+    const closeWizard = vi.fn();
+    const shell = { activeTab: ref("queue") } as any;
+
+    savePresetOnBackend.mockRejectedValueOnce(new Error("disk full"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { composable, wrapper } = mountComposable({
+      t: (key: string) => key,
+      locale,
+      presets,
+      presetsLoadedFromBackend,
+      manualJobPresetId,
+      dialogManager: {
+        openParameterPanel: () => {},
+        closeParameterPanel,
+        closeWizard,
+      } as any,
+      shell,
+    });
+
+    try {
+      await composable.handleSavePreset({
+        ...original,
+        name: "Preset A updated",
+      });
+
+      expect(presets.value).toEqual([original]);
+      expect(closeParameterPanel).not.toHaveBeenCalled();
+      expect(closeWizard).not.toHaveBeenCalled();
+      expect(shell.activeTab.value).toBe("queue");
+      expect(toastError).toHaveBeenCalledWith(
+        "presets.saveFailedTitle",
+        expect.objectContaining({ description: "disk full" }),
+      );
+    } finally {
+      consoleError.mockRestore();
+      wrapper.unmount();
+    }
   });
 
   it("importPresetsBundleFromFile regenerates ids, de-dupes names, zeros stats, and persists", async () => {

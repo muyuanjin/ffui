@@ -17,7 +17,7 @@ use super::ffmpeg_args::{
     ensure_progress_args, format_command_for_log, infer_output_extension, is_ffmpeg_progress_end,
     parse_ffmpeg_duration_from_metadata_line, parse_ffmpeg_progress_line,
     parse_ffmpeg_progress_sample, preset_requires_two_pass, rewrite_two_pass_log_prefix,
-    two_pass_artifact_paths,
+    two_pass_artifact_paths, validate_structured_execution_preset,
 };
 use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,

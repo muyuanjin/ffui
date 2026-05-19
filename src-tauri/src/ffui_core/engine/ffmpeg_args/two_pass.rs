@@ -26,12 +26,13 @@ pub(crate) fn build_ffmpeg_run_plan(
     output: &Path,
     non_interactive: bool,
     output_policy: Option<&OutputPolicy>,
-) -> Vec<FfmpegPlannedRun> {
+) -> Result<Vec<FfmpegPlannedRun>, String> {
+    validate_structured_execution_preset(preset)?;
     if !preset_requires_two_pass(preset) {
-        return vec![FfmpegPlannedRun {
+        return Ok(vec![FfmpegPlannedRun {
             kind: FfmpegRunKind::Single,
             args: build_ffmpeg_args(preset, input, output, non_interactive, output_policy),
-        }];
+        }]);
     }
 
     let pass_one =
@@ -39,7 +40,7 @@ pub(crate) fn build_ffmpeg_run_plan(
     let pass_two =
         build_ffmpeg_two_pass_second_args(preset, input, output, non_interactive, output_policy);
 
-    vec![
+    Ok(vec![
         FfmpegPlannedRun {
             kind: FfmpegRunKind::TwoPassFirst,
             args: pass_one,
@@ -48,7 +49,25 @@ pub(crate) fn build_ffmpeg_run_plan(
             kind: FfmpegRunKind::TwoPassSecond,
             args: pass_two,
         },
-    ]
+    ])
+}
+
+pub(crate) fn validate_structured_execution_preset(preset: &FFmpegPreset) -> Result<(), String> {
+    let uses_template = preset.advanced_enabled.unwrap_or(false)
+        && preset
+            .ffmpeg_template
+            .as_ref()
+            .is_some_and(|template| !template.trim().is_empty());
+    if uses_template {
+        return Ok(());
+    }
+    if !preset.video.rate_control.is_known() && !preset.video.encoder.is_copy() {
+        return Err(format!(
+            "unsupported rateControl for structured execution: {}",
+            preset.video.rate_control.as_str()
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn two_pass_artifact_paths(output: &Path) -> Vec<PathBuf> {

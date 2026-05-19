@@ -272,10 +272,11 @@ pub(super) fn base_seconds_per_mb(stats: &PresetStats) -> Option<f64> {
     }
 }
 
-pub(super) const fn encoder_factor_for_estimate(encoder: &EncoderType) -> f64 {
+pub(super) fn encoder_factor_for_estimate(encoder: &EncoderType) -> f64 {
     match encoder {
         EncoderType::LibSvtAv1 => 1.5,
         EncoderType::HevcNvenc => 0.9,
+        EncoderType::Unknown(_) => 1.0,
         _ => 1.0,
     }
 }

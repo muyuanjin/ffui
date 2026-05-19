@@ -270,7 +270,7 @@ fn build_ffmpeg_run_plan_creates_two_pass_runs_with_null_first_pass() {
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-    let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+    let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None).unwrap();
 
     assert_eq!(plan.len(), 2, "two-pass preset must plan two ffmpeg runs");
     assert!(matches!(plan[0].kind, FfmpegRunKind::TwoPassFirst));
@@ -332,7 +332,7 @@ fn build_ffmpeg_run_plan_ignores_pass_enabled_preset_without_positive_bitrate() 
 
         let input = PathBuf::from("C:/Videos/input.mp4");
         let output = PathBuf::from("C:/Videos/output.tmp.mp4");
-        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None).unwrap();
 
         assert_eq!(
             plan.len(),
@@ -404,7 +404,7 @@ fn build_ffmpeg_args_and_run_plan_share_structured_two_pass_routing() {
 
     for (name, preset, should_two_pass) in cases {
         let args = build_ffmpeg_args(&preset, &input, &output, true, None);
-        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None);
+        let plan = build_ffmpeg_run_plan(&preset, &input, &output, true, None).unwrap();
         let args_has_structured_pass = args
             .windows(2)
             .any(|pair| pair[0] == "-pass" && pair[1] == "2")
@@ -693,6 +693,9 @@ fn build_ffmpeg_args_never_mixes_crf_cq_with_bitrate_or_two_pass_flags() {
                         "two-pass must emit -passlogfile alongside -pass, got: {joined}"
                     );
                 }
+                RateControlMode::Unknown(_) => {
+                    unreachable!("unknown mode is not part of this test matrix")
+                }
             }
         }
     }
@@ -744,7 +747,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
     let mut preset = make_test_preset();
     preset.filters.scale = Some("1280:-2".to_string());
-    preset.filters.fps = Some(30);
+    preset.filters.fps = Some(30.0);
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
@@ -789,12 +792,48 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
 }
 
 #[test]
+fn build_ffmpeg_args_emits_decimal_fps_and_preserves_unknown_encoder_name() {
+    let mut preset = make_test_preset();
+    preset.video.encoder = EncoderType::Unknown("future_encoder".to_string());
+    preset.filters.fps = Some(29.97);
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
+
+    assert!(
+        joined.contains("-c:v future_encoder"),
+        "unknown encoder strings should be passed through as -c:v value, got: {joined}"
+    );
+    assert!(
+        joined.contains("fps=29.97"),
+        "decimal FPS should be emitted without integer truncation, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_run_plan_rejects_unknown_structured_rate_control() {
+    let mut preset = make_test_preset();
+    preset.video.rate_control = RateControlMode::Unknown("future_rc".to_string());
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let err = build_ffmpeg_run_plan(&preset, &input, &output, true, None)
+        .expect_err("unknown rateControl must fail before structured execution");
+
+    assert!(
+        err.contains("unsupported rateControl") && err.contains("future_rc"),
+        "error should name the unsupported rateControl, got: {err}"
+    );
+}
+
+#[test]
 fn build_ffmpeg_args_skips_video_filters_when_encoder_is_copy() {
     let mut preset = make_test_preset();
     preset.video.encoder = EncoderType::Copy;
     preset.filters.scale = Some("1280:-2".to_string());
     preset.filters.crop = Some("iw:ih-100:0:100".to_string());
-    preset.filters.fps = Some(30);
+    preset.filters.fps = Some(30.0);
     preset.filters.vf_chain = Some("eq=contrast=1.1:brightness=0.05".to_string());
     preset.filters.filter_complex = Some("[0:v]scale=1280:-2[scaled]".to_string());
 

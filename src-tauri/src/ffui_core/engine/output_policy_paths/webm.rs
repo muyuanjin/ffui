@@ -30,7 +30,7 @@ pub(in crate::ffui_core::engine) fn should_fallback_webm(
     }
 
     // Structured mode: we know the selected encoder and audio strategy.
-    let video_ok = match preset.video.encoder {
+    let video_ok = match &preset.video.encoder {
         EncoderType::Av1Nvenc
         | EncoderType::Av1Qsv
         | EncoderType::Av1Amf

@@ -65,15 +65,12 @@ fn execute_transcode_job(
         };
         two_pass_second_args = Some(planned);
     }
-    let mut args = two_pass_second_args.unwrap_or_else(|| {
-        build_ffmpeg_args(
-            &preset,
-            &input_path,
-            &tmp_output,
-            false,
-            job_output_policy.as_ref(),
-        )
-    });
+    let mut args = if let Some(args) = two_pass_second_args {
+        args
+    } else {
+        validate_structured_execution_preset(&preset).map_err(anyhow::Error::msg)?;
+        build_ffmpeg_args(&preset, &input_path, &tmp_output, false, job_output_policy.as_ref())
+    };
     let mut two_pass_log_output = current_two_pass_log_output(&tmp_output);
     let two_pass_completed_segments = existing_segments.clone();
     if two_pass_requested {

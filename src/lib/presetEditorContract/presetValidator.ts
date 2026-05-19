@@ -5,6 +5,7 @@ import type {
   PresetEditorMutableState,
   PresetEditorValidationSummary,
 } from "./presetValidatorTypes";
+import { appendPresetSaveContractIssues } from "./presetValidatorSaveRules";
 
 export type {
   PresetEditorFix,
@@ -54,7 +55,7 @@ export const validatePresetEditorState = (state: PresetEditorMutableState): Pres
   if (state.advancedEnabled.value && state.ffmpegTemplate.value.trim().length === 0) {
     const id = "fix-disable-advanced-with-empty-template";
     issues.push({
-      level: "warning",
+      level: "error",
       group: "command",
       field: "template",
       messageKey: "presetEditor.validation.command.emptyTemplateButEnabled",
@@ -70,6 +71,7 @@ export const validatePresetEditorState = (state: PresetEditorMutableState): Pres
       },
     });
   }
+  appendPresetSaveContractIssues(state, issues);
 
   // --- input/timeline: time expressions ---
   const seekPosition = state.input.seekPosition;
@@ -478,7 +480,6 @@ export const validatePresetEditorState = (state: PresetEditorMutableState): Pres
       messageKey: "presetEditor.validation.filters.filterComplexWithVfAf",
     });
   }
-
   const byGroup = emptyGroupSummary();
   for (const issue of issues) {
     if (issue.level === "error") byGroup[issue.group].errors += 1;

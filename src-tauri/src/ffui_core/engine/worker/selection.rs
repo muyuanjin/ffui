@@ -174,7 +174,7 @@ fn classify_preset(preset: &FFmpegPreset) -> ParallelismClass {
         return ParallelismClass::Cpu;
     }
 
-    match preset.video.encoder {
+    match &preset.video.encoder {
         EncoderType::HevcNvenc
         | EncoderType::H264Nvenc
         | EncoderType::Av1Nvenc

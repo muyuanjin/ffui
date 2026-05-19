@@ -37,7 +37,7 @@ pub(super) use progress::{
 };
 pub(crate) use two_pass::{
     FfmpegRunKind, build_ffmpeg_run_plan, preset_requires_two_pass, rewrite_two_pass_log_prefix,
-    two_pass_artifact_paths,
+    two_pass_artifact_paths, validate_structured_execution_preset,
 };
 pub(super) use utils::ensure_progress_args;
 pub(crate) use utils::format_command_for_log;

@@ -11,6 +11,8 @@ const validation = {
   command: {
     emptyTemplateButEnabled: "已启用自定义命令，但模板为空。",
     fixDisableAdvanced: "关闭自定义命令",
+    invalidTemplatePlaceholders:
+      "自定义命令模板必须且只能包含 1 个 INPUT 和 1 个 OUTPUT 占位符（当前 INPUT ×{inputCount}，OUTPUT ×{outputCount}）。",
   },
   mapping: {
     invalidMapIndex: "输入索引无效：{value}（必须 ≥ -1）。",
@@ -31,6 +33,8 @@ const validation = {
     fixMaxrateToBitrate: "将 maxrate 设为 bitrate",
     bufsizeOutOfRange: "bufsize（{bufsize}k）不在建议范围：{min}k–{max}k。",
     fixBufsizeTo2xMaxrate: "将 bufsize 设为 2× maxrate",
+    qualityOutOfRange: "质量值 {value} 超出编码器范围（{min}–{max}）。",
+    integerFieldRequired: "{field} 必须为整数（当前 {value}）。",
   },
   audio: {
     invalidBitrate: "音频码率无效：{value}（必须 > 0）。",
@@ -42,6 +46,7 @@ const validation = {
   },
   filters: {
     filterComplexWithVfAf: "已设置 filter_complex，同时仍可能生成 -vf/-af，可能与预期不一致。",
+    invalidFps: "FPS 必须为有限正数（当前 {value}）。",
   },
 } as const;
 

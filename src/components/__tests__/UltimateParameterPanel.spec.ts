@@ -143,6 +143,36 @@ describe("UltimateParameterPanel", () => {
     expect(wrapper.find("[data-testid='preset-video-quality-card']").exists()).toBe(false);
   });
 
+  it("does not emit save and disables the save button while validation has errors", async () => {
+    const preset: FFmpegPreset = {
+      ...makeBasePreset(),
+      video: {
+        encoder: "libx264",
+        rateControl: "crf",
+        qualityValue: 23,
+        preset: "medium",
+        gopSize: 12.5,
+      },
+    };
+
+    const wrapper = mount(UltimateParameterPanel, {
+      props: {
+        initialPreset: preset,
+      },
+      global: {
+        plugins: [i18n],
+      },
+    });
+
+    await nextTick();
+    const saveButton = wrapper.findAll("button").find((btn) => btn.text().includes(t("presetEditor.actions.update")));
+
+    expect(saveButton).toBeTruthy();
+    expect(saveButton!.attributes("disabled")).toBeDefined();
+    await saveButton!.trigger("click");
+    expect(wrapper.emitted("save")).toBeUndefined();
+  });
+
   it("emits bitrate-based ffmpeg flags when using VBR + two-pass fields", () => {
     const preset: FFmpegPreset = {
       ...makeBasePreset(),

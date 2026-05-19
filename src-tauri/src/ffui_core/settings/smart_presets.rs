@@ -241,7 +241,7 @@ mod tests {
 
         let has_nvenc = nvidia.iter().any(|p| {
             matches!(
-                p.video.encoder,
+                &p.video.encoder,
                 crate::ffui_core::domain::EncoderType::HevcNvenc
                     | crate::ffui_core::domain::EncoderType::H264Nvenc
                     | crate::ffui_core::domain::EncoderType::Av1Nvenc
@@ -254,7 +254,7 @@ mod tests {
 
         assert!(
             cpu_only.iter().all(|p| !matches!(
-                p.video.encoder,
+                &p.video.encoder,
                 crate::ffui_core::domain::EncoderType::HevcNvenc
                     | crate::ffui_core::domain::EncoderType::H264Nvenc
                     | crate::ffui_core::domain::EncoderType::Av1Nvenc
@@ -264,7 +264,7 @@ mod tests {
 
         assert!(
             cpu_only.iter().any(|p| matches!(
-                p.video.encoder,
+                &p.video.encoder,
                 crate::ffui_core::domain::EncoderType::Libx264
                     | crate::ffui_core::domain::EncoderType::Libx265
                     | crate::ffui_core::domain::EncoderType::LibSvtAv1

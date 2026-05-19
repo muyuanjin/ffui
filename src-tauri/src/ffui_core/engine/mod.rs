@@ -248,6 +248,8 @@ impl TranscodingEngine {
     pub fn save_preset(&self, mut preset: FFmpegPreset) -> Result<Arc<Vec<FFmpegPreset>>> {
         use std::time::{SystemTime, UNIX_EPOCH};
 
+        crate::ffui_core::domain::validate_preset_for_save(&preset).map_err(anyhow::Error::msg)?;
+
         let now_ms = || {
             SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -256,17 +258,18 @@ impl TranscodingEngine {
         };
 
         let mut state = self.inner.state.lock_unpoisoned();
-        let presets = Arc::make_mut(&mut state.presets);
-        if let Some(existing) = presets.iter_mut().find(|p| p.id == preset.id) {
+        let mut next_presets = (*state.presets).clone();
+        if let Some(existing) = next_presets.iter_mut().find(|p| p.id == preset.id) {
             preset.created_time_ms = existing.created_time_ms.or(preset.created_time_ms);
             *existing = preset;
         } else {
             if preset.created_time_ms.is_none() {
                 preset.created_time_ms = now_ms();
             }
-            presets.push(preset);
+            next_presets.push(preset);
         }
-        settings::save_presets(presets)?;
+        settings::save_presets(&next_presets)?;
+        state.presets = Arc::new(next_presets);
         Ok(state.presets.clone())
     }
 

@@ -28,7 +28,8 @@ fn plan_initial_two_pass_second_args(ctx: TwoPassPreludeArgs<'_>) -> Result<Opti
     } = ctx;
 
     let planned_runs =
-        build_ffmpeg_run_plan(preset, input_path, tmp_output, false, job_output_policy);
+        build_ffmpeg_run_plan(preset, input_path, tmp_output, false, job_output_policy)
+            .map_err(anyhow::Error::msg)?;
     let Some(pass_one) = planned_runs
         .iter()
         .find(|run| matches!(run.kind, FfmpegRunKind::TwoPassFirst))

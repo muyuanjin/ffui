@@ -40,10 +40,7 @@ pub(super) fn build_effective_preset_for_resume(
             .is_some_and(|s| !s.trim().is_empty());
         let can_overlap_trim = !has_template
             && !has_filter_complex
-            && !matches!(
-                effective_preset.video.encoder,
-                crate::ffui_core::domain::EncoderType::Copy
-            );
+            && !effective_preset.video.encoder.is_copy();
 
         if !can_overlap_trim {
             if matches!(plan.strategy, ResumeStrategy::OverlapTrim) {

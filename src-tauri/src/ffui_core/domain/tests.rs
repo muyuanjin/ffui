@@ -3,8 +3,10 @@ mod domain_contract_tests {
     use serde_json::{Value, json};
 
     use super::super::batch_compress::{AutoCompressProgress, AutoCompressResult};
+    use super::super::config::{EncoderType, RateControlMode};
     use super::super::job::*;
-    use super::super::preset::PresetStats;
+    use super::super::preset::{FFmpegPreset, PresetStats};
+    use super::super::preset_validation::validate_preset_for_save;
 
     #[test]
     fn transcode_job_uses_stable_mb_field_names_and_aliases() {
@@ -286,6 +288,84 @@ mod domain_contract_tests {
         let decoded: TranscodeJob =
             serde_json::from_value(legacy_json).expect("deserialize legacy TranscodeJob");
         assert_eq!(decoded.original_size_mb, 50.0);
+    }
+
+    #[test]
+    fn preset_serde_accepts_decimal_fps_and_unknown_video_strings() {
+        let preset: FFmpegPreset = serde_json::from_value(json!({
+            "id": "unknown-video",
+            "name": "Unknown Video",
+            "description": "serde test",
+            "video": {
+                "encoder": "future_encoder",
+                "rateControl": "future_rc",
+                "qualityValue": 23,
+                "preset": "medium"
+            },
+            "audio": { "codec": "copy" },
+            "filters": { "fps": 29.97 },
+            "stats": {
+                "usageCount": 0,
+                "totalInputSizeMB": 0,
+                "totalOutputSizeMB": 0,
+                "totalTimeSeconds": 0
+            }
+        }))
+        .expect("preset should deserialize");
+
+        assert_eq!(preset.filters.fps, Some(29.97));
+        assert_eq!(
+            preset.video.encoder,
+            EncoderType::Unknown("future_encoder".to_string())
+        );
+        assert_eq!(
+            preset.video.rate_control,
+            RateControlMode::Unknown("future_rc".to_string())
+        );
+
+        let value = serde_json::to_value(&preset).expect("preset should serialize");
+        assert_eq!(value["video"]["encoder"], "future_encoder");
+        assert_eq!(value["video"]["rateControl"], "future_rc");
+    }
+
+    #[test]
+    fn preset_save_validation_rejects_invalid_template_quality_and_vbv() {
+        let mut preset: FFmpegPreset = serde_json::from_value(json!({
+            "id": "invalid",
+            "name": "Invalid",
+            "description": "validation test",
+            "video": {
+                "encoder": "libx264",
+                "rateControl": "vbr",
+                "qualityValue": 23,
+                "preset": "medium",
+                "bitrateKbps": 4000,
+                "maxBitrateKbps": 3000
+            },
+            "audio": { "codec": "copy" },
+            "filters": {},
+            "stats": {
+                "usageCount": 0,
+                "totalInputSizeMB": 0,
+                "totalOutputSizeMB": 0,
+                "totalTimeSeconds": 0
+            }
+        }))
+        .expect("preset should deserialize");
+
+        let err = validate_preset_for_save(&preset).expect_err("maxrate below bitrate should fail");
+        assert!(err.contains("maxBitrateKbps"));
+
+        preset.video.max_bitrate_kbps = Some(5000);
+        preset.video.quality_value = 99;
+        let err = validate_preset_for_save(&preset).expect_err("quality outside range should fail");
+        assert!(err.contains("qualityValue"));
+
+        preset.video.quality_value = 23;
+        preset.advanced_enabled = Some(true);
+        preset.ffmpeg_template = Some("ffmpeg -i INPUT -i INPUT OUTPUT".to_string());
+        let err = validate_preset_for_save(&preset).expect_err("invalid placeholders should fail");
+        assert!(err.contains("exactly one INPUT"));
     }
 
     #[test]

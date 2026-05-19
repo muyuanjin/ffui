@@ -5,6 +5,8 @@ pub use config::*;
 // Preset types
 mod preset;
 pub use preset::*;
+mod preset_validation;
+pub use preset_validation::*;
 
 // Job and queue types
 mod job;
