@@ -20,7 +20,7 @@ FFUI is a friendly desktop app for converting and compressing videos (and audio/
 ## Quickstart (using the app)
 
 1. Download the latest release from GitHub Releases and launch FFUI.
-2. On the first launch, the preset setup wizard helps you import a starter set of FFmpeg presets; you can reopen it later from Presets → “Import recommended preset pack…” to import more.
+2. On the first launch, the preset setup wizard helps you import hardware-aware starter presets; you can reopen the onboarding flow later from the Presets tab if you want to replace or expand that starter set.
 3. Drag files into the queue, choose a preset, and start.
 
 Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in Settings → External tools.
@@ -89,7 +89,7 @@ pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
 
 ## Technology stack
 
-- Frontend: Vue 3, TypeScript, Vite, Tailwind-style styling, vue-i18n, charts via ApexCharts / ECharts.
+- Frontend: Vue 3, TypeScript, Vite, Tailwind-style styling, vue-i18n, charts via ECharts.
 - Backend: Tauri 2 with Rust 2024 edition, queue and preset engine under `src-tauri/src/ffui_core`.
 - Monitoring: system metrics gathered with `sysinfo`, optional GPU metrics via `nvml-wrapper`.
 
@@ -180,8 +180,8 @@ The repository contains unit tests for both the frontend and the Rust backend.
 ```bash
 # non-interactive (recommended for CI):
 pnpm test
-# interactive watch mode:
-pnpm run test:watch
+# focused single-run example:
+pnpm vitest run src/__tests__/MainApp.queue-sorting.basic.spec.ts
 ```
 
 - Backend tests (Rust):
@@ -314,7 +314,7 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 ## 首次使用
 
 1. 从 GitHub Releases 下载最新版本。
-2. 首次启动会弹出“预设引导”，根据你的硬件能力与用途帮你导入一套推荐的 FFmpeg 参数预设；后续也可以在“预设”页点击“导入推荐预设包…”单独打开，并导入更多预设。
+2. 首次启动会弹出“预设引导”，根据你的硬件能力与用途帮你导入一套硬件感知的起始预设；后续也可以在“预设”页重新打开这套引导，用来替换或补充起始预设。
 3. 在队列页添加/拖拽任务，选择预设并开始。
 
 小贴士：如果你没有安装 FFmpeg，可在“设置 → 外部工具”里开启自动下载/自动更新。
@@ -379,7 +379,7 @@ pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
 
 ## 技术栈
 
-- 前端：Vue 3、TypeScript、Vite、Tailwind 风格样式、vue-i18n，图表使用 ApexCharts / ECharts。
+- 前端：Vue 3、TypeScript、Vite、Tailwind 风格样式、vue-i18n，图表使用 ECharts。
 - 后端：Tauri 2 + Rust 2024，队列和预设引擎位于 `src-tauri/src/ffui_core`。
 - 监控：系统指标通过 `sysinfo` 采样，在支持的环境下使用 `nvml-wrapper` 获取 GPU 指标。
 
@@ -466,8 +466,8 @@ FFUI 支持使用 Tauri 官方 updater 插件在应用内检查更新并安装�
 ```bash
 # 非交互单次运行（推荐 CI）：
 pnpm test
-# 交互 watch 模式：
-pnpm run test:watch
+# 示例：指定单个测试文件单次运行：
+pnpm vitest run src/__tests__/MainApp.queue-sorting.basic.spec.ts
 ```
 
 - 后端（Rust）：

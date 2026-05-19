@@ -55,7 +55,7 @@ Preview thumbnails must be loaded on-demand. Any automatic “warmup/preload” 
   - Mounts `QueuePanel` (with a stubbed virtual list) and measures apply + `nextTick`.
   - Enforces upper bounds for delta update cost and a minimum speedup ratio.
 
-These gates are executed by `node scripts/check-all.mjs`.
+These gates are executed from `pnpm run check:all` via `scripts/check-all-coalesce.mjs`, which delegates to `scripts/check-all.mjs`.
 
 ### Playwright screenshot verification
 

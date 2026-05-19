@@ -22,105 +22,53 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working in this repository. Keep it aligned with `AGENTS.md`; if they diverge, update both in the same change.
 
-## 项目概述
+## Project snapshot
 
-FFUI 是一个基于 Tauri 2 的桌面转码应用，结合 Rust 后端和 Vue 3 前端。核心功能：视频/图像批量转码、队列管理、预设统计、输入/输出帧对比、系统性能监控。
+- FFUI is a Tauri 2 desktop transcoding app with a Vue 3 + TypeScript frontend and a Rust backend.
+- Frontend source lives under `src/`; Rust backend lives under `src-tauri/src/`.
+- Shared static assets are under `public/`; release notes live under `releases/`.
 
-## 常用开发命令
+## Architecture guardrails
 
-```bash
-# 开发（推荐）
-pnpm run tauri:dev         # 启动 Tauri 开发模式（会先构建前端）
-pnpm run dev               # 仅启动前端开发服务器 (localhost:5188)
+- `src/MainApp.vue` must remain a thin alias entry only.
+- `src/MainApp.impl.vue` may only create/provide MainApp domains and mount `src/components/main/MainAppRootShell.vue`.
+- `src/MainApp.setup.ts` is a thin context/compatibility layer. Do not assemble queue/presets/settings/media domains there.
+- Domain hooks (`useQueueDomain()`, `usePresetsDomain()`, etc.) must inject their own domain keys directly. `useMainAppContext()` is compatibility-only.
+- `src/components/main/**/*Host.vue` and `src/components/main/**/*Shell.vue` are assembly layers only; cross-domain coordination belongs in `src/composables/main-app/orchestrators/**`.
+- UI components under `src/components/**` must not consume the global MainApp context bag directly.
+- Do not call Tauri `invoke` directly in app code. Use `src/lib/backend/invokeCommand.ts`.
+- These rules are enforced in `eslint.config.js`; keep the lint guardrails in sync with any structural change.
 
-# 构建
-pnpm run build             # 构建前端（含 vue-tsc 类型检查）
-pnpm run build:exe         # 构建可执行文件（不打包安装程序）
-pnpm run tauri build       # 完整构建（含安装包）
-
-# 测试与检查
-pnpm run test              # 运行前端测试 (Vitest)
-pnpm run check:all         # 运行所有检查（推荐提交前执行）
-cd src-tauri && cargo test # Rust 测试
-cd src-tauri && cargo clippy # Rust lint
-
-# 格式化
-pnpm run format            # Prettier 格式化前端代码
-cd src-tauri && cargo fmt  # rustfmt 格式化 Rust 代码
-```
-
-## 项目结构
-
-```
-src/                       # Vue 3 前端
-├── components/            # UI 组件（panels/, ui/, dialogs/）
-├── composables/           # 状态与逻辑钩子（队列操作、智能扫描、监控等）
-├── lib/                   # 工具函数（backend.ts 封装所有 Tauri 调用）
-├── locales/               # i18n 资源（en.json, zh-CN.json）
-└── types.ts               # TypeScript 类型定义
-
-src-tauri/src/             # Rust 后端
-├── ffui_core/             # 核心业务逻辑
-│   ├── domain.rs          # 数据模型（与前端 types.ts 对应）
-│   ├── engine.rs          # 转码引擎
-│   ├── presets.rs         # 预设管理
-│   ├── settings.rs        # 应用设置
-│   └── tools/             # 外部工具管理（FFmpeg 等）
-├── commands/              # Tauri 命令（暴露给前端的 API）
-├── system_metrics.rs      # 系统性能采样
-├── taskbar_progress.rs    # Windows 任务栏进度
-└── lib.rs                 # 应用初始化与命令注册
-```
-
-## 核心架构
-
-### 前后端通信
-
-1. **命令调用**: `src/lib/backend.ts` → `src-tauri/src/commands/*.rs`
-   - 通过 `invoke()` 调用，数据经 JSON 序列化
-2. **事件推送**: Rust `AppHandle::emit()` → 前端监听
-   - `queue-update`: 队列状态变更
-   - `system-metrics://update`: 性能监控数据
-3. **文件协议**: `asset://` 用于本地文件访问（视频预览等）
-
-### 类型同步
-
-- Rust: `src-tauri/src/ffui_core/domain.rs`
-- TypeScript: `src/types.ts`
-- 使用 `#[serde(rename_all = "camelCase")]` 处理命名转换
-
-### 转码引擎
-
-- 单例 `TranscodingEngine`（`Arc<Mutex<>>`）
-- 队列管理（`VecDeque`）+ 并发控制（可配置）
-- 解析 FFmpeg stderr 获取进度
-
-## 开发注意事项
-
-### 必须同步的文件
-
-修改 Rust 数据模型（`domain.rs`）后，需同步更新 `src/types.ts`
-
-### Windows 特性
-
-- **权限降级** (`elevation_shim.rs`): 管理员权限下自动重启为普通用户（确保拖放功能）
-- **任务栏进度** (`taskbar_progress.rs`): 通过 `windows` crate 实现
-- **隐藏控制台**: FFmpeg 使用 `CREATE_NO_WINDOW` 标志
-
-### 外部工具
-
-应用自动下载 FFmpeg/FFprobe/avifenc 到应用数据目录，也支持手动指定路径
-
-## 提交前检查
+## Commands
 
 ```bash
-pnpm run check:all  # 或分步执行：
-pnpm run build && pnpm run test
-cd src-tauri && cargo clippy && cargo test
+corepack enable
+pnpm install
+
+pnpm run dev
+pnpm run tauri:dev
+pnpm run build
+pnpm test
+pnpm run check:all
+
+cd src-tauri && cargo check
+cd src-tauri && cargo test
 ```
 
-### Rust 库名称
+Do not run `pnpm run test:watch` from agents. Use a non-interactive Vitest command instead, for example `pnpm vitest run src/__tests__/MainApp.queue-sorting.basic.spec.ts`.
 
-库名为 `ffui_lib`（非 `ffui`），以避免与二进制名冲突（Windows Cargo 问题）
+## Testing requirements
+
+- If a change touches queue/jobs/drag-and-drop/Tauri invoke/transcoding logic, add or update:
+  - frontend component/state tests,
+  - Rust unit/integration tests,
+  - frontend/backend contract tests for key fields or command payloads.
+- Do not declare the task done before running the relevant frontend tests and `cargo test`.
+- Before finishing or committing, `pnpm run check:all` must pass.
+
+## Repo-specific notes
+
+- Release tag `vX.Y.Z` must ship with `releases/vX.Y.Z.md`, and that file must contain both `## English` and `## 中文`.
+- For i18n-trigger text in selectors/dropdowns, render translated selected text explicitly in the trigger; do not rely on cached internal labels.

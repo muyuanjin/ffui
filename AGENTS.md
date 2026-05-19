@@ -49,7 +49,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - `pnpm run tauri:dev` — run the full Tauri desktop app in development mode.
 - `pnpm run build` — type-check with `vue-tsc` and build the production frontend bundle.
 - From `src-tauri`, use `cargo check` and `cargo build` to validate and build the Rust backend.
-- Do NOT run `pnpm run test:watch` from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `pnpm vitest run src/__tests__/MainApp.queue-sorting-and-filters.spec.ts` (or another focused `pnpm vitest run` invocation) as the "equivalent frontend test command" required by this spec.
+- Do NOT run `pnpm run test:watch` from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `pnpm vitest run src/__tests__/MainApp.queue-sorting.basic.spec.ts` (or another focused `pnpm vitest run` invocation) as the "equivalent frontend test command" required by this spec.
 
 ## Release Guidelines
 
