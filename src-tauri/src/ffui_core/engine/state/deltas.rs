@@ -39,6 +39,7 @@ pub(in crate::ffui_core::engine) fn notify_queue_lite_delta_for_job_terminal_sta
             status: Some(job.status),
             processing_started_ms: job.processing_started_ms,
             progress: Some(job.progress),
+            skip_reason: job.skip_reason.clone(),
             telemetry,
             elapsed_ms: job.elapsed_ms,
             preview: None,

@@ -155,11 +155,10 @@ const deselectAllExtensions = (filterKey: "videoFilter" | "imageFilter" | "audio
   config.value[filterKey].extensions = [];
 };
 
-// 计算是否可以开始扫描
 const canStart = computed(() => {
   const hasPath = !!config.value.rootPath?.trim();
-  const hasAnyFilter =
-    config.value.videoFilter.enabled || config.value.imageFilter.enabled || config.value.audioFilter.enabled;
+  const filters = [config.value.videoFilter, config.value.imageFilter, config.value.audioFilter];
+  const hasAnyFilter = filters.some((filter) => filter.enabled && filter.extensions.length > 0);
   return hasPath && hasAnyFilter;
 });
 

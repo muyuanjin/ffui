@@ -45,6 +45,7 @@ fn delete_batch_compress_batch_succeeds_without_batch_metadata_when_all_children
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some(batch_id.clone()),
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 
@@ -127,6 +128,7 @@ fn delete_batch_compress_batch_rejects_without_batch_metadata_when_any_child_is_
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: Some(batch_id.clone()),
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             }
         };

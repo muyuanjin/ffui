@@ -12,13 +12,12 @@ use super::super::state::Inner;
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
     BatchCompressJobSpec, current_time_millis, make_batch_compress_job, next_job_id,
-    record_tool_download, run_ffmpeg_and_finalize_tmp_output,
+    record_tool_download, replace_original_output_policy, run_ffmpeg_and_finalize_tmp_output,
 };
 use super::video_helpers::{detect_video_codec, estimate_job_seconds_for_preset};
 use super::video_paths::{build_ffmpeg_args, build_video_output_path, build_video_tmp_output_path};
 use crate::ffui_core::domain::{
-    BatchCompressConfig, FFmpegPreset, JobLogLine, JobRun, JobStatus, JobType,
-    OutputDirectoryPolicy, OutputFilenamePolicy, OutputPolicy, TranscodeJob,
+    BatchCompressConfig, FFmpegPreset, JobLogLine, JobRun, JobStatus, JobType, TranscodeJob,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::tools::{ExternalToolKind, ensure_tool_available};
@@ -79,6 +78,7 @@ pub(crate) fn handle_video_file(
         input_path,
         output_policy: config.output_policy.clone(),
         batch_id: batch_id.to_string(),
+        saving_condition: config.into(),
         start_time: None,
     });
     job.output_path = Some(output_path);
@@ -190,16 +190,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
     // When Batch Compress is configured to replace the original video file, the output must be staged
     // next to the input so the final rename stays within the same directory. In this mode we
     // intentionally ignore directory/filename rules and keep the traditional `.compressed` naming.
-    let output_policy: OutputPolicy = if config.replace_original {
-        OutputPolicy {
-            container: config.output_policy.container.clone(),
-            directory: OutputDirectoryPolicy::SameAsInput,
-            filename: OutputFilenamePolicy::default(),
-            preserve_file_times: config.output_policy.preserve_file_times.clone(),
-        }
-    } else {
-        config.output_policy.clone()
-    };
+    let output_policy = replace_original_output_policy(config);
 
     let mut job = make_batch_compress_job(super::helpers::BatchCompressJobSpec {
         job_id: id.clone(),
@@ -211,6 +202,7 @@ pub(crate) fn enqueue_batch_compress_video_job(
         input_path,
         output_policy: output_policy.clone(),
         batch_id: batch_id.to_string(),
+        saving_condition: config.into(),
         start_time: Some(now_ms),
     });
 

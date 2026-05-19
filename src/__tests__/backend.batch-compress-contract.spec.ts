@@ -10,6 +10,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { runAutoCompress } from "@/lib/backend";
+import { IMAGE_EXTENSIONS } from "@/constants";
 
 describe("backend batch compress contract", () => {
   beforeEach(() => {
@@ -23,10 +24,10 @@ describe("backend batch compress contract", () => {
       minVideoSizeMB: 50,
       minImageSizeKB: 50,
       minAudioSizeKB: 500,
-      savingConditionType: "ratio",
+      savingConditionType: "absoluteSize",
       minSavingRatio: 0.95,
       minSavingAbsoluteMB: 5,
-      imageTargetFormat: "avif",
+      imageTargetFormat: "webp",
       videoPresetId: "preset-1",
       videoFilter: { enabled: true, extensions: ["mp4"] },
       imageFilter: { enabled: true, extensions: ["jpg"] },
@@ -42,5 +43,10 @@ describe("backend batch compress contract", () => {
     await runAutoCompress(rootPath, config);
     expect(invokeMock).toHaveBeenCalledWith("run_auto_compress", { rootPath, config });
     expect(invokeMock.mock.calls[0]?.[1]).not.toHaveProperty("root_path");
+  });
+
+  it("default image extensions exclude gif and include avif", () => {
+    expect(IMAGE_EXTENSIONS).toContain("avif");
+    expect(IMAGE_EXTENSIONS).not.toContain("gif");
   });
 });

@@ -68,4 +68,30 @@ describe("queue state lite delta appliers", () => {
     expect(job.phaseUpdatedAtMs).toBe(4321);
     expect(job.phaseEtaMs).toBe(22_500);
   });
+
+  it("applyDeltaPatchToJob applies skipped skipReason immediately", () => {
+    const job: TranscodeJob = {
+      id: "job-low-savings",
+      filename: "C:/videos/job-low-savings.mp4",
+      type: "video",
+      source: "batch_compress",
+      originalSizeMB: 1,
+      presetId: "preset-1",
+      status: "processing",
+      progress: 50,
+    };
+
+    const patch: TranscodeJobLiteDeltaPatch = {
+      id: "job-low-savings",
+      status: "skipped",
+      progress: 100,
+      skipReason: "Low savings (4.0%)",
+    };
+
+    applyDeltaPatchToJob(job, patch, { trackVolatileDirtyIds: false });
+
+    expect(job.status).toBe("skipped");
+    expect(job.progress).toBe(100);
+    expect(job.skipReason).toBe("Low savings (4.0%)");
+  });
 });

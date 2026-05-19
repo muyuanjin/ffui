@@ -71,6 +71,14 @@ export function applyDeltaPatchToJob(
     }
   }
 
+  if (patch.skipReason !== undefined) {
+    if (typeof patch.skipReason === "string") {
+      job.skipReason = patch.skipReason;
+    } else if (patch.skipReason === null) {
+      job.skipReason = undefined;
+    }
+  }
+
   if (patch.telemetry && typeof patch.telemetry === "object") {
     let touchedWaitMetadata = false;
     const meta = (job.waitMetadata ??= {});

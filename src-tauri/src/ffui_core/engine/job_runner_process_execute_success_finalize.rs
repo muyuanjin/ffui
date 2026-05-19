@@ -41,6 +41,7 @@ fn finalize_successful_transcode_job(
     // “替换原文件”的 Batch Compress 任务，可能会在下方被更新为去掉
     // `.compressed` 后的路径（同时原文件被移入回收站）。
     let mut final_output_path = output_path.to_path_buf();
+    let mut replacement_failed = false;
 
     let mut frames_processed: f64 = 0.0;
     {
@@ -119,25 +120,38 @@ fn finalize_successful_transcode_job(
             job.wait_metadata = None;
 
             if let Some((input_path_buf, output_path_buf)) = replace_plan {
-                apply_replace_original_video_output(
+                replacement_failed = !apply_replace_original_video_output(
                     job,
                     &input_path_buf,
                     &output_path_buf,
                     &mut final_output_path,
                 );
+                if replacement_failed {
+                    job.progress = 100.0;
+                    job.end_time.get_or_insert_with(current_time_millis);
+                    job.elapsed_ms = compute_final_elapsed_ms(job, current_time_millis())
+                        .or(job.elapsed_ms);
+                    job.wait_metadata = None;
+                }
             }
 
-            super::worker_utils::append_job_log_line(
-                job,
-                format!(
-                    "Completed in {:.1}s, output size {:.2} MB",
-                    job.elapsed_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(elapsed),
-                    job.output_size_mb.unwrap_or(0.0)
-                ),
-            );
+            if !replacement_failed {
+                super::worker_utils::append_job_log_line(
+                    job,
+                    format!(
+                        "Completed in {:.1}s, output size {:.2} MB",
+                        job.elapsed_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(elapsed),
+                        job.output_size_mb.unwrap_or(0.0)
+                    ),
+                );
+            }
         }
         // Update preset statistics for completed jobs.
-        if original_size_bytes > 0 && final_output_size_bytes > 0 && elapsed > 0.0 {
+        if !replacement_failed
+            && original_size_bytes > 0
+            && final_output_size_bytes > 0
+            && elapsed > 0.0
+        {
             let input_mb = original_size_bytes as f64 / (1024.0 * 1024.0);
             let output_mb = final_output_size_bytes as f64 / (1024.0 * 1024.0);
             let presets = std::sync::Arc::make_mut(&mut state.presets);
@@ -156,6 +170,12 @@ fn finalize_successful_transcode_job(
                 crate::debug_eprintln!("failed to persist presets after stats update: {err:#}");
             }
         }
+    }
+
+    if replacement_failed {
+        super::state::notify_queue_lite_delta_for_job_terminal_state(inner, job_id);
+        mark_batch_compress_child_processed(inner, job_id);
+        return Ok(());
     }
 
     set_job_progress_phase(inner, job_id, ProgressPhase::Completed, None);
@@ -182,292 +202,4 @@ fn finalize_successful_transcode_job(
     mark_batch_compress_child_processed(inner, job_id);
 
     Ok(())
-}
-
-#[cfg(test)]
-mod execute_success_finalize_tests {
-    use super::*;
-    use crate::ffui_core::WaitMetadata;
-    use crate::sync_ext::MutexExt;
-
-    fn make_video_job(job_id: &str, last_progress_frame: u64) -> crate::ffui_core::domain::TranscodeJob {
-        use crate::ffui_core::domain::{JobSource, JobStatus, JobType, MediaInfo, TranscodeJob};
-
-        TranscodeJob {
-            id: job_id.to_string(),
-            filename: format!("C:/videos/{job_id}.mp4"),
-            job_type: JobType::Video,
-            source: JobSource::Manual,
-            queue_order: None,
-            original_size_mb: 1.0,
-            original_codec: None,
-            preset_id: "preset-1".to_string(),
-            status: JobStatus::Processing,
-            progress: 0.0,
-            start_time: Some(1),
-            end_time: None,
-            processing_started_ms: Some(1),
-            elapsed_ms: None,
-            output_size_mb: None,
-            logs: Vec::new(),
-            log_head: None,
-            skip_reason: None,
-            input_path: None,
-            created_time_ms: None,
-            modified_time_ms: None,
-            output_path: None,
-            output_policy: None,
-            ffmpeg_command: None,
-            runs: Vec::new(),
-            media_info: Some(MediaInfo {
-                duration_seconds: None,
-                width: None,
-                height: None,
-                frame_rate: None,
-                video_codec: None,
-                audio_codec: None,
-                size_mb: None,
-            }),
-            estimated_seconds: None,
-            preview_path: None,
-            preview_revision: 0,
-            log_tail: None,
-            failure_reason: None,
-            warnings: Vec::new(),
-            batch_id: None,
-            wait_metadata: Some(WaitMetadata {
-                last_progress_percent: None,
-                processed_wall_millis: None,
-                processed_seconds: None,
-                target_seconds: None,
-                progress_epoch: None,
-                last_progress_out_time_seconds: None,
-                last_progress_speed: None,
-                last_progress_updated_at_ms: None,
-                last_progress_frame: Some(last_progress_frame),
-                tmp_output_path: None,
-                segments: None,
-                segment_end_targets: None,
-            }),
-        }
-    }
-
-    #[test]
-    fn finalize_successful_transcode_job_emits_terminal_queue_lite_delta() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let _data_root_guard =
-            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
-
-        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
-        let inner = Inner::new(vec![preset], AppSettings::default());
-        let job_id = "job-terminal-delta".to_string();
-        {
-            let mut state = inner.state.lock_unpoisoned();
-            state.jobs.insert(job_id.clone(), make_video_job(&job_id, 100));
-        }
-
-        let deltas: std::sync::Arc<std::sync::Mutex<Vec<crate::ffui_core::QueueStateLiteDelta>>> =
-            std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let deltas_clone = std::sync::Arc::clone(&deltas);
-        {
-            let mut listeners = inner.queue_lite_delta_listeners.lock_unpoisoned();
-            listeners.push(std::sync::Arc::new(move |delta| {
-                deltas_clone.lock_unpoisoned().push(delta);
-            }));
-        }
-
-        finalize_successful_transcode_job(
-            &inner,
-            FinalizeSuccessfulTranscodeJobArgs {
-                job_id: &job_id,
-                preset_id: "preset-1",
-                output_path: &dir.path().join("out.mp4"),
-                original_size_bytes: 100 * 1024 * 1024,
-                final_output_size_bytes: 50 * 1024 * 1024,
-                elapsed: 10.0,
-                input_times: None,
-            },
-        )
-        .expect("finalize job");
-
-        let deltas = deltas.lock_unpoisoned();
-        assert!(
-            deltas.len() >= 2,
-            "completion should emit a completed phase delta and a terminal job delta"
-        );
-        let delta = deltas
-            .last()
-            .expect("completion should emit a terminal queue-lite delta");
-        assert_eq!(delta.base_snapshot_revision, 0);
-        assert!(delta.delta_revision >= 1);
-        let patch = delta
-            .patches
-            .iter()
-            .find(|patch| patch.id == job_id)
-            .expect("completion delta should include finalized job");
-        assert_eq!(patch.status, Some(JobStatus::Completed));
-        assert_eq!(patch.progress, Some(100.0));
-        assert!(patch.elapsed_ms.is_some());
-        assert_eq!(
-            patch
-                .telemetry
-                .as_ref()
-                .and_then(|telemetry| telemetry.phase.progress_phase),
-            Some(ProgressPhase::Completed)
-        );
-    }
-
-    #[test]
-    fn finalize_successful_transcode_job_accounts_for_quiet_finalize_wall_time() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let _data_root_guard =
-            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
-
-        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
-        let inner = Inner::new(vec![preset], AppSettings::default());
-        let job_id = "job-finalize-elapsed".to_string();
-        let now_ms = current_time_millis();
-        let previous_wall_ms = 11 * 60 * 1000;
-        let quiet_finalize_ms = 22 * 60 * 1000;
-        {
-            let mut job = make_video_job(&job_id, 100);
-            job.processing_started_ms = Some(now_ms.saturating_sub(quiet_finalize_ms));
-            job.elapsed_ms = Some(previous_wall_ms);
-            if let Some(meta) = job.wait_metadata.as_mut() {
-                meta.processed_wall_millis = Some(previous_wall_ms);
-            }
-
-            let mut state = inner.state.lock_unpoisoned();
-            state.jobs.insert(job_id.clone(), job);
-        }
-
-        finalize_successful_transcode_job(
-            &inner,
-            FinalizeSuccessfulTranscodeJobArgs {
-                job_id: &job_id,
-                preset_id: "preset-1",
-                output_path: &dir.path().join("out.mp4"),
-                original_size_bytes: 100 * 1024 * 1024,
-                final_output_size_bytes: 50 * 1024 * 1024,
-                elapsed: 10.0,
-                input_times: None,
-            },
-        )
-        .expect("finalize job");
-
-        let state = inner.state.lock_unpoisoned();
-        let job = state.jobs.get(&job_id).expect("job present");
-        let elapsed_ms = job.elapsed_ms.expect("elapsed_ms should be finalized");
-        assert!(
-            elapsed_ms >= previous_wall_ms + quiet_finalize_ms,
-            "final elapsed should include quiet finalize wall time, got {elapsed_ms}"
-        );
-        assert!(
-            job.log_tail
-                .as_deref()
-                .is_some_and(|tail| tail.contains("Completed in 1980.")),
-            "completion log should use finalized wall-clock elapsed time"
-        );
-    }
-
-    #[test]
-    fn preset_stats_persistence_does_not_lose_updates_when_jobs_finish_concurrently() {
-        use std::time::Duration;
-
-        let dir = tempfile::tempdir().expect("temp dir");
-        let _data_root_guard =
-            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
-
-        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
-        let inner = std::sync::Arc::new(Inner::new(vec![preset], AppSettings::default()));
-
-        let job_id_1 = "job-preset-stats-1".to_string();
-        let job_id_2 = "job-preset-stats-2".to_string();
-        {
-            let mut state = inner.state.lock_unpoisoned();
-            state
-                .jobs
-                .insert(job_id_1.clone(), make_video_job(&job_id_1, 100));
-            state
-                .jobs
-                .insert(job_id_2.clone(), make_video_job(&job_id_2, 200));
-        }
-
-        let out_1 = dir.path().join("out-1.mp4");
-        let out_2 = dir.path().join("out-2.mp4");
-
-        let presets_path = crate::ffui_core::data_root::presets_path().expect("presets path");
-        let save_blocker =
-            crate::ffui_core::settings::presets::BlockFirstSavePresetsGuard::new(presets_path);
-
-        let inner_a = inner.clone();
-        let job_id_1_a = job_id_1.clone();
-        let out_1_a = out_1.clone();
-        let t1 = std::thread::spawn(move || {
-            finalize_successful_transcode_job(
-                inner_a.as_ref(),
-                FinalizeSuccessfulTranscodeJobArgs {
-                    job_id: &job_id_1_a,
-                    preset_id: "preset-1",
-                    output_path: &out_1_a,
-                    original_size_bytes: 100 * 1024 * 1024,
-                    final_output_size_bytes: 50 * 1024 * 1024,
-                    elapsed: 10.0,
-                    input_times: None,
-                },
-            )
-            .expect("finalize job 1");
-        });
-
-        assert!(
-            save_blocker.wait_first_entered(Duration::from_secs(2)),
-            "expected first presets save to enter blocking section"
-        );
-
-        let inner_b = inner.clone();
-        let job_id_2_b = job_id_2.clone();
-        let out_2_b = out_2.clone();
-        let t2 = std::thread::spawn(move || {
-            finalize_successful_transcode_job(
-                inner_b.as_ref(),
-                FinalizeSuccessfulTranscodeJobArgs {
-                    job_id: &job_id_2_b,
-                    preset_id: "preset-1",
-                    output_path: &out_2_b,
-                    original_size_bytes: 200 * 1024 * 1024,
-                    final_output_size_bytes: 120 * 1024 * 1024,
-                    elapsed: 20.0,
-                    input_times: None,
-                },
-            )
-            .expect("finalize job 2");
-        });
-
-        // In the buggy implementation, job 2 can persist an updated snapshot while job 1 is
-        // blocked, then job 1 overwrites the file with a stale snapshot. The fixed
-        // implementation keeps persistence under the engine state lock so this second save
-        // cannot happen until job 1 unblocks.
-        let _second_save_seen =
-            save_blocker.wait_call_count_at_least(2, Duration::from_secs(5));
-
-        save_blocker.unblock_first();
-
-        t1.join().expect("thread 1 join");
-        t2.join().expect("thread 2 join");
-
-        let loaded = crate::ffui_core::settings::load_presets().expect("load presets");
-        let preset = loaded
-            .iter()
-            .find(|p| p.id == "preset-1")
-            .expect("preset-1 present");
-
-        assert_eq!(preset.stats.usage_count, 2);
-        assert!((preset.stats.total_input_size_mb - 300.0).abs() < f64::EPSILON);
-        assert!((preset.stats.total_output_size_mb - 170.0).abs() < f64::EPSILON);
-        // `total_time_seconds` is accumulated as wall-clock "preset active" time,
-        // so this finalize-only test (which does not drive worker start/stop
-        // transitions) should not change it.
-        assert!((preset.stats.total_time_seconds - 0.0).abs() < f64::EPSILON);
-        assert!((preset.stats.total_frames - 300.0).abs() < f64::EPSILON);
-    }
 }

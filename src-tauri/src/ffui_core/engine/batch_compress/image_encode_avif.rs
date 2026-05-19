@@ -7,7 +7,11 @@ use anyhow::{Context, Result};
 use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
 use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
-use super::helpers::{current_time_millis, record_tool_download};
+use super::helpers::{
+    SavingConditionConfig, current_time_millis, record_tool_download,
+    saving_condition_allows_output, saving_condition_skip_reason,
+};
+use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
     BatchCompressConfig, JobRun, JobStatus, PreserveFileTimesPolicy, TranscodeJob,
 };
@@ -20,28 +24,30 @@ struct FinalizeAvifEncodeSpec<'a> {
     path: &'a Path,
     job: &'a mut TranscodeJob,
     tmp_output: &'a Path,
-    avif_target: &'a Path,
+    image_target: &'a Path,
     original_size_bytes: u64,
     config: &'a BatchCompressConfig,
     preserve_times_policy: &'a PreserveFileTimesPolicy,
     input_times: Option<&'a FileTimesSnapshot>,
     tool_label: &'a str,
+    target_label: &'a str,
     lossless: bool,
     set_preview: bool,
 }
 
-fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
+fn finalize_image_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
     let FinalizeAvifEncodeSpec {
         inner,
         path,
         job,
         tmp_output,
-        avif_target,
+        image_target,
         original_size_bytes,
         config,
         preserve_times_policy,
         input_times,
         tool_label,
+        target_label,
         lossless,
         set_preview,
     } = spec;
@@ -49,56 +55,67 @@ fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
     let tmp_meta = fs::metadata(tmp_output)
         .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
     let new_size_bytes = tmp_meta.len();
-    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-    if ratio > config.min_saving_ratio {
+    let condition = SavingConditionConfig::from(config);
+    if !saving_condition_allows_output(condition, original_size_bytes, new_size_bytes) {
         drop(fs::remove_file(tmp_output));
         job.status = JobStatus::Skipped;
         job.progress = 100.0;
         job.end_time = Some(current_time_millis());
-        job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
+        job.skip_reason = Some(saving_condition_skip_reason(
+            condition,
+            original_size_bytes,
+            new_size_bytes,
+        ));
         return Ok(());
     }
 
-    fs::rename(tmp_output, avif_target).with_context(|| {
+    fs::rename(tmp_output, image_target).with_context(|| {
         format!(
             "failed to rename {} -> {}",
             tmp_output.display(),
-            avif_target.display()
+            image_target.display()
         )
     })?;
 
+    let mut final_output_path = image_target.to_path_buf();
+    if config.replace_original {
+        final_output_path = finalize_replace_original_output(job, path, image_target, "image");
+    }
+
     if preserve_times_policy.any()
         && let Some(times) = input_times
-        && let Err(err) = super::super::file_times::apply_file_times(avif_target, times)
+        && let Err(err) = super::super::file_times::apply_file_times(&final_output_path, times)
     {
         append_job_log_line(
             job,
             format!(
                 "preserve file times: failed to apply timestamps to {}: {err}",
-                avif_target.display()
+                final_output_path.display()
             ),
         );
     }
 
-    register_known_batch_compress_output_with_inner(inner, avif_target);
+    register_known_batch_compress_output_with_inner(inner, &final_output_path);
 
-    job.status = JobStatus::Completed;
+    if !matches!(job.status, JobStatus::Failed) {
+        job.status = JobStatus::Completed;
+    }
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());
     job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
-    job.output_path = Some(avif_target.to_string_lossy().into_owned());
+    job.output_path = Some(final_output_path.to_string_lossy().into_owned());
     if set_preview {
-        job.preview_path = Some(avif_target.to_string_lossy().into_owned());
+        job.preview_path = Some(final_output_path.to_string_lossy().into_owned());
         job.preview_revision = job.preview_revision.saturating_add(1);
     }
 
     let output_mb = job.output_size_mb.unwrap_or(0.0);
     let encode_descriptor = if lossless {
-        "lossless AVIF encode completed"
+        format!("lossless {target_label} encode completed")
     } else {
-        "AVIF encode completed"
+        format!("{target_label} encode completed")
     };
+    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
     append_job_log_line(
         job,
         format!(
@@ -107,25 +124,6 @@ fn finalize_avif_encode(spec: FinalizeAvifEncodeSpec<'_>) -> Result<()> {
             ratio * 100.0,
         ),
     );
-
-    if config.replace_original {
-        match trash::delete(path) {
-            Ok(()) => append_job_log_line(
-                job,
-                format!(
-                    "replace original: moved source image {} to recycle bin",
-                    path.display()
-                ),
-            ),
-            Err(err) => append_job_log_line(
-                job,
-                format!(
-                    "replace original: failed to move source image {} to recycle bin: {err}",
-                    path.display()
-                ),
-            ),
-        }
-    }
 
     Ok(())
 }
@@ -211,17 +209,18 @@ pub(super) fn encode_image_to_avif(
 
             let last_error = match output {
                 Ok(output) if output.status.success() => {
-                    finalize_avif_encode(FinalizeAvifEncodeSpec {
+                    finalize_image_encode(FinalizeAvifEncodeSpec {
                         inner,
                         path,
                         job,
                         tmp_output,
-                        avif_target,
+                        image_target: avif_target,
                         original_size_bytes,
                         config,
                         preserve_times_policy,
                         input_times,
                         tool_label: "avifenc",
+                        target_label: "AVIF",
                         lossless: true,
                         set_preview: true,
                     })?;
@@ -259,23 +258,6 @@ pub(super) fn encode_image_to_avif(
         },
     );
 
-    let (ffmpeg_path, _source, did_download_ffmpeg) =
-        ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
-
-    if did_download_ffmpeg {
-        append_job_log_line(
-            job,
-            format!(
-                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
-            ),
-        );
-        record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
-    }
-
-    if job.start_time.is_none() {
-        job.start_time = Some(current_time_millis());
-    }
-
     let ffmpeg_args: Vec<String> = vec![
         "-y".to_string(),
         "-i".to_string(),
@@ -299,6 +281,106 @@ pub(super) fn encode_image_to_avif(
         tmp_output.to_string_lossy().into_owned(),
     ];
 
+    run_ffmpeg_image_encode(FfmpegImageEncodeSpec {
+        path,
+        ctx,
+        job,
+        tmp_output,
+        image_target: avif_target,
+        ffmpeg_args,
+        format_label: "AVIF",
+        target_label: "AVIF",
+        lossless: false,
+        set_preview: false,
+    })
+}
+
+pub(super) fn encode_image_to_webp(
+    path: &Path,
+    ctx: &AvifEncodeContext<'_>,
+    webp_target: &Path,
+    tmp_output: &Path,
+    job: &mut TranscodeJob,
+) -> Result<()> {
+    let ffmpeg_args: Vec<String> = vec![
+        "-y".to_string(),
+        "-i".to_string(),
+        path.to_string_lossy().into_owned(),
+        "-frames:v".to_string(),
+        "1".to_string(),
+        "-c:v".to_string(),
+        "libwebp".to_string(),
+        "-lossless".to_string(),
+        "1".to_string(),
+        tmp_output.to_string_lossy().into_owned(),
+    ];
+
+    run_ffmpeg_image_encode(FfmpegImageEncodeSpec {
+        path,
+        ctx,
+        job,
+        tmp_output,
+        image_target: webp_target,
+        ffmpeg_args,
+        format_label: "WebP",
+        target_label: "WebP",
+        lossless: true,
+        set_preview: true,
+    })
+}
+
+struct FfmpegImageEncodeSpec<'a> {
+    path: &'a Path,
+    ctx: &'a AvifEncodeContext<'a>,
+    job: &'a mut TranscodeJob,
+    tmp_output: &'a Path,
+    image_target: &'a Path,
+    ffmpeg_args: Vec<String>,
+    format_label: &'a str,
+    target_label: &'a str,
+    lossless: bool,
+    set_preview: bool,
+}
+
+fn run_ffmpeg_image_encode(spec: FfmpegImageEncodeSpec<'_>) -> Result<()> {
+    let FfmpegImageEncodeSpec {
+        path,
+        ctx,
+        job,
+        tmp_output,
+        image_target,
+        ffmpeg_args,
+        format_label,
+        target_label,
+        lossless,
+        set_preview,
+    } = spec;
+    let AvifEncodeContext {
+        inner,
+        config,
+        settings,
+        original_size_bytes,
+        preserve_times_policy,
+        input_times,
+    } = *ctx;
+
+    let (ffmpeg_path, _source, did_download_ffmpeg) =
+        ensure_tool_available(ExternalToolKind::Ffmpeg, &settings.tools)?;
+
+    if did_download_ffmpeg {
+        append_job_log_line(
+            job,
+            format!(
+                "auto-download: ffmpeg was downloaded automatically according to current settings (path: {ffmpeg_path})"
+            ),
+        );
+        record_tool_download(inner, ExternalToolKind::Ffmpeg, &ffmpeg_path);
+    }
+
+    if job.start_time.is_none() {
+        job.start_time = Some(current_time_millis());
+    }
+
     let ffmpeg_cmd = format_command_for_log(&ffmpeg_path, &ffmpeg_args);
     job.ffmpeg_command = Some(ffmpeg_cmd.clone());
     let start_ms = current_time_millis();
@@ -311,10 +393,12 @@ pub(super) fn encode_image_to_avif(
 
     let mut cmd = Command::new(&ffmpeg_path);
     configure_background_command(&mut cmd);
-    let output = cmd
-        .args(&ffmpeg_args)
-        .output()
-        .with_context(|| format!("failed to run ffmpeg for AVIF on {}", path.display()))?;
+    let output = cmd.args(&ffmpeg_args).output().with_context(|| {
+        format!(
+            "failed to run ffmpeg for {format_label} on {}",
+            path.display()
+        )
+    })?;
 
     if !output.status.success() {
         job.status = JobStatus::Failed;
@@ -324,18 +408,20 @@ pub(super) fn encode_image_to_avif(
         drop(fs::remove_file(tmp_output));
         return Ok(());
     }
-    finalize_avif_encode(FinalizeAvifEncodeSpec {
+
+    finalize_image_encode(FinalizeAvifEncodeSpec {
         inner,
         path,
         job,
         tmp_output,
-        avif_target,
+        image_target,
         original_size_bytes,
         config,
         preserve_times_policy,
         input_times,
         tool_label: "ffmpeg",
-        lossless: false,
-        set_preview: false,
+        target_label,
+        lossless,
+        set_preview,
     })
 }

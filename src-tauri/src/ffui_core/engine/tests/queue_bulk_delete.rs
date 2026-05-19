@@ -43,6 +43,7 @@ fn bulk_delete_jobs_removes_all_and_notifies_once() {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     };
 
@@ -128,6 +129,7 @@ fn bulk_delete_jobs_ignores_non_terminal_jobs() {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     };
 
@@ -176,6 +178,9 @@ fn bulk_delete_batch_compress_batches_deletes_children_and_metadata_and_notifies
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 status: BatchCompressBatchStatus::Completed,
                 total_files_scanned: 2,
                 total_candidates: 2,
@@ -220,6 +225,7 @@ fn bulk_delete_batch_compress_batches_deletes_children_and_metadata_and_notifies
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some(batch_id.clone()),
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 

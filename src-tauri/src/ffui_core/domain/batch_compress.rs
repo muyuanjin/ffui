@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
+use specta::Type;
 
 use super::job::TranscodeJob;
 use super::output_policy::OutputPolicy;
 
 /// 保留结果的条件类型
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, Default, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum SavingConditionType {
     /// 按压缩率判断
@@ -12,6 +13,15 @@ pub enum SavingConditionType {
     Ratio,
     /// 按绝对节省空间判断
     AbsoluteSize,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchCompressSavingCondition {
+    pub saving_condition_type: SavingConditionType,
+    pub min_saving_ratio: f64,
+    #[serde(rename = "minSavingAbsoluteMB")]
+    pub min_saving_absolute_mb: f64,
 }
 
 /// 文件类型筛选配置
@@ -82,11 +92,11 @@ pub struct BatchCompressConfig {
     pub audio_preset_id: Option<String>,
 
     /// 视频文件类型筛选
-    #[serde(default)]
+    #[serde(default = "default_video_filter")]
     pub video_filter: FileTypeFilter,
 
     /// 图片文件类型筛选
-    #[serde(default)]
+    #[serde(default = "default_image_filter")]
     pub image_filter: FileTypeFilter,
 
     /// 音频文件类型筛选
@@ -112,12 +122,43 @@ impl Default for BatchCompressConfig {
             image_target_format: ImageTargetFormat::Avif,
             video_preset_id: String::new(),
             audio_preset_id: None,
-            video_filter: FileTypeFilter::default(),
-            image_filter: FileTypeFilter::default(),
+            video_filter: default_video_filter(),
+            image_filter: default_image_filter(),
             audio_filter: default_audio_filter(),
             output_policy: OutputPolicy::default(),
         }
     }
+}
+
+impl From<&BatchCompressConfig> for BatchCompressSavingCondition {
+    fn from(config: &BatchCompressConfig) -> Self {
+        Self {
+            saving_condition_type: config.saving_condition_type,
+            min_saving_ratio: config.min_saving_ratio,
+            min_saving_absolute_mb: config.min_saving_absolute_mb,
+        }
+    }
+}
+
+pub(crate) const DEFAULT_BATCH_COMPRESS_IMAGE_EXTENSIONS: &[&str] =
+    &["jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "avif"];
+
+pub(crate) fn default_batch_compress_image_extensions() -> Vec<String> {
+    DEFAULT_BATCH_COMPRESS_IMAGE_EXTENSIONS
+        .iter()
+        .map(|extension| (*extension).to_string())
+        .collect()
+}
+
+pub(crate) const DEFAULT_BATCH_COMPRESS_VIDEO_EXTENSIONS: &[&str] = &[
+    "mp4", "mkv", "mov", "avi", "flv", "ts", "m2ts", "wmv", "webm", "m4v",
+];
+
+pub(crate) fn default_batch_compress_video_extensions() -> Vec<String> {
+    DEFAULT_BATCH_COMPRESS_VIDEO_EXTENSIONS
+        .iter()
+        .map(|extension| (*extension).to_string())
+        .collect()
 }
 
 const fn default_audio_size_kb() -> u64 {
@@ -144,7 +185,21 @@ fn default_audio_filter() -> FileTypeFilter {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+fn default_video_filter() -> FileTypeFilter {
+    FileTypeFilter {
+        enabled: true,
+        extensions: default_batch_compress_video_extensions(),
+    }
+}
+
+fn default_image_filter() -> FileTypeFilter {
+    FileTypeFilter {
+        enabled: true,
+        extensions: default_batch_compress_image_extensions(),
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageTargetFormat {
     #[default]

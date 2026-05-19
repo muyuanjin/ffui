@@ -28,6 +28,7 @@ pub use super::tool_probe_cache::{ExternalToolBinaryFingerprint, ExternalToolPro
 pub type ExternalToolProbeCache = super::tool_probe_cache::ExternalToolProbeCache;
 use crate::ffui_core::domain::{
     BatchCompressConfig, FileTypeFilter, ImageTargetFormat, OutputPolicy, SavingConditionType,
+    default_batch_compress_image_extensions, default_batch_compress_video_extensions,
 };
 pub use preset_card_footer::PresetCardFooterSettings;
 pub use preset_panel_modes::{PresetSortDirection, PresetSortMode, PresetViewMode};
@@ -276,30 +277,11 @@ impl Default for AppSettings {
                 audio_preset_id: None,
                 video_filter: FileTypeFilter {
                     enabled: true,
-                    extensions: vec![
-                        "mp4".to_string(),
-                        "mkv".to_string(),
-                        "mov".to_string(),
-                        "avi".to_string(),
-                        "flv".to_string(),
-                        "ts".to_string(),
-                        "m2ts".to_string(),
-                        "wmv".to_string(),
-                        "webm".to_string(),
-                    ],
+                    extensions: default_batch_compress_video_extensions(),
                 },
                 image_filter: FileTypeFilter {
                     enabled: true,
-                    extensions: vec![
-                        "jpg".to_string(),
-                        "jpeg".to_string(),
-                        "png".to_string(),
-                        "bmp".to_string(),
-                        "tif".to_string(),
-                        "tiff".to_string(),
-                        "webp".to_string(),
-                        "gif".to_string(),
-                    ],
+                    extensions: default_batch_compress_image_extensions(),
                 },
                 audio_filter: FileTypeFilter {
                     enabled: false,

@@ -167,6 +167,7 @@ fn enqueue_transcode_job_no_notify(
             failure_reason: None,
             warnings,
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
         state.queue.push_back(id.clone());

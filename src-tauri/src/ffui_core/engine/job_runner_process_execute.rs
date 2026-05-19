@@ -23,7 +23,6 @@ fn execute_transcode_job(
     } = prepared;
     let execution_start_time = SystemTime::now();
     set_job_progress_phase(inner, job_id, ProgressPhase::Transcoding, total_duration);
-
     let job_output_policy = {
         let state = inner.state.lock_unpoisoned();
         state
@@ -133,16 +132,13 @@ fn execute_transcode_job(
     let mut pause_debug = PauseLatencyDebug::default();
     let mut stderr_pump = FfmpegStderrPump::spawn(&mut child);
     let poll = Duration::from_millis(50);
-
     #[derive(Debug, Clone, Copy, Default)]
     struct PendingProgress {
         elapsed_seconds: Option<f64>,
         speed: Option<f64>,
         frame: Option<u64>,
     }
-
     let mut pending_progress = PendingProgress::default();
-
     let mut handle_ffmpeg_line = |line: &str, wait_requested: bool| {
         // When ffprobe is unavailable or fails, infer total duration from
         // ffmpeg's own metadata header line ("Duration: HH:MM:SS.xx,...").
@@ -172,7 +168,6 @@ fn execute_transcode_job(
                 }
             }
         }
-
         let sample = parse_ffmpeg_progress_sample(line);
         if let Some(v) = sample.elapsed_seconds {
             pending_progress.elapsed_seconds = Some(v);
@@ -183,7 +178,6 @@ fn execute_transcode_job(
         if let Some(v) = sample.frame {
             pending_progress.frame = Some(v);
         }
-
         let trimmed = line.trim_start();
         if trimmed.starts_with("progress=") {
             let speed = pending_progress.speed;
@@ -216,7 +210,6 @@ fn execute_transcode_job(
                         }
                     }
                 }
-
                 let effective_elapsed =
                     resume_target_seconds.map_or(elapsed, |base| base + elapsed);
                 if elapsed.is_finite()
@@ -253,7 +246,6 @@ fn execute_transcode_job(
             } else {
                 update_job_progress(inner, job_id, None, None, frame, Some(line), speed);
             }
-
             if !wait_requested && is_ffmpeg_progress_end(line) {
                 update_job_progress(
                     inner,
@@ -272,14 +264,12 @@ fn execute_transcode_job(
             pending_progress = PendingProgress::default();
             return;
         }
-
         // Non-progress marker lines: keep recording useful logs, but avoid
         // streaming high-frequency noise as separate state updates.
         if parse_ffmpeg_progress_line(line).is_none() && sample.elapsed_seconds.is_none() {
             update_job_progress(inner, job_id, None, None, None, Some(line), None);
         }
     };
-
     let status = loop {
         if is_job_cancelled(inner, job_id) {
             if let Some(sidecar) = audio_sidecar.take() {
@@ -305,7 +295,6 @@ fn execute_transcode_job(
             pause_debug.mark_q_sent(current_time_millis());
             wait_requested = true;
         }
-
         if let Some(sidecar) = audio_sidecar.as_mut() {
             sidecar.drain_available();
             if sidecar.status.is_none()
@@ -319,14 +308,12 @@ fn execute_transcode_job(
         if let Some(line) = stderr_pump.recv_timeout(poll) {
             handle_ffmpeg_line(&line, wait_requested);
         }
-
         if let Some(status) = child.try_wait()? {
             pause_debug.mark_child_exit(current_time_millis());
             stderr_pump.drain_exit_bound_lines(|line| handle_ffmpeg_line(&line, wait_requested));
             break status;
         }
     };
-
     if is_job_cancelled(inner, job_id) {
         if let Some(sidecar) = audio_sidecar.take() {
             sidecar.kill_and_cleanup();
@@ -338,7 +325,6 @@ fn execute_transcode_job(
         }
         return Ok(());
     }
-
     if wait_requested {
         if let Some(sidecar) = audio_sidecar.take() {
             sidecar.kill_and_cleanup();
@@ -349,7 +335,6 @@ fn execute_transcode_job(
         // treat the current run as a paused segment, persist wait metadata,
         // then immediately re-queue the job for continuation.
         let pause_still_requested = is_job_wait_requested(inner, job_id);
-
         // 暂停：尽快把状态切到 Paused，因此这里不再做任何 ffprobe 探测（它在 Windows
         // 上通常要几百毫秒到 1s）。续转边界使用 ffmpeg `-progress out_time*` 的最后值：
         // - 若该值在某些编码器/B 帧情况下略偏小，只会造成更大的 overlap（安全）；
@@ -359,7 +344,6 @@ fn execute_transcode_job(
             last_effective_elapsed_seconds,
             None,
         );
-
         // Pause should complete quickly: defer segment remuxing to resume/finalize.
         if resume_plan.is_some() && finalize_with_source_audio {
             mark_segment_noaudio_done(tmp_output.as_path());
@@ -376,13 +360,11 @@ fn execute_transcode_job(
         )?;
         pause_debug.mark_mark_waiting_end(current_time_millis());
         pause_debug.emit_pause_summary(inner, job_id);
-
         if !pause_still_requested {
             requeue_job_after_cancelled_wait(inner, job_id);
         }
         return Ok(());
     }
-
     if !status.success() {
         if let Some(sidecar) = audio_sidecar.take() {
             sidecar.kill_and_cleanup();
@@ -404,14 +386,25 @@ fn execute_transcode_job(
         mark_batch_compress_child_processed(inner, job_id);
         return Ok(());
     }
-
     let elapsed = elapsed_since_execution_start(execution_start_time);
-
     let final_output_size_bytes: u64;
-
     if existing_segments.is_empty() {
         let new_size_bytes = fs::metadata(&tmp_output).map(|m| m.len()).unwrap_or(0);
-
+        if skip_batch_video_low_savings(
+            inner,
+            job_id,
+            &tmp_output,
+            original_size_bytes,
+            new_size_bytes,
+        ) {
+            cleanup_two_pass_outputs_if_requested(
+                two_pass_requested,
+                &two_pass_log_output,
+                &tmp_output,
+                &two_pass_completed_segments,
+            );
+            return Ok(());
+        }
         fs::rename(&tmp_output, &output_path).with_context(|| {
             format!(
                 "failed to rename {} -> {}",
@@ -419,21 +412,15 @@ fn execute_transcode_job(
                 output_path.display()
             )
         })?;
-
         final_output_size_bytes = new_size_bytes;
     } else {
-        // When resuming with audio mux-from-source, the current tmp output is
-        // expected to be video-only (we inject `-map -0:a`). Mark it so the
-        // finalize step can skip a redundant remux pass.
         if resume_plan.is_some() && finalize_with_source_audio {
             mark_segment_noaudio_done(tmp_output.as_path());
         }
         let mut all_segments = existing_segments;
         all_segments.push(tmp_output.clone());
-
         let segment_durations =
             derive_resume_concat_segment_durations(&segment_end_targets, all_segments.len());
-
         let result = finalize_resumed_job_output(FinalizeResumedJobOutputArgs {
             inner,
             job_id,
@@ -449,6 +436,15 @@ fn execute_transcode_job(
         });
         match result {
             Ok(size) => {
+                if skip_batch_video_low_savings(inner, job_id, &output_path, original_size_bytes, size) {
+                    cleanup_two_pass_outputs_if_requested(
+                        two_pass_requested,
+                        &two_pass_log_output,
+                        &tmp_output,
+                        &two_pass_completed_segments,
+                    );
+                    return Ok(());
+                }
                 final_output_size_bytes = size;
             }
             Err(err) => {
@@ -464,7 +460,6 @@ fn execute_transcode_job(
                         super::worker_utils::append_job_log_line(job, reason);
                     }
                 }
-                // Keep partial segments for recovery on finalize errors.
                 mark_batch_compress_child_processed(inner, job_id);
                 return Ok(());
             }
@@ -472,11 +467,7 @@ fn execute_transcode_job(
     }
 
     if two_pass_requested {
-        cleanup_two_pass_outputs(
-            &two_pass_log_output,
-            &tmp_output,
-            &two_pass_completed_segments,
-        );
+        cleanup_two_pass_outputs(&two_pass_log_output, &tmp_output, &two_pass_completed_segments);
     }
     finalize_successful_transcode_job(
         inner,
@@ -491,5 +482,3 @@ fn execute_transcode_job(
         },
     )
 }
-
-include!("job_runner_process_execute_success_finalize.rs");

@@ -108,6 +108,7 @@ fn emit_job_progress_phase(inner: &Inner, job_id: &str, telemetry: ProgressPhase
                 status: None,
                 processing_started_ms,
                 progress,
+                skip_reason: None,
                 telemetry: Some(TranscodeJobLiteTelemetryDelta {
                     progress_epoch: None,
                     last_progress_out_time_seconds: None,
@@ -179,6 +180,7 @@ fn update_job_progress_phase_sample(
                 status: None,
                 processing_started_ms,
                 progress: None,
+                skip_reason: None,
                 telemetry: Some(TranscodeJobLiteTelemetryDelta {
                     progress_epoch: None,
                     last_progress_out_time_seconds: None,
@@ -382,6 +384,7 @@ pub(super) fn update_job_progress(
                     status: Some(job.status),
                     processing_started_ms: job.processing_started_ms,
                     progress: progress_changed.then_some(job.progress),
+                    skip_reason: job.skip_reason.clone(),
                     telemetry,
                     elapsed_ms: job.elapsed_ms,
                     preview: None,

@@ -239,6 +239,53 @@ describe("MainApp Batch Compress integration", () => {
     wrapper.unmount();
   });
 
+  it("does not fall back to mock jobs when Tauri Batch Compress fails", async () => {
+    const rootPath = "C:/videos/backend-fails";
+
+    useBackendMock({
+      get_queue_state: () => ({ jobs: [] }),
+      get_app_settings: () => defaultAppSettings(),
+      get_cpu_usage: () => ({ overall: 0, perCore: [] }),
+      get_gpu_usage: () => ({ available: false }),
+      get_external_tool_statuses: () => [],
+      run_auto_compress: () => {
+        throw new Error("scan failed");
+      },
+    });
+
+    const wrapper = mount(MainApp, { global: { plugins: [i18n] } });
+    const vm: any = withMainAppVmCompat(wrapper);
+
+    const config = {
+      rootPath,
+      replaceOriginal: true,
+      minImageSizeKB: 0,
+      minVideoSizeMB: 0,
+      minAudioSizeKB: 0,
+      savingConditionType: "ratio" as const,
+      minSavingRatio: 0.8,
+      minSavingAbsoluteMB: 0,
+      imageTargetFormat: "webp" as const,
+      videoPresetId: "preset-1",
+      audioPresetId: "",
+      videoFilter: { enabled: true, extensions: ["mp4"] },
+      imageFilter: { enabled: false, extensions: [] },
+      audioFilter: { enabled: false, extensions: [] },
+    };
+
+    await vm.runBatchCompress(config);
+    await nextTick();
+
+    const tasks =
+      (vm.compositeBatchCompressTasks && "value" in vm.compositeBatchCompressTasks
+        ? vm.compositeBatchCompressTasks.value
+        : vm.compositeBatchCompressTasks) ?? [];
+    expect(tasks.length).toBe(0);
+    expect(vm.jobs.length).toBe(0);
+
+    wrapper.unmount();
+  });
+
   it("hides empty Batch Compress batches once zero-candidate progress marks the batch as completed", async () => {
     const batchId = "auto-compress-empty-batch";
     const rootPath = "C:/videos/empty-batch";

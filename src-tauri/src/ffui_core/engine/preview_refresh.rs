@@ -139,6 +139,7 @@ impl TranscodingEngine {
                     status: None,
                     processing_started_ms: None,
                     progress: None,
+                    skip_reason: None,
                     telemetry: None,
                     elapsed_ms: None,
                     preview: Some(TranscodeJobLitePreviewDelta {
@@ -378,6 +379,7 @@ impl TranscodingEngine {
                     status: None,
                     processing_started_ms: None,
                     progress: None,
+                    skip_reason: None,
                     telemetry: None,
                     elapsed_ms: None,
                     preview: Some(TranscodeJobLitePreviewDelta {

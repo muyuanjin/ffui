@@ -44,6 +44,7 @@ fn update_job_progress_clamps_and_is_monotonic() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -630,6 +631,7 @@ fn update_job_progress_filters_ffmpeg_progress_noise_from_logs() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -726,6 +728,7 @@ fn worker_selection_does_not_preserve_stale_progress_without_resumable_metadata(
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -803,6 +806,7 @@ fn worker_selection_bumps_progress_epoch_and_applies_resume_baseline() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: Some(WaitMetadata {
                     last_progress_percent: Some(50.0),
                     processed_wall_millis: None,
@@ -896,6 +900,7 @@ fn worker_selection_allows_complete_resume_baseline_before_final_phase() {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: Some(WaitMetadata {
                 last_progress_percent: Some(99.0),
                 processed_wall_millis: Some(1_000),
@@ -971,6 +976,7 @@ fn worker_crash_recovery_probe_clears_stale_resume_paths_when_missing_on_disk() 
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: Some(WaitMetadata {
                     last_progress_percent: Some(55.0),
                     processed_wall_millis: Some(1234),
@@ -1064,6 +1070,7 @@ fn update_job_progress_ignores_whitespace_only_log_lines() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -1153,6 +1160,7 @@ fn update_job_progress_delta_carries_base_snapshot_revision_without_bumping() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -1249,6 +1257,7 @@ fn update_job_progress_delta_omits_large_fields_for_ipc() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: Some(WaitMetadata {
                     last_progress_percent: Some(0.0),
                     processed_wall_millis: Some(123),
@@ -1345,6 +1354,7 @@ fn update_job_progress_delta_carries_processing_start_and_elapsed_on_telemetry_o
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: Some(WaitMetadata {
                     last_progress_percent: Some(40.0),
                     processed_wall_millis: Some(5_000),
@@ -1443,6 +1453,7 @@ fn process_transcode_job_marks_failure_when_preset_missing() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -1519,6 +1530,7 @@ fn update_job_progress_preserves_critical_lines_when_trimming_logs() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );

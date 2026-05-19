@@ -10,19 +10,17 @@ use super::super::ffmpeg_args::configure_background_command;
 use super::super::state::{Inner, notify_queue_listeners as notify_engine_queue_listeners};
 use super::super::worker_utils::append_job_log_line;
 use crate::ffui_core::domain::{
-    BatchCompressConfig, JobSource, JobStatus, JobType, MediaInfo, OutputPolicy,
-    PreserveFileTimesPolicy, TranscodeJob,
+    BatchCompressConfig, JobSource, JobStatus, JobType, MediaInfo, OutputDirectoryPolicy,
+    OutputFilenamePolicy, OutputPolicy, PreserveFileTimesPolicy, SavingConditionType, TranscodeJob,
 };
 use crate::ffui_core::tools::ExternalToolKind;
 
 pub(crate) fn current_time_millis() -> u64 {
-    u64::try_from(
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis(),
-    )
-    .unwrap_or(u64::MAX)
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    u64::try_from(millis).unwrap_or(u64::MAX)
 }
 
 pub(crate) fn next_job_id(inner: &Inner) -> String {
@@ -62,6 +60,7 @@ pub(crate) struct BatchCompressJobSpec {
     pub input_path: String,
     pub output_policy: OutputPolicy,
     pub batch_id: String,
+    pub saving_condition: crate::ffui_core::domain::BatchCompressSavingCondition,
     pub start_time: Option<u64>,
 }
 
@@ -76,6 +75,7 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         input_path,
         output_policy,
         batch_id,
+        saving_condition,
         start_time,
     } = spec;
 
@@ -121,6 +121,7 @@ pub(crate) fn make_batch_compress_job(spec: BatchCompressJobSpec) -> TranscodeJo
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: Some(batch_id),
+        batch_compress_saving_condition: Some(saving_condition),
         wait_metadata: None,
     }
 }
@@ -146,6 +147,85 @@ pub(crate) fn capture_input_times_if_needed(
     Some(times)
 }
 
+pub(crate) fn replace_original_output_policy(config: &BatchCompressConfig) -> OutputPolicy {
+    if !config.replace_original {
+        return config.output_policy.clone();
+    }
+
+    OutputPolicy {
+        container: config.output_policy.container.clone(),
+        directory: OutputDirectoryPolicy::SameAsInput,
+        filename: OutputFilenamePolicy::default(),
+        preserve_file_times: config.output_policy.preserve_file_times.clone(),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct SavingConditionConfig {
+    pub saving_condition_type: SavingConditionType,
+    pub min_saving_ratio: f64,
+    pub min_saving_absolute_mb: f64,
+}
+
+impl From<&BatchCompressConfig> for SavingConditionConfig {
+    fn from(value: &BatchCompressConfig) -> Self {
+        Self {
+            saving_condition_type: value.saving_condition_type,
+            min_saving_ratio: value.min_saving_ratio,
+            min_saving_absolute_mb: value.min_saving_absolute_mb,
+        }
+    }
+}
+
+pub(crate) fn saving_condition_allows_output(
+    condition: SavingConditionConfig,
+    original_size_bytes: u64,
+    new_size_bytes: u64,
+) -> bool {
+    if original_size_bytes == 0 || new_size_bytes == 0 {
+        return false;
+    }
+
+    match condition.saving_condition_type {
+        SavingConditionType::Ratio => {
+            let ratio = new_size_bytes as f64 / original_size_bytes as f64;
+            ratio <= condition.min_saving_ratio
+        }
+        SavingConditionType::AbsoluteSize => {
+            if new_size_bytes >= original_size_bytes {
+                return false;
+            }
+            let saved_bytes = original_size_bytes - new_size_bytes;
+            let saved_mb = saved_bytes as f64 / (1024.0 * 1024.0);
+            saved_mb >= condition.min_saving_absolute_mb
+        }
+    }
+}
+
+pub(crate) fn saving_condition_skip_reason(
+    condition: SavingConditionConfig,
+    original_size_bytes: u64,
+    new_size_bytes: u64,
+) -> String {
+    match condition.saving_condition_type {
+        SavingConditionType::Ratio => {
+            let ratio = if original_size_bytes == 0 {
+                1.0
+            } else {
+                new_size_bytes as f64 / original_size_bytes as f64
+            };
+            format!("Low savings ({:.1}%)", ratio * 100.0)
+        }
+        SavingConditionType::AbsoluteSize => {
+            let saved_mb = (original_size_bytes as f64 - new_size_bytes as f64) / (1024.0 * 1024.0);
+            format!(
+                "Low savings ({saved_mb:.2} MB saved, requires {:.2} MB)",
+                condition.min_saving_absolute_mb
+            )
+        }
+    }
+}
+
 pub(crate) fn mark_job_failed_from_ffmpeg_output(
     job: &mut TranscodeJob,
     tmp_output: &Path,
@@ -159,12 +239,22 @@ pub(crate) fn mark_job_failed_from_ffmpeg_output(
     drop(fs::remove_file(tmp_output));
 }
 
-pub(crate) fn mark_job_skipped_low_savings(job: &mut TranscodeJob, tmp_output: &Path, ratio: f64) {
+pub(crate) fn mark_job_skipped_by_saving_condition(
+    job: &mut TranscodeJob,
+    tmp_output: &Path,
+    condition: SavingConditionConfig,
+    original_size_bytes: u64,
+    new_size_bytes: u64,
+) {
     drop(fs::remove_file(tmp_output));
     job.status = JobStatus::Skipped;
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());
-    job.skip_reason = Some(format!("Low savings ({:.1}%)", ratio * 100.0));
+    job.skip_reason = Some(saving_condition_skip_reason(
+        condition,
+        original_size_bytes,
+        new_size_bytes,
+    ));
 }
 
 pub(crate) struct FinalizeTmpOutputSpec<'a> {
@@ -204,10 +294,15 @@ pub(crate) fn run_ffmpeg_and_finalize_tmp_output(
     let tmp_meta = fs::metadata(tmp_output)
         .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
     let new_size_bytes = tmp_meta.len();
-    let ratio = new_size_bytes as f64 / original_size_bytes as f64;
-
-    if ratio > config.min_saving_ratio {
-        mark_job_skipped_low_savings(job, tmp_output, ratio);
+    let condition = SavingConditionConfig::from(config);
+    if !saving_condition_allows_output(condition, original_size_bytes, new_size_bytes) {
+        mark_job_skipped_by_saving_condition(
+            job,
+            tmp_output,
+            condition,
+            original_size_bytes,
+            new_size_bytes,
+        );
         return Ok(None);
     }
 
@@ -220,36 +315,4 @@ pub(crate) fn run_ffmpeg_and_finalize_tmp_output(
     })?;
 
     Ok(Some(new_size_bytes))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn make_batch_compress_job_populates_core_fields() {
-        let output_policy = OutputPolicy::default();
-        let job = make_batch_compress_job(BatchCompressJobSpec {
-            job_id: "job-1".to_string(),
-            filename: "file.mkv".to_string(),
-            job_type: JobType::Video,
-            preset_id: "preset-1".to_string(),
-            original_size_mb: 12.5,
-            original_codec: Some("h264".to_string()),
-            input_path: "in.mp4".to_string(),
-            output_policy: output_policy.clone(),
-            batch_id: "batch-1".to_string(),
-            start_time: Some(123),
-        });
-
-        assert_eq!(job.id, "job-1");
-        assert_eq!(job.filename, "file.mkv");
-        assert!(matches!(job.source, JobSource::BatchCompress));
-        assert!(matches!(job.status, JobStatus::Queued));
-        assert_eq!(job.preset_id, "preset-1");
-        assert_eq!(job.batch_id.as_deref(), Some("batch-1"));
-        assert_eq!(job.start_time, Some(123));
-        assert_eq!(job.input_path.as_deref(), Some("in.mp4"));
-        assert_eq!(job.output_policy, Some(output_policy));
-    }
 }

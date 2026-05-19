@@ -7,10 +7,13 @@
 mod audio;
 mod detection;
 mod helpers;
+#[cfg(test)]
+mod helpers_tests;
 mod image;
 mod image_encode_avif;
 mod orchestrator;
 mod orchestrator_helpers;
+mod replace_original;
 #[cfg(not(test))]
 mod video;
 #[cfg(test)]
@@ -18,13 +21,23 @@ pub(crate) mod video;
 mod video_helpers;
 mod video_paths;
 
+#[cfg(test)]
+pub(super) use detection::is_image_file;
 pub(crate) use detection::is_video_file;
 #[cfg(test)]
 pub(super) use detection::{build_image_avif_paths, is_batch_compress_style_output};
+#[cfg(test)]
+pub(super) use detection::{build_image_target_paths, passes_media_filter};
+pub(super) use helpers::{
+    SavingConditionConfig, mark_job_skipped_by_saving_condition, saving_condition_allows_output,
+};
 #[cfg(test)]
 pub(super) use image::handle_image_file;
 pub(super) use orchestrator::run_auto_compress;
 #[cfg(test)]
 pub(super) use orchestrator_helpers::batch_compress_batch_summary;
+pub(super) use replace_original::{finalize_replace_original_output, replacement_final_path};
+#[cfg(test)]
+pub(super) use video::enqueue_batch_compress_video_job;
 #[cfg(test)]
 pub(super) use video_paths::reserve_unique_batch_compress_video_output_path;

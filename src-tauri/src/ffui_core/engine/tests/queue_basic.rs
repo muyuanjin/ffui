@@ -414,6 +414,7 @@ fn crash_recovery_restores_paused_jobs_with_wait_metadata() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );

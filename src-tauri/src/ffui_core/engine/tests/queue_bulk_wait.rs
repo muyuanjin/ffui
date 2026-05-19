@@ -43,6 +43,7 @@ fn bulk_wait_pauses_queued_jobs_before_worker_slot_is_freed() {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     };
 
@@ -144,6 +145,7 @@ fn bulk_wait_ignores_terminal_jobs_instead_of_failing() {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     };
 

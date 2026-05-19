@@ -42,6 +42,7 @@ pub(super) fn insert_image_stub_job(
         input_path: path.to_string_lossy().into_owned(),
         output_policy: config.output_policy.clone(),
         batch_id: batch_id.to_string(),
+        saving_condition: config.into(),
         start_time: None,
     });
 
@@ -80,6 +81,7 @@ pub(super) fn insert_audio_stub_job(
         input_path: path.to_string_lossy().into_owned(),
         output_policy: config.output_policy.clone(),
         batch_id: batch_id.to_string(),
+        saving_condition: config.into(),
         start_time: None,
     });
 

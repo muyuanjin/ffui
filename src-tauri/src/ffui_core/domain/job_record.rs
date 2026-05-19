@@ -132,6 +132,7 @@ impl From<TranscodeJobLite> for JobRecord {
             output_path: job.output_path,
             output_policy: job.output_policy,
             batch_id: job.batch_id,
+            batch_compress_saving_condition: job.batch_compress_saving_condition,
         };
 
         let runtime = JobRecordRuntime {
@@ -192,6 +193,7 @@ impl From<JobRecord> for TranscodeJobLite {
             output_path,
             output_policy,
             batch_id,
+            batch_compress_saving_condition,
         } = config;
 
         let JobRecordRuntime {
@@ -251,6 +253,7 @@ impl From<JobRecord> for TranscodeJobLite {
             failure_reason,
             warnings,
             batch_id,
+            batch_compress_saving_condition,
             wait_metadata,
             phase_telemetry: Default::default(),
         }

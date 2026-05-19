@@ -1,5 +1,6 @@
 import type {
   WireJobCompareSources,
+  BatchCompressSavingCondition as WireBatchCompressSavingCondition,
   WireQueueStartupHint,
   WireQueueState,
   WireQueueStateLite,
@@ -9,6 +10,7 @@ import type {
   WireTranscodeJobLiteDeltaPatch,
 } from "./generated/queue-contracts";
 import type {
+  BatchCompressSavingCondition,
   JobCompareOutput,
   JobCompareSources,
   JobLogLineLike,
@@ -36,6 +38,17 @@ const numberOr = (value: number | null | undefined, fallback = 0): number => {
 
 const mapOutputPolicy = (value: unknown): OutputPolicy | undefined => {
   return optional(value as OutputPolicy | null | undefined);
+};
+
+const mapBatchCompressSavingCondition = (
+  value: WireBatchCompressSavingCondition | null | undefined,
+): BatchCompressSavingCondition | undefined => {
+  if (!value) return undefined;
+  return {
+    savingConditionType: value.savingConditionType,
+    minSavingRatio: numberOr(value.minSavingRatio, 0.95),
+    minSavingAbsoluteMB: numberOr(value.minSavingAbsoluteMB, 5),
+  };
 };
 
 type WireProgressPhaseTelemetry = Partial<Record<keyof ProgressPhaseTelemetry, unknown>>;
@@ -113,6 +126,7 @@ export const transcodeJobFromWire = (wire: WireTranscodeJob): TranscodeJob => {
     failureReason: optional(wire.failureReason),
     warnings: wire.warnings,
     batchId: optional(wire.batchId),
+    batchCompressSavingCondition: mapBatchCompressSavingCondition(wire.batchCompressSavingCondition),
     waitMetadata: mapWaitMetadata(wire.waitMetadata as WaitMetadata | null | undefined),
   };
 };
@@ -152,6 +166,7 @@ export const transcodeJobLiteFromWire = (wire: WireTranscodeJobLite): TranscodeJ
     failureReason: optional(wire.failureReason),
     warnings: wire.warnings,
     batchId: optional(wire.batchId),
+    batchCompressSavingCondition: mapBatchCompressSavingCondition(wire.batchCompressSavingCondition),
     waitMetadata: mapWaitMetadata(wire.waitMetadata as WaitMetadata | null | undefined),
     ...mapProgressPhaseTelemetry(wire),
   };
@@ -196,6 +211,7 @@ export const deltaPatchFromWire = (wire: WireTranscodeJobLiteDeltaPatch): Transc
   status: optional(wire.status),
   processingStartedMs: optional(wire.processingStartedMs),
   progress: optional(wire.progress),
+  skipReason: optional(wire.skipReason),
   telemetry: telemetryDeltaFromWire(wire.telemetry),
   elapsedMs: optional(wire.elapsedMs),
   preview: previewDeltaFromWire(wire.preview),

@@ -69,6 +69,9 @@ fn delete_batch_compress_child_job_is_deletable() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 status: BatchCompressBatchStatus::Completed,
                 total_files_scanned: 1,
                 total_candidates: 1,
@@ -116,6 +119,7 @@ fn delete_batch_compress_child_job_is_deletable() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: Some(batch_id),
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -150,6 +154,9 @@ fn delete_batch_compress_non_terminal_job_is_rejected() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 status: BatchCompressBatchStatus::Running,
                 total_files_scanned: 1,
                 total_candidates: 1,
@@ -196,6 +203,7 @@ fn delete_batch_compress_non_terminal_job_is_rejected() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: Some(batch_id),
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             },
         );
@@ -230,6 +238,9 @@ fn delete_batch_compress_batch_deletes_all_terminal_children_and_batch_metadata(
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 status: BatchCompressBatchStatus::Completed,
                 total_files_scanned: 2,
                 total_candidates: 2,
@@ -274,6 +285,7 @@ fn delete_batch_compress_batch_deletes_all_terminal_children_and_batch_metadata(
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some(batch_id.clone()),
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 
@@ -326,6 +338,9 @@ fn delete_batch_compress_batch_rejects_when_children_are_not_terminal() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 // 即便批次元数据已经标记为 Completed，只要仍存在非终态子任务，
                 // delete_batch_compress_batch 也应该拒绝删除，保持防御性行为。
                 status: BatchCompressBatchStatus::Completed,
@@ -378,6 +393,7 @@ fn delete_batch_compress_batch_rejects_when_children_are_not_terminal() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: Some(batch_id.clone()),
+                batch_compress_saving_condition: None,
                 wait_metadata: None,
             }
         };
@@ -430,6 +446,9 @@ fn delete_batch_compress_batch_succeeds_when_status_is_running_but_all_children_
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
                 status: BatchCompressBatchStatus::Running,
                 total_files_scanned: 2,
                 total_candidates: 2,
@@ -474,6 +493,7 @@ fn delete_batch_compress_batch_succeeds_when_status_is_running_but_all_children_
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some(batch_id.clone()),
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 

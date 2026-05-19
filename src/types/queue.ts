@@ -5,6 +5,12 @@ export type JobType = "video" | "image" | "audio";
 export type JobSource = "manual" | "batch_compress";
 export type ProgressPhase = "transcoding" | "concatenating" | "audioFinalizing" | "muxing" | "completed";
 
+export interface BatchCompressSavingCondition {
+  savingConditionType: "ratio" | "absoluteSize";
+  minSavingRatio: number;
+  minSavingAbsoluteMB: number;
+}
+
 export interface ProgressPhaseTelemetry {
   progressPhase?: ProgressPhase;
   phaseProgress?: number;
@@ -230,6 +236,8 @@ export interface TranscodeJob {
   warnings?: JobWarning[];
   /** Optional stable id for the Batch Compress batch this job belongs to. */
   batchId?: string;
+  /** Savings gate captured when this Batch Compress job was enqueued. */
+  batchCompressSavingCondition?: BatchCompressSavingCondition;
   /** Optional metadata captured when a job is paused via wait or restored after crash recovery. */
   waitMetadata?: WaitMetadata;
   progressPhase?: ProgressPhase;
@@ -282,6 +290,7 @@ export interface TranscodeJobUiLite {
   failureReason?: string;
   warnings?: JobWarning[];
   batchId?: string;
+  batchCompressSavingCondition?: BatchCompressSavingCondition;
   waitMetadata?: WaitMetadata;
   progressPhase?: ProgressPhase;
   phaseProgress?: number;
@@ -342,6 +351,7 @@ export interface TranscodeJobLiteDeltaPatch {
   status?: JobStatus;
   processingStartedMs?: number;
   progress?: number;
+  skipReason?: string | null;
   telemetry?: TranscodeJobLiteTelemetryDelta;
   elapsedMs?: number;
   preview?: TranscodeJobLitePreviewDelta;

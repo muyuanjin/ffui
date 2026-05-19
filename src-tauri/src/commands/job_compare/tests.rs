@@ -48,6 +48,7 @@ fn sample_video_job(status: JobStatus) -> TranscodeJob {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: Some(WaitMetadata {
             last_progress_percent: Some(10.0),
             processed_wall_millis: None,

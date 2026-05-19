@@ -287,6 +287,7 @@ describe("MainApp Batch Compress composite batches (non-Tauri)", () => {
 
     // 修改后的 useBatchCompress 应在没有任何子任务且批次已处理完时隐藏空的复合任务卡片。
     expect(wrapper.findAll('[data-testid="batch-compress-batch-card"]').length).toBe(0);
+    expect(vm.hasBatchCompressBatches).toBe(false);
 
     wrapper.unmount();
   });

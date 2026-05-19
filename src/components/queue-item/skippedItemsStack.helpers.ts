@@ -27,12 +27,19 @@ export const parseSkippedJobReason = (params: {
     return params.t("queue.skipReasons.codecAlready", { codec: codecMatch[1].toUpperCase() });
   }
 
-  if (reason.toLowerCase() === "already avif") {
-    return params.t("queue.skipReasons.alreadyAvif");
+  const alreadyTargetFormatMatch = reason.match(/^Already ([a-z0-9]+)$/i);
+  if (alreadyTargetFormatMatch) {
+    return params.t("queue.skipReasons.alreadyTargetFormat", {
+      format: alreadyTargetFormatMatch[1].toUpperCase(),
+    });
   }
 
-  if (reason.toLowerCase() === "existing .avif sibling") {
-    return params.t("queue.skipReasons.existingAvifSibling");
+  const existingTargetSiblingMatch = reason.match(/^Existing \.([a-z0-9]+) sibling$/i);
+  if (existingTargetSiblingMatch) {
+    return params.t("queue.skipReasons.existingTargetSibling", {
+      format: existingTargetSiblingMatch[1].toUpperCase(),
+      extension: existingTargetSiblingMatch[1].toLowerCase(),
+    });
   }
 
   // Low savings (XX.X%)

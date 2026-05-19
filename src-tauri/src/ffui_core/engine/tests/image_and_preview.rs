@@ -209,6 +209,7 @@ fn ensure_job_preview_regenerates_missing_preview_using_latest_percent() {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 
@@ -333,6 +334,7 @@ fn refresh_video_previews_for_percent_updates_jobs_and_cleans_old_previews() {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use super::BatchCompressSavingCondition;
 use super::job::{
     JobSource, JobStatus, JobType, JobWarning, MediaInfo, TranscodeJob, WaitMetadata,
 };
@@ -150,6 +151,8 @@ pub struct TranscodeJobUiLite {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_compress_saving_condition: Option<BatchCompressSavingCondition>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub wait_metadata: Option<WaitMetadataUiLite>,
     #[serde(flatten)]
     pub phase_telemetry: ProgressPhaseTelemetry,
@@ -207,6 +210,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
             failure_reason,
             warnings,
             batch_id,
+            batch_compress_saving_condition,
             wait_metadata,
             phase_telemetry,
             ..
@@ -248,6 +252,7 @@ impl From<TranscodeJobLite> for TranscodeJobUiLite {
             failure_reason,
             warnings,
             batch_id,
+            batch_compress_saving_condition,
             wait_metadata,
             phase_telemetry,
         }
@@ -316,6 +321,7 @@ mod ui_lite_tests {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: Some(WaitMetadata {
                 last_progress_percent: Some(40.0),
                 processed_wall_millis: Some(1234),

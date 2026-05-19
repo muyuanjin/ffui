@@ -9,8 +9,8 @@ const queue = {
     sizeImageTooSmall: "Size < {size}KB",
     sizeAudioTooSmall: "Size < {size}KB",
     codecAlready: "Codec is already {codec}",
-    alreadyAvif: "Already AVIF",
-    existingAvifSibling: "Existing .avif sibling",
+    alreadyTargetFormat: "Already {format}",
+    existingTargetSibling: "Existing .{extension} sibling",
     lowSavings: "Low savings ({ratio})",
     noMatchingPreset: "No matching preset",
   },
@@ -272,8 +272,7 @@ const queue = {
     enqueueFailed: "Failed to enqueue job. Please check external tool availability or auto-download settings.",
     cancelRejected: "The backend refused to cancel this job. It may have already finished or is not cancellable.",
     cancelFailed: "Error while cancelling job. Please retry later or verify external tool settings.",
-    autoCompressFailed:
-      "Batch Compress failed to call the backend and fell back to a simulated result. Check external tools or enable auto-download.",
+    autoCompressFailed: "Batch Compress failed to start. Check external tools or enable auto-download, then try again.",
     waitRejected:
       "The backend refused to put this job into wait state. It may have already finished or is not running.",
     waitFailed: "Error while applying the wait operation. Please retry later or verify external tool settings.",

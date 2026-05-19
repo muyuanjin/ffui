@@ -2,6 +2,23 @@ use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
 
+use crate::ffui_core::domain::FileTypeFilter;
+
+pub(crate) fn passes_media_filter(path: &Path, filter: &FileTypeFilter) -> bool {
+    if !filter.enabled || filter.extensions.is_empty() {
+        return false;
+    }
+
+    let Some(ext) = path.extension().and_then(|e| e.to_str()) else {
+        return false;
+    };
+
+    filter
+        .extensions
+        .iter()
+        .any(|candidate| candidate.trim_start_matches('.').eq_ignore_ascii_case(ext))
+}
+
 pub(crate) fn is_image_file(path: &Path) -> bool {
     let Some(ext) = path
         .extension()
@@ -79,4 +96,11 @@ pub(crate) fn build_image_avif_paths(path: &Path) -> (PathBuf, PathBuf) {
     // 临时文件使用 *.tmp.avif，保证 ffmpeg 等工具可根据最后一个扩展名推断为 AVIF。
     let tmp_output = path.with_extension("tmp.avif");
     (avif_target, tmp_output)
+}
+
+#[cfg(test)]
+pub(crate) fn build_image_target_paths(path: &Path, target_ext: &str) -> (PathBuf, PathBuf) {
+    let target = path.with_extension(target_ext);
+    let tmp_output = path.with_extension(format!("tmp.{target_ext}"));
+    (target, tmp_output)
 }

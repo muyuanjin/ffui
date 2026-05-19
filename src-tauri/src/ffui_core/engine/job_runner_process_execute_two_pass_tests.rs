@@ -61,6 +61,34 @@ mod two_pass_cleanup_tests {
     }
 
     #[test]
+    fn cleanup_two_pass_outputs_removes_low_savings_passlog_artifacts() {
+        let dir = std::env::temp_dir().join(format!(
+            "ffui_two_pass_cleanup_low_savings_{}",
+            current_time_millis()
+        ));
+        fs::create_dir_all(&dir).expect("create test directory");
+        let tmp_output = dir.join("video.tmp.mp4");
+        let log_output = dir.join("video.passlog.mp4");
+        let completed_segment = dir.join("video.segment-1.mp4");
+        write_artifacts(&tmp_output);
+        write_artifacts(&log_output);
+        write_artifacts(&completed_segment);
+
+        cleanup_two_pass_outputs(&log_output, &tmp_output, &[completed_segment.clone()]);
+
+        assert!(
+            two_pass_artifact_paths(&log_output)
+                .into_iter()
+                .chain(two_pass_artifact_paths(&tmp_output))
+                .chain(two_pass_artifact_paths(&completed_segment))
+                .all(|path| !path.exists()),
+            "low-savings two-pass skip should clean passlog artifacts"
+        );
+
+        drop(fs::remove_dir_all(dir));
+    }
+
+    #[test]
     fn cleanup_two_pass_artifacts_removes_all_numbered_stream_passlogs() {
         let dir = std::env::temp_dir().join(format!(
             "ffui_two_pass_cleanup_streams_{}",

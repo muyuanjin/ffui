@@ -16,6 +16,7 @@ fn make_lite_delta(
             status: None,
             processing_started_ms: None,
             progress: Some(progress),
+            skip_reason: None,
             telemetry: None,
             elapsed_ms: None,
             preview: None,
@@ -77,6 +78,7 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
             status: Some(crate::ffui_core::JobStatus::Paused),
             processing_started_ms: None,
             progress: Some(10.0),
+            skip_reason: Some("Old reason".to_string()),
             telemetry: None,
             elapsed_ms: None,
             preview: None,
@@ -93,6 +95,7 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
             status: None,
             processing_started_ms: None,
             progress: None,
+            skip_reason: Some("Low savings (4.0%)".to_string()),
             telemetry: None,
             elapsed_ms: None,
             preview: Some(crate::ffui_core::TranscodeJobLitePreviewDelta {
@@ -110,6 +113,7 @@ fn pending_queue_lite_delta_merges_sparse_patches_in_revision_order() {
         .expect("expected job-1 patch");
     assert_eq!(patch.status, Some(crate::ffui_core::JobStatus::Paused));
     assert_eq!(patch.progress, Some(10.0));
+    assert_eq!(patch.skip_reason.as_deref(), Some("Low savings (4.0%)"));
     assert_eq!(
         patch
             .preview
@@ -130,6 +134,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         status: Some(crate::ffui_core::JobStatus::Queued),
         processing_started_ms: Some(10),
         progress: Some(1.0),
+        skip_reason: Some("Old reason".to_string()),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
             progress_epoch: Some(1),
             last_progress_out_time_seconds: Some(2.0),
@@ -150,6 +155,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
         status: Some(crate::ffui_core::JobStatus::Processing),
         processing_started_ms: Some(20),
         progress: Some(9.0),
+        skip_reason: Some("Low savings (4.0%)".to_string()),
         telemetry: Some(crate::ffui_core::TranscodeJobLiteTelemetryDelta {
             progress_epoch: Some(5),
             last_progress_out_time_seconds: Some(8.0),
@@ -170,6 +176,7 @@ fn merge_queue_state_lite_delta_patch_applies_all_fields() {
     assert_eq!(into.status, Some(crate::ffui_core::JobStatus::Processing));
     assert_eq!(into.processing_started_ms, Some(20));
     assert_eq!(into.progress, Some(9.0));
+    assert_eq!(into.skip_reason.as_deref(), Some("Low savings (4.0%)"));
     assert_eq!(into.elapsed_ms, Some(123));
     assert_eq!(
         into.telemetry
@@ -267,6 +274,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: None,
             phase_telemetry: Default::default(),
             /* jscpd:ignore-end */
@@ -281,6 +289,7 @@ fn taskbar_progress_delta_tracker_applies_status_and_progress_patches() {
             status: Some(crate::ffui_core::JobStatus::Processing),
             processing_started_ms: None,
             progress: Some(12.5),
+            skip_reason: None,
             telemetry: None,
             elapsed_ms: Some(100),
             preview: None,

@@ -109,6 +109,7 @@ mod tests {
                     failure_reason: None,
                     warnings: Vec::new(),
                     batch_id: None,
+                    batch_compress_saving_condition: None,
                     wait_metadata: None,
                 },
             );

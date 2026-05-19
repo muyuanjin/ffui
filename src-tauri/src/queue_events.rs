@@ -203,6 +203,9 @@ fn merge_queue_state_lite_delta_patch(
     if newer.progress.is_some() {
         into.progress = newer.progress;
     }
+    if newer.skip_reason.is_some() {
+        into.skip_reason = newer.skip_reason;
+    }
     if newer.telemetry.is_some() {
         into.telemetry = newer.telemetry;
     }

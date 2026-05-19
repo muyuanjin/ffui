@@ -64,12 +64,29 @@ pub(super) fn process_transcode_job(inner: &Inner, job_id: &str) -> Result<()> {
     execute_transcode_job(inner, job_id, prepared)
 }
 
+#[cfg(test)]
+fn capture_queue_lite_deltas_for_tests(
+    inner: &Inner,
+) -> std::sync::Arc<std::sync::Mutex<Vec<crate::ffui_core::QueueStateLiteDelta>>> {
+    let deltas = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let deltas_clone = std::sync::Arc::clone(&deltas);
+    let mut listeners = inner.queue_lite_delta_listeners.lock_unpoisoned();
+    listeners.push(std::sync::Arc::new(move |delta| {
+        deltas_clone.lock_unpoisoned().push(delta);
+    }));
+    deltas
+}
+
 include!("job_runner_process_resume_utils.rs");
 include!("job_runner_process_execute_replace_original.rs");
 include!("job_runner_process_execute_audio_sidecar.rs");
+include!("job_runner_process_execute_batch_compress.rs");
 include!("job_runner_process_execute_two_pass.rs");
 include!("job_runner_process_execute_file_times.rs");
 include!("job_runner_process_execute.rs");
+include!("job_runner_process_execute_success_finalize.rs");
+#[cfg(test)]
+include!("job_runner_process_execute_success_finalize_tests.rs");
 include!("job_runner_process_execute_finalize.rs");
 include!("job_runner_process_execute_resume_support.rs");
 include!("job_runner_process_prepare.rs");

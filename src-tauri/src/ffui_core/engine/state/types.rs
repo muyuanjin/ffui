@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::ffui_core::domain::{
     AutoCompressProgress, QueueState, QueueStateLite, QueueStateLiteDelta, QueueStateUiLite,
+    SavingConditionType,
 };
 
 pub(in crate::ffui_core::engine) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
@@ -32,6 +33,9 @@ pub(crate) struct BatchCompressBatch {
     pub(crate) root_path: String,
     /// 当前批次是否在压缩完成后替换原文件（移动到回收站并更新输出路径）。
     pub(crate) replace_original: bool,
+    pub(crate) saving_condition_type: SavingConditionType,
+    pub(crate) min_saving_ratio: f64,
+    pub(crate) min_saving_absolute_mb: f64,
     pub(crate) status: BatchCompressBatchStatus,
     pub(crate) total_files_scanned: u64,
     pub(crate) total_candidates: u64,

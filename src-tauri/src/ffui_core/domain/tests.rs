@@ -2,9 +2,12 @@
 mod domain_contract_tests {
     use serde_json::{Value, json};
 
-    use super::super::batch_compress::{AutoCompressProgress, AutoCompressResult};
+    use super::super::batch_compress::{
+        AutoCompressProgress, AutoCompressResult, BatchCompressSavingCondition, SavingConditionType,
+    };
     use super::super::config::{EncoderType, FpsExpression, RateControlMode};
     use super::super::job::*;
+    use super::super::job_lite::TranscodeJobLite;
     use super::super::preset::{FFmpegPreset, PresetStats};
     use super::super::preset_validation::validate_preset_for_save;
 
@@ -65,6 +68,11 @@ mod domain_contract_tests {
             failure_reason: Some("ffmpeg exited with non-zero status (exit code 1)".to_string()),
             warnings: Vec::new(),
             batch_id: Some("auto-compress-batch-1".to_string()),
+            batch_compress_saving_condition: Some(BatchCompressSavingCondition {
+                saving_condition_type: SavingConditionType::AbsoluteSize,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 12.0,
+            }),
             wait_metadata: Some(WaitMetadata {
                 last_progress_percent: Some(42.0),
                 processed_wall_millis: Some(3210),
@@ -262,6 +270,18 @@ mod domain_contract_tests {
                 .expect("batchId present"),
             "auto-compress-batch-1"
         );
+        assert_eq!(
+            value["batchCompressSavingCondition"]["savingConditionType"],
+            "absoluteSize"
+        );
+        assert_eq!(
+            value["batchCompressSavingCondition"]["minSavingRatio"],
+            0.95
+        );
+        assert_eq!(
+            value["batchCompressSavingCondition"]["minSavingAbsoluteMB"],
+            12.0
+        );
 
         // elapsedMs 字段用于追踪累计转码时间
         assert_eq!(
@@ -288,6 +308,7 @@ mod domain_contract_tests {
         let decoded: TranscodeJob =
             serde_json::from_value(legacy_json).expect("deserialize legacy TranscodeJob");
         assert_eq!(decoded.original_size_mb, 50.0);
+        assert_eq!(decoded.batch_compress_saving_condition, None);
     }
 
     #[test]
@@ -521,6 +542,11 @@ mod domain_contract_tests {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some("batch-1".to_string()),
+            batch_compress_saving_condition: Some(BatchCompressSavingCondition {
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.9,
+                min_saving_absolute_mb: 7.0,
+            }),
             wait_metadata: None,
         };
 
@@ -538,6 +564,76 @@ mod domain_contract_tests {
         assert!(value.get("progress").is_none());
         assert!(value.get("logs").is_none());
         assert!(value.get("runs").is_none());
+        assert_eq!(
+            value["batchCompressSavingCondition"]["savingConditionType"],
+            "ratio"
+        );
+        assert_eq!(value["batchCompressSavingCondition"]["minSavingRatio"], 0.9);
+        assert_eq!(
+            value["batchCompressSavingCondition"]["minSavingAbsoluteMB"],
+            7.0
+        );
+    }
+
+    #[test]
+    fn queue_state_lite_roundtrip_preserves_batch_compress_saving_condition() {
+        let job = TranscodeJob {
+            id: "batch-video-1".to_string(),
+            filename: "video.mp4".to_string(),
+            job_type: JobType::Video,
+            source: JobSource::BatchCompress,
+            queue_order: None,
+            original_size_mb: 100.0,
+            original_codec: Some("h264".to_string()),
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Queued,
+            progress: 0.0,
+            start_time: None,
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: Some("C:/videos/input.mp4".to_string()),
+            created_time_ms: None,
+            modified_time_ms: None,
+            output_path: Some("C:/videos/input.compressed.mp4".to_string()),
+            output_policy: None,
+            ffmpeg_command: None,
+            runs: Vec::new(),
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            preview_revision: 0,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: Some("batch-1".to_string()),
+            batch_compress_saving_condition: Some(BatchCompressSavingCondition {
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.88,
+                min_saving_absolute_mb: 9.0,
+            }),
+            wait_metadata: None,
+        };
+
+        let lite = TranscodeJobLite::from(&job);
+        assert_eq!(
+            lite.batch_compress_saving_condition
+                .as_ref()
+                .map(|condition| condition.min_saving_ratio),
+            Some(0.88)
+        );
+
+        let restored = TranscodeJob::from(lite);
+        let condition = restored
+            .batch_compress_saving_condition
+            .expect("saving condition should survive lite roundtrip");
+        assert_eq!(condition.saving_condition_type, SavingConditionType::Ratio);
+        assert_eq!(condition.min_saving_ratio, 0.88);
+        assert_eq!(condition.min_saving_absolute_mb, 9.0);
     }
 
     #[test]
@@ -670,6 +766,7 @@ mod domain_contract_tests {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: Some("auto-compress-batch-1".to_string()),
+            batch_compress_saving_condition: None,
             wait_metadata: None,
         };
 

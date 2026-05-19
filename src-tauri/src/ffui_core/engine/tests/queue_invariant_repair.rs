@@ -43,6 +43,7 @@ fn notify_queue_listeners_repairs_waiting_queue_invariants() {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     };
 

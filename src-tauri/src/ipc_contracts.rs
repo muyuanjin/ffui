@@ -57,6 +57,11 @@ pub fn generate_queue_contracts_string() -> String {
     let body = Typescript::default()
         .export(&queue_contract_types(), specta_serde::PhasesFormat)
         .expect("export queue contracts");
+    let body = body
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n");
     format!("{GENERATED_HEADER}{body}\n{WIRE_ALIASES}")
 }
 
@@ -109,6 +114,7 @@ mod tests {
             failure_reason: None,
             warnings: Vec::new(),
             batch_id: None,
+            batch_compress_saving_condition: None,
             wait_metadata: Some(WaitMetadataUiLite {
                 last_progress_percent: Some(25.0),
                 processed_wall_millis: Some(1234),

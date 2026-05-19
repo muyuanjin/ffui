@@ -137,6 +137,8 @@ pub struct TranscodeJobLite {
     pub warnings: Vec<JobWarning>,
     /// Optional stable id for the Batch Compress batch this job belongs to.
     pub batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_compress_saving_condition: Option<super::BatchCompressSavingCondition>,
     /// Optional metadata captured when a job is paused via wait or restored
     /// after crash recovery.
     pub wait_metadata: Option<WaitMetadata>,
@@ -225,6 +227,8 @@ pub struct TranscodeJobLiteDeltaPatch {
     pub processing_started_ms: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub progress: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skip_reason: Option<String>,
     /// Optional grouped progress telemetry applied onto `waitMetadata`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<TranscodeJobLiteTelemetryDelta>,
@@ -290,6 +294,7 @@ impl From<&TranscodeJob> for TranscodeJobLite {
             failure_reason: job.failure_reason.clone(),
             warnings: job.warnings.clone(),
             batch_id: config.batch_id,
+            batch_compress_saving_condition: config.batch_compress_saving_condition,
             wait_metadata: job.wait_metadata.clone(),
             phase_telemetry: ProgressPhaseTelemetry::default(),
         }
@@ -358,6 +363,7 @@ impl From<TranscodeJobLite> for TranscodeJob {
             failure_reason: job.failure_reason,
             warnings: job.warnings,
             batch_id: job.batch_id,
+            batch_compress_saving_condition: job.batch_compress_saving_condition,
             wait_metadata: job.wait_metadata,
         }
     }

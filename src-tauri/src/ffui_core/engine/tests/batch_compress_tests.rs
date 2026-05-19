@@ -1,5 +1,7 @@
 use super::*;
-use crate::ffui_core::BatchCompressConfig;
+use crate::ffui_core::{
+    BatchCompressConfig, FileTypeFilter, OutputDirectoryPolicy, OutputFilenamePolicy, OutputPolicy,
+};
 #[test]
 fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
     let dir = env::temp_dir().join("ffui_batch_compress_progress");
@@ -331,6 +333,267 @@ fn batch_compress_video_output_naming_avoids_overwrites() {
     assert_ne!(
         second, existing2,
         "second Batch Compress output path must not overwrite pre-existing outputs"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn batch_compress_media_filter_requires_enabled_and_selected_extension() {
+    let input = PathBuf::from("C:/media/Clip.MP4");
+
+    assert!(passes_media_filter(
+        &input,
+        &FileTypeFilter {
+            enabled: true,
+            extensions: vec!["mp4".to_string()],
+        }
+    ));
+    assert!(!passes_media_filter(
+        &input,
+        &FileTypeFilter {
+            enabled: false,
+            extensions: vec!["mp4".to_string()],
+        }
+    ));
+    assert!(!passes_media_filter(
+        &input,
+        &FileTypeFilter {
+            enabled: true,
+            extensions: Vec::new(),
+        }
+    ));
+    assert!(!passes_media_filter(
+        &input,
+        &FileTypeFilter {
+            enabled: true,
+            extensions: vec!["mkv".to_string()],
+        }
+    ));
+}
+
+#[test]
+fn batch_compress_default_video_extensions_include_m4v_and_match_settings() {
+    let config = BatchCompressConfig::default();
+    let settings = AppSettings::default();
+
+    assert!(
+        config
+            .video_filter
+            .extensions
+            .iter()
+            .any(|extension| extension == "m4v"),
+        "BatchCompressConfig video defaults should include m4v"
+    );
+    assert_eq!(
+        settings.batch_compress_defaults.video_filter.extensions, config.video_filter.extensions,
+        "AppSettings Batch Compress video defaults must match domain defaults"
+    );
+    assert!(
+        passes_media_filter(&PathBuf::from("C:/media/clip.m4v"), &config.video_filter),
+        "default Batch Compress video filter should accept .m4v files"
+    );
+}
+
+#[test]
+fn batch_compress_image_detection_excludes_gif_candidates() {
+    assert!(
+        !is_image_file(&PathBuf::from("C:/media/animated.gif")),
+        "Batch Compress must not route GIFs through the still-image encoder path"
+    );
+    assert!(is_image_file(&PathBuf::from("C:/media/photo.jpg")));
+    assert!(is_image_file(&PathBuf::from("C:/media/photo.png")));
+    assert!(is_image_file(&PathBuf::from("C:/media/photo.webp")));
+    assert!(is_image_file(&PathBuf::from("C:/media/photo.avif")));
+}
+
+#[test]
+fn batch_compress_default_image_extensions_include_avif_and_exclude_gif() {
+    let config = BatchCompressConfig::default();
+    let extensions = &config.image_filter.extensions;
+
+    assert!(
+        extensions.iter().any(|extension| extension == "avif"),
+        "BatchCompressConfig image defaults should include avif"
+    );
+    assert!(
+        !extensions.iter().any(|extension| extension == "gif"),
+        "BatchCompressConfig image defaults should exclude gif"
+    );
+}
+
+#[test]
+fn app_settings_batch_compress_image_defaults_match_domain_defaults() {
+    let config = BatchCompressConfig::default();
+    let settings = AppSettings::default();
+
+    assert_eq!(
+        settings.batch_compress_defaults.image_filter.extensions, config.image_filter.extensions,
+        "AppSettings Batch Compress image defaults must match domain defaults"
+    );
+}
+
+#[test]
+fn batch_compress_empty_extension_filters_produce_zero_candidates() {
+    let dir = env::temp_dir().join("ffui_batch_compress_empty_filters");
+    let _ = fs::create_dir_all(&dir);
+
+    let input = dir.join("sample.mp4");
+    {
+        let mut file = File::create(&input).expect("create empty-filter input");
+        file.write_all(&[0u8; 1024])
+            .expect("write empty-filter input");
+    }
+
+    let engine = make_engine_with_preset();
+    let mut config = BatchCompressConfig {
+        min_image_size_kb: 0,
+        min_video_size_mb: 0,
+        min_audio_size_kb: 0,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+    config.video_filter.extensions = Vec::new();
+    config.image_filter.enabled = false;
+    config.audio_filter.enabled = false;
+
+    let descriptor = engine
+        .run_auto_compress(dir.to_string_lossy().into_owned(), config)
+        .expect("run_auto_compress should succeed for empty-filter test");
+
+    let summary = {
+        let mut attempts = 0;
+        loop {
+            if let Some(summary) = engine.batch_compress_batch_summary(&descriptor.batch_id)
+                && summary.total_files_scanned >= 1
+                && summary.completed_at_ms > 0
+            {
+                break summary;
+            }
+            attempts += 1;
+            assert!(
+                attempts <= 100,
+                "Batch Compress empty-filter batch did not complete within timeout"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+
+    assert_eq!(summary.total_candidates, 0);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn batch_compress_scan_excludes_gif_from_image_candidates() {
+    let dir = env::temp_dir().join("ffui_batch_compress_gif_excluded");
+    let _ = fs::create_dir_all(&dir);
+
+    let input = dir.join("animated.gif");
+    {
+        let mut file = File::create(&input).expect("create gif input");
+        file.write_all(&[0u8; 1024]).expect("write gif input");
+    }
+
+    let engine = make_engine_with_preset();
+    let mut config = BatchCompressConfig {
+        min_image_size_kb: 0,
+        min_video_size_mb: 0,
+        min_audio_size_kb: 0,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+    config.video_filter.enabled = false;
+    config.audio_filter.enabled = false;
+
+    let descriptor = engine
+        .run_auto_compress(dir.to_string_lossy().into_owned(), config)
+        .expect("run_auto_compress should succeed for gif-excluded test");
+
+    let summary = {
+        let mut attempts = 0;
+        loop {
+            if let Some(summary) = engine.batch_compress_batch_summary(&descriptor.batch_id)
+                && summary.total_files_scanned >= 1
+                && summary.completed_at_ms > 0
+            {
+                break summary;
+            }
+            attempts += 1;
+            assert!(
+                attempts <= 100,
+                "Batch Compress gif-excluded batch did not complete within timeout"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+
+    assert_eq!(summary.total_candidates, 0);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn batch_compress_webp_image_paths_use_webp_and_tmp_webp_extensions() {
+    let input = PathBuf::from("C:/media/photo.jpg");
+    let (target, tmp) = build_image_target_paths(&input, "webp");
+    assert_eq!(target, PathBuf::from("C:/media/photo.webp"));
+    assert_eq!(tmp, PathBuf::from("C:/media/photo.tmp.webp"));
+}
+
+#[test]
+fn replace_original_video_planning_ignores_fixed_directory_and_name_policy() {
+    let dir = env::temp_dir().join("ffui_batch_compress_replace_original_plan");
+    let _ = fs::create_dir_all(&dir);
+
+    let input = dir.join("sample.mp4");
+    {
+        let mut file = File::create(&input).expect("create replace-original input");
+        file.write_all(&[0u8; 1024])
+            .expect("write replace-original input");
+    }
+
+    let engine = make_engine_with_preset();
+    let preset = make_test_preset();
+    let config = BatchCompressConfig {
+        replace_original: true,
+        min_video_size_mb: 0,
+        video_preset_id: preset.id.clone(),
+        output_policy: OutputPolicy {
+            directory: OutputDirectoryPolicy::Fixed {
+                directory: dir.join("ignored").to_string_lossy().into_owned(),
+            },
+            filename: OutputFilenamePolicy {
+                suffix: Some(".ignored".to_string()),
+                append_timestamp: true,
+                random_suffix_len: Some(8),
+                ..OutputFilenamePolicy::default()
+            },
+            ..OutputPolicy::default()
+        },
+        ..Default::default()
+    };
+
+    let job = enqueue_batch_compress_video_job(
+        &engine.inner,
+        &input,
+        &config,
+        &AppSettings::default(),
+        &preset,
+        "batch-replace-plan",
+        false,
+    );
+
+    let output_path = PathBuf::from(job.output_path.expect("planned output path"));
+    assert_eq!(output_path.parent(), input.parent());
+    assert!(
+        output_path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .starts_with("sample.compressed"),
+        "replace-original staging path should ignore custom filename policy: {}",
+        output_path.display()
     );
 
     let _ = fs::remove_dir_all(&dir);

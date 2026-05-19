@@ -124,6 +124,17 @@ fn cleanup_two_pass_outputs_after_failed_encode(
     }
 }
 
+fn cleanup_two_pass_outputs_if_requested(
+    requested: bool,
+    log_output: &Path,
+    tmp_output: &Path,
+    completed_segments: &[PathBuf],
+) {
+    if requested {
+        cleanup_two_pass_outputs(log_output, tmp_output, completed_segments);
+    }
+}
+
 fn elapsed_since_execution_start(execution_start_time: SystemTime) -> f64 {
     execution_start_time
         .elapsed()

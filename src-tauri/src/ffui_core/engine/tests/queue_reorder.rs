@@ -35,6 +35,7 @@ fn make_job(id: &str, status: JobStatus) -> TranscodeJob {
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     }
 }

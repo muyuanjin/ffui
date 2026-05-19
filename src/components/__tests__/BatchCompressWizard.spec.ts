@@ -95,4 +95,24 @@ describe("BatchCompressWizard 默认预设", () => {
     const source = readFileSync(resolve(__dirname, "../BatchCompressWizard.vue"), "utf8");
     expect(source).not.toContain('<SelectItem value="">');
   });
+
+  it("启用的媒体类型没有选中扩展名时不能开始扫描", () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/videos",
+          videoFilter: { enabled: true, extensions: [] },
+          imageFilter: { enabled: true, extensions: [] },
+          audioFilter: { enabled: true, extensions: [] },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    expect(runButton!.attributes("disabled")).toBeDefined();
+  });
 });

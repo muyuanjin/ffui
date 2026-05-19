@@ -18,7 +18,7 @@ use crate::ffui_core::domain::{
     VideoConfig, WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
-use crate::ffui_core::{AutoCompressProgress, ImageTargetFormat, JobStatus};
+use crate::ffui_core::{AutoCompressProgress, ImageTargetFormat, JobStatus, SavingConditionType};
 pub(super) use crate::sync_ext::MutexExt;
 
 mod common;

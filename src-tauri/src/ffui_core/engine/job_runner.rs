@@ -23,7 +23,7 @@ use super::state::{
     Inner, notify_queue_listeners, register_known_batch_compress_output_with_inner,
 };
 use crate::ffui_core::domain::{
-    AudioCodecType, JobStatus, JobType, MediaInfo, ProgressPhase, WaitMetadata,
+    AudioCodecType, JobSource, JobStatus, JobType, MediaInfo, ProgressPhase, WaitMetadata,
 };
 use crate::ffui_core::settings::{DownloadedToolInfo, DownloadedToolState};
 use crate::ffui_core::tools::{

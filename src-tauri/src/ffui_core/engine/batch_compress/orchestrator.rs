@@ -14,7 +14,7 @@ use super::super::state::{
 };
 use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
 use super::audio::handle_audio_file_with_id;
-use super::detection::{is_audio_file, is_image_file, is_video_file};
+use super::detection::{is_audio_file, is_image_file, is_video_file, passes_media_filter};
 use super::helpers::{current_time_millis, next_job_id, notify_queue_listeners};
 use super::image::handle_image_file_with_id;
 use super::orchestrator_helpers::{
@@ -57,6 +57,9 @@ pub(crate) fn run_auto_compress(
             // 每个批次独立携带 replace_original 配置，避免后续修改默认设置时影响
             // 之前已入队但尚未处理完的 Batch Compress 任务。
             replace_original: config.replace_original,
+            saving_condition_type: config.saving_condition_type,
+            min_saving_ratio: config.min_saving_ratio,
+            min_saving_absolute_mb: config.min_saving_absolute_mb,
             status: BatchCompressBatchStatus::Scanning,
             total_files_scanned: 0,
             total_candidates: 0,
@@ -237,30 +240,15 @@ fn run_auto_compress_background(
         }
 
         if is_image_file(&path) {
+            if !passes_media_filter(&path, &config.image_filter) {
+                continue;
+            }
             let job_id = next_job_id(inner);
             insert_image_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Image);
         } else if is_audio_file(&path) {
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase)
-                .unwrap_or_default();
-
-            let audio_filter = &config.audio_filter;
-            let mut passes_filter = audio_filter.enabled;
-            if passes_filter
-                && !audio_filter.extensions.is_empty()
-                && !audio_filter
-                    .extensions
-                    .iter()
-                    .any(|e| e.eq_ignore_ascii_case(&ext))
-            {
-                passes_filter = false;
-            }
-
-            if !passes_filter {
+            if !passes_media_filter(&path, &config.audio_filter) {
                 continue;
             }
 
@@ -269,6 +257,9 @@ fn run_auto_compress_background(
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Audio);
         } else if is_video_file(&path) {
+            if !passes_media_filter(&path, &config.video_filter) {
+                continue;
+            }
             let preset = presets
                 .iter()
                 .find(|p| p.id == config.video_preset_id)

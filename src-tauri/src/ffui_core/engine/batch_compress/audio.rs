@@ -9,8 +9,9 @@ use super::super::state::{Inner, register_known_batch_compress_output_with_inner
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
     capture_input_times_if_needed, current_time_millis, make_batch_compress_job, next_job_id,
-    record_tool_download, run_ffmpeg_and_finalize_tmp_output,
+    record_tool_download, replace_original_output_policy, run_ffmpeg_and_finalize_tmp_output,
 };
+use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
     AudioCodecType, BatchCompressConfig, FFmpegPreset, JobRun, JobStatus, JobType, TranscodeJob,
 };
@@ -91,8 +92,9 @@ pub(crate) fn handle_audio_file_with_id(
         original_size_mb,
         original_codec: ext.clone(),
         input_path: path.to_string_lossy().into_owned(),
-        output_policy: config.output_policy.clone(),
+        output_policy: replace_original_output_policy(config),
         batch_id: batch_id.to_string(),
+        saving_condition: config.into(),
         start_time: None,
     });
 
@@ -181,11 +183,12 @@ pub(crate) fn handle_audio_file_with_id(
 
     let output_path = {
         let mut state = inner.state.lock_unpoisoned();
+        let policy = replace_original_output_policy(config);
         let out = plan_output_path_with_extension(
             path,
             &target_ext,
             preset.as_ref(),
-            &config.output_policy,
+            &policy,
             |candidate| {
                 let s = candidate.to_string_lossy();
                 candidate.exists() || state.known_batch_compress_outputs.contains(s.as_ref())
@@ -313,46 +316,35 @@ pub(crate) fn handle_audio_file_with_id(
         return Ok(job);
     };
 
+    let final_output_path = if config.replace_original {
+        finalize_replace_original_output(&mut job, path, &output_path, "audio")
+    } else {
+        output_path.clone()
+    };
+
     if preserve_times_policy.any()
         && let Some(times) = input_times.as_ref()
-        && let Err(err) = super::super::file_times::apply_file_times(&output_path, times)
+        && let Err(err) = super::super::file_times::apply_file_times(&final_output_path, times)
     {
         append_job_log_line(
             &mut job,
             format!(
                 "preserve file times: failed to apply timestamps to {}: {err}",
-                output_path.display()
+                final_output_path.display()
             ),
         );
     }
 
     // 将最终输出注册为 Batch Compress 已知输出，避免后续批次重复压缩。
-    register_known_batch_compress_output_with_inner(inner, &output_path);
+    register_known_batch_compress_output_with_inner(inner, &final_output_path);
 
-    job.status = JobStatus::Completed;
+    if !matches!(job.status, JobStatus::Failed) {
+        job.status = JobStatus::Completed;
+    }
     job.progress = 100.0;
     job.end_time = Some(current_time_millis());
     job.output_size_mb = Some(new_size_bytes as f64 / (1024.0 * 1024.0));
-
-    // 如果用户勾选了“替换原文件”，尝试将源音频移入系统回收站（最佳努力）。
-    if config.replace_original {
-        match trash::delete(path) {
-            Ok(()) => append_job_log_line(
-                &mut job,
-                format!(
-                    "replace original: moved source audio {} to recycle bin",
-                    path.display()
-                ),
-            ),
-            Err(err) => append_job_log_line(
-                &mut job,
-                format!(
-                    "replace original: failed to move source audio {} to recycle bin: {err}",
-                    path.display()
-                ),
-            ),
-        }
-    }
+    job.output_path = Some(final_output_path.to_string_lossy().into_owned());
 
     Ok(job)
 }

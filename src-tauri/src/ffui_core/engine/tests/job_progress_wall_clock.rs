@@ -55,6 +55,7 @@ fn update_job_progress_uses_wall_clock_instead_of_media_duration() {
                 failure_reason: None,
                 warnings: Vec::new(),
                 batch_id: None,
+                batch_compress_saving_condition: None,
                 wait_metadata: Some(WaitMetadata {
                     last_progress_percent: Some(50.0),
                     processed_wall_millis: Some(3_000),

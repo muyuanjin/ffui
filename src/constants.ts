@@ -26,7 +26,7 @@ export const EXTENSIONS = {
 export const VIDEO_EXTENSIONS = ["mp4", "mkv", "mov", "avi", "flv", "ts", "m2ts", "wmv", "webm", "m4v"];
 
 /** 图片文件扩展名（不含点号） */
-export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "gif"];
+export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "bmp", "tif", "tiff", "webp", "avif"];
 
 /** 音频文件扩展名（不含点号） */
 export const AUDIO_EXTENSIONS = ["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma", "opus"];

@@ -51,6 +51,7 @@ pub fn make_transcode_job_for_tests(
         failure_reason: None,
         warnings: Vec::new(),
         batch_id: None,
+        batch_compress_saving_condition: None,
         wait_metadata: None,
     }
     /* jscpd:ignore-end */

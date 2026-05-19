@@ -243,7 +243,7 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
   });
 
   const hasBatchCompressBatches = computed(() => {
-    return Object.keys(batchCompressBatchMeta.value).length > 0;
+    return compositeBatchCompressTasks.value.length > 0;
   });
 
   const compositeTasksById = computed(() => {
@@ -265,9 +265,9 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
     const batchId = `mock-batch-${Date.now().toString(36)}`;
 
     const enabledKinds: JobType[] = [];
-    if (config.videoFilter.enabled) enabledKinds.push("video");
-    if (config.imageFilter.enabled) enabledKinds.push("image");
-    if (config.audioFilter.enabled) enabledKinds.push("audio");
+    if (config.videoFilter.enabled && config.videoFilter.extensions.length > 0) enabledKinds.push("video");
+    if (config.imageFilter.enabled && config.imageFilter.extensions.length > 0) enabledKinds.push("image");
+    if (config.audioFilter.enabled && config.audioFilter.extensions.length > 0) enabledKinds.push("audio");
     const kinds: JobType[] = enabledKinds.length > 0 ? enabledKinds : (["video", "image"] as JobType[]);
 
     for (let i = 0; i < count; i += 1) {
@@ -386,16 +386,14 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
         return;
       } catch (error) {
         console.error("auto-compress failed with root path", error);
-        queueError.value = t?.("queue.error.autoCompressFailed") ?? "";
+        queueError.value = t?.("queue.error.autoCompressFailed") || "Batch Compress failed";
+        return;
       }
     } else {
       // 没有路径时显示错误
       queueError.value = t?.("batchCompress.noPathSelected") ?? "Please select a folder to scan";
       return;
     }
-
-    // Fallback to mock behavior when backend path fails.
-    runBatchCompressMock(config);
   };
 
   const startBatchCompress = async () => {

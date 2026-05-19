@@ -1,3 +1,4 @@
+use super::BatchCompressSavingCondition;
 pub use super::job_logs::JobLogLine;
 use super::output_policy::OutputPolicy;
 use serde::{Deserialize, Serialize};
@@ -141,6 +142,8 @@ pub struct JobConfig {
     pub output_policy: Option<OutputPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_compress_saving_condition: Option<BatchCompressSavingCondition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Type)]
@@ -289,6 +292,9 @@ pub struct TranscodeJob {
     /// Optional stable identifier for a Batch Compress batch this job belongs to.
     /// Manual / ad-hoc jobs do not carry a batch id.
     pub batch_id: Option<String>,
+    /// Savings gate captured when this Batch Compress job was enqueued.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_compress_saving_condition: Option<BatchCompressSavingCondition>,
     /// Optional metadata captured when a job is paused via an explicit wait
     /// operation or restored after an unexpected termination. This keeps the
     /// core `TranscodeJob` shape stable while allowing future resume/crash-
@@ -311,6 +317,7 @@ impl From<&TranscodeJob> for JobConfig {
             output_path: job.output_path.clone(),
             output_policy: job.output_policy.clone(),
             batch_id: job.batch_id.clone(),
+            batch_compress_saving_condition: job.batch_compress_saving_condition,
         }
     }
 }
