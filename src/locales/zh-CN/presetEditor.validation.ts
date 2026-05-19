@@ -46,7 +46,7 @@ const validation = {
   },
   filters: {
     filterComplexWithVfAf: "已设置 filter_complex，同时仍可能生成 -vf/-af，可能与预期不一致。",
-    invalidFps: "FPS 必须为有限正数（当前 {value}）。",
+    invalidFps: "FPS 必须为正数表达式：整数、小数、30000/1001 这类分数，或 film/ntsc_film/pal/ntsc（当前 {value}）。",
   },
 } as const;
 

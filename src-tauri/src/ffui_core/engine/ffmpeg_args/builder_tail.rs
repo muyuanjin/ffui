@@ -100,11 +100,8 @@ pub(in crate::ffui_core::engine) fn apply_video_filter_args(
     {
         vf_parts.push(format!("crop={crop}"));
     }
-    if let Some(fps) = preset.filters.fps
-        && fps.is_finite()
-        && fps > 0.0
-    {
-        vf_parts.push(format!("fps={}", format_decimal_arg(fps)));
+    if let Some(fps) = &preset.filters.fps {
+        vf_parts.push(format!("fps={}", fps.as_str()));
     }
     if let Some(subtitles) = &preset.subtitles
         && matches!(subtitles.strategy, Some(SubtitleStrategy::BurnIn))
@@ -133,18 +130,6 @@ pub(in crate::ffui_core::engine) fn apply_video_filter_args(
         }
         args.push("-vf".to_string());
         args.push(combined);
-    }
-}
-
-fn format_decimal_arg(value: f64) -> String {
-    if value.fract() == 0.0 {
-        format!("{value:.0}")
-    } else {
-        let mut raw = format!("{value:.6}");
-        while raw.contains('.') && raw.ends_with('0') {
-            raw.pop();
-        }
-        raw
     }
 }
 

@@ -1,5 +1,6 @@
 import type { PresetEditorIssue, PresetEditorMutableState } from "./presetValidatorTypes";
 import { getEncoderCapability } from "./encoderCapabilityRegistry";
+import { parseFpsExpression } from "@/lib/fpsExpression";
 
 export const appendPresetSaveContractIssues = (state: PresetEditorMutableState, issues: PresetEditorIssue[]) => {
   const template = state.ffmpegTemplate.value.trim();
@@ -55,7 +56,7 @@ export const appendPresetSaveContractIssues = (state: PresetEditorMutableState, 
   }
 
   const fps = state.filters.fps;
-  if (typeof fps === "number" && (!Number.isFinite(fps) || fps <= 0)) {
+  if (fps != null && String(fps).trim().length > 0 && !parseFpsExpression(fps).ok) {
     issues.push({
       level: "error",
       group: "filters",

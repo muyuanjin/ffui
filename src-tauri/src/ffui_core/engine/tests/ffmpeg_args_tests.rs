@@ -747,7 +747,7 @@ fn build_ffmpeg_args_respects_audio_copy_vs_aac_flags() {
 fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
     let mut preset = make_test_preset();
     preset.filters.scale = Some("1280:-2".to_string());
-    preset.filters.fps = Some(30.0);
+    preset.filters.fps = Some(FpsExpression::parse("30").expect("valid fps"));
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
@@ -795,7 +795,7 @@ fn build_ffmpeg_args_applies_subtitle_strategies_to_vf_and_sn_consistently() {
 fn build_ffmpeg_args_emits_decimal_fps_and_preserves_unknown_encoder_name() {
     let mut preset = make_test_preset();
     preset.video.encoder = EncoderType::Unknown("future_encoder".to_string());
-    preset.filters.fps = Some(29.97);
+    preset.filters.fps = Some(FpsExpression::parse("30000/1001").expect("valid fps"));
 
     let input = PathBuf::from("C:/Videos/input.mp4");
     let output = PathBuf::from("C:/Videos/output.tmp.mp4");
@@ -806,8 +806,28 @@ fn build_ffmpeg_args_emits_decimal_fps_and_preserves_unknown_encoder_name() {
         "unknown encoder strings should be passed through as -c:v value, got: {joined}"
     );
     assert!(
-        joined.contains("fps=29.97"),
-        "decimal FPS should be emitted without integer truncation, got: {joined}"
+        joined.contains("fps=30000/1001"),
+        "rational FPS should be emitted without floating-point formatting, got: {joined}"
+    );
+}
+
+#[test]
+fn build_ffmpeg_args_canonicalizes_compatibility_fps_aliases() {
+    let mut preset = make_test_preset();
+    preset.filters.fps =
+        Some(FpsExpression::parse("ntsc-film").expect("legacy alias should parse"));
+
+    let input = PathBuf::from("C:/Videos/input.mp4");
+    let output = PathBuf::from("C:/Videos/output.tmp.mp4");
+    let joined = build_ffmpeg_args(&preset, &input, &output, true, None).join(" ");
+
+    assert!(
+        joined.contains("fps=24000/1001"),
+        "legacy alias should be canonicalized before ffmpeg args are built, got: {joined}"
+    );
+    assert!(
+        !joined.contains("fps=ntsc-film"),
+        "legacy alias must never be emitted because ffmpeg parses it as subtraction, got: {joined}"
     );
 }
 
@@ -833,7 +853,7 @@ fn build_ffmpeg_args_skips_video_filters_when_encoder_is_copy() {
     preset.video.encoder = EncoderType::Copy;
     preset.filters.scale = Some("1280:-2".to_string());
     preset.filters.crop = Some("iw:ih-100:0:100".to_string());
-    preset.filters.fps = Some(30.0);
+    preset.filters.fps = Some(FpsExpression::parse("30").expect("valid fps"));
     preset.filters.vf_chain = Some("eq=contrast=1.1:brightness=0.05".to_string());
     preset.filters.filter_complex = Some("[0:v]scale=1280:-2[scaled]".to_string());
 

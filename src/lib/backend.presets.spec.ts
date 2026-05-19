@@ -198,7 +198,7 @@ describe("backend contract - presets", () => {
     expect(result).toEqual(backendList);
   });
 
-  it("savePresetOnBackend sends normalized camelCase preset payloads with decimal fps", async () => {
+  it("savePresetOnBackend sends normalized camelCase preset payloads with decimal fps expressions", async () => {
     const preset: FFmpegPreset = {
       id: "decimal-fps",
       name: "Decimal FPS",
@@ -210,7 +210,7 @@ describe("backend contract - presets", () => {
         preset: "medium",
       },
       audio: { codec: "copy" },
-      filters: { fps: 29.97 },
+      filters: { fps: "29.97" },
       stats: {
         usageCount: 0,
         totalInputSizeMB: 0,
@@ -225,7 +225,7 @@ describe("backend contract - presets", () => {
 
     const [, payload] = invokeMock.mock.calls[0];
     const sentPreset = (payload as any).preset as FFmpegPreset;
-    expect(sentPreset.filters.fps).toBe(29.97);
+    expect(sentPreset.filters.fps).toBe("29.97");
     expect(sentPreset.video.encoder).toBe("future_encoder");
     expect(sentPreset.video.rateControl).toBe("future_rc");
     expect(JSON.stringify(payload)).not.toContain("rate_control");

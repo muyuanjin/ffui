@@ -47,6 +47,82 @@ describe("presetCommandImport", () => {
     expect(analysis.eligibility.editable).toBe(true);
   });
 
+  it("preserves rational fps expressions when importing structured commands", () => {
+    const cmd = buildFfmpegCommandFromStructured({
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: { fps: "30000/1001" },
+      mapping: { maps: ["0"] },
+    });
+
+    const analysis = analyzeImportCommandLine(cmd);
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.fps).toBe("30000/1001");
+  });
+
+  it("preserves alias fps expressions when importing structured commands", () => {
+    const cmd = buildFfmpegCommandFromStructured({
+      video: { encoder: "libx264", rateControl: "crf", qualityValue: 23, preset: "medium" },
+      audio: { codec: "copy" },
+      filters: { fps: "ntsc" },
+      mapping: { maps: ["0"] },
+    });
+
+    const analysis = analyzeImportCommandLine(cmd);
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.fps).toBe("ntsc");
+
+    const ntscFilmAnalysis = analyzeImportCommandLine(cmd.replace("fps=ntsc", "fps=ntsc_film"));
+    expect(ntscFilmAnalysis.eligibility.editable).toBe(true);
+    expect(ntscFilmAnalysis.structuredPreset?.filters.fps).toBe("ntsc_film");
+  });
+
+  it("canonicalizes legacy fps aliases when importing structured commands", () => {
+    const analysis = analyzeImportCommandLine(
+      "ffmpeg -i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy -vf fps=ntsc-film OUTPUT",
+    );
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.fps).toBe("24000/1001");
+  });
+
+  it("does not canonicalize fps-looking text inside quoted filter literals", () => {
+    const analysis = analyzeImportCommandLine(
+      "ffmpeg -i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy -vf \"fps=ntsc-film,drawtext=text='A,fps=ntsc-film'\" OUTPUT",
+    );
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.fps).toBe("24000/1001");
+    expect(analysis.structuredPreset?.filters.vfChain).toBe("drawtext=text='A,fps=ntsc-film'");
+  });
+
+  it("keeps source_fps in the advanced vf chain when importing structured commands", () => {
+    const analysis = analyzeImportCommandLine(
+      "ffmpeg -i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy -vf fps=source_fps OUTPUT",
+    );
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.fps).toBeUndefined();
+    expect(analysis.structuredPreset?.filters.vfChain).toBe("fps=source_fps");
+  });
+
+  it("trims preserved advanced fps segments when importing comma-space vf chains", () => {
+    const analysis = analyzeImportCommandLine(
+      'ffmpeg -i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy -vf "scale=1280:-2, fps=source_fps" OUTPUT',
+    );
+
+    expect(analysis.eligibility.editable).toBe(true);
+    expect(analysis.structuredPreset?.filters.scale).toBe("1280:-2");
+    expect(analysis.structuredPreset?.filters.fps).toBeUndefined();
+    expect(analysis.structuredPreset?.filters.vfChain).toBe("fps=source_fps");
+
+    const preview = buildFfmpegCommandFromStructured(analysis.structuredPreset!);
+    expect(preview).toContain("-vf scale=1280:-2,fps=source_fps");
+    expect(preview).not.toContain(", fps=source_fps");
+  });
+
   it("forces custom import when an unsupported flag is present", () => {
     const cmd = `ffmpeg -i INPUT -map 0 -c:v libx264 -crf 23 -preset medium -c:a copy -foo bar OUTPUT`;
     const analysis = analyzeImportCommandLine(cmd);

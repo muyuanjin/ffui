@@ -380,7 +380,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
   it("applies subtitle strategies consistently to vf chain and -sn flag", () => {
     const baseFilters: FilterConfig = {
       scale: "1280:-2",
-      fps: 30,
+      fps: "30000/1001",
     };
 
     const burnIn: SubtitlesConfig = {
@@ -399,7 +399,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     expect(vfIndex).toBeGreaterThan(-1);
     const vfValue = burnArgs[vfIndex + 1];
     expect(vfValue).toContain("scale=1280:-2");
-    expect(vfValue).toContain("fps=30");
+    expect(vfValue).toContain("fps=30000/1001");
     expect(vfValue).toContain("subtitles=INPUT:si=0");
     expect(burnArgs).not.toContain("-sn");
 
@@ -413,6 +413,19 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
     expect(dropArgs).toContain("-sn");
   });
 
+  it("canonicalizes compatibility fps aliases before command generation", () => {
+    const cmd = buildFfmpegCommandFromStructured(
+      makeInput({
+        filters: makeBaseFilters({ fps: "ntsc-film" }),
+      }),
+    );
+    const args = splitArgs(cmd);
+    const vfValue = args[args.indexOf("-vf") + 1];
+
+    expect(vfValue).toContain("fps=24000/1001");
+    expect(vfValue).not.toContain("fps=ntsc-film");
+  });
+
   it("does not emit -vf or -filter_complex when encoder=copy even if video filters are set", () => {
     const cmd = buildFfmpegCommandFromStructured(
       makeInput({
@@ -423,7 +436,7 @@ describe("buildFfmpegCommandFromStructured - parameter combinations", () => {
         filters: makeBaseFilters({
           scale: "1280:-2",
           crop: "iw:ih-100:0:100",
-          fps: 30,
+          fps: "30",
           vfChain: "eq=contrast=1.1:brightness=0.05",
           filterComplex: "[0:v]scale=1280:-2[scaled]",
         }),

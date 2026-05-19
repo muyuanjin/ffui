@@ -1,5 +1,6 @@
 import type { EncoderType, FFmpegPreset, RateControlMode, VideoConfig } from "@/types";
 
+import { normalizeFpsExpressionForSave } from "@/lib/fpsExpression";
 import { getEncoderCapability, getEncoderOptions } from "./encoderCapabilityRegistry";
 
 export interface PresetDiagnostics {
@@ -41,6 +42,14 @@ export const normalizePreset = (
 } => {
   const warnings: string[] = [];
   const normalizedVideo: VideoConfig = { ...(preset.video as VideoConfig) };
+  const normalizedFilters = { ...(preset.filters ?? {}) };
+  const rawFps = (normalizedFilters as any).fps;
+  const normalizedFps = normalizeFpsExpressionForSave(rawFps);
+  if (normalizedFps) {
+    normalizedFilters.fps = normalizedFps;
+  } else if (typeof rawFps === "string" && rawFps.trim().length === 0) {
+    normalizedFilters.fps = undefined;
+  }
 
   if ((normalizedVideo as any).pass === 1) {
     normalizedVideo.pass = 2;
@@ -64,6 +73,7 @@ export const normalizePreset = (
       preset: {
         ...preset,
         video: normalizedVideo,
+        filters: normalizedFilters,
       },
       diagnostics: { warnings },
     };
@@ -90,6 +100,7 @@ export const normalizePreset = (
     preset: {
       ...preset,
       video: normalizedVideo,
+      filters: normalizedFilters,
     },
     diagnostics: { warnings },
   };

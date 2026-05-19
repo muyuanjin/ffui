@@ -1,4 +1,6 @@
 import { splitCommandLine, stripQuotes, wrapWithSameQuotes } from "./utils";
+import { parseFpsExpression } from "@/lib/fpsExpression";
+import { splitFfmpegFilterChain, stripFilterValueOuterQuotes } from "./filterChain";
 
 const isFfmpegProgramToken = (token: string): boolean => {
   const unquoted = stripQuotes(token);
@@ -70,6 +72,17 @@ const dropRuntimeOnlyTokens = (tokens: string[]): string[] => {
 
 export const normalizeForComparison = (tokens: string[]): string[] => {
   const normalized: string[] = [];
+  const normalizeFilterValue = (value: string): string => {
+    const raw = stripFilterValueOuterQuotes(value);
+    return splitFfmpegFilterChain(raw)
+      .map((part) => {
+        const trimmed = part.trim();
+        if (!trimmed.startsWith("fps=")) return trimmed;
+        const parsed = parseFpsExpression(trimmed.slice("fps=".length));
+        return parsed.ok ? `fps=${parsed.expression.value}` : trimmed;
+      })
+      .join(",");
+  };
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
     const unquoted = stripQuotes(token);
@@ -97,6 +110,11 @@ export const normalizeForComparison = (tokens: string[]): string[] => {
     }
     if (lower === "-filter:a") {
       normalized.push("-af");
+      continue;
+    }
+
+    if (normalized[normalized.length - 1] === "-vf") {
+      normalized.push(normalizeFilterValue(token));
       continue;
     }
 

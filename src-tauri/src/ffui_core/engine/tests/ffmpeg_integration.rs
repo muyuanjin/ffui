@@ -119,7 +119,7 @@ fn ffmpeg_integration_runs_av1_crf_preset_when_encoder_available() {
         true_peak_db: None,
     };
     preset.filters.scale = Some("-2:720".to_string());
-    preset.filters.fps = Some(24.0);
+    preset.filters.fps = Some(FpsExpression::parse("24").expect("valid fps"));
     preset.container = Some(ContainerConfig {
         format: Some("mp4".to_string()),
         movflags: None,
@@ -184,7 +184,7 @@ fn ffmpeg_integration_runs_stream_copy_preset_without_filtering_conflicts() {
     preset.video.encoder = EncoderType::Copy;
     preset.audio.codec = AudioCodecType::Copy;
     preset.filters.scale = Some("320:-2".to_string());
-    preset.filters.fps = Some(30.0);
+    preset.filters.fps = Some(FpsExpression::parse("30").expect("valid fps"));
     preset.filters.vf_chain = Some("eq=contrast=1.1".to_string());
     preset.filters.filter_complex = Some("[0:v]scale=320:-2[scaled]".to_string());
     preset.global = Some(GlobalConfig {

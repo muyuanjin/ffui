@@ -3,7 +3,7 @@ mod domain_contract_tests {
     use serde_json::{Value, json};
 
     use super::super::batch_compress::{AutoCompressProgress, AutoCompressResult};
-    use super::super::config::{EncoderType, RateControlMode};
+    use super::super::config::{EncoderType, FpsExpression, RateControlMode};
     use super::super::job::*;
     use super::super::preset::{FFmpegPreset, PresetStats};
     use super::super::preset_validation::validate_preset_for_save;
@@ -291,7 +291,7 @@ mod domain_contract_tests {
     }
 
     #[test]
-    fn preset_serde_accepts_decimal_fps_and_unknown_video_strings() {
+    fn preset_serde_accepts_legacy_numeric_fps_and_unknown_video_strings() {
         let preset: FFmpegPreset = serde_json::from_value(json!({
             "id": "unknown-video",
             "name": "Unknown Video",
@@ -313,7 +313,10 @@ mod domain_contract_tests {
         }))
         .expect("preset should deserialize");
 
-        assert_eq!(preset.filters.fps, Some(29.97));
+        assert_eq!(
+            preset.filters.fps,
+            Some(FpsExpression::parse("29.97").expect("valid fps"))
+        );
         assert_eq!(
             preset.video.encoder,
             EncoderType::Unknown("future_encoder".to_string())
@@ -326,6 +329,69 @@ mod domain_contract_tests {
         let value = serde_json::to_value(&preset).expect("preset should serialize");
         assert_eq!(value["video"]["encoder"], "future_encoder");
         assert_eq!(value["video"]["rateControl"], "future_rc");
+        assert_eq!(value["filters"]["fps"], "29.97");
+    }
+
+    #[test]
+    fn fps_expression_accepts_decimal_rational_and_alias() {
+        assert!(FpsExpression::parse("29.97").is_ok());
+        assert!(FpsExpression::parse("30000/1001").is_ok());
+        assert!(FpsExpression::parse("ntsc").is_ok());
+        assert!(FpsExpression::parse("ntsc_film").is_ok());
+    }
+
+    #[test]
+    fn fps_expression_canonicalizes_compatibility_aliases() {
+        let fps = FpsExpression::parse("ntsc-film").expect("legacy alias should parse");
+
+        assert_eq!(fps.as_str(), "24000/1001");
+    }
+
+    #[test]
+    fn preset_serde_upgrades_legacy_ntsc_film_alias() {
+        let preset: FFmpegPreset = serde_json::from_value(json!({
+            "id": "legacy-fps-alias",
+            "name": "Legacy FPS Alias",
+            "description": "serde test",
+            "video": {
+                "encoder": "libx264",
+                "rateControl": "crf",
+                "qualityValue": 23,
+                "preset": "medium"
+            },
+            "audio": { "codec": "copy" },
+            "filters": { "fps": "ntsc-film" },
+            "stats": {
+                "usageCount": 0,
+                "totalInputSizeMB": 0,
+                "totalOutputSizeMB": 0,
+                "totalTimeSeconds": 0
+            }
+        }))
+        .expect("preset should deserialize");
+
+        let value = serde_json::to_value(&preset).expect("preset should serialize");
+
+        assert_eq!(value["filters"]["fps"], "24000/1001");
+    }
+
+    #[test]
+    fn fps_expression_rejects_invalid_values() {
+        for value in [
+            "",
+            "0",
+            "1/0",
+            "NaN",
+            "Infinity",
+            "30000 / 1001",
+            "30,setpts=PTS",
+            "source_fps",
+        ] {
+            assert!(
+                FpsExpression::parse(value).is_err(),
+                "{value} should be rejected"
+            );
+        }
     }
 
     #[test]

@@ -1,6 +1,8 @@
 import { stripQuotes } from "../../utils";
 import type { StructuredParseState, TokenHandlerResult } from "../state";
 import { readValue } from "../readValue";
+import { parseFpsExpression } from "@/lib/fpsExpression";
+import { splitFfmpegFilterChain, stripFilterValueOuterQuotes } from "../../filterChain";
 
 export const applyFiltersToken = (
   state: StructuredParseState,
@@ -12,31 +14,34 @@ export const applyFiltersToken = (
   if (token === "-vf" || token === "-filter:v") {
     const v = readValue(tokens, i, token, state.reasons);
     if (!v) return { consumed: 0 };
-    const raw = stripQuotes(v);
-    const parts = raw
-      .split(",")
-      .map((p) => p.trim())
-      .filter(Boolean);
+    const raw = stripFilterValueOuterQuotes(v);
+    const parts = splitFfmpegFilterChain(raw).filter((p) => p.trim().length > 0);
     const vfChainParts: string[] = [];
     for (const part of parts) {
-      if (part.startsWith("scale=")) {
-        state.filters.scale = part.slice("scale=".length);
+      const trimmed = part.trim();
+      if (trimmed.startsWith("scale=")) {
+        state.filters.scale = trimmed.slice("scale=".length);
         continue;
       }
-      if (part.startsWith("crop=")) {
-        state.filters.crop = part.slice("crop=".length);
+      if (trimmed.startsWith("crop=")) {
+        state.filters.crop = trimmed.slice("crop=".length);
         continue;
       }
-      if (part.startsWith("fps=")) {
-        const fpsNum = Number(part.slice("fps=".length));
-        if (Number.isFinite(fpsNum)) state.filters.fps = fpsNum;
+      if (trimmed.startsWith("fps=")) {
+        const fpsExpr = trimmed.slice("fps=".length);
+        const parsed = parseFpsExpression(fpsExpr);
+        if (parsed.ok) {
+          state.filters.fps = parsed.expression.value;
+          continue;
+        }
+        vfChainParts.push(trimmed);
         continue;
       }
-      if (part.startsWith("subtitles=")) {
-        state.filters.__burnInFilter = part;
+      if (trimmed.startsWith("subtitles=")) {
+        state.filters.__burnInFilter = trimmed;
         continue;
       }
-      vfChainParts.push(part);
+      vfChainParts.push(trimmed);
     }
     if (vfChainParts.length > 0) {
       state.filters.vfChain = vfChainParts.join(",");

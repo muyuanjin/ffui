@@ -185,8 +185,8 @@ export interface FilterConfig {
   scale?: string;
   /** Shorthand expression for crop filter. */
   crop?: string;
-  /** Target output FPS for basic frame rate limiting. */
-  fps?: number;
+  /** Target output FPS expression for basic frame rate limiting, e.g. `30000/1001`, `29.97`, or `ntsc_film`. */
+  fps?: string;
   /**
    * Optional raw `-vf` chain appended after shorthand filters. This allows
    * advanced users to add extra nodes without leaving structured mode.

@@ -9,11 +9,11 @@ static OUTPUT_PLACEHOLDER: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\bOUTPUT\b").expect("valid OUTPUT regex"));
 
 pub fn validate_preset_for_save(preset: &FFmpegPreset) -> Result<(), String> {
-    if let Some(fps) = preset.filters.fps
-        && (!fps.is_finite() || fps <= 0.0)
+    if let Some(fps) = &preset.filters.fps
+        && super::FpsExpression::parse(fps.as_str()).is_err()
     {
         return Err(format!(
-            "filters.fps must be a finite positive number, got {fps}"
+            "filters.fps must be a valid FPS expression, got {fps}"
         ));
     }
 

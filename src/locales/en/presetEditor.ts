@@ -217,8 +217,9 @@ const presetEditor = {
     cropPlaceholder: "e.g. in_w:in_h-80",
     cropHelp: "Cropping changes the frame size. Expression follows ffmpeg crop (w:h:x:y). Leave empty if unsure.",
     fpsLabel: "Output frame rate (fps)",
-    fpsPlaceholder: "Keep source",
-    fpsHelp: "Lower FPS can reduce size but looks less smooth. Keep source if unsure.",
+    fpsPlaceholder: "Keep source, e.g. 30000/1001 or ntsc",
+    fpsHelp:
+      "Use a positive FPS expression: integer, decimal, rational such as 30000/1001, or film/ntsc_film/pal/ntsc. Keep source if unsure.",
     vfChainLabel: "Extra video filter chain (-vf)",
     vfChainPlaceholder: "e.g. eq=gamma=1.2",
     afChainLabel: "Extra audio filter chain (-af)",

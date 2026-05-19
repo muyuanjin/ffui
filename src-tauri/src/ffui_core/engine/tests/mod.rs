@@ -13,9 +13,9 @@ use super::worker::*;
 use super::*;
 use crate::ffui_core::domain::{
     AudioCodecType, AudioConfig, ContainerConfig, DurationMode, EncoderType, FilterConfig,
-    GlobalConfig, HardwareConfig, InputTimelineConfig, MappingConfig, MediaInfo, OverwriteBehavior,
-    PresetStats, RateControlMode, SeekMode, SubtitleStrategy, SubtitlesConfig, VideoConfig,
-    WaitMetadata,
+    FpsExpression, GlobalConfig, HardwareConfig, InputTimelineConfig, MappingConfig, MediaInfo,
+    OverwriteBehavior, PresetStats, RateControlMode, SeekMode, SubtitleStrategy, SubtitlesConfig,
+    VideoConfig, WaitMetadata,
 };
 use crate::ffui_core::settings::AppSettings;
 use crate::ffui_core::{AutoCompressProgress, ImageTargetFormat, JobStatus};

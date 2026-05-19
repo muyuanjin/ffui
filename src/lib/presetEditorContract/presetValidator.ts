@@ -467,7 +467,7 @@ export const validatePresetEditorState = (state: PresetEditorMutableState): Pres
   const hasVf =
     (typeof state.filters.scale === "string" && state.filters.scale.trim().length > 0) ||
     (typeof state.filters.crop === "string" && state.filters.crop.trim().length > 0) ||
-    (typeof state.filters.fps === "number" && Number.isFinite(state.filters.fps) && state.filters.fps > 0) ||
+    (typeof state.filters.fps === "string" && state.filters.fps.trim().length > 0) ||
     (typeof state.filters.vfChain === "string" && state.filters.vfChain.trim().length > 0);
   const hasAf =
     (typeof state.filters.afChain === "string" && state.filters.afChain.trim().length > 0) ||

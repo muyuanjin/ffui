@@ -64,6 +64,7 @@ export const validation = {
   },
   filters: {
     filterComplexWithVfAf: "filter_complex is set; vf/af may still be generated and could be unexpected.",
-    invalidFps: "FPS must be a finite positive number (got {value}).",
+    invalidFps:
+      "FPS must be a positive expression: integer, decimal, rational such as 30000/1001, or film/ntsc_film/pal/ntsc (got {value}).",
   },
 } as const;

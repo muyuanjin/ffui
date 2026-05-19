@@ -120,7 +120,7 @@
         "filters": {
           "scale": "1280:-2",
           "crop": null,
-          "fps": 60,
+          "fps": "60",
           "vfChain": null,
           "afChain": null,
           "filterComplex": null
@@ -194,7 +194,7 @@
         "filters": {
           "scale": "-2:1080",
           "crop": null,
-          "fps": 30,
+          "fps": "30",
           "vfChain": null,
           "afChain": null,
           "filterComplex": null

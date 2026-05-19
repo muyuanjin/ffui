@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de};
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncoderType {
@@ -194,12 +195,179 @@ pub struct AudioConfig {
     pub true_peak_db: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FpsExpression(String);
+
+impl FpsExpression {
+    pub fn parse(value: &str) -> Result<Self, String> {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err("FPS expression must not be empty".to_string());
+        }
+        if trimmed
+            .chars()
+            .any(|ch| ch.is_whitespace() || matches!(ch, ',' | ';' | '(' | ')'))
+        {
+            return Err(format!(
+                "FPS expression contains unsupported filtergraph characters: {trimmed}"
+            ));
+        }
+        if matches!(trimmed, "film" | "ntsc_film" | "pal" | "ntsc") {
+            return Ok(Self(trimmed.to_string()));
+        }
+        if trimmed == "ntsc-film" {
+            return Ok(Self("24000/1001".to_string()));
+        }
+        if let Some((numerator, denominator)) = trimmed.split_once('/') {
+            if numerator.is_empty()
+                || denominator.is_empty()
+                || !numerator.chars().all(|ch| ch.is_ascii_digit())
+                || !denominator.chars().all(|ch| ch.is_ascii_digit())
+            {
+                return Err(format!("invalid FPS rational expression: {trimmed}"));
+            }
+            let numerator = numerator
+                .parse::<u128>()
+                .map_err(|_| format!("invalid FPS rational numerator: {trimmed}"))?;
+            let denominator = denominator
+                .parse::<u128>()
+                .map_err(|_| format!("invalid FPS rational denominator: {trimmed}"))?;
+            if numerator == 0 {
+                return Err(format!("FPS expression must be positive: {trimmed}"));
+            }
+            if denominator == 0 {
+                return Err(format!(
+                    "FPS rational denominator must be positive: {trimmed}"
+                ));
+            }
+            return Ok(Self(trimmed.to_string()));
+        }
+        let is_integer = trimmed.chars().all(|ch| ch.is_ascii_digit());
+        let is_decimal = trimmed.split_once('.').is_some_and(|(whole, fraction)| {
+            !whole.is_empty()
+                && !fraction.is_empty()
+                && whole.chars().all(|ch| ch.is_ascii_digit())
+                && fraction.chars().all(|ch| ch.is_ascii_digit())
+        });
+        if is_integer || is_decimal {
+            let parsed = trimmed
+                .parse::<f64>()
+                .map_err(|_| format!("invalid FPS number: {trimmed}"))?;
+            if !parsed.is_finite() || parsed <= 0.0 {
+                return Err(format!(
+                    "FPS expression must be finite and positive: {trimmed}"
+                ));
+            }
+            return Ok(Self(trimmed.to_string()));
+        }
+        Err(format!("unsupported FPS expression: {trimmed}"))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for FpsExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for FpsExpression {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+fn format_legacy_fps_number(value: f64) -> Result<String, String> {
+    if !value.is_finite() || value <= 0.0 {
+        return Err(format!(
+            "legacy numeric FPS must be finite and positive: {value}"
+        ));
+    }
+    if value.fract() == 0.0 {
+        return Ok(format!("{value:.0}"));
+    }
+    let mut raw = format!("{value:.12}");
+    while raw.contains('.') && raw.ends_with('0') {
+        raw.pop();
+    }
+    if raw.ends_with('.') {
+        raw.pop();
+    }
+    Ok(raw)
+}
+
+impl<'de> Deserialize<'de> for FpsExpression {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct FpsExpressionVisitor;
+
+        impl<'de> de::Visitor<'de> for FpsExpressionVisitor {
+            type Value = FpsExpression;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a valid FPS expression string or legacy positive number")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                FpsExpression::parse(value).map_err(E::custom)
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                self.visit_str(&value)
+            }
+
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let formatted = format_legacy_fps_number(value).map_err(E::custom)?;
+                FpsExpression::parse(&formatted).map_err(E::custom)
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                FpsExpression::parse(&value.to_string()).map_err(E::custom)
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                if value <= 0 {
+                    return Err(E::custom(format!(
+                        "legacy numeric FPS must be positive: {value}"
+                    )));
+                }
+                FpsExpression::parse(&value.to_string()).map_err(E::custom)
+            }
+        }
+
+        deserializer.deserialize_any(FpsExpressionVisitor)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FilterConfig {
     pub scale: Option<String>,
     pub crop: Option<String>,
-    pub fps: Option<f64>,
+    pub fps: Option<FpsExpression>,
     pub vf_chain: Option<String>,
     pub af_chain: Option<String>,
     pub filter_complex: Option<String>,

@@ -11,6 +11,7 @@ import type {
   VideoConfig,
 } from "@/types";
 import { getCqArgumentForEncoder } from "@/lib/presetEditorContract/encoderCapabilityRegistry";
+import { normalizeFpsExpressionForSave } from "@/lib/fpsExpression";
 import { isStructuredTwoPassVideo } from "@/lib/twoPassPredicate";
 import {
   detectRuntimePreviewPlatform,
@@ -357,8 +358,9 @@ const buildStructuredSingleCommand = (
     if (f.crop) {
       vfParts.push(`crop=${f.crop}`);
     }
-    if (typeof f.fps === "number" && f.fps > 0) {
-      vfParts.push(`fps=${f.fps}`);
+    const fps = normalizeFpsExpressionForSave(f.fps);
+    if (fps) {
+      vfParts.push(`fps=${fps}`);
     }
     // For burn-in subtitles we append the caller-provided filter expression
     // into the main video filter chain.
