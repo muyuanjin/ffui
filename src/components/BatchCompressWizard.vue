@@ -15,6 +15,7 @@ import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { buildBatchCompressConfig } from "@/lib/batchCompressConfig";
 import { canStartBatchCompress, normalizeBatchCompressConfig } from "@/lib/batchCompressValidation";
 import BatchCompressSavingConditionSection from "@/components/batch-compress/BatchCompressSavingConditionSection.vue";
+import { useBatchCompressWizardConfigSync } from "@/composables/useBatchCompressWizardConfigSync";
 const props = defineProps<{
   presets: FFmpegPreset[];
   initialConfig?: BatchCompressConfig;
@@ -35,6 +36,12 @@ const config = ref<BatchCompressConfig>(
     defaultVideoPresetId: props.defaultVideoPresetId,
   }),
 );
+const { isSyncingInitialConfig, runProgrammaticConfigUpdate } = useBatchCompressWizardConfigSync({
+  config,
+  getInitialConfig: () => props.initialConfig,
+  getPresets: () => props.presets,
+  getDefaultVideoPresetId: () => props.defaultVideoPresetId,
+});
 
 // 为了兼容 reka-ui Select 的约束（选项 value 不能为 ""），在音频预设选择上使用哨兵值
 const AUDIO_PRESET_DEFAULT_VALUE = "__ffui__audio_default__";
@@ -63,17 +70,6 @@ const audioPresetSelectedLabel = computed(() => {
   return preset?.name ?? "";
 });
 
-// 监听 initialConfig 变化
-watch(
-  () => props.initialConfig,
-  (newConfig) => {
-    if (newConfig?.rootPath) {
-      config.value.rootPath = newConfig.rootPath;
-    }
-  },
-  { immediate: true },
-);
-
 // 当默认预设或预设列表变化时，若当前选择无效则回落到主界面默认预设
 watch(
   () => [props.defaultVideoPresetId, props.presets.map((p) => p.id).join(",")],
@@ -81,7 +77,9 @@ watch(
     const hasValidSelection =
       !!config.value.videoPresetId && props.presets.some((p) => p.id === config.value.videoPresetId);
     if (hasValidSelection) return;
-    config.value.videoPresetId = props.defaultVideoPresetId || props.presets[0]?.id || "";
+    runProgrammaticConfigUpdate(() => {
+      config.value.videoPresetId = props.defaultVideoPresetId || props.presets[0]?.id || "";
+    });
   },
 );
 
@@ -89,6 +87,7 @@ watch(
 watch(
   () => config.value.videoFilter.enabled,
   (enabled) => {
+    if (isSyncingInitialConfig.value) return;
     if (enabled) {
       config.value.videoFilter.extensions = [...VIDEO_EXTENSIONS];
     }
@@ -98,6 +97,7 @@ watch(
 watch(
   () => config.value.imageFilter.enabled,
   (enabled) => {
+    if (isSyncingInitialConfig.value) return;
     if (enabled) {
       config.value.imageFilter.extensions = [...IMAGE_EXTENSIONS];
     }
@@ -107,6 +107,7 @@ watch(
 watch(
   () => config.value.audioFilter.enabled,
   (enabled) => {
+    if (isSyncingInitialConfig.value) return;
     if (enabled) {
       config.value.audioFilter.extensions = [...AUDIO_EXTENSIONS];
     }

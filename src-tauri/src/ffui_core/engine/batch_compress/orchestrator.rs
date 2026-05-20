@@ -35,12 +35,13 @@ use crate::sync_ext::MutexExt;
 pub(crate) fn run_auto_compress(
     inner: &Arc<Inner>,
     root_path: String,
-    config: BatchCompressConfig,
+    mut config: BatchCompressConfig,
 ) -> Result<AutoCompressResult> {
     let root = PathBuf::from(&root_path);
     if !root.exists() {
         return Err(anyhow::anyhow!("Root path does not exist: {root_path}"));
     }
+    config.root_path = Some(root_path.clone());
 
     let (settings_snapshot, presets, batch_id, started_at_ms) = {
         let mut state = inner.state.lock_unpoisoned();

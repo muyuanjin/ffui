@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
+import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
 import zhCN from "@/locales/zh-CN";
@@ -167,5 +168,244 @@ describe("BatchCompressWizard 默认预设", () => {
     expect(submitted?.minImageSizeKB).toBe(0);
     expect(submitted?.minAudioSizeKB).toBe(0);
     expect(submitted?.minSavingAbsoluteMB).toBe(0);
+  });
+
+  it("未编辑时 initialConfig 异步更新会同步完整默认配置", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p1",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/initial",
+          videoPresetId: "p1",
+          replaceOriginal: true,
+          minVideoSizeMB: 10,
+          minImageSizeKB: 20,
+          minAudioSizeKB: 30,
+          savingConditionType: "ratio",
+          minSavingRatio: 0.9,
+          minSavingAbsoluteMB: 5,
+          imageTargetFormat: "avif",
+          videoFilter: { enabled: true, extensions: ["mp4"] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: false, extensions: [] },
+          outputPolicy: {
+            container: { mode: "default" },
+            directory: { mode: "sameAsInput" },
+            filename: { suffix: ".initial" },
+            preserveFileTimes: false,
+          },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await wrapper.setProps({
+      initialConfig: buildBatchCompressDefaults({
+        rootPath: "C:/async-defaults",
+        videoPresetId: "p2",
+        replaceOriginal: false,
+        minVideoSizeMB: 111,
+        minImageSizeKB: 222,
+        minAudioSizeKB: 333,
+        savingConditionType: "absoluteSize",
+        minSavingRatio: 0.7,
+        minSavingAbsoluteMB: 12,
+        imageTargetFormat: "webp",
+        videoFilter: { enabled: true, extensions: ["mkv"] },
+        imageFilter: { enabled: true, extensions: ["png"] },
+        audioFilter: { enabled: true, extensions: ["flac"] },
+        outputPolicy: {
+          container: { mode: "force", format: "mp4" },
+          directory: { mode: "fixed", directory: "D:/out" },
+          filename: { prefix: "new-", suffix: ".compressed" },
+          preserveFileTimes: { modified: true },
+        },
+      }),
+    });
+    await nextTick();
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
+    const submitted = emitted?.[0]?.[0];
+    expect(submitted?.rootPath).toBe("C:/async-defaults");
+    expect(submitted?.videoPresetId).toBe("p2");
+    expect(submitted?.replaceOriginal).toBe(false);
+    expect(submitted?.minVideoSizeMB).toBe(111);
+    expect(submitted?.minImageSizeKB).toBe(222);
+    expect(submitted?.minAudioSizeKB).toBe(333);
+    expect(submitted?.savingConditionType).toBe("absoluteSize");
+    expect(submitted?.minSavingAbsoluteMB).toBe(12);
+    expect(submitted?.imageTargetFormat).toBe("webp");
+    expect(submitted?.videoFilter).toEqual({ enabled: true, extensions: ["mkv"] });
+    expect(submitted?.imageFilter).toEqual({ enabled: true, extensions: ["png"] });
+    expect(submitted?.audioFilter).toEqual({ enabled: true, extensions: ["flac"] });
+    expect(submitted?.outputPolicy).toEqual({
+      container: { mode: "force", format: "mp4" },
+      directory: { mode: "fixed", directory: "D:/out" },
+      filename: { prefix: "new-", suffix: ".compressed" },
+      preserveFileTimes: { modified: true },
+    });
+  });
+
+  it("preset 异步归一化不会阻止后到的 initialConfig 完整同步", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [],
+        defaultVideoPresetId: null,
+        initialConfig: undefined,
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await wrapper.setProps({
+      presets: [...presets],
+      defaultVideoPresetId: "p1",
+    });
+    await nextTick();
+
+    await wrapper.setProps({
+      initialConfig: buildBatchCompressDefaults({
+        rootPath: "C:/loaded-defaults",
+        videoPresetId: "p2",
+        replaceOriginal: false,
+        minVideoSizeMB: 111,
+        minImageSizeKB: 222,
+        minAudioSizeKB: 333,
+        savingConditionType: "absoluteSize",
+        minSavingAbsoluteMB: 12,
+        imageTargetFormat: "webp",
+        videoFilter: { enabled: true, extensions: ["mkv"] },
+        imageFilter: { enabled: true, extensions: ["png"] },
+        audioFilter: { enabled: true, extensions: ["flac"] },
+        outputPolicy: {
+          container: { mode: "force", format: "mp4" },
+          directory: { mode: "fixed", directory: "D:/out" },
+          filename: { prefix: "new-", suffix: ".compressed" },
+          preserveFileTimes: { modified: true },
+        },
+      }),
+    });
+    await nextTick();
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
+    const submitted = emitted?.[0]?.[0];
+    expect(submitted?.rootPath).toBe("C:/loaded-defaults");
+    expect(submitted?.videoPresetId).toBe("p2");
+    expect(submitted?.replaceOriginal).toBe(false);
+    expect(submitted?.minVideoSizeMB).toBe(111);
+    expect(submitted?.minImageSizeKB).toBe(222);
+    expect(submitted?.minAudioSizeKB).toBe(333);
+    expect(submitted?.savingConditionType).toBe("absoluteSize");
+    expect(submitted?.minSavingAbsoluteMB).toBe(12);
+    expect(submitted?.imageTargetFormat).toBe("webp");
+    expect(submitted?.videoFilter).toEqual({ enabled: true, extensions: ["mkv"] });
+    expect(submitted?.imageFilter).toEqual({ enabled: true, extensions: ["png"] });
+    expect(submitted?.audioFilter).toEqual({ enabled: true, extensions: ["flac"] });
+    expect(submitted?.outputPolicy).toEqual({
+      container: { mode: "force", format: "mp4" },
+      directory: { mode: "fixed", directory: "D:/out" },
+      filename: { prefix: "new-", suffix: ".compressed" },
+      preserveFileTimes: { modified: true },
+    });
+  });
+
+  it("用户编辑后 initialConfig 异步更新不会覆盖已编辑配置", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p1",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/initial",
+          videoPresetId: "p1",
+          minVideoSizeMB: 10,
+          videoFilter: { enabled: true, extensions: ["mp4"] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: false, extensions: [] },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await nextTick();
+    const minVideoInput = wrapper.find('input[type="number"]');
+    await minVideoInput.setValue("77");
+
+    await wrapper.setProps({
+      initialConfig: buildBatchCompressDefaults({
+        rootPath: "C:/late-defaults",
+        videoPresetId: "p2",
+        minVideoSizeMB: 111,
+        videoFilter: { enabled: true, extensions: ["mkv"] },
+        imageFilter: { enabled: true, extensions: ["png"] },
+        audioFilter: { enabled: true, extensions: ["flac"] },
+      }),
+    });
+    await nextTick();
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
+    const submitted = emitted?.[0]?.[0];
+    expect(submitted?.rootPath).toBe("C:/initial");
+    expect(submitted?.videoPresetId).toBe("p1");
+    expect(submitted?.minVideoSizeMB).toBe(77);
+    expect(submitted?.videoFilter).toEqual({ enabled: true, extensions: ["mp4"] });
+    expect(submitted?.imageFilter.enabled).toBe(false);
+    expect(submitted?.audioFilter.enabled).toBe(false);
+  });
+
+  it("用户编辑后若当前路径为空，后到 initialConfig 仍可补路径", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p1",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "",
+          videoPresetId: "p1",
+          minVideoSizeMB: 10,
+          videoFilter: { enabled: true, extensions: ["mp4"] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: false, extensions: [] },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await nextTick();
+    const minVideoInput = wrapper.find('input[type="number"]');
+    await minVideoInput.setValue("77");
+
+    await wrapper.setProps({
+      initialConfig: buildBatchCompressDefaults({
+        rootPath: "C:/dropped-after-open",
+        videoPresetId: "p2",
+        minVideoSizeMB: 111,
+        videoFilter: { enabled: true, extensions: ["mkv"] },
+        imageFilter: { enabled: false, extensions: [] },
+        audioFilter: { enabled: false, extensions: [] },
+      }),
+    });
+    await nextTick();
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
+    const submitted = emitted?.[0]?.[0];
+    expect(submitted?.rootPath).toBe("C:/dropped-after-open");
+    expect(submitted?.videoPresetId).toBe("p1");
+    expect(submitted?.minVideoSizeMB).toBe(77);
+    expect(submitted?.videoFilter).toEqual({ enabled: true, extensions: ["mp4"] });
   });
 });

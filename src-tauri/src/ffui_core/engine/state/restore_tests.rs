@@ -1,5 +1,8 @@
 use super::restore::restore_jobs_from_snapshot;
-use crate::ffui_core::domain::{JobSource, JobStatus, JobType, QueueState, TranscodeJob};
+use crate::ffui_core::domain::{
+    BatchCompressConfig, FileTypeFilter, ImageTargetFormat, JobSource, JobStatus, JobType,
+    QueueState, TranscodeJob,
+};
 use crate::ffui_core::engine::TranscodingEngine;
 use crate::ffui_core::engine::segment_discovery;
 use crate::ffui_core::shutdown_marker::{ShutdownMarker, ShutdownMarkerKind};
@@ -203,6 +206,73 @@ fn crash_recovery_segment_probe_skips_dir_scan_when_no_evidence_exists() {
         segment_discovery::list_segment_candidates_calls_for_tests(),
         0,
         "expected no directory scanning during bulk resume"
+    );
+}
+
+#[test]
+fn restore_advances_next_job_id_from_legacy_numeric_batch_child_ids() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let input = tmp.path().join("legacy-numeric-child.jpg");
+    std::fs::write(&input, vec![0u8; 1024]).expect("create Batch Compress image input");
+
+    let engine = TranscodingEngine::new_for_tests();
+    let mut legacy_child = make_job("7", JobStatus::Completed);
+    legacy_child.source = JobSource::BatchCompress;
+    legacy_child.job_type = JobType::Image;
+    legacy_child.filename = input
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("legacy-numeric-child.jpg")
+        .to_string();
+    legacy_child.input_path = Some(input.to_string_lossy().into_owned());
+    legacy_child.batch_id = Some("legacy-batch".to_string());
+
+    restore_jobs_from_snapshot(
+        engine.inner.as_ref(),
+        QueueState {
+            jobs: vec![legacy_child],
+        },
+    );
+
+    let config = BatchCompressConfig {
+        min_image_size_kb: 0,
+        min_video_size_mb: 10_000,
+        min_audio_size_kb: 10_000,
+        image_target_format: ImageTargetFormat::Webp,
+        video_filter: FileTypeFilter {
+            enabled: false,
+            extensions: Vec::new(),
+        },
+        image_filter: FileTypeFilter {
+            enabled: true,
+            extensions: vec!["jpg".to_string()],
+        },
+        audio_filter: FileTypeFilter {
+            enabled: false,
+            extensions: Vec::new(),
+        },
+        ..Default::default()
+    };
+
+    let descriptor = engine
+        .run_auto_compress(tmp.path().to_string_lossy().into_owned(), config)
+        .expect("run_auto_compress should enqueue after legacy restore");
+
+    for _ in 0..100 {
+        let state = engine.queue_state();
+        if state.jobs.iter().any(|job| job.id == "job-8") {
+            assert!(
+                state.jobs.iter().any(|job| job.id == "7"),
+                "legacy numeric job should remain present after new child is inserted"
+            );
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    panic!(
+        "Batch Compress did not create job-8 after restoring legacy numeric id in batch {}",
+        descriptor.batch_id
     );
 }
 

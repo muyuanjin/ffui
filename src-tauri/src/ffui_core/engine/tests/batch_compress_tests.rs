@@ -195,6 +195,40 @@ fn run_auto_compress_progress_listener_can_call_queue_state_without_deadlock() {
 }
 
 #[test]
+fn run_auto_compress_persists_defaults_with_invoked_root_path() {
+    let dir = env::temp_dir().join("ffui_batch_compress_defaults_root_path");
+    let _ = fs::create_dir_all(&dir);
+
+    let engine = make_engine_with_preset();
+    let config = BatchCompressConfig {
+        root_path: None,
+        min_image_size_kb: 10_000,
+        min_video_size_mb: 10_000,
+        min_saving_ratio: 0.95,
+        image_target_format: ImageTargetFormat::Avif,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+
+    let root_path = dir.to_string_lossy().into_owned();
+    let descriptor = engine
+        .run_auto_compress(root_path.clone(), config)
+        .expect("run_auto_compress should persist normalized defaults");
+
+    assert_eq!(
+        engine.batch_compress_defaults().root_path.as_deref(),
+        Some(root_path.as_str()),
+        "Batch Compress defaults should persist the actual invoked root path"
+    );
+    assert_eq!(
+        descriptor.root_path, root_path,
+        "result descriptor should still report the invoked root path"
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn batch_compress_pushes_full_batch_snapshot_after_detection() {
     let dir = env::temp_dir().join("ffui_batch_compress_full_snapshot");
     let _ = fs::create_dir_all(&dir);

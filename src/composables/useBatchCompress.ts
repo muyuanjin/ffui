@@ -363,11 +363,13 @@ export function useBatchCompress(options: UseBatchCompressOptions): UseBatchComp
     // 优先使用配置中的路径，其次使用拖拽路径
     const root = config.rootPath?.trim() || lastDroppedRoot.value;
     if (root) {
+      const runConfig: BatchCompressConfig = { ...config, rootPath: root };
       // 更新 lastDroppedRoot 以便后续使用
       lastDroppedRoot.value = root;
+      smartConfig.value = { ...runConfig };
 
       try {
-        const result = await runAutoCompress(root, config);
+        const result = await runAutoCompress(root, runConfig);
         const batchId = result.batchId;
 
         applyBatchCompressBatchMetaSnapshot({
