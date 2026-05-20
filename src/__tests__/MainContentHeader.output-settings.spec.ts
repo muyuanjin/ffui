@@ -103,4 +103,78 @@ describe("MainContentHeader output settings", () => {
     expect(emitted).toBeTruthy();
     expect(emitted?.[0]?.[0]).toMatchObject({ preserveFileTimes: true });
   });
+
+  it("passes the resolved fallback preset id to the output policy preview", async () => {
+    const initialPolicy: OutputPolicy = {
+      container: { mode: "default" },
+      directory: { mode: "sameAsInput" },
+      filename: { suffix: ".compressed" },
+      preserveFileTimes: false,
+    };
+
+    const OutputPolicyEditorStub = defineComponent({
+      name: "OutputPolicyEditor",
+      props: {
+        modelValue: { type: Object, required: true },
+        previewPresetId: { type: String, default: null },
+        previewPreset: { type: Object, default: null },
+      },
+      template: `
+        <div
+          data-testid="output-policy-editor-stub"
+          :data-preview-preset-id="previewPresetId ?? ''"
+          :data-preview-preset-object-id="previewPreset?.id ?? ''"
+        />
+      `,
+    });
+
+    const DialogStub = defineComponent({
+      name: "Dialog",
+      props: {
+        open: { type: Boolean, default: false },
+      },
+      emits: ["update:open"],
+      template: `<div v-if="open" data-testid="dialog"><slot /></div>`,
+    });
+
+    const wrapper = mount(MainContentHeader, {
+      props: {
+        activeTab: "queue",
+        currentTitle: "Queue",
+        currentSubtitle: "Sub",
+        jobsLength: 0,
+        completedCount: 0,
+        manualJobPresetId: "missing-preset",
+        presets: [{ id: "fallback-preset", name: "Fallback preset", container: { format: "matroska" } } as any],
+        queueViewModeModel: "detail",
+        presetSortMode: "manual",
+        queueOutputPolicy: initialPolicy,
+      },
+      global: {
+        plugins: [i18n],
+        stubs: {
+          HoverCard: { template: `<div><slot /></div>` },
+          HoverCardTrigger: { template: `<div><slot /></div>` },
+          HoverCardContent: { template: `<div><slot /></div>` },
+          Dialog: DialogStub,
+          DialogContent: { template: `<div><slot /></div>` },
+          DialogHeader: { template: `<div><slot /></div>` },
+          DialogTitle: { template: `<div><slot /></div>` },
+          OutputPolicyEditor: OutputPolicyEditorStub,
+          Select: { template: `<div><slot /></div>` },
+          SelectContent: { template: `<div><slot /></div>` },
+          SelectItem: { template: `<div><slot /></div>` },
+          SelectTrigger: { template: `<div><slot /></div>` },
+          SelectValue: { template: `<div><slot /></div>` },
+        },
+      },
+    });
+
+    await wrapper.get("[data-testid='ffui-queue-output-settings']").trigger("click");
+    await nextTick();
+
+    const editor = wrapper.get("[data-testid='output-policy-editor-stub']");
+    expect(editor.attributes("data-preview-preset-id")).toBe("fallback-preset");
+    expect(editor.attributes("data-preview-preset-object-id")).toBe("fallback-preset");
+  });
 });

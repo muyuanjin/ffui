@@ -1,4 +1,4 @@
-import type { OutputFilenameAppend, OutputPolicy } from "@/types";
+import type { FFmpegPreset, OutputFilenameAppend, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 
 const DEFAULT_APPEND_ORDER: OutputFilenameAppend[] = DEFAULT_OUTPUT_POLICY.filename.appendOrder ?? [
@@ -24,7 +24,122 @@ export function normalizeAppendOrder(order: OutputFilenameAppend[] | undefined):
   return out;
 }
 
-export function previewOutputPathLocal(inputPath: string, policy: OutputPolicy): string {
+export function normalizeContainerFormatForPreview(value: string): string {
+  const trimmed = value.trim().replace(/^\./, "").toLowerCase();
+  if (!trimmed) return "";
+
+  if (trimmed === "mp4") return "mp4";
+  if (trimmed === "mkv" || trimmed === "matroska") return "mkv";
+  if (trimmed === "mov") return "mov";
+  if (trimmed === "webm") return "webm";
+  if (trimmed === "flv") return "flv";
+  if (trimmed === "avi") return "avi";
+  if (trimmed === "mxf") return "mxf";
+  if (trimmed === "3gp") return "3gp";
+  if (trimmed === "asf" || trimmed === "wmv") return "wmv";
+  if (trimmed === "rm" || trimmed === "rmvb") return "rmvb";
+  if (trimmed === "m4a") return "m4a";
+  if (trimmed === "mp3") return "mp3";
+  if (trimmed === "aac" || trimmed === "adts") return "aac";
+  if (trimmed === "wav") return "wav";
+  if (trimmed === "flac") return "flac";
+  if (trimmed === "aiff") return "aiff";
+  if (trimmed === "ac3") return "ac3";
+  if (trimmed === "ogg") return "ogg";
+  if (trimmed === "opus") return "opus";
+  if (trimmed === "mpegts" || trimmed === "ts") return "ts";
+  if (trimmed === "hls") return "m3u8";
+  if (trimmed === "dash") return "mpd";
+  return "";
+}
+
+export function normalizeForcedContainerExtensionForPreview(value: string): string {
+  return value.trim().replace(/^\./, "").toLowerCase();
+}
+
+function splitTemplateArgs(template: string): string[] {
+  const args: string[] = [];
+  let current = "";
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (const ch of template) {
+    if (escaped) {
+      current += ch;
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\" && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if ((ch === '"' || ch === "'") && quote === null) {
+      quote = ch;
+      continue;
+    }
+    if (quote === ch) {
+      quote = null;
+      continue;
+    }
+    if (!quote && /\s/.test(ch)) {
+      if (current) {
+        args.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += ch;
+  }
+
+  if (escaped) current += "\\";
+  if (current) args.push(current);
+  return args;
+}
+
+export function inferTemplateOutputContainer(template: string): string | null {
+  const tokens = splitTemplateArgs(template.trim());
+  if (/^(ffmpeg|ffmpeg\.exe)$/i.test(tokens[0] ?? "")) tokens.shift();
+  const outputIndex = tokens.findIndex((token) => token === "OUTPUT");
+  if (outputIndex <= 0) return null;
+
+  let lastInputIndex: number | null = null;
+  for (let i = 0; i + 1 < outputIndex; i += 1) {
+    if (tokens[i] === "-i") {
+      lastInputIndex = i + 1;
+      i += 1;
+    }
+  }
+
+  const start = lastInputIndex == null ? 0 : lastInputIndex + 1;
+  let format: string | null = null;
+  for (let i = start; i + 1 < outputIndex; i += 1) {
+    if (tokens[i] === "-f") {
+      format = tokens[i + 1] ?? null;
+      i += 1;
+    }
+  }
+
+  const normalized = format ? normalizeContainerFormatForPreview(format) : "";
+  return normalized || null;
+}
+
+export function inferPresetDefaultOutputContainer(preset: FFmpegPreset | null | undefined): string | null {
+  if (!preset) return null;
+
+  if (preset.advancedEnabled && preset.ffmpegTemplate?.trim()) {
+    const fromTemplate = inferTemplateOutputContainer(preset.ffmpegTemplate);
+    if (fromTemplate) return fromTemplate;
+  }
+
+  const structured = preset.container?.format ? normalizeContainerFormatForPreview(preset.container.format) : "";
+  return structured || null;
+}
+
+export function previewOutputPathLocal(
+  inputPath: string,
+  policy: OutputPolicy,
+  options: { preset?: FFmpegPreset | null } = {},
+): string {
   const raw = inputPath.trim();
   if (!raw) return "";
 
@@ -43,12 +158,10 @@ export function previewOutputPathLocal(inputPath: string, policy: OutputPolicy):
 
   const outExt =
     policy.container.mode === "force"
-      ? String(policy.container.format || ext)
-          .trim()
-          .replace(/^\./, "") || ext
+      ? normalizeForcedContainerExtensionForPreview(String(policy.container.format || ext)) || ext
       : policy.container.mode === "keepInput"
         ? ext
-        : ext;
+        : (inferPresetDefaultOutputContainer(options.preset) ?? ext);
 
   let outStem = stem;
   if (policy.filename.regexReplace?.pattern) {

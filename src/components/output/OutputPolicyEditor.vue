@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { OutputPolicy } from "@/types";
+import type { FFmpegPreset, OutputPolicy } from "@/types";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { hasTauri, previewOutputPath } from "@/lib/backend";
 import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
@@ -20,6 +20,8 @@ const props = defineProps<{
   lockLocationAndName?: boolean;
   /** Optional preset id used for previewing default container + encoder tag. */
   previewPresetId?: string | null;
+  /** Optional preset object used for local default-container preview before the backend responds. */
+  previewPreset?: FFmpegPreset | null;
 }>();
 const emit = defineEmits<{
   (e: "update:modelValue", value: OutputPolicy): void;
@@ -185,7 +187,8 @@ const effectivePolicyForPreview = computed<OutputPolicy>(() => {
   };
 });
 
-const computeLocalPreview = () => previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value);
+const computeLocalPreview = () =>
+  previewOutputPathLocal(previewInputPath.value, effectivePolicyForPreview.value, { preset: props.previewPreset });
 
 const refreshPreview = () => {
   const requestSeq = ++previewRequestSeq;
@@ -220,10 +223,14 @@ const refreshPreview = () => {
   }, 250);
 };
 
-watch(() => [previewInputPath.value, props.previewPresetId, effectivePolicyForPreview.value], refreshPreview, {
-  immediate: true,
-  deep: true,
-});
+watch(
+  () => [previewInputPath.value, props.previewPresetId, props.previewPreset, effectivePolicyForPreview.value],
+  refreshPreview,
+  {
+    immediate: true,
+    deep: true,
+  },
+);
 
 onBeforeUnmount(() => {
   previewRequestSeq += 1;

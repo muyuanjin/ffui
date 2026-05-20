@@ -43,7 +43,6 @@ const { isSyncingInitialConfig, runProgrammaticConfigUpdate } = useBatchCompress
   getDefaultVideoPresetId: () => props.defaultVideoPresetId,
 });
 
-// 为了兼容 reka-ui Select 的约束（选项 value 不能为 ""），在音频预设选择上使用哨兵值
 const AUDIO_PRESET_DEFAULT_VALUE = "__ffui__audio_default__";
 
 const audioPresetSelectValue = computed<string>({
@@ -83,7 +82,6 @@ watch(
   },
 );
 
-// 监听媒体类型启用状态，启用时自动勾选所有对应的文件类型
 watch(
   () => config.value.videoFilter.enabled,
   (enabled) => {
@@ -248,6 +246,7 @@ const handleRun = () => {
               v-model="config.outputPolicy"
               :lock-location-and-name="config.replaceOriginal"
               :preview-preset-id="config.videoPresetId"
+              :preview-preset="presets.find((preset) => preset.id === config.videoPresetId) ?? null"
             />
           </div>
         </div>

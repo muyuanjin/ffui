@@ -9,7 +9,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { DEFAULT_OUTPUT_POLICY } from "@/types/output-policy";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { previewOutputPathLocal } from "@/lib/outputPolicyPreview";
+import {
+  inferPresetDefaultOutputContainer,
+  normalizeForcedContainerExtensionForPreview,
+  previewOutputPathLocal,
+} from "@/lib/outputPolicyPreview";
 import type { QueueViewMode } from "@/types";
 
 const props = defineProps<{
@@ -69,58 +73,16 @@ const manualPreset = computed<FFmpegPreset | null>(() => {
   if (!id) return list[0] ?? null;
   return list.find((p) => p.id === id) ?? list[0] ?? null;
 });
+const manualPreviewPresetId = computed(() => manualPreset.value?.id ?? null);
 
-const normalizeContainerFormatForDisplay = (value: string): string => {
-  const trimmed = value.trim().replace(/^\./, "").toLowerCase();
-  if (!trimmed) return "";
-  // ffmpeg muxer name -> common extension label
-  if (trimmed === "matroska") return "mkv";
-  return trimmed;
-};
-
-const inferTemplateOutputMuxer = (template: string): string | null => {
-  const tokens = template.split(/\s+/).filter(Boolean);
-  const outputIndex = tokens.findIndex((t) => t === "OUTPUT");
-  if (outputIndex <= 0) return null;
-
-  let lastInputIndex: number | null = null;
-  for (let i = 0; i + 1 < outputIndex; i += 1) {
-    if (tokens[i] === "-i") {
-      lastInputIndex = i + 1;
-      i += 1;
-    }
-  }
-
-  const start = lastInputIndex != null ? lastInputIndex + 1 : 0;
-  let fmt: string | null = null;
-  for (let j = start; j + 1 < outputIndex; j += 1) {
-    if (tokens[j] === "-f") {
-      fmt = tokens[j + 1] ?? null;
-      j += 1;
-    }
-  }
-
-  const normalized = fmt ? normalizeContainerFormatForDisplay(fmt) : "";
-  return normalized || null;
-};
-
-const presetDefaultContainerFormat = computed<string | null>(() => {
-  const preset = manualPreset.value;
-  if (!preset) return null;
-
-  if (preset.advancedEnabled && preset.ffmpegTemplate?.trim()) {
-    const fromTemplate = inferTemplateOutputMuxer(preset.ffmpegTemplate);
-    if (fromTemplate) return fromTemplate;
-  }
-
-  const fromStructured = preset.container?.format ? normalizeContainerFormatForDisplay(preset.container.format) : "";
-  return fromStructured || null;
-});
+const presetDefaultContainerFormat = computed<string | null>(() =>
+  inferPresetDefaultOutputContainer(manualPreset.value),
+);
 
 const outputContainerBadge = computed<string>(() => {
   const policy = effectiveOutputPolicy.value;
   if (policy.container.mode === "force") {
-    return normalizeContainerFormatForDisplay(policy.container.format || "mkv") || "mkv";
+    return normalizeForcedContainerExtensionForPreview(policy.container.format || "mkv") || "mkv";
   }
   if (policy.container.mode === "keepInput") {
     return "input";
@@ -131,7 +93,7 @@ const outputContainerBadge = computed<string>(() => {
 const hoverPreviewContainerText = computed(() => {
   const policy = effectiveOutputPolicy.value;
   if (policy.container.mode === "force") {
-    const fmt = normalizeContainerFormatForDisplay(policy.container.format || "mkv") || "mkv";
+    const fmt = normalizeForcedContainerExtensionForPreview(policy.container.format || "mkv") || "mkv";
     return `${t("outputPolicy.container.force")}：${fmt}`;
   }
   if (policy.container.mode === "keepInput") {
@@ -223,7 +185,7 @@ const hoverPreviewExample = computed(() => {
         }
       : policy;
 
-  const output = previewOutputPathLocal(exampleInput, previewPolicy);
+  const output = previewOutputPathLocal(exampleInput, previewPolicy, { preset: manualPreset.value });
   const base = (p: string) => p.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? p;
   return {
     input: base(exampleInput),
@@ -407,7 +369,8 @@ const hoverPreviewExample = computed(() => {
       </DialogHeader>
       <OutputPolicyEditor
         :model-value="effectiveOutputPolicy"
-        :preview-preset-id="manualJobPresetId"
+        :preview-preset-id="manualPreviewPresetId"
+        :preview-preset="manualPreset"
         @update:model-value="(v) => emit('update:queueOutputPolicy', v)"
       />
     </DialogContent>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import { createI18n } from "vue-i18n";
 import BatchCompressWizard from "@/components/BatchCompressWizard.vue";
@@ -19,7 +19,7 @@ if (typeof (globalThis as any).ResizeObserver === "undefined") {
   };
 }
 
-const createPreset = (id: string, name: string): FFmpegPreset => ({
+const createPreset = (id: string, name: string, overrides: Partial<FFmpegPreset> = {}): FFmpegPreset => ({
   id,
   name,
   description: `${name} desc`,
@@ -27,6 +27,7 @@ const createPreset = (id: string, name: string): FFmpegPreset => ({
   audio: { codec: "copy" },
   filters: {},
   stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
+  ...overrides,
 });
 
 const createI18nInstance = () =>
@@ -90,6 +91,34 @@ describe("BatchCompressWizard 默认预设", () => {
 
     const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
     expect(emitted?.[0]?.[0].videoPresetId).toBe("p1");
+  });
+
+  it("预览输出的默认容器跟随当前选择的视频预设", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [
+          createPreset("p1", "MP4 预设"),
+          createPreset("p2", "MKV 预设", { container: { format: "matroska" } }),
+        ],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/videos",
+          videoPresetId: "",
+          outputPolicy: {
+            container: { mode: "default" },
+            directory: { mode: "sameAsInput" },
+            filename: { suffix: ".compressed" },
+            preserveFileTimes: false,
+          },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 300));
+    await flushPromises();
+    const previewOutput = wrapper.get('[data-testid="output-policy-preview-output"]').text();
+    expect(previewOutput).toContain("input.compressed.mkv");
   });
 
   it("音频预设 SelectItem 不使用空字符串 value（静态模板校验，兼容 reka-ui 校验）", () => {
