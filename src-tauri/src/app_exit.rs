@@ -306,6 +306,42 @@ mod tests {
     }
 
     #[test]
+    fn pause_processing_jobs_for_exit_waits_for_active_batch_media_children() {
+        let engine = TranscodingEngine::new_for_tests();
+        let job_id = "job-exit-active-batch-media-child".to_string();
+
+        {
+            let mut job = make_job(&job_id, JobStatus::Processing);
+            job.source = JobSource::BatchCompress;
+            job.job_type = JobType::Image;
+            job.batch_id = Some("batch-exit-active-batch-media".to_string());
+
+            let mut state = engine.inner.state.lock_unpoisoned();
+            state.jobs.insert(job_id.clone(), job);
+            state
+                .active_batch_compress_media_jobs
+                .insert(job_id.clone());
+        }
+
+        let outcome = pause_processing_jobs_for_exit(&engine, 0.01);
+
+        assert_eq!(
+            outcome.requested_job_count, 1,
+            "exit auto-wait must include active Batch Compress media children"
+        );
+        assert_eq!(
+            outcome.timed_out_job_count, 1,
+            "active Batch Compress media children must keep shutdown waiting until they leave Processing or timeout"
+        );
+
+        let state = engine.inner.state.lock_unpoisoned();
+        assert!(
+            !state.wait_requests.contains(&job_id),
+            "Batch Compress media children are owned by the media worker and should not get normal worker wait requests"
+        );
+    }
+
+    #[test]
     fn pause_processing_jobs_for_exit_reports_completion_when_job_leaves_processing() {
         let engine = TranscodingEngine::new_for_tests();
 

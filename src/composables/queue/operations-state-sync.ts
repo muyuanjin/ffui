@@ -62,6 +62,7 @@ const JOB_KEYS_OPTIONALLY_OMITTED_BY_BACKEND = ["outputPolicy", "runs", "warning
 const refreshInFlightByJobs = new WeakMap<object, Promise<void>>();
 const jobIndexCacheByJobsRef = new WeakMap<object, { array: TranscodeJob[]; byId: Map<string, TranscodeJob> }>();
 const deltaOrderCacheByJobsRef = new WeakMap<object, { baseSnapshotRevision: number; deltaRevision: number }>();
+const loadFailedErrorByQueueErrorRef = new WeakMap<object, string>();
 
 type SnapshotStateMeta = {
   snapshotRevision?: number;
@@ -447,10 +448,19 @@ export async function refreshQueueFromBackend(deps: StateSyncDeps) {
       detectNewlyCompletedJobs(previousJobs, backendJobs, deps.onJobCompleted);
       recomputeJobsFromBackend(backendJobs, deps);
       deps.lastQueueSnapshotAtMs.value = Date.now();
-      deps.queueError.value = null;
+      const queueErrorKey = deps.queueError as unknown as object;
+      if (loadFailedErrorByQueueErrorRef.has(queueErrorKey)) {
+        const loadFailedText = loadFailedErrorByQueueErrorRef.get(queueErrorKey);
+        if (deps.queueError.value === loadFailedText) {
+          deps.queueError.value = null;
+        }
+        loadFailedErrorByQueueErrorRef.delete(queueErrorKey);
+      }
     } catch (error) {
       console.error("Failed to refresh queue state", error);
-      deps.queueError.value = deps.t?.("queue.error.loadFailed") ?? "";
+      const loadFailedText = deps.t?.("queue.error.loadFailed") ?? "";
+      deps.queueError.value = loadFailedText;
+      loadFailedErrorByQueueErrorRef.set(deps.queueError as unknown as object, loadFailedText);
     }
   })();
 

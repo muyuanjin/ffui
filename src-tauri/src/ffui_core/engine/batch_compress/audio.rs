@@ -8,8 +8,11 @@ use super::super::output_policy_paths::plan_output_path_with_extension;
 use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    capture_input_times_if_needed, current_time_millis, make_batch_compress_job, next_job_id,
-    record_tool_download, replace_original_output_policy, run_ffmpeg_and_finalize_tmp_output,
+    SavingConditionConfig, capture_input_times_if_needed, current_time_millis,
+    make_batch_compress_job, mark_job_cancelled_from_media_worker,
+    mark_job_failed_from_ffmpeg_output, mark_job_skipped_by_saving_condition, next_job_id,
+    record_tool_download, replace_original_output_policy, run_killable_command_capture,
+    saving_condition_allows_output,
 };
 use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
@@ -300,21 +303,44 @@ pub(crate) fn handle_audio_file_with_id(
     }
     append_job_log_line(&mut job, format!("command: {ffmpeg_cmd}"));
 
-    let run_context = format!("failed to run ffmpeg on audio {}", path.display());
-    let Some(new_size_bytes) =
-        run_ffmpeg_and_finalize_tmp_output(super::helpers::FinalizeTmpOutputSpec {
-            ffmpeg_path: &ffmpeg_path,
-            args: &args,
-            tmp_output: &tmp_output,
-            output_path: &output_path,
-            original_size_bytes,
-            config,
-            job: &mut job,
-            run_context,
-        })?
-    else {
+    let output = run_killable_command_capture(
+        inner,
+        &job.id,
+        &ffmpeg_path,
+        &args,
+        format!("failed to run ffmpeg on audio {}", path.display()),
+    )?;
+    if output.cancelled {
+        mark_job_cancelled_from_media_worker(&mut job, &tmp_output);
         return Ok(job);
-    };
+    }
+    if !output.status.success() {
+        mark_job_failed_from_ffmpeg_output(&mut job, &tmp_output, &output.stderr, "");
+        return Ok(job);
+    }
+
+    let tmp_meta = fs::metadata(&tmp_output)
+        .with_context(|| format!("failed to stat temp output {}", tmp_output.display()))?;
+    let new_size_bytes = tmp_meta.len();
+    let condition = SavingConditionConfig::from(config);
+    if !saving_condition_allows_output(condition, original_size_bytes, new_size_bytes) {
+        mark_job_skipped_by_saving_condition(
+            &mut job,
+            &tmp_output,
+            condition,
+            original_size_bytes,
+            new_size_bytes,
+        );
+        return Ok(job);
+    }
+
+    fs::rename(&tmp_output, &output_path).with_context(|| {
+        format!(
+            "failed to rename {} -> {}",
+            tmp_output.display(),
+            output_path.display()
+        )
+    })?;
 
     let final_output_path = if config.replace_original {
         finalize_replace_original_output(&mut job, path, &output_path, "audio")

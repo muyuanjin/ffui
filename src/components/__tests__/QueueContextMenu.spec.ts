@@ -73,6 +73,27 @@ describe("QueueContextMenu", () => {
     expect(restartInDisplay.attributes("aria-disabled")).toBeUndefined();
   });
 
+  it("disables wait and restart for processing Batch Compress image children", async () => {
+    const wrapper = mount(QueueContextMenu, {
+      props: {
+        visible: true,
+        x: 0,
+        y: 0,
+        mode: "single",
+        jobStatus: "processing",
+        jobType: "image",
+        jobSource: "batch_compress",
+        queueMode: "queue",
+        hasSelection: true,
+      },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.get("[data-testid='queue-context-menu-wait']").attributes("aria-disabled")).toBe("true");
+    expect(wrapper.get("[data-testid='queue-context-menu-restart']").attributes("aria-disabled")).toBe("true");
+    expect(wrapper.get("[data-testid='queue-context-menu-cancel']").attributes("aria-disabled")).toBeUndefined();
+  });
+
   it("disables file actions when reveal paths are unavailable", async () => {
     const wrapper = mount(QueueContextMenu, {
       props: {

@@ -292,7 +292,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import type { JobStatus, JobType, QueueBulkActionKind, QueueMode } from "@/types";
+import type { JobSource, JobStatus, JobType, QueueBulkActionKind, QueueMode } from "@/types";
 import { createQueueContextMenuPermissions } from "./queueContextMenu.permissions";
 import {
   DropdownMenu,
@@ -329,6 +329,7 @@ const props = defineProps<{
   teleportToBody?: boolean;
   jobStatus?: JobStatus;
   jobType?: JobType;
+  jobSource?: JobSource;
   queueMode: QueueMode;
   hasSelection: boolean;
   bulkActionInProgress?: QueueBulkActionKind | null;

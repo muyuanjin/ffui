@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
@@ -5,7 +6,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use super::super::state::{
     BATCH_COMPRESS_PROGRESS_EVERY, BatchCompressBatch, BatchCompressBatchStatus, Inner,
@@ -27,10 +28,16 @@ use super::orchestrator_helpers::{
 use super::video::enqueue_batch_compress_video_job;
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, ImageTargetFormat,
-    JobStatus,
+    JobStatus, TranscodeJob,
 };
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::sync_ext::MutexExt;
+
+pub(crate) fn store_media_worker_result(inner: &Inner, job_id: &str, job: TranscodeJob) {
+    let mut state = inner.state.lock_unpoisoned();
+    state.cancelled_jobs.remove(job_id);
+    state.jobs.insert(job.id.clone(), job);
+}
 
 pub(crate) fn run_auto_compress(
     inner: &Arc<Inner>,
@@ -38,9 +45,11 @@ pub(crate) fn run_auto_compress(
     mut config: BatchCompressConfig,
 ) -> Result<AutoCompressResult> {
     let root = PathBuf::from(&root_path);
-    if !root.exists() {
-        return Err(anyhow::anyhow!("Root path does not exist: {root_path}"));
+    if !root.is_dir() {
+        return Err(anyhow::anyhow!("Root path is not a directory: {root_path}"));
     }
+    fs::read_dir(&root)
+        .with_context(|| format!("Root path is not readable: {}", root.display()))?;
     config.root_path = Some(root_path.clone());
 
     let (settings_snapshot, presets, batch_id, started_at_ms) = {
@@ -165,7 +174,14 @@ fn run_auto_compress_background(
     let mut scanned_total: u64 = 0;
     let mut last_force_flush = Instant::now();
     let mut stack = vec![root];
+    let mut visited_dirs: HashSet<PathBuf> = HashSet::new();
     while let Some(dir) = stack.pop() {
+        if let Ok(canonical) = dir.canonicalize()
+            && !visited_dirs.insert(canonical)
+        {
+            continue;
+        }
+
         let entries = match fs::read_dir(&dir) {
             Ok(e) => e,
             Err(err) => {
@@ -177,10 +193,57 @@ fn run_auto_compress_background(
             }
         };
 
-        for entry in entries.flatten() {
+        for entry_result in entries {
+            let entry = match entry_result {
+                Ok(entry) => entry,
+                Err(err) => {
+                    crate::debug_eprintln!(
+                        "auto-compress: failed to read an entry under {}: {err}",
+                        dir.display()
+                    );
+                    continue;
+                }
+            };
             let path = entry.path();
-            if path.is_dir() {
+            let file_type = match entry.file_type() {
+                Ok(file_type) => file_type,
+                Err(err) => {
+                    crate::debug_eprintln!(
+                        "auto-compress: failed to stat entry {}: {err}",
+                        path.display()
+                    );
+                    continue;
+                }
+            };
+            if file_type.is_symlink() {
+                match fs::metadata(&path) {
+                    Ok(target_meta) if target_meta.is_dir() => {
+                        crate::debug_eprintln!(
+                            "auto-compress: skipping symlink directory {}",
+                            path.display()
+                        );
+                        continue;
+                    }
+                    Ok(target_meta) if target_meta.is_file() => {}
+                    Ok(_) => {
+                        crate::debug_eprintln!(
+                            "auto-compress: skipping symlink with unsupported target {}",
+                            path.display()
+                        );
+                        continue;
+                    }
+                    Err(err) => {
+                        crate::debug_eprintln!(
+                            "auto-compress: failed to stat symlink target {}: {err}",
+                            path.display()
+                        );
+                        continue;
+                    }
+                }
+            } else if file_type.is_dir() {
                 stack.push(path);
+                continue;
+            } else if !file_type.is_file() {
                 continue;
             }
 
@@ -437,8 +500,7 @@ fn run_auto_compress_background(
 
                     match result {
                         Ok(job) => {
-                            let mut state = inner_clone.state.lock_unpoisoned();
-                            state.jobs.insert(job.id.clone(), job);
+                            store_media_worker_result(&inner_clone, &job_id, job);
                         }
                         Err(err) => {
                             let mut state = inner_clone.state.lock_unpoisoned();

@@ -1,7 +1,10 @@
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
-use std::process::Command;
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::Ordering;
+use std::thread;
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
@@ -14,6 +17,7 @@ use crate::ffui_core::domain::{
     OutputFilenamePolicy, OutputPolicy, PreserveFileTimesPolicy, SavingConditionType, TranscodeJob,
 };
 use crate::ffui_core::tools::ExternalToolKind;
+use crate::sync_ext::MutexExt;
 
 pub(crate) fn current_time_millis() -> u64 {
     let millis = SystemTime::now()
@@ -237,6 +241,14 @@ pub(crate) fn mark_job_failed_from_ffmpeg_output(
     drop(fs::remove_file(tmp_output));
 }
 
+pub(crate) fn mark_job_cancelled_from_media_worker(job: &mut TranscodeJob, tmp_output: &Path) {
+    drop(fs::remove_file(tmp_output));
+    job.status = JobStatus::Cancelled;
+    job.end_time = Some(current_time_millis());
+    job.wait_metadata = None;
+    append_job_log_line(job, "Cancelled while processing Batch Compress media child");
+}
+
 pub(crate) fn mark_job_skipped_by_saving_condition(
     job: &mut TranscodeJob,
     tmp_output: &Path,
@@ -264,6 +276,93 @@ pub(crate) struct FinalizeTmpOutputSpec<'a> {
     pub config: &'a BatchCompressConfig,
     pub job: &'a mut TranscodeJob,
     pub run_context: String,
+}
+
+pub(crate) struct KillableCommandOutput {
+    pub status: ExitStatus,
+    pub stderr: Vec<u8>,
+    pub cancelled: bool,
+}
+
+fn is_cancel_requested(inner: &Inner, job_id: &str) -> bool {
+    let state = inner.state.lock_unpoisoned();
+    state.cancelled_jobs.contains(job_id)
+}
+
+fn read_capture_file(file: &mut fs::File) -> Result<Vec<u8>> {
+    file.seek(SeekFrom::Start(0))
+        .with_context(|| "failed to rewind command capture file")?;
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)
+        .with_context(|| "failed to read command capture file")?;
+    Ok(buf)
+}
+
+pub(super) fn wait_for_killable_command(
+    inner: &Inner,
+    job_id: &str,
+    child: &mut Child,
+) -> Result<(ExitStatus, bool)> {
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .with_context(|| "failed to poll media command status")?
+        {
+            return Ok((status, false));
+        }
+
+        if is_cancel_requested(inner, job_id) {
+            let kill_result = child.kill();
+            let status = child
+                .wait()
+                .with_context(|| "failed to wait for cancelled media command")?;
+            let cancelled = kill_result.is_ok() && !status.success();
+            return Ok((status, cancelled));
+        }
+
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
+pub(crate) fn run_killable_command_capture(
+    inner: &Inner,
+    job_id: &str,
+    program: &str,
+    args: &[String],
+    run_context: String,
+) -> Result<KillableCommandOutput> {
+    let mut stdout_file =
+        tempfile::tempfile().with_context(|| "failed to create stdout capture file")?;
+    let mut stderr_file =
+        tempfile::tempfile().with_context(|| "failed to create stderr capture file")?;
+
+    let mut cmd = Command::new(program);
+    configure_background_command(&mut cmd);
+    let mut child = cmd
+        .args(args)
+        .stdout(Stdio::from(
+            stdout_file
+                .try_clone()
+                .with_context(|| "failed to clone stdout capture file")?,
+        ))
+        .stderr(Stdio::from(
+            stderr_file
+                .try_clone()
+                .with_context(|| "failed to clone stderr capture file")?,
+        ))
+        .spawn()
+        .with_context(|| run_context.clone())?;
+
+    let (status, cancelled) = wait_for_killable_command(inner, job_id, &mut child)?;
+
+    let _stdout = read_capture_file(&mut stdout_file)?;
+    let stderr = read_capture_file(&mut stderr_file)?;
+
+    Ok(KillableCommandOutput {
+        status,
+        stderr,
+        cancelled,
+    })
 }
 
 pub(crate) fn run_ffmpeg_and_finalize_tmp_output(

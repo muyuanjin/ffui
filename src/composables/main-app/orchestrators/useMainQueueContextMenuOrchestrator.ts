@@ -12,6 +12,7 @@ export function useMainQueueContextMenuOrchestrator() {
     mode: computed(() => menu.queueContextMenuMode),
     jobStatus: computed(() => menu.queueContextMenuJobStatus),
     jobType: computed(() => menu.queueContextMenuJob?.type),
+    jobSource: computed(() => menu.queueContextMenuJob?.source),
     queueMode: computed(() => queue.queueMode),
     hasSelection: computed(() => queue.hasSelection),
     bulkActionInProgress: computed(() => queue.bulkActionInProgress),

@@ -268,6 +268,24 @@ describe("QueueItem progress and actions", () => {
     expect(wrapper.emitted("restart")?.[0]).toEqual([job.id]);
   });
 
+  it("shows only cancel for processing Batch Compress image/audio children", () => {
+    const job = makeJob({
+      status: "processing",
+      type: "image",
+      source: "batch_compress",
+      progress: 50,
+    });
+
+    const wrapper = mount(QueueItem, {
+      props: { job, preset: basePreset, canCancel: true, canWait: true, canResume: true, canRestart: true },
+      global: { plugins: [i18n] },
+    });
+
+    expect(wrapper.find("[data-testid='queue-item-wait-button']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='queue-item-restart-button']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='queue-item-cancel-button']").exists()).toBe(true);
+  });
+
   it("shows a pausing indicator and disables the wait button when waitRequestPending is true", () => {
     const job = makeJob({ status: "processing", progress: 50, waitRequestPending: true });
 

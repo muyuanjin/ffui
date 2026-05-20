@@ -1,11 +1,17 @@
 use std::fs;
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
 
 use super::helpers::{
     BatchCompressJobSpec, SavingConditionConfig, make_batch_compress_job,
-    saving_condition_allows_output,
+    run_killable_command_capture, saving_condition_allows_output, wait_for_killable_command,
 };
 use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{JobSource, JobStatus, JobType, OutputPolicy, SavingConditionType};
+use crate::ffui_core::engine::state::Inner;
+use crate::ffui_core::settings::AppSettings;
+use crate::sync_ext::MutexExt;
 
 #[test]
 fn make_batch_compress_job_populates_core_fields() {
@@ -98,6 +104,89 @@ fn saving_condition_absolute_size_rejects_larger_outputs_when_threshold_is_zero(
         20 * 1024 * 1024,
         20 * 1024 * 1024 - 1
     ));
+}
+
+#[test]
+fn killable_command_reports_completed_when_cancel_flag_arrives_after_child_exit() {
+    let inner = Inner::new(
+        vec![crate::test_support::make_ffmpeg_preset_for_tests(
+            "preset-1",
+        )],
+        AppSettings::default(),
+    );
+    let job_id = "job-killable-late-cancel";
+
+    let (program, args): (&str, Vec<String>) = if cfg!(windows) {
+        ("cmd.exe", vec!["/C".to_string(), "exit 0".to_string()])
+    } else {
+        ("sh", vec!["-c".to_string(), "exit 0".to_string()])
+    };
+
+    let mut child = Command::new(program)
+        .args(args)
+        .spawn()
+        .expect("immediate success command should start");
+
+    loop {
+        if child
+            .try_wait()
+            .expect("immediate success command should be pollable")
+            .is_some()
+        {
+            break;
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.cancelled_jobs.insert(job_id.to_string());
+    }
+
+    let (status, cancelled) = wait_for_killable_command(&inner, job_id, &mut child)
+        .expect("completed command should report status");
+
+    assert!(status.success());
+    assert!(!cancelled);
+}
+
+#[test]
+fn killable_command_stops_process_when_media_job_is_cancelled() {
+    let inner = Inner::new(
+        vec![crate::test_support::make_ffmpeg_preset_for_tests(
+            "preset-1",
+        )],
+        AppSettings::default(),
+    );
+    let job_id = "job-killable-cancel";
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.cancelled_jobs.insert(job_id.to_string());
+    }
+
+    let (program, args): (&str, Vec<String>) = if cfg!(windows) {
+        (
+            "cmd.exe",
+            vec!["/C".to_string(), "ping -n 6 127.0.0.1 >nul".to_string()],
+        )
+    } else {
+        ("sh", vec!["-c".to_string(), "sleep 5".to_string()])
+    };
+
+    let output = run_killable_command_capture(
+        &inner,
+        job_id,
+        program,
+        &args,
+        "failed to start long-running cancellation test command".to_string(),
+    )
+    .expect("killable command should return after cancellation");
+
+    assert!(output.cancelled);
+    assert!(
+        !output.status.success(),
+        "cancelled command should not report a successful exit"
+    );
 }
 
 #[test]

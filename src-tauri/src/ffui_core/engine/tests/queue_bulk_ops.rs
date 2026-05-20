@@ -232,6 +232,66 @@ fn bulk_restart_refuses_orphaned_terminal_media_children() {
 }
 
 #[test]
+fn bulk_restart_rejects_selection_with_processing_media_child_owned_by_worker() {
+    let engine = make_engine_with_preset();
+
+    let processing_image = "job-bulk-restart-active-batch-image".to_string();
+    let failed_manual = "job-bulk-restart-active-failed-manual".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            processing_image.clone(),
+            make_batch_compress_media_child(
+                &processing_image,
+                JobStatus::Processing,
+                JobType::Image,
+            ),
+        );
+        state
+            .active_batch_compress_media_jobs
+            .insert(processing_image.clone());
+
+        let mut failed = make_manual_job(&failed_manual, JobStatus::Failed);
+        failed.progress = 100.0;
+        failed.failure_reason = Some("boom".to_string());
+        state.jobs.insert(failed_manual.clone(), failed);
+    }
+
+    let notify_calls = TestArc::new(AtomicUsize::new(0));
+    let notify_calls_clone = notify_calls.clone();
+    engine.register_queue_lite_listener(move |_| {
+        notify_calls_clone.fetch_add(1, Ordering::SeqCst);
+    });
+
+    assert!(
+        !engine.restart_jobs_bulk(vec![processing_image.clone(), failed_manual.clone()]),
+        "bulk restart should fail when any selected Batch Compress media child is actively processing"
+    );
+    assert_eq!(
+        notify_calls.load(Ordering::SeqCst),
+        0,
+        "rejected bulk restart must not notify optimistic frontend state"
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let image = state
+        .jobs
+        .get(&processing_image)
+        .expect("image child exists");
+    assert_eq!(image.status, JobStatus::Processing);
+    assert!(!state.restart_requests.contains(&processing_image));
+    assert!(!state.cancelled_jobs.contains(&processing_image));
+
+    let failed = state.jobs.get(&failed_manual).expect("failed job exists");
+    assert_eq!(failed.status, JobStatus::Failed);
+    assert_eq!(failed.progress, 100.0);
+    assert_eq!(failed.failure_reason.as_deref(), Some("boom"));
+    assert!(!state.restart_requests.contains(&failed_manual));
+    assert!(!state.cancelled_jobs.contains(&failed_manual));
+}
+
+#[test]
 fn bulk_resume_notifies_once_and_restores_queue_entries() {
     let engine = make_engine_with_preset();
 

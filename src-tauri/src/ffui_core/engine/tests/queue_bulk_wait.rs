@@ -186,3 +186,99 @@ fn bulk_wait_ignores_terminal_jobs_instead_of_failing() {
         "terminal jobs should be ignored, not rejected",
     );
 }
+
+#[test]
+fn bulk_wait_skips_active_media_child_and_pauses_other_selected_jobs() {
+    let engine = make_engine_with_preset();
+
+    let media_child_id = "job-bulk-wait-active-media-child".to_string();
+    let queued_id = "job-bulk-wait-active-media-queued".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+
+        let mut media_child = TranscodeJob {
+            id: media_child_id.clone(),
+            filename: format!("C:/images/{media_child_id}.png"),
+            job_type: JobType::Image,
+            source: JobSource::BatchCompress,
+            queue_order: None,
+            original_size_mb: 1.0,
+            original_codec: Some("png".to_string()),
+            preset_id: "preset-1".to_string(),
+            status: JobStatus::Processing,
+            progress: 0.0,
+            start_time: Some(current_time_millis()),
+            end_time: None,
+            processing_started_ms: None,
+            elapsed_ms: None,
+            output_size_mb: None,
+            logs: Vec::new(),
+            log_head: None,
+            skip_reason: None,
+            input_path: Some(format!("C:/images/{media_child_id}.png")),
+            created_time_ms: None,
+            modified_time_ms: None,
+            output_path: Some(format!("C:/images/{media_child_id}.webp")),
+            output_policy: None,
+            ffmpeg_command: None,
+            runs: Vec::new(),
+            media_info: None,
+            estimated_seconds: None,
+            preview_path: None,
+            preview_revision: 0,
+            log_tail: None,
+            failure_reason: None,
+            warnings: Vec::new(),
+            batch_id: Some("batch-bulk-wait-active-media".to_string()),
+            batch_compress_saving_condition: None,
+            wait_metadata: None,
+        };
+        media_child.progress = 42.0;
+
+        let mut queued = media_child.clone();
+        queued.id = queued_id.clone();
+        queued.filename = format!("C:/videos/{queued_id}.mp4");
+        queued.job_type = JobType::Video;
+        queued.source = JobSource::Manual;
+        queued.status = JobStatus::Queued;
+        queued.progress = 0.0;
+        queued.input_path = Some(format!("C:/videos/{queued_id}.mp4"));
+        queued.output_path = Some(format!("C:/videos/{queued_id}.compressed.mp4"));
+        queued.batch_id = None;
+
+        state.jobs.insert(media_child_id.clone(), media_child);
+        state.jobs.insert(queued_id.clone(), queued);
+        state.queue.push_back(queued_id.clone());
+        state
+            .active_batch_compress_media_jobs
+            .insert(media_child_id.clone());
+    }
+
+    assert!(
+        engine.wait_jobs_bulk(vec![media_child_id.clone(), queued_id.clone()]),
+        "bulk wait should skip an active Batch Compress media child and pause other jobs",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    assert!(
+        !state.wait_requests.contains(&media_child_id),
+        "bulk wait must not record a wait request for the active media child",
+    );
+    assert!(
+        !state.wait_requests.contains(&queued_id),
+        "queued jobs are paused immediately instead of using cooperative wait requests",
+    );
+    assert_eq!(
+        state
+            .jobs
+            .get(&queued_id)
+            .expect("queued job exists")
+            .status,
+        JobStatus::Paused,
+        "bulk wait must still pause other selected queued jobs",
+    );
+    let media_child = state.jobs.get(&media_child_id).expect("media child exists");
+    assert_eq!(media_child.status, JobStatus::Processing);
+    assert_eq!(media_child.progress, 42.0);
+}

@@ -229,6 +229,137 @@ fn run_auto_compress_persists_defaults_with_invoked_root_path() {
 }
 
 #[test]
+fn run_auto_compress_rejects_file_root_path_without_creating_batch() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let root_file = dir.path().join("not-a-directory.txt");
+    fs::write(&root_file, b"not a directory").expect("write root file");
+
+    let engine = make_engine_with_preset();
+    let err = engine
+        .run_auto_compress(
+            root_file.to_string_lossy().into_owned(),
+            BatchCompressConfig {
+                video_preset_id: "preset-1".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect_err("file root paths must be rejected");
+
+    assert!(
+        err.to_string().contains("not a directory"),
+        "error should explain invalid root path, got: {err:#}"
+    );
+    let state = engine.inner.state.lock_unpoisoned();
+    assert!(
+        state.batch_compress_batches.is_empty(),
+        "invalid roots must not create misleading empty batches"
+    );
+}
+
+#[test]
+fn run_auto_compress_skips_symlink_directory_loops() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let nested = dir.path().join("nested");
+    fs::create_dir(&nested).expect("create nested dir");
+    let input = dir.path().join("one.mp4");
+    fs::write(&input, b"tiny").expect("write input");
+
+    let loop_link = nested.join("loop");
+    #[cfg(windows)]
+    let link_result = std::os::windows::fs::symlink_dir(dir.path(), &loop_link);
+    #[cfg(not(windows))]
+    let link_result = std::os::unix::fs::symlink(dir.path(), &loop_link);
+    if let Err(err) = link_result {
+        eprintln!(
+            "skipping symlink loop assertion because this environment cannot create directory symlinks: {err}"
+        );
+        return;
+    }
+
+    let engine = make_engine_with_preset();
+    let descriptor = engine
+        .run_auto_compress(
+            dir.path().to_string_lossy().into_owned(),
+            BatchCompressConfig {
+                min_video_size_mb: 10_000,
+                video_preset_id: "preset-1".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect("symlink loops should not make scanning fail");
+
+    let mut attempts = 0;
+    let summary = loop {
+        if let Some(summary) = engine.batch_compress_batch_summary(&descriptor.batch_id)
+            && summary.total_processed >= 1
+        {
+            break summary;
+        }
+        attempts += 1;
+        assert!(
+            attempts <= 100,
+            "Batch Compress symlink-loop scan did not finish within timeout"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+
+    assert_eq!(summary.total_files_scanned, 1);
+    assert_eq!(summary.total_candidates, 1);
+    assert_eq!(summary.total_processed, 1);
+}
+
+#[test]
+fn run_auto_compress_processes_symlinked_media_files() {
+    let dir = tempfile::tempdir().expect("temp dir");
+    let target_dir = tempfile::tempdir().expect("target temp dir");
+    let target = target_dir.path().join("target.mp4");
+    fs::write(&target, b"tiny").expect("write target media");
+
+    let linked = dir.path().join("linked.mp4");
+    #[cfg(windows)]
+    let link_result = std::os::windows::fs::symlink_file(&target, &linked);
+    #[cfg(not(windows))]
+    let link_result = std::os::unix::fs::symlink(&target, &linked);
+    if let Err(err) = link_result {
+        eprintln!(
+            "skipping symlink media assertion because this environment cannot create file symlinks: {err}"
+        );
+        return;
+    }
+
+    let engine = make_engine_with_preset();
+    let descriptor = engine
+        .run_auto_compress(
+            dir.path().to_string_lossy().into_owned(),
+            BatchCompressConfig {
+                min_video_size_mb: 10_000,
+                video_preset_id: "preset-1".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect("symlinked media files should not make scanning fail");
+
+    let mut attempts = 0;
+    let summary = loop {
+        if let Some(summary) = engine.batch_compress_batch_summary(&descriptor.batch_id)
+            && summary.total_processed >= 1
+        {
+            break summary;
+        }
+        attempts += 1;
+        assert!(
+            attempts <= 100,
+            "Batch Compress symlinked-media scan did not finish within timeout"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+
+    assert_eq!(summary.total_files_scanned, 1);
+    assert_eq!(summary.total_candidates, 1);
+    assert_eq!(summary.total_processed, 1);
+}
+
+#[test]
 fn batch_compress_pushes_full_batch_snapshot_after_detection() {
     let dir = env::temp_dir().join("ffui_batch_compress_full_snapshot");
     let _ = fs::create_dir_all(&dir);

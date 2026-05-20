@@ -365,6 +365,7 @@ const emit = defineEmits<QueueItemRowEmits>();
           variant="outline"
           size="sm"
           class="h-7 px-2 text-[11px]"
+          data-testid="queue-item-cancel-button"
           :title="String(t('app.actions.cancel'))"
           @click.stop="emit('cancel', job.id)"
         >

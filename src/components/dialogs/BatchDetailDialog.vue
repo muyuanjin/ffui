@@ -112,9 +112,13 @@ const handleContextMenuCompare = () => {
 };
 
 // 子任务操作按钮的可用性判断
-const canWaitJob = (job: TranscodeJob) => job.status === "processing";
+const isProcessingBatchMediaChild = (job: TranscodeJob) =>
+  job.status === "processing" && job.source === "batch_compress" && (job.type === "image" || job.type === "audio");
+
+const canWaitJob = (job: TranscodeJob) => job.status === "processing" && !isProcessingBatchMediaChild(job);
 const canResumeJob = (job: TranscodeJob) => job.status === "paused";
-const canRestartJob = (job: TranscodeJob) => job.status !== "completed" && job.status !== "skipped";
+const canRestartJob = (job: TranscodeJob) =>
+  job.status !== "completed" && job.status !== "skipped" && !isProcessingBatchMediaChild(job);
 const canCancelJob = (job: TranscodeJob) => ["queued", "processing", "paused"].includes(job.status);
 
 const formatBytes = (mb: number | null | undefined): string => {
@@ -327,6 +331,8 @@ const onPreviewClick = (job: TranscodeJob | null) => {
         teleport-to-body
         mode="single"
         :job-status="contextMenuJob?.status"
+        :job-type="contextMenuJob?.type"
+        :job-source="contextMenuJob?.source"
         queue-mode="queue"
         :has-selection="false"
         :can-reveal-input-path="!!contextMenuJob?.inputPath"

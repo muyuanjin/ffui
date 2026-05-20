@@ -282,6 +282,10 @@ describe("MainApp Batch Compress integration", () => {
         : vm.compositeBatchCompressTasks) ?? [];
     expect(tasks.length).toBe(0);
     expect(vm.jobs.length).toBe(0);
+    expect(vm.showBatchCompress).toBe(false);
+    expect(vm.queueError).toBe(
+      "Batch Compress failed to start. Check external tools or enable auto-download, then try again.",
+    );
 
     wrapper.unmount();
   });

@@ -1,15 +1,15 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use anyhow::{Context, Result};
 
-use super::super::ffmpeg_args::{configure_background_command, format_command_for_log};
+use super::super::ffmpeg_args::format_command_for_log;
 use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    SavingConditionConfig, current_time_millis, record_tool_download,
-    saving_condition_allows_output, saving_condition_skip_reason,
+    SavingConditionConfig, current_time_millis, mark_job_cancelled_from_media_worker,
+    record_tool_download, run_killable_command_capture, saving_condition_allows_output,
+    saving_condition_skip_reason,
 };
 use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
@@ -200,14 +200,19 @@ pub(super) fn encode_image_to_avif(
             }
             append_job_log_line(job, format!("command: {avif_cmd}"));
 
-            let mut cmd = Command::new(&avifenc_path);
-            configure_background_command(&mut cmd);
-            let output = cmd
-                .args(&avif_args)
-                .output()
-                .with_context(|| format!("failed to run avifenc on {}", path.display()));
+            let output = run_killable_command_capture(
+                inner,
+                &job.id,
+                &avifenc_path,
+                &avif_args,
+                format!("failed to run avifenc on {}", path.display()),
+            );
 
             let last_error = match output {
+                Ok(output) if output.cancelled => {
+                    mark_job_cancelled_from_media_worker(job, tmp_output);
+                    return Ok(());
+                }
                 Ok(output) if output.status.success() => {
                     finalize_image_encode(FinalizeAvifEncodeSpec {
                         inner,
@@ -391,14 +396,21 @@ fn run_ffmpeg_image_encode(spec: FfmpegImageEncodeSpec<'_>) -> Result<()> {
     });
     append_job_log_line(job, format!("command: {ffmpeg_cmd}"));
 
-    let mut cmd = Command::new(&ffmpeg_path);
-    configure_background_command(&mut cmd);
-    let output = cmd.args(&ffmpeg_args).output().with_context(|| {
+    let output = run_killable_command_capture(
+        inner,
+        &job.id,
+        &ffmpeg_path,
+        &ffmpeg_args,
         format!(
             "failed to run ffmpeg for {format_label} on {}",
             path.display()
-        )
-    })?;
+        ),
+    )?;
+
+    if output.cancelled {
+        mark_job_cancelled_from_media_worker(job, tmp_output);
+        return Ok(());
+    }
 
     if !output.status.success() {
         job.status = JobStatus::Failed;

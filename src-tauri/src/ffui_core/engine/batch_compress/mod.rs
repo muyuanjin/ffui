@@ -35,6 +35,8 @@ pub(super) use helpers::{
 pub(super) use image::handle_image_file;
 pub(super) use orchestrator::run_auto_compress;
 #[cfg(test)]
+pub(super) use orchestrator::store_media_worker_result;
+#[cfg(test)]
 pub(super) use orchestrator_helpers::batch_compress_batch_summary;
 pub(super) use replace_original::{finalize_replace_original_output, replacement_final_path};
 #[cfg(test)]

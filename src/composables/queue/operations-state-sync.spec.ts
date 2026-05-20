@@ -394,6 +394,46 @@ describe("queue operations state sync", () => {
     expect(deps.lastQueueSnapshotAtMs.value).not.toBe(beforeSnapshotAt);
   });
 
+  it("refreshQueueFromBackend clears a previous load failure after locale switch", async () => {
+    let locale: "en" | "zh" = "en";
+    const deps = makeDeps({
+      t: (key: string) => {
+        if (key !== "queue.error.loadFailed") return key;
+        return locale === "en" ? "Failed to load queue" : "加载队列失败";
+      },
+    });
+
+    loadQueueStateMock.mockRejectedValueOnce(new Error("first load failed"));
+
+    await refreshQueueFromBackend(deps);
+
+    expect(deps.queueError.value).toBe("Failed to load queue");
+
+    locale = "zh";
+    loadQueueStateMock.mockResolvedValueOnce({ jobs: [] });
+
+    await refreshQueueFromBackend(deps);
+
+    expect(deps.queueError.value).toBeNull();
+  });
+
+  it("refreshQueueFromBackend does not clear a different queue error after load failure", async () => {
+    const deps = makeDeps({
+      t: (key: string) => (key === "queue.error.loadFailed" ? "Failed to load queue" : key),
+    });
+
+    loadQueueStateMock.mockRejectedValueOnce(new Error("first load failed"));
+
+    await refreshQueueFromBackend(deps);
+
+    deps.queueError.value = "Another queue error";
+    loadQueueStateMock.mockResolvedValueOnce({ jobs: [] });
+
+    await refreshQueueFromBackend(deps);
+
+    expect(deps.queueError.value).toBe("Another queue error");
+  });
+
   it("refreshQueueFromBackend dedupes concurrent refresh calls for the same jobs ref", async () => {
     let resolvePromise!: (value: QueueStateLite) => void;
     loadQueueStateMock.mockImplementation(

@@ -126,12 +126,29 @@ const isCancellable = computed(
     (props.job.status === "queued" || props.job.status === "processing" || props.job.status === "paused"),
 );
 
-const isWaitable = computed(() => props.canWait && props.job.status === "processing" && !isPausing.value);
+const isProcessingBatchCompressMediaChild = computed(
+  () =>
+    props.job.status === "processing" &&
+    props.job.source === "batch_compress" &&
+    (props.job.type === "image" || props.job.type === "audio"),
+);
+
+const isWaitable = computed(
+  () =>
+    props.canWait &&
+    props.job.status === "processing" &&
+    !isPausing.value &&
+    !isProcessingBatchCompressMediaChild.value,
+);
 
 const isResumable = computed(() => props.canResume && props.job.status === "paused");
 
 const isRestartable = computed(
-  () => props.canRestart && props.job.status !== "completed" && props.job.status !== "skipped",
+  () =>
+    props.canRestart &&
+    props.job.status !== "completed" &&
+    props.job.status !== "skipped" &&
+    !isProcessingBatchCompressMediaChild.value,
 );
 
 const isSelectable = computed(() => props.canSelect === true);

@@ -61,6 +61,35 @@ describe("BatchDetailDialog", () => {
       expect(queueItem.attributes("data-can-wait")).toBe("true");
     });
 
+    it("processing 图片/音频子任务只允许取消，不显示暂停或重启", async () => {
+      const jobs: TranscodeJob[] = [
+        {
+          ...createMockJob("job-image-processing", "processing"),
+          type: "image",
+          filename: "C:/images/input.png",
+        },
+        {
+          ...createMockJob("job-audio-processing", "processing"),
+          type: "audio",
+          filename: "C:/audio/input.wav",
+        },
+      ];
+      const batch = createMockBatch(jobs);
+
+      const wrapper = mount(BatchDetailDialog, createMountOptions(batch, presets));
+
+      await flushPromises();
+      await nextTick();
+
+      const queueItems = wrapper.findAll('[data-testid="queue-item-stub"]');
+      expect(queueItems).toHaveLength(2);
+      for (const item of queueItems) {
+        expect(item.attributes("data-can-wait")).toBe("false");
+        expect(item.attributes("data-can-restart")).toBe("false");
+        expect(item.attributes("data-can-cancel")).toBe("true");
+      }
+    });
+
     it("paused 状态的任务应该显示继续按钮", async () => {
       const jobs = [createMockJob("job-1", "paused")];
       const batch = createMockBatch(jobs);
