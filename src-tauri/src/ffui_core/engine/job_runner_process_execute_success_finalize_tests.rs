@@ -221,6 +221,7 @@ mod execute_success_finalize_tests {
                     total_candidates: 1,
                     total_processed: 0,
                     child_job_ids: vec![job_id.clone()],
+                processed_child_job_ids: Default::default(),
                     started_at_ms: 1,
                     completed_at_ms: None,
                 },

@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
 
 use super::job::TranscodeJob;
@@ -49,6 +49,49 @@ impl Default for FileTypeFilter {
     }
 }
 
+fn deserialize_nonnegative_u64<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(match value {
+        serde_json::Value::Number(number) => {
+            if let Some(value) = number.as_u64() {
+                value
+            } else if let Some(value) = number.as_i64() {
+                u64::try_from(value.max(0)).unwrap_or(0)
+            } else {
+                number.as_f64().unwrap_or(0.0).max(0.0).floor() as u64
+            }
+        }
+        serde_json::Value::String(raw) => raw
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .filter(|value| value.is_finite())
+            .map(|value| value.max(0.0).floor() as u64)
+            .unwrap_or(0),
+        _ => 0,
+    })
+}
+
+fn deserialize_nonnegative_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let decoded = match value {
+        serde_json::Value::Number(number) => number.as_f64().unwrap_or(0.0),
+        serde_json::Value::String(raw) => raw.trim().parse::<f64>().unwrap_or(0.0),
+        _ => 0.0,
+    };
+    Ok(if decoded.is_finite() {
+        decoded.max(0.0)
+    } else {
+        0.0
+    })
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchCompressConfig {
@@ -60,25 +103,42 @@ pub struct BatchCompressConfig {
     #[serde(default = "default_true")]
     pub replace_original: bool,
 
-    #[serde(rename = "minImageSizeKB")]
+    #[serde(
+        rename = "minImageSizeKB",
+        deserialize_with = "deserialize_nonnegative_u64"
+    )]
     pub min_image_size_kb: u64,
 
-    #[serde(rename = "minVideoSizeMB")]
+    #[serde(
+        rename = "minVideoSizeMB",
+        deserialize_with = "deserialize_nonnegative_u64"
+    )]
     pub min_video_size_mb: u64,
 
     /// 音频最小检测体积 (KB)
-    #[serde(rename = "minAudioSizeKB", default = "default_audio_size_kb")]
+    #[serde(
+        rename = "minAudioSizeKB",
+        default = "default_audio_size_kb",
+        deserialize_with = "deserialize_nonnegative_u64"
+    )]
     pub min_audio_size_kb: u64,
 
     /// 保留结果的条件类型
     #[serde(default)]
     pub saving_condition_type: SavingConditionType,
 
-    #[serde(rename = "minSavingRatio")]
+    #[serde(
+        rename = "minSavingRatio",
+        deserialize_with = "deserialize_nonnegative_f64"
+    )]
     pub min_saving_ratio: f64,
 
     /// 保留结果所需的最低节省空间 (MB)
-    #[serde(rename = "minSavingAbsoluteMB", default = "default_saving_absolute_mb")]
+    #[serde(
+        rename = "minSavingAbsoluteMB",
+        default = "default_saving_absolute_mb",
+        deserialize_with = "deserialize_nonnegative_f64"
+    )]
     pub min_saving_absolute_mb: f64,
 
     #[serde(rename = "imageTargetFormat")]

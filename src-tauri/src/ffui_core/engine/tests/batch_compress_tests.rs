@@ -277,6 +277,83 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
 }
 
 #[test]
+fn batch_compress_registers_media_owner_before_queue_snapshot_repair() {
+    let dir = env::temp_dir().join("ffui_batch_compress_media_owner_race");
+    let _ = fs::remove_dir_all(&dir);
+    let _ = fs::create_dir_all(&dir);
+
+    let image = dir.join("race-image.jpg");
+    let video = dir.join("race-video.mp4");
+
+    for path in [&image, &video] {
+        let mut file =
+            File::create(path).unwrap_or_else(|_| panic!("create test file {}", path.display()));
+        let data = vec![0u8; 4 * 1024];
+        file.write_all(&data)
+            .unwrap_or_else(|_| panic!("write data for {}", path.display()));
+    }
+
+    let engine = make_engine_with_preset();
+    let bad_snapshots: TestArc<TestMutex<Vec<String>>> = TestArc::new(TestMutex::new(Vec::new()));
+    let bad_snapshots_clone = TestArc::clone(&bad_snapshots);
+
+    engine.register_queue_listener(move |state: QueueState| {
+        for job in state.jobs {
+            if matches!(job.source, JobSource::BatchCompress)
+                && job.job_type == JobType::Image
+                && job.status == JobStatus::Queued
+                && job.queue_order.is_some()
+            {
+                bad_snapshots_clone.lock_unpoisoned().push(job.id);
+            }
+        }
+    });
+
+    let config = BatchCompressConfig {
+        min_image_size_kb: 10_000,
+        min_video_size_mb: 10_000,
+        min_saving_ratio: 0.95,
+        image_target_format: ImageTargetFormat::Avif,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+
+    let descriptor = engine
+        .run_auto_compress(dir.to_string_lossy().into_owned(), config)
+        .expect("run_auto_compress should succeed for mixed media race test");
+
+    let mut attempts = 0;
+    loop {
+        let seen_children = {
+            let state = engine.inner.state.lock_unpoisoned();
+            state
+                .batch_compress_batches
+                .get(&descriptor.batch_id)
+                .map(|batch| batch.child_job_ids.len())
+                .unwrap_or_default()
+        };
+        if seen_children >= 2 {
+            break;
+        }
+        attempts += 1;
+        assert!(
+            attempts <= 100,
+            "Batch Compress mixed media batch did not create expected children within timeout"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let bad_snapshots = bad_snapshots.lock_unpoisoned();
+    assert!(
+        bad_snapshots.is_empty(),
+        "live Batch Compress image children must not appear in the normal worker queue; bad ids: {:?}",
+        *bad_snapshots
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn batch_compress_video_output_naming_avoids_overwrites() {
     let dir = env::temp_dir().join("ffui_batch_compress_safe_outputs");
     let _ = fs::create_dir_all(&dir);
@@ -675,6 +752,65 @@ fn batch_compress_does_not_reenqueue_known_outputs_as_candidates() {
         !input_is_known,
         "original input video.mp4 must not be treated as a known output and must remain eligible"
     );
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn batch_compress_scan_skips_output_style_files_after_cold_start() {
+    let dir = env::temp_dir().join("ffui_batch_compress_cold_output_skip");
+    let _ = fs::remove_dir_all(&dir);
+    let _ = fs::create_dir_all(&dir);
+
+    let compressed_video = dir.join("video.compressed.mp4");
+    let compressed_audio = dir.join("song.compressed.m4a");
+
+    for path in [&compressed_video, &compressed_audio] {
+        let mut file =
+            File::create(path).unwrap_or_else(|_| panic!("create test file {}", path.display()));
+        file.write_all(&[0u8; 1024])
+            .unwrap_or_else(|_| panic!("write data for {}", path.display()));
+    }
+
+    let engine = make_engine_with_preset();
+    let root_path = dir.to_string_lossy().into_owned();
+    let mut config = BatchCompressConfig {
+        root_path: Some(root_path.clone()),
+        min_image_size_kb: 0,
+        min_video_size_mb: 0,
+        min_audio_size_kb: 0,
+        video_preset_id: "preset-1".to_string(),
+        ..Default::default()
+    };
+    config.audio_filter.enabled = true;
+
+    let descriptor = engine
+        .run_auto_compress(root_path, config)
+        .expect("run_auto_compress should succeed for cold-start output-style skip test");
+
+    let batch_id = descriptor.batch_id;
+    let summary = {
+        let mut attempts = 0;
+        loop {
+            if let Some(summary) = engine.batch_compress_batch_summary(&batch_id)
+                && summary.total_files_scanned >= 2
+            {
+                break summary;
+            }
+            attempts += 1;
+            assert!(
+                attempts <= 100,
+                "Batch Compress scan did not finish cold-start output-style skip test"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    };
+
+    assert_eq!(
+        summary.total_candidates, 0,
+        "cold-start Batch Compress scan must skip .compressed.* output-style files"
+    );
+    assert_eq!(summary.total_processed, 0);
 
     let _ = fs::remove_dir_all(&dir);
 }

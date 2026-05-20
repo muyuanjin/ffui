@@ -49,6 +49,8 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - `pnpm run tauri:dev` — run the full Tauri desktop app in development mode.
 - `pnpm run build` — type-check with `vue-tsc` and build the production frontend bundle.
 - From `src-tauri`, use `cargo check` and `cargo build` to validate and build the Rust backend.
+- In WSL with the Windows-forwarded Cargo shim, avoid bare full-suite `cargo test`; it can hang under the default parallel harness. Use the project gate (`pnpm run check:all`) or run Rust tests as `cargo test --profile check-all --target-dir target/win -- --test-threads=1`.
+- When `pnpm run check:all` fails, read the printed `.cache/check-all/logs/<run>/NN_*.log` file first; it usually points to the exact failing subcheck.
 - Do NOT run `pnpm run test:watch` from agents, as it starts Vitest in interactive watch mode and can hang; instead, use non-interactive commands such as `pnpm vitest run src/__tests__/MainApp.queue-sorting.basic.spec.ts` (or another focused `pnpm vitest run` invocation) as the "equivalent frontend test command" required by this spec.
 
 ## Release Guidelines
@@ -85,7 +87,7 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Aim for meaningful coverage around transcoding logic and platform-specific behavior, especially any file or process handling.
 
 
-- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 `cargo test`；
+- RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 Rust 测试（WSL/Windows-forwarded Cargo 下用 `cargo test --profile check-all --target-dir target/win -- --test-threads=1` 或由 `pnpm run check:all` 覆盖）；
 - 每次功能完成或提交前必须保证 `pnpm run check:all` 通过。
 - ANTI-PATTERN: 不允许“只修代码不写测试”，也不允许在测试失败或尚未运行时就宣布本次问题已解决；更不允许把针对同一接口或字段的不一致问题留到以后再修。
 

@@ -13,6 +13,7 @@ import { hasTauri } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import OutputPolicyEditor from "@/components/output/OutputPolicyEditor.vue";
 import { buildBatchCompressConfig } from "@/lib/batchCompressConfig";
+import { canStartBatchCompress, normalizeBatchCompressConfig } from "@/lib/batchCompressValidation";
 import BatchCompressSavingConditionSection from "@/components/batch-compress/BatchCompressSavingConditionSection.vue";
 const props = defineProps<{
   presets: FFmpegPreset[];
@@ -156,14 +157,13 @@ const deselectAllExtensions = (filterKey: "videoFilter" | "imageFilter" | "audio
 };
 
 const canStart = computed(() => {
-  const hasPath = !!config.value.rootPath?.trim();
-  const filters = [config.value.videoFilter, config.value.imageFilter, config.value.audioFilter];
-  const hasAnyFilter = filters.some((filter) => filter.enabled && filter.extensions.length > 0);
-  return hasPath && hasAnyFilter;
+  return canStartBatchCompress(config.value, props.presets);
 });
 
 const handleRun = () => {
-  emit("run", config.value);
+  const normalized = normalizeBatchCompressConfig(config.value);
+  config.value = normalized;
+  emit("run", normalized);
 };
 </script>
 
@@ -278,7 +278,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minVideoSize") }}</Label>
-                <Input v-model.number="config.minVideoSizeMB" type="number" class="h-7 text-xs" />
+                <Input v-model.number="config.minVideoSizeMB" type="number" min="0" step="1" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">
@@ -354,7 +354,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minImageSize") }}</Label>
-                <Input v-model.number="config.minImageSizeKB" type="number" class="h-7 text-xs" />
+                <Input v-model.number="config.minImageSizeKB" type="number" min="0" step="1" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">
@@ -427,7 +427,7 @@ const handleRun = () => {
 
               <div class="space-y-1">
                 <Label class="text-[10px] text-muted-foreground">{{ t("batchCompress.minAudioSize") }}</Label>
-                <Input v-model.number="config.minAudioSizeKB" type="number" class="h-7 text-xs" />
+                <Input v-model.number="config.minAudioSizeKB" type="number" min="0" step="1" class="h-7 text-xs" />
               </div>
 
               <div class="space-y-1">

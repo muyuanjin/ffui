@@ -71,6 +71,7 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
             }
 
             job.status = JobStatus::Queued;
+            super::sync_resumed_job_worker_queue_membership(&mut state, &job_id);
             resumed = resumed.saturating_add(1);
 
             state.wait_requests.remove(&job_id);
@@ -91,7 +92,7 @@ pub(in crate::ffui_core::engine) fn resume_startup_auto_paused_jobs(inner: &Arc<
 
             job.status = JobStatus::Queued;
             resumed = resumed.saturating_add(1);
-            state.queue.push_back(job_id.clone());
+            super::sync_resumed_job_worker_queue_membership(&mut state, &job_id);
 
             state.wait_requests.remove(&job_id);
             state.cancelled_jobs.remove(&job_id);

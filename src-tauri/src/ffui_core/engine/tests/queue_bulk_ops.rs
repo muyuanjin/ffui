@@ -42,6 +42,14 @@ fn make_manual_job(id: &str, status: JobStatus) -> TranscodeJob {
     }
 }
 
+fn make_batch_compress_media_child(id: &str, status: JobStatus, job_type: JobType) -> TranscodeJob {
+    let mut job = make_manual_job(id, status);
+    job.job_type = job_type;
+    job.source = JobSource::BatchCompress;
+    job.batch_id = Some("batch-resume-media".to_string());
+    job
+}
+
 #[test]
 fn bulk_cancel_notifies_once_and_updates_state() {
     let engine = make_engine_with_preset();
@@ -106,6 +114,120 @@ fn bulk_cancel_notifies_once_and_updates_state() {
         paused.status,
         JobStatus::Cancelled,
         "paused job should be cancelled"
+    );
+}
+
+#[test]
+fn bulk_resume_keeps_batch_compress_media_children_out_of_worker_queue() {
+    let engine = make_engine_with_preset();
+
+    let paused_image = "job-bulk-resume-batch-image".to_string();
+    let queued_audio = "job-bulk-resume-batch-audio".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            paused_image.clone(),
+            make_batch_compress_media_child(&paused_image, JobStatus::Paused, JobType::Image),
+        );
+        state.jobs.insert(
+            queued_audio.clone(),
+            make_batch_compress_media_child(&queued_audio, JobStatus::Queued, JobType::Audio),
+        );
+        state
+            .active_batch_compress_media_jobs
+            .insert(paused_image.clone());
+        state
+            .active_batch_compress_media_jobs
+            .insert(queued_audio.clone());
+        state.queue.push_back(paused_image.clone());
+        state.queue.push_back(queued_audio.clone());
+    }
+
+    assert!(
+        engine.resume_jobs_bulk(vec![paused_image.clone(), queued_audio.clone()]),
+        "resume_jobs_bulk should accept Batch Compress media children",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    assert_eq!(
+        state
+            .jobs
+            .get(&paused_image)
+            .expect("image child exists")
+            .status,
+        JobStatus::Queued
+    );
+    assert_eq!(
+        state
+            .jobs
+            .get(&queued_audio)
+            .expect("audio child exists")
+            .status,
+        JobStatus::Queued
+    );
+    assert!(
+        !state.queue.iter().any(|id| id == &paused_image),
+        "bulk resume must not leave Batch Compress image children in the normal worker queue",
+    );
+    assert!(
+        !state.queue.iter().any(|id| id == &queued_audio),
+        "bulk idempotent resume must remove stale Batch Compress audio children from the normal worker queue",
+    );
+}
+
+#[test]
+fn bulk_restart_refuses_orphaned_terminal_media_children() {
+    let engine = make_engine_with_preset();
+
+    let paused_image = "job-bulk-restart-batch-image".to_string();
+    let failed_audio = "job-bulk-restart-batch-audio".to_string();
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state.jobs.insert(
+            paused_image.clone(),
+            make_batch_compress_media_child(&paused_image, JobStatus::Paused, JobType::Image),
+        );
+        state.jobs.insert(
+            failed_audio.clone(),
+            make_batch_compress_media_child(&failed_audio, JobStatus::Failed, JobType::Audio),
+        );
+        state
+            .active_batch_compress_media_jobs
+            .insert(paused_image.clone());
+        state.queue.push_back(paused_image.clone());
+    }
+
+    assert!(
+        engine.restart_jobs_bulk(vec![paused_image.clone(), failed_audio.clone()]),
+        "bulk restart should accept Batch Compress media children",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    assert_eq!(
+        state
+            .jobs
+            .get(&paused_image)
+            .expect("image child exists")
+            .status,
+        JobStatus::Queued
+    );
+    assert!(
+        !state.queue.iter().any(|id| id == &paused_image),
+        "live Batch Compress media children must stay out of the normal worker queue"
+    );
+    assert_eq!(
+        state
+            .jobs
+            .get(&failed_audio)
+            .expect("audio child exists")
+            .status,
+        JobStatus::Failed
+    );
+    assert!(
+        !state.queue.iter().any(|id| id == &failed_audio),
+        "bulk restart must not orphan failed Batch Compress media children as Queued"
     );
 }
 

@@ -14,15 +14,20 @@ use super::super::state::{
 };
 use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
 use super::audio::handle_audio_file_with_id;
-use super::detection::{is_audio_file, is_image_file, is_video_file, passes_media_filter};
+use super::detection::{
+    is_audio_file, is_batch_compress_style_output, is_image_file, is_video_file,
+    passes_media_filter,
+};
 use super::helpers::{current_time_millis, next_job_id, notify_queue_listeners};
 use super::image::handle_image_file_with_id;
 use super::orchestrator_helpers::{
-    insert_audio_stub_job, insert_image_stub_job, set_job_processing,
+    MediaWorkerJobState, insert_audio_stub_job, insert_image_stub_job, register_media_worker_jobs,
+    release_media_worker_job, release_media_worker_jobs, wait_until_media_job_ready,
 };
 use super::video::enqueue_batch_compress_video_job;
 use crate::ffui_core::domain::{
-    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, JobStatus,
+    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, ImageTargetFormat,
+    JobStatus,
 };
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::sync_ext::MutexExt;
@@ -65,6 +70,7 @@ pub(crate) fn run_auto_compress(
             total_candidates: 0,
             total_processed: 0,
             child_job_ids: Vec::new(),
+            processed_child_job_ids: Default::default(),
             started_at_ms,
             completed_at_ms: None,
         };
@@ -243,11 +249,22 @@ fn run_auto_compress_background(
             if !passes_media_filter(&path, &config.image_filter) {
                 continue;
             }
+            let is_avif_to_webp_input = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("avif"))
+                && matches!(config.image_target_format, ImageTargetFormat::Webp);
+            if is_batch_compress_style_output(&path) && !is_avif_to_webp_input {
+                continue;
+            }
             let job_id = next_job_id(inner);
             insert_image_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Image);
         } else if is_audio_file(&path) {
+            if is_batch_compress_style_output(&path) {
+                continue;
+            }
             if !passes_media_filter(&path, &config.audio_filter) {
                 continue;
             }
@@ -257,6 +274,9 @@ fn run_auto_compress_background(
             queue_dirty = true;
             register_stub_job(job_id, path, MediaTaskKind::Audio);
         } else if is_video_file(&path) {
+            if is_batch_compress_style_output(&path) {
+                continue;
+            }
             if !passes_media_filter(&path, &config.video_filter) {
                 continue;
             }
@@ -353,6 +373,14 @@ fn run_auto_compress_background(
         }
     });
 
+    let pending_media_job_ids: Vec<String> = pending_media_tasks
+        .iter()
+        .map(|(job_id, _, _)| job_id.clone())
+        .collect();
+    if !pending_media_job_ids.is_empty() {
+        register_media_worker_jobs(inner, &pending_media_job_ids);
+    }
+
     if queue_dirty {
         notify_queue_listeners(inner);
     }
@@ -367,16 +395,25 @@ fn run_auto_compress_background(
         let settings_clone = settings_snapshot;
         let presets_clone = presets;
         let batch_id_clone = batch_id.clone();
-        let pending_job_ids: Vec<String> = pending_media_tasks
-            .iter()
-            .map(|(job_id, _, _)| job_id.clone())
-            .collect();
+        let pending_job_ids = pending_media_job_ids;
+        let cleanup_pending_job_ids = pending_job_ids.clone();
 
         let spawned = thread::Builder::new()
             .name(format!("batch-compress-media-worker-{batch_id}"))
             .spawn(move || {
                 for (job_id, path, kind) in pending_media_tasks {
-                    set_job_processing(&inner_clone, &job_id);
+                    match wait_until_media_job_ready(&inner_clone, &job_id) {
+                        MediaWorkerJobState::Ready => {}
+                        MediaWorkerJobState::Terminal => {
+                            mark_batch_compress_child_processed(&inner_clone, &job_id);
+                            release_media_worker_job(&inner_clone, &job_id);
+                            continue;
+                        }
+                        MediaWorkerJobState::Missing => {
+                            release_media_worker_job(&inner_clone, &job_id);
+                            continue;
+                        }
+                    }
                     let result = match kind {
                         MediaTaskKind::Image => handle_image_file_with_id(
                             &inner_clone,
@@ -418,7 +455,9 @@ fn run_auto_compress_background(
 
                     notify_queue_listeners(&inner_clone);
                     mark_batch_compress_child_processed(&inner_clone, &job_id);
+                    release_media_worker_job(&inner_clone, &job_id);
                 }
+                release_media_worker_jobs(&inner_clone, &cleanup_pending_job_ids);
             })
             .map(|_| ());
 

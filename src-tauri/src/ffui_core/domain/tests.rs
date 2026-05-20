@@ -3,7 +3,8 @@ mod domain_contract_tests {
     use serde_json::{Value, json};
 
     use super::super::batch_compress::{
-        AutoCompressProgress, AutoCompressResult, BatchCompressSavingCondition, SavingConditionType,
+        AutoCompressProgress, AutoCompressResult, BatchCompressConfig,
+        BatchCompressSavingCondition, SavingConditionType,
     };
     use super::super::config::{EncoderType, FpsExpression, RateControlMode};
     use super::super::job::*;
@@ -859,5 +860,31 @@ mod domain_contract_tests {
                 .expect("completedAtMs present"),
             300
         );
+    }
+
+    #[test]
+    fn batch_compress_config_deserializes_invalid_numeric_fields_as_nonnegative() {
+        let decoded: BatchCompressConfig = serde_json::from_value(json!({
+            "rootPath": "C:/videos",
+            "replaceOriginal": true,
+            "minImageSizeKB": "",
+            "minVideoSizeMB": -12,
+            "minAudioSizeKB": -1,
+            "savingConditionType": "absoluteSize",
+            "minSavingRatio": "NaN",
+            "minSavingAbsoluteMB": -5,
+            "imageTargetFormat": "avif",
+            "videoPresetId": "preset-1",
+            "videoFilter": { "enabled": true, "extensions": ["mp4"] },
+            "imageFilter": { "enabled": false, "extensions": [] },
+            "audioFilter": { "enabled": false, "extensions": [] }
+        }))
+        .expect("invalid frontend numeric values should deserialize to sanitized defaults");
+
+        assert_eq!(decoded.min_image_size_kb, 0);
+        assert_eq!(decoded.min_video_size_mb, 0);
+        assert_eq!(decoded.min_audio_size_kb, 0);
+        assert_eq!(decoded.min_saving_ratio, 0.0);
+        assert_eq!(decoded.min_saving_absolute_mb, 0.0);
     }
 }

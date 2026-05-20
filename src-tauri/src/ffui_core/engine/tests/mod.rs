@@ -27,6 +27,7 @@ pub(super) use common::make_test_preset;
 use common::*;
 
 mod batch_compress_audio_tests;
+mod batch_compress_cancel_tests;
 mod batch_compress_delete_all_skipped;
 mod batch_compress_delete_legacy_missing_meta;
 mod batch_compress_delete_no_children;

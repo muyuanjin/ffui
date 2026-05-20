@@ -2,8 +2,9 @@ use super::*;
 use crate::ffui_core::BatchCompressConfig;
 
 #[test]
-fn batch_compress_keeps_compressed_named_files_as_candidates() {
-    let dir = env::temp_dir().join("ffui_batch_compress_keep_compressed_named");
+fn batch_compress_skips_compressed_named_outputs_as_candidates() {
+    let dir = env::temp_dir().join("ffui_batch_compress_skip_compressed_output");
+    let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);
 
     let video = dir.join("sample.compressed.mp4");
@@ -39,14 +40,13 @@ fn batch_compress_keeps_compressed_named_files_as_candidates() {
         loop {
             if let Some(summary) = engine.batch_compress_batch_summary(&batch_id)
                 && summary.total_files_scanned >= 1
-                && summary.total_candidates >= 1
             {
                 break summary;
             }
             attempts += 1;
             assert!(
                 (attempts <= 100),
-                "Batch Compress batch did not include compressed-named video within timeout"
+                "Batch Compress batch did not scan compressed-named video within timeout"
             );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
@@ -60,20 +60,23 @@ fn batch_compress_keeps_compressed_named_files_as_candidates() {
         .count();
 
     assert_eq!(
-        count, 1,
-        "video named *.compressed.mp4 should still be enqueued as a Batch Compress candidate"
+        count, 0,
+        "video named *.compressed.mp4 should be treated as a Batch Compress output and not enqueued"
     );
-    assert!(
-        summary.total_candidates >= 1,
-        "Batch Compress should treat compressed-named video as candidate"
-    );
+    assert_eq!(summary.total_candidates, 0);
 
     let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
-fn batch_compress_treats_avif_as_candidate_when_enabled() {
-    let dir = env::temp_dir().join("ffui_batch_compress_avif_candidate");
+fn batch_compress_enqueues_avif_inputs_when_converting_to_webp() {
+    let data_root = tempfile::tempdir().expect("temp data root");
+    let _root_guard = crate::ffui_core::data_root::override_data_root_dir_for_tests(
+        data_root.path().to_path_buf(),
+    );
+
+    let dir = env::temp_dir().join("ffui_batch_compress_avif_to_webp_input");
+    let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);
 
     let image = dir.join("photo.avif");
@@ -87,20 +90,24 @@ fn batch_compress_treats_avif_as_candidate_when_enabled() {
 
     let engine = make_engine_with_preset();
 
-    let config = BatchCompressConfig {
+    let mut config = BatchCompressConfig {
         min_image_size_kb: 0,
         min_video_size_mb: 10_000,
         min_audio_size_kb: 10_000,
         min_saving_ratio: 0.95,
-        image_target_format: ImageTargetFormat::Avif,
+        image_target_format: ImageTargetFormat::Webp,
         video_preset_id: "preset-1".to_string(),
         ..Default::default()
     };
+    config.video_filter.enabled = false;
+    config.audio_filter.enabled = false;
+    config.image_filter.enabled = true;
+    config.image_filter.extensions = vec!["avif".to_string()];
 
     let root_path = dir.to_string_lossy().into_owned();
     let descriptor = engine
         .run_auto_compress(root_path, config)
-        .expect("run_auto_compress should succeed for avif candidate test");
+        .expect("run_auto_compress should succeed for avif-to-webp candidate test");
 
     let batch_id = descriptor.batch_id;
 
@@ -110,14 +117,13 @@ fn batch_compress_treats_avif_as_candidate_when_enabled() {
             if let Some(summary) = engine.batch_compress_batch_summary(&batch_id)
                 && summary.total_files_scanned >= 1
                 && summary.total_candidates >= 1
-                && summary.total_processed >= 1
             {
                 break summary;
             }
             attempts += 1;
             assert!(
                 (attempts <= 100),
-                "Batch Compress avif test did not reach processed state within timeout"
+                "Batch Compress avif-to-webp test did not reach candidate state within timeout"
             );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
@@ -132,12 +138,9 @@ fn batch_compress_treats_avif_as_candidate_when_enabled() {
 
     assert_eq!(
         count, 1,
-        "avif file should still appear as a Batch Compress job when image compression is enabled"
+        "supported AVIF inputs must remain eligible candidates"
     );
-    assert!(
-        summary.total_processed >= 1,
-        "avif candidate should be marked processed (usually skipped) after background handling"
-    );
+    assert_eq!(summary.total_candidates, 1);
 
     let _ = fs::remove_dir_all(&dir);
 }

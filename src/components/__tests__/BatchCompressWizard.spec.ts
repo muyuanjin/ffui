@@ -115,4 +115,57 @@ describe("BatchCompressWizard 默认预设", () => {
     expect(runButton).toBeTruthy();
     expect(runButton!.attributes("disabled")).toBeDefined();
   });
+
+  it("启用视频但预设无效时不能开始扫描", () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: null,
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/videos",
+          videoPresetId: "missing-preset",
+          videoFilter: { enabled: true, extensions: ["mp4"] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: false, extensions: [] },
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    expect(runButton!.attributes("disabled")).toBeDefined();
+  });
+
+  it("提交前会清洗数值字段为非负数", async () => {
+    const wrapper = mount(BatchCompressWizard, {
+      props: {
+        presets: [...presets],
+        defaultVideoPresetId: "p2",
+        initialConfig: buildBatchCompressDefaults({
+          rootPath: "C:/videos",
+          minVideoSizeMB: -1,
+          minImageSizeKB: Number.NaN,
+          minAudioSizeKB: -500,
+          minSavingAbsoluteMB: -7,
+          videoFilter: { enabled: true, extensions: ["mp4"] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: false, extensions: [] },
+          savingConditionType: "absoluteSize",
+        }),
+      },
+      global: { plugins: [createI18nInstance()] },
+    });
+
+    const runButton = wrapper.findAll("button").find((btn) => btn.text().includes("扫描并压缩"));
+    expect(runButton).toBeTruthy();
+    await runButton!.trigger("click");
+
+    const emitted = wrapper.emitted("run") as Array<[BatchCompressConfig]> | undefined;
+    const submitted = emitted?.[0]?.[0];
+    expect(submitted?.minVideoSizeMB).toBe(0);
+    expect(submitted?.minImageSizeKB).toBe(0);
+    expect(submitted?.minAudioSizeKB).toBe(0);
+    expect(submitted?.minSavingAbsoluteMB).toBe(0);
+  });
 });

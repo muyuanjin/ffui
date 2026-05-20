@@ -36,9 +36,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
                 JobStatus::Queued => {
                     // Idempotent: ensure the job is enqueued so users can safely
                     // click "resume" even if the frontend snapshot is stale.
-                    if !state.queue.iter().any(|id| id == job_id) {
-                        state.queue.push_back(job_id.to_string());
-                    }
+                    super::sync_resumed_job_worker_queue_membership(&mut state, job_id);
                     state.wait_requests.remove(job_id);
                     state.cancelled_jobs.remove(job_id);
                     state.restart_requests.remove(job_id);
@@ -85,9 +83,7 @@ pub(in crate::ffui_core::engine) fn resume_job(inner: &Arc<Inner>, job_id: &str)
         if let Some(job) = state.jobs.get_mut(job_id) {
             job.status = JobStatus::Queued;
         }
-        if !state.queue.iter().any(|id| id == job_id) {
-            state.queue.push_back(job_id.to_string());
-        }
+        super::sync_resumed_job_worker_queue_membership(&mut state, job_id);
         state.wait_requests.remove(job_id);
         state.cancelled_jobs.remove(job_id);
         state.restart_requests.remove(job_id);

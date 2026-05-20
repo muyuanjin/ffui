@@ -186,6 +186,7 @@ fn bulk_delete_batch_compress_batches_deletes_children_and_metadata_and_notifies
                 total_candidates: 2,
                 total_processed: 2,
                 child_job_ids: vec![job1_id.clone(), job2_id.clone()],
+                processed_child_job_ids: Default::default(),
                 started_at_ms: 0,
                 completed_at_ms: Some(0),
             },

@@ -82,9 +82,11 @@ pub(crate) struct EngineState {
     // composite cards from queue + progress events alone.
     pub(crate) batch_compress_batches: HashMap<String, BatchCompressBatch>,
     // Known Batch Compress output paths (both from current and previous runs).
-    // These are used to avoid overwriting existing outputs and to skip
-    // re-enqueuing Batch Compress outputs as new candidates.
+    // These avoid overwriting outputs and re-enqueuing them as candidates.
     pub(crate) known_batch_compress_outputs: HashSet<String>,
+    // Batch Compress image/audio children are excluded from the normal worker
+    // queue only while this runtime ownership set contains their id.
+    pub(crate) active_batch_compress_media_jobs: HashSet<String>,
     // Cache of ffmpeg feature probes keyed by executable path.
     pub(crate) ffmpeg_supports_stats_period: HashMap<String, bool>,
     pub(crate) preset_processing_activity:
@@ -112,6 +114,7 @@ impl EngineState {
             media_info_cache: HashMap::new(),
             batch_compress_batches: HashMap::new(),
             known_batch_compress_outputs: HashSet::new(),
+            active_batch_compress_media_jobs: HashSet::new(),
             ffmpeg_supports_stats_period: HashMap::new(),
             preset_processing_activity: HashMap::new(),
         }
@@ -246,7 +249,7 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
     // - `queue` only contains ids for jobs that exist and are Queued/Paused
     // - `active_jobs` only contains Processing jobs
     // - `active_inputs` matches `active_jobs`
-    // - all Queued/Paused jobs appear in `queue`
+    // - all normal Queued/Paused jobs appear in `queue`
     let stale_active: Vec<String> = state
         .active_jobs
         .iter()
@@ -267,19 +270,25 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
         .filter_map(|id| state.jobs.get(id).map(|job| job.filename.clone()))
         .collect();
 
+    let active_media_jobs = state.active_batch_compress_media_jobs.clone();
     let mut seen: HashSet<String> = HashSet::with_capacity(state.queue.len());
     state.queue.retain(|id| {
         if !seen.insert(id.clone()) {
             return false;
         }
-        state
-            .jobs
-            .get(id)
-            .is_some_and(|job| matches!(job.status, JobStatus::Queued | JobStatus::Paused))
+        state.jobs.get(id).is_some_and(|job| {
+            matches!(job.status, JobStatus::Queued | JobStatus::Paused)
+                && (!super::worker_utils::is_batch_compress_media_child(job)
+                    || !active_media_jobs.contains(id))
+        })
     });
 
     for (id, job) in &state.jobs {
         if !matches!(job.status, JobStatus::Queued | JobStatus::Paused) {
+            continue;
+        }
+        if super::worker_utils::is_batch_compress_media_child(job) && active_media_jobs.contains(id)
+        {
             continue;
         }
         if seen.contains(id) {

@@ -1,5 +1,5 @@
 use super::super::state::EngineState;
-use super::super::worker_utils::current_time_millis;
+use super::super::worker_utils::{current_time_millis, is_batch_compress_media_child};
 use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob, WaitMetadata};
 use crate::ffui_core::engine::ffmpeg_args::compute_progress_percent;
 use crate::ffui_core::settings::TranscodeParallelismMode;
@@ -49,15 +49,19 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         let Some(job) = state.jobs.get(id) else {
             return false;
         };
-        matches!(job.status, JobStatus::Queued) && !state.active_inputs.contains(&job.filename) && {
-            if mode != TranscodeParallelismMode::Split {
-                return true;
+        matches!(job.status, JobStatus::Queued)
+            && !(is_batch_compress_media_child(job)
+                && state.active_batch_compress_media_jobs.contains(id))
+            && !state.active_inputs.contains(&job.filename)
+            && {
+                if mode != TranscodeParallelismMode::Split {
+                    return true;
+                }
+                match classify_job(state, job) {
+                    ParallelismClass::Cpu => active_cpu < cpu_cap,
+                    ParallelismClass::Hardware => active_hw < hw_cap,
+                }
             }
-            match classify_job(state, job) {
-                ParallelismClass::Cpu => active_cpu < cpu_cap,
-                ParallelismClass::Hardware => active_hw < hw_cap,
-            }
-        }
     })?;
 
     let job_id = if index == 0 {

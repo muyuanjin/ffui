@@ -137,6 +137,7 @@ mod batch_compress_video_savings_tests {
                 total_candidates,
                 total_processed: 0,
                 child_job_ids: vec![job_id.to_string()],
+                processed_child_job_ids: Default::default(),
                 started_at_ms: 1,
                 completed_at_ms: None,
             },

@@ -3,8 +3,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::super::state::{Inner, notify_queue_listeners};
-use super::super::worker_utils::{append_job_log_line, current_time_millis};
-use crate::ffui_core::domain::JobStatus;
+use super::super::worker_utils::{
+    append_job_log_line, current_time_millis, is_batch_compress_media_child,
+    mark_batch_compress_child_processed,
+};
+use crate::ffui_core::domain::{JobStatus, TranscodeJob};
 use crate::sync_ext::MutexExt;
 
 use super::cleanup::collect_job_tmp_cleanup_paths;
@@ -55,6 +58,36 @@ fn cleanup_temp_files_best_effort(paths: Vec<PathBuf>) {
     }));
 }
 
+fn should_enter_worker_queue(
+    state: &super::super::state::EngineState,
+    job_id: &str,
+    job: &TranscodeJob,
+) -> bool {
+    !is_batch_compress_media_child(job) || !state.active_batch_compress_media_jobs.contains(job_id)
+}
+
+fn sync_resumed_job_worker_queue_membership(
+    state: &mut super::super::state::EngineState,
+    job_id: &str,
+) -> bool {
+    let should_enter_worker_queue = state
+        .jobs
+        .get(job_id)
+        .is_some_and(|job| should_enter_worker_queue(state, job_id, job));
+
+    if should_enter_worker_queue {
+        if !state.queue.iter().any(|id| id == job_id) {
+            state.queue.push_back(job_id.to_string());
+            return true;
+        }
+        false
+    } else {
+        let before = state.queue.len();
+        state.queue.retain(|id| id != job_id);
+        state.queue.len() != before
+    }
+}
+
 fn cancel_waiting_like_job(
     state: &mut super::super::state::EngineState,
     job_id: &str,
@@ -87,7 +120,7 @@ fn cancel_waiting_like_job(
 pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
 
-    let (result, should_notify) = {
+    let (result, should_notify, should_mark_batch_child_processed) = {
         let mut state = inner.state.lock_unpoisoned();
         let status = match state.jobs.get(job_id) {
             Some(job) => job.status,
@@ -102,7 +135,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     &mut cleanup_paths,
                     "Cancelled before start",
                 );
-                (true, true)
+                (true, true, true)
             }
             JobStatus::Paused => {
                 cancel_waiting_like_job(
@@ -111,7 +144,7 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                     &mut cleanup_paths,
                     "Cancelled while paused",
                 );
-                (true, true)
+                (true, true, true)
             }
             JobStatus::Processing => {
                 // Mark for cooperative cancellation; the worker thread will
@@ -122,14 +155,17 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
                 }
                 state.wait_requests.remove(job_id);
                 state.cancelled_jobs.insert(job_id.to_string());
-                (true, true)
+                (true, true, false)
             }
-            _ => (false, false),
+            _ => (false, false, false),
         }
     };
 
     if should_notify {
         notify_queue_listeners(inner);
+        if should_mark_batch_child_processed {
+            mark_batch_compress_child_processed(inner, job_id);
+        }
     }
 
     // Perform filesystem cleanup outside of the engine lock.
@@ -305,6 +341,14 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
 
     let result = {
         let mut state = inner.state.lock_unpoisoned();
+        let Some(job) = state.jobs.get(job_id) else {
+            return false;
+        };
+        if matches!(job.status, JobStatus::Failed | JobStatus::Cancelled)
+            && is_batch_compress_media_child(job)
+        {
+            return false;
+        }
         let Some(job) = state.jobs.get_mut(job_id) else {
             return false;
         };
@@ -332,9 +376,7 @@ pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str
                 );
                 job.log_head = None;
 
-                if !state.queue.iter().any(|id| id == job_id) {
-                    state.queue.push_back(job_id.to_string());
-                }
+                sync_resumed_job_worker_queue_membership(&mut state, job_id);
 
                 should_notify = true;
                 // Any old restart or cancel flags become irrelevant.

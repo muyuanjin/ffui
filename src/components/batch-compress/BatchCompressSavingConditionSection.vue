@@ -21,6 +21,14 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+const toNonNegativeNumber = (value: string | number): number => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  return numeric;
+};
 </script>
 
 <template>
@@ -70,9 +78,11 @@ const { t } = useI18n();
       <div class="flex items-center gap-2">
         <Input
           type="number"
+          min="0"
+          step="0.1"
           :model-value="minSavingAbsoluteMb"
           class="w-24 h-8 text-sm"
-          @update:model-value="(v) => emit('update:minSavingAbsoluteMb', Number(v))"
+          @update:model-value="(v) => emit('update:minSavingAbsoluteMb', toNonNegativeNumber(v))"
         />
         <span class="text-xs text-muted-foreground">MB</span>
       </div>

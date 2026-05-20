@@ -4,6 +4,7 @@ use crate::ffui_core::domain::{
     AutoCompressProgress, QueueState, QueueStateLite, QueueStateLiteDelta, QueueStateUiLite,
     SavingConditionType,
 };
+use std::collections::HashSet;
 
 pub(in crate::ffui_core::engine) const BATCH_COMPRESS_PROGRESS_EVERY: u64 = 32;
 
@@ -41,6 +42,7 @@ pub(crate) struct BatchCompressBatch {
     pub(crate) total_candidates: u64,
     pub(crate) total_processed: u64,
     pub(crate) child_job_ids: Vec<String>,
+    pub(crate) processed_child_job_ids: HashSet<String>,
     #[allow(dead_code)]
     pub(crate) started_at_ms: u64,
     pub(crate) completed_at_ms: Option<u64>,

@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use super::super::state::{
     BatchCompressBatchStatus, Inner, update_batch_compress_batch_with_inner,
@@ -8,7 +9,7 @@ use super::super::state::{
 use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
 use super::helpers::{current_time_millis, make_batch_compress_job, notify_queue_listeners};
 use crate::ffui_core::domain::{AutoCompressResult, BatchCompressConfig, JobStatus, JobType};
-use crate::sync_ext::MutexExt;
+use crate::sync_ext::{CondvarExt, MutexExt};
 
 pub(super) fn insert_image_stub_job(
     inner: &Inner,
@@ -89,11 +90,58 @@ pub(super) fn insert_audio_stub_job(
     state.jobs.insert(job_id.to_string(), job);
 }
 
-pub(super) fn set_job_processing(inner: &Inner, job_id: &str) {
+pub(super) enum MediaWorkerJobState {
+    Ready,
+    Terminal,
+    Missing,
+}
+
+pub(super) fn wait_until_media_job_ready(inner: &Inner, job_id: &str) -> MediaWorkerJobState {
     let mut state = inner.state.lock_unpoisoned();
-    if let Some(job) = state.jobs.get_mut(job_id) {
-        job.status = JobStatus::Processing;
-        job.start_time.get_or_insert_with(current_time_millis);
+    loop {
+        let Some(job) = state.jobs.get_mut(job_id) else {
+            return MediaWorkerJobState::Missing;
+        };
+
+        match job.status {
+            JobStatus::Queued => {
+                job.status = JobStatus::Processing;
+                job.start_time.get_or_insert_with(current_time_millis);
+                return MediaWorkerJobState::Ready;
+            }
+            JobStatus::Paused => {
+                let (next, _) = inner
+                    .cv
+                    .wait_timeout_unpoisoned(state, Duration::from_millis(100));
+                state = next;
+            }
+            JobStatus::Completed
+            | JobStatus::Skipped
+            | JobStatus::Failed
+            | JobStatus::Cancelled => {
+                return MediaWorkerJobState::Terminal;
+            }
+            JobStatus::Processing => return MediaWorkerJobState::Terminal,
+        }
+    }
+}
+
+pub(super) fn register_media_worker_jobs(inner: &Inner, job_ids: &[String]) {
+    let mut state = inner.state.lock_unpoisoned();
+    state
+        .active_batch_compress_media_jobs
+        .extend(job_ids.iter().cloned());
+}
+
+pub(super) fn release_media_worker_job(inner: &Inner, job_id: &str) {
+    let mut state = inner.state.lock_unpoisoned();
+    state.active_batch_compress_media_jobs.remove(job_id);
+}
+
+pub(super) fn release_media_worker_jobs(inner: &Inner, job_ids: &[String]) {
+    let mut state = inner.state.lock_unpoisoned();
+    for job_id in job_ids {
+        state.active_batch_compress_media_jobs.remove(job_id);
     }
 }
 
@@ -103,6 +151,8 @@ pub(super) fn handle_media_worker_spawn_failure(
     pending_job_ids: Vec<String>,
     err: &std::io::Error,
 ) {
+    release_media_worker_jobs(inner, &pending_job_ids);
+
     update_batch_compress_batch_with_inner(inner, batch_id, true, |batch| {
         batch.status = BatchCompressBatchStatus::Failed;
         batch.completed_at_ms = Some(current_time_millis());

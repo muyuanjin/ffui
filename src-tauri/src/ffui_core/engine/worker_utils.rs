@@ -4,8 +4,8 @@ use super::state::{
     BatchCompressBatchStatus, Inner, notify_batch_compress_listeners, notify_queue_listeners,
 };
 use crate::ffui_core::domain::{
-    AutoCompressProgress, EncoderType, FFmpegPreset, JobLogLine, JobStatus, PresetStats,
-    TranscodeJob,
+    AutoCompressProgress, EncoderType, FFmpegPreset, JobLogLine, JobSource, JobStatus, JobType,
+    PresetStats, TranscodeJob,
 };
 use crate::sync_ext::MutexExt;
 
@@ -88,6 +88,11 @@ fn sync_job_logs_with_runs_if_needed(job: &mut TranscodeJob) {
         rebuilt.extend(run.logs.iter().cloned());
     }
     job.logs = rebuilt;
+}
+
+pub(super) fn is_batch_compress_media_child(job: &TranscodeJob) -> bool {
+    matches!(job.source, JobSource::BatchCompress)
+        && matches!(job.job_type, JobType::Image | JobType::Audio)
 }
 
 /// Returns the current time in milliseconds since UNIX epoch.
@@ -303,6 +308,10 @@ pub(super) fn mark_batch_compress_child_processed(inner: &Inner, job_id: &str) {
             job.status,
             JobStatus::Completed | JobStatus::Skipped | JobStatus::Failed | JobStatus::Cancelled
         ) {
+            return;
+        }
+
+        if !batch.processed_child_job_ids.insert(job_id.to_string()) {
             return;
         }
 
