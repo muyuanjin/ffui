@@ -56,3 +56,54 @@ fn worker_selection_skips_jobs_with_active_input_path() {
         );
     }
 }
+
+#[test]
+fn worker_selection_allows_same_filename_with_distinct_input_paths() {
+    let engine = make_engine_with_preset();
+
+    let job1 = engine.enqueue_transcode_job(
+        "C:/camera-a/IMG_0001.jpg".to_string(),
+        JobType::Image,
+        JobSource::Manual,
+        1.0,
+        Some("jpg".into()),
+        "preset-1".into(),
+    );
+    let job2 = engine.enqueue_transcode_job(
+        "C:/camera-b/IMG_0001.jpg".to_string(),
+        JobType::Image,
+        JobSource::Manual,
+        1.0,
+        Some("jpg".into()),
+        "preset-1".into(),
+    );
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        state
+            .jobs
+            .get_mut(&job1.id)
+            .expect("job1 should exist")
+            .filename = "IMG_0001.jpg".to_string();
+        state
+            .jobs
+            .get_mut(&job2.id)
+            .expect("job2 should exist")
+            .filename = "IMG_0001.jpg".to_string();
+
+        let first = next_job_for_worker_locked(&mut state).expect("first selection");
+        assert_eq!(first, job1.id);
+
+        let second = next_job_for_worker_locked(&mut state).expect("second selection");
+        assert_eq!(second, job2.id);
+
+        assert_eq!(
+            state.jobs.get(&job1.id).expect("job1 should exist").status,
+            JobStatus::Processing
+        );
+        assert_eq!(
+            state.jobs.get(&job2.id).expect("job2 should exist").status,
+            JobStatus::Processing
+        );
+    }
+}

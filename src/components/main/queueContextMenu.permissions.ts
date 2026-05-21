@@ -22,17 +22,8 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
 
   const isTerminalStatus = (value: JobStatus | undefined) =>
     value === "completed" || value === "failed" || value === "skipped" || value === "cancelled";
-  const isProcessingBatchMediaChild = computed(
-    () =>
-      status.value === "processing" &&
-      props.jobSource === "batch_compress" &&
-      (props.jobType === "image" || props.jobType === "audio"),
-  );
-
   // 允许在显示模式下也能进行暂停/继续操作（仅影响单个任务状态，不改变队列优先级）。
-  const canWait = computed(
-    () => props.mode === "single" && status.value === "processing" && !isProcessingBatchMediaChild.value,
-  );
+  const canWait = computed(() => props.mode === "single" && status.value === "processing");
   const canResume = computed(() => props.mode === "single" && status.value === "paused");
 
   const canRestart = computed(
@@ -40,8 +31,7 @@ export function createQueueContextMenuPermissions(props: QueueContextMenuPermiss
       props.mode === "single" &&
       status.value !== undefined &&
       status.value !== "completed" &&
-      status.value !== "skipped" &&
-      !isProcessingBatchMediaChild.value,
+      status.value !== "skipped",
   );
 
   const canCancel = computed(

@@ -58,25 +58,51 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
 
     let batch_id = descriptor.batch_id;
 
-    // 等待批次汇总达到预期：1 个扫描文件、1 个候选、1 个已处理（被标记为 Skipped）。
-    let summary = {
+    {
         let mut attempts = 0;
         loop {
-            if let Some(summary) = engine.batch_compress_batch_summary(&batch_id)
-                && summary.total_files_scanned >= 1
-                && summary.total_candidates >= 1
-                && summary.total_processed >= 1
-            {
-                break summary;
+            let state = engine.inner.state.lock_unpoisoned();
+            let maybe_audio_job_id = state.jobs.values().find_map(|job| {
+                (job.batch_id.as_deref() == Some(batch_id.as_str())
+                    && job.job_type == JobType::Audio)
+                    .then(|| job.id.clone())
+            });
+            if let Some(job_id) = maybe_audio_job_id {
+                assert!(
+                    state.queue.iter().any(|queued| queued == &job_id),
+                    "Batch Compress audio child must enter the normal worker queue"
+                );
+                assert!(
+                    !state.active_batch_compress_media_jobs.contains(&job_id),
+                    "Batch Compress audio child must not be registered to the legacy media-worker bypass"
+                );
+                break;
             }
+            drop(state);
             attempts += 1;
             assert!(
-                (attempts <= 100),
-                "Batch Compress audio batch did not reach expected summary within timeout"
+                attempts <= 100,
+                "Batch Compress audio child was not created within timeout"
             );
             std::thread::sleep(std::time::Duration::from_millis(50));
         }
+    }
+
+    let job_id = {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        next_job_for_worker_locked(&mut state)
+            .expect("audio child should be selectable by normal worker")
     };
+    process_transcode_job(&engine.inner, &job_id)
+        .expect("normal worker should process audio child");
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        finish_job_and_try_start_next_locked(&mut state, &job_id);
+    }
+
+    let summary = engine
+        .batch_compress_batch_summary(&batch_id)
+        .expect("Batch Compress summary should remain available");
 
     assert_eq!(
         summary.total_files_scanned, 1,
@@ -117,5 +143,44 @@ fn batch_compress_enqueues_audio_candidates_when_enabled() {
     assert!(
         reason.contains("Size <"),
         "skipReason for audio job should describe minimum size check, got: {reason}"
+    );
+}
+
+#[test]
+fn invalid_audio_preset_id_falls_back_to_default_and_clears_job_preset() {
+    let data_root = tempfile::tempdir().expect("temp data root");
+    let _root_guard =
+        crate::ffui_core::data_root::override_data_root_dir_for_tests(data_root.path().into());
+
+    let audio = data_root.path().join("stale-preset.mp3");
+    fs::write(&audio, vec![0u8; 1024]).expect("write audio input");
+
+    let inner = Inner::new(vec![make_test_preset()], AppSettings::default());
+    let config = BatchCompressConfig {
+        min_audio_size_kb: 2_048,
+        audio_preset_id: Some("stale-audio-preset".to_string()),
+        ..Default::default()
+    };
+
+    let job = handle_audio_file_with_id(
+        &inner,
+        &audio,
+        &config,
+        &AppSettings::default(),
+        inner.state.lock_unpoisoned().presets.as_ref(),
+        "batch-stale-audio-preset",
+        Some("job-stale-audio-preset".to_string()),
+    )
+    .expect("small audio file should use skip path without running ffmpeg");
+
+    assert_eq!(
+        job.preset_id, "",
+        "stale non-empty audio preset ids must be normalized to default audio compression"
+    );
+    assert!(
+        job.log_tail
+            .as_deref()
+            .is_some_and(|tail| tail.contains("falling back to default audio compression")),
+        "job log should explain stale audio preset fallback"
     );
 }

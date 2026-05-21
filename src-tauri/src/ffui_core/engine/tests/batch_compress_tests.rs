@@ -45,6 +45,42 @@ fn run_auto_compress_emits_monotonic_progress_and_matches_summary() {
 
     let batch_id = descriptor.batch_id;
 
+    {
+        let mut attempts = 0;
+        loop {
+            let ready = {
+                let state = engine.inner.state.lock_unpoisoned();
+                state
+                    .batch_compress_batches
+                    .get(&batch_id)
+                    .is_some_and(|batch| {
+                        batch.total_files_scanned >= 3 && batch.total_candidates >= 3
+                    })
+            };
+            if ready {
+                break;
+            }
+            attempts += 1;
+            assert!(
+                attempts <= 100,
+                "Batch Compress batch did not enqueue expected children within timeout"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+
+    let mut next_job = {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        next_job_for_worker_locked(&mut state)
+    };
+    while let Some(job_id) = next_job {
+        process_transcode_job(&engine.inner, &job_id).expect("normal worker should process child");
+        next_job = {
+            let mut state = engine.inner.state.lock_unpoisoned();
+            finish_job_and_try_start_next_locked(&mut state, &job_id)
+        };
+    }
+
     // 等待后台 Batch Compress 批次完成，最多轮询约 5 秒。
     let summary = {
         let mut attempts = 0;
@@ -442,7 +478,7 @@ fn batch_compress_pushes_full_batch_snapshot_after_detection() {
 }
 
 #[test]
-fn batch_compress_registers_media_owner_before_queue_snapshot_repair() {
+fn batch_compress_media_children_enter_normal_worker_queue() {
     let dir = env::temp_dir().join("ffui_batch_compress_media_owner_race");
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::create_dir_all(&dir);
@@ -459,20 +495,6 @@ fn batch_compress_registers_media_owner_before_queue_snapshot_repair() {
     }
 
     let engine = make_engine_with_preset();
-    let bad_snapshots: TestArc<TestMutex<Vec<String>>> = TestArc::new(TestMutex::new(Vec::new()));
-    let bad_snapshots_clone = TestArc::clone(&bad_snapshots);
-
-    engine.register_queue_listener(move |state: QueueState| {
-        for job in state.jobs {
-            if matches!(job.source, JobSource::BatchCompress)
-                && job.job_type == JobType::Image
-                && job.status == JobStatus::Queued
-                && job.queue_order.is_some()
-            {
-                bad_snapshots_clone.lock_unpoisoned().push(job.id);
-            }
-        }
-    });
 
     let config = BatchCompressConfig {
         min_image_size_kb: 10_000,
@@ -508,11 +530,41 @@ fn batch_compress_registers_media_owner_before_queue_snapshot_repair() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
 
-    let bad_snapshots = bad_snapshots.lock_unpoisoned();
+    let state = engine.inner.state.lock_unpoisoned();
+    let media_child_ids: Vec<String> = state
+        .jobs
+        .iter()
+        .filter_map(|(id, job)| {
+            (job.batch_id.as_deref() == Some(descriptor.batch_id.as_str())
+                && matches!(job.job_type, JobType::Image | JobType::Audio))
+            .then(|| id.clone())
+        })
+        .collect();
     assert!(
-        bad_snapshots.is_empty(),
-        "live Batch Compress image children must not appear in the normal worker queue; bad ids: {:?}",
-        *bad_snapshots
+        !media_child_ids.is_empty(),
+        "Batch Compress should create image/audio children for the mixed media test"
+    );
+    for id in &media_child_ids {
+        assert!(
+            state.queue.iter().any(|queued| queued == id),
+            "Batch Compress media child must appear in the normal worker queue: {id}"
+        );
+        assert!(
+            !state.active_batch_compress_media_jobs.contains(id),
+            "Batch Compress media child must not be owned by the legacy media-worker bypass: {id}"
+        );
+    }
+    drop(state);
+
+    let next_job = {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        next_job_for_worker_locked(&mut state)
+    };
+    assert!(
+        next_job
+            .as_ref()
+            .is_some_and(|id| media_child_ids.contains(id)),
+        "normal worker selection should be able to pick a Batch Compress media child; got {next_job:?}"
     );
 
     let _ = fs::remove_dir_all(&dir);

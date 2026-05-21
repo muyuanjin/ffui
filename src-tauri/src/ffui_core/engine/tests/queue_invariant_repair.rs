@@ -165,8 +165,8 @@ fn notify_queue_listeners_only_excludes_media_children_with_live_worker_owner() 
 
     let state = engine.inner.state.lock_unpoisoned();
     assert!(
-        !state.queue.iter().any(|id| id == &owned_id),
-        "media children with a live media worker owner must stay out of the normal worker queue",
+        state.queue.iter().any(|id| id == &owned_id),
+        "media children with stale media worker ownership must remain in the normal worker queue",
     );
     assert!(
         state.queue.iter().any(|id| id == &orphan_id),

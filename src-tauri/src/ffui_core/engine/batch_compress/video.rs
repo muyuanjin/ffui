@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::fs;
 use std::path::Path;
 
@@ -286,28 +285,13 @@ pub(crate) fn enqueue_batch_compress_video_job(
     }
     job.estimated_seconds = estimate_job_seconds_for_preset(original_size_mb, preset);
 
-    // Insert the job into the waiting queue while keeping Batch Compress batch
-    // children consecutive. If this batch already has waiting jobs, place
-    // the new child right after the last existing sibling; otherwise append
-    // to the tail like a normal enqueue.
-    state.jobs.insert(id.clone(), job.clone());
-
-    let mut queue_vec: Vec<String> = state.queue.iter().cloned().collect();
-    let mut last_sibling_index: Option<usize> = None;
-    for (index, existing_id) in queue_vec.iter().enumerate() {
-        if let Some(existing) = state.jobs.get(existing_id)
-            && existing.batch_id.as_deref() == Some(batch_id)
-        {
-            last_sibling_index = Some(index);
-        }
-    }
-
-    match last_sibling_index {
-        Some(idx) if idx < queue_vec.len() => queue_vec.insert(idx + 1, id),
-        _ => queue_vec.push(id),
-    }
-
-    state.queue = VecDeque::from(queue_vec);
+    // Insert the job into the waiting queue while keeping Batch Compress batch children consecutive.
+    super::orchestrator_helpers::insert_batch_child_after_siblings(
+        &mut state,
+        batch_id,
+        id,
+        job.clone(),
+    );
     drop(state);
 
     if notify_queue {

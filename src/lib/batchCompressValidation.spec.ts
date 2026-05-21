@@ -61,4 +61,43 @@ describe("batchCompressValidation", () => {
       ),
     ).toBe(true);
   });
+
+  it("rejects stale audio preset ids when audio compression is enabled", () => {
+    expect(
+      canStartBatchCompress(
+        buildBatchCompressDefaults({
+          rootPath: "C:/media",
+          videoFilter: { enabled: false, extensions: [] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: true, extensions: ["mp3"] },
+          audioPresetId: "missing-audio-preset",
+        }),
+        presets,
+      ),
+    ).toBe(false);
+  });
+
+  it("allows default audio compression with an empty audio preset id", () => {
+    expect(
+      canStartBatchCompress(
+        buildBatchCompressDefaults({
+          rootPath: "C:/media",
+          videoFilter: { enabled: false, extensions: [] },
+          imageFilter: { enabled: false, extensions: [] },
+          audioFilter: { enabled: true, extensions: ["mp3"] },
+          audioPresetId: "",
+        }),
+        presets,
+      ),
+    ).toBe(true);
+  });
+
+  it("clears stale audio preset ids during normalization when presets are provided", () => {
+    const normalized = normalizeBatchCompressConfig(
+      buildBatchCompressDefaults({ audioPresetId: "missing-audio-preset" }),
+      presets,
+    );
+
+    expect(normalized.audioPresetId).toBe("");
+  });
 });

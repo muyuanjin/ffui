@@ -30,6 +30,7 @@ mod snapshots;
 mod types;
 mod ui_lite;
 
+use super::worker_utils::active_input_key;
 use snapshots::snapshot_queue_state_lite_from_locked_state;
 
 pub(super) use deltas::notify_queue_lite_delta_for_job_terminal_state;
@@ -84,8 +85,10 @@ pub(crate) struct EngineState {
     // Known Batch Compress output paths (both from current and previous runs).
     // These avoid overwriting outputs and re-enqueuing them as candidates.
     pub(crate) known_batch_compress_outputs: HashSet<String>,
-    // Batch Compress image/audio children are excluded from the normal worker
-    // queue only while this runtime ownership set contains their id.
+    // Legacy runtime ownership set from the removed Batch Compress media worker.
+    // New scheduling ignores this set; it is retained only so stale in-memory
+    // tests/state can be harmlessly repaired without a broader state migration.
+    #[allow(dead_code)]
     pub(crate) active_batch_compress_media_jobs: HashSet<String>,
     // Cache of ffmpeg feature probes keyed by executable path.
     pub(crate) ffmpeg_supports_stats_period: HashMap<String, bool>,
@@ -267,28 +270,27 @@ fn repair_queue_invariants_locked(state: &mut EngineState) {
     state.active_inputs = state
         .active_jobs
         .iter()
-        .filter_map(|id| state.jobs.get(id).map(|job| job.filename.clone()))
+        .filter_map(|id| {
+            state
+                .jobs
+                .get(id)
+                .map(|job| active_input_key(job).to_string())
+        })
         .collect();
 
-    let active_media_jobs = state.active_batch_compress_media_jobs.clone();
     let mut seen: HashSet<String> = HashSet::with_capacity(state.queue.len());
     state.queue.retain(|id| {
         if !seen.insert(id.clone()) {
             return false;
         }
-        state.jobs.get(id).is_some_and(|job| {
-            matches!(job.status, JobStatus::Queued | JobStatus::Paused)
-                && (!super::worker_utils::is_batch_compress_media_child(job)
-                    || !active_media_jobs.contains(id))
-        })
+        state
+            .jobs
+            .get(id)
+            .is_some_and(|job| matches!(job.status, JobStatus::Queued | JobStatus::Paused))
     });
 
     for (id, job) in &state.jobs {
         if !matches!(job.status, JobStatus::Queued | JobStatus::Paused) {
-            continue;
-        }
-        if super::worker_utils::is_batch_compress_media_child(job) && active_media_jobs.contains(id)
-        {
             continue;
         }
         if seen.contains(id) {

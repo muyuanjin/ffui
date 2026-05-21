@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn pause_processing_jobs_for_exit_waits_for_active_batch_media_children() {
+    fn pause_processing_jobs_for_exit_requests_wait_for_batch_media_children() {
         let engine = TranscodingEngine::new_for_tests();
         let job_id = "job-exit-active-batch-media-child".to_string();
 
@@ -336,8 +336,8 @@ mod tests {
 
         let state = engine.inner.state.lock_unpoisoned();
         assert!(
-            !state.wait_requests.contains(&job_id),
-            "Batch Compress media children are owned by the media worker and should not get normal worker wait requests"
+            state.wait_requests.contains(&job_id),
+            "Batch Compress media children run in the normal queue and should get normal worker wait requests"
         );
     }
 

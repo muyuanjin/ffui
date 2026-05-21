@@ -61,9 +61,19 @@ fn finalize_successful_transcode_job(
                     crate::ffui_core::domain::JobType::Video
                 )
             {
-                if let Some(batch_id) = job_snapshot.batch_id.clone()
-                    && let Some(batch) = state.batch_compress_batches.get(&batch_id)
-                    && batch.replace_original
+                let replace_original = job_snapshot
+                    .batch_id
+                    .as_ref()
+                    .and_then(|batch_id| state.batch_compress_batches.get(batch_id))
+                    .map(|batch| batch.replace_original)
+                    .unwrap_or_else(|| {
+                        job_snapshot
+                            .batch_compress_saving_condition
+                            .and_then(|saving| saving.replace_original)
+                            .unwrap_or(false)
+                    });
+
+                if replace_original
                     && let (Some(ref input_str), Some(ref output_str)) =
                         (job_snapshot.input_path.as_ref(), job_snapshot.output_path.as_ref())
                 {

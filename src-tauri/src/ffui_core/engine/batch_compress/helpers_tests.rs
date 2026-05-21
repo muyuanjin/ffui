@@ -4,7 +4,7 @@ use std::thread;
 use std::time::Duration;
 
 use super::helpers::{
-    BatchCompressJobSpec, SavingConditionConfig, make_batch_compress_job,
+    BatchCompressJobSpec, MediaCommandStopReason, SavingConditionConfig, make_batch_compress_job,
     run_killable_command_capture, saving_condition_allows_output, wait_for_killable_command,
 };
 use super::replace_original::finalize_replace_original_output;
@@ -30,6 +30,10 @@ fn make_batch_compress_job_populates_core_fields() {
             saving_condition_type: SavingConditionType::Ratio,
             min_saving_ratio: 0.95,
             min_saving_absolute_mb: 5.0,
+            min_image_size_kb: None,
+            min_audio_size_kb: None,
+            image_target_format: None,
+            replace_original: None,
         },
         start_time: Some(123),
     });
@@ -143,15 +147,15 @@ fn killable_command_reports_completed_when_cancel_flag_arrives_after_child_exit(
         state.cancelled_jobs.insert(job_id.to_string());
     }
 
-    let (status, cancelled) = wait_for_killable_command(&inner, job_id, &mut child)
+    let (status, stop_reason) = wait_for_killable_command(&inner, job_id, &mut child)
         .expect("completed command should report status");
 
     assert!(status.success());
-    assert!(!cancelled);
+    assert_eq!(stop_reason, None);
 }
 
 #[test]
-fn killable_command_stops_process_when_media_job_is_cancelled() {
+fn killable_command_returns_cancel_stop_reason_when_media_job_is_cancelled() {
     let inner = Inner::new(
         vec![crate::test_support::make_ffmpeg_preset_for_tests(
             "preset-1",
@@ -182,10 +186,55 @@ fn killable_command_stops_process_when_media_job_is_cancelled() {
     )
     .expect("killable command should return after cancellation");
 
-    assert!(output.cancelled);
+    assert_eq!(
+        output.stop_reason,
+        Some(MediaCommandStopReason::CancelRequested)
+    );
     assert!(
         !output.status.success(),
         "cancelled command should not report a successful exit"
+    );
+}
+
+#[test]
+fn killable_command_returns_wait_stop_reason_when_media_job_waits() {
+    let inner = Inner::new(
+        vec![crate::test_support::make_ffmpeg_preset_for_tests(
+            "preset-1",
+        )],
+        AppSettings::default(),
+    );
+    let job_id = "job-killable-wait";
+    {
+        let mut state = inner.state.lock_unpoisoned();
+        state.wait_requests.insert(job_id.to_string());
+    }
+
+    let (program, args): (&str, Vec<String>) = if cfg!(windows) {
+        (
+            "cmd.exe",
+            vec!["/C".to_string(), "ping -n 6 127.0.0.1 >nul".to_string()],
+        )
+    } else {
+        ("sh", vec!["-c".to_string(), "sleep 5".to_string()])
+    };
+
+    let output = run_killable_command_capture(
+        &inner,
+        job_id,
+        program,
+        &args,
+        "failed to start long-running wait test command".to_string(),
+    )
+    .expect("killable command should return after wait request");
+
+    assert_eq!(
+        output.stop_reason,
+        Some(MediaCommandStopReason::WaitRequested)
+    );
+    assert!(
+        !output.status.success(),
+        "wait-stopped command should not report a successful exit"
     );
 }
 

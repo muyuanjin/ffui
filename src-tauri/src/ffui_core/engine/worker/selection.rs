@@ -1,5 +1,5 @@
 use super::super::state::EngineState;
-use super::super::worker_utils::{current_time_millis, is_batch_compress_media_child};
+use super::super::worker_utils::{active_input_key, current_time_millis};
 use crate::ffui_core::domain::{EncoderType, FFmpegPreset, JobStatus, TranscodeJob, WaitMetadata};
 use crate::ffui_core::engine::ffmpeg_args::compute_progress_percent;
 use crate::ffui_core::settings::TranscodeParallelismMode;
@@ -49,10 +49,19 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
         let Some(job) = state.jobs.get(id) else {
             return false;
         };
+        let batch_is_scanning = job
+            .batch_id
+            .as_deref()
+            .and_then(|batch_id| state.batch_compress_batches.get(batch_id))
+            .is_some_and(|batch| {
+                matches!(
+                    batch.status,
+                    super::super::state::BatchCompressBatchStatus::Scanning
+                )
+            });
         matches!(job.status, JobStatus::Queued)
-            && !(is_batch_compress_media_child(job)
-                && state.active_batch_compress_media_jobs.contains(id))
-            && !state.active_inputs.contains(&job.filename)
+            && !batch_is_scanning
+            && !state.active_inputs.contains(active_input_key(job))
             && {
                 if mode != TranscodeParallelismMode::Split {
                     return true;
@@ -78,7 +87,9 @@ pub(in crate::ffui_core::engine) fn next_job_for_worker_locked(
 
     if let Some(job) = state.jobs.get_mut(&job_id) {
         state.active_jobs.insert(job_id.clone());
-        state.active_inputs.insert(job.filename.clone());
+        state
+            .active_inputs
+            .insert(active_input_key(job).to_string());
         job.status = JobStatus::Processing;
         if job.start_time.is_none() {
             job.start_time = Some(now_ms);

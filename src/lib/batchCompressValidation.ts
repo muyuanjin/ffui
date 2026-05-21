@@ -10,9 +10,14 @@ const normalizeNonNegativeNumber = (value: unknown): number => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
 };
 
-export function normalizeBatchCompressConfig(value: BatchCompressConfig): BatchCompressConfig {
+export function normalizeBatchCompressConfig(
+  value: BatchCompressConfig,
+  presets: FFmpegPreset[] = [],
+): BatchCompressConfig {
+  const hasAudioPreset = !!value.audioPresetId && presets.some((preset) => preset.id === value.audioPresetId);
   return {
     ...value,
+    audioPresetId: value.audioPresetId && !hasAudioPreset ? "" : value.audioPresetId,
     minVideoSizeMB: normalizeNonNegativeInteger(value.minVideoSizeMB),
     minImageSizeKB: normalizeNonNegativeInteger(value.minImageSizeKB),
     minAudioSizeKB: normalizeNonNegativeInteger(value.minAudioSizeKB),
@@ -31,5 +36,8 @@ export function canStartBatchCompress(config: BatchCompressConfig, presets: FFmp
   const hasAnyFilter = filters.some((filter) => filter.enabled && filter.extensions.length > 0);
   const hasVideoCandidates = config.videoFilter.enabled && config.videoFilter.extensions.length > 0;
   const hasValidVideoPreset = !hasVideoCandidates || presets.some((preset) => preset.id === config.videoPresetId);
-  return hasPath && hasAnyFilter && hasValidVideoPreset;
+  const hasAudioCandidates = config.audioFilter.enabled && config.audioFilter.extensions.length > 0;
+  const hasValidAudioPreset =
+    !hasAudioCandidates || !config.audioPresetId || presets.some((preset) => preset.id === config.audioPresetId);
+  return hasPath && hasAnyFilter && hasValidVideoPreset && hasValidAudioPreset;
 }

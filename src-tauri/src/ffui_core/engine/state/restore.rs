@@ -1,7 +1,5 @@
 use super::super::state_persist::{load_persisted_queue_state, load_persisted_terminal_job_logs};
-use super::super::worker_utils::{
-    append_job_log_line, current_time_millis, is_batch_compress_media_child, recompute_log_tail,
-};
+use super::super::worker_utils::{append_job_log_line, recompute_log_tail};
 use super::Inner;
 use crate::ffui_core::ShutdownMarkerKind;
 use crate::ffui_core::domain::{JobStatus, QueueStartupHint, QueueStartupHintKind, QueueState};
@@ -202,23 +200,6 @@ pub(super) fn restore_jobs_from_snapshot(inner: &Inner, snapshot: QueueState) {
             // auto-paused, even if they already reached Paused before shutdown.
             if !auto_paused && processing_on_auto_wait_exit {
                 auto_paused = true;
-            }
-
-            if matches!(job.status, JobStatus::Queued | JobStatus::Paused)
-                && is_batch_compress_media_child(&job)
-            {
-                job.status = JobStatus::Failed;
-                job.progress = 100.0;
-                job.end_time = Some(current_time_millis());
-                let reason = concat!(
-                    "Batch Compress media job could not be recovered because ",
-                    "its media worker ended with the previous app session."
-                )
-                .to_string();
-                job.failure_reason = Some(reason.clone());
-                append_job_log_line(&mut job, reason);
-                job.log_head = None;
-                auto_paused = false;
             }
 
             // 处理耗时基线属于运行期信息，恢复时清空，待重新进入 Processing 时再设置。

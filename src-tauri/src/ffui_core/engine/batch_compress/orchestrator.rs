@@ -13,27 +13,26 @@ use super::super::state::{
     is_known_batch_compress_output_with_inner, notify_batch_compress_listeners,
     update_batch_compress_batch_with_inner,
 };
-use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
-use super::audio::handle_audio_file_with_id;
 use super::detection::{
     is_audio_file, is_batch_compress_style_output, is_image_file, is_video_file,
     passes_media_filter,
 };
 use super::helpers::{current_time_millis, next_job_id, notify_queue_listeners};
-use super::image::handle_image_file_with_id;
-use super::orchestrator_helpers::{
-    MediaWorkerJobState, insert_audio_stub_job, insert_image_stub_job, register_media_worker_jobs,
-    release_media_worker_job, release_media_worker_jobs, wait_until_media_job_ready,
-};
+use super::orchestrator_helpers::{insert_audio_stub_job, insert_image_stub_job};
 use super::video::enqueue_batch_compress_video_job;
 use crate::ffui_core::domain::{
     AutoCompressProgress, AutoCompressResult, BatchCompressConfig, FFmpegPreset, ImageTargetFormat,
-    JobStatus, TranscodeJob,
+    JobStatus,
 };
 use crate::ffui_core::settings::{self, AppSettings};
 use crate::sync_ext::MutexExt;
 
-pub(crate) fn store_media_worker_result(inner: &Inner, job_id: &str, job: TranscodeJob) {
+#[cfg(test)]
+pub(crate) fn store_media_worker_result(
+    inner: &Inner,
+    job_id: &str,
+    job: crate::ffui_core::domain::TranscodeJob,
+) {
     let mut state = inner.state.lock_unpoisoned();
     state.cancelled_jobs.remove(job_id);
     state.jobs.insert(job.id.clone(), job);
@@ -66,24 +65,17 @@ pub(crate) fn run_auto_compress(
         let batch_hash = hasher.finish();
         let batch_id = format!("auto-compress-{batch_hash:016x}");
 
-        let batch = BatchCompressBatch {
-            batch_id: batch_id.clone(),
-            root_path: root_path.clone(),
-            // 每个批次独立携带 replace_original 配置，避免后续修改默认设置时影响
-            // 之前已入队但尚未处理完的 Batch Compress 任务。
-            replace_original: config.replace_original,
-            saving_condition_type: config.saving_condition_type,
-            min_saving_ratio: config.min_saving_ratio,
-            min_saving_absolute_mb: config.min_saving_absolute_mb,
-            status: BatchCompressBatchStatus::Scanning,
-            total_files_scanned: 0,
-            total_candidates: 0,
-            total_processed: 0,
-            child_job_ids: Vec::new(),
-            processed_child_job_ids: Default::default(),
-            started_at_ms,
-            completed_at_ms: None,
-        };
+        let mut batch = BatchCompressBatch::new(batch_id.clone(), root_path.clone(), started_at_ms);
+        // 每个批次独立携带 Batch Compress 配置快照，避免后续修改默认设置时影响
+        // 之前已入队但尚未处理完的任务。
+        batch.replace_original = config.replace_original;
+        batch.min_image_size_kb = config.min_image_size_kb;
+        batch.min_audio_size_kb = config.min_audio_size_kb;
+        batch.image_target_format = config.image_target_format;
+        batch.output_policy = config.output_policy.clone();
+        batch.saving_condition_type = config.saving_condition_type;
+        batch.min_saving_ratio = config.min_saving_ratio;
+        batch.min_saving_absolute_mb = config.min_saving_absolute_mb;
 
         state.batch_compress_batches.insert(batch_id.clone(), batch);
         drop(state);
@@ -159,12 +151,6 @@ fn run_auto_compress_background(
     presets: Arc<Vec<FFmpegPreset>>,
     batch_id: String,
 ) {
-    #[derive(Clone, Copy)]
-    enum MediaTaskKind {
-        Image,
-        Audio,
-    }
-
     let mut queue_dirty = false;
     let mut waiting_jobs_enqueued = false;
 
@@ -290,19 +276,6 @@ fn run_auto_compress_background(
         });
     }
 
-    let mut pending_media_tasks: Vec<(String, PathBuf, MediaTaskKind)> = Vec::new();
-    let mut register_stub_job = |job_id: String, path: PathBuf, kind: MediaTaskKind| {
-        update_batch_compress_batch_with_inner(inner, &batch_id, true, |batch| {
-            batch.total_candidates = batch.total_candidates.saturating_add(1);
-            batch.child_job_ids.push(job_id.clone());
-            if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
-                batch.status = BatchCompressBatchStatus::Running;
-            }
-        });
-
-        pending_media_tasks.push((job_id, path, kind));
-    };
-
     // 第二次遍历：基于快照建任务，快速推给 UI；重处理放到异步线程。
     for path in all_files {
         if is_known_batch_compress_output_with_inner(inner, &path) {
@@ -324,7 +297,7 @@ fn run_auto_compress_background(
             let job_id = next_job_id(inner);
             insert_image_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
-            register_stub_job(job_id, path, MediaTaskKind::Image);
+            waiting_jobs_enqueued = true;
         } else if is_audio_file(&path) {
             if is_batch_compress_style_output(&path) {
                 continue;
@@ -336,7 +309,7 @@ fn run_auto_compress_background(
             let job_id = next_job_id(inner);
             insert_audio_stub_job(inner, &job_id, &path, &config, &batch_id);
             queue_dirty = true;
-            register_stub_job(job_id, path, MediaTaskKind::Audio);
+            waiting_jobs_enqueued = true;
         } else if is_video_file(&path) {
             if is_batch_compress_style_output(&path) {
                 continue;
@@ -378,8 +351,6 @@ fn run_auto_compress_background(
                     );
                     if is_terminal {
                         batch.total_processed = batch.total_processed.saturating_add(1);
-                    } else if matches!(batch.status, BatchCompressBatchStatus::Scanning) {
-                        batch.status = BatchCompressBatchStatus::Running;
                     }
                 });
             } else {
@@ -437,101 +408,11 @@ fn run_auto_compress_background(
         }
     });
 
-    let pending_media_job_ids: Vec<String> = pending_media_tasks
-        .iter()
-        .map(|(job_id, _, _)| job_id.clone())
-        .collect();
-    if !pending_media_job_ids.is_empty() {
-        register_media_worker_jobs(inner, &pending_media_job_ids);
-    }
-
     if queue_dirty {
         notify_queue_listeners(inner);
     }
 
     if waiting_jobs_enqueued {
         inner.cv.notify_all();
-    }
-
-    if !pending_media_tasks.is_empty() {
-        let inner_clone = Arc::clone(inner);
-        let config_clone = config;
-        let settings_clone = settings_snapshot;
-        let presets_clone = presets;
-        let batch_id_clone = batch_id.clone();
-        let pending_job_ids = pending_media_job_ids;
-        let cleanup_pending_job_ids = pending_job_ids.clone();
-
-        let spawned = thread::Builder::new()
-            .name(format!("batch-compress-media-worker-{batch_id}"))
-            .spawn(move || {
-                for (job_id, path, kind) in pending_media_tasks {
-                    match wait_until_media_job_ready(&inner_clone, &job_id) {
-                        MediaWorkerJobState::Ready => {}
-                        MediaWorkerJobState::Terminal => {
-                            mark_batch_compress_child_processed(&inner_clone, &job_id);
-                            release_media_worker_job(&inner_clone, &job_id);
-                            continue;
-                        }
-                        MediaWorkerJobState::Missing => {
-                            release_media_worker_job(&inner_clone, &job_id);
-                            continue;
-                        }
-                    }
-                    let result = match kind {
-                        MediaTaskKind::Image => handle_image_file_with_id(
-                            &inner_clone,
-                            &path,
-                            &config_clone,
-                            &settings_clone,
-                            &batch_id_clone,
-                            Some(job_id.clone()),
-                        ),
-                        MediaTaskKind::Audio => handle_audio_file_with_id(
-                            &inner_clone,
-                            &path,
-                            &config_clone,
-                            &settings_clone,
-                            &presets_clone,
-                            &batch_id_clone,
-                            Some(job_id.clone()),
-                        ),
-                    };
-
-                    match result {
-                        Ok(job) => {
-                            store_media_worker_result(&inner_clone, &job_id, job);
-                        }
-                        Err(err) => {
-                            let mut state = inner_clone.state.lock_unpoisoned();
-                            if let Some(job) = state.jobs.get_mut(&job_id) {
-                                job.status = JobStatus::Failed;
-                                job.progress = 100.0;
-                                job.end_time = Some(current_time_millis());
-                                let reason =
-                                    format!("Batch Compress media compression failed: {err:#}");
-                                job.failure_reason = Some(reason.clone());
-                                append_job_log_line(job, reason);
-                            }
-                        }
-                    }
-
-                    notify_queue_listeners(&inner_clone);
-                    mark_batch_compress_child_processed(&inner_clone, &job_id);
-                    release_media_worker_job(&inner_clone, &job_id);
-                }
-                release_media_worker_jobs(&inner_clone, &cleanup_pending_job_ids);
-            })
-            .map(|_| ());
-
-        if let Err(err) = spawned {
-            crate::debug_eprintln!("failed to spawn batch compress media worker thread: {err}");
-            super::orchestrator_helpers::handle_media_worker_spawn_failure(
-                inner,
-                &batch_id,
-                pending_job_ids,
-                &err,
-            );
-        }
     }
 }

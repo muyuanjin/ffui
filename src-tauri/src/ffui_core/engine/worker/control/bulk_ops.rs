@@ -1,13 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::ffui_core::domain::JobStatus;
+use crate::ffui_core::domain::{AutoCompressProgress, JobStatus};
 use crate::sync_ext::MutexExt;
 
-use super::super::super::state::{Inner, notify_queue_listeners};
-use super::super::super::worker_utils::{
-    append_job_log_line, is_batch_compress_media_child, mark_batch_compress_child_processed,
-};
+use super::super::super::state::{Inner, notify_batch_compress_listeners, notify_queue_listeners};
+use super::super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
 use super::super::cleanup::collect_job_tmp_cleanup_paths;
 
 pub(in crate::ffui_core::engine) fn cancel_jobs_bulk(
@@ -160,21 +158,10 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
     let mut cleanup_paths: Vec<PathBuf> = Vec::new();
     let mut should_notify = false;
     let mut touched_any = false;
+    let mut batch_progress_snapshots: Vec<AutoCompressProgress> = Vec::new();
 
     {
         let mut state = inner.state.lock_unpoisoned();
-
-        if unique_job_ids.iter().any(|job_id| {
-            state.jobs.get(job_id.as_str()).is_some_and(|job| {
-                matches!(job.status, JobStatus::Processing)
-                    && is_batch_compress_media_child(job)
-                    && state
-                        .active_batch_compress_media_jobs
-                        .contains(job_id.as_str())
-            })
-        }) {
-            return false;
-        }
 
         for job_id in &unique_job_ids {
             let job_id = job_id.as_str();
@@ -184,14 +171,13 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
             touched_any = true;
             let status = job.status;
 
-            if matches!(status, JobStatus::Failed | JobStatus::Cancelled)
-                && is_batch_compress_media_child(job)
-            {
-                continue;
-            }
-
             match status {
                 JobStatus::Processing => {
+                    if let Some(progress) =
+                        super::reopen_batch_compress_child_for_restart_locked(&mut state, job_id)
+                    {
+                        batch_progress_snapshots.push(progress);
+                    }
                     state.restart_requests.insert(job_id.to_string());
                     state.cancelled_jobs.insert(job_id.to_string());
                     should_notify = true;
@@ -216,6 +202,11 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
                     );
                     job.log_head = None;
 
+                    if let Some(progress) =
+                        super::reopen_batch_compress_child_for_restart_locked(&mut state, job_id)
+                    {
+                        batch_progress_snapshots.push(progress);
+                    }
                     super::sync_resumed_job_worker_queue_membership(&mut state, job_id);
 
                     state.wait_requests.remove(job_id);
@@ -230,6 +221,9 @@ pub(in crate::ffui_core::engine) fn restart_jobs_bulk(
     if should_notify {
         inner.cv.notify_all();
         notify_queue_listeners(inner);
+        for progress in batch_progress_snapshots {
+            notify_batch_compress_listeners(inner, &progress);
+        }
     } else if touched_any {
         // Even when the selected jobs are idempotent or ineligible, notify so
         // the frontend can observe a fresh snapshot revision.

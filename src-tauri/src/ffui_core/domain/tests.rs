@@ -73,6 +73,10 @@ mod domain_contract_tests {
                 saving_condition_type: SavingConditionType::AbsoluteSize,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 12.0,
+                min_image_size_kb: None,
+                min_audio_size_kb: None,
+                image_target_format: None,
+                replace_original: None,
             }),
             wait_metadata: Some(WaitMetadata {
                 last_progress_percent: Some(42.0),
@@ -547,6 +551,10 @@ mod domain_contract_tests {
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.9,
                 min_saving_absolute_mb: 7.0,
+                min_image_size_kb: None,
+                min_audio_size_kb: None,
+                image_target_format: None,
+                replace_original: None,
             }),
             wait_metadata: None,
         };
@@ -616,6 +624,10 @@ mod domain_contract_tests {
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.88,
                 min_saving_absolute_mb: 9.0,
+                min_image_size_kb: None,
+                min_audio_size_kb: None,
+                image_target_format: None,
+                replace_original: None,
             }),
             wait_metadata: None,
         };

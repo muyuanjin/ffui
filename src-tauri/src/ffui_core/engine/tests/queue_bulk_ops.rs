@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use super::*;
 
@@ -118,7 +119,7 @@ fn bulk_cancel_notifies_once_and_updates_state() {
 }
 
 #[test]
-fn bulk_resume_keeps_batch_compress_media_children_out_of_worker_queue() {
+fn bulk_resume_keeps_batch_compress_media_children_in_worker_queue() {
     let engine = make_engine_with_preset();
 
     let paused_image = "job-bulk-resume-batch-image".to_string();
@@ -167,17 +168,17 @@ fn bulk_resume_keeps_batch_compress_media_children_out_of_worker_queue() {
         JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &paused_image),
-        "bulk resume must not leave Batch Compress image children in the normal worker queue",
+        state.queue.iter().any(|id| id == &paused_image),
+        "bulk resume must leave Batch Compress image children in the normal worker queue",
     );
     assert!(
-        !state.queue.iter().any(|id| id == &queued_audio),
-        "bulk idempotent resume must remove stale Batch Compress audio children from the normal worker queue",
+        state.queue.iter().any(|id| id == &queued_audio),
+        "bulk idempotent resume must keep Batch Compress audio children in the normal worker queue",
     );
 }
 
 #[test]
-fn bulk_restart_refuses_orphaned_terminal_media_children() {
+fn bulk_restart_enqueues_batch_compress_media_children() {
     let engine = make_engine_with_preset();
 
     let paused_image = "job-bulk-restart-batch-image".to_string();
@@ -214,8 +215,8 @@ fn bulk_restart_refuses_orphaned_terminal_media_children() {
         JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &paused_image),
-        "live Batch Compress media children must stay out of the normal worker queue"
+        state.queue.iter().any(|id| id == &paused_image),
+        "paused Batch Compress media children must enter the normal worker queue"
     );
     assert_eq!(
         state
@@ -223,16 +224,78 @@ fn bulk_restart_refuses_orphaned_terminal_media_children() {
             .get(&failed_audio)
             .expect("audio child exists")
             .status,
-        JobStatus::Failed
+        JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &failed_audio),
-        "bulk restart must not orphan failed Batch Compress media children as Queued"
+        state.queue.iter().any(|id| id == &failed_audio),
+        "bulk restart must queue failed Batch Compress media children for normal workers"
     );
 }
 
 #[test]
-fn bulk_restart_rejects_selection_with_processing_media_child_owned_by_worker() {
+fn bulk_restart_reopens_processed_batch_compress_media_child_accounting() {
+    let engine = make_engine_with_preset();
+    let batch_id = "batch-resume-media".to_string();
+    let failed_image = "job-bulk-restart-reopen-batch-image".to_string();
+    let progress_snapshots = Arc::new(Mutex::new(Vec::<AutoCompressProgress>::new()));
+    let progress_snapshots_for_listener = Arc::clone(&progress_snapshots);
+    engine.register_batch_compress_listener(move |progress| {
+        progress_snapshots_for_listener
+            .lock()
+            .expect("progress snapshots lock")
+            .push(progress);
+    });
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let mut batch = BatchCompressBatch::new(batch_id.clone(), "C:/videos".to_string(), 1);
+        batch.status = BatchCompressBatchStatus::Completed;
+        batch.total_candidates = 1;
+        batch.total_processed = 1;
+        batch.child_job_ids.push(failed_image.clone());
+        batch.processed_child_job_ids.insert(failed_image.clone());
+        batch.completed_at_ms = Some(current_time_millis());
+        state.batch_compress_batches.insert(batch_id, batch);
+        state.jobs.insert(
+            failed_image.clone(),
+            make_batch_compress_media_child(&failed_image, JobStatus::Failed, JobType::Image),
+        );
+    }
+
+    assert!(
+        engine.restart_jobs_bulk(vec![failed_image.clone()]),
+        "bulk restart should accept failed Batch Compress media children",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let batch = state
+        .batch_compress_batches
+        .get("batch-resume-media")
+        .expect("batch should exist");
+    assert_eq!(batch.status, BatchCompressBatchStatus::Running);
+    assert_eq!(batch.total_candidates, 1);
+    assert_eq!(batch.total_processed, 0);
+    assert!(
+        !batch.processed_child_job_ids.contains(&failed_image),
+        "bulk restart must clear the prior processed marker so the rerun can count when it finishes",
+    );
+    let snapshots = progress_snapshots
+        .lock()
+        .expect("progress snapshots lock")
+        .clone();
+    let progress = snapshots
+        .last()
+        .expect("bulk restart must publish a Batch Compress progress snapshot");
+    assert_eq!(progress.batch_id, "batch-resume-media");
+    assert_eq!(
+        progress.total_processed, 0,
+        "frontend observers must see bulk restart reduce totalProcessed",
+    );
+    assert_eq!(progress.completed_at_ms, 0);
+}
+
+#[test]
+fn bulk_restart_accepts_processing_media_child_owned_by_worker() {
     let engine = make_engine_with_preset();
 
     let processing_image = "job-bulk-restart-active-batch-image".to_string();
@@ -264,14 +327,16 @@ fn bulk_restart_rejects_selection_with_processing_media_child_owned_by_worker() 
         notify_calls_clone.fetch_add(1, Ordering::SeqCst);
     });
 
+    let before = notify_calls.load(Ordering::SeqCst);
     assert!(
-        !engine.restart_jobs_bulk(vec![processing_image.clone(), failed_manual.clone()]),
-        "bulk restart should fail when any selected Batch Compress media child is actively processing"
+        engine.restart_jobs_bulk(vec![processing_image.clone(), failed_manual.clone()]),
+        "bulk restart should accept processing Batch Compress media children"
     );
+    let after = notify_calls.load(Ordering::SeqCst);
     assert_eq!(
-        notify_calls.load(Ordering::SeqCst),
-        0,
-        "rejected bulk restart must not notify optimistic frontend state"
+        after,
+        before + 1,
+        "accepted bulk restart must notify optimistic frontend state once"
     );
 
     let state = engine.inner.state.lock_unpoisoned();
@@ -280,13 +345,13 @@ fn bulk_restart_rejects_selection_with_processing_media_child_owned_by_worker() 
         .get(&processing_image)
         .expect("image child exists");
     assert_eq!(image.status, JobStatus::Processing);
-    assert!(!state.restart_requests.contains(&processing_image));
-    assert!(!state.cancelled_jobs.contains(&processing_image));
+    assert!(state.restart_requests.contains(&processing_image));
+    assert!(state.cancelled_jobs.contains(&processing_image));
 
     let failed = state.jobs.get(&failed_manual).expect("failed job exists");
-    assert_eq!(failed.status, JobStatus::Failed);
-    assert_eq!(failed.progress, 100.0);
-    assert_eq!(failed.failure_reason.as_deref(), Some("boom"));
+    assert_eq!(failed.status, JobStatus::Queued);
+    assert_eq!(failed.progress, 0.0);
+    assert!(failed.failure_reason.is_none());
     assert!(!state.restart_requests.contains(&failed_manual));
     assert!(!state.cancelled_jobs.contains(&failed_manual));
 }

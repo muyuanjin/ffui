@@ -4,12 +4,12 @@ use std::sync::Arc;
 
 use super::super::state::{Inner, notify_queue_listeners};
 use super::super::worker_utils::{
-    append_job_log_line, current_time_millis, is_batch_compress_media_child,
-    mark_batch_compress_child_processed,
+    append_job_log_line, current_time_millis, mark_batch_compress_child_processed,
 };
-use crate::ffui_core::domain::{JobStatus, TranscodeJob};
+use crate::ffui_core::domain::{AutoCompressProgress, JobStatus};
 use crate::sync_ext::MutexExt;
 
+use super::super::state::notify_batch_compress_listeners;
 use super::cleanup::collect_job_tmp_cleanup_paths;
 
 mod batch_ops;
@@ -58,42 +58,46 @@ fn cleanup_temp_files_best_effort(paths: Vec<PathBuf>) {
     }));
 }
 
-fn should_enter_worker_queue(
-    state: &super::super::state::EngineState,
-    job_id: &str,
-    job: &TranscodeJob,
-) -> bool {
-    !is_batch_compress_media_child(job) || !state.active_batch_compress_media_jobs.contains(job_id)
-}
-
-fn is_active_batch_compress_media_child(
-    state: &super::super::state::EngineState,
-    job_id: &str,
-    job: &TranscodeJob,
-) -> bool {
-    is_batch_compress_media_child(job) && state.active_batch_compress_media_jobs.contains(job_id)
-}
-
 fn sync_resumed_job_worker_queue_membership(
     state: &mut super::super::state::EngineState,
     job_id: &str,
 ) -> bool {
-    let should_enter_worker_queue = state
+    if state.jobs.contains_key(job_id) && !state.queue.iter().any(|id| id == job_id) {
+        state.queue.push_back(job_id.to_string());
+        return true;
+    }
+    false
+}
+
+fn reopen_batch_compress_child_for_restart_locked(
+    state: &mut super::super::state::EngineState,
+    job_id: &str,
+) -> Option<AutoCompressProgress> {
+    let batch_id = state
         .jobs
         .get(job_id)
-        .is_some_and(|job| should_enter_worker_queue(state, job_id, job));
+        .and_then(|job| job.batch_id.clone())?;
+    let batch = state.batch_compress_batches.get_mut(&batch_id)?;
 
-    if should_enter_worker_queue {
-        if !state.queue.iter().any(|id| id == job_id) {
-            state.queue.push_back(job_id.to_string());
-            return true;
-        }
-        false
-    } else {
-        let before = state.queue.len();
-        state.queue.retain(|id| id != job_id);
-        state.queue.len() != before
+    if batch.processed_child_job_ids.remove(job_id) {
+        batch.total_processed = batch.total_processed.saturating_sub(1);
     }
+    if matches!(
+        batch.status,
+        super::super::state::BatchCompressBatchStatus::Completed
+    ) {
+        batch.status = super::super::state::BatchCompressBatchStatus::Running;
+        batch.completed_at_ms = None;
+    }
+
+    Some(AutoCompressProgress {
+        root_path: batch.root_path.clone(),
+        total_files_scanned: batch.total_files_scanned,
+        total_candidates: batch.total_candidates,
+        total_processed: batch.total_processed,
+        batch_id: batch.batch_id.clone(),
+        completed_at_ms: batch.completed_at_ms.unwrap_or(0),
+    })
 }
 
 fn cancel_waiting_like_job(
@@ -186,40 +190,34 @@ pub(in crate::ffui_core::engine) fn cancel_job(inner: &Arc<Inner>, job_id: &str)
 /// its worker slot while preserving progress. The actual state change is
 /// performed cooperatively inside the worker loop.
 pub(in crate::ffui_core::engine) fn wait_job(inner: &Arc<Inner>, job_id: &str) -> bool {
-    let (result, should_notify) =
-        {
-            let mut state = inner.state.lock_unpoisoned();
-            let status = match state.jobs.get(job_id) {
-                Some(job) => job.status,
-                None => return false,
-            };
-
-            match status {
-                JobStatus::Processing => {
-                    if state.jobs.get(job_id).is_some_and(|job| {
-                        is_active_batch_compress_media_child(&state, job_id, job)
-                    }) {
-                        return false;
-                    }
-                    state.wait_requests.insert(job_id.to_string());
-                    (true, true)
-                }
-                JobStatus::Queued => {
-                    if let Some(job) = state.jobs.get_mut(job_id) {
-                        job.status = JobStatus::Paused;
-                        append_job_log_line(job, "Paused while waiting".to_string());
-                        job.log_head = None;
-                    }
-                    // Any stale flags become irrelevant.
-                    state.wait_requests.remove(job_id);
-                    state.cancelled_jobs.remove(job_id);
-                    state.restart_requests.remove(job_id);
-                    (true, true)
-                }
-                JobStatus::Paused => (true, false),
-                _ => (false, false),
-            }
+    let (result, should_notify) = {
+        let mut state = inner.state.lock_unpoisoned();
+        let status = match state.jobs.get(job_id) {
+            Some(job) => job.status,
+            None => return false,
         };
+
+        match status {
+            JobStatus::Processing => {
+                state.wait_requests.insert(job_id.to_string());
+                (true, true)
+            }
+            JobStatus::Queued => {
+                if let Some(job) = state.jobs.get_mut(job_id) {
+                    job.status = JobStatus::Paused;
+                    append_job_log_line(job, "Paused while waiting".to_string());
+                    job.log_head = None;
+                }
+                // Any stale flags become irrelevant.
+                state.wait_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                state.restart_requests.remove(job_id);
+                (true, true)
+            }
+            JobStatus::Paused => (true, false),
+            _ => (false, false),
+        }
+    };
 
     if should_notify {
         notify_queue_listeners(inner);
@@ -254,15 +252,8 @@ pub(in crate::ffui_core::engine) fn wait_jobs_bulk(
             touched_any = true;
 
             match status {
-                JobStatus::Processing => {
-                    if state.jobs.get(job_id.as_str()).is_some_and(|job| {
-                        is_active_batch_compress_media_child(&state, job_id.as_str(), job)
-                    }) {
-                        continue;
-                    }
-                    if state.wait_requests.insert(job_id.clone()) {
-                        should_notify = true;
-                    }
+                JobStatus::Processing if state.wait_requests.insert(job_id.clone()) => {
+                    should_notify = true;
                 }
                 JobStatus::Queued => {
                     if let Some(job) = state.jobs.get_mut(job_id.as_str()) {
@@ -321,13 +312,9 @@ pub(in crate::ffui_core::engine) fn wait_all_processing_and_queued_jobs_bulk(
 
             match status {
                 JobStatus::Processing => {
-                    let is_active_media_child =
-                        state.jobs.get(job_id.as_str()).is_some_and(|job| {
-                            is_active_batch_compress_media_child(&state, job_id.as_str(), job)
-                        });
                     requested_job_count = requested_job_count.saturating_add(1);
                     processing_job_ids.push(job_id.clone());
-                    if !is_active_media_child && state.wait_requests.insert(job_id) {
+                    if state.wait_requests.insert(job_id) {
                         should_notify = true;
                     }
                 }
@@ -364,64 +351,59 @@ pub(in crate::ffui_core::engine) fn wait_all_processing_and_queued_jobs_bulk(
 pub(in crate::ffui_core::engine) fn restart_job(inner: &Arc<Inner>, job_id: &str) -> bool {
     let mut should_notify = false;
     let mut cleanup_paths: Vec<std::path::PathBuf> = Vec::new();
+    let mut batch_progress = None;
 
-    let result =
-        {
-            let mut state = inner.state.lock_unpoisoned();
-            let Some(job) = state.jobs.get(job_id) else {
-                return false;
-            };
-            if matches!(job.status, JobStatus::Failed | JobStatus::Cancelled)
-                && is_batch_compress_media_child(job)
-            {
-                return false;
-            }
-            let Some(job) = state.jobs.get_mut(job_id) else {
-                return false;
-            };
-
-            match job.status {
-                JobStatus::Completed | JobStatus::Skipped => false,
-                JobStatus::Processing => {
-                    if state.jobs.get(job_id).is_some_and(|job| {
-                        is_active_batch_compress_media_child(&state, job_id, job)
-                    }) {
-                        return false;
-                    }
-                    state.restart_requests.insert(job_id.to_string());
-                    state.cancelled_jobs.insert(job_id.to_string());
-                    should_notify = true;
-                    true
-                }
-                _ => {
-                    // Reset immediately for non-processing jobs.
-                    cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
-                    job.status = JobStatus::Queued;
-                    job.progress = 0.0;
-                    job.end_time = None;
-                    job.failure_reason = None;
-                    job.skip_reason = None;
-                    job.wait_metadata = None;
-                    append_job_log_line(
-                        job,
-                        "Restart requested from UI; job will re-run from 0%".to_string(),
-                    );
-                    job.log_head = None;
-
-                    sync_resumed_job_worker_queue_membership(&mut state, job_id);
-
-                    should_notify = true;
-                    // Any old restart or cancel flags become irrelevant.
-                    state.restart_requests.remove(job_id);
-                    state.cancelled_jobs.remove(job_id);
-                    true
-                }
-            }
+    let result = {
+        let mut state = inner.state.lock_unpoisoned();
+        if !state.jobs.contains_key(job_id) {
+            return false;
+        }
+        let Some(job) = state.jobs.get_mut(job_id) else {
+            return false;
         };
+
+        match job.status {
+            JobStatus::Completed | JobStatus::Skipped => false,
+            JobStatus::Processing => {
+                batch_progress = reopen_batch_compress_child_for_restart_locked(&mut state, job_id);
+                state.restart_requests.insert(job_id.to_string());
+                state.cancelled_jobs.insert(job_id.to_string());
+                should_notify = true;
+                true
+            }
+            _ => {
+                // Reset immediately for non-processing jobs.
+                cleanup_paths.extend(collect_job_tmp_cleanup_paths(job));
+                job.status = JobStatus::Queued;
+                job.progress = 0.0;
+                job.end_time = None;
+                job.failure_reason = None;
+                job.skip_reason = None;
+                job.wait_metadata = None;
+                append_job_log_line(
+                    job,
+                    "Restart requested from UI; job will re-run from 0%".to_string(),
+                );
+                job.log_head = None;
+
+                batch_progress = reopen_batch_compress_child_for_restart_locked(&mut state, job_id);
+                sync_resumed_job_worker_queue_membership(&mut state, job_id);
+
+                should_notify = true;
+                // Any old restart or cancel flags become irrelevant.
+                state.restart_requests.remove(job_id);
+                state.cancelled_jobs.remove(job_id);
+                true
+            }
+        }
+    };
 
     if should_notify {
         inner.cv.notify_all();
         notify_queue_listeners(inner);
+        if let Some(progress) = batch_progress {
+            notify_batch_compress_listeners(inner, &progress);
+        }
     }
 
     for path in cleanup_paths {

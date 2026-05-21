@@ -80,6 +80,11 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - 若组件无法显式渲染（或第三方组件强缓存），可用 `:key="locale"` 作为兜底强制重挂载，但要评估是否会丢失局部交互状态。
 - 涉及此类文本的修复必须补齐验证：Vitest 覆盖“切换 locale 后文本立刻更新”，并提供可复用的 Playwright 截图脚本做回归。
 
+## Batch Compress 持久化/恢复纪律
+
+- Batch Compress 的运行期 batch metadata（如 `BatchCompressBatch` / `batch_compress_batches`）不会随队列持久化完整保存；任何会影响子任务实际输出语义的配置，必须同时写入 job 级持久化快照，确保 restart / crash recovery 后不回落到默认配置。
+- `BatchCompressSavingCondition` 除 saving gate 外，也承载图片/音频 Batch Compress 子任务恢复执行所需的轻量快照；新增 `u64`/`Option<u64>` 字段时必须带 `specta_typescript::Number<u64>` 标注，并运行 `pnpm run check:queue-contracts:update`。
+
 ## Testing Guidelines
 
 - Frontend tests are configured via Vitest and live primarily under `src/__tests__`; keep new tests near code when practical (e.g. `src/components/__tests__`).

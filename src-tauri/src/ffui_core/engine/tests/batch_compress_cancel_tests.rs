@@ -54,6 +54,10 @@ fn cancelling_queued_batch_compress_child_advances_batch_once() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -132,6 +136,10 @@ fn bulk_cancelling_waiting_batch_compress_children_advances_batch_once() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/videos".to_string(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -209,6 +217,10 @@ fn paused_batch_compress_child_does_not_count_as_processed() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/images".to_string(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -229,6 +241,7 @@ fn paused_batch_compress_child_does_not_count_as_processed() {
         state
             .active_batch_compress_media_jobs
             .insert(job_id.clone());
+        state.queue.push_back(job_id.clone());
     }
 
     mark_batch_compress_child_processed(&engine.inner, &job_id);
@@ -245,13 +258,13 @@ fn paused_batch_compress_child_does_not_count_as_processed() {
     let job = state.jobs.get(&job_id).expect("paused child should remain");
     assert_eq!(job.status, JobStatus::Paused);
     assert!(
-        !state.queue.iter().any(|id| id == &job_id),
-        "paused image/audio child should remain owned by the media worker"
+        state.queue.iter().any(|id| id == &job_id),
+        "paused image/audio child should remain in the normal worker queue ordering"
     );
 }
 
 #[test]
-fn resuming_paused_media_batch_child_wakes_media_worker_without_normal_queue_handoff() {
+fn resuming_paused_media_batch_child_enqueues_normal_worker() {
     let engine = make_engine_with_preset();
     let batch_id = "batch-paused-media-resume".to_string();
     let job_id = "job-paused-media-resume".to_string();
@@ -264,6 +277,10 @@ fn resuming_paused_media_batch_child_wakes_media_worker_without_normal_queue_han
                 batch_id: batch_id.clone(),
                 root_path: "C:/images".to_string(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -298,13 +315,13 @@ fn resuming_paused_media_batch_child_wakes_media_worker_without_normal_queue_han
         .expect("resumed media child should remain");
     assert_eq!(job.status, JobStatus::Queued);
     assert!(
-        !state.queue.iter().any(|id| id == &job_id),
-        "resumed image/audio Batch Compress children must be left for the media worker, not the normal queue"
+        state.queue.iter().any(|id| id == &job_id),
+        "resumed image/audio Batch Compress children must be queued for the normal worker"
     );
 }
 
 #[test]
-fn wait_and_restart_reject_processing_media_batch_child_owned_by_worker() {
+fn wait_and_restart_accept_processing_media_batch_child() {
     let engine = make_engine_with_preset();
     let batch_id = "batch-processing-media-no-pause".to_string();
     let job_id = "job-processing-media-no-pause".to_string();
@@ -317,6 +334,10 @@ fn wait_and_restart_reject_processing_media_batch_child_owned_by_worker() {
                 batch_id: batch_id.clone(),
                 root_path: "C:/images".to_string(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -340,20 +361,23 @@ fn wait_and_restart_reject_processing_media_batch_child_owned_by_worker() {
     }
 
     assert!(
-        !engine.wait_job(&job_id),
-        "processing Batch Compress image/audio children should not accept wait"
+        engine.wait_job(&job_id),
+        "processing Batch Compress media children should accept wait"
     );
+    {
+        let state = engine.inner.state.lock_unpoisoned();
+        assert!(state.wait_requests.contains(&job_id));
+    }
     assert!(
-        !engine.restart_job(&job_id),
-        "processing Batch Compress image/audio children should not accept restart"
+        engine.restart_job(&job_id),
+        "processing Batch Compress media children should accept restart"
     );
 
     let state = engine.inner.state.lock_unpoisoned();
     let job = state.jobs.get(&job_id).expect("job should remain");
     assert_eq!(job.status, JobStatus::Processing);
-    assert!(!state.wait_requests.contains(&job_id));
-    assert!(!state.restart_requests.contains(&job_id));
-    assert!(!state.cancelled_jobs.contains(&job_id));
+    assert!(state.restart_requests.contains(&job_id));
+    assert!(state.cancelled_jobs.contains(&job_id));
 }
 
 #[test]
@@ -448,7 +472,7 @@ fn cancelling_processing_image_batch_child_kills_worker_and_keeps_cancelled_stat
             state.jobs.iter().find_map(|(id, job)| {
                 (job.batch_id.as_deref() == Some(descriptor.batch_id.as_str())
                     && job.job_type == JobType::Image
-                    && job.status == JobStatus::Processing)
+                    && job.status == JobStatus::Queued)
                     .then(|| id.clone())
             })
         };
@@ -458,15 +482,26 @@ fn cancelling_processing_image_batch_child_kills_worker_and_keeps_cancelled_stat
         attempts += 1;
         assert!(
             attempts <= 100,
-            "image child did not enter processing within timeout"
+            "image child did not enter the normal queue within timeout"
         );
         std::thread::sleep(std::time::Duration::from_millis(20));
     };
 
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let selected = next_job_for_worker_locked(&mut state);
+        assert_eq!(selected.as_deref(), Some(job_id.as_str()));
+    }
     assert!(
         engine.cancel_job(&job_id),
         "processing image child should accept cancellation"
     );
+    process_transcode_job(&engine.inner, &job_id)
+        .expect("normal worker should process cancellation");
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        finish_job_and_try_start_next_locked(&mut state, &job_id);
+    }
 
     let mut attempts = 0;
     loop {
@@ -505,7 +540,7 @@ fn cancelling_processing_image_batch_child_kills_worker_and_keeps_cancelled_stat
     );
     assert!(
         !state.cancelled_jobs.contains(&job_id),
-        "media worker should consume the cancellation flag"
+        "normal worker should consume the cancellation flag"
     );
     drop(state);
 

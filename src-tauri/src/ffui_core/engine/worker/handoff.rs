@@ -1,5 +1,5 @@
 use super::super::state::EngineState;
-use super::super::worker_utils::current_time_millis;
+use super::super::worker_utils::{active_input_key, current_time_millis};
 use super::selection::next_job_for_worker_locked;
 
 /// Finish an active job (remove from active sets) and immediately start the next eligible job
@@ -13,7 +13,10 @@ pub(in crate::ffui_core::engine) fn finish_job_and_try_start_next_locked(
 ) -> Option<String> {
     let now_ms = current_time_millis();
     let (input, preset_id) = state.jobs.get(finished_job_id).map_or((None, None), |job| {
-        (Some(job.filename.clone()), Some(job.preset_id.clone()))
+        (
+            Some(active_input_key(job).to_string()),
+            Some(job.preset_id.clone()),
+        )
     });
 
     if let Some(preset_id) = preset_id {

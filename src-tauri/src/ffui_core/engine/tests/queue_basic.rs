@@ -1,6 +1,7 @@
 use super::*;
 use crate::ffui_core::engine::job_runner::current_time_millis;
 use crate::ffui_core::engine::state::restore_segment_probe::SegmentDirCache;
+use std::sync::{Arc, Mutex};
 
 fn make_batch_compress_media_child(id: &str, status: JobStatus, job_type: JobType) -> TranscodeJob {
     TranscodeJob {
@@ -93,7 +94,7 @@ fn inspect_media_produces_json_for_generated_clip() {
 }
 
 #[test]
-fn resume_job_keeps_batch_compress_media_child_out_of_worker_queue() {
+fn resume_job_enqueues_batch_compress_media_child_in_worker_queue() {
     let engine = make_engine_with_preset();
 
     let paused_image = "job-resume-batch-image".to_string();
@@ -137,17 +138,17 @@ fn resume_job_keeps_batch_compress_media_child_out_of_worker_queue() {
         JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &paused_image),
-        "single resume must not enqueue Batch Compress image children into the normal worker queue",
+        state.queue.iter().any(|id| id == &paused_image),
+        "single resume must enqueue Batch Compress image children into the normal worker queue",
     );
     assert!(
-        !state.queue.iter().any(|id| id == &queued_audio),
-        "idempotent resume must remove stale Batch Compress audio children from the normal worker queue",
+        state.queue.iter().any(|id| id == &queued_audio),
+        "idempotent resume must keep Batch Compress audio children in the normal worker queue",
     );
 }
 
 #[test]
-fn restart_job_refuses_orphaned_terminal_media_child() {
+fn restart_job_enqueues_batch_compress_media_children() {
     let engine = make_engine_with_preset();
 
     let paused_image = "job-restart-batch-image".to_string();
@@ -174,8 +175,8 @@ fn restart_job_refuses_orphaned_terminal_media_child() {
         "paused Batch Compress image child should be restartable",
     );
     assert!(
-        !engine.restart_job(&failed_audio),
-        "failed Batch Compress audio child should not be restarted without a media worker owner",
+        engine.restart_job(&failed_audio),
+        "failed Batch Compress audio child should restart through the normal worker queue",
     );
 
     let state = engine.inner.state.lock_unpoisoned();
@@ -188,8 +189,8 @@ fn restart_job_refuses_orphaned_terminal_media_child() {
         JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &paused_image),
-        "live Batch Compress media children must stay out of the normal worker queue"
+        state.queue.iter().any(|id| id == &paused_image),
+        "paused Batch Compress media children must enter the normal worker queue"
     );
     assert_eq!(
         state
@@ -197,16 +198,78 @@ fn restart_job_refuses_orphaned_terminal_media_child() {
             .get(&failed_audio)
             .expect("audio child exists")
             .status,
-        JobStatus::Failed
+        JobStatus::Queued
     );
     assert!(
-        !state.queue.iter().any(|id| id == &failed_audio),
-        "orphaned failed Batch Compress media children must not be queued"
+        state.queue.iter().any(|id| id == &failed_audio),
+        "failed Batch Compress media children must be queued for normal worker restart"
     );
 }
 
 #[test]
-fn startup_restore_rejects_orphaned_batch_compress_media_children() {
+fn restart_job_reopens_processed_batch_compress_media_child_accounting() {
+    let engine = make_engine_with_preset();
+    let batch_id = "batch-resume-media".to_string();
+    let failed_audio = "job-restart-reopen-batch-audio".to_string();
+    let progress_snapshots = Arc::new(Mutex::new(Vec::<AutoCompressProgress>::new()));
+    let progress_snapshots_for_listener = Arc::clone(&progress_snapshots);
+    engine.register_batch_compress_listener(move |progress| {
+        progress_snapshots_for_listener
+            .lock()
+            .expect("progress snapshots lock")
+            .push(progress);
+    });
+
+    {
+        let mut state = engine.inner.state.lock_unpoisoned();
+        let mut batch = BatchCompressBatch::new(batch_id.clone(), "C:/videos".to_string(), 1);
+        batch.status = BatchCompressBatchStatus::Completed;
+        batch.total_candidates = 1;
+        batch.total_processed = 1;
+        batch.child_job_ids.push(failed_audio.clone());
+        batch.processed_child_job_ids.insert(failed_audio.clone());
+        batch.completed_at_ms = Some(current_time_millis());
+        state.batch_compress_batches.insert(batch_id, batch);
+        state.jobs.insert(
+            failed_audio.clone(),
+            make_batch_compress_media_child(&failed_audio, JobStatus::Failed, JobType::Audio),
+        );
+    }
+
+    assert!(
+        engine.restart_job(&failed_audio),
+        "failed Batch Compress media child should restart",
+    );
+
+    let state = engine.inner.state.lock_unpoisoned();
+    let batch = state
+        .batch_compress_batches
+        .get("batch-resume-media")
+        .expect("batch should exist");
+    assert_eq!(batch.status, BatchCompressBatchStatus::Running);
+    assert_eq!(batch.total_candidates, 1);
+    assert_eq!(batch.total_processed, 0);
+    assert!(
+        !batch.processed_child_job_ids.contains(&failed_audio),
+        "restart must clear the prior processed marker so the rerun can count when it finishes",
+    );
+    let snapshots = progress_snapshots
+        .lock()
+        .expect("progress snapshots lock")
+        .clone();
+    let progress = snapshots
+        .last()
+        .expect("restart must publish a Batch Compress progress snapshot");
+    assert_eq!(progress.batch_id, "batch-resume-media");
+    assert_eq!(
+        progress.total_processed, 0,
+        "frontend observers must see the reopened child reduce totalProcessed",
+    );
+    assert_eq!(progress.completed_at_ms, 0);
+}
+
+#[test]
+fn startup_restore_auto_pauses_batch_compress_media_children() {
     let engine = make_engine_with_preset();
 
     let queued_image = "job-startup-resume-batch-image".to_string();
@@ -224,25 +287,23 @@ fn startup_restore_rejects_orphaned_batch_compress_media_children() {
 
     assert_eq!(
         engine.resume_startup_auto_paused_jobs(),
-        0,
-        "orphaned media children should not be registered for startup resume",
+        1,
+        "restored queued media children should be registered for startup resume like other queued jobs",
     );
 
     let state = engine.inner.state.lock_unpoisoned();
-    for job_id in [&queued_image, &extra_audio] {
-        let job = state.jobs.get(job_id).expect("media child exists");
-        assert_eq!(job.status, JobStatus::Failed);
-        assert!(
-            job.failure_reason
-                .as_deref()
-                .is_some_and(|reason| reason.contains("media worker ended")),
-            "orphaned restored media child should explain why it cannot run"
-        );
-        assert!(
-            !state.queue.iter().any(|id| id == job_id),
-            "orphaned restored media children must not be left in the runnable queue"
-        );
-    }
+    let image = state.jobs.get(&queued_image).expect("image child exists");
+    assert_eq!(image.status, JobStatus::Queued);
+    assert!(
+        state.queue.iter().any(|id| id == &queued_image),
+        "restored queued media children must be left in the runnable queue"
+    );
+    let audio = state.jobs.get(&extra_audio).expect("audio child exists");
+    assert_eq!(audio.status, JobStatus::Paused);
+    assert!(
+        state.queue.iter().any(|id| id == &extra_audio),
+        "restored paused media children must remain visible in queue ordering"
+    );
 }
 
 #[test]
@@ -302,7 +363,7 @@ fn multi_worker_selection_respects_fifo_and_processing_limit() {
 }
 
 #[test]
-fn worker_selection_skips_live_batch_compress_media_child() {
+fn worker_selection_picks_batch_compress_media_child() {
     let engine = make_engine_with_preset();
 
     let owned_media = "job-selection-owned-media".to_string();
@@ -318,7 +379,7 @@ fn worker_selection_skips_live_batch_compress_media_child() {
         state.queue.push_back(owned_media.clone());
     }
 
-    let video = engine.enqueue_transcode_job(
+    let _video = engine.enqueue_transcode_job(
         "C:/videos/selection-fallback.mp4".to_string(),
         JobType::Video,
         JobSource::Manual,
@@ -333,8 +394,8 @@ fn worker_selection_skips_live_batch_compress_media_child() {
     };
 
     assert_eq!(
-        picked, video.id,
-        "normal workers must skip Batch Compress media children owned by the media worker",
+        picked, owned_media,
+        "normal workers must pick Batch Compress media children from the normal queue",
     );
 
     let state = engine.inner.state.lock_unpoisoned();
@@ -344,12 +405,12 @@ fn worker_selection_skips_live_batch_compress_media_child() {
             .get(&owned_media)
             .expect("owned media child exists")
             .status,
-        JobStatus::Queued,
-        "owned Batch Compress media child must not be marked Processing by a normal worker",
+        JobStatus::Processing,
+        "Batch Compress media child must be marked Processing by a normal worker",
     );
     assert!(
-        !state.active_jobs.contains(&owned_media),
-        "owned Batch Compress media child must not enter the normal active_jobs set",
+        state.active_jobs.contains(&owned_media),
+        "Batch Compress media child must enter the normal active_jobs set",
     );
 }
 

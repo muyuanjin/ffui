@@ -4,7 +4,7 @@
 
 use super::transcode_activity;
 use super::state::{notify_queue_lite_delta_listeners, persist_queue_state_lite_best_effort};
-use super::worker_utils::{append_job_log_line, should_record_job_log_line};
+use super::worker_utils::{active_input_key, append_job_log_line, should_record_job_log_line};
 use crate::ffui_core::{
     ProgressPhaseTelemetry, QueueStateLiteDelta, TranscodeJobLiteDeltaPatch,
     TranscodeJobLiteTelemetryDelta,
@@ -237,7 +237,7 @@ pub(super) fn update_job_progress(
                 if job.processing_started_ms.is_none() {
                     job.processing_started_ms = Some(now_ms);
                 }
-                heal_to_processing = Some((job.id.clone(), job.filename.clone()));
+                heal_to_processing = Some((job.id.clone(), active_input_key(job).to_string()));
                 telemetry_changed = true;
                 should_notify = true;
             }

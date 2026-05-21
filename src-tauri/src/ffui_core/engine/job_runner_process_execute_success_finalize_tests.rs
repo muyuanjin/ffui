@@ -2,7 +2,10 @@
 mod execute_success_finalize_tests {
     use super::*;
     use crate::ffui_core::WaitMetadata;
-    use crate::ffui_core::domain::{JobSource, OutputPolicy};
+    use crate::ffui_core::domain::{
+        BatchCompressSavingCondition, ImageTargetFormat, JobSource, OutputPolicy,
+        SavingConditionType,
+    };
     use crate::ffui_core::engine::state::{BatchCompressBatch, BatchCompressBatchStatus};
     use crate::sync_ext::MutexExt;
 
@@ -213,6 +216,10 @@ mod execute_success_finalize_tests {
                     batch_id: batch_id.clone(),
                     root_path: dir.path().to_string_lossy().into_owned(),
                     replace_original: true,
+                    min_image_size_kb: 0,
+                    min_audio_size_kb: 0,
+                    image_target_format: Default::default(),
+                    output_policy: Default::default(),
                     saving_condition_type: crate::ffui_core::domain::SavingConditionType::Ratio,
                     min_saving_ratio: 0.95,
                     min_saving_absolute_mb: 5.0,
@@ -299,6 +306,71 @@ mod execute_success_finalize_tests {
                         != Some(ProgressPhase::Completed)
             }),
             "failed terminal delta must not advertise completed phase"
+        );
+    }
+
+    #[test]
+    fn finalize_successful_restored_batch_video_uses_persisted_replace_original() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let _data_root_guard =
+            crate::ffui_core::data_root::override_data_root_dir_for_tests(dir.path().to_path_buf());
+
+        let input = dir.path().join("video.mp4");
+        let output = dir.path().join("video.compressed.mp4");
+        std::fs::write(&input, b"source").expect("write source");
+        std::fs::write(&output, b"compressed").expect("write compressed output");
+
+        let preset = crate::test_support::make_ffmpeg_preset_for_tests("preset-1");
+        let inner = Inner::new(vec![preset], AppSettings::default());
+        let job_id = "job-restored-replace-original".to_string();
+        {
+            let mut job = make_video_job(&job_id, 100);
+            job.source = JobSource::BatchCompress;
+            job.batch_id = Some("restored-batch-without-runtime-meta".to_string());
+            job.input_path = Some(input.to_string_lossy().into_owned());
+            job.output_path = Some(output.to_string_lossy().into_owned());
+            job.output_policy = Some(OutputPolicy::default());
+            job.batch_compress_saving_condition = Some(BatchCompressSavingCondition {
+                saving_condition_type: SavingConditionType::Ratio,
+                min_saving_ratio: 0.95,
+                min_saving_absolute_mb: 5.0,
+                min_image_size_kb: Some(0),
+                min_audio_size_kb: Some(0),
+                image_target_format: Some(ImageTargetFormat::Avif),
+                replace_original: Some(true),
+            });
+
+            let mut state = inner.state.lock_unpoisoned();
+            state.jobs.insert(job_id.clone(), job);
+        }
+
+        finalize_successful_transcode_job(
+            &inner,
+            FinalizeSuccessfulTranscodeJobArgs {
+                job_id: &job_id,
+                preset_id: "preset-1",
+                output_path: &output,
+                original_size_bytes: 100 * 1024 * 1024,
+                final_output_size_bytes: 50 * 1024 * 1024,
+                elapsed: 10.0,
+                input_times: None,
+            },
+        )
+        .expect("finalize restored batch video");
+
+        let state = inner.state.lock_unpoisoned();
+        let job = state.jobs.get(&job_id).expect("job present");
+        assert_eq!(job.status, JobStatus::Completed);
+        assert_eq!(job.output_path.as_deref(), Some(input.to_string_lossy().as_ref()));
+        drop(state);
+
+        assert_eq!(
+            std::fs::read(&input).expect("read finalized input"),
+            b"compressed"
+        );
+        assert!(
+            !output.exists(),
+            "replace-original finalize should consume the staged .compressed output"
         );
     }
 

@@ -188,7 +188,7 @@ fn bulk_wait_ignores_terminal_jobs_instead_of_failing() {
 }
 
 #[test]
-fn bulk_wait_skips_active_media_child_and_pauses_other_selected_jobs() {
+fn bulk_wait_requests_active_media_child_and_pauses_other_selected_jobs() {
     let engine = make_engine_with_preset();
 
     let media_child_id = "job-bulk-wait-active-media-child".to_string();
@@ -257,13 +257,13 @@ fn bulk_wait_skips_active_media_child_and_pauses_other_selected_jobs() {
 
     assert!(
         engine.wait_jobs_bulk(vec![media_child_id.clone(), queued_id.clone()]),
-        "bulk wait should skip an active Batch Compress media child and pause other jobs",
+        "bulk wait should request wait for active Batch Compress media children and pause other jobs",
     );
 
     let state = engine.inner.state.lock_unpoisoned();
     assert!(
-        !state.wait_requests.contains(&media_child_id),
-        "bulk wait must not record a wait request for the active media child",
+        state.wait_requests.contains(&media_child_id),
+        "bulk wait must record a wait request for the active media child",
     );
     assert!(
         !state.wait_requests.contains(&queued_id),

@@ -61,7 +61,7 @@ describe("BatchDetailDialog", () => {
       expect(queueItem.attributes("data-can-wait")).toBe("true");
     });
 
-    it("processing 图片/音频子任务只允许取消，不显示暂停或重启", async () => {
+    it("processing 图片/音频子任务允许暂停、重启和取消", async () => {
       const jobs: TranscodeJob[] = [
         {
           ...createMockJob("job-image-processing", "processing"),
@@ -84,8 +84,8 @@ describe("BatchDetailDialog", () => {
       const queueItems = wrapper.findAll('[data-testid="queue-item-stub"]');
       expect(queueItems).toHaveLength(2);
       for (const item of queueItems) {
-        expect(item.attributes("data-can-wait")).toBe("false");
-        expect(item.attributes("data-can-restart")).toBe("false");
+        expect(item.attributes("data-can-wait")).toBe("true");
+        expect(item.attributes("data-can-restart")).toBe("true");
         expect(item.attributes("data-can-cancel")).toBe("true");
       }
     });

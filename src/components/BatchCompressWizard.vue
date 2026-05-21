@@ -160,7 +160,7 @@ const canStart = computed(() => {
 });
 
 const handleRun = () => {
-  const normalized = normalizeBatchCompressConfig(config.value);
+  const normalized = normalizeBatchCompressConfig(config.value, props.presets);
   config.value = normalized;
   emit("run", normalized);
 };

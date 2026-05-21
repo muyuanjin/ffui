@@ -268,7 +268,7 @@ describe("QueueItem progress and actions", () => {
     expect(wrapper.emitted("restart")?.[0]).toEqual([job.id]);
   });
 
-  it("shows only cancel for processing Batch Compress image/audio children", () => {
+  it("allows wait and restart for processing Batch Compress image/audio children", () => {
     const job = makeJob({
       status: "processing",
       type: "image",
@@ -281,8 +281,8 @@ describe("QueueItem progress and actions", () => {
       global: { plugins: [i18n] },
     });
 
-    expect(wrapper.find("[data-testid='queue-item-wait-button']").exists()).toBe(false);
-    expect(wrapper.find("[data-testid='queue-item-restart-button']").exists()).toBe(false);
+    expect(wrapper.find("[data-testid='queue-item-wait-button']").exists()).toBe(true);
+    expect(wrapper.find("[data-testid='queue-item-restart-button']").exists()).toBe(true);
     expect(wrapper.find("[data-testid='queue-item-cancel-button']").exists()).toBe(true);
   });
 

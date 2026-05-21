@@ -54,3 +54,4 @@ target-*/
 # Local backup scripts (developer-specific)
 backup_windows.cmd
 scripts/backup-project.ps1
+/.codex/

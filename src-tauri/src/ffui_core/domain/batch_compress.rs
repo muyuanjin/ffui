@@ -22,6 +22,25 @@ pub struct BatchCompressSavingCondition {
     pub min_saving_ratio: f64,
     #[serde(rename = "minSavingAbsoluteMB")]
     pub min_saving_absolute_mb: f64,
+    // Job-level media snapshot for restart/recovery when runtime batch metadata is gone.
+    #[serde(
+        rename = "minImageSizeKB",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
+    pub min_image_size_kb: Option<u64>,
+    #[serde(
+        rename = "minAudioSizeKB",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[specta(type = Option<specta_typescript::Number<u64>>)]
+    pub min_audio_size_kb: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_target_format: Option<ImageTargetFormat>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replace_original: Option<bool>,
 }
 
 /// 文件类型筛选配置
@@ -196,6 +215,10 @@ impl From<&BatchCompressConfig> for BatchCompressSavingCondition {
             saving_condition_type: config.saving_condition_type,
             min_saving_ratio: config.min_saving_ratio,
             min_saving_absolute_mb: config.min_saving_absolute_mb,
+            min_image_size_kb: Some(config.min_image_size_kb),
+            min_audio_size_kb: Some(config.min_audio_size_kb),
+            image_target_format: Some(config.image_target_format),
+            replace_original: Some(config.replace_original),
         }
     }
 }
@@ -259,7 +282,7 @@ fn default_image_filter() -> FileTypeFilter {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Type, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageTargetFormat {
     #[default]

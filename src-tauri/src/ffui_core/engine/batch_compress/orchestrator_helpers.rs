@@ -1,15 +1,36 @@
 use std::fs;
 use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
 
-use super::super::state::{
-    BatchCompressBatchStatus, Inner, update_batch_compress_batch_with_inner,
+use super::super::state::{EngineState, Inner, notify_batch_compress_listeners};
+use super::helpers::{make_batch_compress_job, replace_original_output_policy};
+use crate::ffui_core::domain::{
+    AutoCompressProgress, AutoCompressResult, BatchCompressConfig, JobType, TranscodeJob,
 };
-use super::super::worker_utils::{append_job_log_line, mark_batch_compress_child_processed};
-use super::helpers::{current_time_millis, make_batch_compress_job, notify_queue_listeners};
-use crate::ffui_core::domain::{AutoCompressResult, BatchCompressConfig, JobStatus, JobType};
-use crate::sync_ext::{CondvarExt, MutexExt};
+use crate::sync_ext::MutexExt;
+
+pub(super) fn insert_batch_child_after_siblings(
+    state: &mut EngineState,
+    batch_id: &str,
+    job_id: String,
+    job: TranscodeJob,
+) {
+    state.jobs.insert(job_id.clone(), job);
+    let insert_at = state
+        .queue
+        .iter()
+        .enumerate()
+        .filter_map(|(index, existing_id)| {
+            state
+                .jobs
+                .get(existing_id)
+                .is_some_and(|existing| existing.batch_id.as_deref() == Some(batch_id))
+                .then_some(index + 1)
+        })
+        .next_back()
+        .unwrap_or(state.queue.len());
+
+    state.queue.insert(insert_at, job_id);
+}
 
 pub(super) fn insert_image_stub_job(
     inner: &Inner,
@@ -41,14 +62,13 @@ pub(super) fn insert_image_stub_job(
         original_size_mb,
         original_codec,
         input_path: path.to_string_lossy().into_owned(),
-        output_policy: config.output_policy.clone(),
+        output_policy: replace_original_output_policy(config),
         batch_id: batch_id.to_string(),
         saving_condition: config.into(),
         start_time: None,
     });
 
-    let mut state = inner.state.lock_unpoisoned();
-    state.jobs.insert(job_id.to_string(), job);
+    insert_stub_job_into_queue(inner, job_id, batch_id, job);
 }
 
 pub(super) fn insert_audio_stub_job(
@@ -80,97 +100,39 @@ pub(super) fn insert_audio_stub_job(
         original_size_mb,
         original_codec: ext,
         input_path: path.to_string_lossy().into_owned(),
-        output_policy: config.output_policy.clone(),
+        output_policy: replace_original_output_policy(config),
         batch_id: batch_id.to_string(),
         saving_condition: config.into(),
         start_time: None,
     });
 
-    let mut state = inner.state.lock_unpoisoned();
-    state.jobs.insert(job_id.to_string(), job);
+    insert_stub_job_into_queue(inner, job_id, batch_id, job);
 }
 
-pub(super) enum MediaWorkerJobState {
-    Ready,
-    Terminal,
-    Missing,
-}
-
-pub(super) fn wait_until_media_job_ready(inner: &Inner, job_id: &str) -> MediaWorkerJobState {
-    let mut state = inner.state.lock_unpoisoned();
-    loop {
-        let Some(job) = state.jobs.get_mut(job_id) else {
-            return MediaWorkerJobState::Missing;
-        };
-
-        match job.status {
-            JobStatus::Queued => {
-                job.status = JobStatus::Processing;
-                job.start_time.get_or_insert_with(current_time_millis);
-                return MediaWorkerJobState::Ready;
-            }
-            JobStatus::Paused => {
-                let (next, _) = inner
-                    .cv
-                    .wait_timeout_unpoisoned(state, Duration::from_millis(100));
-                state = next;
-            }
-            JobStatus::Completed
-            | JobStatus::Skipped
-            | JobStatus::Failed
-            | JobStatus::Cancelled => {
-                return MediaWorkerJobState::Terminal;
-            }
-            JobStatus::Processing => return MediaWorkerJobState::Terminal,
-        }
-    }
-}
-
-pub(super) fn register_media_worker_jobs(inner: &Inner, job_ids: &[String]) {
-    let mut state = inner.state.lock_unpoisoned();
-    state
-        .active_batch_compress_media_jobs
-        .extend(job_ids.iter().cloned());
-}
-
-pub(super) fn release_media_worker_job(inner: &Inner, job_id: &str) {
-    let mut state = inner.state.lock_unpoisoned();
-    state.active_batch_compress_media_jobs.remove(job_id);
-}
-
-pub(super) fn release_media_worker_jobs(inner: &Inner, job_ids: &[String]) {
-    let mut state = inner.state.lock_unpoisoned();
-    for job_id in job_ids {
-        state.active_batch_compress_media_jobs.remove(job_id);
-    }
-}
-
-pub(super) fn handle_media_worker_spawn_failure(
-    inner: &Arc<Inner>,
-    batch_id: &str,
-    pending_job_ids: Vec<String>,
-    err: &std::io::Error,
-) {
-    release_media_worker_jobs(inner, &pending_job_ids);
-
-    update_batch_compress_batch_with_inner(inner, batch_id, true, |batch| {
-        batch.status = BatchCompressBatchStatus::Failed;
-        batch.completed_at_ms = Some(current_time_millis());
-    });
-
-    for job_id in pending_job_ids {
+fn insert_stub_job_into_queue(inner: &Inner, job_id: &str, batch_id: &str, job: TranscodeJob) {
+    let progress = {
         let mut state = inner.state.lock_unpoisoned();
-        if let Some(job) = state.jobs.get_mut(&job_id) {
-            job.status = JobStatus::Failed;
-            job.progress = 100.0;
-            job.end_time = Some(current_time_millis());
-            let reason = format!("Batch Compress worker thread could not be spawned: {err}");
-            job.failure_reason = Some(reason.clone());
-            append_job_log_line(job, reason);
-        }
-        drop(state);
-        notify_queue_listeners(inner);
-        mark_batch_compress_child_processed(inner, &job_id);
+        let job_id = job_id.to_string();
+        let progress = {
+            state.batch_compress_batches.get_mut(batch_id).map(|batch| {
+                batch.total_candidates = batch.total_candidates.saturating_add(1);
+                batch.child_job_ids.push(job_id.clone());
+                AutoCompressProgress {
+                    root_path: batch.root_path.clone(),
+                    total_files_scanned: batch.total_files_scanned,
+                    total_candidates: batch.total_candidates,
+                    total_processed: batch.total_processed,
+                    batch_id: batch.batch_id.clone(),
+                    completed_at_ms: batch.completed_at_ms.unwrap_or(0),
+                }
+            })
+        };
+        insert_batch_child_after_siblings(&mut state, batch_id, job_id, job);
+        progress
+    };
+
+    if let Some(progress) = progress {
+        notify_batch_compress_listeners(inner, &progress);
     }
 }
 
@@ -201,4 +163,143 @@ pub(crate) fn batch_compress_batch_summary(
         started_at_ms: batch.started_at_ms,
         completed_at_ms: batch.completed_at_ms.unwrap_or(batch.started_at_ms),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::ffui_core::domain::{BatchCompressConfig, JobStatus};
+    use crate::ffui_core::engine::state::{BatchCompressBatch, BatchCompressBatchStatus, Inner};
+    use crate::ffui_core::engine::worker::next_job_for_worker_locked;
+    use crate::ffui_core::engine::worker_utils::{
+        active_input_key, mark_batch_compress_child_processed,
+    };
+    use crate::ffui_core::settings::AppSettings;
+
+    #[derive(Clone, Copy)]
+    enum StubKind {
+        Image,
+        Audio,
+    }
+
+    #[test]
+    fn media_stub_registration_is_visible_before_worker_selection() {
+        assert_media_stub_registration_is_visible_before_worker_selection(StubKind::Image);
+        assert_media_stub_registration_is_visible_before_worker_selection(StubKind::Audio);
+    }
+
+    fn assert_media_stub_registration_is_visible_before_worker_selection(kind: StubKind) {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let (file_name, batch_id, job_id) = match kind {
+            StubKind::Image => (
+                "sample.png",
+                "batch-image-stub-registration",
+                "job-image-stub-registration",
+            ),
+            StubKind::Audio => (
+                "sample.mp3",
+                "batch-audio-stub-registration",
+                "job-audio-stub-registration",
+            ),
+        };
+        let input = dir.path().join(file_name);
+        fs::write(&input, [0u8; 16]).expect("write media stub input");
+
+        let inner = Arc::new(Inner::new(Vec::new(), AppSettings::default()));
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            state.batch_compress_batches.insert(
+                batch_id.to_string(),
+                BatchCompressBatch::new(
+                    batch_id.to_string(),
+                    dir.path().to_string_lossy().into_owned(),
+                    1,
+                ),
+            );
+        }
+
+        match kind {
+            StubKind::Image => {
+                insert_image_stub_job(
+                    &inner,
+                    job_id,
+                    &input,
+                    &BatchCompressConfig::default(),
+                    batch_id,
+                );
+            }
+            StubKind::Audio => {
+                insert_audio_stub_job(
+                    &inner,
+                    job_id,
+                    &input,
+                    &BatchCompressConfig::default(),
+                    batch_id,
+                );
+            }
+        }
+
+        {
+            let state = inner.state.lock_unpoisoned();
+            let batch = state
+                .batch_compress_batches
+                .get(batch_id)
+                .expect("batch should exist");
+            assert_eq!(batch.total_candidates, 1);
+            assert_eq!(batch.child_job_ids, vec![job_id.to_string()]);
+            assert_eq!(batch.status, BatchCompressBatchStatus::Scanning);
+            assert!(
+                state.queue.iter().any(|queued| queued == job_id),
+                "job must be queued after batch metadata is registered"
+            );
+        }
+
+        let picked_while_scanning = {
+            let mut state = inner.state.lock_unpoisoned();
+            next_job_for_worker_locked(&mut state)
+        };
+        assert_eq!(
+            picked_while_scanning, None,
+            "stub should not be selectable until the batch scan has finished"
+        );
+
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            let batch = state
+                .batch_compress_batches
+                .get_mut(batch_id)
+                .expect("batch should exist");
+            assert_eq!(batch.status, BatchCompressBatchStatus::Scanning);
+            batch.status = BatchCompressBatchStatus::Running;
+        }
+
+        let picked_after_scan = {
+            let mut state = inner.state.lock_unpoisoned();
+            next_job_for_worker_locked(&mut state).expect("stub should be selectable after scan")
+        };
+        assert_eq!(picked_after_scan, job_id);
+
+        {
+            let mut state = inner.state.lock_unpoisoned();
+            let input_key = {
+                let job = state.jobs.get_mut(job_id).expect("picked job should exist");
+                job.status = JobStatus::Completed;
+                active_input_key(job).to_string()
+            };
+            state.active_jobs.remove(job_id);
+            state.active_inputs.remove(&input_key);
+        }
+        mark_batch_compress_child_processed(&inner, job_id);
+
+        let state = inner.state.lock_unpoisoned();
+        let batch = state
+            .batch_compress_batches
+            .get(batch_id)
+            .expect("batch should remain available");
+        assert_eq!(batch.total_candidates, 1);
+        assert_eq!(batch.total_processed, 1);
+        assert_eq!(batch.status, BatchCompressBatchStatus::Completed);
+    }
 }

@@ -7,9 +7,9 @@ use super::super::ffmpeg_args::format_command_for_log;
 use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    SavingConditionConfig, current_time_millis, mark_job_cancelled_from_media_worker,
-    record_tool_download, run_killable_command_capture, saving_condition_allows_output,
-    saving_condition_skip_reason,
+    MediaCommandStopReason, SavingConditionConfig, current_time_millis,
+    mark_job_cancelled_from_media_worker, mark_job_paused_from_media_worker, record_tool_download,
+    run_killable_command_capture, saving_condition_allows_output, saving_condition_skip_reason,
 };
 use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
@@ -209,8 +209,18 @@ pub(super) fn encode_image_to_avif(
             );
 
             let last_error = match output {
-                Ok(output) if output.cancelled => {
-                    mark_job_cancelled_from_media_worker(job, tmp_output);
+                Ok(output) if output.stop_reason.is_some() => {
+                    match output
+                        .stop_reason
+                        .expect("stop reason was checked as present")
+                    {
+                        MediaCommandStopReason::CancelRequested => {
+                            mark_job_cancelled_from_media_worker(job, tmp_output);
+                        }
+                        MediaCommandStopReason::WaitRequested => {
+                            mark_job_paused_from_media_worker(job, tmp_output);
+                        }
+                    }
                     return Ok(());
                 }
                 Ok(output) if output.status.success() => {
@@ -407,8 +417,15 @@ fn run_ffmpeg_image_encode(spec: FfmpegImageEncodeSpec<'_>) -> Result<()> {
         ),
     )?;
 
-    if output.cancelled {
-        mark_job_cancelled_from_media_worker(job, tmp_output);
+    if let Some(stop_reason) = output.stop_reason {
+        match stop_reason {
+            MediaCommandStopReason::CancelRequested => {
+                mark_job_cancelled_from_media_worker(job, tmp_output);
+            }
+            MediaCommandStopReason::WaitRequested => {
+                mark_job_paused_from_media_worker(job, tmp_output);
+            }
+        }
         return Ok(());
     }
 

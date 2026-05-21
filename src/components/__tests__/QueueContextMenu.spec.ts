@@ -73,7 +73,7 @@ describe("QueueContextMenu", () => {
     expect(restartInDisplay.attributes("aria-disabled")).toBeUndefined();
   });
 
-  it("disables wait and restart for processing Batch Compress image children", async () => {
+  it("allows wait and restart for processing Batch Compress image children", async () => {
     const wrapper = mount(QueueContextMenu, {
       props: {
         visible: true,
@@ -89,8 +89,8 @@ describe("QueueContextMenu", () => {
       global: { plugins: [i18n] },
     });
 
-    expect(wrapper.get("[data-testid='queue-context-menu-wait']").attributes("aria-disabled")).toBe("true");
-    expect(wrapper.get("[data-testid='queue-context-menu-restart']").attributes("aria-disabled")).toBe("true");
+    expect(wrapper.get("[data-testid='queue-context-menu-wait']").attributes("aria-disabled")).toBeUndefined();
+    expect(wrapper.get("[data-testid='queue-context-menu-restart']").attributes("aria-disabled")).toBeUndefined();
     expect(wrapper.get("[data-testid='queue-context-menu-cancel']").attributes("aria-disabled")).toBeUndefined();
   });
 

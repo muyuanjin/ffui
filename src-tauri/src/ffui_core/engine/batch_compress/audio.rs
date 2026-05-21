@@ -8,11 +8,11 @@ use super::super::output_policy_paths::plan_output_path_with_extension;
 use super::super::state::{Inner, register_known_batch_compress_output_with_inner};
 use super::super::worker_utils::append_job_log_line;
 use super::helpers::{
-    SavingConditionConfig, capture_input_times_if_needed, current_time_millis,
-    make_batch_compress_job, mark_job_cancelled_from_media_worker,
-    mark_job_failed_from_ffmpeg_output, mark_job_skipped_by_saving_condition, next_job_id,
-    record_tool_download, replace_original_output_policy, run_killable_command_capture,
-    saving_condition_allows_output,
+    MediaCommandStopReason, SavingConditionConfig, capture_input_times_if_needed,
+    current_time_millis, make_batch_compress_job, mark_job_cancelled_from_media_worker,
+    mark_job_failed_from_ffmpeg_output, mark_job_paused_from_media_worker,
+    mark_job_skipped_by_saving_condition, next_job_id, record_tool_download,
+    replace_original_output_policy, run_killable_command_capture, saving_condition_allows_output,
 };
 use super::replace_original::finalize_replace_original_output;
 use crate::ffui_core::domain::{
@@ -80,6 +80,11 @@ pub(crate) fn handle_audio_file_with_id(
     let audio_preset_id = config.audio_preset_id.clone().unwrap_or_default();
 
     let preset = presets.iter().find(|p| p.id == audio_preset_id).cloned();
+    let resolved_audio_preset_id = if audio_preset_id.is_empty() || preset.is_some() {
+        audio_preset_id.clone()
+    } else {
+        String::new()
+    };
 
     let preserve_times_policy = config.output_policy.preserve_file_times.clone();
     let input_times = capture_input_times_if_needed(path, &preserve_times_policy);
@@ -89,9 +94,7 @@ pub(crate) fn handle_audio_file_with_id(
         job_id: resolved_job_id,
         filename,
         job_type: JobType::Audio,
-        // 对于找不到匹配预设的情况，仍然记录 audio_preset_id（可能为空字符串），
-        // 以便前端在详情中展示“默认音频压缩”等信息。
-        preset_id: audio_preset_id,
+        preset_id: resolved_audio_preset_id,
         original_size_mb,
         original_codec: ext.clone(),
         input_path: path.to_string_lossy().into_owned(),
@@ -100,6 +103,14 @@ pub(crate) fn handle_audio_file_with_id(
         saving_condition: config.into(),
         start_time: None,
     });
+    if !audio_preset_id.is_empty() && preset.is_none() {
+        append_job_log_line(
+            &mut job,
+            format!(
+                "Audio preset '{audio_preset_id}' was not found; falling back to default audio compression"
+            ),
+        );
+    }
 
     // 按最小体积阈值预过滤明显不值得压缩的文件。
     if original_size_bytes < config.min_audio_size_kb.saturating_mul(1024) {
@@ -310,8 +321,15 @@ pub(crate) fn handle_audio_file_with_id(
         &args,
         format!("failed to run ffmpeg on audio {}", path.display()),
     )?;
-    if output.cancelled {
-        mark_job_cancelled_from_media_worker(&mut job, &tmp_output);
+    if let Some(stop_reason) = output.stop_reason {
+        match stop_reason {
+            MediaCommandStopReason::CancelRequested => {
+                mark_job_cancelled_from_media_worker(&mut job, &tmp_output);
+            }
+            MediaCommandStopReason::WaitRequested => {
+                mark_job_paused_from_media_worker(&mut job, &tmp_output);
+            }
+        }
         return Ok(job);
     }
     if !output.status.success() {

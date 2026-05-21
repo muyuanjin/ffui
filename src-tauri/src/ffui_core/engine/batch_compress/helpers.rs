@@ -249,6 +249,18 @@ pub(crate) fn mark_job_cancelled_from_media_worker(job: &mut TranscodeJob, tmp_o
     append_job_log_line(job, "Cancelled while processing Batch Compress media child");
 }
 
+pub(crate) fn mark_job_paused_from_media_worker(job: &mut TranscodeJob, tmp_output: &Path) {
+    drop(fs::remove_file(tmp_output));
+    job.status = JobStatus::Paused;
+    job.progress = 0.0;
+    job.end_time = None;
+    job.wait_metadata = None;
+    append_job_log_line(
+        job,
+        "Paused while processing Batch Compress media child; resume will re-run from 0%",
+    );
+}
+
 pub(crate) fn mark_job_skipped_by_saving_condition(
     job: &mut TranscodeJob,
     tmp_output: &Path,
@@ -281,12 +293,24 @@ pub(crate) struct FinalizeTmpOutputSpec<'a> {
 pub(crate) struct KillableCommandOutput {
     pub status: ExitStatus,
     pub stderr: Vec<u8>,
-    pub cancelled: bool,
+    pub stop_reason: Option<MediaCommandStopReason>,
 }
 
-fn is_cancel_requested(inner: &Inner, job_id: &str) -> bool {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MediaCommandStopReason {
+    CancelRequested,
+    WaitRequested,
+}
+
+fn requested_stop_reason(inner: &Inner, job_id: &str) -> Option<MediaCommandStopReason> {
     let state = inner.state.lock_unpoisoned();
-    state.cancelled_jobs.contains(job_id)
+    if state.cancelled_jobs.contains(job_id) {
+        Some(MediaCommandStopReason::CancelRequested)
+    } else if state.wait_requests.contains(job_id) {
+        Some(MediaCommandStopReason::WaitRequested)
+    } else {
+        None
+    }
 }
 
 fn read_capture_file(file: &mut fs::File) -> Result<Vec<u8>> {
@@ -302,22 +326,26 @@ pub(super) fn wait_for_killable_command(
     inner: &Inner,
     job_id: &str,
     child: &mut Child,
-) -> Result<(ExitStatus, bool)> {
+) -> Result<(ExitStatus, Option<MediaCommandStopReason>)> {
     loop {
         if let Some(status) = child
             .try_wait()
             .with_context(|| "failed to poll media command status")?
         {
-            return Ok((status, false));
+            return Ok((status, None));
         }
 
-        if is_cancel_requested(inner, job_id) {
+        if let Some(stop_reason) = requested_stop_reason(inner, job_id) {
             let kill_result = child.kill();
             let status = child
                 .wait()
                 .with_context(|| "failed to wait for cancelled media command")?;
-            let cancelled = kill_result.is_ok() && !status.success();
-            return Ok((status, cancelled));
+            let stop_reason = if kill_result.is_ok() && !status.success() {
+                Some(stop_reason)
+            } else {
+                None
+            };
+            return Ok((status, stop_reason));
         }
 
         thread::sleep(Duration::from_millis(100));
@@ -353,7 +381,7 @@ pub(crate) fn run_killable_command_capture(
         .spawn()
         .with_context(|| run_context.clone())?;
 
-    let (status, cancelled) = wait_for_killable_command(inner, job_id, &mut child)?;
+    let (status, stop_reason) = wait_for_killable_command(inner, job_id, &mut child)?;
 
     let _stdout = read_capture_file(&mut stdout_file)?;
     let stderr = read_capture_file(&mut stderr_file)?;
@@ -361,7 +389,7 @@ pub(crate) fn run_killable_command_capture(
     Ok(KillableCommandOutput {
         status,
         stderr,
-        cancelled,
+        stop_reason,
     })
 }
 

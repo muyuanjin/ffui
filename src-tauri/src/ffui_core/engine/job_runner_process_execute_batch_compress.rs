@@ -129,6 +129,10 @@ mod batch_compress_video_savings_tests {
                 batch_id: batch_id.to_string(),
                 root_path: root_path.to_string_lossy().into_owned(),
                 replace_original: false,
+                min_image_size_kb: 0,
+                min_audio_size_kb: 0,
+                image_target_format: Default::default(),
+                output_policy: Default::default(),
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
@@ -307,6 +311,10 @@ mod batch_compress_video_savings_tests {
                 saving_condition_type: SavingConditionType::Ratio,
                 min_saving_ratio: 0.95,
                 min_saving_absolute_mb: 5.0,
+                min_image_size_kb: None,
+                min_audio_size_kb: None,
+                image_target_format: None,
+                replace_original: None,
             });
             state.jobs.insert(job_id.to_string(), job);
         }
