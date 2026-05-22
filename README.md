@@ -19,11 +19,31 @@ FFUI is a friendly desktop app for converting and compressing videos (and audio/
 
 ## Quickstart (using the app)
 
-1. Download the latest release from GitHub Releases and launch FFUI.
+1. Download the latest release from [GitHub Releases](https://github.com/muyuanjin/ffui/releases) and launch FFUI.
 2. On the first launch, the preset setup wizard helps you import hardware-aware starter presets; you can reopen the onboarding flow later from the Presets tab if you want to replace or expand that starter set.
 3. Drag files into the queue, choose a preset, and start.
 
 Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in Settings → External tools.
+
+If you want a quick visual pass before installing, the screenshots below cover the main surfaces of the app.
+
+## Screenshots
+
+![Main window (English)](docs/images/main-en.webp)
+
+![Presets panel (English)](docs/images/preset-en.webp)
+
+![Preset editor (VQ + radar, English)](docs/images/preset-editor-en.webp)
+
+![Compare (wipe mode, English)](docs/images/compare-en.gif)
+
+![Monitor panel (English)](docs/images/monitor-en.webp)
+
+![Settings panel (English)](docs/images/settings-en.webp)
+
+![Preset setup wizard (first launch, English)](docs/images/onboarding-en.webp)
+
+These examples line up with the queue, preset editing, compare, monitor, settings, and onboarding flows described below.
 
 ## Features
 
@@ -35,6 +55,8 @@ Tip: if you don’t have FFmpeg installed, enable auto-download/auto-update in S
 - Media info: inspect a single file and display structured metadata and analysis from the backend.
 - System performance monitor: chart CPU, memory, disk I/O, network I/O, and optional NVIDIA GPU metrics sampled on the Rust side.
 - Settings: configure output rules, UI appearance, preview capture settings, concurrency limits, and more.
+
+For preset evaluation specifically, FFUI also exposes optional quality-prediction and quality-measurement workflows.
 
 ## Preset quality insights (VQ) and VMAF
 
@@ -53,39 +75,6 @@ Data sources used by the optional offline snapshot builder (`scripts/vq-results/
 - `Mendeley Data 10.17632/35735kfjnm.1` (CC BY 4.0): https://data.mendeley.com/datasets/35735kfjnm/1
 
 To build a unified offline snapshot at `public/vq/quality_snapshot.json`, run `pnpm run vq:snapshot:rebuild`.
-
-## Screenshots
-
-![Main window (English)](docs/images/main-en.webp)
-
-![Presets panel (English)](docs/images/preset-en.webp)
-
-![Preset editor (VQ + radar, English)](docs/images/preset-editor-en.webp)
-
-![Compare (wipe mode, English)](docs/images/compare-en.gif)
-
-![Monitor panel (English)](docs/images/monitor-en.webp)
-
-![Settings panel (English)](docs/images/settings-en.webp)
-
-![Preset setup wizard (first launch, English)](docs/images/onboarding-en.webp)
-
-To refresh the UI screenshots after UI changes, run `pnpm run docs:screenshots`.
-If Playwright browsers are not installed on this machine, run `pnpm exec playwright install`.
-
-The script can use your local media folder to populate real filenames and preview thumbnails:
-
-```bash
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
-# Optional: override UI scale & text size for screenshots
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
-# Optional: choose the frame timestamp for thumbnails (default: 00:05:00)
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
-# Optional: choose the frame timestamp used for compare screenshots/GIF (default: --thumb-time)
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
-# Optional: force compare output format (default: gif)
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
-```
 
 ## Technology stack
 
@@ -152,6 +141,33 @@ On platforms where the Tauri CLI is available you can also build the desktop bin
 ```bash
 pnpm run build:exe
 # runs: tauri build --no-bundle
+```
+
+### Refreshing README screenshots
+
+When UI changes affect the README images, regenerate them with:
+
+```bash
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+```
+
+If Playwright browsers are not installed on this machine, run:
+
+```bash
+pnpm exec playwright install
+```
+
+Optional flags:
+
+```bash
+# Override UI scale & text size
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+# Choose the frame timestamp for thumbnails (default: 00:05:00)
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+# Choose the frame timestamp used for compare screenshots/GIF (default: --thumb-time)
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
+# Force compare output format (default: gif)
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
 ```
 
 ### Release assets
@@ -313,11 +329,31 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 
 ## 首次使用
 
-1. 从 GitHub Releases 下载最新版本。
+1. 从 [GitHub Releases](https://github.com/muyuanjin/ffui/releases) 下载最新版本。
 2. 首次启动会弹出“预设引导”，根据你的硬件能力与用途帮你导入一套硬件感知的起始预设；后续也可以在“预设”页重新打开这套引导，用来替换或补充起始预设。
 3. 在队列页添加/拖拽任务，选择预设并开始。
 
 小贴士：如果你没有安装 FFmpeg，可在“设置 → 外部工具”里开启自动下载/自动更新。
+
+如果你想先看界面，再决定是否下载，下面的截图基本覆盖了主要工作流。
+
+## 界面截图
+
+![主界面（中文）](docs/images/main-zh-CN.webp)
+
+![预设面板（中文）](docs/images/preset-zh-CN.webp)
+
+![参数编辑（VQ + 雷达图，中文）](docs/images/preset-editor-zh-CN.webp)
+
+![对比（滑动对比，中文）](docs/images/compare-zh-CN.gif)
+
+![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
+
+![设置面板（中文）](docs/images/settings-zh-CN.webp)
+
+![预设引导（首次启动，中文）](docs/images/onboarding-zh-CN.webp)
+
+这些截图对应下面会提到的队列、预设编辑、对比、性能监控、设置和首次引导等主要界面。
 
 ## 功能概览
 
@@ -329,6 +365,8 @@ FFUI 是一款桌面端的视频转码/压缩工具：把文件拖进任务队�
 - 媒体信息：针对单个文件查看由后端返回的结构化元数据和分析结果。
 - 性能监控：在“性能监控”页中查看 CPU、内存、磁盘 I/O、网络 I/O 以及可选的 NVIDIA GPU 指标。
 - 设置：可配置输出规则、外观设置（字体/缩放）、预览截帧位置、并行任务上限、采样间隔等。
+
+如果你更关心预设的效果判断，FFUI 还提供了可选的质量预测与质量实测能力。
 
 ## 预设质量洞察（VQ）与 VMAF
 
@@ -347,35 +385,6 @@ FFUI 提供两类与“画质”相关的信号：
 - `Mendeley Data 10.17632/35735kfjnm.1`（CC BY 4.0）：https://data.mendeley.com/datasets/35735kfjnm/1
 
 如需在 `public/vq/quality_snapshot.json` 生成统一离线快照，可运行 `pnpm run vq:snapshot:rebuild`。
-
-## 界面截图
-
-![主界面（中文）](docs/images/main-zh-CN.webp)
-
-![预设面板（中文）](docs/images/preset-zh-CN.webp)
-
-![参数编辑（VQ + 雷达图，中文）](docs/images/preset-editor-zh-CN.webp)
-
-![对比（滑动对比，中文）](docs/images/compare-zh-CN.gif)
-
-![性能监控面板（中文）](docs/images/monitor-zh-CN.webp)
-
-![设置面板（中文）](docs/images/settings-zh-CN.webp)
-
-![预设引导（首次启动，中文）](docs/images/onboarding-zh-CN.webp)
-
-修改 UI 后可用 `pnpm run docs:screenshots` 自动重新生成界面截图。
-首次在本机运行该脚本时，如未安装 Playwright 浏览器，请先执行 `pnpm exec playwright install`。
-
-脚本可以读取你的本地影视目录来填充真实文件名，并从视频中截帧生成预览图：
-
-```bash
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
-# 可选：覆盖截图用的界面缩放与字号
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
-# 可选：指定截帧时间点（默认：00:05:00）
-pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
-```
 
 ## 技术栈
 
@@ -438,6 +447,33 @@ cargo build --release
 ```bash
 pnpm run build:exe
 # 实际执行：tauri build --no-bundle
+```
+
+### 更新 README 截图
+
+如果 UI 变动影响到 README 中的截图，可执行：
+
+```bash
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs
+```
+
+如果本机还没安装 Playwright 浏览器，先执行：
+
+```bash
+pnpm exec playwright install
+```
+
+常用可选参数：
+
+```bash
+# 覆盖截图用的界面缩放与字号
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --ui-scale 110 --ui-font-size-px 20
+# 指定截帧时间点（默认：00:05:00）
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --thumb-time 00:03:30
+# 指定对比截图 / GIF 使用的截帧时间点（默认：沿用 --thumb-time）
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-thumb-time 00:04:10
+# 强制指定对比输出格式（默认：gif）
+pnpm run docs:screenshots -- --media-dir "<YOUR_MEDIA_DIR>" --allow-video-thumbs --compare-format webp
 ```
 
 ### Release 产物
