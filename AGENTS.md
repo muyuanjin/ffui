@@ -1,25 +1,3 @@
-<!-- OPENSPEC:START -->
-
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
-
 # Repository Guidelines
 
 ## Project Structure & Module Organization
@@ -90,7 +68,6 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 - Frontend tests are configured via Vitest and live primarily under `src/__tests__`; keep new tests near code when practical (e.g. `src/components/__tests__`).
 - For Rust, add unit tests in the same module and run them with `cargo test` from `src-tauri`.
 - Aim for meaningful coverage around transcoding logic and platform-specific behavior, especially any file or process handling.
-
 
 - RULE: 在本项目内，只要改动影响到队列、任务、拖拽、Tauri 调用或转码（transcoding）逻辑，必须同步补充自动化测试：前端组件/状态测试、Rust 后端单元/集成测试，以及前后端契约测试（至少覆盖关键字段和命令参数）；所有修改在结束任务前必须跑通 `pnpm test`（或等价前端测试命令）和 Rust 测试（WSL/Windows-forwarded Cargo 下用 `cargo test --profile check-all --target-dir target/win -- --test-threads=1` 或由 `pnpm run check:all` 覆盖）；
 - 每次功能完成或提交前必须保证 `pnpm run check:all` 通过。
