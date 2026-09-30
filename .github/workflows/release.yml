@@ -237,6 +237,53 @@ jobs:
           releaseDraft: true
           prerelease: false
 
+      - name: Verify AppImage AppDir (.DirIcon and appdir-lint)
+        if: matrix.platform == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          if [ "${#appimages[@]}" -ne 1 ]; then
+            echo "Expected exactly one AppImage, found ${#appimages[@]}" >&2
+            exit 1
+          fi
+          appimage="${appimages[0]}"
+          echo "Checking ${appimage}"
+
+          rm -rf squashfs-root
+          "${appimage}" --appimage-extract >appimage-extract.log 2>&1 || {
+            cat appimage-extract.log
+            exit 1
+          }
+
+          # An absolute symlink resolves only on the build machine, so appdir-lint.sh
+          # reports the entry as missing once the AppImage is mounted elsewhere.
+          test -e squashfs-root/.DirIcon
+          for entry in squashfs-root/.DirIcon squashfs-root/usr/share/applications/*.desktop; do
+            [ -L "${entry}" ] || continue
+            target="$(readlink "${entry}")"
+            echo "${entry} -> ${target}"
+            case "${target}" in
+              /*)
+                echo "::error::${entry} points outside the AppImage and dangles once mounted"
+                exit 1
+                ;;
+            esac
+          done
+
+          # The same linter AppImageHub runs against the mounted AppImage.
+          curl -fsSLO https://raw.githubusercontent.com/AppImage/AppImages/master/appdir-lint.sh
+          curl -fsSLO https://raw.githubusercontent.com/AppImage/AppImages/master/excludelist
+          packages=()
+          command -v desktop-file-validate >/dev/null || packages+=(desktop-file-utils)
+          command -v mimetype >/dev/null || packages+=(libfile-mimeinfo-perl)
+          if [ "${#packages[@]}" -gt 0 ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq "${packages[@]}"
+          fi
+          bash appdir-lint.sh "${PWD}/squashfs-root"
+
       - name: Prepare Windows portable exe asset
         if: matrix.platform == 'windows-latest'
         shell: bash
