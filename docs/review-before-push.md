@@ -64,7 +64,7 @@ VERDICT: NO FINDINGS
 
 门禁固定为 `pnpm run check:all`（`scripts/review.mjs` 的 `DEFAULT_GATE`），**不接受命令行覆盖**；
 `gate.json` 记录的命令不是该值时，`finalize` 与 `pre-push` 都会拒绝，避免用一个恒为 0 的命令伪造「门禁通过」。
-`gate` 与 `pre-push` 会先运行 `review:selftest`（门禁引擎自身的 7 项不变量）；自检失败直接拒绝。
+`gate` 与 `pre-push` 会先运行 `review:selftest`（门禁引擎自身的不变量，当前 9 项，数量由实现计算）；自检失败直接拒绝。
 
 ## 结论的失效粒度
 

@@ -289,9 +289,12 @@ export function parseLedger(text) {
   let pendingKey = null;
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
-    const idMatch = /^\s*-\s+id:\s*(.*)$/.exec(line);
-    if (idMatch) {
-      current = { id: idMatch[1].trim() };
+    const itemMatch = /^\s*-\s+(.*)$/.exec(line);
+    if (itemMatch) {
+      // 列表项缺少 id 时也保留条目（id 为空），让校验器报「存在缺少 id 的 finding」，
+      // 而不是把整条 finding 静默丢弃、让 unresolved 计数归零。
+      const idMatch = /^\s*-\s+id:\s*(.*)$/.exec(line);
+      current = { id: idMatch ? idMatch[1].trim() : "" };
       findings.push(current);
       pendingKey = null;
       continue;
@@ -448,12 +451,30 @@ function commandFindingsNew(args) {
   note("已创建 " + FINDINGS_PATH);
 }
 
+/** 计划 base 的约束：必须是 HEAD 的祖先，且不得晚于 merge-base(origin/main, HEAD)。 */
+function baseProblem(baseCommit) {
+  if (tryGit(["merge-base", "--is-ancestor", baseCommit, "HEAD"]) === null) {
+    return "记录的 base 不是 HEAD 的祖先：" + short(baseCommit);
+  }
+  const originMain = tryGit(["rev-parse", "--verify", "--quiet", "origin/main^{commit}"]);
+  if (!originMain) return null;
+  const mergeBase = git(["merge-base", originMain, "HEAD"]);
+  if (tryGit(["merge-base", "--is-ancestor", baseCommit, mergeBase]) === null) {
+    return (
+      "base 不能晚于 merge-base(origin/main, HEAD)=" + short(mergeBase) + "：否则 base 会吞掉未审的改动，使覆盖校验空转"
+    );
+  }
+  return null;
+}
+
 function commandPlan(args) {
   const baseIndex = args.indexOf("--base");
   const plan = loadPlan();
   const previous = loadRecordedPlan();
   const baseRef = (baseIndex >= 0 ? args[baseIndex + 1] : null) || (previous && previous.baseCommit) || "HEAD~1";
   const resolvedBase = git(["rev-parse", baseRef + "^{commit}"]);
+  const baseIssue = baseProblem(resolvedBase);
+  if (baseIssue) fail(baseIssue);
   const problems = validatePlanShape(plan, resolvedBase);
   if (problems.length > 0) fail("计划无效：\n  " + problems.join("\n  "));
   return withLock(function () {
@@ -676,6 +697,8 @@ function commandFinalize() {
   const plan = loadPlan();
   const recorded = loadRecordedPlan();
   if (!recorded) fail("计划尚未记录");
+  const recordedBaseIssue = baseProblem(recorded.baseCommit);
+  if (recordedBaseIssue) fail(recordedBaseIssue);
   const planProblems = validatePlanShape(plan, recorded.baseCommit);
   if (planProblems.length > 0) fail("计划无效：\n  " + planProblems.join("\n  "));
   const currentHash = planHash(plan);
@@ -757,6 +780,8 @@ function reviewStateRefusals(commit, tree) {
   if (refusals.length > 0) return refusals;
   if (recorded.planHash !== planHash(plan)) refusals.push("计划内容已改变，proof 失效");
   if (proof.planHash !== planHash(plan)) refusals.push("proof 绑定的计划哈希与当前计划不一致");
+  const recordedBaseIssue = baseProblem(recorded.baseCommit);
+  if (recordedBaseIssue) refusals.push(recordedBaseIssue);
   if (proof.tree !== tree) refusals.push("proof 绑定的树与被推送的树不一致");
   if (gate.tree !== tree) refusals.push("门禁记录的树与被推送的树不一致");
   if (gate.command !== GATE_COMMAND_LABEL) refusals.push("门禁记录的命令不是 " + GATE_COMMAND_LABEL);
