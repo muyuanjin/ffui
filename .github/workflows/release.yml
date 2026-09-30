@@ -112,7 +112,16 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            ffmpeg
+
+      - name: Install FFmpeg (macOS only)
+        if: startsWith(matrix.platform, 'macos-')
+        run: brew install ffmpeg
+
+      - name: Install FFmpeg (Windows only)
+        if: startsWith(matrix.platform, 'windows-')
+        run: choco install ffmpeg -y --no-progress
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
