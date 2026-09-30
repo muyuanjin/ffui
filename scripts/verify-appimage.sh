@@ -147,12 +147,16 @@ i=0
 while [ "$i" -lt 30 ] ; do
   # 候选：WM_CLASS/标题命中（xwininfo 的类名带引号：("ffui" "Ffui")），且不是 1x1/10x10 占位窗口；
   # 再逐个校验窗口确实已映射（IsViewable）——排除『存在但从未显示』的窗口。
-  for wid in $(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -E '"ffui"|"FFUI"' | grep -vE ' 1x1\+| 10x10\+' | awk '{print $1}') ; do
-    if xwininfo -id "$wid" 2>/dev/null | grep -q 'IsViewable' ; then
-      FOUND="$(xwininfo -root -tree 2>/dev/null | grep -- "$wid" | head -n 1)"
-      break
-    fi
-  done
+  # 命中行直接取自本次列举：窗口可能在两次查询之间消失，二次查询既可能空手而归
+  #（set -e 下会中断脚本、连诊断都打不出来），也没有必要。
+  CANDIDATES="$(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -E '"ffui"|"FFUI"' | grep -vE ' 1x1\+| 10x10\+' || true)"
+  while IFS= read -r line ; do
+    [ -n "$line" ] || continue
+    wid="$(printf '%s' "$line" | awk '{print $1}')"
+    if xwininfo -id "$wid" 2>/dev/null | grep -q 'IsViewable' ; then FOUND="$line" ; break ; fi
+  done <<EOF
+$CANDIDATES
+EOF
   if [ -n "$FOUND" ] ; then break ; fi
   i=$((i + 1))
   sleep 1
