@@ -145,10 +145,15 @@ APP_PID="$(cat "$WORK/app.pid" 2>/dev/null || true)"
 FOUND=""
 i=0
 while [ "$i" -lt 30 ] ; do
-  # 只认应用自己的、真正映射出来的窗口：xwininfo 的 WM_CLASS 带引号（("ffui" "Ffui")），
-  # 标题为 FFUI；同时排除 1x1/10x10 这类隐藏的 leader 占位窗口与窗口管理器自己的窗口。
-  WIN="$(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -E '"ffui"|"FFUI"' | grep -vE ' 1x1\+| 10x10\+' | head -n 5 || true)"
-  if [ -n "$WIN" ] ; then FOUND="$WIN"; break ; fi
+  # 候选：WM_CLASS/标题命中（xwininfo 的类名带引号：("ffui" "Ffui")），且不是 1x1/10x10 占位窗口；
+  # 再逐个校验窗口确实已映射（IsViewable）——排除『存在但从未显示』的窗口。
+  for wid in $(xwininfo -root -tree 2>/dev/null | grep -E '^ +0x' | grep -E '"ffui"|"FFUI"' | grep -vE ' 1x1\+| 10x10\+' | awk '{print $1}') ; do
+    if xwininfo -id "$wid" 2>/dev/null | grep -q 'IsViewable' ; then
+      FOUND="$(xwininfo -root -tree 2>/dev/null | grep -- "$wid" | head -n 1)"
+      break
+    fi
+  done
+  if [ -n "$FOUND" ] ; then break ; fi
   i=$((i + 1))
   sleep 1
 done
