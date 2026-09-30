@@ -18,6 +18,7 @@
     "review:status": "node scripts/review.mjs status",
     "review:lane": "node scripts/review.mjs lane",
     "review:gate": "node scripts/review.mjs gate",
+    "review:selftest": "node scripts/review.mjs selftest",
     "review:finalize": "node scripts/review.mjs finalize",
     "vq:snapshot:rebuild": "node scripts/vq-results/build-quality-snapshot.mjs",
     "preview": "vite preview",

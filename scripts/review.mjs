@@ -32,6 +32,19 @@ const GATE_COMMAND_LABEL = DEFAULT_GATE.join(" ");
 export const PROTECTED_LOCAL_BRANCHES = ["caption-collage"];
 const VERDICT_CLEAN = "NO FINDINGS";
 const VERDICT_VALUES = [VERDICT_CLEAN, "FINDINGS", "INCOMPLETE"];
+// 台账里合法的 finding 字段：多行正文中的「词:词」不能被误判成字段。
+const FINDING_FIELDS = [
+  "id",
+  "severity",
+  "status",
+  "dispositionRef",
+  "owner",
+  "condition",
+  "impact",
+  "requiredOutcome",
+  "implementationPlan",
+  "resolutionEvidence",
+];
 
 function git(args) {
   return execFileSync("git", args, { cwd: ROOT, encoding: "utf8" }).trim();
@@ -284,7 +297,7 @@ export function parseLedger(text) {
       continue;
     }
     const fieldMatch = /^\s+([A-Za-z]+):\s*(.*)$/.exec(line);
-    if (fieldMatch && current) {
+    if (fieldMatch && current && FINDING_FIELDS.indexOf(fieldMatch[1]) >= 0) {
       const key = fieldMatch[1];
       const raw = fieldMatch[2];
       if (raw === ">-" || raw === "|" || raw === "") {
