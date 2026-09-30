@@ -300,9 +300,13 @@ jobs:
       - name: Install harness dependencies
         run: |
           sudo apt-get update
+          # GL/EGL 与目录站 workflow 的图形栈保持一致：AppImage 不自带 libEGL/libGL，
+          # 缺了它们应用会以『error while loading shared libraries: libEGL.so.1』直接退出，
+          # 门禁就会把一个本来能在目录站跑起来的产物判成失败。
           sudo apt-get install -y \
             squashfs-tools xvfb icewm x11-utils imagemagick xdotool \
             desktop-file-utils libfile-mimeinfo-perl libfuse2 firejail \
+            libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils \
             tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim \
             tesseract-ocr-ara tesseract-ocr-rus tesseract-ocr-ell
 
