@@ -195,9 +195,10 @@ export function useBackendMock(overrides: Record<string, (payload?: Record<strin
     if (cmd === "expand_manual_job_inputs") {
       const raw = (payload?.paths ?? payload?.inputPaths ?? payload?.input_paths) as unknown;
       if (Array.isArray(raw)) {
-        return Promise.resolve(raw.filter((p) => typeof p === "string" && p.length > 0));
+        const accepted = raw.filter((p) => typeof p === "string" && p.length > 0);
+        return Promise.resolve({ accepted, skipped: raw.length - accepted.length });
       }
-      return Promise.resolve([]);
+      return Promise.resolve({ accepted: [], skipped: 0 });
     }
     return Promise.resolve(defaultBackendResponse(cmd));
   });

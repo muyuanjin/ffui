@@ -4,10 +4,11 @@ const media = {
     "Failed to inspect media file. ffprobe may be unavailable, the path may be invalid, or the file format is not supported. Please verify ffprobe configuration in Software Settings and ensure the file still exists.",
   chooseFile: "Choose media file…",
   inspecting: "Inspecting…",
-  emptyTitle: "Drop or choose a video/image file",
+  emptyTitle: "Drop or choose a video, audio or image file",
   emptyDescription: "Only one media file is shown at a time. Dropping a new file replaces the previous one.",
   typeVideo: "Video",
   typeImage: "Image",
+  typeAudio: "Audio",
   dropTitle: "Drop media file onto the window",
   dropSubtitle: "Release to inspect this media file only in the Media Info panel",
   sections: {

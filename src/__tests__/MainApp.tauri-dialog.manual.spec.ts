@@ -133,7 +133,8 @@ describe("MainApp Tauri manual job flow", () => {
       ],
       expand_manual_job_inputs: (payload) => {
         const paths = (payload?.paths as string[]) ?? [];
-        return paths.filter((p) => p.endsWith(".mp4") || p.endsWith(".mkv"));
+        const accepted = paths.filter((p) => p.endsWith(".mp4") || p.endsWith(".mkv"));
+        return { accepted, skipped: paths.length - accepted.length };
       },
       enqueue_transcode_jobs: () => null,
     });
@@ -174,7 +175,7 @@ describe("MainApp Tauri manual job flow", () => {
           stats: { usageCount: 0, totalInputSizeMB: 0, totalOutputSizeMB: 0, totalTimeSeconds: 0 },
         },
       ],
-      expand_manual_job_inputs: () => ["C:/videos/folder/a.mp4", "C:/videos/folder/b.mkv"],
+      expand_manual_job_inputs: () => ({ accepted: ["C:/videos/folder/a.mp4", "C:/videos/folder/b.mkv"], skipped: 0 }),
       enqueue_transcode_jobs: () => null,
     });
 
@@ -207,7 +208,7 @@ describe("MainApp Tauri manual job flow", () => {
     useBackendMock({
       get_queue_state: () => ({ jobs: getQueueJobs() }),
       get_app_settings: () => defaultAppSettings(),
-      expand_manual_job_inputs: () => ["C:/dropped/a.mp4", "C:/dropped/b.mkv"],
+      expand_manual_job_inputs: () => ({ accepted: ["C:/dropped/a.mp4", "C:/dropped/b.mkv"], skipped: 0 }),
       enqueue_transcode_jobs: (payload) => {
         const filenames = (payload?.filenames as string[]) ?? [];
         const presetId = (payload?.presetId as string) ?? "p1";

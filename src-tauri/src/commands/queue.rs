@@ -78,6 +78,7 @@ mod tests {
             state.jobs.insert(
                 "job-1".to_string(),
                 TranscodeJob {
+                    execution: None,
                     id: "job-1".to_string(),
                     filename: "C:/videos/job-1.mp4".to_string(),
                     job_type: JobType::Video,
@@ -366,4 +367,37 @@ pub async fn measure_job_vmaf(
         .await
         .map_err(|e| format!("failed to join measure_job_vmaf task: {e}"))?
         .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod manual_media_guard_tests {
+    use super::*;
+
+    /// 手动入队只接受视频：音频与图片由 Batch Compress 负责，放行只会在队列里
+    /// 造出一个必然失败的任务。
+    #[test]
+    fn rejects_manual_non_video_jobs() {
+        for job_type in [JobType::Audio, JobType::Image, JobType::Other] {
+            assert!(
+                reject_unsupported_manual_media(job_type, JobSource::Manual).is_err(),
+                "手动入队的非视频任务必须被拒绝"
+            );
+        }
+    }
+
+    #[test]
+    fn allows_manual_video_jobs() {
+        assert!(reject_unsupported_manual_media(JobType::Video, JobSource::Manual).is_ok());
+    }
+
+    /// Batch Compress 的音频/图片子任务不以 Manual 入队，不能被这条限制波及。
+    #[test]
+    fn allows_batch_compress_media_jobs() {
+        for job_type in [JobType::Audio, JobType::Image, JobType::Video] {
+            assert!(
+                reject_unsupported_manual_media(job_type, JobSource::BatchCompress).is_ok(),
+                "Batch Compress 的子任务不应受手动入队限制影响"
+            );
+        }
+    }
 }

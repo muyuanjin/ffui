@@ -182,7 +182,7 @@ jobs:
           npm_version="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('package.json','utf8')).version)")"
           # Rust 侧也必须是同一个版本：tag、装配版本与 crate 版本漂移会让产物的自述版本对不上。
           cargo_version="$(node -e "const fs = require('node:fs'); const m = fs.readFileSync('src-tauri/Cargo.toml', 'utf8').match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
-          lock_version="$(node -e "const fs = require('node:fs'); const rest = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').split('name = \"ffui\"')[1] || ''; const m = rest.match(/version = \"([^\"]+)\"/); console.log(m ? m[1] : '')")"
+          lock_version="$(node -e "const fs = require('node:fs'); const blocks = fs.readFileSync('src-tauri/Cargo.lock', 'utf8').split(/\n\[\[package\]\]\n/); const ffui = blocks.find((b) => /^name = \"ffui\"\n/m.test(b)) || ''; const m = ffui.match(/^version = \"([^\"]+)\"/m); console.log(m ? m[1] : '')")"
 
           if [ "$cargo_version" != "$tauri_version" ] || [ "$lock_version" != "$tauri_version" ] ; then
             echo "Cargo version mismatch: Cargo.toml=$cargo_version, Cargo.lock=$lock_version, tauri.conf.json=$tauri_version" >&2
@@ -279,10 +279,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
+          # 密钥既可能是内容，也可能是文件路径；CLI 对两者用的是不同入口，这里按形态分流。
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] && [ -f "${TAURI_SIGNING_PRIVATE_KEY}" ] ; then
+            export TAURI_SIGNING_PRIVATE_KEY_PATH="$TAURI_SIGNING_PRIVATE_KEY"
+            unset TAURI_SIGNING_PRIVATE_KEY
+          fi
           image="$(node -e 'const a = JSON.parse(process.env.ARTIFACT_PATHS || "[]"); const m = a.filter((p) => p.endsWith(".AppImage")); if (m.length !== 1) { console.error("expected exactly one AppImage in artifactPaths, found " + m.length); process.exit(1); } process.stdout.write(m[0]);')"
           bash scripts/embed-appimage-update-info.sh "$image"
           rm -f "$image.sig"
-          pnpm exec tauri signer sign "$image"
+          pnpm exec tauri signer sign --app-version "${TAG#v}" "$image"
           mkdir -p dist-updater
           gh release download "$TAG" --repo "$REPO" --pattern 'latest.json' --dir dist-updater --clobber
           node scripts/refresh-appimage-signature-in-latest-json.mjs dist-updater/latest.json "$image" "$image.sig"

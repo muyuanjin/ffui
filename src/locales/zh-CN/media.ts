@@ -4,10 +4,11 @@ const media = {
     "分析媒体文件失败，可能是 ffprobe 不可用、路径无效或文件格式不受支持。请在「软件设置」中检查 ffprobe 配置，或确认文件仍然存在且可访问。",
   chooseFile: "选择媒体文件…",
   inspecting: "正在分析…",
-  emptyTitle: "拖拽或选择一个视频 / 图片文件",
+  emptyTitle: "拖拽或选择一个视频 / 音频 / 图片文件",
   emptyDescription: "一次仅显示一个媒体文件，拖入新的文件时会自动替换前一个。",
   typeVideo: "视频",
   typeImage: "图片",
+  typeAudio: "音频",
   dropTitle: "将媒体文件拖拽到窗口中",
   dropSubtitle: "释放鼠标即可只在「媒体信息」页中查看该文件的详细信息",
   sections: {

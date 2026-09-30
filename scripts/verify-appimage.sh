@@ -151,6 +151,27 @@ case "$UPDATE_INFO" in
   *) fail "更新信息格式不认识：$UPDATE_INFO" ;;
 esac
 
+# .zsync 必须描述**这一份**产物：头部 SHA-1 与 Length 对不上时，AppImageUpdate 会拿到与
+# 清单不符的块校验和而静默失效。只断言文件存在不足以发现陈旧清单。
+ZS="$SRC_DIR/$BASENAME.zsync"
+[ -f "$ZS" ] || fail "缺少 $(basename "$ZS")：就地更新还需要 .zsync 清单"
+# 控制文件可能被 gzip 压缩；它同时含 NUL 与块校验和，所以落到文件再读头部——
+# `printf … | grep -q` 在 grep 命中即退出时会让 printf 收 SIGPIPE，pipefail 下整条管道判失败。
+Z_TEXT_FILE="$WORK/zsync.txt"
+if gzip -t "$ZS" >/dev/null 2>&1 ; then gzip -dc "$ZS" >"$Z_TEXT_FILE" 2>/dev/null ; else cp "$ZS" "$Z_TEXT_FILE" ; fi
+# 控制文件在头部之后就是二进制块校验和，grep 会把整个文件判成 binary 而不输出匹配行，
+# 所以必须用 -a 按文本处理。
+grep -a -q "^zsync:" "$Z_TEXT_FILE" || fail "$(basename "$ZS") 不是 zsync 控制文件"
+Z_SHA="$(grep -a -m1 "^SHA-1: " "$Z_TEXT_FILE" | awk '{print $2}')"
+Z_LEN="$(grep -a -m1 "^Length: " "$Z_TEXT_FILE" | awk '{print $2}')"
+[ -n "$Z_SHA" ] || fail "$(basename "$ZS") 缺少 SHA-1 头"
+[ -n "$Z_LEN" ] || fail "$(basename "$ZS") 缺少 Length 头"
+IMG_SHA="$(sha1sum "$IMG" | cut -d" " -f1)"
+IMG_LEN="$(stat -c %s "$IMG")"
+[ "$Z_SHA" = "$IMG_SHA" ] || fail ".zsync 的 SHA-1 与产物不符（清单来自另一份镜像）：zsync=${Z_SHA:0:12} 产物=${IMG_SHA:0:12}"
+[ "$Z_LEN" = "$IMG_LEN" ] || fail ".zsync 的 Length 与产物不符：zsync=$Z_LEN 产物=$IMG_LEN"
+ok ".zsync 与产物一致（SHA-1 ${IMG_SHA:0:12}…，$IMG_LEN 字节）"
+
 # 更新签名必须与**改写后**的字节相符：就地填充 .upd_info 发生在 tauri-action 签名之后，
 # 不重签会让应用内更新在 minisign 校验处静默失效；latest.json 里的 signature 也要同步，
 # 否则客户端拿到的是「签名对得上旧字节」的清单。这两点门禁不查就没有别的信号。

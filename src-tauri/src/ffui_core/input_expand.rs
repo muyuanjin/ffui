@@ -29,10 +29,13 @@ fn push_unique(out: &mut Vec<String>, seen: &mut HashSet<String>, path: &Path) {
     }
 }
 
-fn list_dir_sorted(dir: &Path) -> Vec<PathBuf> {
+/// 读目录并按名称稳定排序；返回 `None` 表示这个目录读不到，调用方要把它计入被跳过，
+/// 否则用户只会看到「拖进来什么都没发生」。
+fn list_dir_sorted(dir: &Path) -> Option<Vec<PathBuf>> {
     let mut entries: Vec<PathBuf> = fs::read_dir(dir)
-        .map(|read_dir| read_dir.filter_map(|e| e.ok().map(|e| e.path())).collect())
-        .unwrap_or_default();
+        .ok()?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .collect();
 
     // Stable order: case-insensitive lexicographic by the final path segment.
     entries.sort_by_cached_key(|p| {
@@ -43,7 +46,7 @@ fn list_dir_sorted(dir: &Path) -> Vec<PathBuf> {
             .to_string();
         (name.to_ascii_lowercase(), name)
     });
-    entries
+    Some(entries)
 }
 
 fn expand_dir(
@@ -53,12 +56,20 @@ fn expand_dir(
     seen: &mut HashSet<String>,
     skipped: &mut usize,
 ) {
-    for path in list_dir_sorted(dir) {
+    let Some(entries) = list_dir_sorted(dir) else {
+        // 目录读不到：它一个输入都没贡献，必须让用户看到原因而不是静默。
+        *skipped += 1;
+        return;
+    };
+    for path in entries {
         let Ok(meta) = fs::symlink_metadata(&path) else {
+            *skipped += 1;
             continue;
         };
         let file_type = meta.file_type();
         if file_type.is_symlink() {
+            // 手动展开只取真实文件；符号链接计为被跳过，否则用户看到的是「什么都没发生」。
+            *skipped += 1;
             continue;
         }
 
@@ -70,6 +81,8 @@ fn expand_dir(
         }
 
         if !file_type.is_file() {
+            // 设备、FIFO、socket 之类：不是队列的输入，但要记账。
+            *skipped += 1;
             continue;
         }
 
@@ -84,7 +97,8 @@ fn expand_dir(
 
 /// Expand a list of user-provided input paths (files and directories) into an
 /// ordered, de-duplicated list of transcodable video file paths plus how many
-/// inputs were skipped (audio, images, other files).
+/// inputs were skipped: audio, images, other files, symlinks, unreadable
+/// directories and paths that no longer exist.
 ///
 /// Ordering rules:
 /// - Input paths are processed in the provided order.
@@ -105,10 +119,13 @@ pub(crate) fn expand_manual_job_inputs(
         }
         let path = PathBuf::from(trimmed);
         let Ok(meta) = fs::symlink_metadata(&path) else {
+            // 路径不存在或读不到：既不能入队，也不该静默。
+            skipped += 1;
             continue;
         };
         let file_type = meta.file_type();
         if file_type.is_symlink() {
+            skipped += 1;
             continue;
         }
 
@@ -219,6 +236,38 @@ mod tests {
         let expanded = expand_manual_job_inputs(&paths, true);
         assert!(expanded.accepted.is_empty());
         assert_eq!(expanded.skipped, 3);
+    }
+
+    #[test]
+    fn counts_symlinks_missing_paths_and_unreadable_directories_as_skipped() {
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path();
+
+        let real = root.join("real.mp4");
+        fs::write(&real, b"yes").expect("write real");
+        let missing = root.join("gone.mp4");
+
+        #[cfg(unix)]
+        let (paths, expected_skipped) = {
+            let link = root.join("link.mp4");
+            std::os::unix::fs::symlink(&real, &link).expect("symlink");
+            (
+                vec![
+                    missing.to_string_lossy().to_string(),
+                    link.to_string_lossy().to_string(),
+                ],
+                2usize,
+            )
+        };
+        #[cfg(not(unix))]
+        let (paths, expected_skipped) = (vec![missing.to_string_lossy().to_string()], 1usize);
+
+        let expanded = expand_manual_job_inputs(&paths, true);
+        assert!(expanded.accepted.is_empty());
+        assert_eq!(
+            expanded.skipped, expected_skipped,
+            "失效路径与符号链接都要记账"
+        );
     }
 
     #[test]

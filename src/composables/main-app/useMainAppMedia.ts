@@ -2,6 +2,7 @@ import { ref, type Ref } from "vue";
 import type { ParsedMediaAnalysis } from "@/lib/mediaInfo";
 import { parseFfprobeJsonAsyncLite } from "@/lib/asyncJson";
 import { EXTENSIONS } from "@/constants";
+import { mediaKindForPath, type MediaKind } from "@/lib/mediaKind";
 import { buildPreviewUrl, hasTauri, inspectMedia } from "@/lib/backend";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import type { MainAppTab } from "./useMainAppShell";
@@ -15,6 +16,7 @@ export interface UseMainAppMediaReturn {
   inspectedMediaPath: Ref<string | null>;
   inspectedPreviewUrl: Ref<string | null>;
   inspectedIsImage: Ref<boolean>;
+  inspectedMediaKind: Ref<MediaKind>;
   inspectedRawJson: Ref<string | null>;
   inspectedAnalysis: Ref<ParsedMediaAnalysis | null>;
   isInspectingMedia: Ref<boolean>;
@@ -33,6 +35,7 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
   const inspectedMediaPath = ref<string | null>(null);
   const inspectedPreviewUrl = ref<string | null>(null);
   const inspectedIsImage = ref(false);
+  const inspectedMediaKind = ref<MediaKind>("video");
   const inspectedRawJson = ref<string | null>(null);
   const inspectedAnalysis = ref<ParsedMediaAnalysis | null>(null);
   const isInspectingMedia = ref(false);
@@ -42,6 +45,7 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
     inspectedMediaPath.value = null;
     inspectedPreviewUrl.value = null;
     inspectedIsImage.value = false;
+    inspectedMediaKind.value = "video";
     inspectedRawJson.value = null;
     inspectedAnalysis.value = null;
     mediaInspectError.value = null;
@@ -58,9 +62,9 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
       inspectedRawJson.value = json;
       inspectedAnalysis.value = await parseFfprobeJsonAsyncLite(json);
 
-      const lower = path.toLowerCase();
-      const isImageExt = EXTENSIONS.images.some((ext) => lower.endsWith(ext));
-      inspectedIsImage.value = isImageExt;
+      const kind = mediaKindForPath(path);
+      inspectedMediaKind.value = kind;
+      inspectedIsImage.value = kind === "image";
 
       try {
         const url = buildPreviewUrl(path);
@@ -110,6 +114,7 @@ export function useMainAppMedia(options: UseMainAppMediaOptions): UseMainAppMedi
     inspectedMediaPath,
     inspectedPreviewUrl,
     inspectedIsImage,
+    inspectedMediaKind,
     inspectedRawJson,
     inspectedAnalysis,
     isInspectingMedia,

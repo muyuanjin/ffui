@@ -32,7 +32,7 @@ vi.mock("@/lib/backend", async () => {
   const actual = await vi.importActual<typeof import("@/lib/backend")>("@/lib/backend");
   const enqueueTranscodeJob = vi.fn(async () => ({}) as any);
   const enqueueTranscodeJobs = vi.fn(async () => [] as any);
-  const expandManualJobInputs = vi.fn(async (paths: string[]) => paths);
+  const expandManualJobInputs = vi.fn(async (paths: string[]) => ({ accepted: paths, skipped: 0 }));
 
   return {
     ...actual,

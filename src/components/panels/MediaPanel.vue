@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ParsedMediaAnalysis, MediaFileInfo } from "@/lib/mediaInfo";
+import { mediaTypeLabelKey, type MediaKind } from "@/lib/mediaKind";
 import type { HighlightToken } from "@/lib/highlightTokens";
 import FallbackMediaPreview from "@/components/media/FallbackMediaPreview.vue";
 import { hasTauri } from "@/lib/backend";
@@ -22,6 +23,7 @@ const props = defineProps<{
   inspectedPath: string | null;
   previewUrl: string | null;
   isImage: boolean;
+  mediaKind?: MediaKind;
   analysis: ParsedMediaAnalysis | null;
   rawJson: string | null;
 }>();
@@ -50,7 +52,8 @@ const fileName = computed(() => {
 
 const humanType = computed(() => {
   if (!hasMedia.value) return "-";
-  return props.isImage ? t("media.typeImage") : t("media.typeVideo");
+  const kind = props.mediaKind ?? (props.isImage ? "image" : "video");
+  return t(mediaTypeLabelKey(kind));
 });
 
 const summaryFields = computed(() => {

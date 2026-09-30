@@ -10,6 +10,7 @@ export function useMainMediaTabOrchestrator() {
     inspectedPath: computed(() => media.inspectedMediaPath.value),
     previewUrl: computed(() => media.inspectedPreviewUrl.value),
     isImage: computed(() => media.inspectedIsImage.value),
+    mediaKind: computed(() => media.inspectedMediaKind.value),
     analysis: computed(() => media.inspectedAnalysis.value),
     rawJson: computed(() => media.inspectedRawJson.value),
   });
