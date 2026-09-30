@@ -307,8 +307,26 @@ jobs:
             squashfs-tools xvfb icewm x11-utils imagemagick xdotool \
             desktop-file-utils libfile-mimeinfo-perl libfuse2 firejail \
             libegl1 libgl1 libgles2 libglx-mesa0 libgl1-mesa-dri libosmesa6 mesa-utils \
+            xmlstarlet xsel xterm x11-apps netpbm stalonetray fonts-wqy-microhei \
+            libasound2-dev pulseaudio-utils alsa-utils alsa-oss libjack0 libsdl1.2-dev libsdl2-2.0-0 \
             tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim \
             tesseract-ocr-ara tesseract-ocr-rus tesseract-ocr-ell
+          # harness 的导出阶段用得到这两个（与目录站 test.yml 相同）：
+          # 缺 dupervisor 时 worker.sh 会在最后一步以 `dv: command not found` 非零退出。
+          sudo gem install dupervisor -v 1.0.5
+          sudo npm install -g asar
+          # 目录站在跑 harness 前会在同一个 Xvfb 上隐去任务栏，使截图只含应用窗口。
+          mkdir -p "$HOME/.icewm"
+          cat > "$HOME/.icewm/preferences" <<'EOF'
+          ShowTaskBar = 0
+          TaskBarAutoHide = 1
+          TaskBarShowWorkspaces = 0
+          TaskBarShowAllWindows = 0
+          TaskBarShowClock = 0
+          TaskBarShowMailboxStatus = 0
+          TaskBarShowCPUStatus = 0
+          TaskBarShowWindowListMenu = 0
+          EOF
 
       - name: Download the uploaded AppImage from the draft release
         env:

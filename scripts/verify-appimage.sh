@@ -46,6 +46,10 @@ IMG="$1"
 RUN_HARNESS="$(env_or RUN_HARNESS 0)"
 REQUIRE_HARNESS="$(env_or REQUIRE_HARNESS 0)"
 APPIMAGES_COMMIT="$(env_or APPIMAGES_COMMIT 19e30b276ffedf4d3b4b56bc6320f463625a74f8)"
+# 目录站里的条目名（data/<条目名> 的文件名）；harness 用它决定产物文件名与导出目标。
+APP_NAME="$(env_or APP_NAME FFUI)"
+# 条目由本次 PR 新增时目录站按 STRICT 校验命名（新增文件为 true）。
+APP_STRICT="$(env_or APP_STRICT true)"
 HARNESS_COMMIT="$(env_or HARNESS_COMMIT master)"
 WORKER_TIMEOUT="$(env_or WORKER_TIMEOUT 600)"
 if [ "$REQUIRE_HARNESS" = "1" ] && [ "$RUN_HARNESS" != "1" ] ; then
@@ -211,14 +215,17 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
     ( cd "$HDIR" && sudo bash code/prep-dummy-soundcard.sh >/dev/null 2>&1 || true )
     ( cd "$HDIR" && python3 -m http.server 18080 >/dev/null 2>&1 & echo $! >http.pid )
     sleep 2
-    printf 'http://127.0.0.1:18080/%s\n' "$BASENAME" >"$HDIR/FFUI"
-    ( cd "$HDIR" && DISPLAY="$XDISP" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout "$WORKER_TIMEOUT" bash code/worker.sh FFUI >worker.log 2>&1 ) || {
+    # 目录站的调用约定：worker.sh 的参数是「以应用名命名的数据文件路径」，第一行是 URL，
+    # 文件 basename 即应用名；导出阶段同样会读这个文件（缺了它 harness 必以非零退出）。
+    mkdir -p "$HDIR/data"
+    printf 'http://127.0.0.1:18080/%s\n' "$BASENAME" >"$HDIR/data/$APP_NAME"
+    ( cd "$HDIR" && DISPLAY="$XDISP" STRICT="$APP_STRICT" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout "$WORKER_TIMEOUT" bash -e code/worker.sh "$(readlink -f "$HDIR/data/$APP_NAME")" >worker.log 2>&1 ) || {
       echo "--- harness 关键行（已过滤 set -v/-x 源码回显）---" >&2
       grep -nE 'Permission denied|ERROR|FATAL|no window|Could not' "$HDIR/worker.log" | grep -vE 'echo "|^[0-9]+:[[:space:]]*#' | tail -n 15 >&2 || true
-      echo "--- harness 运行区间（自 TRYING TO RUN 起，最多 120 行）---" >&2
-      START_LINE="$(grep -n 'TRYING TO RUN' "$HDIR/worker.log" | head -n 1 | cut -d: -f1 || true)"
-      [ -n "$START_LINE" ] || START_LINE=1
-      tail -n +"$START_LINE" "$HDIR/worker.log" | head -n 120 >&2 || true
+      echo "--- harness 日志尾部（120 行：失败点通常在末尾）---" >&2
+      tail -n 120 "$HDIR/worker.log" >&2 || true
+      echo "--- 是否出现应用测试成功的标记 ---" >&2
+      grep -n 'SUCCESS :-)' "$HDIR/worker.log" >&2 || echo "   （未出现 SUCCESS：失败发生在应用测试阶段）" >&2
       echo "--- 相关进程 ---" >&2
       pgrep -af 'firejail|ffui|WebKit' >&2 || true
       fail "原样 harness 未通过（见 $HDIR/worker.log）"
