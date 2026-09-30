@@ -16,6 +16,8 @@
 # 环境变量：
 #   RUN_HARNESS=1        跑第 4 阶段（默认 0）
 #   REQUIRE_HARNESS=1    本环境无法跑第 4 阶段时必须失败（CI 用）
+#   APP_NAME=<条目名>        目录站里的条目名（data/<条目名>），默认 FFUI；也是 harness 的产物命名。
+#   APP_STRICT=<true|false>  条目由 PR 新增时为 true（目录站对新文件按严格命名校验）。
 #   APPIMAGES_COMMIT=<ref> 阶段 1 取用 appdir-lint.sh/excludelist 的 AppImage/AppImages 提交，
 #                        默认钉在 19e30b276ffedf4d3b4b56bc6320f463625a74f8（写权限作业不应执行上游 master 的内容）
 #   HARNESS_COMMIT=<ref> 第 4 阶段取用的 AppImageHub 版本，默认 master（有意跟随目录站当前行为，
@@ -106,7 +108,7 @@ done
 # 阶段 4 会把这两份文件预置进 harness 的 deps/，使它内部的 fetch-deps.sh 不再去抓 master 版；
 # 该 harness 的其它依赖仍来自它自己的 release 资产与 alpine 稳定分支（有意原样跑目录站脚本）。
 ( cd "$WORK" && curl -fsSL -o appdir-lint.sh "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/appdir-lint.sh" \
-            && curl -fsSL -o excludelist "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/excludelist" )
+            && curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --max-time 300 -o excludelist "https://raw.githubusercontent.com/AppImage/AppImages/$APPIMAGES_COMMIT/excludelist" )
 if ! command -v desktop-file-validate >/dev/null 2>&1 || ! command -v mimetype >/dev/null 2>&1 ; then
   sudo -n apt-get update -qq >/dev/null 2>&1 || true
   sudo -n apt-get install -y -qq desktop-file-utils libfile-mimeinfo-perl >/dev/null 2>&1 || true
@@ -202,7 +204,7 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
   else
     HDIR="$WORK/harness"
     mkdir -p "$HDIR"
-    curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
+    curl -fsSL --connect-timeout 20 --retry 3 --retry-delay 2 --max-time 900 --speed-limit 1024 --speed-time 60 "https://codeload.github.com/AppImage/appimage.github.io/tar.gz/$HARNESS_COMMIT" | tar xz -C "$HDIR" --strip-components=1
     # 预置阶段 1 已下载的 pinned lint 文件：fetch-deps.sh 只在缺失时才下载，
     # 因此阶段 4 的 worker.sh 用的也是钉住的 lint，而不是它自己会抓的 master 版。
     mkdir -p "$HDIR/deps"
@@ -231,12 +233,12 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
     WM_PID=""
     sleep 1
     ( cd "$HDIR" && DISPLAY="$XDISP" STRICT="$APP_STRICT" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout --kill-after=30 "$WORKER_TIMEOUT" bash -e code/worker.sh "$(readlink -f "$HDIR/data/$APP_NAME")" >worker.log 2>&1 ) || {
-      echo "--- harness 关键行（已过滤 set -v/-x 源码回显）---" >&2
-      grep -nE 'Permission denied|ERROR|FATAL|no window|Could not' "$HDIR/worker.log" | grep -vE 'echo "|^[0-9]+:[[:space:]]*#' | tail -n 15 >&2 || true
+      echo "--- harness 关键行（粗筛：会带 set -v 回显，以下方日志尾部为准）---" >&2
+      grep -nE 'Permission denied|ERROR|FATAL|no window|Could not' "$HDIR/worker.log" | grep -vE '^[0-9]+:[[:space:]]*(\+ |[a-zA-Z_]+=|echo |if |elif |fi|for |while |done|\[|kill |printf |export |sudo |#)' | tail -n 15 >&2 || true
       echo "--- harness 日志尾部（120 行：失败点通常在末尾）---" >&2
       tail -n 120 "$HDIR/worker.log" >&2 || true
-      echo "--- 是否出现应用测试成功的标记 ---" >&2
-      grep -n 'SUCCESS :-)' "$HDIR/worker.log" >&2 || echo "   （未出现 SUCCESS：失败发生在应用测试阶段）" >&2
+      echo "--- 是否出现应用测试成功的标记（整行精确匹配，避免命中 set -v 回显）---" >&2
+      if grep -qF -x '* * * SUCCESS :-) * * *' "$HDIR/worker.log" ; then echo "   出现了 SUCCESS：失败发生在应用测试之后的导出阶段" >&2 ; else echo "   未出现 SUCCESS：失败发生在应用测试阶段" >&2 ; fi
       echo "--- 相关进程 ---" >&2
       pgrep -af 'firejail|ffui|WebKit' >&2 || true
       fail "原样 harness 未通过（见 $HDIR/worker.log）"
