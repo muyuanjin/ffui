@@ -1,5 +1,6 @@
 #![allow(clippy::redundant_pub_crate)]
 
+pub(crate) mod background_command;
 mod compare_preview;
 mod config_bundle;
 mod data_root;

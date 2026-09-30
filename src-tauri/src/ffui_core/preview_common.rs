@@ -28,8 +28,7 @@ static FALLBACK_LAST_CLEANUP_AT: Lazy<Mutex<Option<SystemTime>>> = Lazy::new(|| 
 #[cfg(windows)]
 pub(crate) fn configure_background_command(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd.creation_flags(crate::ffui_core::background_command::BACKGROUND_CREATION_FLAGS);
 }
 #[cfg(not(windows))]
 pub(crate) fn configure_background_command(_cmd: &mut Command) {}
