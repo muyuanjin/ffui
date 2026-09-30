@@ -68,12 +68,34 @@ try {
     type: "spki",
   });
 
-  const verified = crypto.verify(null, fs.readFileSync(imagePath), keyObject, box.subarray(10));
+  // 签名盒头两字节是算法前缀：Tauri CLI 2.12 产出 prehashed 的 "ED"，
+  // 即 Ed25519 over BLAKE2b-512(文件)；较早的 "Ed" 是对文件原文签名。
+  // 忽略前缀会让正确产物一律验不过——门禁恒红、发布永远停在草稿。
+  const algorithm = box.subarray(0, 2).toString("latin1");
+  const fileBytes = fs.readFileSync(imagePath);
+  let message = fileBytes;
+  let algorithmName = "Ed (Ed25519 over the raw bytes)";
+  if (algorithm === "ED") {
+    let digest;
+    try {
+      digest = crypto.createHash("blake2b512").update(fileBytes).digest();
+    } catch {
+      console.error("this Node build cannot compute blake2b512, which prehashed signatures need");
+      process.exit(2);
+    }
+    message = digest;
+    algorithmName = "ED (Ed25519 over BLAKE2b-512 of the bytes)";
+  } else if (algorithm !== "Ed") {
+    console.error(`unknown signature algorithm prefix: ${JSON.stringify(algorithm)}`);
+    process.exit(2);
+  }
+
+  const verified = crypto.verify(null, message, keyObject, box.subarray(10));
   if (!verified) {
     console.error("signature does not match the AppImage bytes");
     process.exit(1);
   }
-  console.log("signature matches the AppImage bytes");
+  console.log(`signature matches the AppImage bytes (${algorithmName})`);
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(2);
