@@ -66,13 +66,24 @@ jobs:
           target="$(git rev-parse "${tag}^{commit}")"
           title="FFUI ${tag}"
 
-          if gh release view "$tag" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release edit "$tag" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --draft \
-              --title "$title" \
-              --notes-file "$file" \
-              --target "$target"
+          # 草稿 release 按 tag 解析在跨 run / 手动 dispatch 时会 not found，
+          # 因此统一从 releases 列表（含草稿）按 tag_name 解析出 id 与 draft 状态。
+          meta="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"${tag}\") | (.id|tostring) + \" \" + (.draft|tostring)" | head -n 1)"
+          if [ -n "$meta" ]; then
+            release_id="$(echo "$meta" | cut -d ' ' -f 1)"
+            is_draft="$(echo "$meta" | cut -d ' ' -f 2)"
+            if [ "$is_draft" != "true" ]; then
+              echo "release ${tag} 已经是正式发布，拒绝把它打回草稿；请提升版本后打新 tag。" >&2
+              exit 1
+            fi
+            # 按 id 更新草稿：既避开草稿的 tag 解析问题，也避免把正式发布改回草稿。
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/releases/${release_id}" \
+              -f tag_name="$tag" \
+              -f target_commitish="$target" \
+              -f name="$title" \
+              -F draft=true \
+              -F body=@"$file" >/dev/null
           else
             gh release create "$tag" \
               --repo "${GITHUB_REPOSITORY}" \
@@ -80,10 +91,15 @@ jobs:
               --title "$title" \
               --notes-file "$file" \
               --target "$target"
+            release_id="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq ".[] | select(.tag_name == \"${tag}\") | .id" | head -n 1)"
           fi
 
-          release_id="$(gh release view "$tag" --repo "${GITHUB_REPOSITORY}" --json databaseId -q .databaseId)"
-          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+          if [ -z "${release_id}" ]; then
+            echo "无法解析 release id（tag=${tag}）" >&2
+            exit 1
+          fi
+          echo "release_id=${release_id}" >> "$GITHUB_OUTPUT"
 
   publish-tauri:
     needs: prepare-release
@@ -237,53 +253,6 @@ jobs:
           releaseDraft: true
           prerelease: false
 
-      - name: Verify AppImage AppDir (.DirIcon and appdir-lint)
-        if: matrix.platform == 'ubuntu-22.04'
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
-          if [ "${#appimages[@]}" -ne 1 ]; then
-            echo "Expected exactly one AppImage, found ${#appimages[@]}" >&2
-            exit 1
-          fi
-          appimage="${appimages[0]}"
-          echo "Checking ${appimage}"
-
-          rm -rf squashfs-root
-          "${appimage}" --appimage-extract >appimage-extract.log 2>&1 || {
-            cat appimage-extract.log
-            exit 1
-          }
-
-          # An absolute symlink resolves only on the build machine, so appdir-lint.sh
-          # reports the entry as missing once the AppImage is mounted elsewhere.
-          test -e squashfs-root/.DirIcon
-          for entry in squashfs-root/.DirIcon squashfs-root/*.desktop squashfs-root/usr/share/applications/*.desktop; do
-            [ -L "${entry}" ] || continue
-            target="$(readlink "${entry}")"
-            echo "${entry} -> ${target}"
-            case "${target}" in
-              /*)
-                echo "::error::${entry} points outside the AppImage and dangles once mounted"
-                exit 1
-                ;;
-            esac
-          done
-
-          # The same linter AppImageHub runs against the mounted AppImage.
-          curl -fsSLO https://raw.githubusercontent.com/AppImage/AppImages/master/appdir-lint.sh
-          curl -fsSLO https://raw.githubusercontent.com/AppImage/AppImages/master/excludelist
-          packages=()
-          command -v desktop-file-validate >/dev/null || packages+=(desktop-file-utils)
-          command -v mimetype >/dev/null || packages+=(libfile-mimeinfo-perl)
-          if [ "${#packages[@]}" -gt 0 ]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq "${packages[@]}"
-          fi
-          bash appdir-lint.sh "${PWD}/squashfs-root"
-
       - name: Prepare Windows portable exe asset
         if: matrix.platform == 'windows-latest'
         shell: bash
@@ -307,3 +276,80 @@ jobs:
           tag_name: v${{ steps.tauri.outputs.appVersion }}
           files: dist-portable/FFUI-v${{ steps.tauri.outputs.appVersion }}-windows-x64-portable.exe
           fail_on_unmatched_files: true
+          # 保持草稿：正式发布由 publish-release 在全流程门禁通过后执行
+          draft: true
+
+  # 全流程门禁：对**已上传到草稿 release 的 AppImage** 跑与 AppImageHub 同款的验收
+  # （结构 + 权限面 + 非属主启动 + 该站正在跑的 worker.sh）。任一步失败都不会发布。
+  verify-appimage:
+    name: verify-appimage
+    needs: publish-tauri
+    # 需要 write 才能看到草稿 release：草稿只对有 push 权限者可见，
+    # contents: read 时 gh release download 会对草稿返回 not found（门禁第一步即失败）。
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # squashfs-tools 提供 unsquashfs：权限面与非属主启动都读镜像内存储模式，
+      # 不能用 runtime 的 --appimage-extract（它把所有目录建成 0700）。
+      - name: Install harness dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            squashfs-tools xvfb icewm x11-utils imagemagick xdotool \
+            desktop-file-utils libfile-mimeinfo-perl libfuse2 firejail \
+            tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim \
+            tesseract-ocr-ara tesseract-ocr-rus tesseract-ocr-ell
+
+      - name: Download the uploaded AppImage from the draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern '*.AppImage' \
+            --dir dist
+          # 只接受恰好一个 AppImage：脚本只判 $1，多个产物时静默只测第一个是假通过。
+          count="$(find dist -maxdepth 1 -name '*.AppImage' | wc -l)"
+          if [ "$count" -ne 1 ] ; then
+            echo "expected exactly one AppImage in the draft release, found $count" >&2
+            exit 1
+          fi
+          ls -la dist
+
+      - name: Full-flow acceptance gate
+        env:
+          RUN_HARNESS: "1"
+          REQUIRE_HARNESS: "1"
+          WORKER_TIMEOUT: "600"
+          # 钉到具体提交：本作业持有 contents: write，不应让上游 master 的变化决定它能执行什么；
+          # 需要跟随目录站新版时显式更新此 sha（改完照例走 review + 门禁）。
+          HARNESS_COMMIT: "1cdda47df1df14ac48a25f886154aea8cac49cce"
+          # 同理由：阶段 1 的 appdir-lint.sh/excludelist 也钉住。
+          APPIMAGES_COMMIT: "19e30b276ffedf4d3b4b56bc6320f463625a74f8"
+        run: |
+          set -euo pipefail
+          bash scripts/verify-appimage.sh dist/*.AppImage
+
+  # 门禁通过后才把草稿转为正式发布（AppImageHub 只认非草稿、非预发布的 release）
+  publish-release:
+    name: publish-release
+    needs: verify-appimage
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release edit "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --draft=false
