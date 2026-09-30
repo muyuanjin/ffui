@@ -68,11 +68,13 @@ IMG="$WORK/$BASENAME"
 XVFB_PID=""
 WM_PID=""
 APP_PID=""
+HTTP_PID=""
 cleanup() {
   RC=$?
   set +e
   [ -n "$APP_PID" ] && kill "$APP_PID" 2>/dev/null
   [ -n "$WM_PID" ] && kill "$WM_PID" 2>/dev/null
+  [ -n "$HTTP_PID" ] && kill "$HTTP_PID" 2>/dev/null
   [ -n "$XVFB_PID" ] && kill "$XVFB_PID" 2>/dev/null
   fusermount -u -z "$WORK/rootrun/squashfs-root" 2>/dev/null
   if [ "$RC" -ne 0 ] ; then
@@ -213,13 +215,22 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
     cp -a "$IMG" "$HDIR/$BASENAME"
     # 目录站的工作流会先准备一个 dummy 声卡；缺失不致命，但保持同等条件
     ( cd "$HDIR" && sudo bash code/prep-dummy-soundcard.sh >/dev/null 2>&1 || true )
-    ( cd "$HDIR" && python3 -m http.server 18080 >/dev/null 2>&1 & echo $! >http.pid )
+    # 用 exec 让后台进程本身就是服务进程，pid 直接可用（`cd && cmd &` 会把整串放后台，
+    # `$!` 之外的那次 echo 就会落在调用者的 cwd 里）。
+    ( cd "$HDIR" && exec python3 -m http.server 18080 ) >/dev/null 2>&1 &
+    HTTP_PID=$!
     sleep 2
     # 目录站的调用约定：worker.sh 的参数是「以应用名命名的数据文件路径」，第一行是 URL，
     # 文件 basename 即应用名；导出阶段同样会读这个文件（缺了它 harness 必以非零退出）。
     mkdir -p "$HDIR/data"
     printf 'http://127.0.0.1:18080/%s\n' "$BASENAME" >"$HDIR/data/$APP_NAME"
-    ( cd "$HDIR" && DISPLAY="$XDISP" STRICT="$APP_STRICT" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout "$WORKER_TIMEOUT" bash -e code/worker.sh "$(readlink -f "$HDIR/data/$APP_NAME")" >worker.log 2>&1 ) || {
+    # harness 自己会起 icewm（worker.sh:484），阶段 3 的 WM 必须清掉：它的窗口判据是
+    # `xwininfo | grep -qE '0x.*": ('`，窗口管理器自己的 1x1 窗口就能满足，
+    # 会出现『应用没映射窗口也算通过』的假通过（TaskBar 可见时连截图检查都兜不住）。
+    [ -n "$WM_PID" ] && kill "$WM_PID" 2>/dev/null
+    WM_PID=""
+    sleep 1
+    ( cd "$HDIR" && DISPLAY="$XDISP" STRICT="$APP_STRICT" WORKER_TIMEOUT="$WORKER_TIMEOUT" timeout --kill-after=30 "$WORKER_TIMEOUT" bash -e code/worker.sh "$(readlink -f "$HDIR/data/$APP_NAME")" >worker.log 2>&1 ) || {
       echo "--- harness 关键行（已过滤 set -v/-x 源码回显）---" >&2
       grep -nE 'Permission denied|ERROR|FATAL|no window|Could not' "$HDIR/worker.log" | grep -vE 'echo "|^[0-9]+:[[:space:]]*#' | tail -n 15 >&2 || true
       echo "--- harness 日志尾部（120 行：失败点通常在末尾）---" >&2
@@ -231,7 +242,8 @@ echo "== [4/4] AppImageHub 原样 harness（code/worker.sh）=="
       fail "原样 harness 未通过（见 $HDIR/worker.log）"
     }
     ok "原样 harness：AppImageHub 的 worker.sh 通过"
-    kill "$(cat "$HDIR/http.pid" 2>/dev/null)" 2>/dev/null || true
+    kill "$HTTP_PID" 2>/dev/null || true
+    HTTP_PID=""
   fi
 else
   echo "== [4/4] 跳过原样 harness（RUN_HARNESS=0）=="

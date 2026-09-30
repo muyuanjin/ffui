@@ -356,6 +356,9 @@ jobs:
           HARNESS_COMMIT: "1cdda47df1df14ac48a25f886154aea8cac49cce"
           # 同理由：阶段 1 的 appdir-lint.sh/excludelist 也钉住。
           APPIMAGES_COMMIT: "19e30b276ffedf4d3b4b56bc6320f463625a74f8"
+          # 目录站里的条目名（data/<条目名>）与命名严格度：条目由 PR 新增时，目录站按 STRICT=true 校验。
+          APP_NAME: "FFUI"
+          APP_STRICT: "true"
         run: |
           set -euo pipefail
           bash scripts/verify-appimage.sh dist/*.AppImage
