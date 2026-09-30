@@ -4,10 +4,7 @@ import { getCurrentWindow, type CloseRequestedEvent } from "@tauri-apps/api/wind
 const isTestEnv =
   typeof import.meta !== "undefined" && typeof import.meta.env !== "undefined" && import.meta.env.MODE === "test";
 
-/** 生产环境等待最后一次设置落盘的上限；测试环境用更短超时，避免拖慢用例。 */
-export const PRODUCTION_CLOSE_FLUSH_TIMEOUT_MS = 2_000;
-
-const CLOSE_FLUSH_TIMEOUT_MS = isTestEnv ? 50 : PRODUCTION_CLOSE_FLUSH_TIMEOUT_MS;
+const CLOSE_FLUSH_TIMEOUT_MS = isTestEnv ? 50 : 800;
 
 const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
   let timeoutHandle: number | undefined;
